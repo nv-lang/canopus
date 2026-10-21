@@ -1115,8 +1115,9 @@ The integrator stays free for the owner and does not re-check accepted work:
   record becomes green only on a valid `pass` (the candidate must exist locally and contain the exact base; the task branch not being in it is only a
   warning). `merge` then reads the tip again **under the lock**: moved — the lock is released and `merge` is refused naming both
   tips (a new precheck is needed); the same — the lock is issued on that tip. `unlock {n}` releases a lock you hold for the
-  task. The assigned reviewer can invalidate a bad/old record without taking a lock or changing task lifecycle:
-  `crew_task {action: "invalidate_precheck", n, reason}`. It preserves the previous candidate/verdict/evidence in the task record
+  task. Only the assigned reviewer can invalidate a bad/old record without taking a lock or changing task lifecycle:
+  `crew_task {action: "invalidate_precheck", n, reason}`. The integrator has no override: it may invalidate only when that
+  same session is assigned as reviewer and passes the project's role check (including `reviewer: acceptor`). It preserves the previous candidate/verdict/evidence in the task record
   and history; repeat invalidation is idempotent. A late finish/merge cannot overwrite an invalidated record. The record becomes
   stale on `rework`, `reassign`, `cancel`, `unlock`, invalidation and a new review after a re-submit. The plugin never
   merges, pushes or runs CI: the plugin only reads. A reviewer who already holds the lock for one task cannot take it for
@@ -1125,8 +1126,9 @@ The integrator stays free for the owner and does not re-check accepted work:
   local branch is used;
 
   **Recovery of a legacy or false GREEN.** Do not edit task JSON, shift the target branch, or take/unlock a merge lock to
-  clear an old record. After the owner separately activates this mechanism in the consuming project, its assigned integrator
-  or reviewer calls `crew_task {action: "invalidate_precheck", n, reason: "..."}` on the real card. This records who/when/why
+  clear an old record. After the owner separately activates this mechanism in the consuming project, the assigned reviewer
+  calls `crew_task {action: "invalidate_precheck", n, reason: "..."}` on the real card. That reviewer may be the integrator
+  only when the integrator's own session is assigned and passes the project's role check. This records who/when/why
   and preserves the former candidate, free-text result and evidence in task history, without changing task lifecycle. Then
   start a fresh precheck, rebuild from its named exact base, run CI, and only submit a new protocol-1 verdict after personally
   verifying the cited GitHub run/head SHA. For the known RED carrier card 092, this is the intended recovery path; only that

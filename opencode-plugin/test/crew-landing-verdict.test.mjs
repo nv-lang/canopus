@@ -154,16 +154,39 @@ const ready = async () => {
   cell("legacy/unverified GREEN never opens merge and is replaced by a running check", !H.holder() && /прежнего круга/.test(denied) && T(t.n).precheck.state === "running" && /старая GREEN без проверяемого протокола/.test(H.history(t.n).at(-1) ?? ""), denied + " | " + restarted)
 }
 
-// Only the assigned receiver can invalidate; changing role to a non-acceptor under reviewer:acceptor is not authority.
+// An integrator gets no assignment override, and reviewer:acceptor still requires the acceptor role.
 {
   const { t, ref, pass } = await ready()
   await finish(t, ref, pass)
-  const wrongTask = await call("crew_task", "sesREV2", { action: "invalidate_precheck", n: t.n, reason: "spoof" })
-  const afterWrongTask = T(t.n).precheck.state
+  const unassigned = await call("crew_task", "sesINTEG1", { action: "invalidate_precheck", n: t.n, reason: "spoof" })
+  const executor = await call("crew_task", T(t.n).executor, { action: "invalidate_precheck", n: t.n, reason: "spoof" })
+  const foreign = await call("crew_task", "sesREV2", { action: "invalidate_precheck", n: t.n, reason: "spoof" })
+  const unchanged = T(t.n).precheck.state === "green"
+  const authorized = await call("crew_task", REV, { action: "invalidate_precheck", n: t.n, reason: "assigned reviewer" })
+  const authorizedSuccess = T(t.n).precheck.state === "stale"
+
+  // An integrator explicitly assigned as reviewer passes the worker project gate.
+  const assignedIntegrator = H.reviewing({ reviewer: "sesINTEG1" })
+  await begin(assignedIntegrator, "sesINTEG1")
+  const ref2 = `integrate/t${assignedIntegrator.n}`
+  H.candidate(ref2, { merge: assignedIntegrator.branch })
+  await finish(assignedIntegrator, ref2, H.precheckVerdict(assignedIntegrator, ref2), "sesINTEG1")
+  const assignedAllowed = await call("crew_task", "sesINTEG1", { action: "invalidate_precheck", n: assignedIntegrator.n, reason: "assigned integrator" })
+  const assignedSuccess = T(assignedIntegrator.n).precheck.state === "stale"
+
+  // Under reviewer:acceptor, assignment does not grant the integrator a role override.
   H.settings({ reviewer: "acceptor" })
-  const wrongRole = await call("crew_task", REV, { action: "invalidate_precheck", n: t.n, reason: "spoof" })
+  const acceptorTask = H.reviewing({ reviewer: "sesINTEG1" })
+  await begin(acceptorTask, "sesINTEG1")
+  const ref3 = `integrate/t${acceptorTask.n}`
+  H.candidate(ref3, { merge: acceptorTask.branch })
+  await finish(acceptorTask, ref3, H.precheckVerdict(acceptorTask, ref3), "sesINTEG1")
+  const roleDenied = await call("crew_task", "sesINTEG1", { action: "invalidate_precheck", n: acceptorTask.n, reason: "role spoof" })
+  const acceptorStillGreen = T(acceptorTask.n).precheck.state === "green"
   H.settings({ reviewer: "worker" })
-  cell("wrong reviewer session and wrong role cannot invalidate", /Приёмщик задачи/.test(wrongTask) && /право роли acceptor/.test(wrongRole) && afterWrongTask === "green" && T(t.n).precheck.state === "green", wrongTask + " | " + wrongRole)
+  cell("unassigned integrator, executor, and foreign session cannot invalidate without mutation", /Приёмщик задачи/.test(unassigned) && /Ты исполнитель/.test(executor) && /Приёмщик задачи/.test(foreign) && unchanged, unassigned + " | " + executor + " | " + foreign)
+  cell("assigned reviewer and assigned integrator under worker policy may invalidate", /инвалидирована без merge-lock/.test(authorized) && authorizedSuccess && /инвалидирована без merge-lock/.test(assignedAllowed) && assignedSuccess, authorized + " | " + assignedAllowed)
+  cell("assigned integrator has no reviewer:acceptor role override", /требует роль acceptor/.test(roleDenied) && acceptorStillGreen, roleDenied)
 }
 
 // An invalidation while finish is awaiting the remote tip prevents its late response from overwriting stale state.

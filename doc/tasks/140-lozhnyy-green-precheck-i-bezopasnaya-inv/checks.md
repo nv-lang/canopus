@@ -40,3 +40,11 @@
 - Isolated repeat of `crew-landing-race.test.mjs` — PASS, all rounds; watch ID `1792600200197-rk7wp8`.
 
 Владелец ответил через question tool 2026-10-21 на вопрос «Полный npm test» (текст: «Как поступить с полным `npm test`? Последний полный прогон упал один раз на временном `ENOENT` в `crew-landing-race`; изолированный повтор прошёл. Интегратор просил не запускать лишние дубли.»): **«Не повторять полный набор»**. Полный `npm test` остаётся честно отмечен как FAIL; пороги и тестовую инфраструктуру ради PASS не меняли. Реальную причину ENOENT не установили; нагрузочную флуктуацию не утверждаем. Независимая сдача — для диагностики, не готовность к landing/GREEN; новых полных прогонов, merge, push или accept без отдельного разрешённого решения и доказанного GREEN не будет.
+
+## Узкий rework 1: права invalidate
+
+- `crew-landing-verdict.test.mjs` — PASS после правки: watch ID `1792618760519-dmk845`. Добавлены проверки unassigned integrator, executor и foreign reviewer (отказ без мутации), назначенного integrator при `reviewer: worker` (разрешён) и назначенного integrator при `reviewer: acceptor` без роли acceptor (отказ без override).
+- Owner authorised diagnostic submission: владелец, 2026-10-22, чат оркестратора «проверь сессии opencode, ответь на вопросы по твоей рекомендации»; ответ на вопрос «Диагностическая сдача»: «Сдать диагностически (Recommended)». Полный suite остаётся FAIL; это не разрешение на landing.
+- `crew-landing-letters.test.mjs` — PASS после rework текста role guard/recovery.
+- `sh scripts/guards/run-all.sh` — PASS после rework: 9 guards, 0 failures (watch ID `1792621365695-f90834`).
+- `python scripts/guards/guard-secrets.py --tree` — PASS после rework: 2808 файлов (watch ID `1792621532936-hfwiy4`).
