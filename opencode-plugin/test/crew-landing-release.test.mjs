@@ -17,7 +17,7 @@ const greenLocked = async (more = {}, sid = REV) => {
   await call("crew_task", sid, { action: "precheck", n: t.n })
   git(proj, "fetch", "-q", "origin")
   H.candidate(`integrate/t${t.n}`, { merge: t.branch })
-  await call("crew_task", sid, { action: "precheck", n: t.n, candidate: `integrate/t${t.n}`, result: "CI зелёный" })
+  await call("crew_task", sid, { action: "precheck", n: t.n, candidate: `integrate/t${t.n}`, verdict: H.precheckVerdict(t, `integrate/t${t.n}`) })
   const m = await call("crew_task", sid, { action: "merge", n: t.n })
   return { t, m }
 }
@@ -119,7 +119,7 @@ const release = () => precheck.releaseLandedLock("proj", "main")
   const tip = H.originTip()
   await call("crew_task", REV, { action: "precheck", n: t.n })
   git(proj, "fetch", "-q", "origin")
-  await call("crew_task", REV, { action: "precheck", n: t.n, candidate: tip, result: "CI зелёный" })
+  await call("crew_task", REV, { action: "precheck", n: t.n, candidate: tip, verdict: H.precheckVerdict(t, tip) })
   await call("crew_task", REV, { action: "merge", n: t.n })
   cell("REL-11 candidate equal to the base: it is an ancestor of the tip from the start, yet the lock stays", holder()?.n === t.n && (await release()) === undefined && holder()?.n === t.n, JSON.stringify(holder()))
   clearLock()

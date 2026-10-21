@@ -308,7 +308,7 @@ export function reviewLetter(t: Task, cfg: CrewConfig): string {
       ? `  2) КАЖДЫЙ ШАГ — по очереди, владелец видит ход в окне: crew_task {action: "check", n: ${t.n}, step: "<шаг>"} перед проверкой шага, после — {action: "check", n: ${t.n}, step: "<шаг>", result: "чем подтверждено"};`
       : "",
     pre
-      ? `  ${cfg.acceptance.length ? "3" : "2"}) ПРЕДПРОВЕРКА (merge_precheck: required; замок до CI не брать и merge не вызывать): crew_task {action: "precheck", n: ${t.n}} назовёт вершину ${cfg.targetBranch}; влей её вместе с веткой задачи в интеграционный candidate (например, integrate/t${t.n}), прогони полный CI проекта на этом кандидате и заверши: crew_task {action: "precheck", n: ${t.n}, candidate: "<точная ветка или хеш проверенного кандидата>", result: "<зелёный полный CI>"}. Запиши точный проверенный commit кандидата; если основа сдвинулась — собери и проверь новый кандидат заново, старый не вливай;`
+      ? `  ${cfg.acceptance.length ? "3" : "2"}) ПРЕДПРОВЕРКА (merge_precheck: required; замок до CI не брать и merge не вызывать): crew_task {action: "precheck", n: ${t.n}} назовёт вершину ${cfg.targetBranch}; собери candidate, прогони полный CI и заверши verdict protocol 1 со статусом pass/fail/unknown, exact base_sha/candidate_sha и evidence {run_url, run_id, head_sha, conclusion}. pass ставь только после личной сверки успешного GitHub Actions run с exact candidate SHA; плагин не проверяет удалённый CI. Если основа сдвинулась — пересобери и проверь заново;`
       : "",
     `  ${(cfg.acceptance.length ? 3 : 2) + pre}) нашёл ошибки — crew_task {action: "rework", n: ${t.n}, text: "что исправить"} (вернётся тебе на повторную приёмку);`,
     pre
@@ -367,7 +367,7 @@ export function planMergeLetter(t: Task, cfg: CrewConfig): string {
     "ПОРЯДОК:",
     `  1) crew_task {action: "review", n: ${t.n}}; шаги approval-written и form — check по каждому;`,
     cfg.mergePrecheck === "required"
-      ? `  2) ПРЕДПРОВЕРКА (merge_precheck: required; замок до CI не брать и merge не вызывать): crew_task {action: "precheck", n: ${t.n}} назовёт вершину ${cfg.targetBranch}; влей её вместе с веткой плана в интеграционный candidate, прогони полный CI проекта на нём и заверши: crew_task {action: "precheck", n: ${t.n}, candidate: "<точная ветка или хеш проверенного кандидата>", result: "<зелёный полный CI>"}. Запиши точный commit кандидата; если основа сдвинулась — собери и проверь новый кандидат заново, старый не вливай;`
+      ? `  2) ПРЕДПРОВЕРКА (merge_precheck: required; замок до CI не брать и merge не вызывать): crew_task {action: "precheck", n: ${t.n}} назовёт вершину ${cfg.targetBranch}; собери candidate, прогони полный CI и заверши verdict protocol 1 со статусом pass/fail/unknown, exact base_sha/candidate_sha и evidence {run_url, run_id, head_sha, conclusion}. pass ставь только после личной сверки успешного GitHub Actions run с exact candidate SHA; плагин не проверяет удалённый CI. Если основа сдвинулась — пересобери и проверь заново;`
       : "",
     cfg.mergePrecheck === "required"
       ? `  3) только после зелёного precheck вызови crew_task {action: "merge", n: ${t.n}} (теперь берётся замок); fast-forward влей в ${cfg.targetBranch} именно сохранённый проверенный candidate, не пересобирай и не подменяй его веткой плана, затем push;`

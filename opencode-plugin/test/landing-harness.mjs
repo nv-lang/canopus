@@ -181,6 +181,12 @@ export async function harness(prefix, opts = {}) {
       git(proj, "switch", "-q", cur)
       return git(proj, "rev-parse", name)
     },
+    /** synthetic, local-only CI evidence for precheck tests; never evidence of a real GitHub run */
+    precheckVerdict: (t, ref, status = "pass", runId = "100001") => {
+      const base = H.task(t.n).precheck.base
+      const candidate = git(proj, "rev-parse", `${ref}^{commit}`)
+      return { protocol: 1, status, base_sha: base, candidate_sha: candidate, evidence: { run_url: `https://github.com/unitcraft/crew-harness/actions/runs/${runId}`, run_id: runId, head_sha: candidate, conclusion: status === "pass" ? "success" : "failure" } }
+    },
     /** land a branch in main of the project and push: what the reviewer does after merge (fast-forward to the origin first) */
     land: (branch) => {
       git(proj, "fetch", "-q", "origin")

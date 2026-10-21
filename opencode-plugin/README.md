@@ -1077,7 +1077,14 @@ The integrator stays free for the owner and does not re-check accepted work:
   (`precheck {n}` without a lock, then `merge` on the checked tip, and the key that restores the old order), so reviewers
   move to the new order by themselves. **Do not take or hold the merge lock while building the candidate or waiting for CI.**
   Build the integrated candidate from the reported target tip, include the task changes, and run the full project CI before
-  recording the green precheck. Save the exact candidate commit that CI checked. Only then call `merge`; it acquires the lock
+  recording the precheck. Finish with `crew_task {action: "precheck", n, verdict}` where `verdict` is protocol 1:
+  `{protocol: 1, status: "pass" | "fail" | "unknown", base_sha, candidate_sha, evidence: {run_url, run_id, head_sha, conclusion}}`.
+  SHA values must be full and exact; `candidate_sha` must resolve to the submitted candidate, contain `base_sha`, and match
+  evidence `head_sha`. `pass` also requires GitHub Actions `conclusion: "success"`; the assigned reviewer must open the cited
+  run and verify it is the exact candidate and successful. The plugin checks the protocol, repository objects and bindings;
+  it does not call GitHub or independently verify a CI run. `fail` is stored as negative; `unknown`, missing/unsupported fields,
+  legacy free-text `result`, or mismatched evidence never become green. Old GREEN records without this contract are not trusted
+  by `merge` after upgrade. Save the exact candidate commit that CI checked. Only then call `merge`; it acquires the lock
   for the short landing step. Fast-forward the target branch from that exact checked candidate, not from a rebuilt candidate
   or the task branch alone, then push and call `accept`. If the target tip moved, do not land the old candidate: build and
   check a new one, record a new precheck, and retry. `accept` releases the task's inflight/worker slot when
@@ -1104,15 +1111,26 @@ The integrator stays free for the owner and does not re-check accepted work:
   candidate is in the target tip: a mark that the plan step needs in the same merge must be inside the candidate, not pushed after it. The plugin still merges and pushes nothing. The lock is issued only on the
   tip of the target branch where the candidate was already built and checked. The reviewer calls `precheck {n}` (the plugin
   reads the tip of `origin/<target_branch>` with `git ls-remote`, nothing is fetched or written, and names it), merges that tip
-  into a candidate (for example `integrate/tN`), runs the project's CI on it, then `precheck {n, candidate, result}` — the
-  record becomes green (the candidate must exist locally and contain the tip; the task branch not being in it is only a
+  into a candidate (for example `integrate/tN`), runs the project's CI on it, then submits the explicit protocol-1 verdict — the
+  record becomes green only on a valid `pass` (the candidate must exist locally and contain the exact base; the task branch not being in it is only a
   warning). `merge` then reads the tip again **under the lock**: moved — the lock is released and `merge` is refused naming both
   tips (a new precheck is needed); the same — the lock is issued on that tip. `unlock {n}` releases a lock you hold for the
-  task. The record becomes stale on `rework`, `reassign`, `cancel`, `unlock` and a new review after a re-submit. The plugin never
+  task. The assigned reviewer can invalidate a bad/old record without taking a lock or changing task lifecycle:
+  `crew_task {action: "invalidate_precheck", n, reason}`. It preserves the previous candidate/verdict/evidence in the task record
+  and history; repeat invalidation is idempotent. A late finish/merge cannot overwrite an invalidated record. The record becomes
+  stale on `rework`, `reassign`, `cancel`, `unlock`, invalidation and a new review after a re-submit. The plugin never
   merges, pushes or runs CI: the plugin only reads. A reviewer who already holds the lock for one task cannot take it for
   another. If the tip cannot be read (network, 20 s term, no such branch on `origin`) `merge` is refused with the cause and
   the lock is not issued; a repeat of `merge` by the holder keeps the lock in that case. Without `origin` the tip of the
   local branch is used;
+
+  **Recovery of a legacy or false GREEN.** Do not edit task JSON, shift the target branch, or take/unlock a merge lock to
+  clear an old record. After the owner separately activates this mechanism in the consuming project, its assigned integrator
+  or reviewer calls `crew_task {action: "invalidate_precheck", n, reason: "..."}` on the real card. This records who/when/why
+  and preserves the former candidate, free-text result and evidence in task history, without changing task lifecycle. Then
+  start a fresh precheck, rebuild from its named exact base, run CI, and only submit a new protocol-1 verdict after personally
+  verifying the cited GitHub run/head SHA. For the known RED carrier card 092, this is the intended recovery path; only that
+  project's integrator applies it after activation. No automatic migration is performed.
 - `task_extra_fields` (default empty): up to 8 project fields `{id, label, hint?}`; `crew_spawn` and `crew_task assign`
   take `extra {id: one line up to 300 characters}`, the values go into the executor letter, the reviewer letter (with the path
   of the task record, field `extra`) and `show` under "ДОПОЛНИТЕЛЬНО (поля проекта)". An unknown id is refused naming the

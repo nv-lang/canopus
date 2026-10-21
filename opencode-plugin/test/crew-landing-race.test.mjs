@@ -42,7 +42,8 @@ async function runChildren(jobs) {
 const granted = (r) => /выдан на вершину/.test(r.text)
 const greenAt = (t, sid, tip) => {
   const x = T(t.n)
-  x.precheck = { state: "green", base: tip, at: Date.now() - 2000, by: sid, round: precheck.roundOf(x), candidate: tip, result: "CI зелёный", green_at: Date.now() - 1000 }
+  const run_id = "100001"
+  x.precheck = { state: "green", base: tip, at: Date.now() - 2000, by: sid, round: precheck.roundOf(x), candidate: tip, verdict: { protocol: 1, status: "pass", base_sha: tip, candidate_sha: tip, evidence: { run_url: `https://github.com/unitcraft/crew-harness/actions/runs/${run_id}`, run_id, head_sha: tip, conclusion: "success" } }, green_at: Date.now() - 1000 }
   x.history = []
   tasks.saveTask(x)
 }
@@ -102,7 +103,7 @@ clearLock()
   await call("crew_task", "sesR1", { action: "precheck", n: t.n })
   git(proj, "fetch", "-q", "origin")
   H.candidate(`integrate/t${t.n}`, { merge: t.branch })
-  await call("crew_task", "sesR1", { action: "precheck", n: t.n, candidate: `integrate/t${t.n}`, result: "CI зелёный" })
+  await call("crew_task", "sesR1", { action: "precheck", n: t.n, candidate: `integrate/t${t.n}`, verdict: H.precheckVerdict(t, `integrate/t${t.n}`) })
   const [a] = await runChildren([["sesR1", { action: "merge", n: t.n }]])
   const lockOn = T(t.n).precheck.lock_on
   H.land(`integrate/t${t.n}`)
@@ -112,7 +113,7 @@ clearLock()
   await call("crew_task", "sesR2", { action: "precheck", n: u.n })
   git(proj, "fetch", "-q", "origin")
   H.candidate(`integrate/t${u.n}`, { merge: u.branch })
-  await call("crew_task", "sesR2", { action: "precheck", n: u.n, candidate: `integrate/t${u.n}`, result: "CI зелёный" })
+  await call("crew_task", "sesR2", { action: "precheck", n: u.n, candidate: `integrate/t${u.n}`, verdict: H.precheckVerdict(u, `integrate/t${u.n}`) })
   const [c] = await runChildren([["sesR2", { action: "merge", n: u.n }]])
   H.moveOrigin()
   const [d] = await runChildren([["sesR2", { action: "merge", n: u.n }]])
@@ -143,7 +144,7 @@ clearLock()
     await call("crew_task", sid, { action: "precheck", n: t.n })
     git(proj, "fetch", "-q", "origin")
     H.candidate(`integrate/t${t.n}`, { merge: t.branch })
-    await call("crew_task", sid, { action: "precheck", n: t.n, candidate: `integrate/t${t.n}`, result: "CI зелёный" })
+    await call("crew_task", sid, { action: "precheck", n: t.n, candidate: `integrate/t${t.n}`, verdict: H.precheckVerdict(t, `integrate/t${t.n}`) })
     await call("crew_task", sid, { action: "merge", n: t.n })
     return t
   }

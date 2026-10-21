@@ -1,0 +1,6 @@
+исп 0/0 [2026-10-21 15:47] запуск №1
+исп 0/5 [2026-10-21 17:37] старт — завершить контракт/invalidation, регрессии, docs, gates и signed сдачу
+исп 1/5 [2026-10-21 17:37] brief, pin, контракт и согласованный seam 136 зафиксированы
+исп 2/5 [2026-10-21 18:44] targeted precheck, verdict, schema/help and cycle-gate regressions pass
+исп 3/5 [2026-10-21 19:12] full npm выявил строковую проверку; поправил, targeted letters зелёный
+исп 4/5 [2026-10-21 19:31] flaky race isolated PASS; полные результаты и metrics сохранены, нужен gate

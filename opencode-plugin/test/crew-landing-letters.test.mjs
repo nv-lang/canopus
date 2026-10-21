@@ -17,7 +17,7 @@ const REV = "sesREV1"
   await call("crew_task", REV, { action: "precheck", n: t.n })
   git(proj, "fetch", "-q", "origin")
   H.candidate(`integrate/t${t.n}`, { merge: t.branch })
-  await call("crew_task", REV, { action: "precheck", n: t.n, candidate: `integrate/t${t.n}`, result: "CI зелёный" })
+  await call("crew_task", REV, { action: "precheck", n: t.n, candidate: `integrate/t${t.n}`, verdict: H.precheckVerdict(t, `integrate/t${t.n}`) })
   await call("crew_task", REV, { action: "merge", n: t.n })
   const card = core.allCards().find((c) => c.session === REV)
   card.review = { project: "proj", n: t.n }
@@ -74,9 +74,9 @@ const req = L({ merge_precheck: "required" })
 {
   const o = req.ord
   const at = (re) => o.search(re)
-  const order = [at(/action: "review"/), at(/action: "precheck", n: \d+\}/), at(/candidate: "<точная ветка или хеш проверенного кандидата>"/), at(/action: "merge"/), at(/action: "accept"/), at(/action: "cleanup"/)]
+  const order = [at(/action: "review"/), at(/action: "precheck", n: \d+\}/), at(/verdict protocol 1/), at(/action: "merge"/), at(/action: "accept"/), at(/action: "cleanup"/)]
   cell("AC-31 required: reviewLetter has the precheck step before merge in the order review, precheck, CI, precheck with a candidate, merge, accept, cleanup", order.every((x) => x >= 0) && order.every((x, i) => i === 0 || x > order[i - 1]) && /merge_precheck: required/.test(o), o)
-  cell("AC-31 lock is not held for CI and landing uses the exact checked candidate", /замок до CI не брать/.test(o) && /только после зелёного precheck/.test(o) && /ИМЕННО сохранённый проверенный candidate/.test(o) && /если основа сдвинулась — собери и проверь новый кандидат заново, старый не вливай/.test(o), o)
+  cell("AC-31 lock is not held for CI and landing uses the exact checked candidate", /замок до CI не брать/.test(o) && /только после зелёного precheck/.test(o) && /ИМЕННО сохранённый проверенный candidate/.test(o) && /Если основа сдвинулась — пересобери и проверь заново/.test(o), o)
   cell("AC-31 accept frees the slot before separate cleanup", o.indexOf('action: "accept"') < o.indexOf("отдельно выполни выданные шаги очистки") && /accept освобождает inflight\/worker slot/.test(o) && /action: "cleanup"/.test(o), o)
   const pl = req.plan
   const po = [pl.search(/action: "review"/), pl.search(/action: "precheck"/), pl.search(/action: "merge"/), pl.search(/action: "accept"/)]
@@ -101,7 +101,7 @@ review.releaseMergeLock("proj", REV)
   const mk = (rec, more = {}) => {
     const t = H.reviewing({ title: "показ", ...more })
     const x = H.task(t.n)
-    if (rec) x.precheck = { by: REV, round: 1, at: Date.now() - 600_000, base: tip, ...rec }
+    if (rec) x.precheck = { by: REV, round: 1, at: Date.now() - 600_000, base: tip, ...(rec.state === "green" ? { verdict: { protocol: 1, status: "pass", base_sha: tip, candidate_sha: tip, evidence: { run_url: "https://github.com/unitcraft/crew-harness/actions/runs/100601", run_id: "100601", head_sha: tip, conclusion: "success" } } } : {}), ...rec }
     tasks.saveTask(x)
     return x
   }
@@ -135,14 +135,14 @@ review.releaseMergeLock("proj", REV)
 {
   const d = H.tools.crew_task.description
   const props = H.tools.crew_task.input.properties
-  cell("AC-26 описание: the English description of crew_task names precheck, unlock, merge_precheck, extra; the input has candidate and extra", /precheck \{n\}/.test(d) && /unlock \{n\}/.test(d) && /merge_precheck: required/.test(d) && /extra/.test(d) && !!props.candidate && !!props.extra && props.action.enum.includes("precheck") && props.action.enum.includes("unlock"), d.slice(0, 200))
+  cell("AC-26 description/schema name structured precheck verdict and invalidation", /protocol 1/.test(d) && /invalidate_precheck/.test(d) && !!props.verdict && !!props.reason && !!props.candidate && props.action.enum.includes("invalidate_precheck"), d.slice(0, 200))
   const sd = H.tools.crew_spawn.description
   cell("AC-26 описание crew_spawn: the description of crew_spawn names extra and the flags", /extra \{id/.test(sd) && /accepted_slot: free/.test(sd) && !!H.tools.crew_spawn.input.properties.extra, sd.slice(0, 120))
   const help = core.HELP
-  cell("AC-26 HELP: the section ПРИЁМКА names the precheck, unlock, the lock on the same tip, the three keys", ["ПРЕДПРОВЕРКА ВЛИВАНИЯ", "merge_precheck", "precheck {n}", "unlock {n}", "accepted_slot", "cleanup_limit", "task_extra_fields", "Только после этого merge берёт замок"].every((w) => help.includes(w)), help.slice(0, 80))
+  cell("AC-26 HELP: the section ПРИЁМКА names the precheck, unlock, the lock on the same tip, the three keys", ["ПРЕДПРОВЕРКА ВЛИВАНИЯ", "merge_precheck", "precheck {n}", "unlock {n}", "accepted_slot", "cleanup_limit", "task_extra_fields", "Только после pass и проверки приёмщиком merge берёт замок"].every((w) => help.includes(w)), help.slice(0, 80))
   cell(
     "AC-26 HELP по умолчанию: the help says that the precheck and the free slot are on by default, that merge without a precheck is refused, the order, and the keys that return the old order",
-    ["по умолчанию required", "merge без предпроверки отклоняется", "review → check → precheck → CI без замка → precheck candidate → merge → accept → отдельная cleanup → cleanup", "merge_precheck: off", "accepted_slot: hold"].every((w) => help.includes(w)),
+    ["по умолчанию required", "merge без предпроверки отклоняется", "review → check → precheck → CI без замка → precheck verdict → merge → accept → cleanup", "protocol: 1", "invalidate_precheck", "merge_precheck: off", "accepted_slot: hold"].every((w) => help.includes(w)),
     help.slice(help.indexOf("ПРЕДПРОВЕРКА ВЛИВАНИЯ"), help.indexOf("ПРЕДПРОВЕРКА ВЛИВАНИЯ") + 300),
   )
   cell(

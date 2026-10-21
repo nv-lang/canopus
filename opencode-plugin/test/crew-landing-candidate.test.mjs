@@ -19,7 +19,7 @@ const prep = async (kind) => {
     git(proj, "branch", "-f", `integrate/t${t.n}`, t.branch)
     sha = git(proj, "rev-parse", t.branch)
   } else sha = H.candidate(`integrate/t${t.n}`)
-  await call("crew_task", REV, { action: "precheck", n: t.n, candidate: `integrate/t${t.n}`, result: "CI зелёный" })
+  await call("crew_task", REV, { action: "precheck", n: t.n, candidate: `integrate/t${t.n}`, verdict: H.precheckVerdict(t, `integrate/t${t.n}`) })
   return { t, sha }
 }
 const clear = () => H.review.releaseMergeLock("proj", H.review.mergeHolder("proj")?.session ?? "")
@@ -43,6 +43,7 @@ const clear = () => H.review.releaseMergeLock("proj", H.review.mergeHolder("proj
   git(proj, "fetch", "-q", "origin")
   const rec = H.task(t.n)
   rec.precheck.base = moved
+  rec.precheck.verdict.base_sha = moved
   H.tasks.saveTask(rec)
   const m = await merge(t)
   cell("not fast-forward: refused, lock free", /Замок не выдан/.test(m) && /fast-forward/.test(m) && !H.holder(), m)

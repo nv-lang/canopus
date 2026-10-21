@@ -123,8 +123,27 @@ const hm = (at: number) => {
 }
 /** круг задачи: запись прежнего круга зелёной не считается (РП-04) */
 export const roundOf = (t: Task) => rounds(t) + t.attempt
+/** Task 136 cycle, read compatibly while older task records have no cycle field. */
+const cycleOf = (t: Task): number => {
+  const cycle = (t as Task & { cycle?: unknown }).cycle
+  return typeof cycle === "number" && Number.isInteger(cycle) && cycle >= 0 ? cycle : 1
+}
+const sameCycle = (rec: PrecheckRecord | undefined, t: Task): boolean => (rec?.cycle ?? 1) === cycleOf(t)
 /** Запись действует (не устарела). */
-export const isLive = (rec?: PrecheckRecord): rec is PrecheckRecord => !!rec && rec.state !== "stale"
+export const isLive = (rec?: PrecheckRecord): rec is PrecheckRecord => !!rec && (rec.state === "running" || rec.state === "green")
+
+/** Only protocol-v1 evidence records are merge-trusted; this checks shape/binding, not the remote CI provider's truth. */
+export const hasVerifiedPrecheckContract = (rec?: PrecheckRecord): boolean => {
+  const v = rec?.verdict, e = v?.evidence
+  let runPath: RegExpExecArray | null = null
+  try {
+    const u = new URL(e?.run_url ?? "")
+    if (u.protocol === "https:" && u.hostname === "github.com") runPath = /^\/[^/]+\/[^/]+\/actions\/runs\/(\d+)$/.exec(u.pathname)
+  } catch {}
+  return !!rec && rec.state === "green" && v?.protocol === 1 && v.status === "pass" && HASH.test(rec.base) && HASH.test(rec.candidate ?? "") &&
+    v.base_sha === rec.base && v.candidate_sha === rec.candidate && HASH.test(v.base_sha) && HASH.test(v.candidate_sha) &&
+    !!e && e.head_sha === v.candidate_sha && /^\d+$/.test(e.run_id) && runPath?.[1] === e.run_id && e.conclusion === "success"
+}
 /**
  * Подсказки о соседних задачах проекта; только чтение журнала задач, ничего не хранится и не резервируется.
  * running — какие другие открытые задачи сейчас с записью «идёт» или «зелёная» (номер, на какой вершине, с какого времени);
@@ -155,7 +174,7 @@ export function neighbourHints(t: Task, kind: "running" | "moved"): string {
  */
 export function acceptWarning(t: Task, target: string, head?: string): string {
   const rec = t.precheck
-  if (!rec || rec.state !== "green" || !rec.candidate) return ""
+  if (!hasVerifiedPrecheckContract(rec) || !rec.candidate) return ""
   const dir = repoDir(t)
   const tip = acceptedTip(t, target, head)
   if (!tip) return ""
@@ -174,7 +193,9 @@ export function precheckLines(t: Task, session: string): string[] {
   if (!rec) return []
   const out: string[] = []
   if (rec.state === "running") out.push(`предпроверка: идёт с ${hm(rec.at)} на ${short(rec.base)}`)
-  else if (rec.state === "green") out.push(`предпроверка: зелёная на ${short(rec.base)} (кандидат ${short(rec.candidate ?? "")}, ${hm(rec.green_at ?? rec.at)})`)
+  else if (rec.state === "green" && hasVerifiedPrecheckContract(rec) && sameCycle(rec, t)) out.push(`предпроверка: зелёная на ${short(rec.base)} (кандидат ${short(rec.candidate ?? "")}, ${hm(rec.green_at ?? rec.at)})`)
+  else if (rec.state === "green") out.push(`предпроверка: прежняя GREEN не подтверждена протоколом; merge закрыт на ${short(rec.base)}`)
+  else if (rec.state === "failed") out.push(`предпроверка: отрицательная (${rec.verdict?.status ?? "unknown"}), merge закрыт на ${short(rec.base)}`)
   else out.push(`предпроверка: устарела (${rec.stale?.reason ?? "причина не записана"}), была на ${short(rec.base)}`)
   const h = mergeHolder(t.project)
   if (h && h.session === session && h.n === t.n) out.push(`замок вливания: твой с ${hm(h.at)}${rec.lock_on ? `, на вершине ${short(rec.lock_on.tip)}` : ""}`)
@@ -210,7 +231,7 @@ export function branchAheadOfCandidate(dir: string, t: Task, rec: PrecheckRecord
 }
 
 /** Замок отпущен службой, потому что проверенный кандидат уже в главной ветке: запись зелёная, этого круга и помечена `landed`. */
-export const landedFresh = (t: Task): boolean => !!t.precheck?.landed && t.precheck.state === "green" && t.precheck.round === roundOf(t)
+export const landedFresh = (t: Task): boolean => !!t.precheck?.landed && hasVerifiedPrecheckContract(t.precheck) && t.precheck.round === roundOf(t) && sameCycle(t.precheck, t)
 
 /** Перечитать задачу с диска и убедиться, что она по-прежнему на приёмке у этой сессии (после `await` чтения вершины). */
 const fresh = (t: Task, session: string): Task | undefined => {
@@ -227,17 +248,18 @@ export async function beginPrecheck(t: Task, session: string, target: string): P
   const cur = fresh(t, session)
   if (!cur) return `Предпроверка не начата: ${REREAD}.`
   const rec = cur.precheck
-  if (isLive(rec) && rec.base === tip.tip && rec.round === roundOf(cur)) {
-    if (rec.state === "green") return `Предпроверка уже зелёная на ${short(rec.base)} (кандидат ${short(rec.candidate ?? "")}, ${hm(rec.green_at ?? rec.at)}); ${target} пока на той же вершине. Дальше — crew_task {action: "merge", n: ${t.n}}: замок выдастся на эту вершину.${neighbourHints(cur, "running")}`
-    return `Предпроверка уже идёт с ${hm(rec.at)} на вершине ${rec.base} (${target}). Влей эту вершину в кандидата, прогони CI и заверши: crew_task {action: "precheck", n: ${t.n}, candidate: "<ветка или хеш>", result: "<чем подтверждено>"}.${neighbourHints(cur, "running")}`
+  if (isLive(rec) && rec.base === tip.tip && rec.round === roundOf(cur) && sameCycle(rec, cur)) {
+    if (rec.state === "green" && hasVerifiedPrecheckContract(rec)) return `Предпроверка уже зелёная на ${short(rec.base)} (кандидат ${short(rec.candidate ?? "")}, ${hm(rec.green_at ?? rec.at)}); ${target} пока на той же вершине. Дальше — crew_task {action: "merge", n: ${t.n}}: замок выдастся на эту вершину.${neighbourHints(cur, "running")}`
+    if (rec.state === "running") return `Предпроверка уже идёт с ${hm(rec.at)} на вершине ${rec.base} (${target}). Влей эту вершину в кандидата, запусти CI и заверши только явным verdict protocol 1 с exact base_sha/candidate_sha и evidence run. Приёмщик сверяет run в GitHub Actions; одна строка result не даёт GREEN.${neighbourHints(cur, "running")}`
   }
   const now = Date.now()
-  cur.precheck = { state: "running", base: tip.tip, at: now, by: session, round: roundOf(cur) }
+  cur.precheck = { state: "running", base: tip.tip, at: now, by: session, round: roundOf(cur), cycle: cycleOf(cur) }
   const held = mergeHolder(cur.project)
-  const note = isLive(rec) ? `предпроверка начата заново на ${short(tip.tip)} (прежняя на ${short(rec.base)}: ${rec.state === "green" ? "зелёная" : "шла"}, ${target} сдвинулась)` : `предпроверка начата на ${short(tip.tip)}`
+  const previous = rec?.state === "green" ? (hasVerifiedPrecheckContract(rec) ? "зелёная" : "старая GREEN без проверяемого протокола") : rec?.state === "running" ? "шла" : rec?.state === "failed" ? "отрицательная" : "устарела"
+  const note = isLive(rec) ? `предпроверка начата заново на ${short(tip.tip)} (прежняя на ${short(rec.base)}: ${previous})` : `предпроверка начата на ${short(tip.tip)}${rec ? ` вместо прежней (${previous})` : ""}`
   taskEvent(cur, session, undefined, note)
   const lockNote = held && held.session === session && held.n === cur.n ? ` Замок вливания у тебя уже есть для этой задачи и остаётся; если он не нужен — crew_task {action: "unlock", n: ${t.n}}.` : ""
-  return `Предпроверка начата: ${target} на origin сейчас ${tip.tip}. Влей эту вершину в кандидата (например, в ветку integrate/t${t.n}; имя плагин не навязывает), прогони CI и заверши: crew_task {action: "precheck", n: ${t.n}, candidate: "<ветка или хеш>", result: "<чем подтверждено: строка CI>"}. Замок вливания этим действием не берётся: merge выдаст его только на эту же вершину.${lockNote}${neighbourHints(cur, "running")}`
+  return `Предпроверка начата: ${target} на origin сейчас ${tip.tip}. Влей эту вершину в кандидата (например, integrate/t${t.n}), запусти полный CI без замка и заверши verdict protocol 1 с точными base_sha/candidate_sha и GitHub Actions evidence. Только pass + проверенный приёмщиком успешный run дают GREEN; fail/unknown/пустой результат не дают merge. Замок этим действием не берётся.${lockNote}${neighbourHints(cur, "running")}`
 }
 
 /** Коммит по имени или хешу из локального репозитория задачи: полный хеш или undefined. */
@@ -248,22 +270,34 @@ function resolveCommit(dir: string, ref: string): string | undefined {
 }
 const FETCH_HINT = "подтяни объекты (git fetch) вручную и повтори, передав origin/<ветка> или хеш: короткое имя ветки, которая есть только на origin, после fetch не находится"
 
-/** Завершение предпроверки: кандидат и результат (REQ-07). Любой отказ запись не меняет. */
-export async function finishPrecheck(t: Task, session: string, target: string, input: { candidate?: string; result?: string }): Promise<string> {
+export type PrecheckVerdict = { protocol: 1; status: "pass" | "fail" | "unknown"; base_sha: string; candidate_sha: string; evidence?: { run_url: string; run_id: string; head_sha: string; conclusion: string } }
+
+/** Завершение: только структурированный verdict; ссылка/run не проверяются через CI API, их содержание сверяет приёмщик. */
+export async function finishPrecheck(t: Task, session: string, target: string, input: { candidate?: string; verdict?: unknown; result?: string }): Promise<string> {
   const rec0 = t.precheck
   const refuse = (why: string) => `Предпроверка не завершена: ${why}. Запись задачи не изменена${isLive(rec0) ? ` (остаётся ${rec0.state === "green" ? "зелёной" : "«идёт»"} на ${short(rec0.base)})` : ""}.`
   if (!isLive(rec0)) return `Предпроверка не завершена: записи «идёт» или «зелёная» нет${rec0 ? ` (прежняя устарела: ${rec0.stale?.reason ?? "?"})` : ""}. Начни: crew_task {action: "precheck", n: ${t.n}} (без candidate и result).`
+  if (rec0.state !== "running") return refuse("запись уже завершена; чтобы проверить заново, начни новый precheck")
+  if (!sameCycle(rec0, t)) return refuse("запись предпроверки относится к другому cycle; начни новый precheck")
   if (rec0.round !== roundOf(t)) return refuse(`запись прежнего круга, а задачу с тех пор возвращали; начни заново: crew_task {action: "precheck", n: ${t.n}}`)
-  const result = String(input.result ?? "").trim()
+  const verdict = input.verdict as PrecheckVerdict | undefined
   const candidate = String(input.candidate ?? "").trim()
-  if (!result) return refuse("нужен result — чем подтверждено (строка CI), непустой")
-  if (!candidate) return refuse("нужен candidate — ветка или хеш собранного кандидата")
+  if (!verdict || typeof verdict !== "object" || verdict.protocol !== 1 || !["pass", "fail", "unknown"].includes(verdict.status)) return refuse("нужен verdict protocol 1 со status pass, fail или unknown; произвольный result не является доказательством")
+  if (!HASH.test(verdict.base_sha ?? "") || verdict.base_sha !== rec0.base) return refuse("verdict.base_sha должен точно совпадать с полной SHA основы этой записи")
+  if (!HASH.test(verdict.candidate_sha ?? "")) return refuse("verdict.candidate_sha должен быть полной SHA проверенного кандидата")
+  const e = verdict.evidence
+  if (e !== undefined && (!e || typeof e !== "object" || typeof e.run_url !== "string" || typeof e.run_id !== "string" || typeof e.head_sha !== "string" || typeof e.conclusion !== "string")) return refuse("evidence должен содержать строковые run_url, run_id, head_sha и conclusion")
+  if (e && (e.head_sha !== verdict.candidate_sha || !/^\d+$/.test(e.run_id) || !/^https:\/\/github\.com\/[^/]+\/[^/]+\/actions\/runs\/\d+$/.test(e.run_url) || !e.run_url.endsWith(`/actions/runs/${e.run_id}`))) return refuse("evidence должен ссылаться на GitHub Actions run с тем же run_id и exact candidate SHA в head_sha")
+  if (verdict.status === "pass" && e?.conclusion !== "success") return refuse("pass требует conclusion: success для exact candidate SHA")
+  if (verdict.status === "fail" && e?.conclusion === "success") return refuse("fail не может иметь evidence conclusion: success")
+  if (!candidate && !verdict.candidate_sha) return refuse("нужен exact candidate SHA")
   const held = mergeHolder(t.project)
   if (held && held.session === session && held.n === t.n) return refuse(`замок вливания уже у тебя для этой задачи; сначала crew_task {action: "unlock", n: ${t.n}}`)
   const dir = repoDir(t)
   if (!resolveCommit(dir, rec0.base)) return refuse(`основы ${short(rec0.base)} нет в локальном репозитории задачи (${dir}); ${FETCH_HINT}`)
-  const cand = resolveCommit(dir, candidate)
+  const cand = resolveCommit(dir, candidate || verdict.candidate_sha)
   if (!cand) return refuse(`кандидата «${candidate}» нет в локальном репозитории задачи (${dir}); ${FETCH_HINT}`)
+  if (cand !== verdict.candidate_sha) return refuse(`полная SHA verdict.candidate_sha не совпадает с разрешённым кандидатом ${cand}`)
   const anc = runGit(dir, ["merge-base", "--is-ancestor", rec0.base, cand], 10_000)
   if (!anc.ok) return refuse(anc.code === 1 ? `кандидат ${short(cand)} не содержит основу ${short(rec0.base)}: влей ${target} на этой вершине (${rec0.base}) в кандидата и прогони CI заново` : `не удалось сверить кандидата с основой (git merge-base: ${anc.err || `код ${anc.code}`})`)
   const tip = await readTip(dir, target)
@@ -271,7 +305,7 @@ export async function finishPrecheck(t: Task, session: string, target: string, i
   if (!tip.ok) return refuse(`вершину ${target} узнать не удалось (${tip.error})`)
   const cur = fresh(t, session)
   const rec = cur?.precheck
-  if (!cur || !isLive(rec) || rec.base !== rec0.base || rec.at !== rec0.at || rec.round !== rec0.round) return refuse(REREAD)
+  if (!cur || rec?.state !== "running" || rec.base !== rec0.base || rec.at !== rec0.at || rec.round !== rec0.round || (rec.cycle ?? 1) !== (rec0.cycle ?? 1) || !sameCycle(rec, cur)) return refuse(REREAD)
   let warn = ""
   let branchTip: string | undefined
   if (t.branch) {
@@ -281,13 +315,19 @@ export async function finishPrecheck(t: Task, session: string, target: string, i
       warn = ` Внимание: ветка задачи ${t.branch} не входит в кандидата (его могли собрать перебазированием или squash); приёмщик сверяет содержимое сам — это предупреждение, не отказ.`
   }
   const now = Date.now()
-  const replaced = rec.state === "green"
-  cur.precheck = { state: "green", base: rec.base, at: rec.at, by: rec.by, round: rec.round, candidate: cand, ...(branchTip ? { branch_tip: branchTip } : {}), result: result.slice(0, 500), green_at: now }
-  taskEvent(cur, session, undefined, replaced ? `предпроверка: запись заменена на ${short(rec.base)} (кандидат ${short(rec.candidate ?? "")} → ${short(cand)}): ${result.slice(0, 200)}` : `предпроверка зелёная на ${short(rec.base)} (кандидат ${short(cand)}): ${result.slice(0, 200)}`)
-  const moved = tip.tip !== rec.base
-  return `Предпроверка зелёная на ${short(rec.base)} (кандидат ${short(cand)}, результат: ${result.slice(0, 200)}). ${
-    moved ? `Но ${target} уже сдвинулась: сейчас ${short(tip.tip)} (проверено ${hm(now)}). Начни заново: crew_task {action: "precheck", n: ${t.n}} (эта запись остаётся, пока не начнёшь новую); замок на сдвинутую вершину не выдастся.` : `${target} пока не сдвинулась. Дальше — crew_task {action: "merge", n: ${t.n}}: замок выдастся на эту вершину.`
-  }${warn}`
+  if (tip.tip !== rec.base) {
+    cur.precheck = { ...rec, state: "stale", cycle: rec.cycle ?? cycleOf(cur), candidate: cand, ...(branchTip ? { branch_tip: branchTip } : {}), verdict, stale: { reason: `${target} сдвинулась во время CI`, at: now } }
+    taskEvent(cur, session, undefined, `предпроверка устарела: ${target} сдвинулась во время CI (${short(rec.base)} → ${short(tip.tip)}); сохранены candidate/verdict/evidence ${JSON.stringify({ candidate: cand, verdict })}`)
+    return `Предпроверка не зелёная: ${target} сдвинулась во время CI (${short(rec.base)} → ${short(tip.tip)}). Кандидат/verdict/evidence сохранены, но merge закрыт; начни новый precheck.`
+  }
+  if (verdict.status !== "pass") {
+    cur.precheck = { ...rec, state: "failed", cycle: rec.cycle ?? cycleOf(cur), candidate: cand, verdict, ...(branchTip ? { branch_tip: branchTip } : {}), result: undefined }
+    taskEvent(cur, session, undefined, `предпроверка отрицательная (${verdict.status}) на ${short(rec.base)} (кандидат ${short(cand)}, CI: ${verdict.evidence?.conclusion ?? "не подтверждён"})`)
+    return `Предпроверка не зелёная: verdict ${verdict.status} для ${short(cand)} сохранён; merge закрыт. Чтобы повторить после исправления, начни новый precheck.`
+  }
+  cur.precheck = { ...rec, state: "green", cycle: rec.cycle ?? cycleOf(cur), candidate: cand, ...(branchTip ? { branch_tip: branchTip } : {}), verdict, result: undefined, green_at: now }
+  taskEvent(cur, session, undefined, `предпроверка зелёная на ${short(rec.base)} (кандидат ${short(cand)}; GitHub run ${verdict.evidence?.run_id}, conclusion success)`)
+  return `Предпроверка зелёная на ${short(rec.base)} (кандидат ${short(cand)}, GitHub Actions run ${verdict.evidence?.run_id}: success; приёмщик подтвердил run отдельно). ${target} на той же вершине; дальше crew_task {action: "merge", n: ${t.n}} выдаст замок на неё.${warn}`
 }
 
 /** Отпустить замок вливания, который сессия держит для этой задачи (REQ-10). Запись устаревает («замок отпущен»). */
@@ -300,6 +340,20 @@ export function unlockMerge(t: Task, session: string): string {
   markPrecheckStale(t, "замок отпущен")
   taskEvent(t, session, undefined, "замок вливания отпущен (unlock); предпроверка устарела")
   return `Замок вливания проекта ${t.project} отпущен. Предпроверка устарела (замок отпущен): чтобы вливать, начни заново — crew_task {action: "precheck", n: ${t.n}}.`
+}
+
+/** Инвалидировать предпроверку без merge-lock и без task lifecycle. Идемпотентно; доказательства остаются в stale record и task history. */
+export function invalidatePrecheck(t: Task, session: string, reasonInput?: string): string {
+  const reason = String(reasonInput ?? "").trim()
+  if (!reason) return "Предпроверка не инвалидирована: нужна причина; запись не изменена."
+  const rec = t.precheck
+  if (!rec) return `Предпроверка задачи ${taskRef(t)} отсутствует; инвалидировать нечего.`
+  if (rec.state === "stale") return `Предпроверка уже инвалидирована (${rec.stale?.reason ?? "причина не записана"}); повтор ничего не меняет.`
+  const evidence = JSON.stringify({ state: rec.state, base: rec.base, candidate: rec.candidate, result: rec.result, verdict: rec.verdict, branch_tip: rec.branch_tip, green_at: rec.green_at })
+  markPrecheckStale(t, reason)
+  t.precheck = { ...t.precheck!, stale: { reason, at: Date.now(), by: session } }
+  taskEvent(t, session, undefined, `предпроверка инвалидирована: ${reason}; прежняя запись сохранена в истории: ${evidence}`)
+  return `Предпроверка инвалидирована без merge-lock; прежние base/candidate/verdict/evidence сохранены. Merge закрыт; начни новый precheck после устранения причины.`
 }
 
 /**
@@ -315,13 +369,13 @@ export async function releaseLandedLock(project: string, target: string): Promis
   if (!lock) return undefined
   const t = loadTask(project, lock.n)
   const rec = t?.precheck
-  if (!t || t.status !== "reviewing" || t.reviewer !== lock.session || !rec || rec.state !== "green" || rec.round !== roundOf(t) || !rec.candidate || rec.candidate === rec.base) return undefined // кандидат = основа: своего содержимого нет, «влитым» его считать нельзя
+  if (!t || t.status !== "reviewing" || t.reviewer !== lock.session || !hasVerifiedPrecheckContract(rec) || rec.round !== roundOf(t) || !sameCycle(rec, t) || !rec.candidate || rec.candidate === rec.base) return undefined // кандидат = основа: своего содержимого нет, «влитым» его считать нельзя
   const tip = await (seams.readTip ?? originTip)(repoDir(t), target)
   if (!tip.ok || tip.source !== "origin") return undefined
   if (runGit(repoDir(t), ["merge-base", "--is-ancestor", rec.candidate, tip.tip], 10_000).code !== 0) return undefined
   if (!holdsFor(project, lock.session, lock.n, lock.at)) return undefined // за время чтения замок сменился
   const cur = loadTask(project, lock.n)
-  if (!cur || cur.status !== "reviewing" || !cur.precheck || cur.precheck.state !== "green" || cur.precheck.green_at !== rec.green_at) return undefined
+  if (!cur || cur.status !== "reviewing" || !hasVerifiedPrecheckContract(cur.precheck) || cur.precheck.green_at !== rec.green_at || !sameCycle(cur.precheck, cur)) return undefined
   // Два шага, порядок важен (задача 088): СНАЧАЛА отметка `landed` с записью в историю (одна запись файла задачи), и только потом замок.
   // Между шагами другой процесс видит «отметка есть, замок держится»: accept держателя проходит по замку, accept по отметке — тоже.
   // Обратный порядок («замок отпущен, отметки нет») давал окно, в котором accept отказывал «Сначала замок вливания», а смерть службы
@@ -341,9 +395,9 @@ export async function releaseLandedLock(project: string, target: string): Promis
 /** вершина целевой ветки совпала с основой записи */
 const sameTip = (tip: string, base: string): boolean => tip === base // GATE:same-tip
 /** запись зелёная и этого круга */
-const isFresh = (rec: PrecheckRecord | undefined, t: Task): boolean => !!rec && rec.state === "green" && rec.round === roundOf(t) // GATE:green
+const isFresh = (rec: PrecheckRecord | undefined, t: Task): boolean => hasVerifiedPrecheckContract(rec) && rec.round === roundOf(t) && sameCycle(rec, t) // GATE:green
 /** запись, перечитанная с диска после чтения вершины, всё ещё та же зелёная */
-const recordUnchanged = (cur: PrecheckRecord | undefined, rec: PrecheckRecord): boolean => !!cur && cur.state === "green" && cur.base === rec.base && cur.round === rec.round && cur.at === rec.at && cur.green_at === rec.green_at // GATE:recheck
+const recordUnchanged = (cur: PrecheckRecord | undefined, rec: PrecheckRecord, t: Task): boolean => hasVerifiedPrecheckContract(cur) && cur!.base === rec.base && cur!.round === rec.round && cur!.at === rec.at && cur!.green_at === rec.green_at && (cur!.cycle ?? 1) === (rec.cycle ?? 1) && sameCycle(cur, t) // GATE:recheck
 /** замок вливания проекта держит именно эта сессия и именно для этой задачи (сессия одна, задач у приёмщика несколько); с `at` — ещё и тот же экземпляр замка (метка `at` записана при взятии в этом вызове) */
 const holdsFor = (project: string, session: string, n: number, at?: number): boolean => {
   const h = mergeHolder(project)
@@ -372,11 +426,12 @@ export async function gateMerge(t: Task, session: string, target: string): Promi
   const rec = t.precheck
   const base = rec?.base ?? ""
   const refuse = (why: string, next = "") => ({ text: `Замок не выдан: ${why}.${next ? ` ${next}` : ""}` })
-  const start = `Начни с crew_task {action: "precheck", n: ${t.n}} без замка: назову вершину ${target}; влей её вместе с веткой задачи в candidate (например, integrate/t${t.n}), прогони полный CI проекта, сохрани точный проверенный commit и заверши precheck {candidate, result}. Замок бери только после зелёной записи; после merge fast-forward влей именно этот candidate. Если вершина сдвинулась — старый candidate не вливай, повтори интеграцию и CI.`
+  const start = `Начни с crew_task {action: "precheck", n: ${t.n}} без замка: назову вершину ${target}; собери candidate, прогони полный CI проекта, сохрани точный проверенный commit и заверши verdict protocol 1 с exact SHA/evidence. Приёмщик должен лично сверить успешный GitHub run. Замок бери только после доказанной зелёной записи; после merge fast-forward влей именно этот candidate. Если вершина сдвинулась — пересобери и проверь заново.`
   // 2. запись предпроверки
   if (!isFresh(rec, t)) {
     if (!rec) return refuse(`merge без предпроверки отклоняется: у задачи ${taskRef(t)} нет зелёной предпроверки (в проекте merge_precheck: required)`, `${start} Затем снова вызови merge: замок выдаётся только на ту вершину, на которой проверен кандидат. Чужое вливание до замка не задерживается. Прежний порядок возвращает интегратор явным ключом merge_precheck: off.${mergeHolder(project)?.session === session ? ` Замок вливания у тебя уже есть: если предпроверку делать позже, отпусти его: crew_task {action: "unlock", n: ${t.n}}.` : ""}`)
-    if (rec.state === "running") return refuse(`предпроверка задачи ${taskRef(t)} ещё идёт (кандидат не завершён)`, `Заверши её: crew_task {action: "precheck", n: ${t.n}, candidate, result}.`)
+    if (rec.state === "running") return refuse(`предпроверка задачи ${taskRef(t)} ещё идёт (кандидат не завершён)`, `Заверши её явным verdict protocol 1 с exact SHA и evidence.`)
+    if (rec.state === "failed") return refuse(`предпроверка задачи ${taskRef(t)} зафиксирована отрицательно (${rec.verdict?.status ?? "unknown"})`, start)
     if (rec.state === "stale") return refuse(`предпроверка задачи ${taskRef(t)} устарела (${rec.stale?.reason ?? "причина не записана"})`, start)
     return refuse(`запись предпроверки прежнего круга: задачу с тех пор возвращали или передавали`, start)
   }
@@ -440,7 +495,7 @@ export async function gateMerge(t: Task, session: string, target: string): Promi
   }
   // 8. запись, перечитанная с диска: по-прежнему та же зелёная
   const cur = loadTask(project, t.n)
-  if (!cur || !recordUnchanged(cur.precheck, rec ?? ({} as PrecheckRecord))) {
+  if (!cur || !recordUnchanged(cur.precheck, rec ?? ({} as PrecheckRecord), cur)) {
     releaseOwnLock(project, session, t.n, stamp)
     return refuse(`предпроверка задачи ${taskRef(t)} за время чтения вершины изменилась (устарела или заменена)`, `Замок отпущен. ${start}`)
   }

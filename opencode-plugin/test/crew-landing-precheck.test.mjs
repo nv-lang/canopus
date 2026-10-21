@@ -1,6 +1,6 @@
 // Self-test: the precheck record and the unlock (task 005, REQ-06, REQ-07, REQ-10, REQ-11, REQ-24; node >= 24):
 //   node test/crew-landing-precheck.test.mjs
-// On real git repositories with a local origin: precheck {n} reads the tip and writes "running"; precheck {n, candidate, result}
+// On real git repositories with a local origin: precheck {n} reads the tip and writes "running"; precheck {n, verdict}
 // finishes it ("green") after the checks of REQ-07 (every refusal leaves the record as it was); unlock releases the lock the session
 // holds for the task; the record becomes stale on rework, rework sync, reassign, cancel, unlock and a new review after a re-submit.
 import { readFileSync } from "node:fs"
@@ -23,7 +23,7 @@ const greenTask = async (more = {}) => {
   await begin(t)
   fetch()
   const cand = H.candidate(`integrate/t${t.n}`)
-  await finish(t, { candidate: `integrate/t${t.n}`, result: "CI зелёный" })
+  await finish(t, { candidate: `integrate/t${t.n}`, verdict: H.precheckVerdict(t, `integrate/t${t.n}`) })
   return { t, cand }
 }
 
@@ -49,24 +49,24 @@ fetch()
   await begin(t) // base = the moved tip; the task branch (from the older tip) does not contain it
   fetch()
   const before = snap(t)
-  const a = await finish(t, { candidate: t.branch, result: "ok" })
+  const a = await finish(t, { candidate: t.branch, verdict: H.precheckVerdict(t, t.branch) })
   cell("AC-10 a: a candidate that does not contain the base is refused, the record is as it was", /не содержит основу/.test(a) && snap(t) === before, a)
-  const b = await finish(t, { candidate: "no-such-branch", result: "ok" })
+  const b = await finish(t, { candidate: "no-such-branch", verdict: H.precheckVerdict(t, t.branch) })
   cell("AC-10 b: a candidate that does not exist is refused with the git fetch hint, the record is as it was", /нет в локальном репозитории/.test(b) && /git fetch/.test(b) && /origin\/<ветка>/.test(b) && snap(t) === before, b)
   const cand = H.candidate(`integrate/t${t.n}`)
   const c = await finish(t, { candidate: `integrate/t${t.n}`, result: "   " })
-  cell("AC-10 c: no result is refused, the record is as it was", /нужен result/.test(c) && snap(t) === before, c)
+  cell("AC-10 c: legacy free-text result is refused, the record is as it was", /произвольный result/.test(c) && snap(t) === before, c)
   const e = await finish(t, { result: "CI зелёный" })
-  cell("AC-10 e: a result without a candidate is refused, the record is as it was", /нужен candidate/.test(e) && snap(t) === before, e)
+  cell("AC-10 e: legacy result without a verdict is refused, the record is as it was", /произвольный result/.test(e) && snap(t) === before, e)
   const t2 = H.reviewing()
   const d = await finish(t2, { candidate: "main", result: "ok" })
   cell("AC-10 d: without a record ('running' or 'green' absent) it is refused and no record appears", /записи «идёт» или «зелёная» нет/.test(d) && !T(t2.n).precheck, d)
-  const ok = await finish(t, { candidate: `integrate/t${t.n}`, result: "CI зелёный" })
-  cell("AC-10 контроль: the same call with a good candidate and result is accepted (green on the base, full hash of the candidate)", T(t.n).precheck?.state === "green" && T(t.n).precheck.candidate === cand && /зелёная на/.test(ok), ok)
+  const ok = await finish(t, { candidate: `integrate/t${t.n}`, verdict: H.precheckVerdict(t, `integrate/t${t.n}`) })
+  cell("AC-10 контроль: explicit protocol with exact SHA/evidence is accepted", T(t.n).precheck?.state === "green" && T(t.n).precheck.candidate === cand && /зелёная на/.test(ok), ok)
   clearLock()
   lockFor(REV, t.n)
   await call("crew_task", REV, { action: "unlock", n: t.n }) // the record becomes stale, the task stays on review
-  const f = await finish(t, { candidate: `integrate/t${t.n}`, result: "ok" })
+  const f = await finish(t, { candidate: `integrate/t${t.n}`, verdict: H.precheckVerdict(t, `integrate/t${t.n}`) })
   cell("AC-10 f: a stale record is refused, it stays stale", /записи «идёт» или «зелёная» нет/.test(f) && /прежняя устарела/.test(f) && T(t.n).precheck.state === "stale", f)
 }
 
@@ -93,7 +93,7 @@ fetch()
   const m = await call("crew_task", REV, { action: "merge", n: t.n })
   cell(
     "AC-12 умолчание: merge without a precheck is refused, the lock is not taken, the text names the next step and the key of the old order",
-    !H.holder() && /merge без предпроверки отклоняется/.test(m) && /crew_task \{action: "precheck", n: \d+\}/.test(m) && /candidate, result/.test(m) && /merge_precheck: off/.test(m),
+    !H.holder() && /merge без предпроверки отклоняется/.test(m) && /crew_task \{action: "precheck", n: \d+\}/.test(m) && /verdict protocol 1/.test(m) && /merge_precheck: off/.test(m),
     m,
   )
   lockFor(REV, t.n)
@@ -189,13 +189,13 @@ fetch()
   await begin(t)
   fetch()
   H.candidate(`integrate/t${t.n}`) // the origin tip plus one own commit: does not contain the task branch
-  const w = await finish(t, { candidate: `integrate/t${t.n}`, result: "CI зелёный" })
+  const w = await finish(t, { candidate: `integrate/t${t.n}`, verdict: H.precheckVerdict(t, `integrate/t${t.n}`) })
   cell("AC-33 не предок: the task branch is not in the candidate — a green record and a warning, not a refusal", T(t.n).precheck?.state === "green" && /Внимание: ветка задачи/.test(w), w)
   const t2 = H.reviewing()
   await begin(t2)
   fetch()
   H.candidate(`integrate/t${t2.n}`, { merge: t2.branch })
-  const w2 = await finish(t2, { candidate: `integrate/t${t2.n}`, result: "CI зелёный" })
+  const w2 = await finish(t2, { candidate: `integrate/t${t2.n}`, verdict: H.precheckVerdict(t2, `integrate/t${t2.n}`) })
   cell("AC-33 предок: the task branch is in the candidate — no warning", T(t2.n).precheck?.state === "green" && !/Внимание/.test(w2), w2)
 }
 
@@ -205,45 +205,61 @@ fetch()
   await begin(t)
   fetch()
   const c1 = H.candidate(`integrate/a${t.n}`)
-  await finish(t, { candidate: `integrate/a${t.n}`, result: "первый" })
+  const first = H.precheckVerdict(t, `integrate/a${t.n}`, "pass", "100201")
+  await finish(t, { candidate: `integrate/a${t.n}`, verdict: first })
   const c2 = H.candidate(`integrate/b${t.n}`)
-  const r = await finish(t, { candidate: `integrate/b${t.n}`, result: "второй" })
-  cell("AC-36 a: a green record on the same base is replaced by another candidate, a line about the replacement in the history", T(t.n).precheck.candidate === c2 && c1 !== c2 && T(t.n).precheck.result === "второй" && H.history(t.n).some((h) => /запись заменена/.test(h)), r + JSON.stringify(H.history(t.n)))
+  const r = await finish(t, { candidate: `integrate/b${t.n}`, verdict: H.precheckVerdict(t, `integrate/b${t.n}`, "pass", "100202") })
+  cell("AC-36 a: a completed green record cannot be silently replaced", T(t.n).precheck.candidate === c1 && c1 !== c2 && T(t.n).precheck.verdict.evidence.run_id === first.evidence.run_id && /уже завершена/.test(r), r + JSON.stringify(H.history(t.n)))
   clearLock()
-  lockFor(REV, t.n)
-  const before = snap(t)
-  const b = await finish(t, { candidate: `integrate/a${t.n}`, result: "третий" })
-  const afterOwn = snap(t)
+  const t2 = H.reviewing()
+  await begin(t2)
+  fetch()
+  H.candidate(`integrate/a${t2.n}`)
+  const before = snap(t2)
+  const ownLock = lockFor(REV, t2.n)
+  const b = await finish(t2, { candidate: `integrate/a${t2.n}`, verdict: H.precheckVerdict(t2, `integrate/a${t2.n}`, "pass", "100203") })
+  const afterOwn = snap(t2)
   clearLock()
-  lockFor("sesREV2", H.reviewing({ reviewer: "sesREV2" }).n)
-  const b2 = await finish(t, { candidate: `integrate/a${t.n}`, result: "четвёртый" })
-  cell("AC-36 b: with this session's lock for this task the finish is refused 'сначала unlock'; another session's lock does not stop it", /сначала crew_task \{action: "unlock"/.test(b) && afterOwn === before && T(t.n).precheck.result === "четвёртый" && /зелёная/.test(b2), b + " | " + b2)
+  const t3 = H.reviewing({ reviewer: "sesREV2" })
+  lockFor(REV, t3.n)
+  await begin(t3, "sesREV2")
+  fetch()
+  H.candidate(`integrate/a${t3.n}`)
+  const b2 = await finish(t3, { candidate: `integrate/a${t3.n}`, verdict: H.precheckVerdict(t3, `integrate/a${t3.n}`, "pass", "100204") }, "sesREV2")
+  cell("AC-36 b: a holder cannot finish under its own lock; another session's lock does not stop a different precheck", ownLock.ok && /сначала crew_task \{action: "unlock"/.test(b) && afterOwn === before && /зелёная/.test(b2), JSON.stringify(ownLock) + " | " + b + " | " + b2)
   clearLock()
-  const t3 = H.reviewing()
-  await begin(t3)
+  const t4 = H.reviewing()
+  await begin(t4)
   git(H.other, "pull", "-q", "--ff-only", "origin", "main")
   git(H.other, "switch", "-q", "-c", "remote-only")
   const tipNow = H.originTip()
   git(H.other, "commit", "-q", "--allow-empty", "-m", "remote only")
   git(H.other, "push", "-q", "origin", "remote-only")
   git(H.other, "switch", "-q", "main")
-  const bef = snap(t3)
-  const c = await finish(t3, { candidate: "remote-only", result: "ok" })
-  const afterC = snap(t3)
+  const remoteSha = git(H.other, "rev-parse", "remote-only")
+  const remoteVerdict = { protocol: 1, status: "pass", base_sha: T(t4.n).precheck.base, candidate_sha: remoteSha, evidence: { run_url: "https://github.com/unitcraft/crew-harness/actions/runs/100205", run_id: "100205", head_sha: remoteSha, conclusion: "success" } }
+  const c = await finish(t4, { candidate: "remote-only", verdict: remoteVerdict })
+  const afterC = T(t4.n).precheck
   fetch()
-  const c3 = await finish(t3, { candidate: "origin/remote-only", result: "ok" })
-  cell("AC-36 c: a candidate that exists only on origin: refusal with the git fetch hint (record as it was); after fetch 'origin/<branch>' is accepted", /git fetch/.test(c) && /origin\/<ветка>/.test(c) && afterC === bef && T(t3.n).precheck.state === "green" && /зелёная/.test(c3) && tipNow === T(t3.n).precheck.base, c + " | " + c3)
+  const c3 = await finish(t4, { candidate: "origin/remote-only", verdict: remoteVerdict })
+  cell("AC-36 c: an origin-only candidate refuses before fetch, then its exact SHA can be checked after fetch", /git fetch/.test(c) && /origin\/<ветка>/.test(c) && afterC.state === "running" && !afterC.candidate && !afterC.verdict && T(t4.n).precheck.state === "green" && T(t4.n).precheck.candidate === remoteSha && /зелёная/.test(c3) && tipNow === T(t4.n).precheck.base, c + " | " + c3)
   for (const state of ["running", "green"]) {
     const td = H.reviewing()
     await begin(td)
     fetch()
     H.candidate(`integrate/d${td.n}`)
-    if (state === "green") await finish(td, { candidate: `integrate/d${td.n}`, result: "ok" })
+    if (state === "green") await finish(td, { candidate: `integrate/d${td.n}`, verdict: H.precheckVerdict(td, `integrate/d${td.n}`) })
     const before = snap(td)
-    precheck.seams.readTip = async () => ({ ok: false, kind: "fail", error: "git ls-remote origin: сеть недоступна (проба)" })
-    const d = await finish(td, { candidate: `integrate/d${td.n}`, result: "другой" })
-    delete precheck.seams.readTip
-    cell(`AC-36 d${state === "running" ? 1 : 2}: a read failure at the finish (${state}) is a refusal with the cause, the record is as it was`, /сеть недоступна/.test(d) && snap(td) === before && T(td.n).precheck.state === state, d)
+    let d
+    if (state === "running") {
+      precheck.seams.readTip = async () => ({ ok: false, kind: "fail", error: "git ls-remote origin: сеть недоступна (проба)" })
+      d = await finish(td, { candidate: `integrate/d${td.n}`, verdict: H.precheckVerdict(td, `integrate/d${td.n}`) })
+      delete precheck.seams.readTip
+      cell("AC-36 d1: a read failure at finish refuses and preserves the running record", /сеть недоступна/.test(d) && snap(td) === before && T(td.n).precheck.state === "running", d)
+    } else {
+      d = await finish(td, { candidate: `integrate/d${td.n}`, verdict: H.precheckVerdict(td, `integrate/d${td.n}`, "pass", "100206") })
+      cell("AC-36 d2: a late second finish cannot replace a completed green record", /уже завершена/.test(d) && snap(td) === before && T(td.n).precheck.state === "green", d)
+    }
   }
 }
 

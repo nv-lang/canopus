@@ -39,7 +39,7 @@ const green = async (more = {}) => {
   await begin(t, sid)
   fetch()
   H.candidate(`integrate/t${t.n}`, { merge: t.branch })
-  await finish(t, { candidate: `integrate/t${t.n}`, result: "CI зелёный" }, sid)
+  await finish(t, { candidate: `integrate/t${t.n}`, verdict: H.precheckVerdict(t, `integrate/t${t.n}`) }, sid)
   return t
 }
 const withSeam = async (seam, fn) => {
@@ -79,7 +79,7 @@ if (section("AC-07")) {
   await begin(t)
   fetch()
   H.candidate(`integrate/t${t.n}`, { merge: t.branch })
-  await finish(t, { candidate: `integrate/t${t.n}`, result: "CI зелёный" })
+  await finish(t, { candidate: `integrate/t${t.n}`, verdict: H.precheckVerdict(t, `integrate/t${t.n}`) })
   const m = await merge(t)
   const lockOn = T(t.n).precheck.lock_on
   const landed = H.land(`integrate/t${t.n}`)
@@ -126,7 +126,7 @@ if (section("AC-09")) {
   await begin(t)
   fetch()
   H.candidate(`integrate/t${t.n}`, { merge: t.branch })
-  await finish(t, { candidate: `integrate/t${t.n}`, result: "CI зелёный на новой" })
+  await finish(t, { candidate: `integrate/t${t.n}`, verdict: H.precheckVerdict(t, `integrate/t${t.n}`) })
   const ok = await merge(t)
   cell("AC-09 новый precheck: after a new precheck on the new tip merge passes", /выдан на вершину main/.test(ok) && ok.includes(b2) && H.holder()?.session === REV, ok)
   clearLock()
@@ -199,7 +199,8 @@ if (section("AC-32")) {
   H.settings({ merge_precheck: "required", target_branch: "nosuch" })
   const t = H.reviewing()
   const x = H.task(t.n)
-  x.precheck = { state: "green", base: H.originTip(), at: Date.now(), by: REV, round: precheck.roundOf(x), candidate: H.originTip(), result: "x", green_at: Date.now() }
+  const exact = H.originTip(), run_id = "100002"
+  x.precheck = { state: "green", base: exact, at: Date.now(), by: REV, round: precheck.roundOf(x), candidate: exact, verdict: { protocol: 1, status: "pass", base_sha: exact, candidate_sha: exact, evidence: { run_url: `https://github.com/unitcraft/crew-harness/actions/runs/${run_id}`, run_id, head_sha: exact, conclusion: "success" } }, green_at: Date.now() }
   tasks.saveTask(x)
   const r = await merge(t)
   cell("AC-32 merge: 'ветки nosuch на origin нет' on the first take — refused, the lock file is empty", /ветки nosuch на origin нет/.test(r) && !H.holder(), r)
@@ -392,7 +393,7 @@ if (section("AC-37")) {
         await begin(tb)
         fetch()
         H.candidate(`integrate/t${tb.n}`, { merge: tb.branch })
-        await finish(tb, { candidate: `integrate/t${tb.n}`, result: "CI зелёный" })
+        await finish(tb, { candidate: `integrate/t${tb.n}`, verdict: H.precheckVerdict(tb, `integrate/t${tb.n}`) })
         mb = await merge(tb)
       },
     },

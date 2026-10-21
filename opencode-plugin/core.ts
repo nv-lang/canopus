@@ -26,7 +26,7 @@ import { baseRef, branchExists, commitFiles, ensureBranch, findFolder, folderNam
 import { firstLogLine, folderInfo, messageRefusal, nextLaunch, readFolderFile, readTaskMessage, refreshRouteStale, routeLogLine, taskLog, templateMessage, titleOfMessage } from "./task-folders.ts"
 import { STALE_WARNING, applyRouteChange, exactMessageHash, hasRouteInput, legacyTaskLetterFaults, planRoute, routeLogText, routeSettingsOf, routeView, ROUTE_RU, type RouteSettings } from "./route.ts"
 import { acceptanceFromFile } from "./acceptance-file.ts"
-import { acceptWarning, acceptedTip, beginPrecheck, finishPrecheck, gateMerge, landedFresh, landingLine, markPrecheckStale, neighbourHints, precheckLines, unlockMerge } from "./precheck.ts"
+import { acceptWarning, acceptedTip, beginPrecheck, finishPrecheck, gateMerge, invalidatePrecheck, landedFresh, landingLine, markPrecheckStale, neighbourHints, precheckLines, unlockMerge } from "./precheck.ts"
 import { addSide, autoTrack, cleanupDone, removeSide, sideItems, cleanupSteps, fileAt, holdsMergeLock, isMerged, keptOnBranch, keptPaths, mergeHolder, releaseMergeLock, resolveKeep, reworkLetter, sameFs, takeMergeLock } from "./review.ts"
 import { WATCH_DEFAULT_MIN, WATCH_MAX_MIN, cancelWatch, machineQueue, requestWatch, timerSpec, watchesOf } from "./watch.ts"
 import { watchRefusal } from "./deny.ts"
@@ -1612,14 +1612,14 @@ reviewer; места worker не занимает), и merge, accept, cleanup р
 перепроверяет. Приёмщик: crew_task review → rework {text} | check {step} → проверка → check {step, result} по каждому шагу (ход видно в окне) → merge (замок вливания проекта) → accept {commit?}
 (плагин проверит обязательные шаги приёмки и что ветка или коммит в целевой ветке) → очистка → cleanup (плагин
 проверит, что worktree и ветка удалены). Улики сохранить — cleanup {n, keep:[путь, …]} (до 8 путей: worktree репозитория или папка в папке деревьев проекта; основное дерево и ветки нельзя; такое дерево уборка не проверяет, ответ: «Сохранено: <путь> (не проверялось уборкой)»); удалять их не нужно, ветку задачи удалить по-прежнему надо (если она выбрана в сохранённом дереве — там git checkout --detach, затем git branch -D; ответ cleanup подскажет). Побочные ветки и деревья задачи (диагностические, предпроверка, итоговая ветка от опубликованной) записывает crew_task {action: "track", n, branch?, worktree?} (исполнитель, приёмщик, интегратор; без дублей; ветки integrate/tN и integrate/tN-* плагин записывает сам при precheck, accept и cleanup; список виден в show); cleanup убирает всё записанное, кроме деревьев из keep. Потом сессии задачи закрываются, интегратору тихая сводка.
-ПРЕДПРОВЕРКА ВЛИВАНИЯ (настройка проекта merge_precheck; по умолчанию required — включена). Порядок приёмщика: review → check → precheck → CI без замка → precheck candidate → merge → accept → отдельная cleanup → cleanup.
+ПРЕДПРОВЕРКА ВЛИВАНИЯ (настройка проекта merge_precheck; по умолчанию required — включена). Порядок приёмщика: review → check → precheck → CI без замка → precheck verdict → merge → accept → cleanup.
 Замок во время подготовки кандидата и CI не брать. crew_task precheck {n} замок не берёт: плагин читает вершину origin и называет её;
 влей её вместе с веткой задачи в интеграционный candidate (например, integrate/tN), прогони полный CI проекта и сохрани точный commit кандидата;
-crew_task precheck {n, candidate, result} фиксирует зелёный результат именно этого кандидата. Только после этого merge берёт замок:
+Заверши crew_task precheck {n, verdict: {protocol: 1, status: "pass"|"fail"|"unknown", base_sha, candidate_sha, evidence: {run_url, run_id, head_sha, conclusion}}}. pass требует exact SHA и успешный run; приёмщик открывает GitHub Actions и сверяет head_sha/conclusion — плагин не обращается к CI. fail записывается отрицательно, unknown и произвольный result не создают GREEN. Старый GREEN без этого контракта не открывает gate. Только после pass и проверки приёмщиком merge берёт замок:
 fast-forward влей в целевую ветку тот же проверенный candidate и push. Вливается ровно зафиксированный кандидат; ветка задачи может отличаться, и это не повод остановки. Если origin tip сдвинулся, старый candidate не вливай — заново интегрируй новый tip и повтори полный CI/precheck.
 accept проверяет влитое и освобождает слот accepted_slot: free; уборка выполняется отдельно, cleanup_limit ограничивает очередь до cleanup.
 Замок слияния отпускает accept (а также rework и cancel); после слияния и пуша сразу accept, уборка идёт без замка; слияние прервано до accept — unlock {n}; cleanup замок не отпускает (замка к нему уже нет). Замок держится до accept или unlock; под ним только слияние и пуш. Если проверенный кандидат уже предок вершины главной ветки на origin, служба сама отпустит замок (только чтение, без fetch, срок 20 с; вершину не прочитала, запись не «зелёная», задача другая — замок не трогает); тогда accept замка не требует.
-merge без предпроверки отклоняется: сначала precheck. crew_task unlock {n} отпускает замок, который ты держишь для
+merge без предпроверки отклоняется: сначала precheck. Ошибочную запись назначенный приёмщик инвалидирует без lock и без изменения task lifecycle: crew_task {action: "invalidate_precheck", n, reason}. Кандидат/verdict/evidence остаются в истории; повтор идемпотентен. crew_task unlock {n} отпускает замок, который ты держишь для
 задачи (запись устаревает). Запись устаревает и при rework, reassign, cancel, новой приёмке. Плагин ничего не вливает и не
 пушит. Прежний порядок (merge берёт замок сразу) возвращает интегратор проекта явным ключом merge_precheck: off в настройках.
 Шаги приёмки проекта — из документа Канона (acceptance_file); порядок приёмки задаёт плагин.
@@ -2542,18 +2542,19 @@ export function makeTools(host: CrewHost): CrewTool[] {
         "review - reviewer - n - start reviewing a submitted task; the answer lists the acceptance steps. For a plan task the steps are the plan recheck steps.",
         "check - reviewer - n, step, then again with result - mark an acceptance step: first {n, step} before checking it, then {n, step, result: what proves it} after (the owner sees the progress in the window).",
         "round - reviewer of a plan task (a new session for every round) - n, text, blocking, significant, cosmetic (or grades {plan_grades id: count}) - the verdict of one plan recheck round, after review and all required check steps: how many remarks of each grade. text lists the remarks with grade and fix (required when there are any). Blocking or significant remarks: the plan goes back to the executor, the next round is a new session. Only cosmetic: a clean round. plan_clean_rounds clean rounds in a row (default 2): the plan goes to approval; plan_rounds_max rounds (default 4) without that: to approval anyway, with the last remarks.",
-        "precheck - reviewer - n, then {n, candidate, result} - on by default (project setting merge_precheck: required; merge_precheck: off returns the old order). First precheck {n}: the plugin reads the target branch tip on origin and names it. Then merge that tip with the task branch into a candidate branch (for example integrate/t<N>), run the full CI of the project without any lock, and record {n, candidate: branch or commit, result: the CI verdict} for that exact candidate.",
+        "precheck - reviewer - n, then {n, candidate?, verdict}; required by default, merge_precheck: off restores old order. Begin reads the target tip. Finish with protocol 1 status pass|fail|unknown, exact full base_sha/candidate_sha, and evidence {run_url, run_id, head_sha, conclusion}. Machine checks refs, ancestry, SHA bindings and shape only; it does not verify GitHub authenticity or CI. Reviewer must inspect the cited run and attest exact SHA + success before pass. Fail/unknown/free-text/old unversioned GREEN never opens merge.",
+        "invalidate_precheck - assigned reviewer (or integrator with required acceptor role) - n, reason - marks the current precheck stale without taking/releasing the merge lock or changing task lifecycle; preserves its former candidate, verdict and evidence in task history; repeat is idempotent. A new precheck is needed before merge.",
         "merge - reviewer - n - take the project's merge lock (one task is landed at a time) and land that exact checked candidate: you fast-forward it into the target branch and push; the plugin merges and pushes nothing itself. With merge_precheck: required a merge without a green precheck is refused. If the target tip moved, never land the old candidate: rebuild and recheck. The lock is released by accept, also by rework and cancel; unlock {n} releases it when the merge is abandoned before accept; cleanup does not release it; the service releases it by itself when the checked candidate is already in the target tip on origin.",
         "unlock - reviewer - unlock {n} - release the merge lock you hold for the task (the precheck record becomes stale).",
         "rework - reviewer - n, text, sync? - return the task to the executor with remarks; sync: true only asks to merge the fresh target branch (not a rework round, not counted in rework_max). Releases the merge lock.",
         "accept - reviewer - n, checks?, commit? - accept after landing: the plugin checks that the required steps are marked and that the task branch (or commit, when squashed) is in the target branch, releases the merge lock, and with accepted_slot: free the task stops taking a place in inflight_limit; the answer lists the cleanup steps. For a plan task the approval must exist first. commit: the commit in the target branch for a squash merge.",
         "cleanup - reviewer - n, keep? - after accept, remove the task's worktree, branch and recorded side branches/worktrees yourself, then call this; the plugin checks they are gone and the task becomes done. keep: up to 8 paths of worktrees to keep as evidence (a worktree of the repository or a folder in the project's worktree folder; absolute or from the repository root; not the main tree); the check skips them and the answer says \"Сохранено: <path> (не проверялось уборкой)\"; the task branch must still be deleted. cleanup_limit bounds the queue of accepted tasks waiting for cleanup.",
-        "With the project setting reviewer: acceptor, merge, unlock, precheck, accept and cleanup need the acceptor role (or the integrator). The executor never lands or accepts its own task. Reviewer order: review, check each step, precheck, merge, accept, cleanup.",
+        "With the project setting reviewer: acceptor, merge, unlock, precheck, invalidate_precheck, accept and cleanup need the acceptor role (or the integrator). The executor never lands or accepts its own task.",
       ].join("\n"),
     input: {
       type: "object",
       properties: {
-        action: { type: "string", enum: ["list", "show", "assign", "order", "push", "reassign", "cancel", "priority", "track", "plan_decide", "submit", "deliver", "review", "check", "round", "merge", "unlock", "precheck", "rework", "accept", "cleanup", "cleaned", "route", "migrate"] },
+        action: { type: "string", enum: ["list", "show", "assign", "order", "push", "reassign", "cancel", "priority", "track", "plan_decide", "submit", "deliver", "review", "check", "round", "merge", "unlock", "precheck", "invalidate_precheck", "rework", "accept", "cleanup", "cleaned", "route", "migrate"] },
         to: str("order: the other project's integrator, \"project.integrator\"; push: \"executor\" (default) or \"reviewer\""),
         keep: { type: "array", maxItems: 8, items: { type: "string" }, description: "cleanup: up to 8 worktree paths to keep as evidence" },
         checks: { type: "object", description: "accept: report per acceptance step {step id: what proves it}", additionalProperties: { type: "string" } },
@@ -2562,7 +2563,30 @@ export function makeTools(host: CrewHost): CrewTool[] {
         commit: str("accept: the commit in the target branch (squash merge); without it the task branch must be merged"),
         branch: str("track: side branch to record"),
         worktree: str("track: side worktree path to record"),
-        candidate: str("precheck: the checked candidate (branch or hash); with result it finishes the precheck"),
+        candidate: str("precheck: optional ref resolving to verdict.candidate_sha; verdict SHA must be full and exact"),
+        verdict: {
+          type: "object",
+          description: "precheck: protocol 1 only; exact base_sha/candidate_sha and evidence. pass requires a successful run personally verified by the reviewer; plugin does not call CI.",
+          required: ["protocol", "status", "base_sha", "candidate_sha"],
+          additionalProperties: false,
+          properties: {
+            protocol: { type: "number", const: 1 },
+            status: { type: "string", enum: ["pass", "fail", "unknown"] },
+            base_sha: { type: "string", pattern: "^[0-9a-f]{40}([0-9a-f]{24})?$" },
+            candidate_sha: { type: "string", pattern: "^[0-9a-f]{40}([0-9a-f]{24})?$" },
+            evidence: {
+              type: "object", additionalProperties: false,
+              required: ["run_url", "run_id", "head_sha", "conclusion"],
+              properties: {
+                run_url: { type: "string", pattern: "^https://github\\.com/[^/]+/[^/]+/actions/runs/[0-9]+$" },
+                run_id: { type: "string", pattern: "^[0-9]+$" },
+                head_sha: { type: "string", pattern: "^[0-9a-f]{40}([0-9a-f]{24})?$" },
+                conclusion: { type: "string", minLength: 1 },
+              },
+            },
+          },
+        },
+        reason: str("invalidate_precheck: required reason; the existing verdict and evidence are retained in task history"),
         n: { type: "number", description: "Task number" },
         session: str("assign: the tab (session id) that takes the task"),
         text: str("submit: the report (what was done, how it was checked, what is left); push / cancel: text for the executor; reassign: the refined goal for the new session's first letter; deliver: the report for the reviewer"),
@@ -2786,7 +2810,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
         if (added.length) taskEvent(t, me.session, undefined, `записано для уборки: ${items.map((i) => i.branch ?? i.worktree).join(", ")}`)
         return { content: added.length ? `Записано в задачу ${taskRef(t)}: ${added.map((i) => i.branch ?? i.worktree).join(", ")}. cleanup уберёт это вместе с остальным (деревья из keep остаются).` : `Уже записано в задачу ${taskRef(t)}: ${items.map((i) => i.branch ?? i.worktree).join(", ")}.` }
       }
-      if (["review", "check", "round", "merge", "unlock", "precheck", "rework", "accept", "cleanup"].includes(action)) {
+      if (["review", "check", "round", "merge", "unlock", "precheck", "invalidate_precheck", "rework", "accept", "cleanup"].includes(action)) {
         // исполнитель свою работу не вливает и не принимает — отказ называет это прямо (план 002.7, п.4)
         if (t.reviewer !== me.session && t.executor === me.session)
           return { content: `Ты исполнитель задачи ${taskRef(t)}: ${action} делает её приёмщик (${t.reviewer ?? "ещё не назначен"}), это действие только его. Исполнитель свою работу не вливает и не принимает — сдай отчёт и жди приёмки.` }
@@ -2794,7 +2818,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
         const tcfg = loadConfig(t.directory)
         // ПРАВА РОЛИ (план 002.7): при reviewer "acceptor" замок вливания, принятие и очистку держит роль acceptor (или
         // интегратор). Приёмщик, сменивший роль, их теряет: права у роли, а не у записи «приёмщик» в задаче.
-        if (tcfg.reviewer === "acceptor" && ["merge", "unlock", "precheck", "accept", "cleanup"].includes(action) && normalizeRole(me.role) !== ACCEPTOR_ROLE && !isIntegrator(me))
+        if (tcfg.reviewer === "acceptor" && ["merge", "unlock", "precheck", "invalidate_precheck", "accept", "cleanup"].includes(action) && normalizeRole(me.role) !== ACCEPTOR_ROLE && !isIntegrator(me))
           return { content: `${action} в проекте ${project} — право роли ${ACCEPTOR_ROLE} (настройка reviewer: acceptor) или интегратора; у тебя роль ${keyOf(me)}. Вернуть роль — crew_role {role: "${ACCEPTOR_ROLE}"}.` }
         const acc = acceptanceOf(t, tcfg) // задача-план — шаги перепроверки плана (план 004), иначе — приёмки проекта
         const now = Date.now()
@@ -2906,11 +2930,18 @@ export function makeTools(host: CrewHost): CrewTool[] {
           if (tcfg.mergePrecheck !== "required") return { content: "Предпроверка в проекте выключена явным ключом merge_precheck: off: merge берёт замок без неё, precheck не нужен. Включить её (по умолчанию она включена) может интегратор проекта: убрать ключ или поставить merge_precheck: required." }
           if (t.plan && !(t.plan.approval && t.plan.approval.decision !== "no")) return { content: `Задача ${taskRef(t)} сейчас в раунде перепроверки плана ${t.plan.n}: вливания нет, предпроверка не нужна. Она действует на вливание согласованного плана (после решения, статус на приёмке).` }
           if (t.status !== "reviewing") return { content: `Сначала crew_task {action: "review", n: ${t.n}} (задача сейчас ${statusRu(t.status)}).` }
-          const finishing = input.candidate !== undefined || input.result !== undefined
-          const pre = finishing ? await finishPrecheck(t, me.session, tcfg.targetBranch, { candidate: input.candidate, result: input.result }) : await beginPrecheck(t, me.session, tcfg.targetBranch)
-          const seen = finishing ? autoTrack(loadTask(t.project, t.n) ?? t, tcfg, me.session) : []
+          const finishing = input.candidate !== undefined || input.verdict !== undefined || input.result !== undefined
+          const pre = finishing ? await finishPrecheck(t, me.session, tcfg.targetBranch, { candidate: input.candidate, verdict: input.verdict, result: input.result }) : await beginPrecheck(t, me.session, tcfg.targetBranch)
+          const after = loadTask(t.project, t.n) ?? t
+          const actuallyFinished = finishing && t.precheck?.state === "running" && after.precheck?.at === t.precheck.at && (after.precheck?.state === "green" || after.precheck?.state === "failed")
+          const seen = actuallyFinished ? autoTrack(after, tcfg, me.session) : []
           return { content: pre + (seen.length ? `
 Записано для уборки (cleanup уберёт): ${seen.map((i) => i.branch ?? i.worktree).join(", ")}.` : "") }
+        }
+        if (action === "invalidate_precheck") {
+          if (tcfg.mergePrecheck !== "required") return { content: "Инвалидировать нечего: merge_precheck выключена; task lifecycle и merge lock не менялись." }
+          if (t.status !== "reviewing") return { content: `Инвалидировать предпроверку можно только у назначенной задачи на приёмке; сейчас ${statusRu(t.status)}. Запись не менялась.` }
+          return { content: invalidatePrecheck(t, me.session, input.reason) }
         }
         if (action === "unlock") return { content: unlockMerge(t, me.session) }
         if (action === "merge") {

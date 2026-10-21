@@ -18,7 +18,7 @@ const prep = async (build) => {
   git(proj, "fetch", "-q", "origin")
   const name = `integrate/t${t.n}`
   build(t, name)
-  await call("crew_task", REV, { action: "precheck", n: t.n, candidate: name, result: "CI зелёный" })
+  await call("crew_task", REV, { action: "precheck", n: t.n, candidate: name, verdict: H.precheckVerdict(t, name) })
   return t
 }
 const advance = (t, real) => {

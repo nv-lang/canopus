@@ -86,19 +86,23 @@ export type ProfileStamp = { at: number; role: "executor" | "reviewer"; session:
 /** Запись предпроверки вливания: running — начата на вершине base; green — кандидат собран и проверен на base; stale — устарела
  *  (причина в stale). lock_on — замок выдан на эту вершину; accepted_on — вершина целевой ветки, в которой принята задача. */
 export type PrecheckRecord = {
-  state: "running" | "green" | "stale"
+  state: "running" | "green" | "failed" | "stale"
   base: string
   at: number
   by: string
   /** rounds(t) + attempt на момент начала: запись прежнего круга зелёной не считается */
   round: number
+  /** task cycle (introduced by task 136); carried unchanged by every verdict/stale transition */
+  cycle?: number
   candidate?: string
+  /** Explicit protocol verdict and evidence; older GREEN records without these fields are not trusted for merge. */
+  verdict?: { protocol: 1; status: "pass" | "fail" | "unknown"; base_sha: string; candidate_sha: string; evidence?: { run_url: string; run_id: string; head_sha: string; conclusion: string } }
   /** вершина ветки задачи в момент фиксации кандидата (задача 030): если ветка ушла дальше, кандидат устарел, когда не содержит её и не равен ей по дереву */
   branch_tip?: string
   result?: string
   green_at?: number
   lock_on?: { tip: string; at: number }
-  stale?: { reason: string; at: number }
+  stale?: { reason: string; at: number; by?: string }
   accepted_on?: string
   /** замок отпущен службой, потому что проверенный кандидат уже в вершине главной ветки на origin (accept после этого не требует замка) */
   landed?: { tip: string; at: number }
@@ -107,6 +111,8 @@ export type PrecheckRecord = {
 export type Task = RouteFields & {
   project: string
   n: number
+  /** task 136 cycle marker; legacy records have no cycle until their normal lifecycle transition */
+  cycle?: number
   title: string
   slug: string
   goal: string

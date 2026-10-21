@@ -20,7 +20,7 @@ const green = async (own = false) => {
   await begin(t)
   fetch()
   H.candidate(`integrate/t${t.n}`, own ? {} : { merge: t.branch })
-  await finish(t, { candidate: `integrate/t${t.n}`, result: "CI зелёный" })
+  await finish(t, { candidate: `integrate/t${t.n}`, verdict: H.precheckVerdict(t, `integrate/t${t.n}`) })
   return t
 }
 const warnings = (n) => H.history(n).filter((h) => /^предупреждение:/.test(h))
@@ -65,7 +65,7 @@ const warnings = (n) => H.history(n).filter((h) => /^предупреждени�
   cell("AC-22 show: show of a task with a record names the neighbour", sh.includes(`Параллельно идут: ${String(a.n).padStart(3, "0")}`), sh)
   fetch()
   H.candidate(`integrate/t${a.n}`, { merge: a.branch })
-  await finish(a, { candidate: `integrate/t${a.n}`, result: "CI зелёный" })
+  await finish(a, { candidate: `integrate/t${a.n}`, verdict: H.precheckVerdict(a, `integrate/t${a.n}`) })
   const rc = await begin(c)
   cell("AC-22 идут зелёная: a neighbour with a green record is named as green", rc.includes(`${String(a.n).padStart(3, "0")} (зелёная на`) && rc.includes(`${String(b.n).padStart(3, "0")} (идёт на`), rc)
   const lone = H.reviewing()
