@@ -1779,7 +1779,7 @@ export default {
         const t = loadTask(ref.project, ref.n)
         if (!t) continue
         if (!isOpen(t) && Date.now() - (t.updated ?? 0) > freshMs) continue // старая закрытая задача: название не трогаем
-        const MARK: Record<string, string> = { submitted: "✓", reviewing: "✓◐", rework: "↻", approval: "◇", accepted: "✓✓◐", done: "✓✓", cancelled: "✗" }
+        const MARK: Record<string, string> = { submitted: "✓", reviewing: "✓◐", rework: "↻", approval: "◇", accepted: "✓✓◐", done: "✓✓", closed: "✓✓🔒", cancelled: "✗" }
         const replaced = asReviewer ? t.reviewer !== c.session : t.executor !== c.session
         // сессия задачи (задача 058): своё состояние — сдана, передана; заголовок «045 С4-3 исп …»
         const ses = asReviewer ? undefined : sessionOf(t, c.session)
@@ -1864,7 +1864,7 @@ export default {
               return { error: why }
             }
             if (cfg.worktrees && !insideDir(t.worktree, cfg.worktrees)) return refuse(`worktree ${t.worktree} вне папки деревьев проекта ${cfg.worktrees}`)
-            const w = await ensureWorktree(t.directory, t.worktree, t.branch, cfg.targetBranch, { foreign: foreignTree(t) })
+            const w = await ensureWorktree(t.directory, t.worktree, t.branch, cfg.targetBranch, { foreign: foreignTree(t), requireOrigin: t.correctionOriginRequired === true })
             if (!w.ok) return refuse(`worktree ${t.worktree} не создан: ${w.error}`)
             // на ветке уже стоит дерево (подготовлено вручную, записано track): запись задачи выравнивается по нему (задача 079)
             if (w.adopted && w.path && !sameFs(w.path, t.worktree)) {

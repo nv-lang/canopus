@@ -465,7 +465,8 @@ export const TASK_WORDS: Record<string, string> = {
   rework: "rework",
   approval: "approval",
   accepted: "accepted",
-  done: "done",
+  done: "completed",
+  closed: "closed",
   cancelled: "cancelled",
   idle: "between",
 }

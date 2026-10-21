@@ -534,7 +534,7 @@ await wait(600)
 }
 // T4: accepted, reviewer nudged until cleanup
 await turn("sesRV34")
-cell("T4", "accepted: the reviewer is nudged at the end of an empty turn until cleanup (the text names the status 'принята')", sent("sesRV34", /Не завершено: приёмка задачи \d{3,} «[^»]*» \(принята\)/).length === 1, JSON.stringify(delivered.filter((d) => d.sessionID === "sesRV34").map((d) => d.text.slice(0, 120))))
+cell("T4", "accepted: the reviewer is nudged at the end of an empty turn until cleanup (the task status reads 'выполнена')", sent("sesRV34", /Не завершено: приёмка задачи \d{3,} «[^»]*» \(выполнена\)/).length === 1, JSON.stringify(delivered.filter((d) => d.sessionID === "sesRV34").map((d) => d.text.slice(0, 120))))
 // T5: rework, the executor nudged
 await turn("sesEX35")
 cell("T5", "rework: the end of an empty turn -> a reminder to the executor", sent("sesEX35", /Не завершено: задача/).length === 1, JSON.stringify(delivered.filter((d) => d.sessionID === "sesEX35").map((d) => d.text.slice(0, 80))))

@@ -1,8 +1,7 @@
 // Self-test: the texts of the base do not change (task 007, AC-01; node >= 24):  node test/crew-answer-golden.test.mjs
 // test/answer-golden.mjs collects the texts the plugin shows (the notice "waits for you" of the owner's tab and its repeat, the
 // forwarded question of a task session, /crew and the side panel, crew_config guide and show, crew_help, formatLetters) on a
-// throwaway project and compares them with the snapshot of the base (test/answer-golden.json, written before the core was
-// changed). Two passes: no new keys in the project file, and answer_mode set to {"default": "owner"} -- both must give the same
+// throwaway project and compares them with the expected texts (test/answer-golden.json). Two passes: no new keys in the project file, and answer_mode set to {"default": "owner"} -- both must give the same
 // texts. The control: a snapshot with one line spoiled must differ. The cells that must stay green on the base too (AC-04
 // endsWithQuestion, AC-18 прежние письма, AC-19 статус, AC-21 пять текстов) join this file in the later steps of the plan.
 import { execFileSync } from "node:child_process"
