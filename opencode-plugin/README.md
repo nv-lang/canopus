@@ -925,9 +925,10 @@ task by its number; a session's title is `045 исп title`. The journal is
   checks, precheck and report are preserved as cycle history; new exact prechecks are cycle-bound. A repeated call after the durable
   status transition cannot start a second session. Accepted-before-cleanup refuses with `cleanup` as the automatic next step;
   cancelled and legacy records without a proven acceptance event plus merged commit refuse unchanged.
-  `continue {n, goal, criteria, owner_word, owner_word_date, owner_word_source}` is distinct: it is only for a separately owner-authorized
-  addition to the same task, archives the prior brief/acceptance first, then replaces the active goal and criteria for the new cycle.
-  Without that explicit word, a new product goal needs a new task. Neither operation reuses old gates.
+  `continue {n, goal, criteria, owner_word, owner_word_date, owner_word_source}` is distinct and currently scoped only to the single
+  owner-authorized task 132 ACP addition: exact word «Продолжить 132 (Recommended)» from question «Продолжение 132», goal Codex+Claude
+  Code via ACP and criteria keeping live separate. It archives the prior brief/acceptance and starts fresh gates; it is not a universal
+  extension path. Other new product goals need new tasks. Neither operation reuses old gates.
   `close {n, evidence, owner_word, owner_word_date, owner_word_source}` is a separate final step after delivery/production checks
   (or an explicit reason deployment does not apply).
 - The executor submits with `crew_task {action: "submit", n, text}` (`submit - executor - n, text`):
