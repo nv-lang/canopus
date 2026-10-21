@@ -210,7 +210,8 @@ export function branchAheadOfCandidate(dir: string, t: Task, rec: PrecheckRecord
 }
 
 /** Замок отпущен службой, потому что проверенный кандидат уже в главной ветке: запись зелёная, этого круга и помечена `landed`. */
-export const landedFresh = (t: Task): boolean => !!t.precheck?.landed && t.precheck.state === "green" && t.precheck.round === roundOf(t)
+export const landedFresh = (t: Task): boolean => !!t.precheck?.landed && sameCycle(t.precheck, t) && t.precheck.state === "green" && t.precheck.round === roundOf(t)
+const sameCycle = (rec: PrecheckRecord | undefined, t: Task) => !!rec && (rec.cycle ?? 1) === (t.cycle ?? 1)
 
 /** Перечитать задачу с диска и убедиться, что она по-прежнему на приёмке у этой сессии (после `await` чтения вершины). */
 const fresh = (t: Task, session: string): Task | undefined => {
@@ -227,12 +228,12 @@ export async function beginPrecheck(t: Task, session: string, target: string): P
   const cur = fresh(t, session)
   if (!cur) return `Предпроверка не начата: ${REREAD}.`
   const rec = cur.precheck
-  if (isLive(rec) && rec.base === tip.tip && rec.round === roundOf(cur)) {
+  if (isLive(rec) && sameCycle(rec, cur) && rec.base === tip.tip && rec.round === roundOf(cur)) {
     if (rec.state === "green") return `Предпроверка уже зелёная на ${short(rec.base)} (кандидат ${short(rec.candidate ?? "")}, ${hm(rec.green_at ?? rec.at)}); ${target} пока на той же вершине. Дальше — crew_task {action: "merge", n: ${t.n}}: замок выдастся на эту вершину.${neighbourHints(cur, "running")}`
     return `Предпроверка уже идёт с ${hm(rec.at)} на вершине ${rec.base} (${target}). Влей эту вершину в кандидата, прогони CI и заверши: crew_task {action: "precheck", n: ${t.n}, candidate: "<ветка или хеш>", result: "<чем подтверждено>"}.${neighbourHints(cur, "running")}`
   }
   const now = Date.now()
-  cur.precheck = { state: "running", base: tip.tip, at: now, by: session, round: roundOf(cur) }
+  cur.precheck = { state: "running", base: tip.tip, at: now, by: session, round: roundOf(cur), cycle: cur.cycle ?? 1 }
   const held = mergeHolder(cur.project)
   const note = isLive(rec) ? `предпроверка начата заново на ${short(tip.tip)} (прежняя на ${short(rec.base)}: ${rec.state === "green" ? "зелёная" : "шла"}, ${target} сдвинулась)` : `предпроверка начата на ${short(tip.tip)}`
   taskEvent(cur, session, undefined, note)
@@ -253,7 +254,7 @@ export async function finishPrecheck(t: Task, session: string, target: string, i
   const rec0 = t.precheck
   const refuse = (why: string) => `Предпроверка не завершена: ${why}. Запись задачи не изменена${isLive(rec0) ? ` (остаётся ${rec0.state === "green" ? "зелёной" : "«идёт»"} на ${short(rec0.base)})` : ""}.`
   if (!isLive(rec0)) return `Предпроверка не завершена: записи «идёт» или «зелёная» нет${rec0 ? ` (прежняя устарела: ${rec0.stale?.reason ?? "?"})` : ""}. Начни: crew_task {action: "precheck", n: ${t.n}} (без candidate и result).`
-  if (rec0.round !== roundOf(t)) return refuse(`запись прежнего круга, а задачу с тех пор возвращали; начни заново: crew_task {action: "precheck", n: ${t.n}}`)
+  if (!sameCycle(rec0, t) || rec0.round !== roundOf(t)) return refuse(`запись прежнего цикла или круга; начни заново: crew_task {action: "precheck", n: ${t.n}}`)
   const result = String(input.result ?? "").trim()
   const candidate = String(input.candidate ?? "").trim()
   if (!result) return refuse("нужен result — чем подтверждено (строка CI), непустой")
@@ -271,7 +272,7 @@ export async function finishPrecheck(t: Task, session: string, target: string, i
   if (!tip.ok) return refuse(`вершину ${target} узнать не удалось (${tip.error})`)
   const cur = fresh(t, session)
   const rec = cur?.precheck
-  if (!cur || !isLive(rec) || rec.base !== rec0.base || rec.at !== rec0.at || rec.round !== rec0.round) return refuse(REREAD)
+  if (!cur || !isLive(rec) || !sameCycle(rec, cur) || rec.base !== rec0.base || rec.at !== rec0.at || rec.round !== rec0.round) return refuse(REREAD)
   let warn = ""
   let branchTip: string | undefined
   if (t.branch) {
@@ -315,7 +316,7 @@ export async function releaseLandedLock(project: string, target: string): Promis
   if (!lock) return undefined
   const t = loadTask(project, lock.n)
   const rec = t?.precheck
-  if (!t || t.status !== "reviewing" || t.reviewer !== lock.session || !rec || rec.state !== "green" || rec.round !== roundOf(t) || !rec.candidate || rec.candidate === rec.base) return undefined // кандидат = основа: своего содержимого нет, «влитым» его считать нельзя
+  if (!t || t.status !== "reviewing" || t.reviewer !== lock.session || !rec || !sameCycle(rec, t) || rec.state !== "green" || rec.round !== roundOf(t) || !rec.candidate || rec.candidate === rec.base) return undefined // кандидат = основа: своего содержимого нет, «влитым» его считать нельзя
   const tip = await (seams.readTip ?? originTip)(repoDir(t), target)
   if (!tip.ok || tip.source !== "origin") return undefined
   if (runGit(repoDir(t), ["merge-base", "--is-ancestor", rec.candidate, tip.tip], 10_000).code !== 0) return undefined
@@ -341,7 +342,7 @@ export async function releaseLandedLock(project: string, target: string): Promis
 /** вершина целевой ветки совпала с основой записи */
 const sameTip = (tip: string, base: string): boolean => tip === base // GATE:same-tip
 /** запись зелёная и этого круга */
-const isFresh = (rec: PrecheckRecord | undefined, t: Task): boolean => !!rec && rec.state === "green" && rec.round === roundOf(t) // GATE:green
+export const isFresh = (rec: PrecheckRecord | undefined, t: Task): boolean => !!rec && sameCycle(rec, t) && rec.state === "green" && rec.round === roundOf(t) // GATE:green
 /** запись, перечитанная с диска после чтения вершины, всё ещё та же зелёная */
 const recordUnchanged = (cur: PrecheckRecord | undefined, rec: PrecheckRecord): boolean => !!cur && cur.state === "green" && cur.base === rec.base && cur.round === rec.round && cur.at === rec.at && cur.green_at === rec.green_at // GATE:recheck
 /** замок вливания проекта держит именно эта сессия и именно для этой задачи (сессия одна, задач у приёмщика несколько); с `at` — ещё и тот же экземпляр замка (метка `at` записана при взятии в этом вызове) */

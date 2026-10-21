@@ -47,6 +47,7 @@ const mod = await import("../index.ts")
 const core = await import("../core.ts")
 const tasks = await import("../tasks.ts")
 const review = await import("../review.ts")
+const precheck = await import("../precheck.ts")
 const hooks = {}
 const tools = {}
 const events = {}
@@ -160,7 +161,10 @@ const notMerged = await call("crew_task", "sesREVIEW1", { action: "accept", n: 1
 cell("accept of an unmerged branch is refused", /не влита/.test(notMerged) && task(1).status === "reviewing", notMerged)
 git(proj, "merge", "-q", "--no-edit", "p1-ficha")
 const acc = await call("crew_task", "sesREVIEW1", { action: "accept", n: 1, checks: { guards: "ok" } })
+cell("accept snapshots one immutable cycle before cleanup", task(1).cycles?.length === 1 && task(1).cycles[0].cycle === 1 && task(1).cycles[0].merged_head === task(1).merged_head, JSON.stringify(task(1).cycles))
 cell("accept after the merge: accepted, cleanup steps given", task(1).status === "accepted" && /git worktree remove/.test(acc) && /git branch -D p1-ficha/.test(acc) && !/push origin --delete/.test(acc), acc)
+const acceptedCorrection = await call("crew_task", "sesINTEG1", { action: "correct", n: 1, text: "дефект критерия 2", owner_word: "доработай 001", owner_word_date: "2026-10-21", owner_word_source: "чат" })
+cell("accepted-before-cleanup correction refuses with automatic cleanup next step", /action: "cleanup"/.test(acceptedCorrection) && task(1).status === "accepted" && !task(1).cycle, acceptedCorrection)
 cell("accept keeps the steps marked by check", task(1).checks?.tests === "зелёные: 12/12" && task(1).checks?.guards === "ok", JSON.stringify(task(1).checks))
 cell("accept releases the merge lock", !review.mergeHolder("proj"), JSON.stringify(review.mergeHolder("proj")))
 // leftovers are the task's OWN artifacts (plan 002.6, defect 1): its worktree and branch, sprouts p1-…, integrate/t1;
@@ -180,13 +184,13 @@ cell("the leftovers reminder of 001 does not name the new task's branch or workt
 git(proj, "worktree", "remove", task(1).worktree)
 for (const b of ["p1-ficha", "p1-ficha-cand"]) git(proj, "branch", "-D", b)
 const cl = await call("crew_task", "sesREVIEW1", { action: "cleanup", n: 1 })
-await until(() => task(1).status === "done" && core.allCards().find((c) => c.session === ex1)?.spawned?.status === "closed" && got(ex1, "✓✓ Задача 001 «фича» принята").length >= 1 && got("sesINTEG1", "принята и влита").length >= 1 && updates.some((u) => u.sessionID === ex1 && u.title === "001 исп ✓✓ готово фича"))
+await until(() => task(1).status === "done" && core.allCards().find((c) => c.session === ex1)?.spawned?.status === "closed" && got(ex1, "✓✓ Задача 001 «фича» принята").length >= 1 && got("sesINTEG1", "выполнена и влита").length >= 1 && updates.some((u) => u.sessionID === ex1 && u.title === "001 исп ✓✓ готово фича"))
 await settle()
 cell("cleanup: the task is cleaned up while the new task's branch and worktree stay", task(1).status === "done" && git(proj, "branch", "--list", "p99-novaya").includes("p99-novaya"), cl)
 git(proj, "worktree", "remove", newWt)
 git(proj, "branch", "-D", "p99-novaya", "zz-unrelated")
 rmSync(path.join(core.BASE, "tasks", "proj", "99.json"), { force: true })
-cell("the integrator gets a quiet summary", got("sesINTEG1", "принята и влита").some((d) => d.synthetic), JSON.stringify(got("sesINTEG1", "принята")))
+cell("the integrator gets a quiet summary", got("sesINTEG1", "выполнена и влита").some((d) => d.synthetic), JSON.stringify(got("sesINTEG1", "выполнена")))
 cell("the executor session is closed with a final line", core.allCards().find((c) => c.session === ex1)?.spawned?.status === "closed" && got(ex1, "✓✓ Задача 001 «фича» принята").length === 1, JSON.stringify(got(ex1, "✓✓")))
 cell("the final line carries the step report", /Отчёт приёмки — шаги 2\/3/.test(got(ex1, "✓✓ Задача 001 «фича» принята")[0]?.text ?? "") && /✓ tests: зелёные: 12\/12/.test(got(ex1, "✓✓ Задача 001 «фича» принята")[0]?.text ?? ""), got(ex1, "✓✓ Задача 001 «фича» принята")[0]?.text)
 cell("/crew counts the acceptance report of the day (reports #N)", st.reportsOf("proj").includes("001") && /reports [^\n]*001/.test(st.formatStatuses([{ session: "x", role: "worker", title: "x", state: "idle", detail: "d", project: "proj", watches: [], asked: [], tasks: [] }], Date.now(), "proj")), JSON.stringify(st.reportsOf("proj")))
@@ -292,6 +296,32 @@ await call("crew_send", ex2, { to: "sesINTEG1", text: "доработал 2", re
 await until(() => task(2).reviewer === rv2 && task(2).status === "submitted" && got(rv2, "доработал 2").length >= 1)
 await settle()
 cell("the resubmission goes back to the same reviewer at once", task(2).reviewer === rv2 && task(2).status === "submitted" && got(rv2, "доработал 2").length >= 1, JSON.stringify({ r2: task(2).reviewer, s2: task(2).status, n: got(rv2, "доработал 2").length }))
+
+// 9. final close and correction after cleanup reuse the same task identity and create one fresh cycle/session.
+const closeMissing = await call("crew_task", "sesINTEG1", { action: "close", n: 1 })
+cell("close without delivery evidence is refused", /evidence|провер/.test(closeMissing) && task(1).status === "done", closeMissing)
+const closeOk = await call("crew_task", "sesINTEG1", { action: "close", n: 1, evidence: "установка неприменима: документ опубликован в целевой папке", owner_word: "закрой 001", owner_word_date: "2026-10-21", owner_word_source: "прямой чат владельца" })
+cell("explicit close follows cleanup and records evidence without mutating the archived cycle", task(1).status === "closed" && !("close_evidence" in task(1).cycles[0]) && task(1).history.some((h) => h.status === "closed" && h.note.includes("неприменима")), closeOk)
+const wrongWord = await call("crew_task", "sesINTEG1", { action: "correct", n: 1, text: "дефект критерия 2: пропущена проверка", owner_word: "доработай 2", owner_word_date: "2026-10-21", owner_word_source: "прямой чат" })
+cell("correction refuses a mismatched task word without changing closed record", /явное слово/.test(wrongWord) && task(1).status === "closed" && task(1).cycle === undefined, wrongWord)
+git(proj, "remote", "add", "origin", proj)
+const corrected = await call("crew_task", "sesINTEG1", { action: "correct", n: 1, text: "дефект критерия 2: пропущена проверка", owner_word: "доработай 001", owner_word_date: "2026-10-21", owner_word_source: "прямой чат владельца" })
+const correctedStatus = task(1)
+cell("correction starts one new cycle under same number from accepted history", correctedStatus.status === "running" && correctedStatus.cycle === 2 && correctedStatus.cycles.length === 1 && correctedStatus.cycles[0].commit === task(1).cycles[0].commit && !!correctedStatus.executor && /новой сессии/.test(corrected), JSON.stringify({ status: correctedStatus.status, cycle: correctedStatus.cycle, cycles: correctedStatus.cycles?.length, executor: correctedStatus.executor, sessions: sessions.size, response: corrected }))
+const repeatedCorrection = await call("crew_task", "sesINTEG1", { action: "correct", n: 1, text: "дефект критерия 2", owner_word: "доработай 001", owner_word_date: "2026-10-21", owner_word_source: "прямой чат владельца" })
+cell("repeat correction does not create a second cycle or session", task(1).cycle === 2 && task(1).attempt === 2 && /только для выполненной/.test(repeatedCorrection), repeatedCorrection)
+
+// A pre-136 completed record is archived only by explicit, authorized correction; no real task record is involved.
+const legacyCycle = { ...task(1), n: 132, title: "ACP adapters", slug: "acp-adapters", goal: "добавить Codex и Claude Code через ACP", folder: undefined, plan: undefined, sessions: undefined, executor: undefined, executors: [], attempt: 1, status: "done", cycle: undefined, cycles: undefined, branch: "p132-acp-adapters", worktree: path.join(proj, "wt", "proj-132-acp-adapters"), worktree_ready: false, commit: undefined, merged_head: git(proj, "rev-parse", "main"), checks: { ci: "previous cycle green" }, precheck: { state: "green", base: git(proj, "rev-parse", "main"), at: 2, by: "old-reviewer", round: 1, candidate: git(proj, "rev-parse", "main"), result: "historical precheck" }, history: [{ at: 1, by: "old-reviewer", status: "accepted", note: "old acceptance" }], updated: 1 }
+tasks.saveTask(legacyCycle)
+const wrongLegacyWord = await call("crew_task", "sesINTEG1", { action: "correct", n: 132, text: "дефект критерия 1: нужна реализация Codex и Claude Code через ACP", owner_word: "Продолжить 131 (Recommended)", owner_word_date: "2026-10-21", owner_word_source: "question интегратора «Запуск продолжения 132», владелец, 2026-10-21" })
+cell("synthetic 132 probe RED: mismatched owner word leaves the completed record untouched", /явное слово/.test(wrongLegacyWord) && task(132).status === "done" && !task(132).cycles && task(132).attempt === 1, wrongLegacyWord)
+const ownerWordSource = "question интегратора «Запуск продолжения 132», владелец, 2026-10-21"
+const legacyCorrection = await call("crew_task", "sesINTEG1", { action: "correct", n: 132, text: "дефект критерия 1: нужна реализация Codex и Claude Code через ACP", owner_word: "Продолжить 132 (Recommended)", owner_word_date: "2026-10-21", owner_word_source: ownerWordSource })
+const corrected132 = task(132)
+cell("synthetic 132 probe GREEN: explicit owner word creates a fresh branch/session from origin, retains acceptance/source, and invalidates old precheck", corrected132.status === "running" && corrected132.cycle === 2 && corrected132.branch === "p132-acp-adapters-c2" && corrected132.worktree.endsWith("proj-132-acp-adapters-c2") && corrected132.cycles?.[0].merged_head === legacyCycle.merged_head && corrected132.cycles?.[0].history.some((h) => h.status === "accepted") && corrected132.history.some((h) => h.note?.includes(ownerWordSource)) && !precheck.isFresh(corrected132.cycles[0].precheck, corrected132) && !corrected132.precheck && /новой сессии/.test(legacyCorrection), JSON.stringify({ status: corrected132.status, cycle: corrected132.cycle, branch: corrected132.branch, worktree: corrected132.worktree, cycles: corrected132.cycles, precheck: corrected132.precheck, response: legacyCorrection }))
+const duplicate132 = await call("crew_task", "sesINTEG1", { action: "correct", n: 132, text: "дефект критерия 1: нужна реализация Codex и Claude Code через ACP", owner_word: "Продолжить 132 (Recommended)", owner_word_date: "2026-10-21", owner_word_source: ownerWordSource })
+cell("same 132 authorization cannot create a duplicate cycle or executor", task(132).cycle === 2 && task(132).attempt === 2 && task(132).executor === corrected132.executor && task(132).cycles.length === 1 && /только для выполненной/.test(duplicate132), duplicate132)
 
 clearInterval(heart)
 stop?.()

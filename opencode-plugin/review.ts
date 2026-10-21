@@ -413,6 +413,8 @@ export function reworkLetter(t: Task, text: string, by: string): string {
 export type TreeRules = {
   /** дерево по пути принадлежит ДРУГОЙ задаче проекта: её название для отказа; иначе undefined */
   foreign?: (tree: string) => string | undefined
+  /** новый correction cycle: не откатываться к локальной target при сбое origin */
+  requireOrigin?: boolean
 }
 export async function ensureWorktree(repoDir: string, worktree: string, branch: string, base: string, rules: TreeRules = {}): Promise<{ ok: boolean; created: boolean; path?: string; adopted?: boolean; error?: string; warn?: string; note?: string }> {
   try {
@@ -457,6 +459,7 @@ export async function ensureWorktree(repoDir: string, worktree: string, branch: 
           // локальной целевой ветки нет — сравнивать не с чем
         }
       } catch (e: any) {
+        if (rules.requireOrigin) return { ok: false, created: false, error: `обязательное обновление origin/${base} не удалось: ${String(e?.message ?? e).split("\n")[0]}` }
         warn = `не удалось обновить origin/${base} (${String(e?.message ?? e).split(String.fromCharCode(10))[0].slice(0, 120)}) — ветка задачи построена от локальной ${base}`
       }
     }

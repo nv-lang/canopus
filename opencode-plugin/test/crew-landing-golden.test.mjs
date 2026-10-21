@@ -1,9 +1,9 @@
 // Self-test: the texts of the base do not change (task 005, AC-01; node >= 24):  node test/crew-landing-golden.test.mjs
 // test/landing-golden.mjs collects the texts the plugin shows (the refusal of crew_spawn by the limit, the reminders about an
 // accepted task, the task letters, the review letters, crew_task show and list) on a throwaway project and compares them with
-// the snapshot of the base (test/landing-golden.json, written before the core was changed). Passes: the old behaviour set explicitly (hold, off) gives the snapshot; no keys gives the same texts as free and required set explicitly,
-// and they differ from the snapshot where the behaviour changed (owner, 2026-10-09: the new keys are on by default). The control: a snapshot with
-// one line spoiled must differ.
+// the snapshot of the explicit legacy settings (test/landing-golden.json). Passes: the old behaviour set explicitly (hold, off) gives the snapshot; no keys gives the same texts as free and required set explicitly,
+// and they differ from the snapshot where the behaviour changed (owner, 2026-10-09: the new keys are on by default). The snapshot includes
+// task 136's «выполнена» status wording and separate cleanup badge; the control: a snapshot with one line spoiled must differ.
 import { execFileSync } from "node:child_process"
 import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import os from "node:os"

@@ -163,7 +163,7 @@ export function waitLabel(phrase = ""): string {
 
 const hm = (t?: number) => (t ? new Date(t).toTimeString().slice(0, 5) : "?")
 const minutes = (from: number | undefined, now: number) => (from ? `${Math.max(0, Math.round((now - from) / 60_000))} мин` : "")
-const STATUS_RU: Record<string, string> = { starting: "запускается", running: "в работе", submitted: "сдана", reviewing: "на приёмке", rework: "на доработке", accepted: "принята", done: "влита", cancelled: "отменена", idle: "ждёт следующей сессии" }
+const STATUS_RU: Record<string, string> = { starting: "запускается", running: "в работе", submitted: "сдана", reviewing: "на приёмке", rework: "на доработке", accepted: "выполнена", done: "выполнена", closed: "закрыта", cancelled: "отменена", idle: "ждёт следующей сессии" }
 
 export type StatusInput = {
   card: Card
@@ -202,10 +202,10 @@ export function obligationMoot(o: Obligation, card: Pick<Card, "session" | "proj
   // приёмщик: qid обязательства - review_qid задачи (у старых задач без него - qid задачи, и запись зовёт «приёмка N»)
   if (t.review_qid === o.qid || (!t.review_qid && o.task.startsWith("приёмка "))) {
     if (t.reviewer && t.reviewer !== card.session) return "у задачи другой приёмщик"
-    return ["accepted", "done", "cancelled", "rework", "starting", "running"].includes(t.status) ? `приёмка не ждёт: задача ${t.status}` : undefined
+    return ["accepted", "done", "closed", "cancelled", "rework", "starting", "running"].includes(t.status) ? `приёмка не ждёт: задача ${t.status}` : undefined
   }
   if (t.executor && t.executor !== card.session) return "у задачи другой исполнитель"
-  return ["submitted", "reviewing", "accepted", "done", "cancelled"].includes(t.status) ? `задача уже сдана: ${t.status}` : undefined
+  return ["submitted", "reviewing", "accepted", "done", "closed", "cancelled"].includes(t.status) ? `задача уже сдана: ${t.status}` : undefined
 }
 
 /** Состояние одной сессии из её данных. Порядок важности: ход > вопрос владельцу > наблюдение > ответ > задачи. Вкладка, которая
@@ -632,7 +632,7 @@ const short = (x: string, n: number) => {
 export function plansOf(project: string): { approval: Task[]; other: number } {
   let list: Task[] = []
   try {
-    list = listTasks(project).filter((t) => t.plan && !(t.status === "done" && t.plan.finished) && t.status !== "cancelled")
+     list = listTasks(project).filter((t) => t.plan && !(["done", "closed"].includes(t.status) && t.plan.finished) && t.status !== "cancelled")
   } catch {}
   const approval = list.filter((t) => t.status === "approval")
   return { approval, other: list.length - approval.length }
@@ -643,7 +643,7 @@ const REPORT_MS = 24 * 3_600_000
 export function reportsOf(project: string, now = Date.now()): string[] {
   let done: Task[] = []
   try {
-    done = listTasks(project).filter((t) => ["accepted", "done"].includes(t.status) && t.checks && now - t.updated < REPORT_MS)
+     done = listTasks(project).filter((t) => ["accepted", "done", "closed"].includes(t.status) && t.checks && now - t.updated < REPORT_MS)
   } catch {}
   return done.sort((a, b) => b.updated - a.updated).slice(0, 3).map((t) => taskNo(t))
 }

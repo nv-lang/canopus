@@ -102,7 +102,7 @@ const got = (s, t) => delivered.filter((d) => d.sessionID === s && d.text.includ
 let stop = await mod.default.setup(mkctx())
 // the first pass does everything; under load it takes longer (the worktree of 001 is created asynchronously)
 for (const end = Date.now() + 30_000; Date.now() < end; ) {
-  if (got("sesEXEC3", "исправь пустой ввод").length && got("sesINTEG1", "принята и влита").length && tasks.loadTask("proj", 1).status === "running") break
+  if (got("sesEXEC3", "исправь пустой ввод").length && got("sesINTEG1", "выполнена и влита").length && tasks.loadTask("proj", 1).status === "running") break
   await wait(200)
 }
 await wait(1000)
@@ -113,7 +113,7 @@ cell("002: the reviewer's obligation is there", core.obligationsOf("sesREVTAB").
 cell("003: the executor gets the rework letter with the remarks", got("sesEXEC3", "исправь пустой ввод").length === 1, JSON.stringify(delivered.filter((d) => d.sessionID === "sesEXEC3").map((d) => d.text.slice(0, 80))))
 cell("003: the executor's obligation is there", core.obligationsOf("sesEXEC3").some((o) => o.qid === "q3"), JSON.stringify(core.obligationsOf("sesEXEC3")))
 cell("003: the reviewer does not get the review letter again", got("sesREV3", "старое письмо").length + got("sesREV3", "ПРИЁМКА").length <= 1, JSON.stringify(got("sesREV3", "")))
-cell("004: the integrator gets the summary quietly", got("sesINTEG1", "принята и влита").filter((d) => d.synthetic).length === 1, JSON.stringify(got("sesINTEG1", "принята")))
+cell("004: the integrator gets the summary quietly", got("sesINTEG1", "выполнена и влита").filter((d) => d.synthetic).length === 1, JSON.stringify(got("sesINTEG1", "выполнена")))
 cell("004: the executor of the dead process gets its title ✓✓", titles.get("sesEXEC4") === "004 исп ✓✓ готово t4", titles.get("sesEXEC4"))
 cell("004: the executor session is closed", core.allCards().find((c) => c.session === "sesEXEC4")?.spawned?.status === "closed", "open")
 cell("005: the review session is created once with its letter", sessions.has("ses_restart5review") && got("ses_restart5review", "ПРИЁМКА задачи 005").length === 1, JSON.stringify([...sessions.keys()]))

@@ -20,7 +20,7 @@ import { background } from "./async-git.ts"
 import { mergeTemplate } from "./config-template.ts"
 import { DECISION_RU, type Decision, writeApproval } from "./approvals.ts"
 import { DEFAULT_FORM, PLAN_ACCEPTANCE, PLAN_MERGE_ACCEPTANCE, type PlanForm, allSteps, nextPlanNumber, parsePlan, planProblems, planTemplate, roundRules } from "./plans.ts"
-import { type Task, type TaskPlan, type TaskSession, WORKING_STATUSES, EXECUTOR_CODE, taskRef, taskNo, sessionOf, sessionRef, sesLabel, methodSession, moveToLegacy, listLegacy, slugify, acceptedAt, ago, byPriority, rounds, createTask, fillName, isOpen, listTasks, loadTask, plannedSessionId, saveTask, statusRu, taskEvent, taskLetterId } from "./tasks.ts"
+import { type Task, type TaskPlan, type TaskSession, WORKING_STATUSES, EXECUTOR_CODE, taskRef, taskNo, sessionOf, sessionRef, sesLabel, methodSession, moveToLegacy, listLegacy, slugify, acceptedAt, ago, byPriority, rounds, createTask, fillName, isOpen, listTasks, loadTask, plannedSessionId, correctionSessionId, saveTask, statusRu, taskEvent, taskLetterId, archiveTaskCycle, startCorrectionCycle } from "./tasks.ts"
 import { countedOpen, waitingCleanup } from "./tasks.ts"
 import { baseRef, branchExists, commitFiles, ensureBranch, findFolder, folderName, pad3, usedNumbers } from "./task-numbers.ts"
 import { firstLogLine, folderInfo, messageRefusal, nextLaunch, readFolderFile, readTaskMessage, refreshRouteStale, routeLogLine, taskLog, templateMessage, titleOfMessage } from "./task-folders.ts"
@@ -1601,7 +1601,7 @@ acceptor — роль приёмщика (разделяемая) при нас�
 
 СТАТУСЫ ЗАДАЧИ: starting (сессия создаётся) → running (в работе) → submitted (сдана) → reviewing (на приёмке) ⇄ rework (на доработке);
 idle (задача с сессиями методики между сессиями: сессия сдана интегратору, следующей нет);
-approval (задача-план ждёт согласования) → accepted (принята и влита, ждёт уборки) → done (принята и убрана) | cancelled (отменена).
+approval (задача-план ждёт согласования) → accepted (выполнена: принята и влита, ждёт уборки) → done (выполнена, ресурсы убраны) → closed (проверки доставки/окончательная приёмка записаны) | cancelled (отменена).
 
 ПРИЁМКА. Исполнитель сдаёт работу действием crew_task {action: "submit", n, text} (qid знать не нужно); сдал — задача сдана (интегратора отчёт не будит), второй отчёт не отправляется.
 Обычное письмо приёмщику или интегратору сдачей не считается. Сданную задачу проверяет и вливает ПРИЁМЩИК — свободная открытая вкладка worker
@@ -1611,7 +1611,7 @@ reviewer; места worker не занимает), и merge, accept, cleanup р
 приёмщик, сменивший роль, их теряет. Исполнитель задачи её не вливает и не принимает. Интегратор принятое не
 перепроверяет. Приёмщик: crew_task review → rework {text} | check {step} → проверка → check {step, result} по каждому шагу (ход видно в окне) → merge (замок вливания проекта) → accept {commit?}
 (плагин проверит обязательные шаги приёмки и что ветка или коммит в целевой ветке) → очистка → cleanup (плагин
-проверит, что worktree и ветка удалены). Улики сохранить — cleanup {n, keep:[путь, …]} (до 8 путей: worktree репозитория или папка в папке деревьев проекта; основное дерево и ветки нельзя; такое дерево уборка не проверяет, ответ: «Сохранено: <путь> (не проверялось уборкой)»); удалять их не нужно, ветку задачи удалить по-прежнему надо (если она выбрана в сохранённом дереве — там git checkout --detach, затем git branch -D; ответ cleanup подскажет). Побочные ветки и деревья задачи (диагностические, предпроверка, итоговая ветка от опубликованной) записывает crew_task {action: "track", n, branch?, worktree?} (исполнитель, приёмщик, интегратор; без дублей; ветки integrate/tN и integrate/tN-* плагин записывает сам при precheck, accept и cleanup; список виден в show); cleanup убирает всё записанное, кроме деревьев из keep. Потом сессии задачи закрываются, интегратору тихая сводка.
+проверит, что worktree и ветка удалены); cleanup не закрывает бизнес-задачу. Улики сохранить — cleanup {n, keep:[путь, …]} (до 8 путей: worktree репозитория или папка в папке деревьев проекта; основное дерево и ветки нельзя; такое дерево уборка не проверяет, ответ: «Сохранено: <путь> (не проверялось уборкой)»); удалять их не нужно, ветку задачи удалить по-прежнему надо. После cleanup интегратор отдельно вызывает close с проверкой доставки и словом владельца. Корректировка результата: correct {n, text, owner_word, owner_word_date, owner_word_source}; только completed/closed modern, причина должна ссылаться на критерий; новая ветка/worktree cycle-scoped строятся от origin target, новый precheck несёт cycle и старые GREEN не принимаются. Accepted до cleanup выдаёт штатный шаг cleanup; cancelled/legacy отказываются. Побочные ветки и деревья задачи (диагностические, предпроверка, итоговая ветка от опубликованной) записывает crew_task {action: "track", n, branch?, worktree?} (исполнитель, приёмщик, интегратор; без дублей; ветки integrate/tN и integrate/tN-* плагин записывает сам при precheck, accept и cleanup; список виден в show); cleanup убирает всё записанное, кроме деревьев из keep. Потом сессии задачи закрываются, интегратору тихая сводка.
 ПРЕДПРОВЕРКА ВЛИВАНИЯ (настройка проекта merge_precheck; по умолчанию required — включена). Порядок приёмщика: review → check → precheck → CI без замка → precheck candidate → merge → accept → отдельная cleanup → cleanup.
 Замок во время подготовки кандидата и CI не брать. crew_task precheck {n} замок не берёт: плагин читает вершину origin и называет её;
 влей её вместе с веткой задачи в интеграционный candidate (например, integrate/tN), прогони полный CI проекта и сохрани точный commit кандидата;
@@ -2224,13 +2224,13 @@ export function makeTools(host: CrewHost): CrewTool[] {
   }
   const taskRow = (t: Task) => `${taskNo(t)} ${t.priority} ${statusRu(t.status)} «${t.title}»${t.route === "fast" ? ` · ${ROUTE_RU.fast}` : ""} — ${t.executor ? `исполнитель ${t.executor}` : "без исполнителя"}${t.kind === "assign" ? " (вкладка владельца)" : ""}${t.reviewer ? `, приёмщик ${t.reviewer}` : ""}${t.status === "accepted" && loadConfig(t.directory).acceptedSlot === "free" ? " — ждёт уборки" : ""}`
 
-  // Задача очищена: всё закрыто. Интегратору и исполнителю — тихие сводки (без пробуждения); сессии задачи закроет
+  // Ресурсы очищены; бизнес-задача остаётся выполненной до отдельного close. Интегратору и исполнителю — тихие сводки;
   // плагин (заголовок «#N ✓✓»).
   const finishCleaned = (t: Task, me: Card, note: string): string => {
     t.reviewer_role = keyOf(me)
     taskEvent(t, me.session, "done", note)
     if (t.review_qid) settleObligation(me.session, t.review_qid)
-    host.posted([...postExpected(t), ...propagateToParent(t)])
+    host.posted(postExpected(t))
     return `Задача ${taskRef(t)} принята и очищена (${note}). Интегратору ушла сводка без пробуждения; сессии задачи закроются.`
   }
 
@@ -2532,6 +2532,8 @@ export function makeTools(host: CrewHost): CrewTool[] {
         "push - integrator - n, text?, to? - nudge a stalled tab now (the reminder counter starts over): to \"executor\" (default) wakes the executor, to \"reviewer\" wakes the reviewer of the task.",
         "deliver - integrator - n, text - a task led by method sessions (status idle: the last session submitted to you) goes to the plugin's review once: text is the report for the reviewer (what is ready to land). A task with a single executor session goes to review on its submit, as before.",
         "reassign - integrator - n, text? - hand the task to a new session under the same number with a summary of what was done (a task session: the same code, the next ordinal and a new launch number; the old one is marked handed). text = a refinement of the goal: it goes into the new session's first letter as a block before the old goal, wins where they differ and stays in the task history (show). Refine the goal with this same call, never with a second letter after the handover: the new session would start on the old goal and report twice.",
+        "correct - integrator - n, text (defect tied to original criterion), owner_word, owner_word_date, owner_word_source - start an idempotent new cycle for a completed/closed task with a proven accepted history and merged commit; accepted before cleanup refuses and names cleanup as next action; cancelled or unproven legacy records refuse.",
+        "close - integrator - n, evidence - final close after cleanup and delivery/production checks, or an explicit reason deployment does not apply.",
         "cancel - integrator - n, text? - cancel the task; text goes to the executor. Releases the merge lock if the task held it.",
         "priority - integrator - n, priority P0..P3 - change the priority.",
         "route - integrator - n, route full|fast, text (the reason, required for full), route_word and route_word_date (fast) - change the route of an open task BY A RECORD (task 092). To full: the reason becomes the basis, the word of the owner is emptied, the series of clean runs is zeroed, the trace stays. A new word «заводи <number>» (fast) renews the word of a task marked route_word_stale (the brief was edited after the word: the warning «постановка изменена после слова завода: нужно новое слово владельца» shows in list, show and every step until then) and re-reads the brief. A line «маршрут: …» goes to log.md of the task.",
@@ -2547,13 +2549,13 @@ export function makeTools(host: CrewHost): CrewTool[] {
         "unlock - reviewer - unlock {n} - release the merge lock you hold for the task (the precheck record becomes stale).",
         "rework - reviewer - n, text, sync? - return the task to the executor with remarks; sync: true only asks to merge the fresh target branch (not a rework round, not counted in rework_max). Releases the merge lock.",
         "accept - reviewer - n, checks?, commit? - accept after landing: the plugin checks that the required steps are marked and that the task branch (or commit, when squashed) is in the target branch, releases the merge lock, and with accepted_slot: free the task stops taking a place in inflight_limit; the answer lists the cleanup steps. For a plan task the approval must exist first. commit: the commit in the target branch for a squash merge.",
-        "cleanup - reviewer - n, keep? - after accept, remove the task's worktree, branch and recorded side branches/worktrees yourself, then call this; the plugin checks they are gone and the task becomes done. keep: up to 8 paths of worktrees to keep as evidence (a worktree of the repository or a folder in the project's worktree folder; absolute or from the repository root; not the main tree); the check skips them and the answer says \"Сохранено: <path> (не проверялось уборкой)\"; the task branch must still be deleted. cleanup_limit bounds the queue of accepted tasks waiting for cleanup.",
+        "cleanup - reviewer - n, keep? - after accept, remove the task's worktree, branch and recorded side branches/worktrees yourself, then call this; the plugin checks they are gone and the task becomes done (completed, not finally closed). close is a separate integrator action after delivery checks. keep: up to 8 paths of worktrees to keep as evidence (a worktree of the repository or a folder in the project's worktree folder; absolute or from the repository root; not the main tree); the check skips them and the answer says \"Сохранено: <path> (не проверялось уборкой)\"; the task branch must still be deleted. cleanup_limit bounds the queue of accepted tasks waiting for cleanup.",
         "With the project setting reviewer: acceptor, merge, unlock, precheck, accept and cleanup need the acceptor role (or the integrator). The executor never lands or accepts its own task. Reviewer order: review, check each step, precheck, merge, accept, cleanup.",
       ].join("\n"),
     input: {
       type: "object",
       properties: {
-        action: { type: "string", enum: ["list", "show", "assign", "order", "push", "reassign", "cancel", "priority", "track", "plan_decide", "submit", "deliver", "review", "check", "round", "merge", "unlock", "precheck", "rework", "accept", "cleanup", "cleaned", "route", "migrate"] },
+        action: { type: "string", enum: ["list", "show", "assign", "order", "push", "reassign", "correct", "close", "cancel", "priority", "track", "plan_decide", "submit", "deliver", "review", "check", "round", "merge", "unlock", "precheck", "rework", "accept", "cleanup", "cleaned", "route", "migrate"] },
         to: str("order: the other project's integrator, \"project.integrator\"; push: \"executor\" (default) or \"reviewer\""),
         keep: { type: "array", maxItems: 8, items: { type: "string" }, description: "cleanup: up to 8 worktree paths to keep as evidence" },
         checks: { type: "object", description: "accept: report per acceptance step {step id: what proves it}", additionalProperties: { type: "string" } },
@@ -2576,6 +2578,10 @@ export function makeTools(host: CrewHost): CrewTool[] {
         message: str("assign in a project with task folders: the full text of task/message.md of the new folder by the template (as crew_spawn); migrate: exact saved original task text, never reconstructed"),
         route_word: str("route/migrate: the owner's exact «заводи <number>» authorization with date and source"),
         route_word_date: str("route/migrate: date of the owner's word in YYYY-MM-DD"),
+        owner_word: str("correct: exact owner authorization naming this task number"),
+        owner_word_date: str("correct: date of the owner's authorization in YYYY-MM-DD"),
+        owner_word_source: str("correct: source/channel of the owner's authorization"),
+        evidence: str("close: production/delivery verification, or why deployment does not apply"),
         ...taskInput,
         ...routeInput,
       },
@@ -2712,6 +2718,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
           t.reviewer ? `приёмщик: ${t.reviewer}${t.review_kind ? ` (${t.review_kind === "tab" ? "открытая вкладка" : t.review_kind === "spawn" ? "сессия под приёмку" : "интегратор"})` : ""}${t.rework ? `, кругов доработки: ${t.rework}` : ""}` : "",
           t.report ? `отчёт исполнителя: ${t.report.slice(0, 500)}` : "",
           t.checks ? `шаги приёмки: ${Object.entries(t.checks).map(([k, v]) => `${k}: ${v}`).join("; ")}` : "",
+          t.cycles?.length ? `история принятых циклов: ${t.cycles.map((c) => { const close = [...t.history].reverse().find((h) => h.status === "closed" && h.note?.includes(`цикл ${c.cycle}`)); return `цикл ${c.cycle}: ${c.commit ?? c.merged_head ?? "коммит не записан"}${close ? `; закрыт ${hhmm(close.at)} — ${close.note ?? ""}` : "; ожидает окончательного закрытия"}` }).join(" | ")}` : "",
           `история:\n${t.history.map((h) => `  ${hhmm(h.at)} ${h.status ? statusRu(h.status) : ""}${h.note ? ` — ${h.note}` : ""}`).join("\n")}`,
         ]
         return { content: lines.filter(Boolean).join("\n") }
@@ -2990,6 +2997,8 @@ export function makeTools(host: CrewHost): CrewTool[] {
             }
           }
           if (warn) taskEvent(t, me.session, undefined, `предупреждение: ${warn.trim()}`)
+          archiveTaskCycle(t, me.session)
+          saveTask(t)
           try {
             releaseTaskWindow(t.project, t) // файл окон профиля из дерева принятой задачи снят (задача 003, REQ-22)
           } catch (e) {
@@ -3039,6 +3048,55 @@ ${lockStillYours(stillHeld.n)}` : "") }
         t.priority = input.priority
         taskEvent(t, me.session, undefined, `приоритет ${input.priority}`)
         return { content: `Задача ${taskRef(t)}: приоритет ${t.priority}.` }
+      }
+      if (action === "correct") {
+        if (t.status === "accepted") return { content: `Корректировка отказана: задача принята, но cleanup ещё не закончена. Выполни crew_task {action: "cleanup", n: ${t.n}}, затем повтори correct.` }
+        if (t.status !== "done" && t.status !== "closed") return { content: `Корректировка доступна только для выполненной/закрытой задачи; сейчас ${statusRu(t.status)}. Отменённые и legacy-записи не переоткрываются.` }
+        if (t.parent) {
+          const parent = loadTask(t.parent.project, t.parent.n)
+          if (!parent || parent.status === "done" || parent.status === "closed" || parent.status === "cancelled") return { content: `Корректировка отказана: родительский заказ ${taskNo({ project: t.parent.project, n: t.parent.n })} уже завершён/закрыт или отсутствует. Не открываю дочернюю работу под ложным завершённым заказом; следующий шаг — новый заказ у интегратора ${t.parent.project}.` }
+        }
+        const reason = String(input.text ?? "").trim(), word = String(input.owner_word ?? "").trim(), date = String(input.owner_word_date ?? "").trim(), source = String(input.owner_word_source ?? "").trim()
+        if (!/критери|критерий|ac\s*\d+/i.test(reason)) return { content: "Нужен text с дефектом результата и ссылкой на исходный критерий (например, «дефект критерия 2: …»); новая продуктовая цель требует новой задачи." }
+        if (!new RegExp(`(?:доработай|переоткрой|корректируй|продолжить|продолжай|продолжи)\\s+0*${t.n}(?!\\d)`, "i").test(word) || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !source) return { content: `Нужно явное слово владельца для задачи ${taskNo(t)}, его дата и источник.` }
+        const old = t.executor
+        const oldCard = old ? readJson<Card>(cardFile(old)) : undefined
+        const oldTab = old ? tabOf(old, liveWindows())?.tab : undefined
+        if (oldCard?.spawned?.status === "running" || oldCard?.busy || oldTab?.busy) return { content: `Отказ до изменений: прежний исполнитель ${old} ещё отмечен работающим; проверь, что его сессия, процессы и команды остановлены.` }
+        const nextCycle = (t.cycle ?? 1) + 1
+        const nextBranch = `${t.branch ?? `t${t.n}-${t.slug}`}-c${nextCycle}`
+        const nextWorktree = t.worktree ? `${t.worktree}-c${nextCycle}` : undefined
+        if (branchExists(t.directory, nextBranch) || (nextWorktree && existsSync(nextWorktree))) return { content: `Отказ до изменений: новый ресурс цикла уже существует (${branchExists(t.directory, nextBranch) ? `ветка ${nextBranch}` : `worktree ${nextWorktree}`}); чужое или оставшееся дерево не перезаписываю. Разреши ownership и убери только доказанно принадлежащий задаче ресурс, затем повтори.` }
+        const archived = startCorrectionCycle(t, me.session, { reason, word, date, source })
+        if (!archived) return { content: `Отказ: нет современного сохранённого цикла для корректировки. Безопасный следующий шаг — новая задача со ссылкой на ${taskNo(t)}; старую запись не менял.` }
+        if (old) { releaseExecutor(t, old); t.executors.push(old) }
+        t.executor = correctionSessionId(t.project, t.n, t.cycle ?? 2)
+        t.kind = "spawn"
+        t.worktree_ready = false
+        t.branch = nextBranch
+        if (nextWorktree) t.worktree = nextWorktree
+        t.reviewer = undefined; t.review_qid = undefined; t.review_kind = undefined; t.reviewers = undefined; t.review_letter = undefined
+        t.steps = undefined; t.side = []
+        t.refinement = { text: `ДОРАБОТКА цикла ${archived.cycle}: причина ${reason}; исходный принятый коммит ${archived.commit ?? archived.merged_head ?? "не записан"}.`, at: Date.now(), by: me.session }
+        taskEvent(t, me.session, "starting", `цикл ${t.cycle}: корректировка по слову владельца «${word}» (${date}, ${source}); ${reason}`)
+        const launched = await host.startTask(t)
+        return { content: launched.session ? `Цикл ${t.cycle} задачи ${taskRef(t)} запущен в новой сессии ${launched.session}; новое worktree/ветка создаются от актуальной origin/${loadConfig(t.directory).targetBranch}.` : `Цикл ${t.cycle} записан идемпотентно; запуск повторит плагин: ${launched.error ?? "ожидает"}.` }
+      }
+      if (action === "close") {
+        if (t.status === "closed") {
+          host.posted([...postExpected(t), ...propagateToParent(t)]) // восстановить недоставленные эффекты после сбоя; идентификаторы писем стабильны
+          return { content: `Задача ${taskRef(t)} уже закрыта; повтор проверил доставку сводки.` }
+        }
+        if (t.status !== "done") return { content: `Закрыть можно только выполненную задачу после cleanup (сейчас ${statusRu(t.status)}).` }
+        const evidence = String(input.evidence ?? "").trim()
+        if (!evidence) return { content: "Не закрыто: укажи подтверждение проверки доставки/установки либо явную причину, почему установка неприменима." }
+        const word = String(input.owner_word ?? "").trim(), date = String(input.owner_word_date ?? "").trim(), source = String(input.owner_word_source ?? "").trim()
+        if (!new RegExp(`(?:закрой|закрывай)\\s+0*${t.n}(?!\\d)`, "i").test(word) || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !source) return { content: `Не закрыто: нужно отдельное слово владельца для задачи ${taskNo(t)}, дата и источник.` }
+        const cycle = t.cycles?.find((x) => x.cycle === (t.cycle ?? 1))
+        if (!cycle) return { content: "Не закрыто: текущая редакция не имеет снимка независимой приёмки; legacy-записи не восстанавливаются автоматически." }
+        taskEvent(t, me.session, "closed", `закрыта после проверки доставки, цикл ${t.cycle ?? 1}: ${evidence.slice(0, 300)}; слово владельца «${word}» (${date}, ${source})`)
+        host.posted([...postExpected(t), ...propagateToParent(t)])
+        return { content: `Задача ${taskRef(t)} закрыта по циклу ${t.cycle ?? 1}.` }
       }
       if (!isOpen(t)) return { content: `Задача ${taskRef(t)} уже ${statusRu(t.status)}.` }
       if (action === "push") {
@@ -3535,8 +3593,13 @@ export function expectedLetters(t: Task): Letter[] {
     out.push({ id: `review-again-${p}-${t.n}-${rounds(t)}`, from_role: t.executor_role ?? "исполнитель", from_session: t.executor ?? PLUGIN_SENDER, to: t.reviewer, time: at, text: `Доработка задачи ${taskNo(t)} «${t.title}» сдана (круг ${t.rework}):\n${t.report}\nПроверь снова: crew_task {action: "review", n: ${t.n}}, дальше rework или merge → accept.` })
   if (t.status === "done") {
     const checks = Object.entries(t.checks ?? {}).map(([k, v]) => `${k}: ${v}`).join("; ")
-    out.push({ id: `cleaned-${p}-${t.n}`, from_role: reviewerRole, from_session: t.reviewer ?? PLUGIN_SENDER, to: t.author, time: at, wake: false, text: `Задача ${taskNo(t)} «${t.title}» принята и влита (${t.commit ? `коммит ${t.commit}` : `ветка ${t.branch ?? "?"}`}), очищена. Приёмщик ${reviewerRole}. Шаги: ${checks || "—"}. Перепроверять не нужно.` })
-    if (t.executor) out.push({ id: `cleaned-ex-${p}-${t.n}`, from_role: reviewerRole, from_session: t.reviewer ?? PLUGIN_SENDER, to: t.executor, time: at, wake: false, text: `Задача ${taskNo(t)} принята и влита. Работа закончена — сессия закрывается.` })
+    out.push({ id: `cleaned-${p}-${t.n}-c${t.cycle ?? 1}`, from_role: reviewerRole, from_session: t.reviewer ?? PLUGIN_SENDER, to: t.author, time: at, wake: false, text: `Задача ${taskNo(t)} «${t.title}» выполнена и влита (${t.commit ? `коммит ${t.commit}` : `ветка ${t.branch ?? "?"}`}), ресурсы очищены. Окончательное закрытие требует отдельной проверки доставки: crew_task {action: "close", n: ${t.n}, evidence: "..."}. Приёмщик ${reviewerRole}. Шаги: ${checks || "—"}.` })
+    if (t.executor) out.push({ id: `cleaned-ex-${p}-${t.n}-c${t.cycle ?? 1}`, from_role: reviewerRole, from_session: t.reviewer ?? PLUGIN_SENDER, to: t.executor, time: at, wake: false, text: `Задача ${taskNo(t)} выполнена и влита. Сессия закрывается; возможная проверка доставки остаётся отдельной.` })
+  }
+  if (t.status === "closed") {
+    const c = t.cycle ?? 1
+    const closure = [...t.history].reverse().find((h) => h.status === "closed" && h.note?.includes(`цикл ${c}`))
+    out.push({ id: `closed-${p}-${t.n}-c${c}`, from_role: "integrator", from_session: t.author, to: t.author, time: at, wake: false, text: `Задача ${taskNo(t)} «${t.title}» окончательно закрыта (цикл ${c}): ${closure?.note ?? "проверка доставки записана"}.` })
   }
   return out
 }
@@ -3568,12 +3631,12 @@ export function parseParent(v: any): { project: string; n: number } | undefined 
 // ЗАКАЗ ИДЁТ ЗА ЗАДАЧЕЙ ИСПОЛНИТЕЛЯ (план 002, Ф.5): задача с parent очищена — заказ выполнен (заказчику тихая
 // сводка); отменена — заказчику вызов. Повторяемо: заказ уже закрыт — ничего; письма с постоянными id.
 export function propagateToParent(t: Task): string[] {
-  if (!t.parent || (t.status !== "done" && t.status !== "cancelled")) return []
+  if (!t.parent || (t.status !== "closed" && t.status !== "cancelled")) return []
   const order = loadTask(t.parent.project, t.parent.n)
   if (!order || order.kind !== "order") return []
   const sent: string[] = []
-  const done = t.status === "done"
-  if (isOpen(order)) taskEvent(order, PLUGIN_SENDER, done ? "done" : undefined, done ? `выполнен в ${t.project}: ${taskNo(t)} принята` : `задача ${t.project} ${taskNo(t)} отменена`)
+  const done = t.status === "closed"
+  if (isOpen(order)) taskEvent(order, PLUGIN_SENDER, done ? "done" : undefined, done ? `выполнен и закрыт в ${t.project}: ${taskNo(t)} принята и проверена` : `задача ${t.project} ${taskNo(t)} отменена`)
   const id = `order-${done ? "done" : "cancel"}-${safeKey(order.project)}-${order.n}-${safeKey(t.project)}-${t.n}`
   if (!letterExistsFor(order.author, id)) {
     postLetter(order.author, {

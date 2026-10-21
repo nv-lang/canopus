@@ -32,6 +32,7 @@ const a1 = H.reviewing()
 const base1 = H.originTip()
 const r1 = await begin(a1)
 cell("REQ-06 begin: the record 'running' on the tip of origin, the answer names the tip and the next step", T(a1.n).precheck?.state === "running" && T(a1.n).precheck.base === base1 && T(a1.n).precheck.by === REV && r1.includes(base1) && /candidate/.test(r1) && /не берётся/.test(r1) && !H.holder(), r1)
+cell("precheck record is bound to the current result cycle", T(a1.n).precheck?.cycle === 1 && precheck.isFresh({ ...T(a1.n).precheck, state: "green", candidate: "a" }, T(a1.n)) && !precheck.isFresh({ ...T(a1.n).precheck, state: "green", cycle: 0, candidate: "a" }, { ...T(a1.n), cycle: 2 }), JSON.stringify(T(a1.n).precheck))
 const hist1 = T(a1.n).history.length
 const at0 = T(a1.n).precheck.at
 const r1b = await begin(a1)
