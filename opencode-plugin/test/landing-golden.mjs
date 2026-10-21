@@ -1,12 +1,12 @@
 // Golden texts of the base for the faster-landing task (005; node >= 24).
-//   node test/landing-golden.mjs --write            record the snapshot test/landing-golden.json (once, BEFORE the core is changed)
+//   node test/landing-golden.mjs --write            record the baseline at test/landing-golden.json after an intentional text change
 //   node test/landing-golden.mjs --check --legacy   collect the texts again with the OLD behaviour set explicitly (accepted_slot: hold,
 //                                                   merge_precheck: off) and compare with the snapshot: "golden ok" / "golden differs"
 //   node test/landing-golden.mjs --dump <file> [--legacy | --new]  write the collected texts to a file with no comparison; no flag --
 //                                                   no new keys in the project file (the defaults: free and required, since 2026-10-09),
 //                                                   --new -- the same values set explicitly, --legacy -- hold and off
-// The snapshot is the base BEFORE task 005, which is the old behaviour; the defaults changed (owner, 2026-10-09), so the
-// snapshot is compared only with the explicit old values.
+// The snapshot preserves the explicit old landing settings (hold/off); task 136 separates the status «выполнена» from the
+// optional cleanup-wait badge while the default-vs-legacy comparison remains intact.
 // The texts: the refusal of crew_spawn by the limit with an accepted task, the reminders about an accepted, not cleaned up task,
 // formatTaskLetter, planTaskLetter, reviewLetter, planMergeLetter, crew_task show and list for tasks in running, reviewing and
 // accepted. The temp folder and the clock are replaced by markers. LANDING_GOLDEN_FILE points to another snapshot file

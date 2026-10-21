@@ -221,7 +221,7 @@ cell("AC-05: the reminder comes through accepted_reminder_min, once, and says th
 const auth5 = letters("sesINTEG1").filter((l) => new RegExp(`${String(a5.n).padStart(3, "0")} .*приёмщик sesREV05`).test(l.text))
 cell("AC-05: the author is told too, in the same words", auth5.length === 1 && /ждёт уборки, место не занимает; ждёт уборки 1 из 4/.test(auth5[0].text), JSON.stringify(auth5.map((l) => l.text)))
 const list5 = await call("crew_task", { action: "list" })
-cell("AC-05: crew_task list marks the accepted task as waiting for cleanup", new RegExp(`${String(a5.n).padStart(3, "0")} P2 принята «[^»]+» — исполнитель sesEXsesREV05, приёмщик sesREV05 — ждёт уборки`).test(list5), list5)
+cell("AC-05: crew_task list marks the accepted task as completed and waiting for cleanup", new RegExp(`${String(a5.n).padStart(3, "0")} P2 выполнена «[^»]+» — исполнитель sesEXsesREV05, приёмщик sesREV05 — ждёт уборки`).test(list5), list5)
 const show5 = await call("crew_task", { action: "show", n: a5.n })
 cell("AC-05: crew_task show marks it too", /^\d{3,} .* — ждёт уборки$/m.test(show5.split("\n")[0]), show5.split("\n")[0])
 settings({ inflight_limit: 5, accepted_slot: "hold" })

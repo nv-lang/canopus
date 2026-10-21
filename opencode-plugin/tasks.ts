@@ -8,6 +8,7 @@
 // его id выводится из номера и попытки, и уже лежащее (в ящике или прочитанное) повторно не кладётся.
 
 import { existsSync, mkdirSync, readdirSync, renameSync, writeFileSync } from "node:fs"
+import { createHash } from "node:crypto"
 import path from "node:path"
 import { INBOX, READ, type Priority, type Tier, readJson, safeKey } from "./core.ts"
 import { idsHas } from "./housekeeping.ts"
@@ -17,15 +18,32 @@ import type { RouteFields } from "./route.ts"
 // путь — из paths.ts (модуль без зависимостей: core и tasks импортируют друг друга, а BASE ядра здесь ещё не готов)
 export const TASKS = path.join(BASE, "tasks")
 
-// starting — записана, сессия создаётся; running — в работе; submitted — сдана (отчёт), ждёт приёмщика;
-// reviewing — на приёмке; rework — на доработке; accepted — принята (влита), ждёт очистки; done — принята и убрана, всё
-// закрыто (в старых файлах это слово «cleaned»: читается как done, см. normTask); cancelled — отменена.
+// starting — записана, сессия создаётся; running — в работе; submitted — сдана; reviewing — на приёмке; rework — на доработке;
+// accepted — выполнена/влита, ждёт cleanup; done — выполнена, ресурсы убраны; closed — окончательно закрыта после проверок;
+// cleaned (legacy) читается как done; cancelled — отменена.
 // idle (задача 058) — задача с сессиями методики между сессиями: прежняя сессия сдана интегратору, следующей ещё нет; приёмки нет.
-export type TaskStatus = "starting" | "running" | "submitted" | "reviewing" | "rework" | "approval" | "accepted" | "done" | "cancelled" | "idle"
+export type TaskStatus = "starting" | "running" | "submitted" | "reviewing" | "rework" | "approval" | "accepted" | "done" | "closed" | "cancelled" | "idle"
 export const OPEN_STATUSES: TaskStatus[] = ["starting", "running", "submitted", "reviewing", "rework", "approval", "accepted", "idle"]
 /** статусы, в которых исполнитель работает (может сдавать отчёт) */
 export const WORKING_STATUSES: TaskStatus[] = ["starting", "running", "rework"]
 export type TaskEvent = { at: number; by: string; status?: TaskStatus; note?: string }
+/** Неизменяемый снимок принятой редакции. Текущие поля Task остаются единственным источником для текущего цикла;
+ * завершённые редакции только дописываются сюда и никогда не используются как действующие gates. */
+export type TaskCycle = {
+  cycle: number
+  /** Brief of the accepted result; extension cycles replace the live fields only after this snapshot exists. */
+  goal: string
+  criteria?: string
+  boundaries?: string
+  accepted_at: number
+  accepted_by?: string
+  commit?: string
+  merged_head?: string
+  checks?: Record<string, string>
+  precheck?: PrecheckRecord
+  report?: string
+  history: TaskEvent[]
+}
 /** Номер задачи в показе — ЕДИНСТВЕННОЕ место, где он пишется владельцу, вкладке и письму (задача 086; владелец, 2026-10-18:
  *  «все задачи всех проектов подписываются тремя цифрами без # (022, 061, 081, 094) … количество цифр может быть и больше 3»).
  *  Любая задача любого проекта — номер записи плагина (он же номер папки задачи) с нулями слева до трёх цифр, без «#»: «022», «061»,
@@ -92,6 +110,8 @@ export type PrecheckRecord = {
   by: string
   /** rounds(t) + attempt на момент начала: запись прежнего круга зелёной не считается */
   round: number
+  /** Цикл результата; отсутствие в старой записи означает цикл 1. */
+  cycle?: number
   candidate?: string
   /** вершина ветки задачи в момент фиксации кандидата (задача 030): если ветка ушла дальше, кандидат устарел, когда не содержит её и не равен ей по дереву */
   branch_tip?: string
@@ -129,6 +149,12 @@ export type Task = RouteFields & {
   /** qid отчёта: исполнитель отвечает crew_send {reply_to: qid} */
   qid: string
   status: TaskStatus
+  /** Номер текущего цикла. В legacy-записях отсутствие означает цикл 1. */
+  cycle?: number
+  /** Новый цикл корректировки обязан иметь базу origin/<target>; fetch fallback на локальную ветку запрещён. */
+  correctionOriginRequired?: boolean
+  /** Только завершённые циклы; snapshot не меняется после добавления. */
+  cycles?: TaskCycle[]
   /** spawn — сессия создана плагином; assign — задачу взяла вкладка владельца; order — заказ в другой проект (своей
    *  сессии нет: делает интегратор проекта-исполнителя своими задачами, у них parent — этот заказ); external — номер взял агент
    *  вне OpenCode (scripts/task-number.mjs, задача 058): запись только занимает номер */
@@ -254,6 +280,60 @@ export function taskEvent(t: Task, by: string, status?: TaskStatus, note?: strin
   if (status) t.status = status
   t.history.push({ at: Date.now(), by, ...(status ? { status } : {}), ...(note ? { note } : {}) })
   saveTask(t)
+}
+
+/** Архивировать текущую принятую редакцию ровно один раз; вызывающий сохраняет задачу вместе с переходом статуса. */
+export function archiveTaskCycle(t: Task, by?: string): TaskCycle | undefined {
+  const cycle = t.cycle ?? 1
+  const prior = t.cycles?.find((x) => x.cycle === cycle)
+  if (prior) return prior
+  const accepted = [...(t.history ?? [])].reverse().find((x) => x.status === "accepted")
+  // Explicit archive/reopen of a pre-cycle record is allowed only when the persisted history proves acceptance
+  // and the accepted commit is still recorded. Never invent an acceptance time or silently migrate a legacy row.
+  if (!accepted || !(t.commit || t.merged_head)) return undefined
+  const copy = <T>(value: T): T => value === undefined ? value : JSON.parse(JSON.stringify(value)) as T
+  const item: TaskCycle = {
+    cycle,
+    goal: t.goal,
+    ...(t.criteria ? { criteria: t.criteria } : {}),
+    ...(t.boundaries ? { boundaries: t.boundaries } : {}),
+    accepted_at: accepted.at,
+    ...(by ? { accepted_by: by } : accepted?.by ? { accepted_by: accepted.by } : {}),
+    ...(t.commit ? { commit: t.commit } : {}),
+    ...(t.merged_head ? { merged_head: t.merged_head } : {}),
+    ...(t.checks ? { checks: copy(t.checks) } : {}),
+    ...(t.precheck ? { precheck: copy(t.precheck) } : {}),
+    ...(t.report ? { report: t.report } : {}),
+    history: copy(t.history ?? []),
+  }
+  t.cycles ??= []
+  t.cycles.push(item)
+  return item
+}
+
+/** Начать следующий цикл только из принятой/выполненной/закрытой редакции, не уменьшая номер попытки и не меняя архив. */
+export function startCorrectionCycle(t: Task, by: string, input: { reason: string; word: string; date: string; source: string; mode?: "correction" | "continuation" }): TaskCycle | undefined {
+  if (t.status !== "done" && t.status !== "closed") return undefined
+  const { reason, word, date, source } = input
+  if (!reason.trim() || !new RegExp(`(?:доработай|переоткрой|корректируй|продолжить|продолжай|продолжи)\\s+0*${t.n}(?!\\d)`, "i").test(word) || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !source.trim()) return undefined
+  const prior = t.cycles?.find((x) => x.cycle === (t.cycle ?? 1)) ?? archiveTaskCycle(t)
+  if (!prior) return undefined
+  t.cycle = prior.cycle + 1
+  t.commit = undefined
+  t.merged_head = undefined
+  t.checks = undefined
+  t.precheck = undefined
+  t.report = undefined
+  t.steps = undefined
+  t.checking = undefined
+  t.rework_note = undefined
+  t.rework_sync = undefined
+  t.correctionOriginRequired = true
+  // Глобальные исторические счётчики rework/syncs не уменьшаются; attempt и cycle дают новый gate namespace.
+  t.attempt += 1
+  t.status = "starting"
+  t.history.push({ at: Date.now(), by, note: `цикл ${t.cycle}: ${input.mode === "continuation" ? "продолжение согласованного содержания" : `корректировка результата цикла ${prior.cycle}`}; причина: ${reason.trim()}; слово владельца: «${word.trim()}» (${date}, ${source.trim()})` })
+  return prior
 }
 
 export function listTasks(project?: string): Task[] {
@@ -390,6 +470,8 @@ export const ago = (at: number, now = Date.now()) => {
 
 /** id сессии задачи, выбранный заранее (OpenCode принимает свой id, если он начинается с "ses"). */
 export const plannedSessionId = () => `ses_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`.slice(0, 30)
+/** Same correction cycle across retries/processes gets the same OpenCode session id. */
+export const correctionSessionId = (project: string, n: number, cycle: number) => `ses_c${createHash("sha256").update(`${project}:${n}`).digest("hex").slice(0, 12)}_${cycle}`
 
 // Название латиницей для имён веток и папок: кириллица транслитерируется, прочее — в дефисы.
 const TR: Record<string, string> = { а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z", и: "i", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "h", ц: "c", ч: "ch", ш: "sh", щ: "sch", ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya" }
@@ -414,5 +496,5 @@ export function letterExists(key: string, id: string): boolean {
 const PRIORITY_RANK: Record<string, number> = { P0: 0, P1: 1, P2: 2, P3: 3 }
 export const byPriority = (a: Task, b: Task) => (PRIORITY_RANK[a.priority] ?? 9) - (PRIORITY_RANK[b.priority] ?? 9) || a.created - b.created
 
-const STATUS_RU: Record<TaskStatus, string> = { starting: "запускается", running: "в работе", submitted: "сдана", reviewing: "на приёмке", rework: "на доработке", approval: "на согласовании у владельца", accepted: "принята", done: "готова", cancelled: "отменена", idle: "ждёт следующей сессии" }
+const STATUS_RU: Record<TaskStatus, string> = { starting: "запускается", running: "в работе", submitted: "сдана", reviewing: "на приёмке", rework: "на доработке", approval: "на согласовании у владельца", accepted: "выполнена", done: "выполнена", closed: "закрыта", cancelled: "отменена", idle: "ждёт следующей сессии" }
 export const statusRu = (s: TaskStatus) => STATUS_RU[s] ?? s

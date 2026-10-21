@@ -841,9 +841,9 @@ one, a turn without one is empty.
 ## Tasks
 
 Task statuses: `starting` → `running` → `submitted` → `reviewing` ⇄ `rework`; `approval` (a plan task waits for approval);
-`accepted` (landed, cleanup ahead) → `done` (accepted and cleaned up); `cancelled`; `idle` (a task led by method sessions
+`accepted` (independently accepted/landed, cleanup ahead; business status «выполнена») → `done` (resources cleaned, still «выполнена») → `closed` (delivery/production checks recorded); `cancelled`; `idle` (a task led by method sessions
 between two sessions: the last one submitted to the integrator, no review yet). Task files written before 2026-10-14 may say
-`cleaned` instead of `done`: it is read as `done` (no migration of the files). The action that finishes a task is `crew_task cleanup`
+`cleaned` instead of `done`: it is read as `done` (no migration of the files). Cleanup does not close the business task; `crew_task close` is a separate explicit step and requires delivery/production evidence or a reason deployment does not apply, plus the owner's dated word and source.
 (`cleaned` still works as its old name). `crew_task show` and `crew_config show` are the only names for «show»: the old word `view` is refused with the hint «Команды view больше нет, используй show».
 
 **One task, one number (task 058).** In a project with task folders (the key `tasks_dir`, default `doc/tasks`; on when that
@@ -933,8 +933,19 @@ task by its number; a session's title is `045 исп title`. The journal is
   {n, text?}` (wake a stalled executor now), `reassign {n, text?}` (a new session, the same number, a
   summary of what was done; `text` refines the goal: it goes into the new session's first letter as a
   block «УТОЧНЕНИЕ ПРИ ПЕРЕДАЧЕ» before the old goal, wins where they differ and stays in the task
-  history and `show`; refine with this call, not with a second letter), `cancel {n}`, `priority {n, priority}`, `deliver {n,
-  text}` (a task with method sessions goes to the plugin's review once).
+   history and `show`; refine with this call, not with a second letter), `cancel {n}`, `priority {n, priority}`, `deliver {n,
+   text}` (a task with method sessions goes to the plugin's review once).
+  `correct {n, text, owner_word, owner_word_date, owner_word_source}` starts a new cycle only for a modern completed/closed task;
+  it requires a defect against an original criterion and the owner's dated, sourced word naming that number. Prior accepted commit,
+  checks, precheck and report are preserved as cycle history; new exact prechecks are cycle-bound. A repeated call after the durable
+  status transition cannot start a second session. Accepted-before-cleanup refuses with `cleanup` as the automatic next step;
+  cancelled and legacy records without a proven acceptance event plus merged commit refuse unchanged.
+  `continue {n, goal, criteria, owner_word, owner_word_date, owner_word_source}` is distinct and currently scoped only to the single
+  owner-authorized task 132 ACP addition: exact word «Продолжить 132 (Recommended)» from question «Продолжение 132», goal Codex+Claude
+  Code via ACP and criteria keeping live separate. It archives the prior brief/acceptance and starts fresh gates; it is not a universal
+  extension path. Other new product goals need new tasks. Neither operation reuses old gates.
+  `close {n, evidence, owner_word, owner_word_date, owner_word_source}` is a separate final step after delivery/production checks
+  (or an explicit reason deployment does not apply).
 - The executor submits with `crew_task {action: "submit", n, text}` (`submit - executor - n, text`):
   no qid needed; `text` is the report (what was done, how it was checked, what is left). It covers
   the first submission, the one after rework or after a sync, and a plan task with the form check. The task is

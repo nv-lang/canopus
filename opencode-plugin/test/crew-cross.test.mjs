@@ -2,8 +2,7 @@
 // - inbound of the receiving project: integrator (default: from another project only to its integrator), any, none;
 //   a refused letter names the address to use;
 // - an order: alpha's integrator orders work from beta's integrator (crew_task order); beta takes it with its own
-//   task (crew_spawn {parent: "alpha#N"}); the order follows that task: cleanup -> the order is done (a quiet summary
-//   to alpha's integrator), cancelled -> a call; no session and no title marks for the order.
+//   task (crew_spawn {parent: "alpha#N"}); cleanup leaves the order open until final close; cancelled -> a call; no session and no title marks.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
@@ -100,11 +99,15 @@ cell("beta's task carries the parent; the order knows its child", child?.parent?
 const wrongParent = await call("crew_spawn", "sesBINT", { title: "x", goal: "g", criteria: "c", parent: "alpha#99" })
 cell("an unknown parent is refused", /Заказа alpha#99/.test(wrongParent), wrongParent)
 
-// 3. beta's task is cleaned up (as the reviewer would) -> the order is done; alpha's integrator gets a quiet summary
+// 3. beta's cleanup leaves the order open; explicit final close completes the order.
 tasks.taskEvent(tasks.loadTask("beta", 1), "test", "done", "принята")
+cell("the order stays open after cleanup while final checks are pending", tasks.loadTask("alpha", 1).status === "running", JSON.stringify(tasks.loadTask("alpha", 1).history))
+const deliveredOrder = tasks.loadTask("beta", 1)
+tasks.taskEvent(deliveredOrder, "test", "closed", "проверено")
+core.propagateToParent(deliveredOrder)
 await wait(2600) // the reconcile pass (every 2 s)
-cell("the order is done when beta's task is cleaned up", tasks.loadTask("alpha", 1).status === "done", JSON.stringify(tasks.loadTask("alpha", 1).history))
-cell("alpha's integrator gets a quiet summary", got("sesAINT", "Заказ 001 «библиотека» выполнен проектом beta").some((d) => d.synthetic), JSON.stringify(got("sesAINT", "Заказ")))
+cell("the order is done only after beta's task is finally closed", tasks.loadTask("alpha", 1).status === "done", JSON.stringify(tasks.loadTask("alpha", 1).history))
+cell("alpha's integrator gets a quiet summary only on final close", got("sesAINT", "Заказ 001 «библиотека» выполнен проектом beta").some((d) => d.synthetic), JSON.stringify(got("sesAINT", "Заказ")))
 cell("no titles of integrators were touched", !updates.some((u) => u.sessionID === "sesAINT" || u.sessionID === "sesBINT"), JSON.stringify(updates))
 
 // 4. a cancelled child -> a call to the orderer

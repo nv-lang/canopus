@@ -63,6 +63,25 @@ const cell = (name, ok, detail) => {
   console.log(`${ok ? "ok  " : "FAIL"} ${name}${ok ? "" : " :: " + detail}`)
   if (!ok) fail++
 }
+const cycleFixture = { project: "cycle-test", n: 1, title: "cycle", slug: "cycle", goal: "g", priority: "P2", tier: "light", role: "worker", author: "i", author_role: "p.integrator", qid: "q", status: "done", kind: "spawn", directory: ".", executors: [], attempt: 1, commit: "accepted-sha", checks: { ci: "green" }, history: [{ at: 1, by: "r", status: "accepted" }], created: 1, updated: 1 }
+const archivedCycle = tasks.archiveTaskCycle(cycleFixture, "reviewer")
+cycleFixture.commit = "new-sha"
+cell("cycle archive snapshots the accepted commit and is idempotent", archivedCycle.commit === "accepted-sha" && tasks.archiveTaskCycle(cycleFixture).commit === "accepted-sha" && cycleFixture.cycles.length === 1, JSON.stringify(cycleFixture.cycles))
+cycleFixture.status = "done"
+const blockedCycle = tasks.startCorrectionCycle(cycleFixture, "integrator", { reason: "criterion defect", word: "доработай 1", date: "2026-10-21", source: "прямой чат" })
+cell("correction cycle increments attempt, clears current gates, and retains prior evidence", blockedCycle?.commit === "accepted-sha" && cycleFixture.cycle === 2 && cycleFixture.attempt === 2 && !cycleFixture.commit && !cycleFixture.checks, JSON.stringify(cycleFixture))
+cell("correction refuses mismatched task, malformed date, or absent source", [
+  tasks.startCorrectionCycle({ ...cycleFixture, status: "done", n: 2 }, "i", { reason: "reason", word: "доработай 1", date: "2026-10-21", source: "чат" }),
+  tasks.startCorrectionCycle({ ...cycleFixture, status: "done" }, "i", { reason: "reason", word: "доработай 1", date: "yesterday", source: "чат" }),
+  tasks.startCorrectionCycle({ ...cycleFixture, status: "done" }, "i", { reason: "reason", word: "доработай 1", date: "2026-10-21", source: "" }),
+].every((x) => x === undefined), "invalid owner authorization")
+const preCycleLegacy = { ...cycleFixture, n: 7, cycle: undefined, cycles: undefined, status: "done", commit: "legacy-sha", merged_head: "legacy-head", history: [{ at: 7, by: "r", status: "accepted" }] }
+const archivedLegacy = tasks.startCorrectionCycle(preCycleLegacy, "integrator", { reason: "criterion defect", word: "доработай 7", date: "2026-10-21", source: "owner chat" })
+cell("explicit correction archives a legacy acceptance only when its history and merged commit prove it", archivedLegacy?.commit === "legacy-sha" && preCycleLegacy.cycles?.length === 1 && preCycleLegacy.cycle === 2, JSON.stringify(preCycleLegacy))
+const unprovenLegacy = { ...preCycleLegacy, n: 8, cycle: undefined, cycles: undefined, status: "done", commit: undefined, merged_head: undefined }
+cell("legacy acceptance without exact commit evidence refuses without migration", tasks.startCorrectionCycle(unprovenLegacy, "i", { reason: "criterion defect", word: "доработай 8", date: "2026-10-21", source: "owner chat" }) === undefined && !unprovenLegacy.cycles && unprovenLegacy.status === "done", JSON.stringify(unprovenLegacy))
+const cancelled = { ...preCycleLegacy, n: 9, status: "cancelled", cycle: undefined, cycles: undefined }
+cell("cancelled legacy task cannot be corrected", tasks.startCorrectionCycle(cancelled, "i", { reason: "criterion defect", word: "доработай 9", date: "2026-10-21", source: "owner chat" }) === undefined && !cancelled.cycles && cancelled.status === "cancelled", JSON.stringify(cancelled))
 const wait = (ms = 500) => new Promise((r) => setTimeout(r, ms))
 const got = (s, t) => delivered.filter((d) => d.sessionID === s && d.text.includes(t))
 const call = async (name, sid, input = {}) => (await tools[name].execute(input, { sessionID: sid })).content
