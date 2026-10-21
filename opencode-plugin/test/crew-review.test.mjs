@@ -6,11 +6,13 @@
 // branch; then the cleanup steps, checked by the plugin (cleanup) -> sessions closed, a quiet summary to the
 // integrator. rework_max exceeded -> a call to the integrator.
 import { execFileSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
-const tmp = mkdtempSync(path.join(os.tmpdir(), "crew-review-"))
+// Use the canonical spelling so Windows short-name aliases cannot make this
+// synthetic project's configured worktree root differ from fixture paths.
+const tmp = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), "crew-review-")))
 process.env.XDG_DATA_HOME = tmp
 process.env.CREW_HARNESS_POLL_MS = "100"
 process.env.CREW_HARNESS_DB = path.join(tmp, "absent.db")
