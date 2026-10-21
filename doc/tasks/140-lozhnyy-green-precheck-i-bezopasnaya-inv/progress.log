@@ -4,3 +4,5 @@
 исп 2/5 [2026-10-21 18:44] targeted precheck, verdict, schema/help and cycle-gate regressions pass
 исп 3/5 [2026-10-21 19:12] full npm выявил строковую проверку; поправил, targeted letters зелёный
 исп 4/5 [2026-10-21 19:31] flaky race isolated PASS; полные результаты и metrics сохранены, нужен gate
+исп 5/5 [2026-10-21 22:21] signed code commit ab4dc09; FULL SUITE FAIL documented, no push
+исп 5/5 [2026-10-21 22:21] готово — diagnostic handoff prepared, full suite failure explicit
