@@ -2532,7 +2532,8 @@ export function makeTools(host: CrewHost): CrewTool[] {
         "push - integrator - n, text?, to? - nudge a stalled tab now (the reminder counter starts over): to \"executor\" (default) wakes the executor, to \"reviewer\" wakes the reviewer of the task.",
         "deliver - integrator - n, text - a task led by method sessions (status idle: the last session submitted to you) goes to the plugin's review once: text is the report for the reviewer (what is ready to land). A task with a single executor session goes to review on its submit, as before.",
         "reassign - integrator - n, text? - hand the task to a new session under the same number with a summary of what was done (a task session: the same code, the next ordinal and a new launch number; the old one is marked handed). text = a refinement of the goal: it goes into the new session's first letter as a block before the old goal, wins where they differ and stays in the task history (show). Refine the goal with this same call, never with a second letter after the handover: the new session would start on the old goal and report twice.",
-        "correct - integrator - n, text (defect tied to original criterion), owner_word, owner_word_date, owner_word_source - start an idempotent new cycle for a completed/closed task with a proven accepted history and merged commit; accepted before cleanup refuses and names cleanup as next action; cancelled or unproven legacy records refuse.",
+        "correct - integrator - n, text (defect tied to original criterion), owner_word, owner_word_date, owner_word_source - start an idempotent repair cycle; requires proven accepted history and merged commit; accepted before cleanup refuses and names cleanup as next action; cancelled or unproven legacy records refuse.",
+        "continue - integrator - n, goal, criteria, owner_word, owner_word_date, owner_word_source - start an idempotent cycle for a separately owner-approved addition to the same task; this is distinct from repair and only allowed with the owner's exact 'Продолжить <n>' word. Both operations preserve history and require fresh gates.",
         "close - integrator - n, evidence - final close after cleanup and delivery/production checks, or an explicit reason deployment does not apply.",
         "cancel - integrator - n, text? - cancel the task; text goes to the executor. Releases the merge lock if the task held it.",
         "priority - integrator - n, priority P0..P3 - change the priority.",
@@ -2555,7 +2556,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
     input: {
       type: "object",
       properties: {
-        action: { type: "string", enum: ["list", "show", "assign", "order", "push", "reassign", "correct", "close", "cancel", "priority", "track", "plan_decide", "submit", "deliver", "review", "check", "round", "merge", "unlock", "precheck", "rework", "accept", "cleanup", "cleaned", "route", "migrate"] },
+        action: { type: "string", enum: ["list", "show", "assign", "order", "push", "reassign", "correct", "continue", "close", "cancel", "priority", "track", "plan_decide", "submit", "deliver", "review", "check", "round", "merge", "unlock", "precheck", "rework", "accept", "cleanup", "cleaned", "route", "migrate"] },
         to: str("order: the other project's integrator, \"project.integrator\"; push: \"executor\" (default) or \"reviewer\""),
         keep: { type: "array", maxItems: 8, items: { type: "string" }, description: "cleanup: up to 8 worktree paths to keep as evidence" },
         checks: { type: "object", description: "accept: report per acceptance step {step id: what proves it}", additionalProperties: { type: "string" } },
@@ -3049,16 +3050,22 @@ ${lockStillYours(stillHeld.n)}` : "") }
         taskEvent(t, me.session, undefined, `приоритет ${input.priority}`)
         return { content: `Задача ${taskRef(t)}: приоритет ${t.priority}.` }
       }
-      if (action === "correct") {
-        if (t.status === "accepted") return { content: `Корректировка отказана: задача принята, но cleanup ещё не закончена. Выполни crew_task {action: "cleanup", n: ${t.n}}, затем повтори correct.` }
-        if (t.status !== "done" && t.status !== "closed") return { content: `Корректировка доступна только для выполненной/закрытой задачи; сейчас ${statusRu(t.status)}. Отменённые и legacy-записи не переоткрываются.` }
+      if (action === "correct" || action === "continue") {
+        const continuation = action === "continue"
+        if (t.status === "accepted") return { content: `Новый цикл отказан: задача принята, но cleanup ещё не закончена. Выполни crew_task {action: "cleanup", n: ${t.n}}, затем повтори ${action}.` }
+        if (t.status !== "done" && t.status !== "closed") return { content: `Новый цикл доступен только для выполненной/закрытой задачи; сейчас ${statusRu(t.status)}. Отменённые записи не переоткрываются.` }
         if (t.parent) {
           const parent = loadTask(t.parent.project, t.parent.n)
-          if (!parent || parent.status === "done" || parent.status === "closed" || parent.status === "cancelled") return { content: `Корректировка отказана: родительский заказ ${taskNo({ project: t.parent.project, n: t.parent.n })} уже завершён/закрыт или отсутствует. Не открываю дочернюю работу под ложным завершённым заказом; следующий шаг — новый заказ у интегратора ${t.parent.project}.` }
+          if (!parent || parent.status === "done" || parent.status === "closed" || parent.status === "cancelled") return { content: `Новый цикл отказан: родительский заказ ${taskNo({ project: t.parent.project, n: t.parent.n })} уже завершён/закрыт или отсутствует. Не открываю дочернюю работу под ложным завершённым заказом; следующий шаг — новый заказ у интегратора ${t.parent.project}.` }
         }
         const reason = String(input.text ?? "").trim(), word = String(input.owner_word ?? "").trim(), date = String(input.owner_word_date ?? "").trim(), source = String(input.owner_word_source ?? "").trim()
-        if (!/критери|критерий|ac\s*\d+/i.test(reason)) return { content: "Нужен text с дефектом результата и ссылкой на исходный критерий (например, «дефект критерия 2: …»); новая продуктовая цель требует новой задачи." }
-        if (!new RegExp(`(?:доработай|переоткрой|корректируй|продолжить|продолжай|продолжи)\\s+0*${t.n}(?!\\d)`, "i").test(word) || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !source) return { content: `Нужно явное слово владельца для задачи ${taskNo(t)}, его дата и источник.` }
+        const nextGoal = String(input.goal ?? "").trim(), nextCriteria = String(input.criteria ?? "").trim()
+        const ownerVerb = continuation ? /(?:продолжить|продолжай|продолжи)/i : /(?:доработай|переоткрой|корректируй)/i
+        if (continuation) {
+          if (!nextGoal || !nextCriteria) return { content: "Для продолжения нового согласованного содержания нужны goal и criteria новой редакции; это отдельная операция, не исправление дефекта." }
+          if (!ownerVerb.test(word)) return { content: "Новое содержание можно продолжить только отдельным словом владельца «Продолжить <номер>» с датой и источником." }
+        } else if (!/критери|критерий|ac\s*\d+/i.test(reason)) return { content: "Для correct нужен дефект результата со ссылкой на исходный критерий; новое согласованное содержание оформляется отдельным action: continue." }
+        if (!new RegExp(`${ownerVerb.source}\\s+0*${t.n}(?!\\d)`, "i").test(word) || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !source) return { content: `Нужно явное слово владельца для задачи ${taskNo(t)}, его дата и источник.` }
         const old = t.executor
         const oldCard = old ? readJson<Card>(cardFile(old)) : undefined
         const oldTab = old ? tabOf(old, liveWindows())?.tab : undefined
@@ -3067,9 +3074,11 @@ ${lockStillYours(stillHeld.n)}` : "") }
         const nextBranch = `${t.branch ?? `t${t.n}-${t.slug}`}-c${nextCycle}`
         const nextWorktree = t.worktree ? `${t.worktree}-c${nextCycle}` : undefined
         if (branchExists(t.directory, nextBranch) || (nextWorktree && existsSync(nextWorktree))) return { content: `Отказ до изменений: новый ресурс цикла уже существует (${branchExists(t.directory, nextBranch) ? `ветка ${nextBranch}` : `worktree ${nextWorktree}`}); чужое или оставшееся дерево не перезаписываю. Разреши ownership и убери только доказанно принадлежащий задаче ресурс, затем повтори.` }
-        const archived = startCorrectionCycle(t, me.session, { reason, word, date, source })
-        if (!archived) return { content: `Отказ: нет современного сохранённого цикла для корректировки. Безопасный следующий шаг — новая задача со ссылкой на ${taskNo(t)}; старую запись не менял.` }
+        const cycleReason = continuation ? `новое согласованное содержание: ${nextGoal}; критерии: ${nextCriteria}` : reason
+        const archived = startCorrectionCycle(t, me.session, { reason: cycleReason, word, date, source, mode: continuation ? "continuation" : "correction" })
+        if (!archived) return { content: `Отказ: в записи ${taskNo(t)} нет доказанной прошлой приёмки и merged commit. История не восстановлена и не изменена.` }
         if (old) { releaseExecutor(t, old); t.executors.push(old) }
+        if (continuation) { t.goal = nextGoal; t.criteria = nextCriteria; if (input.boundaries !== undefined) t.boundaries = String(input.boundaries).trim() }
         t.executor = correctionSessionId(t.project, t.n, t.cycle ?? 2)
         t.kind = "spawn"
         t.worktree_ready = false
@@ -3077,10 +3086,10 @@ ${lockStillYours(stillHeld.n)}` : "") }
         if (nextWorktree) t.worktree = nextWorktree
         t.reviewer = undefined; t.review_qid = undefined; t.review_kind = undefined; t.reviewers = undefined; t.review_letter = undefined
         t.steps = undefined; t.side = []
-        t.refinement = { text: `ДОРАБОТКА цикла ${archived.cycle}: причина ${reason}; исходный принятый коммит ${archived.commit ?? archived.merged_head ?? "не записан"}.`, at: Date.now(), by: me.session }
-        taskEvent(t, me.session, "starting", `цикл ${t.cycle}: корректировка по слову владельца «${word}» (${date}, ${source}); ${reason}`)
+        t.refinement = { text: `${continuation ? "ПРОДОЛЖЕНИЕ с отдельно согласованным новым содержанием" : "ДОРАБОТКА исходного критерия"} цикла ${archived.cycle}: ${cycleReason}; прежний принятый коммит ${archived.commit ?? archived.merged_head ?? "не записан"}.`, at: Date.now(), by: me.session }
+        taskEvent(t, me.session, "starting", `цикл ${t.cycle}: ${continuation ? "продолжение нового согласованного содержания" : "корректировка исходного критерия"}; слово владельца «${word}» (${date}, ${source}); ${cycleReason}`)
         const launched = await host.startTask(t)
-        return { content: launched.session ? `Цикл ${t.cycle} задачи ${taskRef(t)} запущен в новой сессии ${launched.session}; новое worktree/ветка создаются от актуальной origin/${loadConfig(t.directory).targetBranch}.` : `Цикл ${t.cycle} записан идемпотентно; запуск повторит плагин: ${launched.error ?? "ожидает"}.` }
+        return { content: launched.session ? `Цикл ${t.cycle} задачи ${taskRef(t)} ${continuation ? "продолжен с новым согласованным содержанием" : "исправляет прежний дефект"} в новой сессии ${launched.session}; новое worktree/ветка создаются от актуальной origin/${loadConfig(t.directory).targetBranch}.` : `Цикл ${t.cycle} записан идемпотентно; запуск повторит плагин: ${launched.error ?? "ожидает"}.` }
       }
       if (action === "close") {
         if (t.status === "closed") {

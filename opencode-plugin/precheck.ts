@@ -283,7 +283,7 @@ export async function finishPrecheck(t: Task, session: string, target: string, i
   }
   const now = Date.now()
   const replaced = rec.state === "green"
-  cur.precheck = { state: "green", base: rec.base, at: rec.at, by: rec.by, round: rec.round, candidate: cand, ...(branchTip ? { branch_tip: branchTip } : {}), result: result.slice(0, 500), green_at: now }
+  cur.precheck = { state: "green", base: rec.base, at: rec.at, by: rec.by, round: rec.round, cycle: rec.cycle ?? (cur.cycle ?? 1), candidate: cand, ...(branchTip ? { branch_tip: branchTip } : {}), result: result.slice(0, 500), green_at: now }
   taskEvent(cur, session, undefined, replaced ? `предпроверка: запись заменена на ${short(rec.base)} (кандидат ${short(rec.candidate ?? "")} → ${short(cand)}): ${result.slice(0, 200)}` : `предпроверка зелёная на ${short(rec.base)} (кандидат ${short(cand)}): ${result.slice(0, 200)}`)
   const moved = tip.tip !== rec.base
   return `Предпроверка зелёная на ${short(rec.base)} (кандидат ${short(cand)}, результат: ${result.slice(0, 200)}). ${

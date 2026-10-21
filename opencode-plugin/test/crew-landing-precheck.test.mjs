@@ -43,6 +43,21 @@ const r1c = await begin(a1)
 cell("REQ-06 новая вершина: another tip replaces the record with the new base, a line goes to the history", T(a1.n).precheck.base === H.originTip() && T(a1.n).precheck.base !== base1 && T(a1.n).precheck.at >= at1 && H.history(a1.n).some((h) => /начата заново/.test(h)), r1c + JSON.stringify(H.history(a1.n)))
 fetch()
 
+// Regression: a green precheck in correction cycle 2 must keep the cycle identifier from its running record.
+const cycle2 = H.reviewing()
+cycle2.cycle = 2
+tasks.saveTask(cycle2)
+await begin(cycle2)
+fetch()
+H.candidate(`integrate/t${cycle2.n}`)
+const finishCycle2 = await finish(cycle2, { candidate: `integrate/t${cycle2.n}`, result: "CI зелёный, цикл 2" })
+const greenCycle2 = T(cycle2.n).precheck
+cell("cycle 2 finish preserves its id; fresh gates accept cycle 2 and reject cycle 1", greenCycle2?.cycle === 2 && precheck.isFresh(greenCycle2, T(cycle2.n)) && !precheck.isFresh({ ...greenCycle2, cycle: 1 }, T(cycle2.n)), JSON.stringify({ greenCycle2, response: finishCycle2 }))
+const staleCycleGate = await precheck.gateMerge({ ...T(cycle2.n), precheck: { ...greenCycle2, cycle: 1 } }, REV, "main")
+const liveCycleGate = await precheck.gateMerge(T(cycle2.n), REV, "main")
+review.releaseMergeLock("proj", REV, cycle2.n)
+cell("actual merge gate rejects prior-cycle GREEN and grants the finished cycle-2 candidate", !!staleCycleGate.text && /прежнего круга/.test(staleCycleGate.text) && !!liveCycleGate.granted, JSON.stringify({ staleCycleGate, liveCycleGate }))
+
 // ---- AC-10 a..f: six refusals, the record stays as it was
 {
   const t = H.reviewing()

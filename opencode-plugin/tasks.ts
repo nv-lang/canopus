@@ -31,6 +31,10 @@ export type TaskEvent = { at: number; by: string; status?: TaskStatus; note?: st
  * завершённые редакции только дописываются сюда и никогда не используются как действующие gates. */
 export type TaskCycle = {
   cycle: number
+  /** Brief of the accepted result; extension cycles replace the live fields only after this snapshot exists. */
+  goal: string
+  criteria?: string
+  boundaries?: string
   accepted_at: number
   accepted_by?: string
   commit?: string
@@ -290,6 +294,9 @@ export function archiveTaskCycle(t: Task, by?: string): TaskCycle | undefined {
   const copy = <T>(value: T): T => value === undefined ? value : JSON.parse(JSON.stringify(value)) as T
   const item: TaskCycle = {
     cycle,
+    goal: t.goal,
+    ...(t.criteria ? { criteria: t.criteria } : {}),
+    ...(t.boundaries ? { boundaries: t.boundaries } : {}),
     accepted_at: accepted.at,
     ...(by ? { accepted_by: by } : accepted?.by ? { accepted_by: accepted.by } : {}),
     ...(t.commit ? { commit: t.commit } : {}),
@@ -305,7 +312,7 @@ export function archiveTaskCycle(t: Task, by?: string): TaskCycle | undefined {
 }
 
 /** Начать следующий цикл только из принятой/выполненной/закрытой редакции, не уменьшая номер попытки и не меняя архив. */
-export function startCorrectionCycle(t: Task, by: string, input: { reason: string; word: string; date: string; source: string }): TaskCycle | undefined {
+export function startCorrectionCycle(t: Task, by: string, input: { reason: string; word: string; date: string; source: string; mode?: "correction" | "continuation" }): TaskCycle | undefined {
   if (t.status !== "done" && t.status !== "closed") return undefined
   const { reason, word, date, source } = input
   if (!reason.trim() || !new RegExp(`(?:доработай|переоткрой|корректируй|продолжить|продолжай|продолжи)\\s+0*${t.n}(?!\\d)`, "i").test(word) || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !source.trim()) return undefined
@@ -325,7 +332,7 @@ export function startCorrectionCycle(t: Task, by: string, input: { reason: strin
   // Глобальные исторические счётчики rework/syncs не уменьшаются; attempt и cycle дают новый gate namespace.
   t.attempt += 1
   t.status = "starting"
-  t.history.push({ at: Date.now(), by, note: `цикл ${t.cycle}: корректировка результата цикла ${prior.cycle}; причина: ${reason.trim()}; слово владельца: «${word.trim()}» (${date}, ${source.trim()})` })
+  t.history.push({ at: Date.now(), by, note: `цикл ${t.cycle}: ${input.mode === "continuation" ? "продолжение согласованного содержания" : `корректировка результата цикла ${prior.cycle}`}; причина: ${reason.trim()}; слово владельца: «${word.trim()}» (${date}, ${source.trim()})` })
   return prior
 }
 
