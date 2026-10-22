@@ -18,6 +18,7 @@ process.env.CREW_HARNESS_POLL_MS = "100"
 process.env.CREW_HARNESS_PROFILES_MS = "100000"
 process.env.CREW_HARNESS_DB = path.join(tmp, "absent.db")
 process.env.CREW_HARNESS_SETTINGS_TTL_MS = "1"
+process.env.CREW_HARNESS_DIVERGE_TTL_MS = "0"
 process.env.CREW_HARNESS_PRESENCE = "all"
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
 const mkRepo = (dir, settings) => {
@@ -139,7 +140,9 @@ stop?.()
 ;({ tools, stop } = await boot({ projects: [cfgA] }))
 const doc2 = await call("crew_doctor", {})
 const [head2, tail2] = doc2.split("К сведению:\n")
-cell("crew_doctor with the old key: the rename note is below the problems, not among them, and is the only line about the keys", mine(head2).length === 0 && tail2 === "- ключ projects переименован в project_settings; прежнее имя работает", doc2)
+const divergence2 = head2.split("\n").filter((l) => l.includes("файл рабочей копии отличается от ref сравнения"))
+cell("crew_doctor with the old key: rename note remains separate from divergence warning", tail2 === "- ключ projects переименован в project_settings; прежнее имя работает", doc2)
+cell("crew_doctor with the old key: deterministic warning reports both edits and actual refs", divergence2.length === 1 && divergence2[0] === "- проект alpha: файл рабочей копии отличается от ref сравнения (main): действуют настройки из ref (main); ключи: inflight_limit, profile_set (предупреждение, не ошибка; закоммить и влей правку или откати файл)", doc2)
 cell("the old key: crew_config set works as before", /Записано/.test(await call("crew_config", { action: "set", values: { inflight_limit: 4 } })), "")
 stop?.()
 
