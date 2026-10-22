@@ -1,5 +1,5 @@
-// РАСХОЖДЕНИЕ НАСТРОЕК (задача 029, 2026-10-11): плагин читает .opencode/crew-harness.json с целевой ветки, а файл в рабочей
-// копии до коммита не действует. Здесь файл рабочей копии сравнивается с веткой по верхнеуровневым ключам; результат
+// РАСХОЖДЕНИЕ НАСТРОЕК (задачи 029/150): settings.ts читает настроенный committed ref; здесь рабочий файл сравнивается
+// с фактически доступным ref сравнения, а active ref называется отдельно; результат
 // кешируется на несколько секунд (git не на каждый вызов), как в acceptance-file.ts. «Рабочая копия» — папка настроек
 // проекта из реестра проектов (Project.repo + Project.file): та, что правит crew_config set.
 import { execFileSync } from "node:child_process"
@@ -8,7 +8,7 @@ import path from "node:path"
 import { BASE } from "./paths.ts"
 import { modelsDefined, unconfiguredLine } from "./settings.ts"
 
-export type Divergence = { kind: "same" } | { kind: "differ"; keys: string[]; ref: string } | { kind: "note"; text: string }
+export type Divergence = { kind: "same" } | { kind: "differ"; keys: string[]; activeRef: string; compareRef: string } | { kind: "note"; text: string }
 
 const git = (cwd: string, args: string[]) => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", windowsHide: true, timeout: 5000, stdio: ["ignore", "pipe", "ignore"] })
 const parse = (t: string): any => {
@@ -29,7 +29,7 @@ export function differingKeys(a: Record<string, any>, b: Record<string, any>): s
 const cache = new Map<string, { at: number; value: Divergence }>()
 const ttl = () => (process.env.CREW_HARNESS_DIVERGE_TTL_MS !== undefined ? Number(process.env.CREW_HARNESS_DIVERGE_TTL_MS) : 5_000)
 
-/** Сравнить файл рабочей копии (repo/file) с файлом целевой ветки (origin/<ветка>, затем локальная). Не падает. */
+/** Сравнить файл рабочей копии с доступным ref; activeRef следует правилу settings.ts. Не падает. */
 export function configDivergence(repo: string | undefined, file: string | undefined, branch: string | undefined): Divergence {
   if (!repo || !file || !branch) return { kind: "note", text: "рабочая копия не в git-репозитории: расхождение с веткой не проверено" }
   const key = `${repo}\0${file}\0${branch}`
@@ -45,24 +45,27 @@ function compute(repo: string, file: string, branch: string): Divergence {
   if (!existsSync(abs)) return { kind: "note", text: `файла ${file} нет в рабочей копии: сравнивать не с чем` }
   const work = parse(readFileSync(abs, "utf8"))
   if (!work) return { kind: "note", text: `${file} в рабочей копии не JSON: расхождение с веткой не проверено` }
-  for (const ref of [`origin/${branch}`, branch]) {
-    let text: string
-    try {
-      text = git(repo, ["show", `${ref}:${file}`])
-    } catch {
-      continue
-    }
-    const there = parse(text)
-    if (!there) return { kind: "note", text: `${file} на ${ref} не JSON: расхождение не проверено` }
-    const keys = differingKeys(work, there)
-    return keys.length ? { kind: "differ", keys, ref } : { kind: "same" }
+  const readRef = (ref: string): string | undefined => {
+    try { return git(repo, ["show", `${ref}:${file}`]) } catch { return undefined }
   }
-  return { kind: "note", text: `файла ${file} нет на ветке ${branch} (или ветки нет): действуют настройки по умолчанию; расхождение не проверено` }
+  const activeText = readRef(branch)
+  if (activeText === undefined) return { kind: "note", text: `файла ${file} нет в настроенном ref ${branch}: загрузчик использует настройки по умолчанию; расхождение не проверено` }
+  if (!parse(activeText)) return { kind: "note", text: `${file} в настроенном ref ${branch} — не JSON: загрузчик использует настройки по умолчанию` }
+
+  // A configured origin ref is already the loader's ref; never manufacture origin/origin/<branch>.
+  const targetRef = branch.startsWith("origin/") || branch.startsWith("refs/remotes/origin/") ? branch : `origin/${branch}`
+  const targetText = targetRef === branch ? activeText : readRef(targetRef)
+  const compareRef = targetText === undefined ? branch : targetRef
+  const compareText = targetText === undefined ? activeText : targetText
+  const there = parse(compareText)
+  if (!there) return { kind: "note", text: `${file} на ref сравнения ${compareRef} не JSON: расхождение не проверено` }
+  const keys = differingKeys(work, there)
+  return keys.length ? { kind: "differ", keys, activeRef: branch, compareRef } : { kind: "same" }
 }
 
 /** Предупреждение crew_doctor по проекту; нет расхождения — undefined. */
 export function divergenceProblem(name: string, d: Divergence): string | undefined {
-  if (d.kind === "differ") return `проект ${name}: настройки в рабочей копии отличаются от целевой ветки: действуют те, что на ветке (${d.ref}); ключи: ${d.keys.join(", ")} (предупреждение, не ошибка; закоммить и влей правку или откати файл)`
+  if (d.kind === "differ") return `проект ${name}: файл рабочей копии отличается от ref сравнения (${d.compareRef}): действуют настройки из ref (${d.activeRef}); ключи: ${d.keys.join(", ")} (предупреждение, не ошибка; закоммить и влей правку или откати файл)`
   if (d.kind === "note") return `проект ${name}: ${d.text}`
   return undefined
 }
