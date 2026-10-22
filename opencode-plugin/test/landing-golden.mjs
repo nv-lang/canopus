@@ -93,10 +93,15 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 core.saveCard({ session: "sesINTEG1", role: "integrator", auto: false, title: "sesINTEG1", directory: proj, repo: "proj", project: "proj", pid: process.pid, updated: Date.now() })
 const now = Date.now()
 const fixedAt = Date.UTC(2026, 9, 8, 12, 0, 0)
+const fixTaskVersion = (t) => {
+  t.updated = fixedAt + t.n
+  writeFileSync(tasks.taskFile(t.project, t.n), JSON.stringify(t, null, 1))
+}
 const make = (extra) => {
   const t = tasks.createTask({ project: "proj", title: "заголовок", goal: "цель", criteria: "критерий", priority: "P2", tier: "medium", role: "worker", model: "claude-code/sonnet", author: "sesINTEG1", author_role: "proj.integrator", qid: "q0", status: "running", kind: "spawn", directory: proj })
   Object.assign(t, extra)
   tasks.saveTask(t)
+  fixTaskVersion(t)
   return t
 }
 const wt = (n, slug) => path.join(proj, "wt", `proj-${n}-${slug}`)
@@ -105,6 +110,7 @@ make({ title: "приёмка", slug: "review", qid: "q2", status: "reviewing", 
 const t3 = make({ title: "принятая", slug: "done", qid: "q3", status: "accepted", executor: "sesEX3", reviewer: "sesREV03", review_kind: "spawn", branch: "t3-done", checks: { tests: "ok" } })
 t3.history.push({ at: now - 3_600_000, by: "sesREV03", status: "accepted", note: "принята" })
 tasks.saveTask(t3)
+fixTaskVersion(t3)
 make({ title: "план", slug: "plan", goal: "составить план", qid: "q4", executor: "sesEX4", worktree: wt(4, "plan"), worktree_ready: true, branch: "t4-plan", plan: { n: "7", file: "docs/plans/7-plan.md", source: "исходная задача плана", rounds: [], clean: 0 } })
 make({ title: "согласованный план", slug: "plan-ok", goal: "влить план", qid: "q5", status: "reviewing", executor: "sesEX5", reviewer: "sesREV05", review_kind: "tab", worktree: wt(5, "plan-ok"), worktree_ready: true, branch: "t5-plan-ok", plan: { n: "8", file: "docs/plans/8-plan.md", source: "исходная задача", rounds: [], clean: 2, approval: { decision: "ok", at: fixedAt } } })
 
@@ -148,13 +154,15 @@ out["reminder to the author"] = stale("sesINTEG1", /003 .*не очищена/)[
 clearInterval(heart)
 stop?.()
 
-// markers: the temp folder (any spelling), the clock, the minutes since the acceptance
+// markers: the temp folder (any spelling), the clock, the minutes since the acceptance. The version is SHA256 of the full
+// fixture record (including temp directory/timestamps), so only its 64-hex value is normalized here; test/crew-cross checks it
+// against the actual task, stability on reread and change after a same-millisecond history mutation.
 const spellings = new Set()
 for (const p of [tmp, realpathSync.native(tmp)]) for (const s of [p, p.replaceAll("\\", "/")]) spellings.add(s)
 const mask = (s) => {
   let r = String(s).replaceAll("\\", "/")
   for (const p of [...spellings].map((x) => x.replaceAll("\\", "/")).sort((a, b) => b.length - a.length)) r = r.split(p).join("<TMP>")
-  return r.replace(/\b\d\d:\d\d\b/g, "HH:MM").replace(/\b(6[0-3]) мин назад/g, "60 мин назад")
+  return r.replace(/(^версия: )[a-f0-9]{64}(;)/gm, "$1<VERSION>$2").replace(/\b\d\d:\d\d\b/g, "HH:MM").replace(/\b(6[0-3]) мин назад/g, "60 мин назад")
 }
 const result = Object.fromEntries(Object.entries(out).map(([k, v]) => [k, mask(v)]))
 try {

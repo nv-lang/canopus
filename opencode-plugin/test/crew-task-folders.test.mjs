@@ -109,10 +109,15 @@ await call("crew_role", "sesINTEG1", { role: "integrator" })
 const message = "# Задание: Страж повтора номера\n\nЗаказчик: владелец.\nРепозиторий: proj, ветка main. Дата задания: 2026-10-15.\nИсточник: чат.\n\n" +
   "## Чего хочет владелец\n\n- «заводи» (владелец, 2026-10-15, чат)\n\n## Что нужно\n\n1. страж ловит повтор номера папки\n\n## Критерии приёмки\n\n- красное правило\n\n" +
   "## Результат и куда он попадает\n\nнет: результат — код: страж\n\n## Связи\n\nнет: задача одна\n\n## Границы\n\nнет: границ нет\n"
-const a3 = await call("crew_spawn", "sesINTEG1", { title: "Страж повтора номера", goal: "страж ловит повтор номера папки", criteria: "красное правило", message })
+const folderOrder = tasks.createTask({ project: "synthetic-source", title: "синтетический заказ", goal: "folder parent", criteria: "связь", priority: "P2", tier: "light", role: "integrator", author: "sesSOURCE", author_role: "synthetic-source.integrator", qid: "q-source", status: "running", kind: "order", order_to: "proj", directory: proj })
+const a3 = await call("crew_spawn", "sesINTEG1", { title: "Страж повтора номера", goal: "страж ловит повтор номера папки", criteria: "красное правило", message, parent: `synthetic-source#${folderOrder.n}` })
 await wait()
 const t59 = task(59)
 cell("AC-03: the new task takes 059 — after the largest folder (058)", !!t59 && /^doc\/tasks\/059-/.test(t59.folder ?? ""), JSON.stringify({ a3: a3.slice(0, 300), folder: t59?.folder }))
+cell("145 RED→GREEN: folder spawn stores reciprocal exact parent/child and history", t59?.parent?.project === "synthetic-source" && t59.parent.n === folderOrder.n && tasks.loadTask("synthetic-source", folderOrder.n)?.child?.n === 59 && tasks.loadTask("synthetic-source", folderOrder.n)?.history.some((h) => /принят в работу в proj: 059/.test(h.note ?? "")), JSON.stringify({ parent: t59?.parent, child: tasks.loadTask("synthetic-source", folderOrder.n)?.child }))
+const beforeBadParent = records()
+const badFolderParent = await call("crew_spawn", "sesINTEG1", { title: "не должно создаться", goal: "g", criteria: "c", message, parent: "synthetic-source#999" })
+cell("145 invalid order identity refuses before folder/task/session side effects", /Заказа synthetic-source#999/.test(badFolderParent) && records() === beforeBadParent && sessions.size === 1, badFolderParent)
 const br = t59?.branch ?? ""
 cell("AC-03: the task branch is named with three digits (task/059-…)", /^task\/059-/.test(br), br)
 const show = (p) => {

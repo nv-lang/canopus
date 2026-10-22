@@ -7,7 +7,8 @@
 // оборванный на любом шаге, повторяется с тем же id — второй сессии не будет. Письмо с задачей тоже идемпотентно:
 // его id выводится из номера и попытки, и уже лежащее (в ящике или прочитанное) повторно не кладётся.
 
-import { existsSync, mkdirSync, readdirSync, renameSync, writeFileSync } from "node:fs"
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs"
+import { createHash } from "node:crypto"
 import path from "node:path"
 import { INBOX, READ, type Priority, type Tier, readJson, safeKey } from "./core.ts"
 import { idsHas } from "./housekeeping.ts"
@@ -211,6 +212,43 @@ export type Task = RouteFields & {
 export type SideItem = { branch?: string; worktree?: string; at: number; by: string; auto?: boolean }
 
 export const taskFile = (project: string, n: number) => path.join(TASKS, safeKey(project), `${n}.json`)
+let relationLockHeld = false
+/** Lock for relation creation/reconciliation. In-process and cross-process callers share the same fail-closed lock. */
+export function lockTaskRelations(): (() => void) | undefined {
+  if (relationLockHeld) return undefined
+  const lock = path.join(TASKS, ".relation-lock")
+  mkdirSync(TASKS, { recursive: true })
+  try {
+    try {
+      mkdirSync(lock)
+      writeFileSync(path.join(lock, "owner.json"), JSON.stringify({ pid: process.pid, at: Date.now() }))
+    } catch (e: any) {
+      if (e?.code !== "EEXIST") return undefined
+      let pid = 0
+      try { pid = Number(JSON.parse(readFileSync(path.join(lock, "owner.json"), "utf8")).pid) } catch {}
+      if (!pid || processAlive(pid)) return undefined
+      try { rmSync(lock, { recursive: true }); mkdirSync(lock); writeFileSync(path.join(lock, "owner.json"), JSON.stringify({ pid: process.pid, at: Date.now() })) }
+      catch { return undefined }
+    }
+    relationLockHeld = true
+    let released = false
+    return () => { if (!released) { released = true; relationLockHeld = false; try { rmSync(lock, { recursive: true, force: true }) } catch {} } }
+  } catch {
+    return undefined
+  }
+}
+export type RelationAudit = { at: number; by: string; order: { project: string; n: number }; child: { project: string; n: number }; outcome: string }
+const relationAuditFile = () => path.join(TASKS, ".relation-audit.jsonl")
+export function recordRelationAudit(entry: Omit<RelationAudit, "at">) {
+  mkdirSync(TASKS, { recursive: true })
+  appendFileSync(relationAuditFile(), `${JSON.stringify({ at: Date.now(), ...entry })}\n`)
+}
+export function relationAuditFor(project: string, n: number): RelationAudit[] {
+  try {
+    return readFileSync(relationAuditFile(), "utf8").split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line) as RelationAudit)
+      .filter((x) => (x.order.project === project && x.order.n === n) || (x.child.project === project && x.child.n === n))
+  } catch { return [] }
+}
 /** Старые файлы: статус «cleaned» (так звался нынешний done) читается как done — в статусе и в истории; массовой миграции нет. */
 export function normTask<T extends Task | undefined>(t: T): T {
   if (!t) return t
@@ -221,6 +259,10 @@ export function normTask<T extends Task | undefined>(t: T): T {
 }
 export const loadTask = (project: string, n: number) => normTask(readJson<Task>(taskFile(project, n)))
 export const isOpen = (t?: Task) => !!t && OPEN_STATUSES.includes(t.status)
+/** Semantic optimistic token: unlike updated=Date.now(), changes on any serialized task-content mutation even in the same millisecond. */
+export function taskVersion(t: Task): string {
+  return createHash("sha256").update(JSON.stringify(t)).digest("hex")
+}
 
 // задача изменилась — сводка окна (status/) обновится на ближайшем проходе, а не через 15 с (шаги приёмки видно сразу)
 let changed = false
@@ -247,6 +289,69 @@ export function saveTask(t: Task) {
       if (!(e?.code === "EPERM" || e?.code === "EACCES" || e?.code === "EBUSY") || i >= 20) throw e
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25)
     }
+}
+
+/** Связь parent/child: блокировка сериализует только операции связи; commit point — взаимно совпавшие указатели.
+ * Журнал до первой записи позволяет повторить точный roll-forward после падения. Зависшая блокировка снимается
+ * только если владелец-процесс уже завершён; неизвестное состояние остаётся fail-closed. */
+export function attachOrderChild(orderKey: { project: string; n: number }, childKey: { project: string; n: number }, expected: { orderVersion: string; childVersion: string }, by: string, dryRun = false): { ok: true; order: Task; child: Task; repeated: boolean } | { ok: false; reason: string } {
+  const journal = path.join(TASKS, ".relation-pending.json")
+  let unlock: (() => void) | undefined
+  try {
+    if (!relationLockHeld) {
+      unlock = lockTaskRelations()
+      if (!unlock) return { ok: false, reason: "другая операция связи выполняется или блокировка не имеет проверяемого владельца" }
+    }
+    let old: any
+    if (existsSync(journal)) {
+      try { old = JSON.parse(readFileSync(journal, "utf8")) }
+      catch { return { ok: false, reason: "журнал незавершённой связи повреждён; требуется ручная проверка, автоматическая запись запрещена" } }
+    }
+    const same = (x: any) => x?.order?.project === orderKey.project && x?.order?.n === orderKey.n && x?.child?.project === childKey.project && x?.child?.n === childKey.n
+    if (old && !same(old)) return { ok: false, reason: "есть незавершённая операция для другой пары; автоматическое восстановление запрещено" }
+    const order = loadTask(orderKey.project, orderKey.n)
+    const child = loadTask(childKey.project, childKey.n)
+    if (!order || order.kind !== "order" || order.order_to !== childKey.project || !child || child.kind !== "spawn") return { ok: false, reason: "точная пара order/child или соответствие order_to не подтверждены" }
+    if ((order.child && (order.child.project !== childKey.project || order.child.n !== childKey.n)) || (child.parent && (child.parent.project !== orderKey.project || child.parent.n !== orderKey.n))) return { ok: false, reason: "у одной из сторон уже есть конфликтующая связь" }
+    const repeated = !!order.child && !!child.parent
+    if (!isOpen(order) && !repeated) return { ok: false, reason: "заказ уже закрыт; новую связь к нему не добавляют" }
+    if (order.status === "done" && child.status !== "done") return { ok: false, reason: "заказ уже done, но exact child не доказан done; повторное подтверждение запрещено" }
+    if (old && !same(old)) return { ok: false, reason: "незавершённая операция относится к другой exact pair" }
+    const currentOrderVersion = taskVersion(order)
+    const currentChildVersion = taskVersion(child)
+    if (currentOrderVersion !== expected.orderVersion || currentChildVersion !== expected.childVersion) return { ok: false, reason: "expected version устарела; перечитай текущие version/status обеих сторон" }
+    if (old) {
+      const childMarker = `операция ${orderKey.project}#${orderKey.n}→${childKey.project}#${childKey.n}`
+      const orderMarker = childMarker
+      const childCommitted = child.parent?.project === orderKey.project && child.parent?.n === orderKey.n && child.history?.some((h) => h.note?.includes(childMarker))
+      const orderCommitted = order.child?.project === childKey.project && order.child?.n === childKey.n && order.history?.some((h) => h.note?.includes(orderMarker))
+      if (!childCommitted && currentChildVersion !== old.expected?.childVersion) return { ok: false, reason: "журнал не подтверждает частичную child-запись; состояние изменилось после intent" }
+      if (!orderCommitted && currentOrderVersion !== old.expected?.orderVersion) return { ok: false, reason: "журнал не подтверждает частичную order-запись; состояние изменилось после intent" }
+    }
+    if (dryRun) return { ok: true, order, child, repeated }
+    if (!repeated && !old) writeAtomic(journal, { order: orderKey, child: childKey, expected, by, at: Date.now() })
+    if (!child.parent) child.parent = { ...orderKey }
+    const childNote = `связь с заказом ${orderKey.project} ${orderKey.n} записана; операция ${orderKey.project}#${orderKey.n}→${childKey.project}#${childKey.n}`
+    if (!child.history?.some((h) => h.note?.includes(childNote))) taskEvent(child, by, undefined, childNote)
+    if (!order.child) order.child = { ...childKey }
+    const orderNote = `принят в работу в ${childKey.project}: ${String(childKey.n).padStart(3, "0")}; связь ${orderKey.project}#${orderKey.n}→${childKey.project}#${childKey.n}`
+    if (!order.history?.some((h) => h.note?.includes(orderNote))) taskEvent(order, by, undefined, orderNote)
+    if (!repeated || old) rmSync(journal, { force: true })
+    return { ok: true, order, child, repeated }
+  } catch (e: any) {
+    return { ok: false, reason: `операция связи не завершена; перечитай текущие version/status обеих сторон в crew_task show и повтори exact pair только при совпадающем журнале/маркерах (${e?.code ?? e})` }
+  } finally {
+    unlock?.()
+  }
+}
+
+function processAlive(pid: number): boolean {
+  try { process.kill(pid, 0); return true } catch (e: any) { return e?.code === "EPERM" }
+}
+function writeAtomic(file: string, value: unknown) {
+  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`
+  writeFileSync(tmp, JSON.stringify(value))
+  renameSync(tmp, file)
 }
 
 /** Записать смену статуса (или заметку) в историю и сохранить. */

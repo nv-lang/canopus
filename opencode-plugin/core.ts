@@ -20,7 +20,7 @@ import { background } from "./async-git.ts"
 import { mergeTemplate } from "./config-template.ts"
 import { DECISION_RU, type Decision, writeApproval } from "./approvals.ts"
 import { DEFAULT_FORM, PLAN_ACCEPTANCE, PLAN_MERGE_ACCEPTANCE, type PlanForm, allSteps, nextPlanNumber, parsePlan, planProblems, planTemplate, roundRules } from "./plans.ts"
-import { type Task, type TaskPlan, type TaskSession, WORKING_STATUSES, EXECUTOR_CODE, taskRef, taskNo, sessionOf, sessionRef, sesLabel, methodSession, moveToLegacy, listLegacy, slugify, acceptedAt, ago, byPriority, rounds, createTask, fillName, isOpen, listTasks, loadTask, plannedSessionId, saveTask, statusRu, taskEvent, taskLetterId } from "./tasks.ts"
+import { type Task, type TaskPlan, type TaskSession, WORKING_STATUSES, EXECUTOR_CODE, taskRef, taskNo, sessionOf, sessionRef, sesLabel, methodSession, moveToLegacy, listLegacy, slugify, acceptedAt, ago, byPriority, rounds, createTask, fillName, isOpen, listTasks, loadTask, plannedSessionId, saveTask, statusRu, taskEvent, taskLetterId, attachOrderChild, lockTaskRelations, recordRelationAudit, relationAuditFor, taskVersion } from "./tasks.ts"
 import { countedOpen, waitingCleanup } from "./tasks.ts"
 import { baseRef, branchExists, commitFiles, ensureBranch, findFolder, folderName, pad3, usedNumbers } from "./task-numbers.ts"
 import { firstLogLine, folderInfo, messageRefusal, nextLaunch, readFolderFile, readTaskMessage, refreshRouteStale, routeLogLine, taskLog, templateMessage, titleOfMessage } from "./task-folders.ts"
@@ -2249,8 +2249,19 @@ export function makeTools(host: CrewHost): CrewTool[] {
   // ЗАДАЧА С ПАПКОЙ (задача 058). Новая задача — номер 1 + max по записям и папкам во всех деревьях и ветках, папка NNN-<slug>/
   // (task/message.md и log.md) коммитом плагина на ветке задачи; задача, чья папка уже есть, — запись с её номером без коммита папки;
   // сессия задачи — запись в sessions той же задачи; подзадача — новая задача со строкой «Часть задачи NNN «…».».
-  const spawnInFolder = async (a: { me: Card; project: string; cfg: CrewConfig; fm: { top: string; rel: string }; input: any; taskNum?: number; code: string; partOf?: number; role: string; model: string; recTier: Tier; tier: Tier; from?: Tier; chosen: any; title: string; extra?: Record<string, string> }): Promise<{ content: string }> => {
+  const spawnInFolder = async (a: { me: Card; project: string; cfg: CrewConfig; fm: { top: string; rel: string }; input: any; taskNum?: number; code: string; partOf?: number; role: string; model: string; recTier: Tier; tier: Tier; from?: Tier; chosen: any; title: string; extra?: Record<string, string>; relationLocked?: boolean }): Promise<{ content: string }> => {
     const { me, project, cfg, fm, input, taskNum, code, partOf, role, model, recTier, chosen, extra } = a
+    const parentRef = parseParent(input.parent)
+    if (input.parent !== undefined && input.parent !== null && String(input.parent).trim() && !parentRef) return { content: "Задача не поставлена: parent должен быть exact «project#N» из заказа." }
+    if (parentRef && !a.relationLocked) {
+      const release = lockTaskRelations()
+      if (!release) return { content: "Задача не поставлена: другая операция связи выполняется; повтори после её завершения." }
+      try { return await spawnInFolder({ ...a, relationLocked: true }) } finally { release() }
+    }
+    if (parentRef && taskNum !== undefined) return { content: "Сессия существующей задачи не меняет parent; связь восстанавливают явной операцией crew_task reconcile." }
+    const parentOrder = parentRef ? loadTask(parentRef.project, parentRef.n) : undefined
+    if (parentRef && (!parentOrder || parentOrder.kind !== "order" || parentOrder.order_to !== project || !isOpen(parentOrder) || (parentOrder.child && (parentOrder.child.project !== project || parentOrder.child.n !== taskNum))))
+      return { content: `Задача не поставлена: Заказа ${input.parent} для проекта ${project} нет, он закрыт или уже связан с другой задачей.` }
     const goal = String(input.goal ?? "").trim()
     const prio = isPriority(input.priority) ? input.priority : cfg.defaultPriority
     const common = { project, goal, boundaries: input.boundaries?.trim(), open_questions: input.open_questions?.trim(), ...messageFieldsOf(input), ...(extra ? { extra } : {}), priority: prio, tier: recTier, role, model, author: me.session, author_role: keyOf(me), qid: newQid(), status: "idle" as const, kind: "spawn" as const, directory: me.directory }
@@ -2319,7 +2330,15 @@ export function makeTools(host: CrewHost): CrewTool[] {
       const rp = planRoute(input, text, cfg.routeDefaults)
       if (!rp.ok) return { content: rp.refusal }
       const used = usedNumbers(fm.top, fm.rel)
-      t = createTask({ ...common, ...rp.fields, title: a.title, criteria: input.criteria?.trim(), ...(partOf !== undefined ? { part_of: partOf } : {}) }, placeOf, { used, fill: (n, slug) => ({ folder: `${fm.rel}/${folderName(n, slug)}`, sessions: [] }) })
+      t = createTask({ ...common, ...rp.fields, title: a.title, criteria: input.criteria?.trim(), ...(parentRef ? { parent: parentRef } : {}), ...(partOf !== undefined ? { part_of: partOf } : {}) }, placeOf, { used, fill: (n, slug) => ({ folder: `${fm.rel}/${folderName(n, slug)}`, sessions: [] }) })
+      if (parentRef) {
+        const linked = attachOrderChild(parentRef, { project, n: t.n }, { orderVersion: taskVersion(parentOrder!), childVersion: taskVersion(t) }, me.session)
+        if (!linked.ok) {
+          taskEvent(t, me.session, "cancelled", `не удалось установить parent до folder commit: ${linked.reason}`)
+          return { content: `Задача ${taskRef(t)} не запущена: связь с заказом не установлена (${linked.reason}).` }
+        }
+        t = linked.child
+      }
       const base = baseRef(fm.top, cfg.targetBranch)
       let sha = ""
       try {
@@ -2495,25 +2514,36 @@ export function makeTools(host: CrewHost): CrewTool[] {
       if (plan && hasRouteInput(input)) return { content: "Задача не поставлена: route и его поля — для задачи с папкой, не для задачи-плана." }
       const rp = plan ? undefined : planRoute(input, undefined, cfg.routeDefaults)
       if (rp && !rp.ok) return { content: rp.refusal }
-      const t = createTask({
+      const parentRef = parseParent(input.parent)
+      if (input.parent !== undefined && input.parent !== null && String(input.parent).trim() && !parentRef) return { content: "Задача не поставлена: parent должен быть exact «project#N» из заказа." }
+      const parentOrder = parentRef ? loadTask(parentRef.project, parentRef.n) : undefined
+      if (parentRef && (!parentOrder || parentOrder.kind !== "order" || parentOrder.order_to !== project || !isOpen(parentOrder) || parentOrder.child)) return { content: `Задача не поставлена: Заказа ${input.parent} для проекта ${project} нет, он закрыт или уже связан.` }
+      const relationUnlock = parentRef ? lockTaskRelations() : undefined
+      if (parentRef && !relationUnlock) return { content: "Задача не поставлена: другая операция связи выполняется; повтори после её завершения." }
+      let t: Task
+      try {
+      const currentParentOrder = parentRef ? loadTask(parentRef.project, parentRef.n) : undefined
+      if (parentRef && (!currentParentOrder || taskVersion(currentParentOrder) !== taskVersion(parentOrder!) || currentParentOrder.child || currentParentOrder.order_to !== project || !isOpen(currentParentOrder))) return { content: `Задача не поставлена: заказ ${input.parent} изменился до фиксации связи; обнови его состояние и повтори.` }
+      t = createTask({
         ...(rp?.ok ? rp.fields : {}),
         project, title: plan ? `план ${plan.n}: ${title}` : title, goal: String(input.goal).trim(), criteria: plan ? "критерии приёмки плана (план 004): А — против исходной задачи, Б — правильность составления" : input.criteria?.trim(), boundaries: input.boundaries?.trim(), open_questions: input.open_questions?.trim(),
         ...(extra.value ? { extra: extra.value } : {}),
         priority: isPriority(input.priority) ? input.priority : cfg.defaultPriority, tier: recTier, role, model,
         author: me.session, author_role: keyOf(me), qid: newQid(), status: "starting", kind: "spawn", executor: plannedSessionId(), directory: me.directory,
+        ...(parentRef ? { parent: parentRef } : {}),
         ...(plan ? { plan } : {}),
       }, (n, slug) => taskPlace(me.directory, cfg, n, slug, project), ((fo) => (fo ? { used: usedNumbers(fo.top, fo.rel) } : {}))(plan ? folderInfo(me.directory, cfg) : undefined)) // задача-план в проекте с папками — номер не повторяет номер папки
       if (chosen && !("refuse" in chosen)) stampProfile(t, "executor", t.executor!, chosen, !!t.worktree)
       else if (!chosen) stampClamp(t, "executor", t.executor!, stageOfLaunch({ plan: input.kind === "plan" }, "executor"), model, tier, tierCut.from)
-      const par = parseParent(input.parent)
-      if (par) {
-        const order = loadTask(par.project, par.n)
-        if (!order || order.kind !== "order" || order.order_to !== project) return { content: `Заказа ${input.parent} для проекта ${project} нет.` }
-        t.parent = par
-        order.child = { project, n: t.n }
-        taskEvent(order, me.session, undefined, `принят в работу в ${project}: ${taskNo(t)}`)
-        saveTask(t) // место уже в первой записи; пересохранить — только ради parent
+      if (parentRef) {
+        const linked = attachOrderChild(parentRef, { project, n: t.n }, { orderVersion: taskVersion(currentParentOrder!), childVersion: taskVersion(t) }, me.session)
+        if (!linked.ok) {
+          taskEvent(t, me.session, "cancelled", `не удалось установить parent до запуска: ${linked.reason}`)
+          return { content: `Задача ${taskRef(t)} не запущена: связь с заказом не установлена (${linked.reason}).` }
+        }
+        t = linked.child
       }
+      } finally { relationUnlock?.() }
       const r = await host.startTask(t)
       if (!r.session) return { content: `Задача ${taskRef(t)} записана, но сессия не запущена: ${r.error ?? "неизвестная ошибка"}. Плагин повторит запуск сам (тем же id сессии — второй не будет).` }
       return { content: `Задача ${taskNo(t)} запущена (${hhmm(Date.now())}): «${t.title}», сессия ${r.session}, роль ${roleKey(project, role)}, модель ${model}, приоритет ${t.priority}${t.worktree ? `, worktree ${t.worktree}, ветка ${t.branch}` : ""}. Отчёт придёт ответом на ${t.qid}: crew_wait {qid: "${t.qid}"} или обычным письмом. Управление — crew_task {n: ${t.n}, action: ...}.` }
@@ -2529,6 +2559,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
         "show - anyone - n - details and history of a task, with its steps, side branches and worktrees.",
         "assign - integrator - session, goal, criteria, title?, boundaries?, open_questions?, priority?, extra? - give a task to an existing open tab instead of a new session; the tab is woken while the task is open. Refused for the integrator's own session (unless the project sets allow_self_assign) and for a session that already runs a task. extra {id: one line} fills the project's extra task fields (task_extra_fields, see crew_config show). In a project with task folders the task text follows the template of crew_spawn: owner_words and result required, links? boundaries? message?",
         "order - integrator - to \"project.integrator\", goal, criteria, ... - order work from another project: its integrator does it with its own tasks; when its task is accepted the order is done (a quiet summary to you), when cancelled you get a call.",
+        "reconcile - child-project integrator - exact order_project/order_n/child_n, expected version fingerprints/statuses, evidence for done, dry_run? - restore an exact legacy link; no title matching. Copy version and raw status from both current crew_task show outputs; after a partial journaled write, refresh both endpoints before retry. Done needs accepted history and recorded merged_head/commit; other states only attach and leave order open. Journal/lock support exact recovery; conflicts, stale state or lock contention fail closed. Propagation requires reciprocal pointers.",
         "push - integrator - n, text?, to? - nudge a stalled tab now (the reminder counter starts over): to \"executor\" (default) wakes the executor, to \"reviewer\" wakes the reviewer of the task.",
         "deliver - integrator - n, text - a task led by method sessions (status idle: the last session submitted to you) goes to the plugin's review once: text is the report for the reviewer (what is ready to land). A task with a single executor session goes to review on its submit, as before.",
         "reassign - integrator - n, text? - hand the task to a new session under the same number with a summary of what was done (a task session: the same code, the next ordinal and a new launch number; the old one is marked handed). text = a refinement of the goal: it goes into the new session's first letter as a block before the old goal, wins where they differ and stays in the task history (show). Refine the goal with this same call, never with a second letter after the handover: the new session would start on the old goal and report twice.",
@@ -2553,7 +2584,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
     input: {
       type: "object",
       properties: {
-        action: { type: "string", enum: ["list", "show", "assign", "order", "push", "reassign", "cancel", "priority", "track", "plan_decide", "submit", "deliver", "review", "check", "round", "merge", "unlock", "precheck", "rework", "accept", "cleanup", "cleaned", "route", "migrate"] },
+        action: { type: "string", enum: ["list", "show", "assign", "order", "push", "reassign", "cancel", "priority", "track", "plan_decide", "submit", "deliver", "review", "check", "round", "merge", "unlock", "precheck", "rework", "accept", "cleanup", "cleaned", "route", "migrate", "reconcile"] },
         to: str("order: the other project's integrator, \"project.integrator\"; push: \"executor\" (default) or \"reviewer\""),
         keep: { type: "array", maxItems: 8, items: { type: "string" }, description: "cleanup: up to 8 worktree paths to keep as evidence" },
         checks: { type: "object", description: "accept: report per acceptance step {step id: what proves it}", additionalProperties: { type: "string" } },
@@ -2579,6 +2610,15 @@ export function makeTools(host: CrewHost): CrewTool[] {
         source_to: str("migrate: to copied from that same archived letter; must be the existing executor"),
         source_qid: str("migrate: qid copied from that same archived letter; must match the existing task"),
         source_sha256: str("migrate: SHA256 of the exact UTF-8 text field from that archived letter"),
+        order_project: str("reconcile: exact source-order project"),
+        order_n: { type: "number", description: "reconcile: exact source-order number" },
+        child_n: { type: "number", description: "reconcile: exact task number in the caller's project" },
+        expected_order_version: str("reconcile: exact order version fingerprint from crew_task show"),
+        expected_child_version: str("reconcile: exact child version fingerprint from crew_task show"),
+        expected_order_status: str("reconcile: exact order status from crew_task show"),
+        expected_child_status: str("reconcile: exact child status from crew_task show"),
+        evidence: str("reconcile done: exact merged_head or commit already recorded on the child; never a new proof supplied by caller"),
+        dry_run: { type: "boolean", description: "reconcile: validate exact identities, versions and evidence without writing task records" },
         route_word: str("route/migrate: the owner's exact «заводи <number>» authorization with date and source"),
         route_word_date: str("route/migrate: date of the owner's word in YYYY-MM-DD"),
         ...taskInput,
@@ -2671,6 +2711,37 @@ export function makeTools(host: CrewHost): CrewTool[] {
         host.posted([to])
         return { content: `Заказ ${taskNo(t)} «${t.title}» отправлен интегратору ${m[1]}. Его ход виден в crew_task {action: "show", n: ${t.n}}; выполнен — придёт сводка.` }
       }
+      if (action === "reconcile") {
+        if (!isIntegrator(me)) return notIntegrator(me)
+        const orderProject = String(input.order_project ?? "").trim()
+        const orderN = Number(input.order_n)
+        const childN = Number(input.child_n)
+        const auditOrder = { project: orderProject || "?", n: Number.isFinite(orderN) ? orderN : 0 }
+        const auditChild = { project, n: Number.isFinite(childN) ? childN : 0 }
+        const refuse = (reason: string) => {
+          recordRelationAudit({ by: me.session, order: auditOrder, child: auditChild, outcome: `отказ: ${reason}` })
+          return { content: `Связь не восстановлена: ${reason}` }
+        }
+        const order = Number.isInteger(orderN) && orderN > 0 ? loadTask(orderProject, orderN) : undefined
+        const child = Number.isInteger(childN) && childN > 0 ? loadTask(project, childN) : undefined
+        if (!orderProject || !order || !child || child.project !== project) return refuse("передай exact order_project/order_n и child_n из существующих записей")
+        if (order.kind !== "order" || order.order_to !== project || order.project === project) return refuse(`заказ ${orderProject}#${orderN} не адресован проекту ${project}`)
+        if (input.expected_order_version !== taskVersion(order) || input.expected_child_version !== taskVersion(child) || input.expected_order_status !== order.status || input.expected_child_status !== child.status) return refuse("expected version fingerprints и statuses должны совпасть с текущими записями из crew_task show обеих сторон")
+        if (child.status === "done") {
+          const proof = child.merged_head || child.commit
+          if (!child.history?.some((h) => h.status === "accepted") || !proof || input.evidence !== proof) return refuse("для done нужны текущая запись accepted, её merged_head/commit и точное совпадение evidence; payload сам по себе доказательством не является")
+        } else if (input.evidence !== undefined && input.evidence !== "") return refuse("evidence для done передан, но текущая задача не done")
+        const linked = attachOrderChild({ project: orderProject, n: orderN }, { project, n: childN }, { orderVersion: input.expected_order_version, childVersion: input.expected_child_version }, me.session, input.dry_run === true)
+        if (!linked.ok) return refuse(`${linked.reason}; проверь crew_task show обеих сторон, metadata вручную не меняй`)
+        if (input.dry_run === true) {
+          recordRelationAudit({ by: me.session, order: auditOrder, child: auditChild, outcome: "dry-run: проверка пройдена, записи не изменены" })
+          return { content: `Проверка без записи: точная пара ${orderProject}#${orderN} ↔ ${project}#${childN} допустима${linked.repeated ? " (уже связана)" : ""}; задача ${statusRu(linked.child.status)}, заказ ${statusRu(linked.order.status)}. Для применения повтори без dry_run.` }
+        }
+        const sent = propagateToParent(linked.child)
+        const currentOrder = loadTask(orderProject, orderN)
+        recordRelationAudit({ by: me.session, order: auditOrder, child: auditChild, outcome: `связь восстановлена; задача ${linked.child.status}, заказ ${currentOrder?.status}` })
+        return { content: `Связь восстановлена: ${orderProject}#${orderN} ↔ ${project}#${childN}${linked.repeated ? " (повтор, идемпотентно)" : ""}; задача ${statusRu(linked.child.status)}, заказ ${statusRu(currentOrder?.status)}.${sent.length ? " Уведомление заказчику отправлено." : ""}` }
+      }
       const t = findTask(me, input.n)
       if (!t) return { content: `Задачи ${taskNo({ project, n: input.n })} в проекте ${project} нет.` }
       if (action === "route") {
@@ -2712,6 +2783,9 @@ export function makeTools(host: CrewHost): CrewTool[] {
         const rv = routeView(t)
         const lines = [
           taskRow(t),
+          `версия: ${taskVersion(t)}; updated: ${t.updated}; status: ${t.status}; parent: ${t.parent ? `${t.parent.project}#${t.parent.n}` : "—"}; child: ${t.child ? `${t.child.project}#${t.child.n}` : "—"}`,
+          `принятие: ${t.history?.some((h) => h.status === "accepted") ? "есть" : "нет"}; merged_head: ${t.merged_head ?? "—"}; commit: ${t.commit ?? "—"}`,
+          relationAuditFor(t.project, t.n).slice(-10).length ? `аудит связи (последние 10):\n${relationAuditFor(t.project, t.n).slice(-10).map((x) => `  ${hhmm(x.at)} ${x.by}: ${x.outcome}`).join("\n")}` : "",
           t.route === "fast" ? `${routeLogText(t)}; числа цикла: потолок ${rv.ceiling}, чистых подряд ${rv.clean_runs} (серия ${rv.clean_series}), проб ${rv.probes}, сдача ${rv.delivery_compressed ? "сжата" : "не сжата"}${rv.proposal ? `; предложение правила: ${ROUTE_RU[rv.proposal]}` : ""}` : "",
           `автор ${t.author_role} (${t.author}), ступень ${t.tier}${t.model ? `, модель ${t.model}` : ""}, qid ${t.qid}`,
           t.worktree ? `worktree ${t.worktree}, ветка ${t.branch}` : t.branch ? `ветка ${t.branch}` : "",
@@ -3586,9 +3660,10 @@ export function parseParent(v: any): { project: string; n: number } | undefined 
 export function propagateToParent(t: Task): string[] {
   if (!t.parent || (t.status !== "done" && t.status !== "cancelled")) return []
   const order = loadTask(t.parent.project, t.parent.n)
-  if (!order || order.kind !== "order") return []
+  if (!order || order.kind !== "order" || order.order_to !== t.project || order.child?.project !== t.project || order.child?.n !== t.n) return []
   const sent: string[] = []
   const done = t.status === "done"
+  if (done && (!t.history?.some((h) => h.status === "accepted") || !(t.merged_head || t.commit))) return []
   if (isOpen(order)) taskEvent(order, PLUGIN_SENDER, done ? "done" : undefined, done ? `выполнен в ${t.project}: ${taskNo(t)} принята` : `задача ${t.project} ${taskNo(t)} отменена`)
   const id = `order-${done ? "done" : "cancel"}-${safeKey(order.project)}-${order.n}-${safeKey(t.project)}-${t.n}`
   if (!letterExistsFor(order.author, id)) {

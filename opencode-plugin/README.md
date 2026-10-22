@@ -1402,6 +1402,55 @@ is what the tabs in the main folder use — the plugin only names it.
   `NNN` of kind order in the orderer's journal (no session, no title marks) and sends it to beta's
   integrator, who does it with its own tasks: `crew_spawn {…, parent: "alpha#N"}`. The order follows
   that task: done → the order is done (a quiet summary to the orderer), cancelled → a call.
+- **folder spawn parent** is validated before task/folder/session creation and stored on both task and
+  order. A refusal or conflicting link must be resolved at the source; do not edit task JSON.
+- **legacy link recovery** is an explicit child-project integrator operation, never a title search or
+  migration. First read the current version fingerprint and raw `status` of both exact records with
+  `crew_task {action: "show", n: ...}` in each project. Preview, then apply the same exact pair:
+
+  ```js
+  crew_task {action: "reconcile", order_project: "alpha", order_n: 12, child_n: 34,
+    expected_order_version: "<order.version fingerprint>", expected_child_version: "<child.version fingerprint>",
+    expected_order_status: "running", expected_child_status: "done", evidence: "<recorded merged_head or commit>", dry_run: true}
+  crew_task {action: "reconcile", order_project: "alpha", order_n: 12, child_n: 34,
+    expected_order_version: "<order.version fingerprint>", expected_child_version: "<child.version fingerprint>",
+    expected_order_status: "running", expected_child_status: "done", evidence: "<recorded merged_head or commit>"}
+  ```
+
+  Keep all expected fields and evidence from the same fresh read. Version is SHA256 of the current task
+  record content (including history, status, pointers and `updated`), not a millisecond timestamp. The
+  plugin validates accepted history and recorded evidence for `done`; `reviewing`/`blocked` links omit
+  evidence and leave the order open. The commit point is the reciprocal `order.child` + `child.parent`
+  pair; a pending journal allows only exact, version-checked roll-forward. After a partial write, refresh
+  both version/status values from `show` before retry: the journaled exact pair and relation-history
+  marker must prove that the changed endpoint is the operation's own write. A stale original version
+  fails closed. Lock contention, stale state, a conflicting
+  endpoint or an unrelated pending journal fails closed. This is not a general transaction engine.
+  For the later, separately activated Nova recovery, the intended exact pairs are
+  `nova#112` ↔ CrewHarness task `129`, `nova#113` ↔ `133`, and `nova#114` ↔ `140`. Read current
+  versions/status/evidence before issuing commands; use the two-step preview/apply above. For 129/133,
+  use the current recorded `merged_head` (legacy records may lack `commit`) and verify accepted history
+  plus `done`. For 140 use its current `reviewing` or `blocked` status, omit evidence, and verify the
+  order remains open. These instructions do not apply or modify those records.
+
+  Safe command templates for the later, separately authorized activation (substitute only values
+  copied from the fresh `show`; run in CrewHarness integrator, once per pair):
+
+  ```js
+  // Nova 112 → CrewHarness 129; expected child is done + accepted, evidence is its recorded merged_head.
+  crew_task {action:"reconcile", order_project:"nova", order_n:112, child_n:129, expected_order_version:"<112.version>", expected_child_version:"<129.version>", expected_order_status:"<112.status>", expected_child_status:"done", evidence:"<129.merged_head>", dry_run:true}
+  crew_task {action:"reconcile", order_project:"nova", order_n:112, child_n:129, expected_order_version:"<112.version>", expected_child_version:"<129.version>", expected_order_status:"<112.status>", expected_child_status:"done", evidence:"<129.merged_head>"}
+  // Nova 113 → CrewHarness 133; same proof requirements as 112 → 129.
+  crew_task {action:"reconcile", order_project:"nova", order_n:113, child_n:133, expected_order_version:"<113.version>", expected_child_version:"<133.version>", expected_order_status:"<113.status>", expected_child_status:"done", evidence:"<133.merged_head>", dry_run:true}
+  crew_task {action:"reconcile", order_project:"nova", order_n:113, child_n:133, expected_order_version:"<113.version>", expected_child_version:"<133.version>", expected_order_status:"<113.status>", expected_child_status:"done", evidence:"<133.merged_head>"}
+  // Nova 114 → CrewHarness 140; status must be the exact current reviewing/blocked value; no evidence.
+  crew_task {action:"reconcile", order_project:"nova", order_n:114, child_n:140, expected_order_version:"<114.version>", expected_child_version:"<140.version>", expected_order_status:"<114.status>", expected_child_status:"<140.status>", dry_run:true}
+  crew_task {action:"reconcile", order_project:"nova", order_n:114, child_n:140, expected_order_version:"<114.version>", expected_child_version:"<140.version>", expected_order_status:"<114.status>", expected_child_status:"<140.status>"}
+  ```
+
+  These are not executable until separate activation, and no status/evidence for an actual record is
+  asserted here. For 114, stop if the fresh record is done/accepted or the order is closed; this task
+  must not convert 140 to done or close Nova 114.
 
 ## Other machines (research, not in the plugin)
 

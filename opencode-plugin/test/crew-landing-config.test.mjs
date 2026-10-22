@@ -112,6 +112,7 @@ const missing = spawnFields.filter((f) => !schema.RESERVED_FIELD_IDS.includes(f)
 cell("AC-25 reserved ids: every input field of crew_spawn is reserved", missing.length === 0, JSON.stringify(missing))
 const taskFields = Object.keys(tools.crew_task.input.properties)
 cell("AC-25 reserved ids: action, n and session of crew_task are reserved", ["action", "n", "session"].every((f) => taskFields.includes(f) && schema.RESERVED_FIELD_IDS.includes(f)), JSON.stringify(taskFields))
+cell("AC-25 reserved ids: reconcile exact endpoint/version/status fields cannot collide with task extras", ["order_project", "order_n", "child_n", "expected_order_version", "expected_child_version", "expected_order_status", "expected_child_status", "evidence", "dry_run"].every((f) => schema.RESERVED_FIELD_IDS.includes(f)), JSON.stringify(schema.RESERVED_FIELD_IDS))
 
 cell("AC-25 reserved ids: service names of an object (constructor, __proto__, prototype) are reserved", ["constructor", "__proto__", "prototype"].every((f) => schema.RESERVED_FIELD_IDS.includes(f) && schema.invalid("task_extra_fields", [{ id: f, label: "X" }]) !== undefined), JSON.stringify(["constructor", "__proto__", "prototype"].map((f) => schema.invalid("task_extra_fields", [{ id: f, label: "X" }]))))
 stop?.()

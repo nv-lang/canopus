@@ -21,7 +21,9 @@ const cell = (name, ok, detail) => {
 }
 const run = (args, env = {}) => {
   try {
-    return { code: 0, out: execFileSync(process.execPath, [script, ...args], { encoding: "utf8", env: { ...process.env, ...env }, stdio: ["ignore", "pipe", "pipe"], timeout: 120_000 }) }
+    const childEnv = { ...process.env }
+    for (const key of ["CREW_SESSION_ID", "CREW_ROLE", "CREW_PROJECT", "CREW_TASK_N", "CREW_REVIEW_N"]) delete childEnv[key]
+    return { code: 0, out: execFileSync(process.execPath, [script, ...args], { encoding: "utf8", env: { ...childEnv, ...env }, stdio: ["ignore", "pipe", "pipe"], timeout: 120_000 }) }
   } catch (e) {
     return { code: e.status ?? -1, out: String(e.stdout ?? "") + String(e.stderr ?? "") }
   }
