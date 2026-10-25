@@ -25,11 +25,11 @@ const base = () => [
   ev('user_message', { turn: 't1', text: 'сделай' }, { step: 1 }),
 ];
 
-test('виды событий: девять прежних и шесть новых', () => {
+test('виды событий: девять прежних, шесть рабочих и три вида вопросов', () => {
   assert.deepEqual([...st.KINDS].sort(), [
     'agent_chunk', 'agent_done', 'agent_refused', 'agent_switched', 'background_task', 'background_task_update', 'cancel', 'error',
-    'file_diff', 'output_file', 'permission_decision', 'permission_request', 'session_created', 'session_model', 'tool_call',
-    'tool_call_update', 'usage_update', 'user_message',
+    'file_diff', 'output_file', 'permission_decision', 'permission_request', 'question_answer', 'question_request', 'question_resolved',
+    'session_created', 'session_model', 'tool_call', 'tool_call_update', 'usage_update', 'user_message',
   ]);
 });
 
