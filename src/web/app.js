@@ -13,7 +13,7 @@ import { createView } from './view.js';
 import { createQueue } from './queue.js';
 import { chooseMode, createTransport, parseAgentRegistry } from './transport.js';
 import {
-  AGENTS, createMockServer,
+  AGENTS, createMockServer, mockFetch,
 } from './mock.js';
 
 const FLASH_MS = 4000;
@@ -164,6 +164,7 @@ const picked = chooseMode(location.search, location.protocol, location.host);
 async function start() {
   let agents = AGENTS;
   let registryFailed = false;
+  if (picked.mode === 'mock') globalThis.fetch = mockFetch(globalThis.fetch.bind(globalThis));
   if (picked.mode === 'ws') {
     try {
       const response = await fetch('/api/agents', { cache: 'no-store' });
