@@ -12,6 +12,7 @@ import { t } from './strings.js';
 import { createView } from './view.js';
 import { createQueue } from './queue.js';
 import { chooseMode, createTransport, parseAgentRegistry } from './transport.js';
+import { createProjectsApi } from './projects-api.js';
 
 const FLASH_MS = 4000;
 const TICK_MS = 1000;
@@ -47,7 +48,7 @@ document.title = t('app.title');
 let model = initialModel();
 let status = { state: 'connecting' };
 const ui = {
-  selected: null, newOpen: false, newProject: '', pane: 'list', flash: '', flashTone: 'error', awaiting: null, theme: readTheme(), pins: {},
+  selected: null, newOpen: false, newProjectId: '', projects: null, pane: 'list', flash: '', flashTone: 'error', awaiting: null, theme: readTheme(), pins: {},
 };
 applyTheme(ui.theme);
 
@@ -55,6 +56,15 @@ const ctx = { newId, now: () => Date.now() };
 let view = null;
 let queued = false;
 let transport = null;
+// fetch берётся при каждом вызове: в режиме ?mock=1 страница подменяет globalThis.fetch уже после старта
+const projectsApi = createProjectsApi(() => globalThis.fetch.bind(globalThis), t('projects.offline'));
+
+async function loadProjects() {
+  const r = await projectsApi.list();
+  if (r.ok) ui.projects = r.projects;
+  else if (ui.projects === null) flash(t('projects.load_failed', { reason: r.error }));
+  render();
+}
 
 function draw() {
   if (!queued) return;
@@ -114,7 +124,9 @@ const handlers = {
   onUnqueue(trace) { queue.popLast(trace); render(); },
   onSelect(trace) { ui.selected = trace; ui.pane = 'chat'; render(); },
   onBack() { ui.pane = 'list'; render(); },
-  onNewToggle(open, project) { ui.newOpen = open; ui.newProject = open ? (project ?? '') : ''; render(); },
+  onNewToggle(open, projectId) { ui.newOpen = open; ui.newProjectId = open ? (projectId ?? '') : ''; render(); },
+  onProjectsChanged() { loadProjects(); },
+  onNotice(text, tone) { flash(text, tone); },
   onPin(trace, pinned) { ui.pins = { ...ui.pins, [trace]: pinned }; render(); },
   onTheme() {
     ui.theme = nextTheme(ui.theme);
@@ -127,11 +139,18 @@ const handlers = {
     if (!clip || typeof clip.writeText !== 'function') { flash(t('chat.copy_failed')); return; }
     clip.writeText(text).then(() => flash(t('chat.copied'), 'info'), () => flash(t('chat.copy_failed')));
   },
-  onCreate({ agent, name, project }) {
+  onCreate({ agent, name, project, folder, branch }) {
     const trace = newId();
     const count = Object.keys(model.sessions).length;
     const title = name || t('sessions.untitled', { n: count + 1 });
-    const input = project ? { name: title, agent, project } : { name: title, agent };
+    const input = { name: title, agent };
+    // сессия внутри проекта: идентификатор проекта и папка — как в договорённости с сервером; имя проекта — для старого вида группы
+    if (project) {
+      input.project = project.name;
+      input.project_id = project.id;
+      if (folder) input.folder = folder;
+      if (branch) input.branch = branch;
+    }
     if (send('session_created', trace, 0, input)) {
       ui.awaiting = trace;
       ui.newOpen = false;
@@ -189,7 +208,7 @@ async function start() {
     app: document.getElementById('app'), side: document.getElementById('side'),
     main: document.getElementById('main'), rail: document.getElementById('rail'),
     status: document.getElementById('status'), overlay: document.getElementById('overlay'),
-  }, { agents, now: ctx.now, handlers, registryFailed });
+  }, { agents, now: ctx.now, handlers, registryFailed, projectsApi });
   setInterval(() => view.tick(), TICK_MS);
   transport = createTransport({
     mode: picked.mode, url: picked.url,
@@ -206,6 +225,7 @@ async function start() {
     onStatus(next) { status = next; render(); },
   });
   transport.start();
+  loadProjects();
   render();
 }
 start().then(() => {

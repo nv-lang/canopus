@@ -367,6 +367,7 @@ export function reduce(model, event) {
       messages: [],
       pending: null,
       project: str(event.input.project),
+      projectId: str(event.input.project_id),
       folder: str(event.input.folder),
       branch: str(event.input.branch),
       parent: str(event.input.parent),
