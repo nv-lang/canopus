@@ -3,7 +3,7 @@
 // The file is a JSON object; every key is optional (see `src/server/server.example.json`):
 //   port, data_dir, store ("files" or "pg"), pg {host, port, database, user, password}, agents [{id, label, program, args}],
 //   idle_term_seconds, workdir, web_dir, hub {program, args}, acp_trace (true by default: the raw exchange with the agent is written to
-//   <data_dir>/<session>.acp.jsonl), ask_form (true by default: the agents may ask the owner a question with a choice; see src/acp/README.md,
+//   <data_dir>/<session>.acp.jsonl), ask_form (true by default: the agents may ask the owner a question with a choice; see src/server/README.md,
 //   "Questions of the agent"), ask_timeout_seconds (1800: how long the tool `ask_user_question` waits for the owner), agents[].ask (native, mcp, off), stt {url, language} (the local whisper server the front sends the voice to: `/api/stt`)
 // The environment is over the file, key by key:
 //   CREW_SERVER_PORT, CREW_SERVER_STORE, CREW_SERVER_DATA_DIR, CREW_SERVER_AGENT (the command of the one agent "opencode",

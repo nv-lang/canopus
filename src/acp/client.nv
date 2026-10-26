@@ -44,11 +44,12 @@ type AcpAsk { key str, id JsonValue, params JsonValue }
 /// AskSetup: what the client offers the agent for its questions (task 192i). `form`: say at `initialize` that the client shows a form
 /// (`clientCapabilities.elicitation.form`), so the agents use their own tool of questions and `elicitation/create` comes; `mcp_url` and
 /// `mcp_token`: the MCP server of the hub with the tool `ask_user_question`, handed to the agent in `session/new` when it can use an HTTP
-/// server (`agentCapabilities.mcpCapabilities.http`); "" - none.
-export type AskSetup { form bool, mcp_url str, mcp_token str }
+/// server (`agentCapabilities.mcpCapabilities.http`); "" - none. `hint`: a short note put before the first prompt when the server was handed over, so that
+/// the agent knows to use the tool ("" - none); the note is not in the journal and not in the feed.
+export type AskSetup { form bool, mcp_url str, mcp_token str, hint str }
 
 /// Nothing offered: the agent is asked nothing and gets no tool.
-export fn no_ask() -> AskSetup => { form: false, mcp_url: "", mcp_token: "" }
+export fn no_ask() -> AskSetup => { form: false, mcp_url: "", mcp_token: "", hint: "" }
 
 type AcpSet { rpc int, setting str, value str }
 
@@ -78,6 +79,7 @@ export type AcpClient {
     ask AskSetup,
     asks []AcpAsk,
     mcp_http bool,
+    hint_due bool,
     ready []AcpInboxItem,
     taken []AcpInboxItem,
     next_seq int,
@@ -310,7 +312,7 @@ export fn open_client_asking(config AcpConfig, trace_path str, trace_limit int, 
             }
             mut client = AcpClient {
                 config, link, phase: "initializing", next_rpc: 0, init_rpc: -1, new_rpc: -1, prompt_rpc: -1,
-                session: "", agent: "", model_name: "", modes: JsonValue.null(), models: JsonValue.null(), choices_cfg: JsonValue.null(), mode_now: "", model_now: "", sets: []AcpSet.new(), queue: []AcpQueued.new(), active: "", permissions: []AcpPending.new(), ask, asks: []AcpAsk.new(), mcp_http: false,
+                session: "", agent: "", model_name: "", modes: JsonValue.null(), models: JsonValue.null(), choices_cfg: JsonValue.null(), mode_now: "", model_now: "", sets: []AcpSet.new(), queue: []AcpQueued.new(), active: "", permissions: []AcpPending.new(), ask, asks: []AcpAsk.new(), mcp_http: false, hint_due: false,
                 ready, taken: []AcpInboxItem.new(), next_seq: next, stderr: "", exit_code: -2, last_error: "", trace: trace_open(trace_path, trace_limit)
             }
             client.init_rpc = client.next_id()
@@ -404,6 +406,7 @@ fn AcpClient mut @on_result(id JsonValue, result JsonValue) -> () {
         if @ask.mcp_url.byte_len() > 0 {
             if @mcp_http {
                 servers = mcp_servers_params(@ask.mcp_url, @ask.mcp_token)
+                @hint_due = @ask.hint.byte_len() > 0
             } else {
                 @note("the tool ask_user_question is not offered: the agent ${@agent} does not take an HTTP MCP server (mcpCapabilities.http)")
             }
@@ -710,7 +713,10 @@ fn AcpClient mut @drive() -> () {
     ro next = @queue.remove(0)
     @active = next.request
     @prompt_rpc = @next_id()
-    @say(rpc_request_line(@prompt_rpc, "session/prompt", prompt_params(@session, next.text)))
+    // the note about the tool of questions goes before the first prompt only
+    ro text = if @hint_due { "${@ask.hint}\n\n${next.text}" } else { next.text }
+    @hint_due = false
+    @say(rpc_request_line(@prompt_rpc, "session/prompt", prompt_params(@session, text)))
 }
 
 /// Take what the fibers around the process have brought: the handshake moves on, lines become events, the next
