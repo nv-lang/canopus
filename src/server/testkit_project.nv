@@ -14,15 +14,6 @@ fn kit_slashes(path str) -> str {
     raw.to_str_lossy()
 }
 
-fn kit_file_text(path str) -> str {
-    with Fs = real_fs() {
-        match read_text(Path.from_bytes(path.bytes())) {
-            Ok(t) => t
-            Err(e) => ""
-        }
-    }
-}
-
 fn kit_json_object(text str) -> JsonObject {
     match Json.parse(text) {
         Ok(v) => match v.object() {
