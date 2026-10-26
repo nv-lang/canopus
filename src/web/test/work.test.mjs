@@ -46,6 +46,7 @@ test('виды событий: девять прежних, шесть рабо�
     'question_resolved',
     'session_created',
     'session_model',
+    'setting_dropped',
     'tool_call',
     'tool_call_update',
     'usage_update',

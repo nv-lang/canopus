@@ -959,6 +959,11 @@ export function createView(doc, refs, deps) {
       case 'diffs':
         fillDiffs(entry, item);
         break;
+      case 'dropped':
+        node.replaceChildren(h(doc, 'span', {
+          text: t({ mode: 'chat.dropped_mode', model: 'chat.dropped_model', effort: 'chat.dropped_effort' }[item.setting] ?? 'chat.dropped_mode', { value: item.value, used: item.used }),
+        }));
+        break;
       case 'switch': {
         const text = t('chat.switched', { agent: agentLabel(item.to) });
         node.replaceChildren(h(doc, 'span', { text: item.cut ? `${text} ${t('chat.switched_cut', { shown: item.shown, total: item.total })}` : text }));
