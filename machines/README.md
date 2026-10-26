@@ -26,7 +26,7 @@ target/alula.exe test machines/methodology                # 514 of 514 scenarios
 ```
 
 The same scenarios and the tests of the machines (the tables equal the JSON, every row has a scenario, the journal codes are the table of the owner, the equality with the machine on Nova) run in the units of `src/`
-(`machine_runner`, `machine_session`, `machine_cycle`, `machine_agent`, `machine_dialog`, `machine_registry`, `machine_chat`, `machine_dialog_eq` and the `*_machines` units, see [src/README.md](../src/README.md));
+(`machine_runner`, `machine_session`, `machine_cycle`, `machine_agent`, `machine_dialog`, `machine_registry`, `machine_chat`, and the `*_machines` units, see [src/README.md](../src/README.md));
 the module `crew_harness.machines` (`src/machines/`) embeds these files for the tests, `crew_harness.product_machines` (`src/product_machines/`) embeds the machines of the product for the hub.
 
 ## Why `dialog_steps` is in `methodology/`
