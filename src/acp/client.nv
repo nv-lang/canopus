@@ -103,7 +103,8 @@ export type AcpClient {
     prelude str,
     presets []AcpPreset,
     settled []AcpPreset,
-    dropped []AcpDrop
+    dropped []AcpDrop,
+    commands []str
 }
 
 const STDERR_KEEP = 4000
@@ -352,7 +353,7 @@ export fn open_client_full(config AcpConfig, trace_path str, trace_limit int, as
                 config, link, phase: "initializing", next_rpc: 0, init_rpc: -1, new_rpc: -1, prompt_rpc: -1,
                 session: "", agent: "", model_name: "", modes: JsonValue.null(), models: JsonValue.null(), choices_cfg: JsonValue.null(), mode_now: "", model_now: "", sets: []AcpSet.new(), queue: []AcpQueued.new(), active: "", permissions: []AcpPending.new(), ask, asks: []AcpAsk.new(), mcp_http: false, hint_due: false,
                 ready, taken: []AcpInboxItem.new(), next_seq: next, stderr: "", exit_code: -2, last_error: "", trace: trace_open(trace_path, trace_limit),
-                images_ok: false, attached: []AcpImage.new(), prelude: "", presets: []AcpPreset.new(), settled: []AcpPreset.new(), dropped: []AcpDrop.new()
+                images_ok: false, attached: []AcpImage.new(), prelude: "", presets: []AcpPreset.new(), settled: []AcpPreset.new(), dropped: []AcpDrop.new(), commands: []str.new()
             }
             client.init_rpc = client.next_id()
             client.say(rpc_request_line(client.init_rpc, "initialize", initialize_params(ask.form)))
@@ -536,6 +537,16 @@ fn AcpClient mut @on_update(params JsonValue) -> () {
         None => JsonValue.null()
     }
     ro projected = project_update(update)
+    if field_text(update, "sessionUpdate") == Some("available_commands_update") {
+        // task 192.11: the commands the agent says it has, "со слов агента" for the view of the request
+        mut seen = []str.new()
+        for item in (field(update, "availableCommands") ?? JsonValue.null()).array() ?? []JsonValue.new() {
+            ro name = field_text(item, "name") ?? ""
+            ro about = field_text(item, "description") ?? ""
+            if name.byte_len() > 0 { seen.push(if about.byte_len() > 0 { "${name} - ${about}" } else { name }) }
+        }
+        @commands = seen
+    }
     if field_text(update, "sessionUpdate") == Some("current_mode_update") {
         @mode_now = field_text(update, "currentModeId") ?? ""
         @push_options()
@@ -1117,6 +1128,9 @@ export fn AcpClient mut @close() Time -> () {
 
 /// The phase: initializing, opening, ready, dead, failed or closed.
 export fn AcpClient @phase() -> str => @phase
+
+/// The commands the agent has announced (`available_commands_update`), one line each: `name - description`.
+export fn AcpClient @commands_seen() -> []str => @commands
 
 /// The number of the lines of `acp.jsonl` written so far (0 - the trace is off); the view of the request (task 192.11) names the lines of a turn by it.
 export fn AcpClient @trace_lines() -> int => @trace.line_count()
