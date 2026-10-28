@@ -37,9 +37,10 @@ else
     fi
     kit="$work/kit"
     if sh scripts/package-release.sh "$kit" > "$work/kit.log" 2>&1; then say_ok "комплект собран и проверен стражем"; else say_red "package-release: $(tail -3 "$work/kit.log" | tr '\n' ' ')"; fi
-    for f in crew-harness.exe crew-hub.exe machines/product/dialog.alula.json machines/product/dialog.alula.md machines/product/chat.alula.json machines/product/chat.alula.md machines/product/journal.md machines/product/libs/call_cancel.alula.md; do
+    for f in crew-harness.exe crew-hub.exe machines/product/dialog.alula.json machines/product/dialog.alula.md machines/product/journal.md machines/product/libs/call_cancel.alula.md; do
         [ -f "$kit/$f" ] || say_red "в комплекте нет $f"
     done
+    ls "$kit"/machines/product/chat.* > /dev/null 2>&1 && say_red "в комплекте есть чат (по поправке 02:20 — не кладём)"
     [ -e "$kit/machines/product/tests" ] && say_red "в комплекте есть machines/product/tests"
     [ -e "$kit/machines/methodology" ] && say_red "в комплекте есть machines/methodology"
 
@@ -69,11 +70,13 @@ EOF
         cp "$kit/machines/product/libs/call_cancel.alula.md" "$work/lib.saved"
         printf '\nЛишняя строка.\n' >> "$kit/machines/product/libs/call_cancel.alula.md"
         s3=$(hub_run broken)
-        if grep -q "hash" "$work/err-broken" && ! grep -q "^exit 0" "$work/err-broken"; then say_ok "битый хеш библиотеки — ошибка: $(grep -m1 hash "$work/err-broken")"; else say_red "битый хеш библиотеки не остановил хаб: $s3"; fi
+        if grep -q "hash e193a5abd356" "$work/err-broken" && ! grep -q "^exit 0" "$work/err-broken"; then say_ok "битый хеш библиотеки — ошибка: $(grep -m1 hash "$work/err-broken")"; else say_red "битый хеш библиотеки не остановил хаб: $s3"; fi
         cp "$work/lib.saved" "$kit/machines/product/libs/call_cancel.alula.md"
-        rm "$kit/machines/product/chat.alula.md"
+        cp "$kit/machines/product/dialog.alula.md" "$work/table.saved"
+        rm "$kit/machines/product/dialog.alula.md"
         s4=$(hub_run missing)
-        if grep -q "chat.alula.md" "$work/err-missing" && ! grep -q "^exit 0" "$work/err-missing"; then say_ok "нет файла — ошибка с путём"; else say_red "нет файла — хаб запустился: $s4"; fi
+        cp "$work/table.saved" "$kit/machines/product/dialog.alula.md"
+        if grep -q "machines/product/dialog.alula.md" "$work/err-missing" && ! grep -q "^exit 0" "$work/err-missing"; then say_ok "нет файла — ошибка с путём"; else say_red "нет файла — хаб запустился: $s4"; fi
     else
         say_red "в комплекте нет запускаемого crew-hub.exe"
     fi
