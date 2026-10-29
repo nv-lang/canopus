@@ -80,6 +80,7 @@ const ctx = { newId, now: () => Date.now() };
 let view = null;
 let queued = false;
 let transport = null;
+let presetInfo = null; // наборы с сервера (задача 192.12): {active, presets, roles}
 let agentList = []; // семьи агентов: нужны, чтобы выбрать первую для черновика новой сессии
 // fetch берётся при каждом вызове: в режиме ?mock=1 страница подменяет globalThis.fetch уже после старта
 const projectsApi = createProjectsApi(() => globalThis.fetch.bind(globalThis), t('projects.offline'));
@@ -280,6 +281,7 @@ const handlers = {
       const folderInfo = (((ui.projects || []).find((p) => p.id === draft.projectId) || { folders: [] }).folders).find((f) => f.path === draft.folder);
       const treeOk = !(folderInfo && folderInfo.repo === false); // папка не git: сессия создаётся без дерева
       const input = { name: nameFromText(text) || t('sessions.new_name_placeholder'), agent: draft.agent, route: normalizeRoute(draft.route), worktree: draft.worktree !== false && treeOk };
+      if (draft.preset) input.preset = draft.preset;
       if (draft.projectId) {
         input.project = draft.project;
         input.project_id = draft.projectId;
@@ -331,6 +333,8 @@ const handlers = {
     if (model.sessions[trace] && model.sessions[trace].draft) { model = patchDraft(model, trace, { route: normalizeRoute(route) }); render(); return; }
     send(...signal(trace, routeSignal.set(route)));
   },
+  onDraftPreset(trace, name) { model = patchDraft(model, trace, { preset: name }); render(); },
+  onSessionPreset(trace, name) { send('session_preset', trace, nextStep(model, trace), { preset: name }); },
   onDraftWorktree(trace, on) { saveWorktreePref(on === true); model = patchDraft(model, trace, { worktree: on === true }); render(); },
   onWorktree(trace, on) { send(...signal(trace, routeSignal.worktree(on))); },
   onRouteRun(trace) { send(...signal(trace, routeSignal.run())); },
@@ -399,11 +403,16 @@ async function start() {
     }
   }
   agentList = agents;
+  // задача 192.12: наборы «роль → семья, модель, усилие» (GET /api/presets); без ответа выбора набора нет
+  try {
+    const response = await fetch('/api/presets', { cache: 'no-store' });
+    if (response.ok) presetInfo = await response.json();
+  } catch { /* выбор набора просто не показывается */ }
   view = createView(document, {
     app: document.getElementById('app'), side: document.getElementById('side'),
     main: document.getElementById('main'), rail: document.getElementById('rail'),
     status: document.getElementById('status'), overlay: document.getElementById('overlay'),
-  }, { agents, now: ctx.now, handlers, registryFailed, imageSrc: mock ? mock.mockImageSrc : undefined, projectsApi });
+  }, { agents, now: ctx.now, handlers, registryFailed, imageSrc: mock ? mock.mockImageSrc : undefined, projectsApi, presets: () => presetInfo });
   setInterval(() => view.tick(), TICK_MS);
   transport = createTransport({
     mode: picked.mode, url: picked.url,
