@@ -3,7 +3,7 @@
 module crew_harness.pgstore
 
 import alula.engine.{Journal, Store, JournalEntry, Snapshot, journal_event, param}
-import crew_harness.pgdb.{PgFault, new_test_db, drop_test_db, test_count, test_snap}
+import crew_harness.pgdb.{PgFault, new_test_db, drop_test_db, test_count, test_snap, db_or_skip}
 import std.net.{real_net}
 
 fn entry_at(step int, kind str, text str) -> JournalEntry => {
@@ -50,6 +50,7 @@ fn texts_of(entries []JournalEntry) -> []str {
 }
 
 test "handlers: lines of a step wait for the snapshot and all arrive with it, in the order of writing" {
+    if !db_or_skip() { return }
     ro db = new_test_db("h_wait")
     mut world = PgWorld.open(db.app, "s-1")
     write_lines(world, [entry_at(1, "start", "one"), entry_at(1, "note", "two")])
@@ -65,6 +66,7 @@ test "handlers: lines of a step wait for the snapshot and all arrive with it, in
 }
 
 test "handlers: a mark of the committed step goes to the journal at once and stands after the lines of the step" {
+    if !db_or_skip() { return }
     ro db = new_test_db("h_mark")
     mut world = PgWorld.open(db.app, "s-1")
     write_lines(world, [entry_at(1, "start", "a")])
@@ -81,6 +83,7 @@ test "handlers: a mark of the committed step goes to the journal at once and sta
 }
 
 test "handlers: a new world over the same session loads the snapshot and then puts marks on the right step" {
+    if !db_or_skip() { return }
     ro db = new_test_db("h_reload")
     mut first = PgWorld.open(db.app, "s-1")
     write_lines(first, [entry_at(1, "start", "a")])
@@ -102,6 +105,7 @@ test "handlers: a new world over the same session loads the snapshot and then pu
 }
 
 test "handlers: a session that was never saved loads as None and has an empty journal" {
+    if !db_or_skip() { return }
     ro db = new_test_db("h_none")
     mut world = PgWorld.open(db.app, "s-1")
     assert(load_snapshot(world, "s-1") == None)
@@ -110,6 +114,7 @@ test "handlers: a session that was never saved loads as None and has an empty jo
 }
 
 test "death between the journal write and the snapshot save: the lines of the step are in no table and no process sees them" {
+    if !db_or_skip() { return }
     ro db = new_test_db("h_death")
     mut world = PgWorld.open(db.app, "s-1")
     write_lines(world, [entry_at(1, "start", "committed")])
@@ -133,6 +138,7 @@ test "death between the journal write and the snapshot save: the lines of the st
 }
 
 test "handlers: a commit that breaks the rule of the step is a fault, and the lines stay out of the table" {
+    if !db_or_skip() { return }
     ro db = new_test_db("h_fault")
     mut world = PgWorld.open(db.app, "s-1")
     write_lines(world, [entry_at(1, "start", "a")])
@@ -155,6 +161,7 @@ test "handlers: a commit that breaks the rule of the step is a fault, and the li
 }
 
 test "handlers: a line of a step older than the committed one, a line of another step than the snapshot's, and another session id are faults" {
+    if !db_or_skip() { return }
     ro db = new_test_db("h_misuse")
     mut world = PgWorld.open(db.app, "s-1")
     write_lines(world, [entry_at(1, "start", "a")])

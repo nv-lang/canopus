@@ -393,7 +393,8 @@ test "page: chunk, done, refused, cancel" {
     ro refused = page_of(stamped(EventKind.Refused, "agent_refused", "agent-1", "ModelRefused"), "t1")
     assert(str_at(refused, "kind") == "agent_refused")
     assert(str_at(input_of(refused), "reason") == "ModelRefused")
-    ro cancel = page_of(stamped(EventKind.Input, "cancel", "x", ""), "t1")
+    // the hub feeds the signal of the protocol `cancel_request` (task 240), the page sees the kind "cancel" (task 254)
+    ro cancel = page_of(stamped(EventKind.Input, "cancel_request", "x", ""), "t1")
     assert(str_at(cancel, "kind") == "cancel")
     assert(str_at(input_of(cancel), "turn") == "t1")
 }

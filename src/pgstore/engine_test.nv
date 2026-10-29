@@ -5,7 +5,7 @@
 // The agent and the clock stay in memory (`MemoryWorld`); only the journal and the snapshots are in the database.
 module crew_harness.pgstore
 
-import crew_harness.pgdb.{new_test_db, drop_test_db, test_count}
+import crew_harness.pgdb.{new_test_db, drop_test_db, test_count, db_or_skip}
 import alula.engine.{Engine, MemoryWorld, Incoming, FailCode, JournalEntry, Journal, Store, Link, Time, Snapshot, start_engine, resume_engine, memory_journal, memory_store, memory_link, memory_time, decode_snapshot, encode_snapshot, JournalEvent}
 import crew_harness.chat.{ChatSession, ChatState, chat_session, encode_chat_state, user_says, user_cancels, agent_chunk, agent_done, agent_refused}
 
@@ -219,6 +219,7 @@ fn story_refusal(use_pg bool, mut mem MemoryWorld, mut pg PgWorld) -> Engine[Cha
 }
 
 test "engine on PostgreSQL: a conversation gives the same journal, snapshot and answer as in memory, Cyrillic and all" {
+    if !db_or_skip() { return }
     ro db = new_test_db("e_conversation")
     mut mem_a = MemoryWorld.at(1000)
     mut pg_a = PgWorld.open(db.app, "unused")
@@ -237,6 +238,7 @@ test "engine on PostgreSQL: a conversation gives the same journal, snapshot and 
 }
 
 test "engine on PostgreSQL: a cancel by the user gives the same result as in memory" {
+    if !db_or_skip() { return }
     ro db = new_test_db("e_cancel")
     mut mem_a = MemoryWorld.at(1000)
     mut pg_a = PgWorld.open(db.app, "unused")
@@ -252,6 +254,7 @@ test "engine on PostgreSQL: a cancel by the user gives the same result as in mem
 }
 
 test "engine on PostgreSQL: the idle term gives the same result as in memory" {
+    if !db_or_skip() { return }
     ro db = new_test_db("e_timeout")
     mut mem_a = MemoryWorld.at(1000)
     mut pg_a = PgWorld.open(db.app, "unused")
@@ -265,6 +268,7 @@ test "engine on PostgreSQL: the idle term gives the same result as in memory" {
 }
 
 test "engine on PostgreSQL: a refusal of the agent gives the same result as in memory" {
+    if !db_or_skip() { return }
     ro db = new_test_db("e_refusal")
     mut mem_a = MemoryWorld.at(1000)
     mut pg_a = PgWorld.open(db.app, "unused")
@@ -280,6 +284,7 @@ test "engine on PostgreSQL: a refusal of the agent gives the same result as in m
 // ----- restart: the process dies, the database stays -----
 
 test "engine on PostgreSQL: restart after the request was opened - a new process, a new PgWorld, no second send, the same result" {
+    if !db_or_skip() { return }
     ro db = new_test_db("e_restart")
     mut mem = MemoryWorld.at(1000)
     mut pg1 = PgWorld.open(db.app, "chat-1")
@@ -321,6 +326,7 @@ test "engine on PostgreSQL: restart after the request was opened - a new process
 }
 
 test "engine on PostgreSQL: restart after the answer - the session stays finished, nothing is sent, a repeated answer is discarded" {
+    if !db_or_skip() { return }
     ro db = new_test_db("e_restart_done")
     mut mem = MemoryWorld.at(1000)
     mut pg1 = PgWorld.open(db.app, "chat-1")
@@ -342,6 +348,7 @@ test "engine on PostgreSQL: restart after the answer - the session stays finishe
 }
 
 test "engine on PostgreSQL: death between the commit and the send - the request is sent once after the restart, and not twice after another" {
+    if !db_or_skip() { return }
     ro db = new_test_db("e_before_send")
     mut mem = MemoryWorld.at(1000)
     mut pg1 = PgWorld.open(db.app, "chat-1")
@@ -364,6 +371,7 @@ test "engine on PostgreSQL: death between the commit and the send - the request 
 }
 
 test "engine on PostgreSQL: death between the journal write and the snapshot save - the lines of that step are not in the database, the step is made again" {
+    if !db_or_skip() { return }
     ro db = new_test_db("e_death")
     mut mem = MemoryWorld.at(1000)
     mut pg1 = PgWorld.open(db.app, "chat-1")
@@ -396,6 +404,7 @@ test "engine on PostgreSQL: death between the journal write and the snapshot sav
 }
 
 test "engine on PostgreSQL: two sessions in one database do not mix" {
+    if !db_or_skip() { return }
     ro db = new_test_db("e_sessions")
     mut mem1 = MemoryWorld.at(1000)
     mut pg1 = PgWorld.open(db.app, "chat-1")

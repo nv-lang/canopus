@@ -77,6 +77,7 @@ fn text_of_line(line str) -> str {
 // ----- the migration -----
 
 test "migration: runs again over a database with data and changes nothing" {
+    if !db_or_skip() { return }
     ro db = new_test_db("migrate")
     assert(is_ok(save_step(db.app, "s-1", 1, snap_at(1, "a"), [line_at(1, "x")])))
     match test_migrate(db.admin) {
@@ -95,6 +96,7 @@ test "migration: runs again over a database with data and changes nothing" {
 }
 
 test "migration: the tables and the three functions are in the schema crew" {
+    if !db_or_skip() { return }
     ro db = new_test_db("objects")
     assert(test_count(db.admin, "select count(*) from pg_tables where schemaname = 'crew'") == 2)
     assert(test_count(db.admin, "select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'crew' and p.proname in ('save_step', 'load', 'list_sessions')") == 3)
@@ -104,6 +106,7 @@ test "migration: the tables and the three functions are in the schema crew" {
 // ----- save and load -----
 
 test "load: a session nobody saved is None" {
+    if !db_or_skip() { return }
     ro db = new_test_db("unknown")
     match load_session(db.app, "nobody") {
         Ok(found) => match found {
@@ -116,6 +119,7 @@ test "load: a session nobody saved is None" {
 }
 
 test "save and load: the last snapshot comes back with the journal of the session in the order of writing" {
+    if !db_or_skip() { return }
     ro db = new_test_db("saveload")
     assert(is_ok(save_step(db.app, "s-1", 1, snap_at(1, "first"), [line_at(1, "a"), line_at(1, "b")])))
     assert(is_ok(save_step(db.app, "s-1", 2, snap_at(2, "second"), [line_at(2, "c")])))
@@ -133,6 +137,7 @@ test "save and load: the last snapshot comes back with the journal of the sessio
 }
 
 test "save and load: two sessions are separate" {
+    if !db_or_skip() { return }
     ro db = new_test_db("two")
     assert(is_ok(save_step(db.app, "s-first", 1, snap_at(1, "A"), [line_at(1, "only first")])))
     assert(is_ok(save_step(db.app, "s-second", 1, snap_at(1, "B"), [line_at(1, "only second"), line_at(1, "second too")])))
@@ -148,6 +153,7 @@ test "save and load: two sessions are separate" {
 }
 
 test "UTF-8: Cyrillic, quotes, a line break and a letter of four bytes go through the snapshot and the journal as they are" {
+    if !db_or_skip() { return }
     ro db = new_test_db("utf8")
     ro text = "Привет, \"мир\"\nвторая строка, Ёжик, щётка 😀"
     assert(is_ok(save_step(db.app, "s-1", 1, "{\"step\":1,\"note\":\"Отлично, спасибо\"}", [line_at(1, text)])))
@@ -164,6 +170,7 @@ test "UTF-8: Cyrillic, quotes, a line break and a letter of four bytes go throug
 // ----- the rule of the step -----
 
 test "step: the next step passes, the same step again with the same snapshot and lines is harmless and adds no line" {
+    if !db_or_skip() { return }
     ro db = new_test_db("repeat")
     ro lines = [line_at(1, "a"), line_at(1, "b")]
     assert(is_ok(save_step(db.app, "s-1", 1, snap_at(1, "x"), lines)))
@@ -178,6 +185,7 @@ test "step: the next step passes, the same step again with the same snapshot and
 }
 
 test "step: the first step of a session is 1, a session cannot begin with another number" {
+    if !db_or_skip() { return }
     ro db = new_test_db("first")
     assert(is_error_with(save_step(db.app, "s-1", 2, snap_at(2, "x"), [line_at(2, "a")]), "CH001"))
     assert(!is_ok(save_step(db.app, "s-1", 0, snap_at(0, "x"), [])))
@@ -187,6 +195,7 @@ test "step: the first step of a session is 1, a session cannot begin with anothe
 }
 
 test "step: skipping a number is an error and writes nothing" {
+    if !db_or_skip() { return }
     ro db = new_test_db("skip")
     assert(is_ok(save_step(db.app, "s-1", 1, snap_at(1, "x"), [line_at(1, "a")])))
     assert(is_error_with(save_step(db.app, "s-1", 3, snap_at(3, "z"), [line_at(3, "lost")]), "CH001"))
@@ -200,6 +209,7 @@ test "step: skipping a number is an error and writes nothing" {
 }
 
 test "step: going back to a smaller number is an error and writes nothing" {
+    if !db_or_skip() { return }
     ro db = new_test_db("back")
     assert(is_ok(save_step(db.app, "s-1", 1, snap_at(1, "x"), [line_at(1, "a")])))
     assert(is_ok(save_step(db.app, "s-1", 2, snap_at(2, "y"), [line_at(2, "b")])))
@@ -213,6 +223,7 @@ test "step: going back to a smaller number is an error and writes nothing" {
 }
 
 test "step: the same step with another snapshot or another line is an error and changes nothing" {
+    if !db_or_skip() { return }
     ro db = new_test_db("differs")
     assert(is_ok(save_step(db.app, "s-1", 1, snap_at(1, "x"), [line_at(1, "a")])))
     assert(is_error_with(save_step(db.app, "s-1", 1, snap_at(1, "OTHER"), [line_at(1, "a")]), "CH002"))
@@ -225,6 +236,7 @@ test "step: the same step with another snapshot or another line is an error and 
 }
 
 test "lines of a committed step: appended after the lines it has, in the order of the calls, with no snapshot" {
+    if !db_or_skip() { return }
     ro db = new_test_db("append")
     assert(is_ok(save_step(db.app, "s-1", 1, snap_at(1, "x"), [line_at(1, "a"), line_at(1, "b")])))
     assert(is_ok(save_step(db.app, "s-1", 2, snap_at(2, "y"), [line_at(2, "c")])))
@@ -251,6 +263,7 @@ test "lines of a committed step: appended after the lines it has, in the order o
 // ----- one transaction -----
 
 test "one transaction: a line that cannot be stored takes the snapshot of the step down with it" {
+    if !db_or_skip() { return }
     ro db = new_test_db("atomic")
     assert(is_ok(save_step(db.app, "s-1", 1, snap_at(1, "x"), [line_at(1, "a")])))
     // the second line is a number, not an entry: the journal insert fails after the snapshot row was inserted
@@ -267,6 +280,7 @@ test "one transaction: a line that cannot be stored takes the snapshot of the st
 }
 
 test "one transaction: a snapshot that cannot be stored takes the lines down with it" {
+    if !db_or_skip() { return }
     ro db = new_test_db("atomic2")
     ro bad = with Net = real_net() { pg_save_step(db.app, "s-1", 1, Some("[1,2]"), [line_at(1, "a")], Some(0)) }
     assert(!is_ok(bad))
@@ -276,6 +290,7 @@ test "one transaction: a snapshot that cannot be stored takes the lines down wit
 }
 
 test "one transaction: the database itself refuses a line of a step that has no snapshot" {
+    if !db_or_skip() { return }
     ro db = new_test_db("fk")
     ro result = test_sql(db.admin, "insert into crew.machine_journal (id, step, seq, entry) values ('s-1', 1, 0, '{}')")
     match result {
@@ -288,6 +303,7 @@ test "one transaction: the database itself refuses a line of a step that has no 
 // ----- the rights of the application role -----
 
 test "role: the application role cannot read the tables, write them, or create anything in the schema" {
+    if !db_or_skip() { return }
     ro db = new_test_db("rights")
     assert(is_ok(save_step(db.app, "s-1", 1, snap_at(1, "x"), [line_at(1, "a")])))
     for sql in [
@@ -312,6 +328,7 @@ test "role: the application role cannot read the tables, write them, or create a
 }
 
 test "role: the application role can run save_step and load, and nothing else of the schema" {
+    if !db_or_skip() { return }
     ro db = new_test_db("rights2")
     assert(is_ok(save_step(db.app, "s-1", 1, snap_at(1, "x"), [])))
     ro rows = test_must_sql(db.app, "select step from crew.load('s-1')")
@@ -321,6 +338,7 @@ test "role: the application role can run save_step and load, and nothing else of
 }
 
 test "role: a login that is not a member of the application role has no access to the schema at all" {
+    if !db_or_skip() { return }
     ro db = new_test_db("public")
     ro root = test_admin_on("postgres")
     ro made = test_must_sql(root, "create role crew_u_stranger login password '${test_app_password()}'")
@@ -346,6 +364,7 @@ fn listed(cfg PgConfig) -> []str {
 }
 
 test "list: no session in a new database, then the ids of the sessions once each, in order" {
+    if !db_or_skip() { return }
     ro db = new_test_db("list")
     assert(listed(db.app).len() == 0)
     assert(is_ok(save_step(db.app, "b-2", 1, snap_at(1, "x"), [line_at(1, "x")])))
@@ -359,6 +378,7 @@ test "list: no session in a new database, then the ids of the sessions once each
 }
 
 test "list: a login that is not a member of the application role cannot list" {
+    if !db_or_skip() { return }
     ro db = new_test_db("listpublic")
     ro root = test_admin_on("postgres")
     ro old = test_must_sql(root, "drop role if exists crew_u_stranger2")
@@ -377,6 +397,7 @@ test "list: a login that is not a member of the application role cannot list" {
 // ----- failures are faults, and the password is not in them -----
 
 test "fault: a wrong password is a fault that does not contain the password" {
+    if !db_or_skip() { return }
     ro db = new_test_db("wrongpw")
     ro wrong PgConfig = { host: db.app.host, port: db.app.port, database: db.name, user: db.role, password: wrong_password() }
     match save_step(wrong, "s-1", 1, snap_at(1, "x"), []) {
@@ -391,6 +412,7 @@ test "fault: a wrong password is a fault that does not contain the password" {
 }
 
 test "SCRAM: a login with a SCRAM-SHA-256 secret connects and works, with the wrong password it is a fault" {
+    if !db_or_skip() { return }
     ro db = new_test_db("scram")
     ro root = test_admin_on("postgres")
     ro gone = test_must_sql(root, "drop role if exists crew_u_scram_login")
@@ -406,6 +428,7 @@ test "SCRAM: a login with a SCRAM-SHA-256 secret connects and works, with the wr
 }
 
 test "fault: no server on the port is a fault, not a hang and not a panic" {
+    if !db_or_skip() { return }
     ro nowhere PgConfig = { host: "127.0.0.1", port: 1, database: "x", user: "y", password: never_printed() }
     match save_step(nowhere, "s-1", 1, snap_at(1, "x"), []) {
         Ok(step) => assert(false)
@@ -416,6 +439,7 @@ test "fault: no server on the port is a fault, not a hang and not a panic" {
     }
 }
 
+// no database needed: the refusal comes before any connection
 test "fault: a configuration that is not local is refused before any connection" {
     ro remote PgConfig = { host: "db.example.org", port: 5432, database: "x", user: "y", password: "p" }
     match save_step(remote, "s-1", 1, snap_at(1, "x"), []) {

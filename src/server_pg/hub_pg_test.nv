@@ -1,10 +1,10 @@
 // hub_pg_test.nv - the session server over POSTGRESQL with the fake ACP agent (task 099): the same scenarios as in src/server_live
-// (over files), and the same results. Needs the temporary database of src/pg/testdb.ps1 (see src/pg/README.md); no database is a
-// red test with a message, not a skip.
+// (over files), and the same results. Needs the temporary database of src/pg/testdb.ps1 (see src/pg/README.md); without it every
+// test prints "skipped: no test database" and passes (task 254, the pattern of the live tests of src/acp_live).
 module crew_harness.server_pg
 
 import crew_harness.server.{kit_pg, scenario_chat, scenario_stream_burst, scenario_permission, scenario_cancel, scenario_restart_idle, scenario_restart_open, scenario_crash, scenario_two_pages, scenario_rejects, scenario_many, scenario_broken_agent, scenario_renamed_table}
-import crew_harness.pgdb.{new_test_db, drop_test_db, test_count, test_must_sql}
+import crew_harness.pgdb.{new_test_db, drop_test_db, test_count, test_must_sql, db_or_skip}
 
 fn clean(report str) -> () {
     if report.byte_len() > 0 { println("NOT AS IT MUST BE: ${report}") }
@@ -12,6 +12,7 @@ fn clean(report str) -> () {
 }
 
 test "pg: two turns of a chat" {
+    if !db_or_skip() { return }
     ro db = new_test_db("hub_chat")
     ro report = scenario_chat(kit_pg("pgchat", 30000, db.app))
     ro stored = test_count(db.admin, "select count(distinct id) from crew.machine_snapshot")
@@ -21,6 +22,7 @@ test "pg: two turns of a chat" {
 }
 
 test "pg: burst chunks flush before the end event" {
+    if !db_or_skip() { return }
     ro db = new_test_db("hub_burst")
     test_must_sql(db.admin, "create function crew.test_slow_stream_save() returns trigger language plpgsql as $fn$ begin if new.id = 's-burst' then perform pg_sleep(0.015); end if; return new; end; $fn$; create trigger test_slow_stream_save before insert on crew.machine_snapshot for each row execute function crew.test_slow_stream_save()")
     ro report = scenario_stream_burst(kit_pg("pgburst", 30000, db.app))
@@ -31,6 +33,7 @@ test "pg: burst chunks flush before the end event" {
 }
 
 test "pg: permission asked, allowed, denied" {
+    if !db_or_skip() { return }
     ro db = new_test_db("hub_perm")
     ro report = scenario_permission(kit_pg("pgperm", 30000, db.app))
     ro stored = test_count(db.admin, "select count(distinct id) from crew.machine_snapshot")
@@ -40,6 +43,7 @@ test "pg: permission asked, allowed, denied" {
 }
 
 test "pg: a cancel keeps the session open" {
+    if !db_or_skip() { return }
     ro db = new_test_db("hub_cancel")
     ro report = scenario_cancel(kit_pg("pgcancel", 30000, db.app))
     ro stored = test_count(db.admin, "select count(distinct id) from crew.machine_snapshot")
@@ -49,6 +53,7 @@ test "pg: a cancel keeps the session open" {
 }
 
 test "pg: restart between turns" {
+    if !db_or_skip() { return }
     ro db = new_test_db("hub_restart")
     ro report = scenario_restart_idle(kit_pg("pgrestart", 30000, db.app))
     ro stored = test_count(db.admin, "select count(distinct id) from crew.machine_snapshot")
@@ -58,6 +63,7 @@ test "pg: restart between turns" {
 }
 
 test "pg: restart in the middle of a turn" {
+    if !db_or_skip() { return }
     ro db = new_test_db("hub_open")
     ro report = scenario_restart_open(kit_pg("pgopen", 2000, db.app))
     ro stored = test_count(db.admin, "select count(distinct id) from crew.machine_snapshot")
@@ -67,6 +73,7 @@ test "pg: restart in the middle of a turn" {
 }
 
 test "pg: the agent dies" {
+    if !db_or_skip() { return }
     ro db = new_test_db("hub_crash")
     ro report = scenario_crash(kit_pg("pgcrash", 30000, db.app))
     ro stored = test_count(db.admin, "select count(distinct id) from crew.machine_snapshot")
@@ -76,6 +83,7 @@ test "pg: the agent dies" {
 }
 
 test "pg: two pages, one session" {
+    if !db_or_skip() { return }
     ro db = new_test_db("hub_two")
     ro report = scenario_two_pages(kit_pg("pgtwo", 30000, db.app))
     ro stored = test_count(db.admin, "select count(distinct id) from crew.machine_snapshot")
@@ -85,6 +93,7 @@ test "pg: two pages, one session" {
 }
 
 test "pg: what cannot be done is an error" {
+    if !db_or_skip() { return }
     ro db = new_test_db("hub_rejects")
     ro report = scenario_rejects(kit_pg("pgrejects", 30000, db.app))
     ro stored = test_count(db.admin, "select count(distinct id) from crew.machine_snapshot")
@@ -94,6 +103,7 @@ test "pg: what cannot be done is an error" {
 }
 
 test "pg: several sessions" {
+    if !db_or_skip() { return }
     ro db = new_test_db("hub_many")
     ro report = scenario_many(kit_pg("pgmany", 30000, db.app))
     ro stored = test_count(db.admin, "select count(distinct id) from crew.machine_snapshot")
@@ -103,6 +113,7 @@ test "pg: several sessions" {
 }
 
 test "pg: an agent that refuses to start" {
+    if !db_or_skip() { return }
     ro db = new_test_db("hub_broken")
     ro report = scenario_broken_agent(kit_pg("pgbroken", 30000, db.app))
     ro stored = test_count(db.admin, "select count(distinct id) from crew.machine_snapshot")
@@ -112,6 +123,7 @@ test "pg: an agent that refuses to start" {
 }
 
 test "pg: the table with other names of the states" {
+    if !db_or_skip() { return }
     ro db = new_test_db("hub_renamed")
     ro report = scenario_renamed_table(kit_pg("pgrenamed", 30000, db.app))
     ro stored = test_count(db.admin, "select count(distinct id) from crew.machine_snapshot")

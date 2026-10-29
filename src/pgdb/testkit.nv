@@ -9,14 +9,36 @@
 // `target/pg-test.json`, which is not in the repository; the tests read that file from the root of the repository, where
 // `nova test` runs.
 // ORACLE-WORKAROUND(21, 14): there is no environment variable here on purpose, the port is read from a file: `std.os` cannot be in the same program as a user type `Output` (the engine had one, it is gone since task 102); the split was not tried again, use `env` when items 14 and 21 are fixed
-// No file, no server: a red test with a message, not a silent skip - a green run must mean that the real PostgreSQL was used.
+// No file, no server: the tests print "skipped: no test database" and pass (task 254, the pattern of the live tests of
+// src/acp_live): a machine without PostgreSQL must not fail the suite. A test that runs still checks the real
+// PostgreSQL - the mark in the output says which tests did not run.
 module crew_harness.pgdb
 
 import std.encoding.json.{Json, JsonValue, JsonObject}
-import std.fs.{Fs, real_fs, read_text, Path}
+import std.fs.{Fs, real_fs, read_text, try_exists, Path}
 import std.net.{real_net}
+import std.prelude.runtime.{println}
 
 const TEST_ADMIN_USER = "postgres"
+
+/// True when the test database is there (`target/pg-test.json`, written by `src/pg/testdb.ps1`; `-Stop` removes it).
+export fn test_db_present() -> bool {
+    ro path = Path.from_bytes("target/pg-test.json".bytes())
+    with Fs = real_fs() {
+        match try_exists(path) {
+            Ok(yes) => yes
+            Err(e) => false
+        }
+    }
+}
+
+/// The guard of a test that needs the real PostgreSQL (task 254): without the test database the test prints the mark
+/// and passes; with it the test runs whole, against the real server.
+export fn db_or_skip() -> bool {
+    if test_db_present() { return true }
+    println("skipped: no test database (start it with src/pg/testdb.ps1, see src/pg/README.md)")
+    false
+}
 
 fn test_settings() -> JsonObject {
     ro path = Path.from_bytes("target/pg-test.json".bytes())

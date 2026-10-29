@@ -158,8 +158,10 @@ would stop them). The test logins use md5 because a SCRAM login costs a quarter 
 unoptimized build and the tests make hundreds of connections; one test makes a SCRAM login and checks that it works and that a
 wrong password does not.
 
-No `target/pg-test.json` is a **red test with a message**, not a silent skip: a green run must mean that the real PostgreSQL was
-used. Every test makes a database of its own (`crew_t_<name>`) with the real `schema.sql` and a login `crew_u_<name>` that is a
+No `target/pg-test.json`: the tests print `skipped: no test database` and pass (task 254), as the live tests of
+`src/acp_live` do — a machine without PostgreSQL must not fail the suite. The mark in the output of a unit says which tests did
+not run; a test that runs still checks the real PostgreSQL. Every test makes a database of its own (`crew_t_<name>`) with the real
+`schema.sql` and a login `crew_u_<name>` that is a
 member of `crew_app` only, and drops both at the end. The tests read the file from the root of the repository, where `nova test`
 runs. A unit of `nova test` has a time limit of 60 seconds (`--timeout`); with md5 the three PostgreSQL units take 10 to 20
 seconds each.
