@@ -21,8 +21,8 @@ if [ -n "$left" ]; then say_red "embed_str/embed_dir в данных машин:
 # 2. the scenarios of the machines from the disk
 p=$("$ALULA" test machines/product 2>&1 | tail -1)
 case "$p" in "81 of 81 tests passed") say_ok "alula test machines/product: $p";; *) say_red "alula test machines/product: $p (нужно 81 of 81)";; esac
-m=$("$ALULA" test machines/methodology 2>&1 | tail -1)
-case "$m" in "514 of 514 tests passed") say_ok "alula test machines/methodology: $m";; *) say_red "alula test machines/methodology: $m (нужно 514 of 514)";; esac
+# the methodology left the product with task 249 (main 2c39c60a, the set of the methodology in its repository): there is no machines/methodology to run here
+if [ -e machines/methodology ]; then say_red "machines/methodology есть (ушла из продукта с задачей 249)"; else say_ok "machines/methodology нет (ушла из продукта с задачей 249)"; fi
 
 # 3. the loader of the machines (nova test)
 if [ "$ACCEPT_248_SRC" != "skip" ]; then
