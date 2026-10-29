@@ -2,6 +2,8 @@
 // file `agent_step.alula.json`, the machine passes the checks of the load and is made; the same table without the list markers (format 2.5) gives the same tree.
 module crew_harness.machine_agent
 
+// ORACLE-WORKAROUND(32): `std.fs` is imported first in the first file of the unit (the machines are read from the disk, task 248), or `.join` on a `[]str` is E_RECV_METHOD_MISMATCH (spikes/env/README.md, task 116 (e)); drop when item 32 is fixed
+import std.fs.{Path}
 import std.text
 import alula.machine_table.{load_machine}
 import alula.machine_run.{load_alula_machine}

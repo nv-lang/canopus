@@ -11,7 +11,6 @@ module crew_harness.product_machines
 
 // ORACLE-WORKAROUND(32): `std.fs` is imported first in the first file of the unit, or `.join` on a `[]str` is E_RECV_METHOD_MISMATCH (spikes/env/README.md, task 116 (e)); reorder freely when item 32 is fixed
 import std.fs.{Fs, real_fs, Path, read_text, read_dir, try_exists}
-import std.text
 import alula.machine.{NamedText, Registry, load_host, text_of_file}
 import alula.machine_table.{ALULA_VERSION}
 import alula.machine_text.{definitions_hash}

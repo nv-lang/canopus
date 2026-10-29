@@ -2,6 +2,8 @@
 // a hand edit, gives the JSON of the Russian sample (but for the strings and the names of the locals of its author), and runs the 75 scenarios of the agent step.
 module crew_harness.machine_agent_en
 
+// ORACLE-WORKAROUND(32): `std.fs` is imported first in the first file of the unit (the machines are read from the disk, task 248), or `.join` on a `[]str` is E_RECV_METHOD_MISMATCH (spikes/env/README.md, task 116 (e)); drop when item 32 is fixed
+import std.fs.{Path}
 import std.text
 import alula.machine.{NamedText}
 import alula.machine_table.{load_machine}

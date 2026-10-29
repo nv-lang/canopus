@@ -3,6 +3,8 @@
 // by the scenarios or the tests of another machine) or `none` (not covered, with the reason). The test checks that all 42 numbers are there and that every named scenario exists.
 module crew_harness.machine_runner
 
+// ORACLE-WORKAROUND(32): `std.fs` is imported first in the first file of the unit (the machines are read from the disk, task 248), or `.join` on a `[]str` is E_RECV_METHOD_MISMATCH (spikes/env/README.md, task 116 (e)); drop when item 32 is fixed
+import std.fs.{Path}
 import std.text
 import crew_harness.machines.{task_runner_table_text}
 

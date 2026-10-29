@@ -3,6 +3,8 @@
 // only the language (one primitive, 35 codes, spec 7a); the rest is registered here: `product_registry()` and `methodology_registry()` are the language and the data of the owner.
 module crew_harness.machines
 
+// ORACLE-WORKAROUND(32): `std.fs` is imported first in the first file of the unit (the machines are read from the disk, task 248), or `.join` on a `[]str` is E_RECV_METHOD_MISMATCH (spikes/env/README.md, task 116 (e)); drop when item 32 is fixed
+import std.fs.{Path}
 import alula.machine.{NamedText, Registry, text_of_file, HostRegistryData, parse_registry_table, load_host, host_registry, parse_journal, journal_find}
 import alula.machine_run.{NestedRegistry, load_alula_machine}
 import crew_harness.product_machines.{tree_text, tree_paths}

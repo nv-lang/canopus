@@ -2,6 +2,8 @@
 // the rows of the machine; a row that no scenario takes is red. The rows that cannot be taken by any sequence of events are named here with the reason.
 module crew_harness.machine_cycle
 
+// ORACLE-WORKAROUND(32): `std.fs` is imported first in the first file of the unit (the machines are read from the disk, task 248), or `.join` on a `[]str` is E_RECV_METHOD_MISMATCH (spikes/env/README.md, task 116 (e)); drop when item 32 is fixed
+import std.fs.{Path}
 import std.text
 import std.encoding.json.{Json}
 import alula.machine.{NamedText}

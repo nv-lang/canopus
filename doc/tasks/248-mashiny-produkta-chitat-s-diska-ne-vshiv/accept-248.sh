@@ -11,6 +11,8 @@ say_ok() { echo "ок: $*"; }
 [ -n "$NOVA" ] || { echo "NOVA is not set"; exit 100; }
 [ -n "$ALULA" ] || { echo "ALULA is not set"; exit 100; }
 work=$(mktemp -d)
+# the hub is a Windows program: it is given the paths in the form C:/... (Git Bash names /tmp otherwise)
+winpath() { if command -v cygpath > /dev/null 2>&1; then cygpath -m "$1"; else echo "$1"; fi; }
 
 # 1. nothing of machines/ is compiled into the programs
 left=$(grep -n 'embed_str("\|embed_dir("' src/product_machines/*.nv src/machines/*.nv 2>/dev/null | grep -v '_test.nv:')
@@ -45,18 +47,19 @@ else
     [ -e "$kit/machines/methodology" ] && say_red "в комплекте есть machines/methodology"
 
     # 5. the hub of the kit reads the machines beside it: as they are, a file put in place of another, a broken hash
-    root=$(pwd)
+    root=$(winpath "$(pwd)")
+    node=$(winpath "$(command -v node)")
     hub_run() {  # $1 - the name of the run; prints the state of the snapshot of the session or the error of the start
         data="$work/data-$1"
         rm -rf "$data"; mkdir -p "$data"
         cat > "$work/settings-$1.json" <<EOF
-{"data_dir": "$data", "workdir": "$root", "acp_trace": false,
- "agents": [{"id": "opencode", "label": "Fake", "program": "node", "args": ["$root/src/acp/testdata/fake_agent.mjs", "--live", "--ok"]}]}
+{"data_dir": "$(winpath "$data")", "workdir": "$root", "acp_trace": false,
+ "agents": [{"id": "opencode", "label": "Fake", "program": "$node", "args": ["$root/src/acp/testdata/fake_agent.mjs", "--live", "--ok"]}]}
 EOF
         printf 'open\t1\nmsg\t1\t{"id":"p1","trace":"s248","step":0,"kind":"session_created","input":{"name":"accept","agent":"opencode"},"time":0}\n' > "$work/in-$1"
-        (sleep 3; cat "$work/in-$1"; sleep 2) | (cd "$work" && "$kit/crew-hub.exe" "$work/settings-$1.json") > "$work/out-$1" 2> "$work/err-$1"
+        (sleep 3; cat "$work/in-$1"; sleep 2) | (cd "$work" && "$kit/crew-hub.exe" "$(winpath "$work/settings-$1.json")") > "$work/out-$1" 2> "$work/err-$1"
         echo "exit $?" >> "$work/err-$1"
-        if [ -f "$data/s248/snapshot" ]; then sed -n 's/.*"state":"\([^"]*\)".*/\1/p' "$data/s248/snapshot" | head -1; else echo "НЕТ СНИМКА: $(tr '\n' ' ' < "$work/err-$1")"; fi
+        if [ -f "$data/s248/snapshot" ]; then sed -n 's/.*\\"state\\":{\\"state\\":\\"\([^\\]*\)\\".*/\1/p' "$data/s248/snapshot" | head -1; else echo "НЕТ СНИМКА: $(tr '\n' ' ' < "$work/err-$1")"; fi
     }
     if [ -x "$kit/crew-hub.exe" ]; then
         s1=$(hub_run plain)

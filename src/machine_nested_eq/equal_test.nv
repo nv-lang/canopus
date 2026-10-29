@@ -6,6 +6,8 @@
 // journal with the envelope (the step, the cause, the state, the request, the time, the code and the parameters) - all but the trace, which is the child of the trace of the session.
 module crew_harness.machine_nested_eq
 
+// ORACLE-WORKAROUND(32): `std.fs` is imported first in the first file of the unit (the machines are read from the disk, task 248), or `.join` on a `[]str` is E_RECV_METHOD_MISMATCH (spikes/env/README.md, task 116 (e)); drop when item 32 is fixed
+import std.fs.{Path}
 import std.text
 import alula.machine.{text_of_file, NamedText}
 import alula.engine.{JournalEntry}

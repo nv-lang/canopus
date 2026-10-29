@@ -2,6 +2,8 @@
 // definitions of the meeting with the file of the cycle arithmetic (the hash of the format), the fragment "Pause".
 module crew_harness.machine_text_eq_machines
 
+// ORACLE-WORKAROUND(32): `std.fs` is imported first in the first file of the unit (the machines are read from the disk, task 248), or `.join` on a `[]str` is E_RECV_METHOD_MISMATCH (spikes/env/README.md, task 116 (e)); drop when item 32 is fixed
+import std.fs.{Path}
 import std.text
 import alula.machine.{Registry, Primitive, ParamSpec, TextType, ListType, Volatile, register, NamedText, find_primitive}
 import alula.machine_table.{parse_machine, load_machine}
