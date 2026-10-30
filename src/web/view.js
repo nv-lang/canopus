@@ -28,6 +28,8 @@ import { createRequestPanel } from './request-ui.js';
 import { createCrewTaskUi } from './crew-task-ui.js';
 import { subWaitsText } from './crew-task.js';
 import { labelOf } from './labels-ru.js';
+import { createDraftStore, safeError, restoreText, afterSendText } from './delivery.js';
+import { deliveryCard } from './delivery-ui.js';
 import {
   createForm, selectOption, setOtherText, setCursor, moveCursor, setActive, isAnswered, nextUnanswered, canSubmit,
   markSent, buildAnswer, buildSkip, digitOption, otherIndex,
@@ -93,7 +95,7 @@ export function createView(doc, refs, deps) {
     agents, now, handlers, registryFailed = false, imageSrc = (image) => image.src, projectsApi, presets = () => null,
   } = deps;
   const win = doc.defaultView;
-  const drafts = new Map();
+  const drafts = createDraftStore((() => { try { return win?.localStorage; } catch { return null; } })());
   const attachDrafts = new Map(); // вложения по сессиям: как черновик, живут до отправки
   const open = new Set(); // раскрытые строки и карточки по ключу: переживают перерисовку
   let query = '';
@@ -1116,6 +1118,7 @@ export function createView(doc, refs, deps) {
   let historyState = NO_HISTORY; // где мы в истории отправленных сообщений (↑ и ↓ в поле)
   let uploading = false; // картинки уходят на сервер: второй отправки пока нет
   function submit() {
+    const originalText = input.value;
     const text = input.value.trim();
     const images = attach.items();
     if (!currentTrace || uploading || (text.length === 0 && images.length === 0)) return;
@@ -1148,9 +1151,17 @@ export function createView(doc, refs, deps) {
     const finish = (ok) => {
       uploading = false;
       if (ok) {
-        drafts.delete(trace);
-        attachDrafts.delete(trace);
-        if (currentTrace === trace) { input.value = ''; attach.clear(); }
+        if (currentTrace === trace) {
+          input.value = afterSendText(originalText, input.value);
+          if (input.value) drafts.set(trace, input.value); else drafts.delete(trace);
+          const remaining = attach.take().filter(item => !images.some(sent => sent.id === item.id));
+          attach.restore(remaining);
+          if (remaining.length) attachDrafts.set(trace, remaining); else attachDrafts.delete(trace);
+        } else {
+          const keep = afterSendText(originalText, drafts.get(trace) || '');
+          if (keep) drafts.set(trace, keep); else drafts.delete(trace);
+          attachDrafts.set(trace, (attachDrafts.get(trace) || []).filter(item => !images.some(sent => sent.id === item.id)));
+        }
       }
       fitInput();
     };
@@ -1316,6 +1327,18 @@ export function createView(doc, refs, deps) {
   function fillItem(entry, item) {
     const { node } = entry;
     switch (item.type) {
+      case 'delivery': {
+        node.replaceChildren(
+          item.state !== 'error' ? h(doc, 'div', { class: 'bubble' }, ...proseNodes(item.text)) : false,
+          deliveryCard(doc, item, {
+            canRetry: !current.session?.draft && !isBusy(current.session?.state),
+            retry: id => handlers.onRetry(currentTrace, id),
+            restore: text => putInField(text),
+            copy: text => handlers.onCopy(text),
+            forget: id => handlers.onForgetDelivery(id),
+          }));
+        break;
+      }
       case 'user': {
         // картинки сообщения — миниатюры над текстом; клик открывает просмотрщик (стрелки листают картинки этого сообщения)
         const shown = item.images.map((image) => ({ src: imageSrc(image), name: image.name }));
@@ -1419,10 +1442,14 @@ export function createView(doc, refs, deps) {
         break;
       case 'note': {
         let text = t('chat.cancelled');
-        if (item.tone === 'refused') text = item.reason ? t('chat.refused', { reason: item.reason }) : t('chat.refused_plain');
-        if (item.tone === 'error') text = item.reason ? t('chat.error', { message: item.reason }) : t('chat.error_plain');
+        if (item.tone === 'refused') text = item.reason ? t('chat.refused', { reason: safeError(item.reason) }) : t('chat.refused_plain');
+        if (item.tone === 'error') text = item.reason ? t('chat.error', { message: safeError(item.reason) }) : t('chat.error_plain');
         node.dataset.tone = item.tone;
-        node.replaceChildren(h(doc, 'span', { text }));
+        if (item.tone === 'error') {
+          node.replaceChildren(deliveryCard(doc, { id: item.key, state: item.turn ? 'agent_error' : 'error', text: item.userText || '', images: [], reason: item.reason }, {
+            copy: text => handlers.onCopy(text), restore: text => putInField(text),
+          }));
+        } else node.replaceChildren(h(doc, 'span', { text }));
         break;
       }
       case 'needs': {
@@ -1492,7 +1519,7 @@ export function createView(doc, refs, deps) {
   /** Текст сообщения в поле ввода: перед тем, что уже набрано (через пустую строку); фокус в поле, курсор после вставленного, ничего не уходит. */
   function putInField(text, images = []) {
     const keep = input.value;
-    input.value = keep.trim() === '' ? text : `${text}\n\n${keep}`;
+    input.value = restoreText(text, keep);
     if (images.length > 0) attach.restore([...attach.items(), ...images]);
     fitInput();
     if (currentTrace) drafts.set(currentTrace, input.value);
@@ -1670,6 +1697,16 @@ export function createView(doc, refs, deps) {
 
     const nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight <= NEAR_BOTTOM_PX;
     const items = timeline(session);
+    const localDelivery = handlers.deliveryItems?.(session.id) || [];
+    for (let i = items.length - 1; i >= 0; i--) {
+      if (localDelivery.some(r => r.errorId && items[i].key === `err:${r.errorId}`)) items.splice(i, 1);
+    }
+    for (const saved of localDelivery) {
+      if (saved.state === 'error' && model.seen[saved.id]) continue;
+      if (saved.state !== 'error' && session.messages.some(m => m.role === 'user' && m.turn === (saved.turn || saved.clientTurn))) continue;
+      const user = saved.state === 'error' && saved.turn ? session.messages.find(m => m.role === 'user' && m.turn === saved.turn) : null;
+      items.push({ ...saved, ...(user ? { state: 'agent_error', text: user.text } : {}), type: 'delivery', key: `delivery:${saved.id}` });
+    }
     // сообщения в очереди — под текущим ходом, в порядке постановки
     handlers.queuedItems(session.id).forEach((q, index) => {
       items.push({ type: 'queued', key: `queued:${index}:${q.text.length}:${q.text.slice(0, 24)}`, text: q.text, images: q.images ?? [], index });

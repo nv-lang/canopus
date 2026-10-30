@@ -259,7 +259,13 @@ fn Rig mut @collect() -> () {
 
 /// A page sends an event of this kind about this session; `input` is the JSON text of its input.
 export fn Rig mut @page(conn int, kind str, trace str, input str) Proc Detach Time -> () {
-    @hub.handle(conn, kit_page_text(kind, trace, input))
+    // Each new UI action has its own identity; explicit replays use page_id below.
+    @hub.handle(conn, kit_page_text(kind, trace, input).replace("page-${kind}-${trace}", "page-${kind}-${trace}-${@heard.len()}"))
+    @collect()
+}
+
+export fn Rig mut @page_id(conn int, kind str, trace str, input str, id str) Proc Detach Time -> () {
+    @hub.handle(conn, kit_page_text(kind, trace, input).replace("page-${kind}-${trace}", id))
     @collect()
 }
 
