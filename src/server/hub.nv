@@ -1206,6 +1206,12 @@ fn Hub mut @answer(trace str, input JsonObject) Proc Detach Time -> () {
         }
         None => ()
     }
+    // MCP keys never belong to the ACP client's native questions. Refuse stale/duplicate keys even after
+    // restart, when the session has no client yet; do not silently return or forward them to another gate.
+    if jtext(input, "request").starts_with("mcp-") {
+        @say_log("an answer for ${trace} to a question that nobody asked: request ${jtext(input, "request")}")
+        return
+    }
     mut s = @sessions[at]
     if s.clients.len() == 0 { return }
     ro event = Incoming.signal("question_answer", JsonValue.object(input).to_str())
