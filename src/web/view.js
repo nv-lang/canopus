@@ -1331,7 +1331,7 @@ export function createView(doc, refs, deps) {
         node.replaceChildren(
           item.state !== 'error' ? h(doc, 'div', { class: 'bubble' }, ...proseNodes(item.text)) : false,
           deliveryCard(doc, item, {
-            canRetry: !current.session?.draft && !isBusy(current.session?.state),
+            canRetry: item.retryAllowed,
             retry: id => handlers.onRetry(currentTrace, id),
             restore: text => putInField(text),
             copy: text => handlers.onCopy(text),
@@ -1703,9 +1703,10 @@ export function createView(doc, refs, deps) {
     }
     for (const saved of localDelivery) {
       if (saved.state === 'error' && model.seen[saved.id]) continue;
+      if (saved.state === 'error' && saved.turn && session.messages.some(m => m.role === 'agent' && m.turn === saved.turn && m.status === 'done' && m.doneAt >= saved.at)) continue;
       if (saved.state !== 'error' && session.messages.some(m => m.role === 'user' && m.turn === (saved.turn || saved.clientTurn))) continue;
       const user = saved.state === 'error' && saved.turn ? session.messages.find(m => m.role === 'user' && m.turn === saved.turn) : null;
-      items.push({ ...saved, ...(user ? { state: 'agent_error', text: user.text } : {}), type: 'delivery', key: `delivery:${saved.id}` });
+      items.push({ ...saved, ...(user ? { state: 'agent_error', text: user.text } : {}), retryAllowed: !session.draft && !isBusy(session.state), type: 'delivery', key: `delivery:${saved.id}` });
     }
     // сообщения в очереди — под текущим ходом, в порядке постановки
     handlers.queuedItems(session.id).forEach((q, index) => {

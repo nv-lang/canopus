@@ -63,6 +63,15 @@ try {
   await saved.waitFor({ state: 'detached' });
   assert.equal(await page.locator('.item-user').count(), 1);
   assert.equal(frames.length, 1);
+  socket.send(JSON.stringify({ id: 'turn-error', trace: 's', step: 4, kind: 'error', input: { turn: 'engine-turn', message: 'network failure secret260' }, time: 5 }));
+  await page.getByText('Сообщение принято сервером, но агент не завершил обработку.', { exact: false }).first().waitFor();
+  socket.send(JSON.stringify({ id: 'late-answer', trace: 's', step: 5, kind: 'agent_chunk', input: { turn: 'engine-turn', text: 'поздний успешный ответ' }, time: 6 }));
+  socket.send(JSON.stringify({ id: 'late-done', trace: 's', step: 6, kind: 'agent_done', input: { turn: 'engine-turn' }, time: 7 }));
+  await page.getByText('поздний успешный ответ', { exact: true }).waitFor();
+  await page.waitForFunction(() => !JSON.parse(localStorage.getItem('crew-console-delivery-v1') || '[]').some(r => r.turn === 'engine-turn'));
+  await page.reload();
+  await input.waitFor();
+  assert.equal(await page.getByText('Сообщение принято сервером, но агент не завершил обработку.', { exact: false }).count(), 0);
   assert.deepEqual(errors, []);
   console.log('260: browser GREEN — loss/reload, safe restore, persistent draft/error, late receipt, no duplicate or secrets');
 } finally {

@@ -80,8 +80,8 @@ export function createDelivery(storage) {
     },
     reconcile(model) {
       const next = records.filter(r => {
-        if (r.state === 'error') return true;
         const messages = model.sessions[r.trace]?.messages || [];
+        if (r.state === 'error') return !r.turn || !messages.some(m => m.role === 'agent' && m.turn === r.turn && m.status === 'done' && m.doneAt >= r.at);
         // Correlate only by an identity echoed by the server, NEVER by text or arrival order.
         return !messages.some(m => m.role === 'user' && m.turn === (r.turn || r.clientTurn));
       });

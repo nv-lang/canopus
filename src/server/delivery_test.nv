@@ -73,3 +73,21 @@ test "260: pre-turn launch refusal names the send, not a previous turn" {
     assert(!falsely_accepted)
     r.shut()
 }
+
+test "260: crash after engine append but before final receipt does not create another user turn" {
+    ro settings = kit_files("delivery260-after-append", 30000)
+    mut r = rig_open(settings)
+    r.attach(1)
+    r.page(1, "session_created", "appended-s", "{\"name\":\"appended\",\"agent\":\"opencode\"}")
+    mut s = r.hub.sessions[0]
+    accept_in(false, settings.data_dir, s, Incoming.signal("message_delivery", "{\"client_id\":\"appended-id\",\"accepted\":false,\"turn\":\"\"}"))
+    feed_in(false, settings.data_dir, s, Incoming.signal("user_message", "the engine already accepted this text"))
+    // No final accepted receipt is written: restart at precisely that boundary.
+    r.shut()
+    mut resumed = rig_open(settings)
+    resumed.attach(2)
+    assert(delivery_count(resumed.lines_for(2), "user_message") == 1)
+    resumed.page_id(2, "user_message", "appended-s", "{\"text\":\"must not open a second turn\"}", "appended-id")
+    assert(delivery_count(resumed.lines_for(2), "user_message") == 1)
+    resumed.shut()
+}

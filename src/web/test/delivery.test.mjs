@@ -81,6 +81,19 @@ test('260: возврат не затирает черновик; позднее
   assert.equal(afterSendText('отправленное', 'отправленное'), '');
 });
 
+test('260: завершение старого хода не стирает новую или непривязанную ошибку', () => {
+  const storage = { getItem() { return null; }, setItem() {} };
+  const d = createDelivery(storage);
+  d.error({ id: 'new-error', trace: 's', input: { turn: 't', message: 'network' }, time: 20 });
+  d.error({ id: 'unbound', trace: 's', input: { message: 'network' }, time: 5 });
+  const m = { sessions: { s: { messages: [{ role: 'agent', turn: 't', status: 'done', doneAt: 10 }] } } };
+  d.reconcile(m);
+  assert.equal(d.items('s').length, 2);
+  m.sessions.s.messages[0].doneAt = 30;
+  d.reconcile(m);
+  assert.deepEqual(d.items('s').map(r => r.id), ['unbound']);
+});
+
 test('260: ошибка запуска до первого хода не исчезает из ленты', () => {
   let m = reduce(initialModel(), { id: 'c', trace: 's', step: 0, kind: 'session_created', input: {}, time: 1 });
   m = reduce(m, { id: 'e', trace: 's', step: 1, kind: 'error', input: { turn: '', message: 'the agent cannot be started: unavailable' }, time: 2 });

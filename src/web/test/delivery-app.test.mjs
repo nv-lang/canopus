@@ -142,3 +142,15 @@ test('260: связанный отказ сервера остаётся ряд�
   second.handlers.onRetry('s', saved.id);
   assert.equal(second.sent.length, 0);
 });
+
+test('260: поздний успешный ответ убирает сохранённую ошибку своего хода и после reload', async () => {
+  const first = await app();
+  first.event('user_message', { turn: 'engine-turn', text: 'текст' });
+  first.event('error', { turn: 'engine-turn', message: 'connection lost' });
+  assert.equal(first.handlers.deliveryItems('s').length, 1);
+  first.event('agent_chunk', { turn: 'engine-turn', text: 'поздний ответ' }, { step: 3 });
+  first.event('agent_done', { turn: 'engine-turn' }, { step: 4 });
+  assert.equal(first.handlers.deliveryItems('s').length, 0);
+  const second = await app(first.storage);
+  assert.equal(second.handlers.deliveryItems('s').length, 0);
+});
