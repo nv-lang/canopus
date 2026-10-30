@@ -72,6 +72,16 @@ try {
   await page.reload();
   await input.waitFor();
   assert.equal(await page.getByText('Сообщение принято сервером, но агент не завершил обработку.', { exact: false }).count(), 0);
+  await page.goto(`http://127.0.0.1:${server.address().port}/`);
+  await page.getByRole('button', { name: 'Новая сессия в проекте Без проекта', exact: true }).click();
+  await input.fill('первое сообщение без подтверждения создания');
+  await page.getByRole('button', { name: 'Отправить', exact: true }).click();
+  await page.locator('.item-delivery').filter({ hasText: 'первое сообщение без подтверждения создания' }).waitFor();
+  const beforeReload = frames.length;
+  assert.equal(new URL(page.url()).hash, '');
+  await page.reload();
+  await page.locator('.chat:not([hidden]) .item-delivery').filter({ hasText: 'первое сообщение без подтверждения создания' }).waitFor();
+  assert.equal(frames.length, beforeReload, 'a failed first create must reopen its local copy without resending');
   assert.deepEqual(errors, []);
   console.log('260: browser GREEN — loss/reload, safe restore, persistent draft/error, late receipt, no duplicate or secrets');
 } finally {

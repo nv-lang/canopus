@@ -18,7 +18,7 @@ const memory = () => {
   const map = new Map();
   return { getItem: k => map.get(k) ?? null, setItem: (k, v) => map.set(k, v), removeItem: k => map.delete(k) };
 };
-async function app(storage = memory(), sendResult = true) {
+async function app(storage = memory(), sendResult = true, hash = '#s=s') {
   const source = process.env.RED_260 === '1'
     ? execFileSync('git', ['show', 'f8b08227:src/web/app.js'], { encoding: 'utf8' })
     : fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
@@ -31,7 +31,7 @@ async function app(storage = memory(), sendResult = true) {
     console, URLSearchParams, Date, Math, Promise,
     crypto: { randomUUID: () => `client-${sent.length}-${Math.random()}` },
     localStorage: storage, sessionStorage: memory(),
-    location: { search: '', protocol: 'http:', host: 'test.invalid', hash: '#s=s' },
+    location: { search: '', protocol: 'http:', host: 'test.invalid', hash },
     document: { documentElement: { setAttribute() {}, removeAttribute() {} }, getElementById() {}, addEventListener() {} },
     addEventListener() {}, requestAnimationFrame() {},
     setInterval() {}, setTimeout(fn) { timeouts.push(fn); return timeouts.length; }, clearTimeout() {},
@@ -51,7 +51,7 @@ async function app(storage = memory(), sendResult = true) {
   vm.createContext(context);
   const code = source.replace(/import\s+[\s\S]*?\s+from\s+['"][^'"]+['"];\s*/g, '')
     .replace('start().then(', 'globalThis.started = start().then(')
-    + '\nglobalThis.probe = { handlers, getModel: () => model };';
+    + '\nglobalThis.probe = { handlers, getModel: () => model, getUI: () => ui };';
   vm.runInContext(code, context);
   await context.started;
   const event = (kind, input = {}, extra = {}) => callbacks.onEvent({ id: `srv-${Math.random()}`, trace: 's', step: 1, kind, input, time: Date.now(), ...extra });
@@ -120,8 +120,9 @@ test('260: отказ создания первой сессии сохраня�
   const [saved] = first.handlers.deliveryItems(draft.id);
   assert.equal(saved.text, 'первое сообщение');
   assert.equal(saved.state, 'not_sent');
-  const second = await app(first.storage);
+  const second = await app(first.storage, true, '');
   assert.ok(second.getModel().sessions[draft.id]);
+  assert.equal(second.getUI().awaiting, draft.id, 'локальная копия первой сессии должна открываться и без ссылки');
   assert.equal(second.handlers.deliveryItems(draft.id)[0].text, 'первое сообщение');
   assert.equal(second.sent.length, 0);
 });

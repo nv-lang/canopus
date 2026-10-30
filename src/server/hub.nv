@@ -1808,7 +1808,7 @@ fn Hub mut @watch_agent(at int) Time -> () {
         s.announced = true
         ro why = s.clients[0].last_error()
         @say_log("the agent of ${s.id} refused to start: ${why}")
-        @tell_error(0, s.id, s.engine.step_number(), if @takes_message_at(at) { "" } else { s.turn }, "the agent refused to start: ${why}")
+        @tell_error(0, s.id, s.engine.step_number(), if s.engine.open_ids().len() > 0 { s.turn } else { "" }, "the agent refused to start: ${why}")
     }
     @sessions[at] = s
     if model_arrived { @drain(at) }

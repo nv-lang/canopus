@@ -14,17 +14,18 @@ guards() {
   $PYTHON scripts/guards/guard-commit-message.py --commit HEAD
 }
 case "${1:-targeted}" in
-  targeted) "$NOVA_HOME/nova.exe" test src/server/delivery_test.nv --jobs 1 ;;
+  targeted) "$NOVA_HOME/nova.exe" test src/server/delivery_test.nv --jobs 1 --timeout 300 ;;
+  server) "$NOVA_HOME/nova.exe" test src/acp src/server src/server_live --jobs 1 --timeout 900 ;;
   final)
     node --test --test-concurrency=4 'src/web/test/*.test.mjs'
-    "$NOVA_HOME/nova.exe" test src/server/delivery_test.nv --jobs 1
+    "$NOVA_HOME/nova.exe" test src/server/delivery_test.nv --jobs 1 --timeout 300
     node src/web/test/delivery-browser.mjs "$2" "$3"
     guards
     ;;
   full)
     node --test --test-concurrency=4 'src/web/test/*.test.mjs'
     "$NOVA_HOME/nova.exe" build src/crew_hub.nv -o target/crew-hub.exe
-    "$NOVA_HOME/nova.exe" test src/acp src/server src/server_live --jobs 4
+    "$NOVA_HOME/nova.exe" test src/acp src/server src/server_live --jobs 1 --timeout 900
     guards
     ;;
 esac

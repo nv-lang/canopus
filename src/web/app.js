@@ -92,6 +92,12 @@ const linked = /^#s=(.+)$/.exec(globalThis.location ? globalThis.location.hash :
 const ui = {
   selected: null, projects: null, pane: 'list', flash: '', flashTone: 'error', awaiting: linked ? decodeURIComponent(linked[1]) : null, theme: readTheme(), pins: {}, unread: readUnread(), acked: {}, silentMin: SILENT_DEFAULT_MIN, notify: { bell: notifier.bellOn(), sound: notifier.soundOn(), denied: false },
 };
+// A failed first create has no server row to select. Reopen its saved local copy on reload;
+// an explicit session link always takes precedence. This never resends anything.
+if (!ui.awaiting) {
+  const recovery = delivery.sessions().at(-1);
+  if (recovery) ui.awaiting = recovery.id;
+}
 applyTheme(ui.theme);
 
 const ctx = { newId, now: () => Date.now() };
