@@ -45,8 +45,20 @@ try {
   assert.match(await page.locator('.item-delivery').textContent(), /исчезавшее сообщение/);
   socket.send(JSON.stringify({ id: 'synthetic-error', trace: 's', step: 1, kind: 'error', input: { turn: '', message: 'cannot be started: Authorization: Bearer secret260' }, time: 2 }));
   await page.getByText('Не удалось запустить агента. Проверьте установленный агент и его настройки.', { exact: true }).first().waitFor();
+  // карточка сворачивается в строку; свёрнутость переживает перерисовку страницы без перезагрузки
+  const errCard = page.locator('.delivery-error', { hasText: 'Не удалось запустить агента' });
+  const errHead = errCard.locator('.delivery-head');
+  assert.equal(await errHead.getAttribute('aria-expanded'), 'true');
+  await errHead.click();
+  assert.equal(await errHead.getAttribute('aria-expanded'), 'false');
+  await errCard.locator('.delivery-body').waitFor({ state: 'hidden' });
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await page.waitForTimeout(100);
+  assert.equal(await page.locator('.delivery-error', { hasText: 'Не удалось запустить агента' }).locator('.delivery-head').getAttribute('aria-expanded'), 'false');
   await page.reload();
   await page.locator('.item-delivery').first().waitFor();
+  // после перезагрузки страницы карточка снова раскрыта по умолчанию: чужое состояние не наследуется
+  assert.equal(await page.locator('.delivery-error', { hasText: 'Не удалось запустить агента' }).locator('.delivery-head').getAttribute('aria-expanded'), 'true');
   assert.equal(frames.length, 1, 'reload must not replay a message');
   const saved = page.locator('.item-delivery').filter({ hasText: 'исчезавшее сообщение' });
   assert.match(await saved.textContent(), /Доставка неизвестна/);
@@ -83,7 +95,7 @@ try {
   await page.locator('.chat:not([hidden]) .item-delivery').filter({ hasText: 'первое сообщение без подтверждения создания' }).waitFor();
   assert.equal(frames.length, beforeReload, 'a failed first create must reopen its local copy without resending');
   assert.deepEqual(errors, []);
-  console.log('260: browser GREEN — loss/reload, safe restore, persistent draft/error, late receipt, no duplicate or secrets');
+  console.log('260: browser GREEN — loss/reload, safe restore, persistent draft/error, foldable error card, late receipt, no duplicate or secrets');
 } finally {
   await browser.close();
   await new Promise(resolve => server.close(resolve));
