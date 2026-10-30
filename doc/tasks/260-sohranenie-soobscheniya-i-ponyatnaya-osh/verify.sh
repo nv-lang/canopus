@@ -29,6 +29,7 @@ case "${1:-targeted}" in
     guards
     "$NOVA_HOME/nova.exe" test src/server_delivery_live --jobs 1 --timeout 300 --keep-artifacts
     "$NOVA_HOME/nova.exe" test src/server --jobs 1 --timeout 900 --keep-artifacts
+    "$NOVA_HOME/nova.exe" build src/crew_hub.nv -o target/crew-hub.exe
     ;;
   full)
     node --test --test-concurrency=4 'src/web/test/*.test.mjs'
