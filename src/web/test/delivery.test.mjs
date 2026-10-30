@@ -40,7 +40,7 @@ test('260: retry, возврат, подробности и доступност
   const card = deliveryCard(doc, item, { retry: () => retried++, restore: t => restored = t, copy: t => copied = t });
   assert.equal(card.getAttribute('role'), 'alert');
   assert.match(card.textContent, /⚠/);
-  const buttons = card.querySelectorAll('button');
+  const buttons = card.querySelectorAll('.delivery-actions button');
   buttons[0].click(); buttons[0].click();
   assert.equal(retried, 1);
   buttons[1].click();
@@ -50,8 +50,49 @@ test('260: retry, возврат, подробности и доступност
   assert.doesNotMatch(card.textContent + copied, /Bearer|secret/);
   for (const state of ['unknown', 'received', 'accepted', 'agent_error']) {
     const c = deliveryCard(doc, { ...item, state }, {});
-    assert.equal(c.querySelector('button').disabled, true);
+    assert.equal(c.querySelector('.delivery-actions button').disabled, true);
   }
+});
+
+test('260: карточка сворачивается в строку с причиной и раскрывается с теми же действиями', () => {
+  const doc = createFakeDocument();
+  const item = { id: 'fold', state: 'not_sent', images: [], text: 'текст сообщения', reason: 'offline' };
+  // по умолчанию раскрыта
+  const open0 = deliveryCard(doc, item, {});
+  assert.equal(open0.querySelector('.delivery-head').getAttribute('aria-expanded'), 'true');
+  assert.equal(open0.querySelector('.delivery-body').hidden, false);
+  // свёрнутая: тело скрыто, строка держит иконку и краткую причину, кнопка раскрытия доступна с клавиатуры
+  const folded = deliveryCard(doc, { ...item, collapsed: true }, {});
+  const head = folded.querySelector('.delivery-head');
+  assert.equal(head.tagName, 'BUTTON');
+  assert.equal(head.getAttribute('aria-expanded'), 'false');
+  assert.equal(folded.querySelector('.delivery-body').hidden, true);
+  assert.match(head.textContent, /⚠/);
+  assert.match(head.textContent, /Соединение прервано/);
+  assert.doesNotMatch(head.textContent, /текст сообщения/);
+  // переключатель сообщает состояние наружу: страница запоминает его по ключу карточки
+  const seen = new Set();
+  const live = deliveryCard(doc, item, {
+    toggle(headEl, body) {
+      const key = 'hide:fold';
+      if (seen.has(key)) { seen.delete(key); headEl.setAttribute('aria-expanded', 'true'); body.hidden = false; }
+      else { seen.add(key); headEl.setAttribute('aria-expanded', 'false'); body.hidden = true; }
+    }, retry() {}, restore() {}, copy() {},
+  });
+  const liveHead = live.querySelector('.delivery-head');
+  liveHead.click();
+  assert.equal(liveHead.getAttribute('aria-expanded'), 'false');
+  assert.equal(live.querySelector('.delivery-body').hidden, true);
+  // перерисовка с запомненной свёрнутостью — карточка остаётся строкой; новая карточка с другим ключом раскрыта
+  const again = deliveryCard(doc, { ...item, collapsed: seen.has('hide:fold') }, {});
+  assert.equal(again.querySelector('.delivery-head').getAttribute('aria-expanded'), 'false');
+  const other = deliveryCard(doc, { ...item, id: 'other', collapsed: seen.has('hide:other') }, {});
+  assert.equal(other.querySelector('.delivery-head').getAttribute('aria-expanded'), 'true');
+  // раскрытие возвращает те же действия
+  liveHead.click();
+  assert.equal(liveHead.getAttribute('aria-expanded'), 'true');
+  assert.equal(live.querySelector('.delivery-body').hidden, false);
+  assert.equal(live.querySelector('.delivery-actions button').textContent.length > 0, true);
 });
 
 test('260: черновик сохраняется, хранилище ограничено без вытеснения неотправленных', () => {
@@ -111,8 +152,8 @@ test('260: технический отказ ответа — заметный �
     assert.equal(card.getAttribute('role'), 'alert');
     assert.ok(card.classList.contains('delivery-error'));
     assert.match(card.textContent, /⚠ Сообщение принято сервером/);
-    assert.equal(card.querySelectorAll('button')[0].disabled, true);
-    card.querySelectorAll('button')[1].click();
+    assert.equal(card.querySelectorAll('.delivery-actions button')[0].disabled, true);
+    card.querySelectorAll('.delivery-actions button')[1].click();
     assert.equal(restored, item.text);
     assert.doesNotMatch(safeError(reason), /Точная причина недоступна/);
   }

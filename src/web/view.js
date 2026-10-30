@@ -1342,6 +1342,16 @@ export function createView(doc, refs, deps) {
     if (body) body.hidden = !next;
   }
 
+  // Карточка сбоя раскрыта по умолчанию: запоминается только свёрнутость, по ключу своей карточки —
+  // чужое состояние новой карточке не достаётся, перерисовка и reconnect страницы её не сбрасывают.
+  function toggleCard(key, button, body) {
+    const hideKey = `hide:${key}`;
+    const next = !open.has(hideKey);
+    if (next) open.add(hideKey); else open.delete(hideKey);
+    button.setAttribute('aria-expanded', String(!next));
+    body.hidden = next;
+  }
+
   function fillWork(entry, item) {
     const single = item.rows.length === 1 ? item.rows[0] : null;
     const isOpen = open.has(item.key);
@@ -1397,12 +1407,13 @@ export function createView(doc, refs, deps) {
       case 'delivery': {
         node.replaceChildren(
           item.state !== 'error' ? h(doc, 'div', { class: 'bubble' }, ...proseNodes(item.text)) : false,
-          deliveryCard(doc, item, {
+          deliveryCard(doc, { ...item, collapsed: open.has(`hide:${item.key}`) }, {
             canRetry: item.retryAllowed,
             retry: id => handlers.onRetry(currentTrace, id),
             restore: text => putInField(text),
             copy: text => handlers.onCopy(text),
             forget: id => handlers.onForgetDelivery(id),
+            toggle: (head, body) => toggleCard(item.key, head, body),
           }));
         break;
       }
@@ -1514,8 +1525,9 @@ export function createView(doc, refs, deps) {
         node.dataset.tone = item.tone;
         if (item.tone === 'error' || item.tone === 'refused') {
           const failureState = item.turn ? (item.tone === 'refused' ? 'agent_refused' : 'agent_error') : 'error';
-          node.replaceChildren(deliveryCard(doc, { id: item.key, state: failureState, text: item.userText || '', images: [], reason: item.reason }, {
+          node.replaceChildren(deliveryCard(doc, { id: item.key, state: failureState, text: item.userText || '', images: [], reason: item.reason, collapsed: open.has(`hide:${item.key}`) }, {
             copy: text => handlers.onCopy(text), restore: text => putInField(text),
+            toggle: (head, body) => toggleCard(item.key, head, body),
           }));
         } else node.replaceChildren(h(doc, 'span', { text }));
         break;

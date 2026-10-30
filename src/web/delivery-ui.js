@@ -1,7 +1,9 @@
-import { h } from './dom.js';
+import { h, icon } from './dom.js';
 import { safeError } from './delivery.js';
 import { t } from './strings.js';
 
+// Карточка сбоя доставки: сворачивается в компактную строку (иконка, краткая причина, кнопка раскрытия).
+// Сообщение и ошибка не скрываются из модели и не удаляются: свёрнутость — только вид тела карточки.
 export function deliveryCard(doc, item, actions) {
   const labels = {
     sending: t('delivery.sending'), unknown: t('delivery.unknown'), not_sent: t('delivery.not_sent'),
@@ -24,11 +26,19 @@ export function deliveryCard(doc, item, actions) {
   copy.addEventListener('click', () => actions.copy(detail));
   const forget = h(doc, 'button', { type: 'button', text: t('delivery.forget'), title: t('delivery.forget_hint') });
   forget.addEventListener('click', () => actions.forget(item.id));
-  return h(doc, 'div', { class: 'delivery-error', role: item.state === 'sending' ? 'status' : 'alert' },
+  const collapsed = item.collapsed === true;
+  const head = h(doc, 'button', {
+    type: 'button', class: 'delivery-head', 'aria-expanded': String(!collapsed),
+    title: collapsed ? t('delivery.expand') : t('delivery.collapse'),
+  },
     h(doc, 'strong', { text: `⚠ ${labels[item.state] || labels.unknown}` }),
-    reason ? h(doc, 'p', { text: reason }) : false,
+    reason ? h(doc, 'span', { class: 'delivery-brief', text: reason }) : false,
+    icon(doc, 'i-chevron-right', 'chev'));
+  const body = h(doc, 'div', { class: 'delivery-body', hidden: collapsed },
     h(doc, 'p', { text: explanation }),
     item.images.length ? h(doc, 'p', { text: t('delivery.images') }) : false,
     h(doc, 'div', { class: 'delivery-actions' }, ...(item.state === 'error' ? [] : [retry, restore]), ...(actions.forget ? [forget] : [])),
     h(doc, 'details', {}, h(doc, 'summary', { text: t('delivery.details') }), h(doc, 'pre', { text: detail }), copy));
+  if (actions.toggle) head.addEventListener('click', () => actions.toggle(head, body));
+  return h(doc, 'div', { class: 'delivery-error', role: item.state === 'sending' ? 'status' : 'alert' }, head, body);
 }
