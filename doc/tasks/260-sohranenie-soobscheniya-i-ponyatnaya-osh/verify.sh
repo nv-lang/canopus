@@ -22,6 +22,11 @@ case "${1:-targeted}" in
   build) "$NOVA_HOME/nova.exe" build src/crew_hub.nv -o target/crew-hub.exe ;;
   targeted) "$NOVA_HOME/nova.exe" test src/server_delivery_live --jobs 1 --timeout 300 --keep-artifacts ;;
   core) "$NOVA_HOME/nova.exe" test src/server --jobs 1 --timeout 900 --keep-artifacts ;;
+  ui)
+    node --test --test-concurrency=4 'src/web/test/*.test.mjs'
+    node src/web/test/delivery-browser.mjs "$2" "$3"
+    guards
+    ;;
   server) "$NOVA_HOME/nova.exe" test src/acp src/server src/server_live src/server_delivery_live --jobs 1 --timeout 900 --keep-artifacts ;;
   final)
     node --test --test-concurrency=4 'src/web/test/*.test.mjs'

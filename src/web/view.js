@@ -1445,8 +1445,9 @@ export function createView(doc, refs, deps) {
         if (item.tone === 'refused') text = item.reason ? t('chat.refused', { reason: safeError(item.reason) }) : t('chat.refused_plain');
         if (item.tone === 'error') text = item.reason ? t('chat.error', { message: safeError(item.reason) }) : t('chat.error_plain');
         node.dataset.tone = item.tone;
-        if (item.tone === 'error') {
-          node.replaceChildren(deliveryCard(doc, { id: item.key, state: item.turn ? 'agent_error' : 'error', text: item.userText || '', images: [], reason: item.reason }, {
+        if (item.tone === 'error' || item.tone === 'refused') {
+          const failureState = item.turn ? (item.tone === 'refused' ? 'agent_refused' : 'agent_error') : 'error';
+          node.replaceChildren(deliveryCard(doc, { id: item.key, state: failureState, text: item.userText || '', images: [], reason: item.reason }, {
             copy: text => handlers.onCopy(text), restore: text => putInField(text),
           }));
         } else node.replaceChildren(h(doc, 'span', { text }));

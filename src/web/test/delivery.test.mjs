@@ -102,6 +102,22 @@ test('260: завершение старого хода не стирает но
   assert.deepEqual(d.items('s').map(r => r.id), ['unbound']);
 });
 
+test('260: технический отказ ответа — заметный блок принятого сообщения, не неотправка', () => {
+  const doc = createFakeDocument();
+  let restored = '';
+  for (const reason of ['ConnectionLost', 'NoResult', 'Timeout', 'MaxTokens', 'ModelRefused']) {
+    const item = { id: 'accepted', state: 'agent_refused', images: [], text: 'принятый вопрос', reason };
+    const card = deliveryCard(doc, item, { restore: text => restored = text, copy() {} });
+    assert.equal(card.getAttribute('role'), 'alert');
+    assert.ok(card.classList.contains('delivery-error'));
+    assert.match(card.textContent, /⚠ Сообщение принято сервером/);
+    assert.equal(card.querySelectorAll('button')[0].disabled, true);
+    card.querySelectorAll('button')[1].click();
+    assert.equal(restored, item.text);
+    assert.doesNotMatch(safeError(reason), /Точная причина недоступна/);
+  }
+});
+
 test('260: ошибка запуска до первого хода не исчезает из ленты', () => {
   let m = reduce(initialModel(), { id: 'c', trace: 's', step: 0, kind: 'session_created', input: {}, time: 1 });
   m = reduce(m, { id: 'e', trace: 's', step: 1, kind: 'error', input: { turn: '', message: 'the agent cannot be started: unavailable' }, time: 2 });

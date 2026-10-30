@@ -5,7 +5,8 @@ import { t } from './strings.js';
 export function deliveryCard(doc, item, actions) {
   const labels = {
     sending: t('delivery.sending'), unknown: t('delivery.unknown'), not_sent: t('delivery.not_sent'),
-    received: t('delivery.received'), accepted: t('delivery.accepted'), agent_error: t('delivery.agent_error'), error: t('delivery.error'),
+    received: t('delivery.received'), accepted: t('delivery.accepted'), agent_error: t('delivery.agent_error'),
+    agent_refused: t('delivery.agent_refused'), error: t('delivery.error'),
   };
   const canRetry = item.state === 'not_sent' && !item.images.length && actions.canRetry !== false;
   const reason = item.reason ? safeError(item.reason) : '';
