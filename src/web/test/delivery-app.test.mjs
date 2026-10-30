@@ -8,6 +8,7 @@ import * as state from '../state.js';
 import * as attention from '../attention.js';
 import * as strings from '../strings.js';
 import * as queue from '../queue.js';
+import * as loading from '../loading.js';
 import * as attachments from '../attachments.js';
 import * as routes from '../routes.js';
 import * as crew from '../crew-task.js';
@@ -26,7 +27,7 @@ async function app(storage = memory(), sendResult = true, hash = '#s=s') {
   const sent = [];
   const timeouts = [];
   const context = {
-    ...state, ...attention, ...strings, ...queue, ...attachments, ...routes, ...crew, ...delivery,
+    ...state, ...attention, ...strings, ...queue, ...attachments, ...routes, ...crew, ...delivery, ...loading,
     chooseMode, parseAgentRegistry,
     console, URLSearchParams, Date, Math, Promise,
     crypto: { randomUUID: () => `client-${sent.length}-${Math.random()}` },
@@ -38,7 +39,7 @@ async function app(storage = memory(), sendResult = true, hash = '#s=s') {
     fetch: async () => ({ ok: true, json: async () => ({ agents: [{ id: 'agent', label: 'Agent' }] }) }),
     createNotifier: () => ({ bellOn: () => false, soundOn: () => false, update() {} }),
     createProjectsApi: () => ({ list: async () => ({ ok: true, projects: [] }) }),
-    createView: () => ({ render() {}, tick() {} }),
+    createView: () => ({ render() {}, tick() {}, setAgents() {} }),
     createTransport(deps) {
       callbacks = deps;
       return { start() {}, send(event) {
