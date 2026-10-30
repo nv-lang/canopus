@@ -74,6 +74,14 @@ test('260: ошибки с секретами разрешают только ф
   }
 });
 
+test('260: отсутствующий в реестре агент имеет конкретную безопасную причину и действие', () => {
+  const message = safeError('the agent cannot be started: the agent legacy-agent is not configured token=secret');
+  assert.match(message, /не настроен на сервере/);
+  assert.match(message, /доступным агентом/);
+  assert.doesNotMatch(message, /legacy-agent|secret|token/);
+  assert.equal(safeError(message), message);
+});
+
 test('260: возврат не затирает черновик; позднее завершение upload не очищает новую правку', () => {
   assert.equal(restoreText('отправленное', 'новый черновик'), 'отправленное\n\nновый черновик');
   assert.equal(restoreText('отправленное', ''), 'отправленное');

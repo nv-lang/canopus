@@ -28,6 +28,7 @@ case "${1:-targeted}" in
     node src/web/test/delivery-browser.mjs "$2" "$3"
     guards
     "$NOVA_HOME/nova.exe" test src/server_delivery_live --jobs 1 --timeout 300 --keep-artifacts
+    "$NOVA_HOME/nova.exe" test src/server --jobs 1 --timeout 900 --keep-artifacts
     ;;
   full)
     node --test --test-concurrency=4 'src/web/test/*.test.mjs'

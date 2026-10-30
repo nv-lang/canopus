@@ -14,6 +14,7 @@ export function safeError(value) {
   // Only a bounded, known diagnostic vocabulary is allowed out of provider errors.
   // Unknown details are deliberately withheld rather than relying on a token blacklist.
   const rules = [
+    [/\bagent\b[^\r\n]{0,80}\bnot configured\b|unknown agent/i, t('delivery.reason_registry')],
     [/cannot be started|refused to start|spawn|ENOENT|not found/i, t('delivery.reason_start')],
     [/401|403|unauthori|authenticat|credential/i, t('delivery.reason_auth')],
     [/429|rate.?limit|quota/i, t('delivery.reason_limit')],

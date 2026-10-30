@@ -8,13 +8,34 @@ fn delivery_count(lines []str, kind str) -> int {
     count
 }
 
+export fn scenario_delivery_new_actions(settings ServerSettings) Proc Detach Time Net Fs Os -> str {
+    mut c = Check { failures: []str.new() }
+    mut first = rig_open(settings)
+    first.attach(1)
+    first.page(1, "session_created", "new-actions", "{\"name\":\"new actions\",\"agent\":\"opencode\"}")
+    first.page(1, "user_message", "new-actions", "{\"text\":\"first new action\"}")
+    c.expect(first.until(KIT_DONE, 15000), "the first new action completes")
+    first.shut()
+    mut expected = 1
+    for word in ["second", "third"] {
+        expected += 1
+        mut resumed = rig_open(settings)
+        resumed.attach(1)
+        resumed.page(1, "user_message", "new-actions", "{\"text\":\"${word} new action\"}")
+        c.expect(resumed.until(KIT_DONE, 15000), "the ${word} new action completes after restart")
+        c.expect(delivery_count(resumed.lines_for(1), "user_message") == expected, "a new owner action is not mistaken for an old retry")
+        resumed.shut()
+    }
+    c.report()
+}
+
 export fn scenario_delivery_receipt(settings ServerSettings) Proc Detach Time Net Fs Os -> str {
     mut c = Check { failures: []str.new() }
     mut r = rig_open(settings)
     r.attach(1)
     r.page(1, "session_created", "delivery-s", "{\"name\":\"delivery\",\"agent\":\"opencode\"}")
     r.page_id(1, "user_message", "delivery-s", "{\"text\":\"safe receipt test\"}", "delivery-id")
-    c.expect(r.until("agent_done", 15000), "the agent finishes the accepted turn")
+    c.expect(r.until(KIT_DONE, 15000), "the agent finishes the accepted turn")
     ro lines = r.lines_for(1)
     c.expect(delivery_count(lines, "user_message") == 1, "one user message is accepted")
     mut accepted = false
