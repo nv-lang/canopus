@@ -789,11 +789,27 @@ export fn scenario_question_mcp_restart(settings ServerSettings) Proc Detach Tim
     c.expect(again.hub.sessions[0].turn == before_turn && again.hub.sessions[0].rt.number == before_task && again.hub.sessions[1].turn == foreign_turn, "stale and duplicate answers leave task and both openings unchanged")
     c.expect(kit_with(again.hub.take_log(), "an answer for s-mcpr to a question that nobody asked") >= 1, "the refusal of the repeated answer is in the log")
     again.shut()
+    // The durable answer is the outbox: a crash before inbox materialization cannot lose recovery.
+    mut materialized = rig_open(settings)
+    materialized.attach(1)
+    c.expect(materialized.hub.ctl_letters.len() == 1, "the settled late answer restores one unread recovery")
+    for l in materialized.hub.ctl_letters {
+        c.expect(l.qid == "recovery-${request}" && !l.wake && !l.taken, "recovery has a stable non-waking identity")
+    }
+    materialized.hub.ctl_letters = []CtlLetter.new()
+    materialized.shut()
+    mut recovered = rig_open(settings)
+    recovered.attach(1)
+    c.expect(recovered.hub.ctl_letters.len() == 1, "a second restart rematerializes exactly one recovery")
+    ro inbox = recovered.hub.ctl_inbox(0, JsonObject.new())
+    c.expect(recovered.hub.ctl_letters.len() == 1 && recovered.hub.ctl_letters[0].taken, "reading acknowledges recovery")
+    recovered.shut()
     // Restart once more with only settled questions in history. Their keys must not be reused.
     mut last = rig_open(settings)
     last.attach(1)
     last.forget()
     c.expect(last.hub.mcp_waiting("s-mcpr").byte_len() == 0, "a settled question is not restored")
+    c.expect(last.hub.ctl_letters.len() == 0, "an acknowledged recovery is not delivered again after restart")
     last.page(1, "user_message", "s-mcpr", "{\"turn\":\"t2\",\"text\":\"askmcp go\"}")
     c.expect(last.until("\"kind\":\"question_request\"", 20000), "a new question is shown after restart")
     mut new_request = ""

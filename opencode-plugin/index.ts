@@ -37,6 +37,7 @@ import path from "node:path"
 import { overdueProblems } from "./open-questions.ts"
 import {
   type Card,
+  activityEvidence,
   type Letter,
   POLL_MS,
   QUEUE,
@@ -2346,6 +2347,7 @@ export default {
       dirOf: dirOfSession,
       // задача 263: блокирующее ожидание вопросника для crew_list — запись формы или открытый по базе вызов question
       blocker: (s) => blockingQuestion(s, now(), (x) => questionCall(x, 1)),
+      activity: (s) => activityEvidence(s),
     })
     const toEditor = (t: (typeof tools)[number]) => ({ name: t.name, description: t.description, input: t.input, execute: (input: any, context: any) => t.execute(input, context?.sessionID) })
     await ctx.tool.transform((editor: any) => {

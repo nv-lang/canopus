@@ -20,16 +20,18 @@ const tmp = mkdtempSync(path.join(os.tmpdir(), "crew-hidden-wait-"))
 process.env.XDG_DATA_HOME = tmp
 process.env.TEMP = process.env.TMP = process.env.TMPDIR = tmp
 process.env.CREW_HARNESS_POLL_MS = "100"
+process.env.CREW_HARNESS_STEP_MS = "100"
 const dbPath = path.join(tmp, "opencode.db")
 process.env.CREW_HARNESS_DB = dbPath
 delete process.env.CREW_HARNESS_PRESENCE
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true })
-writeFileSync(path.join(proj, ".opencode", "crew-harness.json"), "{}")
+writeFileSync(path.join(proj, ".opencode", "crew-harness.json"), JSON.stringify({ allow_default_models: true, step_term_minutes: 0.05, step_answer_minutes: 0.05, idle_tab_minutes: 0 }))
 
 const db = new DatabaseSync(dbPath)
 db.exec("create table session_v2 (id text primary key, directory text, title text, parent_id text, time_archived integer, time_idle integer, time_viewed integer, time_suspended integer)")
 db.exec("create table session_message (id text primary key, session_id text, type text, seq integer, time_created integer, time_updated integer, data text)")
+db.exec("create table session_inbox (id text primary key, session_id text)")
 let seq = 0
 const row = (session, type, data, at) => db.prepare("insert into session_message values (?, ?, ?, ?, ?, ?, ?)").run(`m${++seq}`, session, type, seq, at, at, JSON.stringify(data))
 const NOW = Date.now()
@@ -42,6 +44,8 @@ const otherTool = (session, at) => row(session, "assistant", { content: [{ type:
 const mod = await import("../index.ts")
 const core = await import("../core.ts")
 const fw = await import("../form-wait.ts")
+const tasks = await import("../tasks.ts")
+const watch = await import("../watch.ts")
 const hooks = {}
 const tools = {}
 const events = {}
@@ -75,6 +79,7 @@ const tabs = [
   { sessionID: "sesBLOCK", active: false, busy: true }, // blocked inside question, with a form record
   { sessionID: "sesNOREC", active: false, busy: true }, // blocked inside question, no form record (the dialog only)
   { sessionID: "sesWORK", active: false, busy: true }, // really working (a running shell tool)
+  { sessionID: "sesCONTROL", active: false, busy: false },
 ]
 mkdirSync(core.WINDOWS, { recursive: true })
 const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs }))
@@ -85,6 +90,18 @@ for (const t of tabs) {
   if (!t.busy) await events["session.idle"]({ properties: { sessionID: t.sessionID } })
 }
 await call("crew_role", "sesINTEG", { role: "integrator" })
+const heldTasks = []
+for (const [sid, hold] of [["sesBLOCK", "HOLD"], ["sesNOREC", "STOP"], ["sesCONTROL", undefined]]) {
+  const t = tasks.createTask({ project: "proj", title: `263 ${hold ?? "control"}`, goal: "fixture", criteria: "fixture", priority: "P2", tier: "light", role: "worker", author: "sesINTEG", author_role: "proj.integrator", qid: `q-${sid}`, status: "running", kind: "assign", directory: proj, executor: sid })
+  t.created = t.updated = T0
+  t.history = [{ at: T0, by: "sesINTEG", status: "running", note: "fixture" }]
+  tasks.saveTask(t)
+  core.saveCard({ ...core.readJson(core.cardFile(sid)), task: { project: "proj", n: t.n } })
+  if (hold) {
+    const r = await call("crew_step_note", "sesINTEG", { n: t.n, hold, who: `fixture owner, 2026-10-31, ${hold}` })
+    heldTasks.push(t)
+  }
+}
 
 // the open calls of `question` in the database
 qcall("sesBLOCK", T0)
@@ -134,14 +151,32 @@ const hm = new Date(T0).toTimeString().slice(0, 5)
   cell("crew_list still shows the waiting letters", rowOf("sesBLOCK").includes("ждут писем: 1"), rowOf("sesBLOCK"))
 }
 // 6. no pushes from the diagnosis: the blocked tab gets no "not finished"/"stuck" letters
-await wait(600)
+await wait(7000)
 {
   const pushes = delivered.filter((d) => d.sessionID === "sesBLOCK" && /Не завершено|застряла|submit|reassign/.test(d.text))
   cell("a blocked tab gets no push letters from the diagnosis", pushes.length === 0, JSON.stringify(pushes))
+  const letters = (sid) => [core.INBOX, core.READ].flatMap((base) => {
+    const d = path.join(base, core.safeKey(sid))
+    return existsSync(d) ? readdirSync(d).filter(n => n.endsWith(".json")).map(n => core.readJson(path.join(d,n))) : []
+  }).filter(Boolean)
+  for (const sid of ["sesBLOCK", "sesNOREC"]) cell(`${sid}: HOLD/STOP produces no continue, submit or reassign demand`, !letters(sid).some(l => /Не завершено|Шаг стоит|submit|reassign/.test(l.text)), JSON.stringify(letters(sid)))
+  cell("control: the actual step watcher ran without HOLD", letters("sesCONTROL").some(l => l.id.startsWith("idle-step-")), JSON.stringify(letters("sesCONTROL")))
+  cell("HOLD/STOP changes no executor or task status", heldTasks.every(t => tasks.loadTask("proj",t.n)?.executor === t.executor && tasks.loadTask("proj",t.n)?.status === "running"))
 }
 
 clearInterval(heart)
 stop?.()
+// No watcher is running now: fixture metadata cannot start any command.
+mkdirSync(watch.WATCHES, {recursive:true})
+writeFileSync(path.join(watch.WATCHES,"diag263.json"),JSON.stringify({id:"diag263",session:"sesWORK",command:"fixture only",cwd:proj,created:T0,minutes:10,machine:true,status:"requested"}))
+let evidence = await core.activityEvidence("sesWORK")
+cell("source diagnosis: working shell and machine queue are independent", evidence.includes("shell с") && evidence.includes("очередь машины") && evidence.includes("session_message") && evidence.includes("PID неизвестен"),evidence)
+writeFileSync(path.join(watch.WATCHES,"diag263.json"),JSON.stringify({id:"diag263",session:"sesWORK",command:"fixture only",cwd:proj,created:T0,started:T0,minutes:10,status:"running",pid:123456}))
+evidence = await core.activityEvidence("sesWORK")
+cell("source diagnosis: external process PID is metadata, not invented liveness", evidence.includes("внешняя команда") && evidence.includes("123456") && evidence.includes("живость PID неизвестна"),evidence)
+process.env.CREW_HARNESS_DB = path.join(tmp,"missing.db")
+evidence = await core.activityEvidence("sesUNKNOWN")
+cell("source diagnosis: missing database is unknown, not working", evidence.includes("инструмент: неизвестно") && evidence.includes("очередь сервера: неизвестно"),evidence)
 db.close()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-hidden-wait.test: FAIL ${fail}` : "crew-hidden-wait.test ok")

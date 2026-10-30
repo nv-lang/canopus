@@ -8,6 +8,7 @@ module crew_harness.server
 
 import std.concurrency.nvchan.{Chan, ChanTx}
 import std.encoding.json.{Json, JsonValue, JsonObject}
+import alula.engine.{Incoming}
 
 const CTL_WAIT_DEFAULT_S = 120
 const CTL_WAIT_MAX_S = 300
@@ -121,8 +122,16 @@ fn Hub mut @ctl_letter(from str, from_name str, to str, text str, wake bool, qid
     }
 }
 
-fn Hub mut @ctl_take(j int) -> () {
+fn Hub mut @ctl_take(j int) Proc Detach Time -> () {
     mut l = @ctl_letters[j]
+    if !l.taken && l.qid.starts_with("recovery-mcp-") {
+        ro at = @find(l.to)
+        if at >= 0 {
+            mut s = @sessions[at]
+            accept_in(@settings.store == "pg", @settings.data_dir, s, Incoming.signal("mcp_recovery_read", l.qid))
+            @drain(at)
+        }
+    }
     l.taken = true
     @ctl_letters[j] = l
 }
@@ -176,7 +185,7 @@ fn Hub @ctl_has_proposal(at int, tgt str) -> bool {
 }
 
 // What a wait is waiting for, if it has come: the text of the answer; the letters it takes are read.
-fn Hub mut @ctl_wait_got(at int, w CtlWait) -> Option[str] {
+fn Hub mut @ctl_wait_got(at int, w CtlWait) Proc Detach Time -> Option[str] {
     ro s = @sessions[at]
     if w.kind == "letter" {
         mut lines = []str.new()
@@ -392,7 +401,7 @@ fn Hub mut @ctl_send(at int, a JsonObject) Proc Detach Time -> CtlRes {
     ctl_ok("Отправлено: ${joined(named, "; ")}${if wake { "" } else { " (без пробуждения: письмо ждёт в crew_inbox получателя)" }}.${qid_tail}")
 }
 
-fn Hub mut @ctl_inbox(at int, a JsonObject) -> CtlRes {
+fn Hub mut @ctl_inbox(at int, a JsonObject) Proc Detach Time -> CtlRes {
     ro s = @sessions[at]
     mut limit = jint(a, "limit")
     if limit <= 0 { limit = 10 }
