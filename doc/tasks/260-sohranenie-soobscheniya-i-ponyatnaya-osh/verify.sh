@@ -19,6 +19,7 @@ guards() {
   $PYTHON scripts/guards/guard-commit-message.py --commit HEAD
 }
 case "${1:-targeted}" in
+  build) "$NOVA_HOME/nova.exe" build src/crew_hub.nv -o target/crew-hub.exe ;;
   targeted) "$NOVA_HOME/nova.exe" test src/server_delivery_live --jobs 1 --timeout 300 --keep-artifacts ;;
   core) "$NOVA_HOME/nova.exe" test src/server --jobs 1 --timeout 900 --keep-artifacts ;;
   server) "$NOVA_HOME/nova.exe" test src/acp src/server src/server_live src/server_delivery_live --jobs 1 --timeout 900 --keep-artifacts ;;
