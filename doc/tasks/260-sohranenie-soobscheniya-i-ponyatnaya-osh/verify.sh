@@ -18,9 +18,9 @@ case "${1:-targeted}" in
   server) "$NOVA_HOME/nova.exe" test src/acp src/server src/server_live --jobs 1 --timeout 900 ;;
   final)
     node --test --test-concurrency=4 'src/web/test/*.test.mjs'
-    "$NOVA_HOME/nova.exe" test src/server_live/delivery_test.nv --jobs 1 --timeout 300
     node src/web/test/delivery-browser.mjs "$2" "$3"
     guards
+    "$NOVA_HOME/nova.exe" test src/server_live/delivery_test.nv --jobs 1 --timeout 300
     ;;
   full)
     node --test --test-concurrency=4 'src/web/test/*.test.mjs'
