@@ -21,6 +21,7 @@ export fn scenario_delivery_new_actions(settings ServerSettings) Proc Detach Tim
         expected += 1
         mut resumed = rig_open(settings)
         resumed.attach(1)
+        resumed.forget()
         resumed.page(1, "user_message", "new-actions", "{\"text\":\"${word} new action\"}")
         c.expect(resumed.until(KIT_DONE, 15000), "the ${word} new action completes after restart")
         c.expect(delivery_count(resumed.lines_for(1), "user_message") == expected, "a new owner action is not mistaken for an old retry")
