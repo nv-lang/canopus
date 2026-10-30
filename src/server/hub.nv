@@ -1213,7 +1213,13 @@ fn Hub mut @answer(trace str, input JsonObject) Proc Detach Time -> () {
     }
     match @mcp_take(jtext(input, "request")) {
         Some(pending) => {
-            mut settled = input
+            mut settled = JsonObject.new()
+            for key in input.keys() {
+                match input.get(key) {
+                    Some(v) => jput(settled, key, v)
+                    None => ()
+                }
+            }
             jput(settled, "mcp_recovery", JsonValue.bool(pending.late))
             // The answer and the need for recovery are one durable journal input, before materializing the inbox.
             @mcp_settled(at, settled)

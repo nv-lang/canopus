@@ -801,7 +801,7 @@ export fn scenario_question_mcp_restart(settings ServerSettings) Proc Detach Tim
     mut recovered = rig_open(settings)
     recovered.attach(1)
     c.expect(recovered.hub.ctl_letters.len() == 1, "a second restart rematerializes exactly one recovery")
-    ro inbox = recovered.hub.ctl_inbox(0, JsonObject.new())
+    ro inbox = recovered.hub.ctl_inbox(recovered.hub.find("s-mcpr"), JsonObject.new())
     c.expect(recovered.hub.ctl_letters.len() == 1 && recovered.hub.ctl_letters[0].taken, "reading acknowledges recovery")
     recovered.shut()
     // Restart once more with only settled questions in history. Their keys must not be reused.
