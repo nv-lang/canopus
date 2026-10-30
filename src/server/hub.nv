@@ -1615,21 +1615,24 @@ export fn Hub mut @handle(conn int, text str) Proc Detach Time -> () {
             mut s = @sessions[before_at]
             previous_turn = s.turn
             if client_id.byte_len() > 0 {
-                mut known = JsonObject.new()
+                mut known_text = ""
                 for e in history_in(@settings.store == "pg", @settings.data_dir, s) {
                     if e.name == "message_delivery" {
                         match jobject(e.input) {
                             Some(receipt) => {
                                 if jtext(receipt, "client_id") == client_id {
-                                    known = receipt
+                                    known_text = e.input
                                 }
                             }
                             None => ()
                         }
                     }
                 }
-                if jtext(known, "client_id") == client_id {
-                    @send(conn, event_line("delivery-${client_id}", trace, s.engine.step_number(), "message_delivery", known, now_millis()))
+                if known_text.byte_len() > 0 {
+                    match jobject(known_text) {
+                        Some(known) => @send(conn, event_line("delivery-${client_id}", trace, s.engine.step_number(), "message_delivery", known, now_millis()))
+                        None => ()
+                    }
                     return
                 }
                 // Persist a receipt BEFORE a possible side effect. A crash between this and the final receipt is
@@ -1653,7 +1656,7 @@ export fn Hub mut @handle(conn int, text str) Proc Detach Time -> () {
                     if jtext(line, "kind") == "error" && jtext(line, "trace") == trace {
                         match jchild(line, "input") {
                             Some(data) => {
-                                mut error_data = data
+                                mut error_data = error_input(jtext(data, "turn"), jtext(data, "message"))
                                 jput(error_data, "client_id", JsonValue.str(client_id))
                                 outgoing.text = event_line(jtext(line, "id"), trace, jint(line, "step"), "error", error_data, jint(line, "time"))
                             }
