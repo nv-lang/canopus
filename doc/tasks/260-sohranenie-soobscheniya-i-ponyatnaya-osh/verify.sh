@@ -10,7 +10,12 @@ case "${1:-targeted}" in
   targeted) "$NOVA_HOME/nova.exe" test src/server/delivery_test.nv --jobs 1 ;;
   full)
     node --test --test-concurrency=4 'src/web/test/*.test.mjs'
+    "$NOVA_HOME/nova.exe" build src/crew_hub.nv -o target/crew-hub.exe
     "$NOVA_HOME/nova.exe" test src/acp src/server src/server_live --jobs 4
     bash scripts/guards/run-all.sh
+    source scripts/guards/lib/find-python.sh
+    find_python
+    $PYTHON scripts/guards/guard-secrets.py --tree
+    $PYTHON scripts/guards/guard-commit-message.py --commit HEAD
     ;;
 esac

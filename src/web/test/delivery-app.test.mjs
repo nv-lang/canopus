@@ -20,7 +20,7 @@ const memory = () => {
 };
 async function app(storage = memory(), sendResult = true) {
   const source = process.env.RED_260 === '1'
-    ? execFileSync('git', ['show', 'a0deb60f:src/web/app.js'], { encoding: 'utf8' })
+    ? execFileSync('git', ['show', 'f8b08227:src/web/app.js'], { encoding: 'utf8' })
     : fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
   let callbacks;
   const sent = [];
