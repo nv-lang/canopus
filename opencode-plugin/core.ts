@@ -1883,6 +1883,9 @@ export type CrewHost = {
   doctorNotes?(): string[]
   /** каталог сессии по session.get(...).location (задача 157): источник истины, карточка и ctx.location его не знают; нет — каталог карточки */
   dirOf?(sessionID: string): Promise<string | undefined>
+  /** блокирующее ожидание вкладки (задача 263): вопрос владельцу в вопроснике — живая запись формы или открытый по базе
+   *  вызов question (form-wait.ts blockingQuestion); нет — undefined. crew_list показывает его вместо голого «занята». */
+  blocker?(session: string): Promise<{ since: number; question?: string; formId?: string; rid?: string; options?: string[]; norecord?: boolean } | undefined>
 }
 
 /** Зависимости контроля каталога и ветки окон (branch-guard.ts, задача 157): задачи, настройки и замок вливания плагина. */
@@ -1985,10 +1988,15 @@ export function makeTools(host: CrewHost): CrewTool[] {
           return ""
         }
       }
-      const rows = cards.map((c) => {
+      const rows: string[] = []
+      for (const c of cards) {
         const w = waiting(c)
-        return `${c.session === me?.session ? "* " : "  "}${keyOf(c)}${c.auto ? " (авто)" : ""} — ${tabStatus(c, windows)}, ${c.repo || "?"}, сессия ${c.session}, модель ${modelLabel(c, now)}${famOf(c)}${w ? `, ждут писем: ${w}` : ""}${c.title ? `, «${c.title}»` : ""}`
-      })
+        // задача 263: «занята» не доказывает работу — вкладка может ждать ответа владельца в вопроснике (инцидент 258);
+        // блокирующее ожидание называется явно: что, с какого времени, id формы
+        const b = host.blocker ? await host.blocker(c.session).catch(() => undefined) : undefined
+        const bw = b ? `, ждёт ответа владельца с ${hhmm(b.since)} (${Math.max(0, Math.floor((now - b.since) / 60_000))} мин)${b.norecord ? " (диалог без записи формы)" : b.formId ? ` (форма ${b.formId}, rid ${b.rid ?? b.formId})` : ""}${b.question ? `: ${short(b.question, 120)}` : ""}${b.options?.length ? `; варианты: ${b.options.map((o) => short(o, 80)).join(" | ")}` : ""}` : ""
+        rows.push(`${c.session === me?.session ? "* " : "  "}${keyOf(c)}${c.auto ? " (авто)" : ""} — ${tabStatus(c, windows)}, ${c.repo || "?"}, сессия ${c.session}, модель ${modelLabel(c, now)}${famOf(c)}${w ? `, ждут писем: ${w}` : ""}${bw}${c.title ? `, «${c.title}»` : ""}`)
+      }
       const others = input?.all || !home ? 0 : all.length - cards.length
       const openTasks = home ? listTasks(home).filter(isOpen).sort(byPriority) : []
       const tasksPart = openTasks.length ? `\nЗадачи (crew_task):\n${openTasks.map((t) => `  ${taskNo(t)} ${t.priority} ${statusRu(t.status)} «${t.title}»${t.executor ? ` — ${t.executor}` : ""}`).join("\n")}` : ""

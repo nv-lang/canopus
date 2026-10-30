@@ -106,8 +106,9 @@ fn dropped_text(agent str, setting str, value str, used str) -> str {
 }
 
 // A call of the tool `ask_user_question` (task 192i) that waits for the owner: the key the page answers by, the call of the MCP server, the session, the
-// questions as the page got them, and where the text for the agent goes.
-type McpPending { key str, call int, session str, questions JsonValue, reply ChanTx[str] }
+// questions as the page got them, and where the text for the agent goes. `late` (task 263): the call itself is gone (its term passed or the hub
+// restarted) — the answer is a stale non-waking recovery record, never a new command or a result through `reply`.
+type McpPending { key str, call int, session str, questions JsonValue, reply ChanTx[str], late bool, opening str, task str }
 
 // The signals of the journal that carry the mode of work (task 192q, `routes_hub.nv`).
 fn route_signals() -> []str => ["route_set", "route_task", "route_step", "route_note", "route_review", "context_compacted", "task_extended", "task_extend_undone"]
@@ -798,6 +799,9 @@ fn Hub mut @resume_session(id str) Proc Detach Time -> () {
         Some(engine) => {
             mut s = Dialog { id, name: id, agent: "", engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), announced: false, model_announced: false, started_at: 0, slow_told: false, folder: "", project_id: "", has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
             mut saw_created = false
+            // the questions of the MCP tool the journal shows open (task 263): they wait for the owner again after the restart, marked
+            // late — the call of the agent died with the process, so the answer reaches the agent as a letter
+            mut open_mcp = []McpPending.new()
             for e in history_in(pg, root, s) {
                 if e.name == "session_created" && e.kind == EventKind.Input && !saw_created {
                     saw_created = true
@@ -855,6 +859,38 @@ fn Hub mut @resume_session(id str) Proc Detach Time -> () {
                     }
                 }
                 if e.at > s.rt.active_at { s.rt.active_at = e.at }
+                // an open question of the MCP tool (a `question_request` without its `question_answer`) is waiting again (task 263)
+                if e.kind == EventKind.Input && e.name == "question_request" {
+                    match jobject(e.input) {
+                        Some(q) => {
+                            ro key = jtext(q, "request")
+                            if key.starts_with("mcp-") {
+                                // Include settled keys too: reusing them after restart would accept a stale answer.
+                                match key[4..].to_int() {
+                                    Ok(n) => { if n > @mcp_serial { @mcp_serial = n } }
+                                    Err(err) => ()
+                                }
+                                match q.get("questions") {
+                                    Some(questions) => {
+                                        mut seen = false
+                                        for p in open_mcp { if p.key == key { seen = true } }
+                                        if !seen { open_mcp.push(McpPending { key, call: 0, session: id, questions, reply: Chan[str].new(1).tx, late: true, opening: jtext(q, "opening"), task: jtext(q, "task") }) }
+                                    }
+                                    None => ()
+                                }
+                            }
+                        }
+                        None => ()
+                    }
+                }
+                if e.kind == EventKind.Input && e.name == "question_answer" {
+                    ro settled = jtext(jobject(e.input) ?? JsonObject.new(), "request")
+                    if settled.starts_with("mcp-") {
+                        mut rest = []McpPending.new()
+                        for p in open_mcp { if p.key != settled { rest.push(p) } }
+                        open_mcp = rest
+                    }
+                }
                 // the mode of work and its task come back from the journal (task 192q)
                 if e.kind == EventKind.Input && route_signals().contains(e.name) { s.rt.apply(e.name, e.input) }
                 // the choices of the owner, per family: the last word of the journal (task 192t)
@@ -876,6 +912,14 @@ fn Hub mut @resume_session(id str) Proc Detach Time -> () {
                 }
             }
             s.rt.normalize()
+            // the open questions of the tool are waiting again; the numbering goes on past the highest key of the journal
+            for p in open_mcp {
+                @mcp_pending.push(p)
+                match p.key[4..].to_int() {
+                    Ok(n) => { if n > @mcp_serial { @mcp_serial = n } }
+                    Err(err) => ()
+                }
+            }
             @add_session(s)
             if engine.open_ids().len() > 0 {
                 ro reason = @ensure_client(@sessions.len() - 1)
@@ -1141,10 +1185,23 @@ fn Hub mut @decide(trace str, request str, decision str) Proc Detach Time -> () 
 fn Hub mut @answer(trace str, input JsonObject) Proc Detach Time -> () {
     ro at = @find(trace)
     if at < 0 { return }
+    // Reject a foreign session before taking the pending call: a wrong trace must not consume its key.
+    for p in @mcp_pending {
+        if p.key == jtext(input, "request") && p.session != trace {
+            @say_log("an answer for ${trace} to a foreign question: request ${p.key}")
+            return
+        }
+    }
     match @mcp_take(jtext(input, "request")) {
         Some(pending) => {
-            ro told = pending.reply.send("ok:${ask_result_text(pending.questions, JsonValue.object(input))}")
             @mcp_settled(at, input)
+            if pending.late {
+                // The original call cannot be resumed. Never turn a late decision into a new agent command.
+                // Conservatively stale even if the visible context looks unchanged: no proof that the old gate is current.
+                @ctl_letter("", "", pending.session, "stale: поздний ответ владельца — только запись, НЕ разрешение действовать. Исходный вызов завершён; требуется новое подтверждение владельца для текущих ворот. Не применять ответ к другой задаче или вопросу.\nsession=${pending.session}; question=${pending.key}; opening=${pending.opening}; task=${pending.task}\n\n${ask_result_text(pending.questions, JsonValue.object(input))}", false, "", "")
+            } else {
+                ro told = pending.reply.send("ok:${ask_result_text(pending.questions, JsonValue.object(input))}")
+            }
             return
         }
         None => ()
@@ -1178,13 +1235,37 @@ fn Hub mut @mcp_take(key str) -> Option[McpPending] {
     Some(pending)
 }
 
-fn Hub mut @mcp_take_call(call int) -> Option[McpPending] {
-    mut key = ""
-    for p in @mcp_pending {
-        if p.call == call { key = p.key }
+// The term of the call `call` passed (the server already answered the agent "таймаут ожидания ответа"): the question is NOT taken
+// away — the pending stays, marked late; the answer settles the form and creates a stale non-waking recovery record (task 263).
+fn Hub mut @mcp_mark_late(call int) -> () {
+    mut i = 0
+    while i < @mcp_pending.len() {
+        if @mcp_pending[i].call == call {
+            mut p = @mcp_pending[i]
+            p.late = true
+            @mcp_pending[i] = p
+        }
+        i += 1
     }
-    if key.byte_len() == 0 { return None }
-    @mcp_take(key)
+}
+
+/// The text of the first question of the tool the session waits for the owner to answer ("" - it waits for none); task 263.
+export fn Hub @mcp_waiting(id str) -> str {
+    for p in @mcp_pending {
+        if p.session == id {
+            match p.questions.array() {
+                Some(items) => {
+                    if items.len() > 0 {
+                        ro text = mtext_of(items[0], "question")
+                        if text.byte_len() > 0 { return text }
+                    }
+                }
+                None => ()
+            }
+            return p.key
+        }
+    }
+    ""
 }
 
 // The page is told a question of the tool is settled (an answer, a skip, a term, a cancel): an event of the session, kept in its journal like the answer of the owner.
@@ -1239,13 +1320,7 @@ fn Hub mut @mcp_message(msg McpMsg) Proc Detach Time -> () {
     }
     if msg.kind == "gone" {
         @ctl_gone(msg.call)
-        match @mcp_take_call(msg.call) {
-            Some(pending) => {
-                ro at = @find(pending.session)
-                if at >= 0 { @mcp_settled(at, withdrawn_answer(pending.key, "timeout")) }
-            }
-            None => ()
-        }
+        @mcp_mark_late(msg.call)
         return
     }
     ro at = @find(msg.session)
@@ -1263,9 +1338,11 @@ fn Hub mut @mcp_message(msg McpMsg) Proc Detach Time -> () {
     }
     @mcp_serial += 1
     ro key = "mcp-${@mcp_serial}"
-    @mcp_pending.push(McpPending { key, call: msg.call, session: msg.session, questions, reply: msg.reply })
+    @mcp_pending.push(McpPending { key, call: msg.call, session: msg.session, questions, reply: msg.reply, late: false, opening: @sessions[at].turn, task: @sessions[at].rt.number })
     mut o = JsonObject.new()
     jput(o, "request", JsonValue.str(key))
+    jput(o, "opening", JsonValue.str(@sessions[at].turn))
+    jput(o, "task", JsonValue.str(@sessions[at].rt.number))
     jput(o, "tool_call", JsonValue.str(""))
     jput(o, "questions", questions)
     mut s = @sessions[at]
