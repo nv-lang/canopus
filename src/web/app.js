@@ -295,7 +295,7 @@ const handlers = {
   // «+» у проекта: пустой чат новой сессии; на сервер она уходит с первым сообщением (задача 192)
   onNewToggle(open, projectId = '') {
     if (!open) {
-      model = dropDrafts(model, trace);
+      model = dropDrafts(model);
       if (ui.selected && !model.sessions[ui.selected]) ui.selected = null;
       render();
       return;
@@ -363,7 +363,7 @@ const handlers = {
         if (draft.folder) input.folder = draft.folder;
         if (draft.branch) input.branch = draft.branch;
       }
-      model = dropDrafts(model);
+      model = dropDrafts(model, trace);
       let created = false;
       try { created = send('session_created', trace, 0, input); } catch { delivery.unknown(reserved.id); return false; }
       if (!created) {

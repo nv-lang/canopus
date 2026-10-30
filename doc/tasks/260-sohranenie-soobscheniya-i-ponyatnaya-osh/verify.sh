@@ -6,6 +6,11 @@ export NOVA_CG_INCLUDE="$NOVA_HOME"
 export NOVA_RT_DIR="$NOVA_HOME/nova_rt"
 export NOVA_GC_LIB_DIR="$NOVA_HOME/gc/lib"
 export NOVA_GC_INCLUDE_DIR="$NOVA_HOME/gc/include"
+if command -v cygpath >/dev/null 2>&1; then
+  export PATH="$(cygpath -u "$NOVA_HOME"):$PATH"
+else
+  export PATH="$NOVA_HOME:$PATH"
+fi
 guards() {
   bash scripts/guards/run-all.sh
   source scripts/guards/lib/find-python.sh
@@ -14,18 +19,18 @@ guards() {
   $PYTHON scripts/guards/guard-commit-message.py --commit HEAD
 }
 case "${1:-targeted}" in
-  targeted) "$NOVA_HOME/nova.exe" test src/server_live/delivery_test.nv --jobs 1 --timeout 300 ;;
-  server) "$NOVA_HOME/nova.exe" test src/acp src/server src/server_live --jobs 1 --timeout 900 ;;
+  targeted) "$NOVA_HOME/nova.exe" test src/server_delivery_live --jobs 1 --timeout 300 --keep-artifacts ;;
+  server) "$NOVA_HOME/nova.exe" test src/acp src/server src/server_live src/server_delivery_live --jobs 1 --timeout 900 --keep-artifacts ;;
   final)
     node --test --test-concurrency=4 'src/web/test/*.test.mjs'
     node src/web/test/delivery-browser.mjs "$2" "$3"
     guards
-    "$NOVA_HOME/nova.exe" test src/server_live/delivery_test.nv --jobs 1 --timeout 300
+    "$NOVA_HOME/nova.exe" test src/server_delivery_live --jobs 1 --timeout 300 --keep-artifacts
     ;;
   full)
     node --test --test-concurrency=4 'src/web/test/*.test.mjs'
     "$NOVA_HOME/nova.exe" build src/crew_hub.nv -o target/crew-hub.exe
-    "$NOVA_HOME/nova.exe" test src/acp src/server src/server_live --jobs 1 --timeout 900
+    "$NOVA_HOME/nova.exe" test src/acp src/server src/server_live src/server_delivery_live --jobs 1 --timeout 900 --keep-artifacts
     guards
     ;;
 esac

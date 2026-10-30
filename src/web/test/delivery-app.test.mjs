@@ -127,6 +127,15 @@ test('260: отказ создания первой сессии сохраня�
   assert.equal(second.sent.length, 0);
 });
 
+test('260: передача первого сообщения сокету не удаляет локальную сессию до эха создания', async () => {
+  const first = await app();
+  first.handlers.onNewToggle(true);
+  const draft = Object.values(first.getModel().sessions).find(s => s.draft);
+  assert.equal(first.handlers.onSend(draft.id, 'первое сообщение без эха'), true);
+  assert.ok(first.getModel().sessions[draft.id], 'локальная сессия должна оставаться доступной до эха создания');
+  assert.equal(first.handlers.deliveryItems(draft.id)[0].text, 'первое сообщение без эха');
+});
+
 test('260: связанный отказ сервера остаётся рядом с конкретной локальной копией', async () => {
   const first = await app();
   first.handlers.onSend('s', 'не терять');
