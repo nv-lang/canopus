@@ -347,6 +347,7 @@ const handlers = {
     let name = baseName;
     for (let suffix = 2; used.has(name.toLocaleLowerCase()); suffix += 1) name = `${baseName} (${suffix})`;
     const api = projectsApi;
+    if (ui.selected !== trace || model.sessions[trace] !== draft || !draft.draft) return;
     api.create({ name, folders: [{ path, worktree: false }], env: '' }).then((result) => {
       if (!result.ok) { flash(t('projects.create_failed', { reason: result.error })); return; }
       return loadProjects().then(() => {
