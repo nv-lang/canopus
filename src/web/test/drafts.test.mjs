@@ -38,6 +38,13 @@ test('черновик новой сессии: есть в модели, пом
   assert.deepEqual(sessionList(real).map((x) => x.id), ['d2']);
 });
 
+test('поздний ответ выбора папки не применяет её после смены чата', async () => {
+  const fs = await import('node:fs');
+  const view = fs.readFileSync(new URL('../view.js', import.meta.url), 'utf8');
+  assert.match(view, /const trace = currentTrace;[\s\S]*const ticket = \+\+browseTicket;[\s\S]*await projectsUi\.pickFolder\(''\)[\s\S]*ticket !== browseTicket \|\| currentTrace !== trace/);
+  assert.match(view, /if \(!session\) \{ browseTicket \+= 1; currentTrace = null; return; \}/);
+});
+
 test('название по умолчанию из первых слов первого сообщения; пусто — пусто', () => {
   assert.equal(nameFromText('  Сделай   список задач для релиза и проверь тесты на старой версии '), 'Сделай список задач для релиза и');
   assert.equal(nameFromText(''), '');
