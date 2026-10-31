@@ -67,6 +67,8 @@ export const S = Object.freeze({
   'chat.draft_project': 'Проект новой сессии',
   'chat.draft_folder': 'Папка',
   'chat.project_none': 'Без проекта',
+  'chat.project_browse': 'Выбрать папку проекта…',
+  'chat.project_search': 'Найти проект',
   'sessions.time_title': '{state}. Последнее событие: {time}',
 
   'theme.system': 'Тема: как в системе. Нажмите, чтобы выбрать светлую',
@@ -624,6 +626,7 @@ export const S = Object.freeze({
   'picker.path': 'Путь к папке',
   'picker.path_placeholder': 'Вставьте путь и нажмите Enter',
   'picker.go': 'Перейти',
+  'picker.search': 'Поиск в этой папке',
   'picker.up': 'Наверх',
   'picker.roots': 'Диски',
   'picker.empty': 'Здесь нет вложенных папок',

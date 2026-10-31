@@ -82,7 +82,7 @@ export function createProjectsUi(doc, deps) {
 
   /** Открыть окно выбора папки. Результат: нормальный путь или null (отмена). */
   function pickFolder(start = '') {
-    let state = { path: '', parent: null, entries: [], recent: [], error: '', loading: true };
+    let state = { path: '', parent: null, entries: [], recent: [], error: '', loading: true, search: '' };
     let ticket = 0;
     const pathInput = h(doc, 'input', {
       type: 'text', id: 'picker-path', class: 'mono', autocomplete: 'off', spellcheck: 'false', placeholder: t('picker.path_placeholder'), 'aria-label': t('picker.path'),
@@ -90,6 +90,7 @@ export function createProjectsUi(doc, deps) {
     const goButton = h(doc, 'button', { type: 'submit', class: 'picker-go', text: t('picker.go') });
     const upButton = h(doc, 'button', { type: 'button', class: 'picker-up', 'aria-label': t('picker.up'), title: t('picker.up') }, icon(doc, 'i-arrow-up'), h(doc, 'span', { text: '..' }));
     const listTitle = h(doc, 'div', { class: 'picker-head', id: 'picker-list-title' });
+    const searchInput = h(doc, 'input', { type: 'search', class: 'picker-search', autocomplete: 'off', placeholder: t('picker.search'), 'aria-label': t('picker.search') });
     const list = h(doc, 'ul', { class: 'picker-list', 'aria-labelledby': 'picker-list-title' });
     const note = h(doc, 'p', { class: 'picker-note muted' });
     const recentBox = h(doc, 'div', { class: 'picker-recent', hidden: true });
@@ -99,7 +100,7 @@ export function createProjectsUi(doc, deps) {
     const form = h(doc, 'form', { class: 'picker-path-row', novalidate: true }, pathInput, goButton);
     const dialog = dialogShell('picker-title', 'picker',
       h(doc, 'h3', { id: 'picker-title', text: t('picker.title') }),
-      form,
+      form, searchInput,
       h(doc, 'div', { class: 'picker-bar' }, upButton, h(doc, 'span', { class: 'muted picker-hint', text: t('picker.hint') })),
       listTitle, list, note, recentBox, errorBox,
       h(doc, 'div', { class: 'actions' }, cancel, choose));
@@ -113,7 +114,8 @@ export function createProjectsUi(doc, deps) {
       note.textContent = state.loading ? t('picker.loading') : (state.entries.length === 0 && !state.error ? t('picker.empty') : '');
       errorBox.hidden = state.error === '';
       errorBox.textContent = state.error;
-      list.replaceChildren(...state.entries.map((e) => {
+      const entries = state.entries.filter((e) => e.name.toLocaleLowerCase().includes((state.search || '').trim().toLocaleLowerCase()));
+      list.replaceChildren(...entries.map((e) => {
         const target = joinPath(state.path, e.name);
         const item = h(doc, 'button', { type: 'button', class: 'picker-item', 'data-path': target },
           icon(doc, atRoots ? 'i-laptop' : 'i-folder'), h(doc, 'span', { text: e.name.replace(/\/$/, '') || e.name }));
@@ -152,6 +154,7 @@ export function createProjectsUi(doc, deps) {
     }
 
     form.addEventListener('submit', (e) => { e.preventDefault(); go(pathInput.value); });
+    searchInput.addEventListener('input', () => { state = { ...state, search: searchInput.value }; paint(); });
     upButton.addEventListener('click', () => { if (state.parent !== null) go(state.parent); });
     // двойной клик выбирает текущий каталог (первый клик уже вошёл в папку)
     list.addEventListener('dblclick', () => { if (state.path !== '' && !state.loading) layer.close(state.path); });

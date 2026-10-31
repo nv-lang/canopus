@@ -331,6 +331,33 @@ const handlers = {
     const folder = project && project.folders.find((f) => f.path === path);
     if (folder) { model = patchDraft(model, trace, { folder: folder.path, branch: folder.branch || '' }); render(); }
   },
+  onDraftBrowseFolder(trace, path) {
+    const draft = model.sessions[trace];
+    if (!draft || !draft.draft || ui.selected !== trace) return;
+    const currentProjects = ui.projects || [];
+    const existing = currentProjects.find((p) => p.folders.some((f) => f.path.toLowerCase() === path.toLowerCase()));
+    if (existing) {
+      const folder = existing.folders.find((f) => f.path.toLowerCase() === path.toLowerCase());
+      model = patchDraft(model, trace, { projectId: existing.id, project: existing.name, folder: folder.path, branch: folder.branch || '' });
+      render();
+      return;
+    }
+    const baseName = path.split(/[\\/]/).filter(Boolean).at(-1) || path;
+    const used = new Set(currentProjects.map((p) => p.name.toLocaleLowerCase()));
+    let name = baseName;
+    for (let suffix = 2; used.has(name.toLocaleLowerCase()); suffix += 1) name = `${baseName} (${suffix})`;
+    const api = projectsApi;
+    api.create({ name, folders: [{ path, worktree: false }], env: '' }).then((result) => {
+      if (!result.ok) { flash(t('projects.create_failed', { reason: result.error })); return; }
+      return loadProjects().then(() => {
+        if (ui.selected !== trace || !model.sessions[trace]?.draft) return;
+        const project = (ui.projects || []).find((p) => p.id === result.id);
+        if (!project) return;
+        model = patchDraft(model, trace, { projectId: project.id, project: project.name, folder: path, branch: '' });
+        render();
+      });
+    });
+  },
   onRename(trace, name) {
     const clean = String(name).trim();
     if (clean) send('session_rename', trace, nextStep(model, trace), { name: clean });
