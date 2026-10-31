@@ -1,0 +1,15 @@
+{
+  "kind": "test",
+  "machine": "WorkModePolicy",
+  "name": "preparation keeps statements but ignores execution and git lifecycle signals",
+  "start_at": 1000,
+  "steps": [
+    {"do":"feed","event":{"kind":"signal","name":"draft","party":"hub"},"expect":{"state":"Preparation"}},
+    {"do":"feed","event":{"kind":"signal","name":"execute","party":"hub"},"expect":{"state":"Preparation"}},
+    {"do":"feed","event":{"kind":"signal","name":"tree","party":"hub"},"expect":{"state":"Preparation"}},
+    {"do":"feed","event":{"kind":"signal","name":"repository","party":"hub"},"expect":{"state":"Preparation"}},
+    {"do":"feed","event":{"kind":"signal","name":"recognize","party":"hub"},"expect":{"state":"Preparation"}},
+    {"do":"feed","event":{"kind":"signal","name":"interactive","party":"hub"},"expect":{"state":"Interactive"}},
+    {"do":"feed","event":{"kind":"signal","name":"execute","party":"hub"},"expect":{"state":"Interactive"}}
+  ]
+}

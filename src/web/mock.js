@@ -137,7 +137,7 @@ export function finishPhase(task, working) {
 
 /** Состояние режима для route_state: steps — названия, finished — сколько шагов уже готово (следующий выполняется, если active). */
 export function routeStateInput(route, { finished = 0, running = false, active = false, task } = {}) {
-  if (route === 'interactive') return { route, steps: [], running: false, task: task ?? null };
+  if (route === 'interactive' || route === 'planning') return { route, steps: [], running: false, task: task ?? null };
   const titles = route === 'fast' ? FAST_STEPS : (route === 'planning' ? PLANNING_STEPS : FULL_STEPS);
   const steps = titles.map((title, i) => ({
     n: i + 1, title, state: i < finished ? 'done' : (i === finished && active ? 'running' : 'pending'),

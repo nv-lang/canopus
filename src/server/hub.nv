@@ -129,6 +129,7 @@ type PendingChoice { trace str, setting str, value str }
 export type Hub {
     settings ServerSettings,
     machine AlulaMachine,
+    work_mode AlulaMachine,
     workdir str,
     sessions []Dialog,
     conns []int,
@@ -704,6 +705,14 @@ fn Hub mut @agent_env(agent str, base []EnvEntry) -> []EnvEntry {
 // Make sure the session has a live agent: start one if there is none or the old one is gone. "" - well, else the reason.
 fn Hub mut @ensure_client(at int) Proc Detach Time -> str {
     mut s = @sessions[at]
+    // Fail closed until a restricted Preparation backend is installed (278). Native ACP tools are not a security boundary.
+    if !@work_allowed(at, "execute") {
+        mut i = 0
+        while i < s.clients.len() { s.clients[i].close(); i += 1 }
+        s.clients = []AcpClient.new()
+        @sessions[at] = s
+        return "Подготовка задачи недоступна: ограниченный backend не подключён; обычный ACP-агент не запущен"
+    }
     if s.clients.len() > 0 {
         ro phase = s.clients[0].phase()
         if phase == "ready" || phase == "initializing" || phase == "opening" { return "" }
@@ -769,10 +778,11 @@ export fn start_hub_from(settings ServerSettings, table_text str) Proc Detach Ti
         }
     }
     ro machine = hub_machine_with(machine_text, registry, settings.idle_term_ms)?
+    ro work_mode = work_mode_machine(machines.text("work-mode.alula.json"), registry)?
     ro trees_chan = Chan[TreeDone].new(64)
     ro notes_chan = Chan[str].new(64)
     mut hub = Hub {
-        settings, machine, workdir, sessions: []Dialog.new(), conns: []int.new(), out: []Outgoing.new(), log: []str.new(), serial: 0, mcps: []McpServer.new(), mcp_pending: []McpPending.new(), mcp_serial: 0, ctl_letters: []CtlLetter.new(), ctl_waits: []CtlWait.new(), ctl_serial: 0, catalog: JsonObject.new(), catalog_dirty: false, catalog_saved_at: 0, choices: []PendingChoice.new(), reviews: []Review.new(), route_obs: 0, marks: []MachMark.new(), trees_tx: trees_chan.tx, trees_rx: trees_chan.rx, notes_tx: notes_chan.tx, notes_rx: notes_chan.rx, held: []HeldMsg.new(), reserved: []int.new()
+        settings, machine, work_mode, workdir, sessions: []Dialog.new(), conns: []int.new(), out: []Outgoing.new(), log: []str.new(), serial: 0, mcps: []McpServer.new(), mcp_pending: []McpPending.new(), mcp_serial: 0, ctl_letters: []CtlLetter.new(), ctl_waits: []CtlWait.new(), ctl_serial: 0, catalog: JsonObject.new(), catalog_dirty: false, catalog_saved_at: 0, choices: []PendingChoice.new(), reviews: []Review.new(), route_obs: 0, marks: []MachMark.new(), trees_tx: trees_chan.tx, trees_rx: trees_chan.rx, notes_tx: notes_chan.tx, notes_rx: notes_chan.rx, held: []HeldMsg.new(), reserved: []int.new()
     }
     if hub.wants_mcp() { ro started = hub.start_mcp() }
     ro pg = settings.store == "pg"
@@ -1145,6 +1155,7 @@ fn Hub mut @say(trace str, text str, items []JsonValue) Proc Detach Time -> () {
     @route_sync_cwd(at)
     ro reason = @ensure_client(at)
     if reason.byte_len() > 0 {
+        @route_broadcast(at, true)
         @tell_error(0, trace, @sessions[at].engine.step_number(), "", "the agent cannot be started: ${reason}")
         return
     }
@@ -1609,6 +1620,7 @@ fn Hub mut @delete(conn int, trace str, branch str) Proc Detach Time -> () {
 fn Hub mut @switch_agent(trace str, agent str) Proc Detach Time -> () {
     ro at = @find(trace)
     if at < 0 { return }
+    if !@work_require(at, "execute") { return }
     mut s = @sessions[at]
     if agent == s.agent { return }
     match @settings.agent(agent) {
@@ -1717,6 +1729,8 @@ export fn Hub mut @handle(conn int, text str) Proc Detach Time -> () {
         return
     }
     ro active_at = @find(trace)
+    ro operation = work_signal_operation(kind)
+    if active_at >= 0 && operation.byte_len() > 0 && !@work_require(active_at, operation) { return }
     if active_at >= 0 {
         mut touched = @sessions[active_at]
         touched.rt.active_at = now_millis()

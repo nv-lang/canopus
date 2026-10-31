@@ -1,7 +1,7 @@
 // routes.js — режимы работы по методике (задача 192p): чистый модуль без DOM и часов.
 //
 // Четыре режима: «Интерактивный» (по умолчанию: задачи пишутся и делаются по супербыстрому пути, шагов нет),
-// «Быстрая задача» и «Полный путь» (у обоих есть шаги, которые можно прогнать после реализации) и «Планирование»
+// «Быстрая задача» и «Полный путь» (у обоих есть шаги, которые можно прогнать после реализации) и «Подготовка задачи»
 // (агент не делает задачу, а доводит до готовности задание: шаги есть, дерева нет).
 // Сервер присылает событие route_state { route, steps, running, task }; страница отдаёт сигналы
 // session_route / route_run / route_skip / route_stop. Здесь — только модель состояния, счёт «N из M»
@@ -18,8 +18,11 @@ export const ROUTES = Object.freeze([
   Object.freeze({ id: 'interactive', nameKey: 'route.interactive', descKey: 'route.interactive_desc', hasSteps: false }),
   Object.freeze({ id: 'fast', nameKey: 'route.fast', descKey: 'route.fast_desc', hasSteps: true }),
   Object.freeze({ id: 'full', nameKey: 'route.full', descKey: 'route.full_desc', hasSteps: true }),
-  Object.freeze({ id: 'planning', nameKey: 'route.planning', descKey: 'route.planning_desc', hasSteps: true }),
+  Object.freeze({ id: 'planning', nameKey: 'route.planning', descKey: 'route.planning_desc', hasSteps: false }),
 ]);
+
+// Execution routes remain readable for existing task journals; new chat choices are not task routes.
+export const CHAT_MODES = Object.freeze(ROUTES.filter((r) => r.id === 'interactive' || r.id === 'planning'));
 
 export const STEP_STATES = Object.freeze(['pending', 'running', 'done', 'skipped']);
 export const SUBTASK_STATES = Object.freeze(['planned', 'running', 'done', 'waits']);

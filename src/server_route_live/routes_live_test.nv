@@ -24,7 +24,7 @@ test "files: a subtask in a tree of its own is merged (the agent resolves the co
     route_clean(scenario_route_publish(kit_routes_remote("route-publish")))
 }
 
-test "files: the mode Planning: a numbered task without a tree, the steps, the folder of the task goes into a tree when another mode is chosen" {
+test "files: preparation keeps a draft, denies execution and git lifecycle; mode switch does not create a tree" {
     route_clean(scenario_route_planning(kit_routes_git("route-planning")))
 }
 

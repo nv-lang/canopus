@@ -1,0 +1,19 @@
+module crew_harness.server
+
+// A confirmed proposal in Preparation writes only its statement, never starts a child or wakes another executor.
+fn Hub mut @ct_prepare(at int, p Proposal) Proc Detach Time -> () {
+    if !@sessions[at].rt.task_open { ro note = @route_on_message(at, p.title) }
+    ro s = @sessions[at]
+    if !s.rt.task_open || s.rt.task_dir.byte_len() == 0 { return }
+    ro path = "${s.rt.task_dir}/drafts/${task_slug(p.title)}/task/message.md"
+    mut text = "# Задание: ${p.title}\n\n${p.summary}\n"
+    if p.touches.len() > 0 { text = "${text}\n## Затрагивает\n\n${joined(p.touches, "\n")}\n" }
+    if p.kids.byte_len() > 0 { text = "${text}\n## Постановки дочерних задач\n\n```json\n${p.kids}\n```\n" }
+    if !write_file(path, text) {
+        @tell_error(0, s.id, s.engine.step_number(), "", "Постановку сохранить не удалось; исполнение не запущено")
+        return
+    }
+    @ct_drop(at, p.id, false)
+    @ct_note(at, "▸ постановка «${p.title}» сохранена: ${path}; режим Подготовки сохранён, исполнение не запущено")
+    @route_broadcast(at, true)
+}

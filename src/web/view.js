@@ -40,7 +40,7 @@ import {
 } from './state.js';
 import { attention, SILENT_DEFAULT_MIN } from './attention.js';
 import {
-  ROUTES, STEP_ICON, STEP_STATE_KEY, SUBTASK_STATE_KEY, routeName, routeDescription, counterText, stepToSkip, showStrip, stripActions,
+  CHAT_MODES, STEP_ICON, STEP_STATE_KEY, SUBTASK_STATE_KEY, routeName, routeDescription, counterText, stepToSkip, showStrip, stripActions,
   subtaskPercent, subtaskProgressText, showSubtasks, INTERACTIVE_STATE, NOTE_KEY, taskHeading, subtaskActions, hasSubtaskActions, bannerCount, subtaskCountText,
   mergeLabel, diffTotals, finishPrompt, readyPrompt, overlapPrompt, commitsText, filesText, branchTestsText, mainTestsText, testsRunnable, stalePrompt, whereText, wipStalePrompt,
 } from './routes.js';
@@ -860,7 +860,7 @@ export function createView(doc, refs, deps) {
     if (menuKind === 'route') {
       menuSearch.hidden = true;
       menu.dataset.side = 'left';
-      menuList.append(h(doc, 'div', { class: 'menu-head', text: t('route.label') }), ...ROUTES.map((r, i) => menuRow({
+      menuList.append(h(doc, 'div', { class: 'menu-head', text: t('route.label') }), ...CHAT_MODES.map((r, i) => menuRow({
         name: routeName(r.id), description: routeDescription(r.id), checked: r.id === currentRoute, number: i + 1,
         onPick: () => { if (currentTrace && r.id !== currentRoute) handlers.onRoute(currentTrace, r.id); closeMenu(); },
       })));
@@ -1741,13 +1741,13 @@ export function createView(doc, refs, deps) {
     currentAgent = shown.agent;
     currentRoute = session.route || INTERACTIVE_STATE.route;
     routeButton.hidden = false;
-    routeButton.replaceChildren(h(doc, 'span', { text: routeName(currentRoute) }));
+    routeButton.replaceChildren(h(doc, 'span', { text: currentRoute === 'planning' ? 'Подготовка' : routeName(currentRoute) }));
     // проект и Worktree: у черновика — выбор; у открытой сессии без дерева — переключатель на следующую задачу
     const task = session.routeState && session.routeState.task;
     const hasTree = Boolean((task && task.worktree) || (session.routeState && session.routeState.where && session.routeState.where.kind === 'wip'));
     const resultRepo = session.routeState ? session.routeState.resultRepo : '';
     const resultLabel = session.routeState ? session.routeState.resultLabel : '';
-    resultRepoButton.hidden = Boolean(session.draft);
+    resultRepoButton.hidden = Boolean(session.draft) || currentRoute === 'planning';
     resultRepoButton.disabled = Boolean(task) || hasTree || busy || Boolean(session.routeState && session.routeState.where && session.routeState.where.kind === 'preparing');
     fillResultRepos(resultRepo || '', resultLabel);
     const treeOn = session.draft ? session.worktree !== false : (session.routeState ? session.routeState.useTree !== false : true);

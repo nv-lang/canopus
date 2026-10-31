@@ -13,7 +13,7 @@ test "ps scenario families" {
     assert(tests_with("dialog-").len() == 37)
     assert(tests_with("free-input-").len() == 5)
     assert(tests_with("agent-step-").len() == 0)
-    assert(test_files().len() == 81)
+    assert(test_files().len() == 82)
 }
 
 test "ps test folder from a table only" {
