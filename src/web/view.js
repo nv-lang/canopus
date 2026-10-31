@@ -427,19 +427,20 @@ export function createView(doc, refs, deps) {
   titleInput.addEventListener('blur', () => finishRename(true));
   // черновик новой сессии: вместо названия — выбор проекта (и папки, если их несколько)
   // Выбор проекта новой сессии — списком посреди пустого чата (значок папки, галочка у выбранного) и кнопкой в строке под полем.
+  let browseTicket = 0;
+  const invalidateBrowse = () => { browseTicket += 1; };
   const draftFolder = h(doc, 'select', { class: 'draft-folder', 'aria-label': t('chat.draft_folder'), hidden: true });
-  draftFolder.addEventListener('change', () => { if (currentTrace) handlers.onDraftFolder(currentTrace, draftFolder.value); });
+  draftFolder.addEventListener('change', () => { invalidateBrowse(); if (currentTrace) handlers.onDraftFolder(currentTrace, draftFolder.value); });
   const projectPicker = h(doc, 'div', { class: 'project-picker', role: 'listbox', 'aria-label': t('chat.draft_project') });
   const draftBrowse = h(doc, 'button', { type: 'button', class: 'draft-browse', text: t('chat.project_browse') });
   const draftSearch = h(doc, 'input', { type: 'search', class: 'project-search', autocomplete: 'off', placeholder: t('chat.project_search'), 'aria-label': t('chat.project_search') });
   let draftSearchText = '';
-  let browseTicket = 0;
   draftBrowse.addEventListener('click', async () => {
     const trace = currentTrace;
     if (!trace) return;
     const ticket = ++browseTicket;
     const path = await projectsUi.pickFolder('');
-    if (path === null || ticket !== browseTicket || currentTrace !== trace) return;
+    if (path === null || ticket !== browseTicket || currentTrace !== trace || current.session?.draft !== true) return;
     handlers.onDraftBrowseFolder?.(trace, path);
   });
   draftSearch.addEventListener('input', () => { draftSearchText = draftSearch.value; draftSig = ''; if (current.session?.draft) syncProjectPicker(current.session); });
@@ -449,7 +450,7 @@ export function createView(doc, refs, deps) {
       icon(doc, 'i-folder', 'project-icon'),
       h(doc, 'span', { class: 'project-name', text: name }),
       h(doc, 'span', { class: 'project-check' }, checked ? icon(doc, 'i-check') : false));
-    row.addEventListener('click', () => { if (currentTrace) handlers.onDraftProject(currentTrace, id); });
+    row.addEventListener('click', () => { invalidateBrowse(); if (currentTrace) handlers.onDraftProject(currentTrace, id); });
     return row;
   }
   // папка черновика из списка проектов страницы (с признаком repo) или null
