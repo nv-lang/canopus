@@ -39,10 +39,20 @@ test('черновик новой сессии: есть в модели, пом
 });
 
 test('поздний ответ выбора папки не применяет её после смены чата', async () => {
-  const fs = await import('node:fs');
-  const view = fs.readFileSync(new URL('../view.js', import.meta.url), 'utf8');
+  const view = viewSrc;
   assert.match(view, /const trace = currentTrace;[\s\S]*const ticket = \+\+browseTicket;[\s\S]*await projectsUi\.pickFolder\(''\)[\s\S]*ticket !== browseTicket \|\| currentTrace !== trace/);
+  assert.match(view, /const invalidateBrowse = \(\) => \{ browseTicket \+= 1; \};[\s\S]*const ticket = \+\+browseTicket;/);
   assert.match(view, /if \(!session\) \{ browseTicket \+= 1; currentTrace = null; return; \}/);
+  assert.match(view, /draftFolder\.addEventListener\('change', \(\) => \{ invalidateBrowse\(\);/);
+  assert.match(view, /row\.addEventListener\('click', \(\) => \{ invalidateBrowse\(\);/);
+  assert.match(view, /path === null \|\| ticket !== browseTicket \|\| currentTrace !== trace \|\| current\.session\?\.draft !== true/);
+  assert.match(appSrc, /if \(ui\.selected !== trace \|\| model\.sessions\[trace\] !== draft \|\| !draft\.draft\) return;[\s\S]*api\.create/);
+});
+
+test('выбор/снятие проекта сохраняет черновик текста и вложения', () => {
+  assert.match(viewSrc, /if \(currentTrace\) \{\s*drafts\.set\(currentTrace, input\.value\);\s*attachDrafts\.set\(currentTrace, attach\.take\(\)\);/);
+  assert.match(viewSrc, /input\.value = drafts\.get\(session\.id\) \?\? '';\s*attach\.restore\(attachDrafts\.get\(session\.id\)\);/);
+  assert.match(viewSrc, /row\.addEventListener\('click', \(\) => \{ invalidateBrowse\(\); if \(currentTrace\) handlers\.onDraftProject\(currentTrace, id\); \}\)/);
 });
 
 test('название по умолчанию из первых слов первого сообщения; пусто — пусто', () => {
