@@ -1,0 +1,467 @@
+<div id="crew-pool-design">
+<style>
+#crew-pool-design{--p-bg:light-dark(#fff,#202124);--p-soft:light-dark(#f6f6f7,#292b2e);--p-fg:light-dark(#22242a,#eeeef2);--p-muted:light-dark(#737780,#a8acb6);--p-line:light-dark(#e7e8ec,#3e4048);--p-blue:light-dark(#2563eb,#8ab4ff);--p-tint:light-dark(#edf3ff,#283953);font:14px/1.5 system-ui,sans-serif;color:var(--p-fg)}
+#crew-pool-design *{box-sizing:border-box}#crew-pool-design button,#crew-pool-design input,#crew-pool-design textarea,#crew-pool-design select{font:inherit;color:inherit}#crew-pool-design button{cursor:pointer}#crew-pool-design button:disabled{opacity:.45;cursor:default}#crew-pool-design .app{display:grid;grid-template-columns:205px minmax(0,1fr);border:1px solid var(--p-line);border-radius:18px;overflow:hidden;background:var(--p-bg);min-height:690px}#crew-pool-design aside{padding:22px 14px;background:var(--p-soft);border-right:1px solid var(--p-line)}#crew-pool-design .brand{font-weight:600;margin-bottom:26px}#crew-pool-design .navbutton{display:block;width:100%;text-align:left;padding:11px;border:0;background:transparent;border-radius:10px;margin:5px 0}#crew-pool-design .navbutton[aria-pressed=true]{background:var(--p-bg)}#crew-pool-design .small{font-size:12px;color:var(--p-muted)}#crew-pool-design .project{padding:16px 10px 4px;color:var(--p-muted)}#crew-pool-design main{min-width:0;padding:22px 26px}#crew-pool-design header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:24px;padding-right:65px}#crew-pool-design h2{font-size:18px;font-weight:600;margin:0}#crew-pool-design .plain{background:var(--p-bg);border:1px solid var(--p-line);padding:7px 12px;border-radius:9px}#crew-pool-design .primary{background:var(--p-fg);color:var(--p-bg);border:0;border-radius:10px;padding:9px 15px}#crew-pool-design .bubble{background:var(--p-soft);padding:14px 18px;border-radius:17px;max-width:85%;margin:22px 0 22px auto}#crew-pool-design .answer{margin:22px 0 34px;max-width:95%}#crew-pool-design .composer{border:1px solid var(--p-line);border-radius:20px;padding:13px;background:var(--p-bg)}#crew-pool-design textarea{width:100%;resize:vertical;min-height:66px;border:0;background:transparent;outline-offset:3px}#crew-pool-design .bottom{display:flex;justify-content:space-between;align-items:center;gap:10px}#crew-pool-design .agentbutton{background:var(--p-soft);border:0;border-radius:30px;padding:8px 14px}#crew-pool-design .send{background:var(--p-fg);color:var(--p-bg);border:0;border-radius:50%;width:36px;height:36px}#crew-pool-design .picker{max-width:440px;border:1px solid var(--p-line);border-radius:17px;padding:14px;background:var(--p-bg);box-shadow:0 12px 32px #00000010;margin:0 0 12px}#crew-pool-design .search{width:100%;border:1px solid var(--p-line);background:var(--p-soft);padding:10px 12px;border-radius:9px;margin-bottom:10px}#crew-pool-design .choice{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;border:0;border-radius:9px;background:transparent;text-align:left;padding:9px 10px}#crew-pool-design .choice.selected{background:var(--p-tint);color:var(--p-blue)}#crew-pool-design .choice small{display:block;color:var(--p-muted);font-size:12px}#crew-pool-design .category{font-size:12px;color:var(--p-muted);padding:8px 10px 3px}#crew-pool-design .divider{border:0;border-top:1px solid var(--p-line);margin:12px 0}#crew-pool-design .effhead{display:flex;justify-content:space-between;gap:8px}#crew-pool-design .scale{width:100%;accent-color:var(--p-blue);margin:17px 0 4px}#crew-pool-design .ticks{display:flex;justify-content:space-between;color:var(--p-muted);font-size:12px}#crew-pool-design .resolved{margin:12px 0;color:var(--p-muted);font-size:12px}#crew-pool-design .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}#crew-pool-design .groups{display:flex;gap:6px;margin:18px 0}#crew-pool-design .groups button{flex:1}#crew-pool-design .groups .active{background:var(--p-tint);color:var(--p-blue);border-color:var(--p-blue)}#crew-pool-design .member{display:grid;grid-template-columns:24px minmax(0,1fr) 95px;gap:10px;align-items:center;padding:14px 0;border-bottom:1px solid var(--p-line)}#crew-pool-design .member input{accent-color:var(--p-blue)}#crew-pool-design .member select{min-width:0;border:1px solid var(--p-line);background:var(--p-bg);border-radius:8px;padding:7px}#crew-pool-design .formlabel{display:block;margin:18px 0 8px;color:var(--p-muted)}#crew-pool-design .notice{margin-top:18px;padding:12px 0;color:var(--p-muted)}#crew-pool-design [hidden]{display:none!important}@media(max-width:680px){#crew-pool-design .app{grid-template-columns:1fr}#crew-pool-design aside{border-right:0;border-bottom:1px solid var(--p-line);padding:12px;display:flex;gap:6px;flex-wrap:wrap}#crew-pool-design .brand,#crew-pool-design .project,#crew-pool-design .sidehint{display:none}#crew-pool-design .navbutton{width:auto;margin:0}#crew-pool-design main{padding:18px 14px}#crew-pool-design header{padding-right:0}}
+</style>
+<div class="app"><aside class="sessions-sidebar">
+<div class="sidebar-header"><button type="button" class="sidebar-brand sidebar-toggle" aria-expanded="false">Крю ⌄</button><div class="sidebar-tools"><button type="button" class="sidebar-icon sidebar-notifications" aria-label="Уведомления"><span>🔔</span></button><button type="button" class="sidebar-icon sidebar-search-toggle" aria-label="Поиск чатов">⌕</button></div></div>
+<button class="navbutton new-chat-button" data-page="new" aria-pressed="false">＋ Новый чат</button>
+<input class="search sidebar-search" aria-label="Поиск чатов" placeholder="Поиск чатов…" hidden>
+<div class="sidebar-body"><div class="sidebar-heading">Закреплённые</div><div class="pinned-sessions"><button type="button" class="session-link" data-session="architecture" data-project="crew-harness">Архитектура Крю</button><button type="button" class="session-link" data-session="roadmap" data-project="crew-harness">План развития</button></div>
+<div class="sidebar-heading">Проекты</div>
+<details class="sidebar-project" data-project="crew-harness" open><summary>▱ <span>crew-harness</span></summary><div class="project-sessions"><button class="navbutton session-link" data-page="chat" data-session="orchestrator" data-project="crew-harness" aria-pressed="false">CrewHarness (Оркестратор)</button><button type="button" class="session-link" data-session="console" data-project="crew-harness">CrewHarness (правки пульта)</button><button type="button" class="session-link" data-session="instructions" data-project="crew-harness">Инструкции для CrewHarness</button><div class="more-sessions" hidden><button type="button" class="session-link" data-session="pools" data-project="crew-harness">Выбор агента и пулы моделей</button><button type="button" class="session-link" data-session="tasks" data-project="crew-harness">Распознавание задач</button></div><button type="button" class="sidebar-show-more">Показать больше</button></div></details>
+<details class="sidebar-project" data-project="ai-dev-methodology" open><summary>▱ <span>ai-dev-methodology</span></summary><div class="project-sessions"><button type="button" class="session-link" data-session="methodology" data-project="ai-dev-methodology">Разбор методики</button><button type="button" class="session-link" data-session="scenarios" data-project="ai-dev-methodology">Сценарии работы</button></div></details>
+<details class="sidebar-project" data-project="nova"><summary>▱ <span>nova</span></summary><div class="project-sessions"><button type="button" class="session-link" data-session="language" data-project="nova">Обсуждение языка</button></div></details>
+<div class="sidebar-heading">Без проекта</div><div class="unassigned-sessions"><button type="button" class="session-link" data-session="notes" data-project="">Идеи и заметки</button></div>
+<div class="sidebar-footer"><button class="navbutton" data-page="pool" aria-pressed="false">Пулы моделей</button></div></div><div class="sidebar-notice" role="status" hidden>Нет новых уведомлений</div>
+</aside>
+<main><header><h2 id="page-title">Сессия 1</h2><span class="small">Макет · данные для примера</span></header>
+<section id="chat-content"><div class="bubble">Проверь обработку отмены в сценарии диалога.</div><div class="answer">Проверю переходы состояний и обработчики сигнала отмены.<div class="small" style="margin-top:10px">GPT-6.1 Sol · High</div></div></section>
+<section id="new-content" hidden><h2>С чего начнём?</h2><div class="small" style="margin:10px 0 24px">crew-test-project</div></section>
+<section id="agent-area"><div class="picker" id="picker"><input class="search" id="search" aria-label="Поиск агента" placeholder="Найти модель или пул…"><div id="choices"></div><hr class="divider"><div class="effhead"><span id="scale-label">Уровень пула</span><strong id="level-name">Medium</strong></div><input class="scale" id="level" type="range" min="0" max="2" step="1" value="1" aria-label="Уровень пула"><div class="ticks" id="ticks"></div><div class="small" id="eligible" style="margin-top:12px"></div></div><div class="composer"><textarea id="draft" aria-label="Сообщение" placeholder="Напишите сообщение…">Проверь также повторную отмену.</textarea><div class="bottom"><button class="agentbutton" id="agent-trigger" aria-expanded="true">Рабочий · Medium ⌃</button><button class="send" id="send" aria-label="Отправить сообщение">↑</button></div></div><div class="resolved" id="resolved" aria-live="polite">Пул «Рабочий» · случайный выбор из 2 активных вариантов</div></section>
+<section id="pool-content" hidden><div class="row"><label style="flex:1">Название пула<input class="search" id="pool-name" value="Рабочий" style="margin-top:7px" aria-label="Название пула"></label><span class="small">Выбор: случайный</span></div><div class="groups" id="pool-tabs"></div><div class="row" style="justify-content:space-between"><span class="small">Использовать</span><span class="small">Усилие модели</span></div><div id="members"></div><button class="plain" id="add-member" style="margin-top:18px">＋ Добавить модель</button><div id="add-options" hidden></div><div class="notice" id="pool-count" aria-live="polite"></div><hr class="divider"><button class="primary" id="try-pool">Выбрать в чате</button></section>
+</main></div></div>
+<script>
+(()=>{const root=document.getElementById('crew-pool-design'),q=s=>root.querySelector(s);const models=[{name:'GPT-6.1 Sol',family:'Codex',efforts:['Low','Medium','High','Ultra']},{name:'Claude Sonnet',family:'Claude',efforts:['Low','Medium','High']},{name:'K3-256k',family:'Kimi',efforts:['Low','High','Max']}];const levels=['Light','Medium','Heavy'];let state={page:'chat',selected:'pool',level:1,effort:2,bucket:1,name:'Рабочий',open:true,groups:[[{id:0,on:true,effort:0},{id:1,on:true,effort:0}],[{id:0,on:true,effort:2},{id:1,on:true,effort:1},{id:2,on:false,effort:1}],[{id:0,on:true,effort:3},{id:1,on:true,effort:2}]]};const saved=window.openai?.widgetState?.privateContent;if(saved&&saved.groups&&saved.name)state={...state,...saved};function save(){window.openai?.setWidgetState({modelContent:{agent:state.selected==='pool'?state.name:models[state.selected].name,level:state.selected==='pool'?levels[state.level]:models[state.selected].efforts[state.effort]},privateContent:state})?.catch(()=>{});}
+state.open=false;
+state.page='new';
+if(!Object.prototype.hasOwnProperty.call(state,'project'))state.project={name:'crew-harness',path:'/work/Projects/crew-harness',git:true};
+state.modes=state.modes||{Codex:'Auto review',Claude:'Авто',Kimi:'По умолчанию'};
+state.poolModes=state.poolModes||{Codex:'Auto review',Claude:'Авто',Kimi:'По умолчанию'};
+const nativeModes={Codex:['Read-only','Workspace access','Auto review','Full access'],Claude:['Ручной','Принимать правки','Авто','Без запросов'],Kimi:['По умолчанию','Авто','YOLO']};
+for(const [family,options] of Object.entries(nativeModes)){if(!options.includes(state.modes[family]))state.modes[family]=options[0];if(!options.includes(state.poolModes[family]))state.poolModes[family]=options[0];}
+state.intent=state.intent==='discuss'?'discuss':'execute';
+let approvalOpen=false,poolModeExpanded=false;
+let intentOpen=false;
+const intentSwitch=document.createElement('div');intentSwitch.className='intent-switch';
+const intentTrigger=document.createElement('button');intentTrigger.type='button';intentTrigger.className='intent-trigger';intentTrigger.setAttribute('aria-label','Режим работы');intentTrigger.setAttribute('aria-haspopup','menu');intentTrigger.setAttribute('aria-expanded','false');
+const intentMenu=document.createElement('div');intentMenu.className='intent-menu';intentMenu.setAttribute('role','menu');intentMenu.hidden=true;
+for(const [id,title,description] of [['discuss','Подготовка задачи','Обсуждаем, создаём дизайн и постановку в task/message.md. Без ветки и реализации.'],['execute','Интерактивный','Общаемся и выполняем порученные задачи. По умолчанию — супербыстрый путь.']]){const button=document.createElement('button');button.type='button';button.dataset.intent=id;button.setAttribute('role','menuitemradio');const text=document.createElement('span');text.textContent=title;const hint=document.createElement('small');hint.textContent=description;button.append(text,hint);button.onclick=()=>{state.intent=id;intentOpen=false;renderIntent();renderWorkflow();save()};intentMenu.append(button);}
+intentTrigger.onclick=()=>{const next=!intentOpen;if(next&&!q('#picker').hidden)q('#agent-trigger').click();intentOpen=next;renderIntent()};intentSwitch.append(intentTrigger,intentMenu);
+q('.bottom').prepend(intentSwitch);
+function renderIntent(){intentSwitch.querySelectorAll('[data-intent]').forEach(b=>{b.setAttribute('aria-checked',String(b.dataset.intent===state.intent));b.setAttribute('aria-pressed',String(b.dataset.intent===state.intent))});intentTrigger.textContent=(state.intent==='discuss'?'Подготовка':'Интерактивный')+' ⌄';intentTrigger.setAttribute('aria-expanded',intentOpen);intentMenu.hidden=!intentOpen;q('#draft').placeholder=state.intent==='discuss'?'Какую задачу сформулируем?':'Напишите сообщение или задачу…';root.dispatchEvent(new CustomEvent('crew:intentchange',{detail:{preparation:state.intent==='discuss'}}));}
+root.addEventListener('click',event=>{if(!event.composedPath().includes(intentSwitch)&&intentOpen){intentOpen=false;renderIntent()}});
+root.addEventListener('keydown',event=>{if(event.key==='Escape'&&intentOpen){intentOpen=false;renderIntent();intentTrigger.focus()}});
+const approvalAnchor=document.createElement('div');approvalAnchor.className='approval-anchor';
+const approvalTrigger=document.createElement('button');approvalTrigger.type='button';approvalTrigger.className='approval-trigger';approvalTrigger.setAttribute('aria-label','Подтверждения действий');approvalTrigger.setAttribute('aria-haspopup','menu');approvalTrigger.setAttribute('aria-expanded','false');
+const modeSection=document.createElement('div');modeSection.className='approval-menu';modeSection.hidden=true;approvalAnchor.append(approvalTrigger,modeSection);q('#send').before(approvalAnchor);
+approvalTrigger.onclick=()=>{const next=!approvalOpen;if(next&&!q('#picker').hidden)q('#agent-trigger').click();approvalOpen=next;renderMode()};
+root.addEventListener('click',e=>{if(!e.composedPath().includes(approvalAnchor)&&approvalOpen){approvalOpen=false;renderMode()}});
+root.addEventListener('keydown',e=>{if(e.key==='Escape'&&approvalOpen){approvalOpen=false;renderMode();approvalTrigger.focus()}});
+const poolModeSection=document.createElement('div');poolModeSection.className='pool-mode-section';q('#pool-count').after(poolModeSection);
+function modeRows(container,pool){
+  const mapping=pool?state.poolModes:state.modes;
+  const families=pool?[...new Set(state.groups.flat().map(p=>models[p.id].family))]:[models[state.selected].family];
+  for(const family of families){const row=document.createElement('label');row.className='mode-row';const name=document.createElement('span');name.textContent=family==='Claude'?'Claude Code':family==='Kimi'?'Kimi Code':family;const select=document.createElement('select');select.setAttribute('aria-label','Подтверждения действий: '+name.textContent);nativeModes[family].forEach(value=>select.add(new Option(value,value,false,value===mapping[family])));select.onchange=()=>{mapping[family]=select.value;save();renderMode()};row.append(name,select);container.append(row);}
+}
+function renderMode(){
+  const pool=state.selected==='pool';modeSection.replaceChildren();
+  const current=pool?'По семьям':state.modes[models[state.selected].family];approvalTrigger.textContent=current+' ⌄';approvalTrigger.setAttribute('data-tooltip','Подтверждения действий: '+current);approvalTrigger.setAttribute('aria-expanded',approvalOpen);modeSection.hidden=!approvalOpen;
+  const heading=document.createElement('h3');heading.textContent=pool?'Подтверждения по семьям':'Подтверждения · '+models[state.selected].family;modeSection.append(heading);
+  if(pool){modeRows(modeSection,true);const hint=document.createElement('div');hint.className='small';hint.textContent='Применяются к выбранной модели из пула «'+state.name+'».';modeSection.append(hint);}
+  else{
+    const family=models[state.selected].family;
+    const descriptions={'Read-only':'Чтение; для изменений нужно разрешение','Workspace access':'Правки в рабочей папке; внешние действия согласуются','Auto review':'Автоматическая проверка действий','Full access':'Полный доступ к файлам и сети','Ручной':'Спрашивать перед изменениями','Принимать правки':'Автоматически принимать правки файлов','Авто':'Агент решает вопросы разрешений','Без запросов':'Принимать разрешения автоматически','По умолчанию':'Ручное подтверждение действий','YOLO':'Подтверждать действия автоматически'};
+    for(const value of nativeModes[family]){const option=document.createElement('button');option.type='button';option.className='approval-option';option.setAttribute('aria-pressed',value===current);const title=document.createElement('span');title.textContent=(value===current?'✓ ':'')+value;const description=document.createElement('small');description.textContent=descriptions[value]||'';option.append(title,description);option.onclick=()=>{state.modes[family]=value;approvalOpen=false;renderMode();save()};modeSection.append(option);}
+  }
+  poolModeSection.replaceChildren();const poolDetails=document.createElement('details');poolDetails.className='agent-advanced';poolDetails.open=poolModeExpanded;const poolSummary=document.createElement('summary');poolSummary.textContent='Дополнительные настройки';poolDetails.append(poolSummary);const poolHeading=document.createElement('h3');poolHeading.textContent='Подтверждения действий по семьям';poolDetails.append(poolHeading);modeRows(poolDetails,true);poolDetails.addEventListener('toggle',()=>{poolModeExpanded=poolDetails.open});poolModeSection.append(poolDetails);
+}
+const workflows=[{id:'interactive',title:'Супер быстро',desc:'Малый маршрут: без отдельного плана и шагов'},{id:'fast',title:'Быстрая задача',desc:'Короткая постановка, одна независимая проверка'},{id:'full',title:'Полный путь',desc:'Постановка, план, этапные проверки, независимая приёмка'}];
+state.workflow=workflows.some(w=>w.id===state.workflow)?state.workflow:'interactive';
+state.taskState=state.taskState||'none';state.taskRun=workflows.some(w=>w.id===state.taskRun)?state.taskRun:'interactive';
+const workflowStrip=document.createElement('div');workflowStrip.className='workflow-strip';
+workflowStrip.innerHTML='<button type="button" class="worktree-chip" aria-label="Отдельное рабочее дерево" aria-pressed="true" data-tooltip="Работать в отдельном рабочем дереве">⑂ Worktree</button><div class="workflow-anchor"><button type="button" class="workflow-trigger" aria-label="Маршрут задачи" aria-expanded="false"></button><div class="workflow-menu" hidden></div></div>';
+q('.bottom').insertBefore(workflowStrip,q('#agent-trigger'));
+state.worktreeOn=state.worktreeOn!==false;q('.worktree-chip').setAttribute('aria-pressed',state.worktreeOn);q('.worktree-chip').onclick=()=>{state.worktreeOn=!state.worktreeOn;q('.worktree-chip').setAttribute('aria-pressed',state.worktreeOn);save()};
+q('#resolved').hidden=true;
+const taskArea=document.createElement('section');taskArea.className='task-area';q('.composer').before(taskArea);
+let workflowOpen=false;
+function renderWorkflow(){
+  const current=workflows.find(w=>w.id===state.workflow),button=q('.workflow-trigger'),menu=q('.workflow-menu');
+  q('.workflow-anchor').hidden=state.taskState!=='started'||state.page==='new';
+  button.textContent=current.title+' ⌄';button.setAttribute('aria-expanded',workflowOpen);menu.hidden=!workflowOpen;menu.replaceChildren();
+  const heading=document.createElement('div');heading.className='small';heading.textContent='Маршрут выполнения задачи';menu.append(heading);
+  for(const w of workflows){const b=document.createElement('button');b.type='button';b.className='workflow-option';b.setAttribute('aria-pressed',w.id===state.workflow);const title=document.createElement('span');title.textContent=(w.id===state.workflow?'✓ ':'')+w.title;const desc=document.createElement('small');desc.textContent=w.desc;b.append(title,desc);b.onclick=()=>{state.workflow=w.id;workflowOpen=false;renderWorkflow();save()};menu.append(b);}
+  button.onclick=()=>{const next=!workflowOpen;if(next&&!q('#picker').hidden)q('#agent-trigger').click();workflowOpen=next;renderWorkflow()};
+  taskArea.hidden=state.page!=='chat';taskArea.replaceChildren();
+  const bar=document.createElement('div');bar.className='recognize-bar';const recognize=document.createElement('button');recognize.type='button';recognize.className='recognize-button';recognize.textContent='Распознать задачи';recognize.onclick=()=>{state.taskState='proposed';state.taskRun=['interactive','fast','full'].includes(state.workflow)?state.workflow:'interactive';renderWorkflow();save()};const count=document.createElement('span');count.className='small';count.textContent=state.taskState==='started'?'1 активная':state.taskState==='prepared'?'1 задание подготовлено':state.taskState==='proposed'?'1 предложение':'0 активных';bar.append(recognize,count);taskArea.append(bar);
+  if(state.taskState==='proposed'||state.taskState==='prepared'){
+    const card=document.createElement('div');card.className='task-proposal';const title=document.createElement('strong');title.textContent='Агент предлагает: проверить обработку отмены';const note=document.createElement('p');note.className='small';note.textContent=state.taskState==='prepared'?'Задание подготовлено: task/message.md · демо. Выполнение не запущено.':'Повторная отмена и отмена во время ожидания ответа. Пример распознанной задачи.';card.append(title,note);
+    const fields=document.createElement('div');fields.className='task-fields';
+    function field(label,options,onchange){const wrap=document.createElement('label');wrap.textContent=label;const select=document.createElement('select');for(const [value,text]of options)select.add(new Option(text,value));if(onchange)select.onchange=onchange;wrap.append(select);fields.append(wrap);return select;}
+    field('Как оформить',[['new','Отдельная задача'],['epic','Эпик с дочерними задачами']]);
+    field('Кто делает',[['same','Текущий агент: '+label()],...models.map((m,i)=>[String(i),m.family+' · '+m.name])]);
+    const run=field('Маршрут выполнения',[['interactive','Супер быстро'],['fast','Быстрая задача'],['full','Полный путь']],e=>{state.taskRun=e.target.value;save()});run.value=state.taskRun;card.append(fields);
+    const actions=document.createElement('div');actions.className='task-actions';const start=document.createElement('button');start.type='button';start.className='primary';start.textContent=state.intent==='discuss'?(state.taskState==='prepared'?'Обновить задание':'Подготовить задание'):'В работу';start.onclick=()=>{if(state.intent==='discuss'){state.taskState='prepared';}else{state.taskState='started';state.workflow=state.taskRun;}renderIntent();renderWorkflow();save()};const discuss=document.createElement('button');discuss.type='button';discuss.className='plain';discuss.textContent='Планировать';discuss.hidden=state.intent==='discuss';discuss.onclick=()=>{state.intent='discuss';renderIntent();renderWorkflow();save()};const dismiss=document.createElement('button');dismiss.type='button';dismiss.className='plain';dismiss.textContent='Не задача';dismiss.onclick=()=>{state.taskState='none';renderWorkflow();save()};actions.append(start,discuss,dismiss);card.append(actions);taskArea.append(card);
+  }else if(state.taskState==='started'){
+    const row=document.createElement('div');row.className='task-proposal';row.textContent='Проверить обработку отмены · '+current.title+' · демо';if(state.workflow==='fast'||state.workflow==='full'){const steps=document.createElement('div');steps.className='small';steps.textContent=state.workflow==='fast'?'Постановка → Выполнение → Независимая проверка':'Постановка → План → Выполнение → Проверки → Приёмка';row.append(steps);}taskArea.append(row);
+  }
+}
+root.addEventListener('click',e=>{if(!e.composedPath().includes(q('.workflow-anchor'))&&workflowOpen){workflowOpen=false;renderWorkflow()}});
+root.addEventListener('keydown',e=>{if(e.key==='Escape'&&workflowOpen){workflowOpen=false;renderWorkflow();q('.workflow-trigger').focus()}});
+root.addEventListener('crew:contextchange',event=>{state.project=event.detail.project;state.worktreeOn=event.detail.worktreeOn;state.baseBranch=event.detail.baseBranch;state.workspacePreference=event.detail.workspacePreference;save()});
+root.addEventListener('crew:opensession',event=>{state.chatTitle=event.detail.title;state.page='chat';state.open=false;render();save()});
+const baseRender=render;render=function(){baseRender();if(state.page==='chat'&&state.chatTitle)q('#page-title').textContent=state.chatTitle;renderMode();renderIntent();renderWorkflow();root.dispatchEvent(new CustomEvent('crew:page',{detail:{page:state.page}}))};
+function active(){return state.groups[state.level].filter(m=>m.on)}function label(){return state.selected==='pool'?state.name+' · '+levels[state.level]:models[state.selected].name+' · '+models[state.selected].efforts[state.effort]}
+function renderChoices(){const search=q('#search').value.toLowerCase();q('#choices').replaceChildren();[['Пулы',[{id:'pool',name:state.name,sub:'3 уровня · случайный выбор'}]],['Модели',models.map((m,i)=>({id:i,name:m.name,sub:m.family}))]].forEach(([title,items])=>{const filtered=items.filter(m=>(m.name+' '+m.sub).toLowerCase().includes(search));if(!filtered.length)return;const h=document.createElement('div');h.className='category';h.textContent=title;q('#choices').append(h);filtered.forEach(m=>{const b=document.createElement('button');b.className='choice'+(state.selected===m.id?' selected':'');const span=document.createElement('span');span.textContent=(m.id==='pool'?'◈ ':'')+m.name;const small=document.createElement('small');small.textContent=m.sub;span.append(small);b.append(span);if(state.selected===m.id)b.append('✓');b.onclick=()=>{state.selected=m.id;state.effort=2;render();save()};q('#choices').append(b)})})}
+function render(){root.querySelectorAll('[data-page]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.page===state.page));q('#page-title').textContent=state.page==='pool'?'Пулы моделей':state.page==='new'?'Новая сессия':'Сессия 1';q('#chat-content').hidden=state.page!=='chat';q('#new-content').hidden=state.page!=='new';q('#pool-content').hidden=state.page!=='pool';q('#agent-area').hidden=state.page==='pool';q('#picker').hidden=!state.open;q('#agent-trigger').setAttribute('aria-expanded',state.open);q('#agent-trigger').textContent=label()+(state.open?' ⌃':' ⌄');renderChoices();const pool=state.selected==='pool',names=pool?levels:models[state.selected].efforts;q('#scale-label').textContent=pool?'Уровень пула':'Усилие модели';q('#level-name').textContent=pool?levels[state.level]:names[state.effort];q('#level').max=names.length-1;q('#level').value=pool?state.level:state.effort;q('#level').setAttribute('aria-label',pool?'Уровень пула':'Усилие модели');q('#ticks').replaceChildren(...names.map(n=>{const s=document.createElement('span');s.textContent=n;return s}));q('#eligible').textContent=pool?active().length+' активных · '+active().map(m=>models[m.id].name).join(', '):models[state.selected].family;q('#send').disabled=pool&&!active().length;q('#resolved').textContent=pool?(active().length?'Пул «'+state.name+'» · случайный выбор из '+active().length+' активных вариантов':'Нет активных моделей на этом уровне'):models[state.selected].family+' · '+label();renderPool();}
+function renderPool(){q('#pool-tabs').replaceChildren(...levels.map((l,i)=>{const b=document.createElement('button');b.className='plain'+(state.bucket===i?' active':'');b.textContent=l;b.setAttribute('aria-pressed',i===state.bucket);b.onclick=()=>{state.bucket=i;renderPool();save()};return b}));q('#members').replaceChildren(...state.groups[state.bucket].map(m=>{const row=document.createElement('label');row.className='member';const c=document.createElement('input');c.type='checkbox';c.checked=m.on;c.onchange=()=>{m.on=c.checked;render();save()};const text=document.createElement('span');text.textContent=models[m.id].name;const sub=document.createElement('div');sub.className='small';sub.textContent=models[m.id].family;text.append(sub);const sel=document.createElement('select');sel.setAttribute('aria-label','Усилие '+models[m.id].name);models[m.id].efforts.forEach((s,i)=>sel.add(new Option(s,i,false,i===m.effort)));sel.onchange=()=>{m.effort=+sel.value;save()};row.append(c,text,sel);return row}));q('#pool-count').textContent=state.groups[state.bucket].filter(m=>m.on).length+' активных на уровне '+levels[state.bucket];q('#pool-name').value=state.name;q('#add-options').replaceChildren(...models.filter((m,id)=>!state.groups[state.bucket].some(v=>v.id===id)).map(m=>{const b=document.createElement('button');b.className='choice';b.textContent=m.family+' · '+m.name;b.onclick=()=>{state.groups[state.bucket].push({id:models.indexOf(m),on:true,effort:1});q('#add-options').hidden=true;render();save()};return b}));q('#add-member').disabled=state.groups[state.bucket].length===models.length;}
+root.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{state.page=b.dataset.page;state.open=state.page==='new';render();save()});q('#search').oninput=renderChoices;q('#level').oninput=e=>{if(state.selected==='pool')state.level=+e.target.value;else state.effort=+e.target.value;render();save()};q('#agent-trigger').onclick=()=>{state.open=!state.open;render();save()};q('#pool-name').onchange=e=>{state.name=e.target.value.trim()||'Рабочий';render();save()};q('#add-member').onclick=()=>q('#add-options').hidden=!q('#add-options').hidden;q('#try-pool').onclick=()=>{state.page='chat';state.selected='pool';state.level=state.bucket;state.open=true;render();save()};q('#send').onclick=()=>{let m=state.selected,effort=state.effort;if(m==='pool'){const a=active();if(!a.length)return;const pick=a[Math.floor(Math.random()*a.length)];m=pick.id;effort=pick.effort}state.page='chat';state.open=false;render();q('#chat-content').replaceChildren();const bubble=document.createElement('div');bubble.className='bubble';bubble.textContent=q('#draft').value||'Проверь обработку отмены.';const answer=document.createElement('div');answer.className='answer';answer.textContent='Проверю обработку сигнала и повторную отмену.';q('#chat-content').append(bubble,answer);q('#resolved').textContent=(state.selected==='pool'?state.name+' · '+levels[state.level]+' → ':'')+models[m].family+' / '+models[m].name+' / '+models[m].efforts[effort];save()};render();if(globalThis.Tweak){const style={radius:20};const tweak=new Tweak({container:q('.composer'),onChange:()=>q('.composer').style.borderRadius=style.radius+'px'});tweak.addSlider(style,'radius',{label:'Скругление поля',min:8,max:28,unit:'px'})}window.addEventListener('openai:set_globals',e=>{const s=e.detail?.globals?.widgetState?.privateContent;if(s?.groups){state={...state,...s};render()}});
+const sendDemo=q('#send').onclick;
+q('#send').onclick=()=>{const creating=state.page==='new',title=q('#draft').value.trim().split('\n')[0].slice(0,48)||'Новый чат';sendDemo();if(state.intent==='discuss')q('.answer').textContent='Уточним цель, границы и критерии задачи, затем подготовим task/message.md. К реализации не приступаю.';const actual=document.createElement('div');actual.className='small actual-agent';actual.textContent=q('#resolved').textContent;q('.answer').append(actual);if(creating){state.chatTitle=title;q('#page-title').textContent=title;root.dispatchEvent(new CustomEvent('crew:sessioncreated',{detail:{title,project:state.project}}));save()}};
+})();
+</script>
+<style>
+#crew-pool-design .effort-track{position:relative;height:36px;margin:16px 0 9px;border-radius:24px;background:light-dark(#e7e7e9,#42434a);isolation:isolate}
+#crew-pool-design .effort-track::before{content:"";position:absolute;inset:0;border-radius:inherit;background:linear-gradient(90deg,#119947 0%,#00a697 30%,#138cff 58%,#7254ee 80%,#a148ee 100%);clip-path:inset(0 calc(100% - var(--effort-fill,50%)) 0 0)}
+#crew-pool-design .effort-track .scale{position:absolute;inset:0;width:100%;height:36px;margin:0;appearance:none;-webkit-appearance:none;background:transparent;z-index:2;border:0;border-radius:24px;cursor:ew-resize}
+#crew-pool-design .effort-track .scale::-webkit-slider-runnable-track{height:36px;background:transparent;border:0;border-radius:24px}
+#crew-pool-design .effort-track .scale::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:34px;height:34px;margin-top:1px;border-radius:50%;background:#fff;border:1px solid #ebebf0;box-shadow:0 2px 5px #0002}
+#crew-pool-design .effort-track .scale::-moz-range-track{height:36px;background:transparent;border:0}
+#crew-pool-design .effort-track .scale::-moz-range-thumb{width:32px;height:32px;background:#fff;border:1px solid #ebebf0;border-radius:50%;box-shadow:0 2px 5px #0002}
+#crew-pool-design .starfield{position:absolute;top:0;bottom:0;left:0;width:var(--effort-fill,50%);overflow:hidden;border-radius:24px 0 0 24px;pointer-events:none;z-index:1;mask-image:linear-gradient(90deg,transparent 0%,#000 28%,#000 88%,transparent 100%);-webkit-mask-image:linear-gradient(90deg,transparent 0%,#000 28%,#000 88%,transparent 100%)}
+#crew-pool-design .effort-star{position:absolute;left:0;color:#fff;line-height:1;animation:crew-star-flight linear infinite;opacity:0}
+@keyframes crew-star-flight{0%{transform:translateX(var(--flight-width));opacity:0}12%{opacity:var(--star-alpha)}65%{opacity:var(--star-alpha)}100%{transform:translateX(-14px);opacity:0}}
+@media(prefers-reduced-motion:reduce){#crew-pool-design .effort-star{animation:none;transform:translateX(var(--still-x));opacity:var(--star-alpha)}}
+</style>
+<script>
+(()=>{
+const root=document.getElementById('crew-pool-design'),slider=root.querySelector('#level');
+const track=document.createElement('div');track.className='effort-track';slider.before(track);
+const field=document.createElement('div');field.className='starfield';field.setAttribute('aria-hidden','true');track.append(field,slider);
+let last='';
+function paint(){
+  const fraction=Number(slider.value)/Number(slider.max),width=track.clientWidth||380;
+  const fill=17+Math.max(0,width-34)*fraction;
+  track.style.setProperty('--effort-fill',fill+'px');
+  track.style.setProperty('--flight-width',fill+'px');
+  const count=fraction>=.5?Math.round(9+(fraction-.5)*44):0;
+  const key=count+':'+fill;if(key===last)return;last=key;
+  field.replaceChildren();
+  for(let i=0;i<count;i++){
+    const star=document.createElement('span');star.className='effort-star';star.textContent=i%4===0?'✦':'·';
+    star.style.top=(3+(i*17%24))+'px';star.style.fontSize=(i%4===0?9+(i%3)*2:15)+'px';
+    star.style.setProperty('--star-alpha',String(.35+(i%5)*.12));
+    star.style.setProperty('--still-x',((i*47)%fill)+'px');
+    star.style.animationDuration=(3.6-fraction*1.8+(i%5)*.3)+'s';star.style.animationDelay=-(i*.47)+'s';field.append(star);
+  }
+}
+slider.addEventListener('input',paint);root.addEventListener('click',()=>queueMicrotask(paint));
+new MutationObserver(paint).observe(slider,{attributes:true,attributeFilter:['max']});new ResizeObserver(paint).observe(track);paint();
+})();
+</script>
+<style>
+#crew-pool-design .app{min-height:780px}
+#crew-pool-design main{display:flex;flex-direction:column}
+#crew-pool-design #agent-area{margin-top:auto}
+#crew-pool-design .bottom{justify-content:flex-end}
+#crew-pool-design .agent-anchor{position:relative;max-width:calc(100% - 46px)}
+#crew-pool-design .agentbutton{max-width:100%;white-space:normal;text-align:left}
+#crew-pool-design .agent-anchor .picker{position:absolute;bottom:calc(100% + 12px);right:0;width:min(390px,var(--menu-width,390px));max-width:none;margin:0;z-index:10;box-shadow:0 7px 28px #0002}
+#crew-pool-design .mode-section{border-top:1px solid var(--p-line);margin-top:10px;padding-top:6px}
+#crew-pool-design .mode-trigger{padding:9px 6px}
+#crew-pool-design .mode-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 6px}
+#crew-pool-design .mode-row select{min-width:0;max-width:64%;padding:7px 9px;border:1px solid var(--p-line);border-radius:8px;background:var(--p-bg)}
+#crew-pool-design .pool-mode-section{border-top:1px solid var(--p-line);margin-top:6px;padding-top:12px}
+#crew-pool-design h3{font-size:14px;font-weight:600;margin:0 0 8px}
+@media(max-width:680px){#crew-pool-design .app{min-height:900px}#crew-pool-design .agent-anchor .picker{right:calc(-1 * var(--agent-menu-offset,46px))}}
+</style>
+<script>
+(()=>{
+const root=document.getElementById('crew-pool-design'),trigger=root.querySelector('#agent-trigger'),picker=root.querySelector('#picker');
+const anchor=document.createElement('div');anchor.className='agent-anchor';trigger.before(anchor);anchor.append(trigger,picker);
+trigger.setAttribute('aria-controls','picker');
+const close=()=>{if(!picker.hidden)trigger.click()};
+document.addEventListener('click',event=>{const path=event.composedPath();if(!path.includes(anchor)&&!path.some(node=>node.id==='try-pool'))close()});
+root.addEventListener('keydown',event=>{if(event.key==='Escape'&&!picker.hidden){close();trigger.focus();}});
+const resize=()=>{const composer=root.querySelector('.composer');const mobile=root.querySelector('main').clientWidth<500;root.style.setProperty('--menu-width',Math.max(180,composer.clientWidth-(mobile?26:72))+'px')};
+new ResizeObserver(resize).observe(root.querySelector('.composer'));resize();
+})();
+</script>
+<style>
+#crew-pool-design .mode-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 6px}
+#crew-pool-design .intent-switch{position:relative;display:inline-flex;align-items:center;margin-right:auto;flex:none}
+#crew-pool-design .intent-trigger{border:0;border-radius:9px;background:var(--p-soft);color:var(--p-fg);padding:7px 11px;white-space:nowrap}
+#crew-pool-design .intent-menu{position:absolute;left:0;bottom:calc(100% + 12px);width:290px;max-width:calc(100vw - 68px);background:var(--p-bg);border:1px solid var(--p-line);border-radius:14px;padding:6px;box-shadow:0 7px 28px #0002;z-index:13}
+#crew-pool-design .intent-menu button{display:block;width:100%;padding:10px 12px;border:0;border-radius:9px;background:transparent;color:var(--p-fg);text-align:left}
+#crew-pool-design .intent-menu button[aria-checked=true]{background:var(--p-tint);color:var(--p-blue)}
+#crew-pool-design .intent-menu small{display:block;font-size:12px;color:var(--p-muted);margin-top:3px}
+#crew-pool-design .agent-advanced summary{padding:8px 4px;color:var(--p-muted);cursor:pointer}
+#crew-pool-design .agent-advanced h3{margin:12px 4px 4px}
+#crew-pool-design .agent-advanced>.small{padding:6px 4px}
+#crew-pool-design .picker:has(.agent-advanced[open])>:not(.mode-section){display:none}
+#crew-pool-design .picker:has(.agent-advanced[open]) .mode-section{border:0;margin:0;padding:0}
+#crew-pool-design .workflow-strip{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:9px;color:var(--p-muted);font-size:12px}
+#crew-pool-design .worktree-chip,#crew-pool-design .workflow-trigger{background:var(--p-soft);border:0;border-radius:7px;padding:4px 8px;color:inherit}
+#crew-pool-design .workflow-anchor{position:relative}
+#crew-pool-design .workflow-menu{position:absolute;left:0;bottom:calc(100% + 10px);width:340px;max-width:calc(100vw - 68px);border:1px solid var(--p-line);border-radius:16px;background:var(--p-bg);padding:14px;box-shadow:0 7px 28px #0002;z-index:11}
+#crew-pool-design .workflow-option{display:block;width:100%;padding:10px;border:0;border-radius:9px;background:transparent;text-align:left}
+#crew-pool-design .workflow-option[aria-pressed=true]{background:var(--p-tint);color:var(--p-blue)}
+#crew-pool-design .workflow-option small{display:block;color:var(--p-muted);font-size:12px;margin-top:3px}
+#crew-pool-design .task-area{margin:16px 0 12px}
+#crew-pool-design .recognize-bar{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+#crew-pool-design .recognize-button{border:0;background:transparent;padding:5px 0;color:var(--p-muted)}
+#crew-pool-design .recognize-button:hover{color:var(--p-fg)}
+#crew-pool-design .task-proposal{border:1px solid var(--p-line);border-radius:14px;padding:15px;margin-top:10px;background:var(--p-bg)}
+#crew-pool-design .task-proposal strong{font-weight:500}
+#crew-pool-design .task-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+#crew-pool-design .task-fields label{display:block;color:var(--p-muted);font-size:12px}
+#crew-pool-design .task-fields select{display:block;width:100%;min-width:0;border:1px solid var(--p-line);border-radius:8px;padding:8px;color:var(--p-fg);background:var(--p-bg);margin-top:5px}
+#crew-pool-design .task-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+@media(max-width:480px){#crew-pool-design .workflow-menu{left:-78px}}
+#crew-pool-design .agent-controls{display:flex;align-items:center;gap:8px;margin-left:auto;max-width:100%;min-width:0}
+#crew-pool-design .agent-controls .agent-anchor{flex:0 1 auto;min-width:0;max-width:none}
+#crew-pool-design .agent-controls .send,#crew-pool-design .agent-controls .mic-wrap{flex:none}
+#crew-pool-design .intent-switch{margin-right:0}
+#crew-pool-design .workflow-strip{margin:0 auto 0 0}
+#crew-pool-design .bottom .workflow-strip{font-size:12px}
+#crew-pool-design .worktree-chip[aria-pressed=false]{background:transparent;opacity:.6}
+#crew-pool-design .agentbutton{padding:7px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#crew-pool-design .approval-anchor{position:relative;flex:none;min-width:0}
+#crew-pool-design .approval-trigger{max-width:126px;padding:7px 8px;border:0;border-radius:9px;background:var(--p-soft);color:var(--p-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#crew-pool-design .approval-menu{position:absolute;right:calc(-1 * var(--approval-menu-offset,100px));bottom:calc(100% + 12px);width:min(350px,var(--menu-width,350px));border:1px solid var(--p-line);border-radius:15px;padding:14px;background:var(--p-bg);box-shadow:0 7px 28px #0002;z-index:13}
+#crew-pool-design .approval-menu>.small{padding:8px 4px 2px}
+#crew-pool-design .approval-option{display:block;width:100%;padding:9px 10px;border:0;border-radius:9px;background:transparent;text-align:left;color:var(--p-fg)}
+#crew-pool-design .approval-option[aria-pressed=true]{background:var(--p-tint);color:var(--p-blue)}
+#crew-pool-design .approval-option small{display:block;margin-top:3px;color:var(--p-muted);font-size:12px}
+#crew-pool-design .actual-agent{margin-top:10px}
+#crew-pool-design .composer:has(.mic-button[data-recording=true]) .approval-anchor,#crew-pool-design .composer:has(.mic-button:disabled) .approval-anchor,#crew-pool-design .composer:has(.mic-button[data-recording=true]) .workflow-strip,#crew-pool-design .composer:has(.mic-button:disabled) .workflow-strip{display:none}
+#crew-pool-design .composer:has(.mic-button[data-recording=true]) .intent-switch,#crew-pool-design .composer:has(.mic-button:disabled) .intent-switch{display:none}
+#crew-pool-design .app{min-height:820px}
+#crew-pool-design .agent-anchor .picker .choice{padding:5px 8px}
+#crew-pool-design .mode-heading strong{font-weight:500}
+#crew-pool-design .mode-link{border:0;background:transparent;color:var(--p-blue);padding:3px}
+#crew-pool-design .pool-mode-summary{padding:0 6px 4px;font-size:12px;color:var(--p-muted)}
+#crew-pool-design .pool-mode-summary>div{display:flex;justify-content:space-between;gap:12px;padding:3px 0}
+#crew-pool-design .composer{position:relative}
+#crew-pool-design .bottom{flex-wrap:wrap;gap:8px}
+#crew-pool-design .agent-anchor{max-width:calc(100% - 110px)}
+#crew-pool-design .agent-anchor .picker{right:calc(-1 * var(--agent-menu-offset,46px))}
+#crew-pool-design .mic-wrap{display:flex;align-items:center;position:relative;gap:0}
+#crew-pool-design .mic-button,#crew-pool-design .mic-more{display:inline-flex;align-items:center;justify-content:center;border:0;background:transparent;color:var(--p-muted);height:36px;padding:0;border-radius:9px}
+#crew-pool-design .mic-button{width:32px;touch-action:none}
+#crew-pool-design .mic-button svg{width:20px;height:20px}
+#crew-pool-design .mic-more{width:16px}
+#crew-pool-design .mic-button[data-recording=true]{color:var(--p-blue);background:var(--p-tint)}
+#crew-pool-design .voice-menu{position:absolute;right:-44px;bottom:calc(100% + 14px);width:290px;max-width:calc(100vw - 66px);padding:16px;border:1px solid var(--p-line);border-radius:16px;background:var(--p-bg);box-shadow:0 7px 28px #0002;z-index:12}
+#crew-pool-design .voice-menu label{display:block;margin:12px 0 4px;color:var(--p-muted);font-size:12px}
+#crew-pool-design .voice-menu select{width:100%;border:1px solid var(--p-line);border-radius:8px;padding:8px;background:var(--p-bg)}
+#crew-pool-design .voice-progress{margin-right:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+#crew-pool-design .voice-clock{font-size:12px;font-variant-numeric:tabular-nums;color:var(--p-muted)}
+#crew-pool-design .voice-wave{display:flex;align-items:center;gap:2px;height:28px;color:var(--p-muted)}
+#crew-pool-design .voice-wave i{display:block;width:2px;height:var(--bar-height);background:currentColor;border-radius:2px;animation:crew-mic-wave .8s ease-in-out infinite alternate;animation-delay:var(--bar-delay)}
+@keyframes crew-mic-wave{to{transform:scaleY(.3)}}
+#crew-pool-design .voice-status{font-size:12px;color:var(--p-muted);margin:8px 0 0;display:flex;gap:8px;align-items:center}
+#crew-pool-design .voice-cancel{border:0;background:transparent;color:var(--p-muted);padding:2px 6px}
+#crew-pool-design .mic-busy{width:16px;height:16px;border:2px solid var(--p-line);border-top-color:var(--p-blue);border-radius:50%;animation:crew-mic-spin .8s linear infinite}
+@keyframes crew-mic-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){#crew-pool-design .voice-wave i,#crew-pool-design .mic-busy{animation:none}}
+@media(max-width:680px){#crew-pool-design .app{min-height:900px}}
+@media(max-width:480px){#crew-pool-design .voice-progress:not([hidden]){flex-basis:100%;justify-content:flex-end}#crew-pool-design .voice-menu{right:-44px}}
+</style>
+<script>
+(()=>{
+const root=document.getElementById('crew-pool-design'),q=s=>root.querySelector(s),bottom=q('.bottom'),draft=q('#draft'),send=q('#send'),trigger=q('#agent-trigger');
+const micWrap=document.createElement('div');micWrap.className='mic-wrap';
+micWrap.innerHTML=`<button type="button" class="mic-button" aria-label="Начать голосовой ввод — демонстрация" data-tooltip="Клик — запись; удержание — рация. Правый клик — настройки."><i data-lucide="mic" aria-hidden="true"></i></button><button type="button" class="mic-more" aria-label="Настройки голосового ввода" aria-expanded="false">⌄</button><div class="voice-menu" hidden><div>Голосовой ввод <span class="small">· демо</span></div><label for="voice-provider">Распознавание</label><select id="voice-provider"><option value="local">Локальный (Whisper)</option><option value="browser">Браузер</option></select><label for="voice-lang">Язык</label><select id="voice-lang"><option>Авто</option><option>Русский</option><option>English</option><option>Укра&#1111;нська</option><option>Deutsch</option><option>Français</option><option>Español</option><option>中文</option><option>日本語</option></select><label id="voice-device-label" for="voice-device">Микрофон</label><select id="voice-device"><option>По умолчанию</option><option>Микрофон гарнитуры (пример)</option></select><div class="small" style="margin-top:12px">Запись и распознавание в макете имитируются.</div></div>`;
+send.before(micWrap);
+const progress=document.createElement('div');progress.className='voice-progress';progress.hidden=true;progress.innerHTML='<span class="voice-clock">0:00</span><div class="voice-wave" aria-hidden="true"></div>';bottom.prepend(progress);
+for(let i=0;i<18;i++){const b=document.createElement('i');b.style.setProperty('--bar-height',(5+(i*13%19))+'px');b.style.setProperty('--bar-delay',(-i*.11)+'s');q('.voice-wave').append(b)}
+const status=document.createElement('div');status.className='voice-status';status.hidden=true;status.setAttribute('role','status');status.setAttribute('aria-live','polite');q('.composer').append(status);
+const mic=q('.mic-button'),more=q('.mic-more'),menu=q('.voice-menu');
+let phase='idle',started=0,pressed=0,stopOnRelease=false,timer=null,job=null,selection=null;
+function closeSettings(){menu.hidden=true;more.setAttribute('aria-expanded','false')}
+function settings(){if(phase!=='idle')return;if(menu.hidden){if(!q('#picker').hidden)trigger.click();menu.hidden=false;more.setAttribute('aria-expanded','true')}else closeSettings()}
+function clearTimers(){clearInterval(timer);clearTimeout(job);timer=null;job=null}
+function showPhase(){const rec=phase==='recording',busy=phase==='processing';progress.hidden=!rec;q('.voice-clock').textContent='0:00';mic.disabled=busy;mic.dataset.recording=String(rec);mic.setAttribute('aria-label',rec?'Остановить запись':'Начать голосовой ввод — демонстрация');more.hidden=rec||busy;trigger.disabled=rec||busy;draft.readOnly=rec||busy;status.hidden=!rec&&!busy;status.replaceChildren();if(rec||busy){const t=document.createElement('span');t.textContent=rec?'Слушаю… · демо':'Распознаю… · демо';const cancel=document.createElement('button');cancel.type='button';cancel.className='voice-cancel';cancel.textContent='Отменить · Esc';cancel.onclick=cancelVoice;status.append(t,cancel)}mic.replaceChildren();if(busy){const spinner=document.createElement('span');spinner.className='mic-busy';mic.append(spinner)}else{const icon=document.createElement('i');icon.setAttribute('data-lucide',rec?'square':'mic');icon.setAttribute('aria-hidden','true');mic.append(icon);if(globalThis.lucide)lucide.createIcons({attrs:{width:20,height:20}})}}
+function start(){if(phase!=='idle')return;closeSettings();if(!q('#picker').hidden)trigger.click();selection={from:draft.selectionStart??draft.value.length,to:draft.selectionEnd??draft.value.length};phase='recording';started=performance.now();showPhase();timer=setInterval(()=>{const s=Math.floor((performance.now()-started)/1000);q('.voice-clock').textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0');if(s>=60)stop()},250)}
+function stop(){if(phase!=='recording')return;clearTimers();phase='processing';showPhase();job=setTimeout(()=>{const before=draft.value.slice(0,selection.from),after=draft.value.slice(selection.to),spoken='Проверь также отмену во время ожидания ответа.';const left=before&&!/\s$/.test(before)?' ':'';const right=after&&!/^\s/.test(after)?' ':'';draft.value=before+left+spoken+right+after;const caret=before.length+left.length+spoken.length;phase='idle';showPhase();draft.focus();draft.setSelectionRange(caret,caret);job=null},950)}
+function cancelVoice(){if(phase==='idle')return;clearTimers();phase='idle';showPhase();draft.focus()}
+mic.addEventListener('pointerdown',e=>{if(e.button!==0||phase==='processing')return;e.preventDefault();pressed=performance.now();stopOnRelease=phase==='idle';if(phase==='recording')stop();else start();mic.setPointerCapture?.(e.pointerId)});
+mic.addEventListener('pointerup',()=>{if(stopOnRelease&&performance.now()-pressed>=400)stop();stopOnRelease=false});mic.addEventListener('pointercancel',()=>{if(stopOnRelease)stop();stopOnRelease=false});
+mic.addEventListener('click',e=>{if(e.detail===0){if(phase==='recording')stop();else start()}});mic.addEventListener('contextmenu',e=>{e.preventDefault();settings()});more.onclick=settings;
+q('#voice-provider').onchange=()=>{const browser=q('#voice-provider').value==='browser';q('#voice-device').disabled=browser;q('#voice-device-label').textContent=browser?'Микрофон (только для локального)':'Микрофон'};
+document.addEventListener('click',e=>{if(!e.composedPath().includes(micWrap))closeSettings()});
+root.addEventListener('keydown',e=>{if(e.key==='Escape'){if(phase!=='idle'){e.preventDefault();cancelVoice()}closeSettings()}});
+send.addEventListener('click',e=>{if(phase!=='idle'){e.preventDefault();e.stopImmediatePropagation();stop()}},true);
+const resize=()=>{const right=bottom.getBoundingClientRect().right-q('.agent-anchor').getBoundingClientRect().right;root.style.setProperty('--agent-menu-offset',Math.max(0,right)+'px');root.style.setProperty('--menu-width',Math.max(180,q('.composer').clientWidth-26)+'px')};new ResizeObserver(resize).observe(bottom);resize();
+showPhase();
+})();
+</script>
+<script>
+(()=>{
+const root=document.getElementById('crew-pool-design'),bottom=root.querySelector('.bottom');
+const controls=document.createElement('div');controls.className='agent-controls';
+controls.append(root.querySelector('.agent-anchor'),root.querySelector('.approval-anchor'),root.querySelector('.mic-wrap'),root.querySelector('#send'));bottom.append(controls);
+const syncApproval=()=>{root.style.setProperty('--approval-menu-offset',Math.max(0,bottom.getBoundingClientRect().right-root.querySelector('.approval-anchor').getBoundingClientRect().right)+'px')};new ResizeObserver(syncApproval).observe(bottom);syncApproval();
+})();
+</script>
+<style>
+#crew-pool-design .app{position:relative}
+#crew-pool-design .chat-stage{display:contents}
+#crew-pool-design[data-surface=new] .chat-stage{display:flex;flex:1;flex-direction:column;justify-content:center;gap:24px;min-height:580px;padding-bottom:50px}
+#crew-pool-design[data-surface=new] #new-content{text-align:center}
+#crew-pool-design[data-surface=new] #new-content h2{font-size:24px;font-weight:500}
+#crew-pool-design[data-surface=new] #agent-area{margin-top:0}
+#crew-pool-design[data-surface=new] textarea{min-height:96px}
+#crew-pool-design .project-context{display:flex;align-items:center;gap:8px;flex-wrap:wrap;position:relative}
+#crew-pool-design[data-surface=new] .project-context{padding:9px 12px 15px;margin:0 12px -9px;background:var(--p-soft);border-radius:16px 16px 0 0}
+#crew-pool-design .project-anchor,#crew-pool-design .workspace-anchor{position:relative;min-width:0}
+#crew-pool-design .context-button{display:flex;align-items:center;gap:7px;max-width:100%;border:0;border-radius:8px;background:transparent;padding:5px 8px;color:var(--p-muted);font-size:12px}
+#crew-pool-design .context-button svg{width:16px;height:16px}
+#crew-pool-design .context-button:hover{background:var(--p-bg);color:var(--p-fg)}
+#crew-pool-design .context-popover{position:absolute;bottom:calc(100% + 12px);left:0;width:305px;max-width:calc(100vw - 66px);padding:10px;border:1px solid var(--p-line);border-radius:14px;background:var(--p-bg);box-shadow:0 8px 28px #0002;z-index:16}
+#crew-pool-design[data-surface=chat] .context-popover{top:calc(100% + 10px);bottom:auto}
+#crew-pool-design .context-popover .search{margin-bottom:5px}
+#crew-pool-design .context-item{display:block;text-align:left;width:100%;padding:9px 10px;border:0;border-radius:9px;background:transparent;color:var(--p-fg)}
+#crew-pool-design .context-item[aria-pressed=true]{background:var(--p-tint)}
+#crew-pool-design .context-item small{display:block;color:var(--p-muted);font-size:12px;margin-top:3px}
+#crew-pool-design .workspace-menu label{display:block;margin:8px 10px;color:var(--p-muted);font-size:12px}
+#crew-pool-design .workspace-menu select{width:100%;padding:8px;margin-top:5px;background:var(--p-bg);border:1px solid var(--p-line);border-radius:8px;color:var(--p-fg)}
+#crew-pool-design .workspace-menu .small{padding:7px 10px}
+#crew-pool-design .workflow-strip:has(.workflow-anchor[hidden]){display:none}
+#crew-pool-design .folder-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;background:#10131d52;z-index:30;border-radius:18px}
+#crew-pool-design .folder-window{width:min(760px,100%);border:1px solid var(--p-line);border-radius:16px;background:var(--p-bg);box-shadow:0 20px 70px #0003;overflow:hidden}
+#crew-pool-design .folder-title{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px;background:var(--p-soft)}
+#crew-pool-design .folder-title strong{font-weight:500}
+#crew-pool-design .folder-close,#crew-pool-design .folder-back,#crew-pool-design .folder-up{border:0;border-radius:7px;padding:6px 10px;background:transparent;color:var(--p-muted)}
+#crew-pool-design .folder-toolbar{display:flex;align-items:center;gap:5px;padding:11px 14px;border-bottom:1px solid var(--p-line);flex-wrap:wrap}
+#crew-pool-design .folder-breadcrumb{flex:1;display:flex;gap:2px;min-width:100px;align-items:center;flex-wrap:wrap}
+#crew-pool-design .folder-breadcrumb button{padding:5px 7px;border:0;border-radius:7px;background:var(--p-soft);color:var(--p-fg);font-size:12px}
+#crew-pool-design .folder-search{width:160px;margin:0;padding:7px 9px}
+#crew-pool-design .folder-body{display:grid;grid-template-columns:145px minmax(0,1fr);min-height:310px}
+#crew-pool-design .folder-places{padding:12px 8px;background:var(--p-soft);border-right:1px solid var(--p-line)}
+#crew-pool-design .folder-place{display:flex;width:100%;align-items:center;gap:9px;padding:9px 8px;border:0;border-radius:8px;background:transparent;text-align:left;font-size:12px}
+#crew-pool-design .folder-place[aria-pressed=true]{background:var(--p-tint)}
+#crew-pool-design .place-glyph{display:inline-flex;width:22px;justify-content:center;font-size:18px}
+#crew-pool-design .folder-files{padding:16px;min-width:0}
+#crew-pool-design .folder-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(115px,1fr));gap:10px;margin-top:12px}
+#crew-pool-design .folder-tile{display:flex;flex-direction:column;align-items:center;gap:7px;padding:12px 6px;border:0;border-radius:11px;background:transparent;min-width:0;color:var(--p-fg);text-align:center}
+#crew-pool-design .folder-tile[aria-pressed=true]{background:var(--p-tint)}
+#crew-pool-design .folder-tile>span:last-child{overflow-wrap:anywhere;font-size:12px}
+#crew-pool-design .color-folder{display:inline-flex;align-items:center;justify-content:center;width:52px;height:44px;color:light-dark(#4b9cdc,#71b5ed);font-size:36px}
+#crew-pool-design .color-folder svg{width:44px;height:44px;fill:currentColor;stroke:currentColor}
+#crew-pool-design .color-folder:has(svg) .folder-fallback{display:none}
+#crew-pool-design .color-folder.green{color:light-dark(#48a887,#6cc7a6)}
+#crew-pool-design .color-folder.purple{color:light-dark(#9571d2,#b18be9)}
+#crew-pool-design .color-folder.orange{color:light-dark(#df9d3d,#efb95c)}
+#crew-pool-design .green .folder-fallback{filter:hue-rotate(65deg)}
+#crew-pool-design .purple .folder-fallback{filter:hue-rotate(215deg)}
+#crew-pool-design .color-folder:not(.orange) .folder-fallback{filter:hue-rotate(155deg)}
+#crew-pool-design .color-folder.green .folder-fallback{filter:hue-rotate(65deg)}
+#crew-pool-design .color-folder.purple .folder-fallback{filter:hue-rotate(215deg)}
+#crew-pool-design .folder-footer{border-top:1px solid var(--p-line);padding:14px 18px}
+#crew-pool-design .folder-path-label{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--p-muted)}
+#crew-pool-design .folder-path-label input{flex:1;min-width:0;padding:8px 10px;border:1px solid var(--p-line);border-radius:8px;background:var(--p-soft);color:var(--p-fg)}
+#crew-pool-design .folder-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap}
+#crew-pool-design .folder-action-buttons{display:flex;gap:8px;margin-left:auto}
+@media(max-width:680px){#crew-pool-design .folder-overlay{padding:10px}#crew-pool-design .folder-body{grid-template-columns:1fr}#crew-pool-design .folder-places{display:flex;gap:4px;flex-wrap:wrap;border-right:0;border-bottom:1px solid var(--p-line);padding:6px}#crew-pool-design .folder-place{width:auto}#crew-pool-design .folder-place span:last-child{display:none}#crew-pool-design .folder-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#crew-pool-design .folder-search{width:100%}#crew-pool-design .workspace-menu{left:auto;right:0}#crew-pool-design[data-surface=new] .chat-stage{min-height:600px;padding-bottom:0}}
+</style>
+<script>
+(()=>{
+const root=document.getElementById('crew-pool-design'),q=s=>root.querySelector(s),main=q('main'),app=q('.app');
+const stage=document.createElement('div');stage.className='chat-stage';main.insertBefore(stage,q('#new-content'));stage.append(q('#new-content'),q('#agent-area'));q('#new-content .small').hidden=true;q('.worktree-chip').hidden=true;
+const stored=window.openai?.widgetState?.privateContent||{};
+let project=Object.prototype.hasOwnProperty.call(stored,'project')?stored.project:{name:'crew-harness',path:'/work/Projects/crew-harness',git:true};const pref=stored.workspacePreference||{};let isolated=project?.git&&(pref.isolated??(stored.worktreeOn!==false)),branch=pref.baseBranch||stored.baseBranch||'main',previousPage=null,preparing=q('[data-intent="discuss"]').getAttribute('aria-pressed')==='true';
+let projects=[{name:'crew-harness',path:'/work/Projects/crew-harness',git:true},{name:'ai-dev-methodology',path:'/work/Projects/ai-dev-methodology',git:true},{name:'nova',path:'/work/Projects/nova',git:true}];
+const context=document.createElement('div');context.className='project-context';
+context.innerHTML='<div class="project-anchor"><button type="button" class="context-button project-trigger" aria-expanded="false" aria-label="Выбрать проект"></button><div class="context-popover project-menu" hidden><input class="search project-search" aria-label="Поиск проектов" placeholder="Поиск проектов…"><div class="project-list"></div><hr class="divider"><button class="context-item browse-folders" type="button">＋ Выбрать папку…</button><button class="context-item no-project" type="button">Работать без проекта</button></div></div><div class="workspace-anchor"><button type="button" class="context-button workspace-trigger" aria-expanded="false" aria-label="Рабочая папка и исходная ветка"></button><div class="context-popover workspace-menu" hidden></div></div>';
+q('.composer').before(context);
+const preparationNote=document.createElement('span');preparationNote.className='small preparation-context';preparationNote.textContent='Без ветки · подготовка задания';context.append(preparationNote);
+const overlay=document.createElement('div');overlay.className='folder-overlay';overlay.hidden=true;
+overlay.innerHTML='<section class="folder-window" role="dialog" aria-modal="true" aria-labelledby="folder-dialog-title"><div class="folder-title"><strong id="folder-dialog-title">Выберите папку проекта</strong><button type="button" class="folder-close" aria-label="Закрыть выбор папки">✕</button></div><div class="folder-toolbar"><button type="button" class="folder-back" aria-label="Назад">←</button><button type="button" class="folder-up" aria-label="На уровень выше">↑</button><div class="folder-breadcrumb"></div><input class="search folder-search" placeholder="Поиск в папке…" aria-label="Поиск в папке"></div><div class="folder-body"><nav class="folder-places" aria-label="Места"></nav><div class="folder-files"><div class="small folder-location"></div><div class="folder-grid"></div></div></div><div class="folder-footer"><label class="folder-path-label">Папка<input class="folder-path" readonly></label><div class="folder-actions"><span class="small">Этот компьютер · пример папок</span><div class="folder-action-buttons"><button type="button" class="plain folder-cancel">Отмена</button><button type="button" class="primary folder-choose">Выбрать папку</button></div></div></div></section>';
+app.append(overlay);
+const places=[{name:'Домашняя',glyph:'⌂',path:'/work'},{name:'Рабочий стол',glyph:'🖥',path:'/work/Desktop'},{name:'Загрузки',glyph:'↓',path:'/work/Downloads'},{name:'Документы',glyph:'▤',path:'/work/Documents'},{name:'Проекты',glyph:'📁',path:'/work/Projects'}];
+const fs={
+ '/':[{name:'home',color:'blue'}],'/home':[{name:'user',color:'purple'}],
+ '/work':[{name:'Desktop',color:'blue'},{name:'Downloads',color:'green'},{name:'Documents',color:'orange'},{name:'Projects',color:'purple'}],
+ '/work/Projects':[{name:'crew-harness',color:'blue',git:true},{name:'ai-dev-methodology',color:'purple',git:true},{name:'nova',color:'green',git:true},{name:'sandbox',color:'orange'}],
+ '/work/Desktop':[{name:'Demo',color:'blue'}],'/work/Downloads':[{name:'Examples',color:'green'}],'/work/Documents':[{name:'Notes',color:'orange'},{name:'Research',color:'purple'}]
+};
+let cwd='/work/Projects',selected=null,history=[];
+function emit(){root.dispatchEvent(new CustomEvent('crew:contextchange',{detail:{project,worktreeOn:project?.git&&!preparing?isolated:false,baseBranch:project?.git&&!preparing?branch:null,workspacePreference:{isolated,baseBranch:branch}}}))}
+function closeContext(){q('.project-menu').hidden=true;q('.workspace-menu').hidden=true;q('.project-trigger').setAttribute('aria-expanded','false');q('.workspace-trigger').setAttribute('aria-expanded','false')}
+function pickProject(p){if(p?.git&&!project?.git)isolated=true;project=p;if(!p||!p.git)isolated=false;closeContext();renderContext();emit()}
+function renderProjects(){const list=q('.project-list'),term=q('.project-search').value.toLowerCase();list.replaceChildren();for(const p of projects.filter(p=>p.name.toLowerCase().includes(term))){const b=document.createElement('button');b.className='context-item';b.type='button';b.setAttribute('aria-pressed',p.path===project?.path);b.textContent='▱ '+p.name+(p.path===project?.path?' ✓':'');b.onclick=()=>pickProject(p);list.append(b)}}
+function renderContext(){
+ q('.project-trigger').textContent='▱ '+(project?.name||'Без проекта')+' ⌄';q('.project-trigger').setAttribute('data-tooltip',project?.path||'Сессия хранится в .crew-harness/data/sessions; проект, ветка и worktree не выбраны');
+ q('.workspace-trigger').textContent=project?.git?'⑂ '+(isolated?'от ':'')+branch+' · '+(isolated?'отдельная папка':'папка проекта')+' ⌄':'Без Git';q('.workspace-anchor').hidden=!project||preparing;q('.workspace-trigger').disabled=!project?.git;preparationNote.hidden=!preparing||!project;
+ const menu=q('.workspace-menu');menu.replaceChildren();const head=document.createElement('div');head.className='small';head.textContent='Где работать';menu.append(head);
+ for(const [value,title,hint] of [[true,'Отдельная папка','Git worktree: своя папка и ветка для этого чата'],[false,'Папка проекта','Работать с файлами в выбранной папке проекта']]){const b=document.createElement('button');b.type='button';b.className='context-item';b.setAttribute('aria-pressed',isolated===value);const name=document.createElement('span');name.textContent=(isolated===value?'✓ ':'')+title;const desc=document.createElement('small');desc.textContent=hint;b.append(name,desc);b.onclick=()=>{isolated=value;renderContext();emit()};menu.append(b)}
+ const label=document.createElement('label');label.textContent=isolated?'Создать от ветки':'Ветка';const select=document.createElement('select');select.className='base-branch';for(const name of ['main','develop','feature/ui'])select.add(new Option(name,name,false,name===branch));select.onchange=()=>{branch=select.value;renderContext();emit()};label.append(select);menu.append(label);const note=document.createElement('div');note.className='small';note.textContent=isolated?'Отдельная папка и ветка будут созданы при начале работы.':'Используется рабочая папка выбранного проекта.';menu.append(note);renderProjects();
+}
+q('.project-trigger').onclick=()=>{const open=q('.project-menu').hidden;closeContext();q('.project-menu').hidden=!open;q('.project-trigger').setAttribute('aria-expanded',open);if(open)q('.project-search').focus()};q('.project-search').oninput=renderProjects;
+q('.workspace-trigger').onclick=()=>{const open=q('.workspace-menu').hidden;closeContext();q('.workspace-menu').hidden=!open;q('.workspace-trigger').setAttribute('aria-expanded',open)};
+q('.no-project').onclick=()=>pickProject(null);
+function folderPath(){return selected?cwd.replace(/\/$/,'')+'/'+selected.name:cwd}
+function navigate(path,remember=true){if(remember&&path!==cwd)history.push(cwd);cwd=path;selected=null;q('.folder-search').value='';renderFiles()}
+function renderFiles(){
+ q('.folder-location').textContent=cwd;q('.folder-path').value=folderPath();q('.folder-back').disabled=!history.length;q('.folder-up').disabled=cwd==='/';
+ const crumbs=q('.folder-breadcrumb');crumbs.replaceChildren();const home=document.createElement('button');home.type='button';home.textContent='⌂';home.setAttribute('aria-label','Домашняя папка');home.onclick=()=>navigate('/work');crumbs.append(home);let path='';for(const segment of cwd.split('/').filter(Boolean)){path+='/'+segment;const p=path;const b=document.createElement('button');b.type='button';b.textContent=segment;b.onclick=()=>navigate(p);crumbs.append(b)}
+ const term=q('.folder-search').value.toLowerCase(),grid=q('.folder-grid');grid.replaceChildren();for(const f of (fs[cwd]||[]).filter(f=>f.name.toLowerCase().includes(term))){const b=document.createElement('button');b.className='folder-tile';b.type='button';b.setAttribute('aria-pressed',f.name===selected?.name);b.setAttribute('data-folder',f.name);const icon=document.createElement('span');icon.className='color-folder '+(f.color||'blue');icon.setAttribute('aria-hidden','true');icon.innerHTML='<i data-lucide="folder"></i><span class="folder-fallback">📁</span>';const name=document.createElement('span');name.textContent=f.name;b.append(icon,name);b.onclick=()=>{selected=f;grid.querySelectorAll('.folder-tile').forEach(tile=>tile.setAttribute('aria-pressed',tile===b));q('.folder-path').value=folderPath()};b.ondblclick=()=>navigate(cwd.replace(/\/$/,'')+'/'+f.name);b.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();navigate(cwd.replace(/\/$/,'')+'/'+f.name)}};grid.append(b)}
+ if(!(fs[cwd]||[]).length){const empty=document.createElement('div');empty.className='small';empty.textContent='Папка пуста';grid.append(empty)}
+ q('.folder-places').replaceChildren();for(const p of places){const b=document.createElement('button');b.type='button';b.className='folder-place';b.setAttribute('aria-pressed',p.path===cwd);const icon=document.createElement('span');icon.className='place-glyph';icon.textContent=p.glyph;const name=document.createElement('span');name.textContent=p.name;b.append(icon,name);b.onclick=()=>navigate(p.path);q('.folder-places').append(b)}
+ if(globalThis.lucide)lucide.createIcons({attrs:{width:20,height:20}});
+}
+function openFolders(){closeContext();overlay.hidden=false;navigate('/work/Projects',false);history=[];renderFiles();q('.folder-search').focus()}
+function closeFolders(){overlay.hidden=true;q('.project-trigger').focus()}
+q('.browse-folders').onclick=openFolders;q('.folder-close').onclick=closeFolders;q('.folder-cancel').onclick=closeFolders;q('.folder-search').oninput=renderFiles;
+q('.folder-back').onclick=()=>{if(history.length)navigate(history.pop(),false)};q('.folder-up').onclick=()=>navigate(cwd.split('/').slice(0,-1).join('/')||'/');
+q('.folder-choose').onclick=()=>{const path=folderPath(),name=path.split('/').pop()||'Проект';const existing=projects.find(p=>p.path===path),item=existing||{name,path,git:selected?.git===true};if(!existing)projects.push(item);pickProject(item);closeFolders()};
+overlay.onclick=e=>{if(e.target===overlay)closeFolders()};overlay.onkeydown=e=>{if(e.key==='Escape'){e.stopPropagation();closeFolders()}if(e.key==='Tab'){const controls=[...overlay.querySelectorAll('button:not(:disabled),input')].filter(n=>n.getClientRects().length);const first=controls[0],last=controls.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}};
+document.addEventListener('click',e=>{if(!e.composedPath().includes(context))closeContext()});root.addEventListener('keydown',e=>{if(e.key==='Escape')closeContext()});
+function syncPage(page){root.dataset.surface=page;if(page==='new'){q('.composer').before(context);if(previousPage!=='new')q('#draft').value='';}else{main.querySelector('header').append(context)}previousPage=page;renderContext()}
+root.addEventListener('crew:page',e=>syncPage(e.detail.page));syncPage(q('[data-page="new"]').getAttribute('aria-pressed')==='true'?'new':q('[data-page="pool"]').getAttribute('aria-pressed')==='true'?'pool':'chat');
+root.addEventListener('crew:selectproject',e=>pickProject(e.detail.project));
+root.addEventListener('crew:intentchange',e=>{if(preparing===e.detail.preparation)return;preparing=e.detail.preparation;closeContext();renderContext();emit()});
+})();
+</script>
+<style>
+#crew-pool-design .app{grid-template-columns:275px minmax(0,1fr);min-height:860px}
+#crew-pool-design aside.sessions-sidebar{position:relative;display:flex;flex-direction:column;padding:18px 10px 12px;background:light-dark(#faf9f6,#232426);gap:0}
+#crew-pool-design .sidebar-header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 10px 15px}
+#crew-pool-design .sidebar-brand{border:0;background:transparent;color:var(--p-fg);font-size:20px;font-weight:500;padding:0}
+#crew-pool-design .sidebar-tools{display:flex;gap:8px}
+#crew-pool-design .sidebar-icon{border:0;background:transparent;color:var(--p-muted);width:28px;height:30px;padding:0;font-size:20px}
+#crew-pool-design .sidebar-icon span{filter:grayscale(1)}
+#crew-pool-design .new-chat-button{margin:0 0 12px;padding:9px 13px;font-size:14px}
+#crew-pool-design .sidebar-body{display:flex;flex-direction:column;flex:1;min-width:0}
+#crew-pool-design .sidebar-heading{color:var(--p-muted);font-weight:500;padding:15px 12px 8px;font-size:13px}
+#crew-pool-design .session-link,#crew-pool-design .navbutton.session-link{display:block;width:100%;min-width:0;text-align:left;border:0;border-radius:10px;padding:8px 12px;margin:0;background:transparent;color:var(--p-fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px}
+#crew-pool-design .project-sessions .session-link{padding-left:35px}
+#crew-pool-design .session-link:hover{background:var(--p-soft)}
+#crew-pool-design .session-link[aria-current=page],#crew-pool-design .navbutton.session-link[aria-current=page]{background:light-dark(#e9edeb,#353d3b)}
+#crew-pool-design .sidebar-project{margin:7px 0}
+#crew-pool-design .sidebar-project summary{display:flex;align-items:center;gap:8px;list-style:none;padding:7px 12px;font-size:13px;border-radius:9px;cursor:pointer}
+#crew-pool-design .sidebar-project summary::-webkit-details-marker{display:none}
+#crew-pool-design .sidebar-project summary:hover{background:var(--p-soft)}
+#crew-pool-design .sidebar-project:not([open]) summary{color:var(--p-muted)}
+#crew-pool-design .sidebar-show-more{display:block;border:0;background:transparent;color:var(--p-muted);font-size:12px;padding:6px 12px 6px 35px}
+#crew-pool-design .sidebar-footer{margin-top:auto;padding-top:18px}
+#crew-pool-design .sidebar-footer .navbutton{color:var(--p-muted);font-size:12px;margin:0;padding:8px 12px}
+#crew-pool-design .sidebar-search{width:calc(100% - 12px);margin:0 6px 6px;font-size:13px}
+#crew-pool-design .sidebar-notice{position:absolute;top:56px;left:14px;right:14px;z-index:20;padding:12px;border:1px solid var(--p-line);border-radius:10px;box-shadow:0 6px 20px #0001;background:var(--p-bg);font-size:12px}
+@media(max-width:680px){#crew-pool-design .app{grid-template-columns:1fr;min-height:900px}#crew-pool-design aside.sessions-sidebar{display:grid;grid-template-columns:1fr auto;padding:12px;gap:6px}#crew-pool-design .sidebar-header{padding:0 4px}#crew-pool-design .new-chat-button{margin:0;padding:6px 10px}#crew-pool-design .sidebar-body{grid-column:1/-1;display:none}#crew-pool-design .sidebar-search{grid-column:1/-1;margin:4px 0;width:100%}#crew-pool-design aside[data-expanded=true] .sidebar-body{display:flex}#crew-pool-design .sidebar-footer{margin-top:12px}}
+</style>
+<script>
+(()=>{
+const root=document.getElementById('crew-pool-design'),side=root.querySelector('.sessions-sidebar'),q=s=>side.querySelector(s);
+const known=new Map(['crew-harness','ai-dev-methodology','nova'].map(name=>[name,{name,path:'/work/Projects/'+name,git:true}]));let active=null,sequence=0;
+function markActive(){side.querySelectorAll('.session-link').forEach(b=>{if(b.dataset.session===active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');b.setAttribute('data-tooltip',b.textContent.trim())})}
+side.addEventListener('click',e=>{const row=e.target.closest('.session-link');if(!row)return;active=row.dataset.session;const project=row.dataset.project?(known.get(row.dataset.project)||{name:row.dataset.project,path:'/work/Projects/'+row.dataset.project,git:true}):null;root.dispatchEvent(new CustomEvent('crew:selectproject',{detail:{project}}));root.dispatchEvent(new CustomEvent('crew:opensession',{detail:{title:row.textContent.trim()}}));markActive()});
+root.addEventListener('crew:sessioncreated',e=>{
+ const {title,project}=e.detail;let list=q('.unassigned-sessions');
+ if(project){known.set(project.name,project);let group=[...side.querySelectorAll('.sidebar-project')].find(d=>d.dataset.project===project.name);if(!group){group=document.createElement('details');group.className='sidebar-project';group.dataset.project=project.name;const summary=document.createElement('summary');summary.textContent='▱ '+project.name;list=document.createElement('div');list.className='project-sessions';group.append(summary,list);const before=q('.unassigned-sessions').previousElementSibling;before.parentElement.insertBefore(group,before)}group.open=true;list=group.querySelector('.project-sessions');}
+ const button=document.createElement('button');button.type='button';button.className='session-link';button.textContent=title;button.dataset.session='demo-'+(++sequence);button.dataset.project=project?.name||'';list.prepend(button);active=button.dataset.session;markActive();
+});
+root.addEventListener('crew:page',e=>{if(e.detail.page!=='chat')active=null;markActive()});
+q('.sidebar-show-more').onclick=()=>{const more=q('.more-sessions');more.hidden=!more.hidden;q('.sidebar-show-more').textContent=more.hidden?'Показать больше':'Свернуть'};
+q('.sidebar-search-toggle').onclick=()=>{const field=q('.sidebar-search');field.hidden=!field.hidden;if(!field.hidden)field.focus();else{field.value='';filterSessions()}};
+function filterSessions(){const term=q('.sidebar-search').value.toLowerCase();for(const b of side.querySelectorAll('.session-link'))b.hidden=Boolean(term)&&!b.textContent.toLowerCase().includes(term);for(const group of side.querySelectorAll('.sidebar-project')){const nameMatch=Boolean(term)&&group.dataset.project.toLowerCase().includes(term);if(nameMatch)group.querySelectorAll('.session-link').forEach(b=>b.hidden=false);group.hidden=Boolean(term)&&![...group.querySelectorAll('.session-link')].some(b=>!b.hidden);if(term&&!group.hidden){group.open=true;const extra=group.querySelector('.more-sessions');if(extra)extra.hidden=false;}}}
+q('.sidebar-search').oninput=filterSessions;
+q('.sidebar-toggle').onclick=()=>{const expanded=side.dataset.expanded!=='true';side.dataset.expanded=String(expanded);q('.sidebar-toggle').setAttribute('aria-expanded',expanded)};
+q('.sidebar-notifications').onclick=()=>{q('.sidebar-notice').hidden=!q('.sidebar-notice').hidden};
+document.addEventListener('click',e=>{if(!e.composedPath().includes(q('.sidebar-notifications')))q('.sidebar-notice').hidden=true});
+markActive();
+})();
+</script>
