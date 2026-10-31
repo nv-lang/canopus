@@ -1,0 +1,25 @@
+{
+  "kind":"machine","alula_version":"0.28","machine":"WorkModePolicy","revision":1,"title":"Политика режима работы",
+  "parties":[{"name":"хаб","id":"hub","kind":"free_input","signals":[{"name":"interactive"},{"name":"fast"},{"name":"full"},{"name":"draft"},{"name":"recognize"},{"name":"execute"},{"name":"tree"},{"name":"repository"},{"name":"close"}]}],
+  "initial":"Preparation",
+  "states":[
+    {"name":"Preparation","kind":"appeal","reads":[],"party":"хаб","rows":[
+      {"n":1,"event":{"kind":"signal","name":"interactive"},"to":"Interactive"},
+      {"n":2,"event":{"kind":"signal","name":"fast"},"to":"Interactive"},
+      {"n":3,"event":{"kind":"signal","name":"full"},"to":"Interactive"},
+      {"n":4,"event":{"kind":"signal","name":"draft"},"to":"@same"},
+      {"n":5,"event":{"kind":"signal","name":"recognize"},"to":"@same"},
+      {"n":6,"event":{"kind":"signal","name":"close"},"to":"Closed"}
+    ]},
+    {"name":"Interactive","kind":"appeal","reads":[],"party":"хаб","rows":[
+      {"n":1,"event":{"kind":"signal","name":"draft"},"to":"@same"},
+      {"n":2,"event":{"kind":"signal","name":"recognize"},"to":"@same"},
+      {"n":3,"event":{"kind":"signal","name":"execute"},"to":"@same"},
+      {"n":4,"event":{"kind":"signal","name":"tree"},"to":"@same"},
+      {"n":5,"event":{"kind":"signal","name":"repository"},"to":"@same"},
+      {"n":6,"event":{"kind":"signal","name":"close"},"to":"Closed"}
+    ]},
+    {"name":"Closed","kind":"end","reads":[]}
+  ],
+  "ends":{"result":"text","rows":[{"state":"Closed","n":1,"when":{"op":"lit","value":true},"answer":{"kind":"answer","value":{"op":"lit","value":"closed"}}}]}
+}

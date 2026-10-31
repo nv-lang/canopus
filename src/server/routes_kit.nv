@@ -588,6 +588,8 @@ export fn scenario_route_publish(settings ServerSettings) Proc Detach Time Net F
 export fn scenario_route_planning(settings ServerSettings) Proc Detach Time Net Fs Os -> str {
     mut c = kit_check()
     ro repo = settings.workdir
+    ro branches_before = git_run(repo, ["branch", "--list"]).text
+    ro head_before = git_run(repo, ["symbolic-ref", "HEAD"]).text
     mut rig = rig_open(settings)
     rig.attach(1)
     rig.page(1, "session_created", "s-r5", "{\"name\":\"План\",\"agent\":\"opencode\",\"route\":\"planning\",\"worktree\":true}")
@@ -595,29 +597,58 @@ export fn scenario_route_planning(settings ServerSettings) Proc Detach Time Net 
     rig.run(300)
     ro st0 = rk_last(rig.all_lines_for(1), "route_state")
     c.expect(jtext(st0, "route") == "planning", "the session was made in the mode planning: ${jtext(st0, "route")}")
-    c.expect(rk_array(st0, "steps").len() == 4, "planning has four steps: ${rk_array(st0, "steps").len()}")
+    c.expect(rk_array(st0, "steps").len() == 0, "preparation has no execution steps")
+    c.expect(rig.hub.sessions[rig.hub.find("s-r5")].clients.len() == 0, "ordinary ACP is refused before spawn")
+    rig.page(1, "session_agent", "s-r5", "{\"agent\":\"second\"}")
+    rig.run(100)
+    c.expect(rig.hub.sessions[rig.hub.find("s-r5")].clients.len() == 0, "switching the family cannot bypass fail-closed")
     rig.page(1, "user_message", "s-r5", "{\"turn\":\"t1\",\"text\":\"подготовь задание\"}")
-    c.expect(rig.until(KIT_DONE, 20000), "the first message is answered")
+    c.expect(rig.until("ограниченный backend не подключён", 5000), "the unsupported backend is explicitly refused")
     rig.run(300)
     ro lines1 = rig.lines_for(1)
     ro echo = answer_of(lines1, line_input(first_of(lines1, "user_message", 0), "turn"))
-    c.expect(echo.contains("Режим «Планирование»"), "the instruction of the planning is put before the message: ${echo}")
+    c.expect(echo == "", "no prompt goes to an unrestricted ACP agent")
     ro st1 = rk_last(rig.all_lines_for(1), "route_state")
     ro task = rk_task(st1)
     ro id = jtext(task, "id")
     ro dir = "${settings.data_dir}/s-r5/tasks/${id}/task"
-    c.expect(id.starts_with("001-"), "the task is numbered: ${id}")
+    c.expect(id == "draft", "the draft does not reserve a task number: ${id}")
     c.expect(jtext(task, "worktree") == "" && jtext(task, "branch") == "", "the planning makes no tree")
     c.expect(!dir_there("${repo}/../worktrees"), "no folder of trees is made")
     c.expect(rk_text("${dir}/message.1.md").contains("подготовь задание"), "message.1.md is in the data folder")
-    c.expect(rk_boxes_done("${dir}/progress.1.md") == 0 && parse_progress(rk_text("${dir}/progress.1.md")).total == 4, "progress.1.md holds four boxes")
+    c.expect(parse_progress(rk_text("${dir}/progress.1.md")).total == 0, "the draft has no execution checklist")
 
     rig.page(1, "route_run", "s-r5", "{}")
-    c.expect(rig.wait_steps("done", 4, 90000), "the four steps pass, with the review of another family")
+    rig.run(500)
     rig.run(500)
     ro st2 = rk_last(rig.all_lines_for(1), "route_state")
     c.expect(!rk_task_is_null(st2) && !((rk_task(st2).get("closed") ?? JsonValue.null()).bool() ?? false), "the planning leaves the task open")
-    c.expect(kit_with(rig.lines_for(1), "Независимая проверка (second)") >= 1, "the review of the assignment is in the feed")
+    c.expect(kit_with(rig.lines_for(1), "Независимая проверка (second)") == 0, "preparation does not launch an independent executor")
+    rig.page(1, "session_worktree", "s-r5", "{\"on\":true}")
+    rig.run(300)
+    c.expect(!dir_there("${repo}/../worktrees"), "a forged worktree signal cannot create a tree in preparation")
+    for signal in ["route_merge", "route_publish", "route_tests_run", "route_children_merge", "route_subtask_worktree", "route_subtask_parallel", "route_new_task", "route_tree_drop"] {
+        rig.page(1, signal, "s-r5", "{\"n\":1,\"on\":true,\"force\":true}")
+    }
+    rig.run(300)
+    c.expect(jtext(rk_state(rig), "route") == "planning", "forged execution signals do not leave preparation")
+    c.expect(!dir_there("${repo}/../worktrees"), "forged execution signals create no tree")
+    // Inject the already recognised list at the server boundary: no unsafe external transport is used by this test.
+    ro items_text = "{\"tasks\":${JsonValue.array([rk_item("new", "Черновик", 0, ["src/code.nv"])]).to_str()}}"
+    ro items = match proposals_of_list_text(items_text) { Ok(items) => items, Err(e) => panic(e) }
+    ro prep_at = rig.hub.find("s-r5")
+    ro offered = rig.hub.ct_list_offer(prep_at, items)
+    rig.hub.route_broadcast(prep_at, true)
+    rig.run(100)
+    c.expect(offered == 1, "recognised statements are accepted without starting an executor")
+    ro recognized = rk_state(rig)
+    rig.page(1, "route_prop", "s-r5", "{\"id\":${rk_card_id(recognized, "Черновик")},\"action\":\"start\",\"mode\":\"new\",\"run\":\"full\"}")
+    rig.run(500)
+    c.expect(rk_text("${dir}/drafts/${task_slug("Черновик")}/task/message.md").contains("сделать: Черновик"), "confirmation writes a statement, not implementation")
+    c.expect(jtext(rk_state(rig), "route") == "planning", "confirmation keeps preparation selected")
+    c.expect(!dir_there("${repo}/../worktrees"), "a forged full route on the proposal does not start execution")
+    c.expect(git_run(repo, ["branch", "--list"]).text == branches_before, "preparation and forged signals create or switch no branch")
+    c.expect(git_run(repo, ["symbolic-ref", "HEAD"]).text == head_before, "preparation does not switch HEAD")
 
     // the assignment and a picture are in the folder of the task; the owner chooses a mode that does the task
     ro more = append_file("${dir}/message.1.md", "\n## Задание\n\nцель\n\n![картинка](images/image-1.png)\n")
@@ -627,8 +658,8 @@ export fn scenario_route_planning(settings ServerSettings) Proc Detach Time Net 
     ro st3 = rk_last(rig.all_lines_for(1), "route_state")
     ro tree = jtext(rk_task(st3), "worktree")
     c.expect(jtext(rk_task(st3), "id") == id, "the task stays the same: ${jtext(rk_task(st3), "id")}")
-    c.expect(tree.byte_len() > 0 && dir_there(tree), "the tree is made when the planning is left: ${tree}")
-    ro moved = "${tree}/doc/tasks/${id}/task"
+    c.expect(tree == "", "changing the mode does not start execution or create a tree")
+    ro moved = dir
     c.expect(rk_text("${moved}/message.1.md").contains("## Задание"), "the assignment went into the tree")
     c.expect(path_there("${moved}/images/image-1.png"), "the pictures went with it")
     c.expect(parse_progress(rk_text("${moved}/progress.1.md")).total == 6 && rk_boxes_done("${moved}/progress.1.md") == 0, "the checklist is made again for the six steps")
@@ -646,7 +677,30 @@ export fn scenario_route_planning(settings ServerSettings) Proc Detach Time Net 
     }
     c.expect(echo2.contains("[crew] в конце") && echo2.contains("раздел «Задание»"), "the agent is told the assignment is the statement: ${echo2.byte_len()}")
     c.expect(echo2.contains("images/"), "and where the pictures are")
+    rig.page(1, "session_route", "s-r5", "{\"route\":\"planning\"}")
+    rig.run(200)
+    c.expect(rig.hub.sessions[rig.hub.find("s-r5")].clients.len() == 0, "entering preparation closes an already opened unrestricted ACP client")
+    c.expect(rk_text("${dir}/drafts/${task_slug("Черновик")}/task/message.md").contains("сделать: Черновик"), "switching modes keeps the saved statement")
     rig.shut()
+    mut again = rig_open(settings)
+    again.attach(1)
+    c.expect(jtext(rk_state(again), "route") == "planning", "restart restores preparation")
+    c.expect(rk_text("${dir}/drafts/${task_slug("Черновик")}/task/message.md").contains("сделать: Черновик"), "restart preserves the statement")
+    c.expect(again.hub.sessions[again.hub.find("s-r5")].clients.len() == 0, "restart does not bypass the backend refusal")
+    again.page(1, "session_route", "s-r5", "{\"route\":\"interactive\"}")
+    again.page(1, "session_worktree", "s-r5", "{\"on\":false}")
+    again.page(1, "user_message", "s-r5", "{\"turn\":\"normal-after-restart\",\"text\":\"обычная беседа после перезапуска\"}")
+    mut normal = ""
+    mut normal_waited = 0
+    while normal_waited < 20000 && !normal.ends_with("обычная беседа после перезапуска") {
+        again.run(300)
+        normal_waited += 300
+        ro normal_lines = again.lines_for(1)
+        normal = answer_of(normal_lines, rk_last_turn(normal_lines))
+    }
+    c.expect(normal.ends_with("обычная беседа после перезапуска"), "switching back to interactive after restart restores ordinary conversation")
+    c.expect(again.hub.sessions[again.hub.find("s-r5")].clients.len() > 0, "interactive starts a fresh ordinary ACP client after the preparation refusal")
+    again.shut()
     c.report()
 }
 

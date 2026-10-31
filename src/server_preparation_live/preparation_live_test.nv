@@ -1,0 +1,9 @@
+module crew_harness.server_preparation_live
+
+import crew_harness.server.{kit_routes_git, scenario_route_planning}
+
+test "preparation: statement confirmation and forged execution signals create no tree; mode switch keeps the draft" {
+    ro report = scenario_route_planning(kit_routes_git("preparation-271"))
+    if report.byte_len() > 0 { panic(report) }
+    assert(report == "")
+}

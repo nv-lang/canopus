@@ -1,0 +1,34 @@
+module crew_harness.server
+
+import crew_harness.product_machines.{tree_text, product_registry}
+import alula.machine.{NamedText}
+import alula.machine_text.{translate_checked_with, error_text}
+
+test "preparation: Alula table and runtime JSON enforce the same capabilities" {
+    ro report = translate_checked_with(tree_text("machines/product/work-mode.alula.md"), product_registry(), []NamedText.new())
+    for error in report.errors { panic(error_text(error, "work-mode.alula.md")) }
+    assert(report.errors.len() == 0)
+    ro table = match work_mode_machine(report.json, product_registry()) { Ok(m) => m, Err(e) => panic(e) }
+    ro stored = match work_mode_machine(tree_text("machines/product/work-mode.alula.json"), product_registry()) { Ok(m) => m, Err(e) => panic(e) }
+    for route in ["planning", "interactive", "fast", "full", "unknown"] {
+        for op in ["execute", "tree", "repository", "draft", "recognize", "unknown"] {
+            assert(work_mode_allows(table, route, op) == work_mode_allows(stored, route, op))
+        }
+    }
+}
+
+test "preparation: Alula denies execution and git lifecycle, but keeps discussion and statements" {
+    ro m = match work_mode_machine(tree_text("machines/product/work-mode.alula.json"), product_registry()) {
+        Ok(m) => m
+        Err(e) => panic(e)
+    }
+    for route in ["planning", "", "unknown"] {
+        for op in ["execute", "tree", "repository", "shell", "native_write"] { assert(!work_mode_allows(m, route, op)) }
+        assert(work_mode_allows(m, route, "draft"))
+        assert(work_mode_allows(m, route, "recognize"))
+    }
+    for route in ["interactive", "fast", "full"] {
+        for op in ["execute", "tree", "repository", "draft", "recognize"] { assert(work_mode_allows(m, route, op)) }
+        assert(!work_mode_allows(m, route, "unknown"))
+    }
+}
