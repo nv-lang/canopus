@@ -152,6 +152,7 @@ fn Hub @ct_auto_target(at int, p Proposal) -> int {
 
 // The addition is applied: the text goes to message.md of K with the date, the agent of K gets a service turn, the journal and the feed of the session `at` tell it. false - not applied (a card goes).
 fn Hub mut @ct_auto_extend(at int, p Proposal) Proc Detach Time -> bool {
+    if !@work_allowed(at, "execute") { return false }
     ro found = @ct_auto_target(at, p)
     if found < 0 { return false }
     ro c = @sessions[found]
@@ -254,7 +255,6 @@ fn Hub mut @ct_offer(at int, p0 Proposal) Proc Detach Time -> str {
     p.source = s.rt.last_msg
     ro own = p.extends > 0 && @cs_find_number(p.extends) == at
     if @ct_auto_extend(at, p) { return if own { @prompt("auto_extend_own", AUTO_EXTEND_OWN_TEXT) } else { @prompt("auto_extend", AUTO_EXTEND_TEXT) } }
-    if s.rt.route == "planning" { return NOT_NEEDED_TEXT }
     if was_refused(s.rt.dismissed, p.title) { return REFUSED_TEXT }
     if has_proposal(s.rt.props, p.title) { return SHOWN_TEXT }
     mut me = @sessions[at]
@@ -328,6 +328,7 @@ fn Hub @ct_has_steps(s Dialog) -> bool => @route_doc(s.rt.route).steps.len() > 0
 
 // Task 192.3: the work becomes a child session (`child_hub.nv`); with the setting `route_children` off the old way (a subtask inside the session) is kept.
 fn Hub mut @ct_create(at int, p Proposal, how str, queued bool) Proc Detach Time -> () {
+    if !@work_require(at, "execute") { return }
     if @settings.route_children { @cs_spawn(at, p, how, queued) } else { @ct_create_old(at, p, how, queued) }
 }
 
@@ -398,6 +399,7 @@ fn Hub mut @ct_create_old(at int, p Proposal, how str, queued bool) Proc Detach 
 
 // The work extends subtask `n`: the summary is added to its file with the date.
 fn Hub mut @ct_extend(at int, p Proposal, n int) Proc Detach Time -> () {
+    if !@work_allowed(at, "execute") { @ct_prepare(at, p); return }
     if @cs_extend(at, p, n) { return }
     ro s = @sessions[at]
     mut title = ""
@@ -419,6 +421,7 @@ fn Hub mut @ct_extend(at int, p Proposal, n int) Proc Detach Time -> () {
 
 // The card says "new": the files of the other works and the limit are looked at before anything is made.
 fn Hub mut @ct_try(at int, p0 Proposal, how str, over bool, queue bool) Proc Detach Time -> () {
+    if !@work_allowed(at, "execute") { @ct_prepare(at, p0); return }
     mut p = proposal_copy(p0)
     ro s = @sessions[at]
     ro running = @ct_running(s)
@@ -542,6 +545,7 @@ fn Hub mut @ct_word(at int, text str) Proc Detach Time -> bool {
 
 // A waiting subtask starts when the one it waits for is done and the limit allows; one start for each look.
 fn Hub mut @ct_queue(at int) Proc Detach Time -> () {
+    if !@work_allowed(at, "execute") { return }
     ro s = @sessions[at]
     if !s.rt.task_open || s.rt.task_closed || s.rt.tstate != "active" { return }
     ro running = @ct_running(s)

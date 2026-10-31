@@ -10,7 +10,8 @@ import {
 } from './crew-task.js';
 
 // подписи переключателей: ключи литералами (проверка strings.test.mjs ищет их в исходниках)
-const choiceLabel = (c) => (c === 'work' ? t('crewtask.choice_work') : c === 'forget' ? t('crewtask.choice_forget') : t('crewtask.choice_discuss'));
+const choiceLabel = (c, preparation = false) => (c === 'work' ? (preparation ? 'Подготовить задание' : t('crewtask.choice_work')) : c === 'forget' ? t('crewtask.choice_forget') : t('crewtask.choice_discuss'));
+const actionLabel = (a, session) => session.route === 'planning' && ['start', 'extend', 'wait', 'parallel', 'over', 'queue'].includes(a.action) ? 'Сохранить постановку' : a.label;
 
 /**
  * handlers: { onCrewProp(trace, id, action, opts), onCrewRecognize(trace), onCrewApply(trace, items), onSelect(trace), onChildrenMerge(trace) }.
@@ -75,10 +76,10 @@ export function createCrewTaskUi(doc, handlers, deps = {}) {
     const body = rows.map((p) => {
       const key = `${session.id}:${p.id}`;
       const radios = CHOICES.map((c) => {
-        const input = h(doc, 'input', { type: 'radio', name: `crew-choice-${key}`, value: c, 'aria-label': choiceLabel(c) });
+        const input = h(doc, 'input', { type: 'radio', name: `crew-choice-${key}`, value: c, 'aria-label': choiceLabel(c, session.route === 'planning') });
         input.checked = choiceOf(p) === c;
         input.addEventListener('change', () => { choices.set(key, c); sig = ''; render(current); });
-        return h(doc, 'label', { class: 'crew-choice', 'data-choice': c }, input, h(doc, 'span', { text: choiceLabel(c) }));
+        return h(doc, 'label', { class: 'crew-choice', 'data-choice': c }, input, h(doc, 'span', { text: choiceLabel(c, session.route === 'planning') }));
       });
       return h(doc, 'tr', { class: 'crew-row', 'data-choice': choiceOf(p), 'data-id': String(p.id) },
         h(doc, 'td', { class: 'crew-no', text: String(p.number) }),
@@ -89,7 +90,7 @@ export function createCrewTaskUi(doc, handlers, deps = {}) {
         h(doc, 'td', { class: 'crew-way-cell' }, choiceOf(p) === 'work' ? wayControls(session, crew, p) : false));
     });
     const counts = applyCounts(rows, local);
-    const apply = button(applyLabel(counts), 'primary crew-apply', () => {
+    const apply = button(session.route === 'planning' ? 'Применить без запуска исполнения' : applyLabel(counts), 'primary crew-apply', () => {
       handlers.onCrewApply(session.id, applyPlan(rows, local, ways_for(session), agents_for(session), crew));
     });
     const table = rows.length === 0 ? false : h(doc, 'table', { class: 'crew-table' },
@@ -100,7 +101,7 @@ export function createCrewTaskUi(doc, handlers, deps = {}) {
     const problemList = problems.length === 0 ? false : h(doc, 'ul', { class: 'crew-rows' }, ...problems.map((p) => h(doc, 'li', { class: 'crew-row', 'data-state': p.state },
       h(doc, 'span', { class: 'crew-row-text', text: rowText(p, p.number) }),
       h(doc, 'span', { class: 'crew-row-problem', text: problemText(p, crew) }),
-      h(doc, 'span', { class: 'route-actions' }, ...rowActions(p, '').map((a) => button(a.label, a.primary ? 'primary' : '', () => press(session, crew, p, a.action)))))));
+      h(doc, 'span', { class: 'route-actions' }, ...rowActions(p, '').map((a) => button(actionLabel(a, session), a.primary ? 'primary' : '', () => press(session, crew, p, a.action)))))));
     return h(doc, 'section', { class: 'route-card crew-list', 'data-card': 'crew-list' },
       h(doc, 'strong', { class: 'route-card-title', text: t('crewtask.list_title') }),
       table,
@@ -190,7 +191,7 @@ export function createCrewTaskUi(doc, handlers, deps = {}) {
       problem ? h(doc, 'span', { class: 'crew-row-problem', text: problem }) : false,
       h(doc, 'div', { class: 'route-actions' },
         ...rowActions(p, chosen(session, crew, p).way).filter((a) => a.action !== 'discuss').map((a) => {
-          const b = button(a.action === 'forget' ? t('crewtask.act_not_task') : a.label, a.primary ? 'primary' : '', () => press(session, crew, p, a.action === 'forget' ? 'dismiss' : a.action));
+          const b = button(a.action === 'forget' ? t('crewtask.act_not_task') : actionLabel(a, session), a.primary ? 'primary' : '', () => press(session, crew, p, a.action === 'forget' ? 'dismiss' : a.action));
           if (a.action === 'forget') b.setAttribute('title', t('crewtask.act_not_task_title'));
           else if (a.primary) b.setAttribute('title', startTip);
           return b;
@@ -207,7 +208,7 @@ export function createCrewTaskUi(doc, handlers, deps = {}) {
     const problems = problemRows(crew);
     const single = singleCard(crew);
     const show = recognizeShown(session);
-    const next = JSON.stringify([session && session.id, show, crew, [...ways], [...agents], [...choices], [...runs], [...kidsOff].map(([k, v]) => [k, [...v]]), agentList()]);
+    const next = JSON.stringify([session && session.id, session && session.route, show, crew, [...ways], [...agents], [...choices], [...runs], [...kidsOff].map(([k, v]) => [k, [...v]]), agentList()]);
     if (next === sig) return;
     sig = next;
     if (!show) { el.hidden = true; el.replaceChildren(); return; }

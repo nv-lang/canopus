@@ -11,6 +11,7 @@ import alula.machine_run.{AlulaMachine, AlulaState, Test, TestRun, drive_test, p
 fn machine_named(name str) -> AlulaMachine {
     if name == "ChatSession" { return chat() }
     if name == "DialogSession" { return dialog() }
+    if name == "WorkModePolicy" { return build("work-mode.alula.json") }
     if name == "Calc" { return calc() }
     if name == "Gate" { return build("gate.alula.json") }
     if name == "Lenses" { return build("lenses.alula.json") }
@@ -48,7 +49,7 @@ fn one_step(step str) -> str => `{"kind":"test","machine":"ChatSession","name":"
 
 test "every scenario" {
     ro files = test_files()
-    assert(files.len() == 81)
+    assert(files.len() == 82)
     for f in files {
         ro sc = scenario_of(f.name)
         ro run = run_test(machine_named(sc.machine), sc)

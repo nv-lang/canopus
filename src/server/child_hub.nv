@@ -250,6 +250,7 @@ fn Hub @cs_running_all() -> []RunSub {
 /// The work is taken: a session of its own (an agent, a branch and a tree, the folder of the task). By default it is a task of its own (no parent, a top-level session); a subtask of the task
 /// `p.parent` or a task of the epic `p.epic` only when the card or the agent said so. It starts at once, or waits (`how` "wait", `queued`).
 fn Hub mut @cs_spawn(at int, p Proposal, how str, queued bool) Proc Detach Time -> () {
+    if !@work_require(at, "execute") { return }
     ro cur = @sessions[at]
     // where the work belongs
     mut pat = -1
@@ -409,7 +410,7 @@ fn Hub mut @cs_start_waiting() Proc Detach Time -> () {
     mut i = 0
     while i < @sessions.len() {
         ro c = @sessions[i]
-        if c.rt.kind == "child" && (c.rt.waits_sib.byte_len() > 0 || c.rt.queued_c) && !c.rt.merged_c {
+        if @work_allowed(i, "execute") && c.rt.kind == "child" && (c.rt.waits_sib.byte_len() > 0 || c.rt.queued_c) && !c.rt.merged_c {
             mut free = true
             if c.rt.waits_sib.byte_len() > 0 {
                 ro j = @find(c.rt.waits_sib)

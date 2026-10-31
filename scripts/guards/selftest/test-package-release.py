@@ -40,6 +40,8 @@ def tree_files(lib_hash=None, hub=True):
     files = {"nova.lock.toml": LOCK,
              "machines/product/dialog.alula.json": json.dumps(tree),
              "machines/product/dialog.alula.md": "# Машина: Диалог\n\n- alula_version: 0.28\n",
+             "machines/product/work-mode.alula.json": json.dumps({"alula_version": "0.28"}),
+             "machines/product/work-mode.alula.md": "# Машина: Политика\n\n- alula_version: 0.28\n",
              "machines/product/chat.alula.json": json.dumps({"alula_version": "0.28"}),
              "machines/product/chat.alula.md": "# Машина: Чат\n\n- alula_version: 0.28\n",
              "machines/product/journal.md": "# Журнал\n",
@@ -77,7 +79,8 @@ def main():
                         for b, _, names in os.walk(kit) for n in names)
         assert listed == ["crew-harness.exe", "crew-hub.exe", "machines/product/dialog.alula.json",
                           "machines/product/dialog.alula.md", "machines/product/journal.md",
-                          "machines/product/libs/call_cancel.alula.md"], listed
+                           "machines/product/libs/call_cancel.alula.md", "machines/product/work-mode.alula.json",
+                           "machines/product/work-mode.alula.md"], listed
         assert stlib.has_line(proc, "ок: осмотрено"), proc.out
 
     def no_hub():

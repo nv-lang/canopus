@@ -103,15 +103,15 @@ test('устаревшая сессия: карточка спрашивает, 
   assert.equal(mergeLabel(state({ stale: true }).task).kind, 'unmerged');
 });
 
-test('режим «Планирование»: четвёртый в списке, у него есть шаги, его понимает разбор состояния', () => {
+test('Подготовка задачи: прежний идентификатор понимается, шагов исполнения нет', () => {
   assert.deepEqual(ROUTES.map((r) => r.id), ['interactive', 'fast', 'full', 'planning']);
   assert.equal(normalizeRoute('planning'), 'planning');
   const s = parseRouteState({ route: 'planning', steps: [{ n: 1, title: 'Интервью', state: 'running' }, { n: 2, title: 'Формулировка задания', state: 'pending' }], running: true, task: task({ worktree: '', branch: '' }) });
   assert.equal(s.route, 'planning');
-  assert.equal(s.steps.length, 2);
-  assert.equal(s.running, true);
+  assert.equal(s.steps.length, 0);
+  assert.equal(s.running, false);
   assert.equal(s.task.worktree, '');
-  assert.equal(t('route.planning'), 'Планирование');
+  assert.equal(t('route.planning'), 'Подготовка задачи');
   assert.deepEqual(routeSignal.set('planning'), { kind: 'session_route', input: { route: 'planning' } });
 });
 
