@@ -47,7 +47,7 @@ test "disk: the machines of the tree are read from machines/product and pass the
             assert(m.dialog_table().contains("- alula_version: 0.28"))
             assert(m.text("libs/call_cancel.alula.md").contains("- library: call_cancel"))
             assert(m.journal().contains("`user_message`"))
-            assert(m.files.len() == 4)
+            assert(m.files.len() == 6)
             assert(m.text("chat.alula.json") == "")
             match m.registry() {
                 Ok(reg) => assert(reg.journal.len() > 35)

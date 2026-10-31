@@ -22,7 +22,7 @@ import std.os.{Os, real_os, cwd}
 export type ProductMachines { dir str, files []NamedText }
 
 /// The files that the folder of the machines of the product must hold; the libraries are those that the trees connect.
-export fn product_file_names() -> []str => ["dialog.alula.json", "dialog.alula.md", "journal.md"]
+export fn product_file_names() -> []str => ["dialog.alula.json", "dialog.alula.md", "work-mode.alula.json", "work-mode.alula.md", "journal.md"]
 
 /// The text of the file `name` of the folder ("" for a file that is not read).
 export fn ProductMachines @text(name str) -> str => text_of_file(@files, name)

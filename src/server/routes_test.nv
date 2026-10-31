@@ -384,16 +384,14 @@ test "routes: the protocol for the reviewer holds the prompt, the message, the d
     assert(cut_text("short", 10) == "short")
 }
 
-test "routes: planning is a mode, its file has four steps and the review of the assignment is the one independent step, required; no spec.md and plan.md" {
+test "routes: preparation is discussion and a statement, not an execution route" {
     assert(route_valid("planning"))
     assert(!route_valid("nonsense"))
     ro planning = parse_route_doc("planning", rt_repo_file("planning.md"))
-    assert(planning.steps.len() == 4)
-    assert(rt_independent(planning.steps) == 1)
-    for step in planning.steps { if step.kind == "independent" { assert(step.required) } }
-    assert(planning.instruction.contains("Задание"))
-    assert(planning.instruction.contains("images/"))
-    for step in planning.steps { assert(step.prompt.byte_len() > 50) }
+    assert(planning.steps.len() == 0)
+    assert(planning.instruction.contains("Подготовка задачи"))
+    assert(planning.instruction.contains("task/message.md"))
+    assert(planning.instruction.contains("не переключай режим автоматически"))
     for name in ["interactive.md", "fast.md", "full.md"] {
         assert(parse_route_doc("x", rt_repo_file(name)).instruction.contains("раздел «Задание»"))
     }
@@ -493,7 +491,7 @@ test "routes: the prelude of the planning holds its instruction first" {
     ro doc = parse_route_doc("planning", rt_repo_file("planning.md"))
     ro text = route_prelude(doc, true, "doc/tasks/007-x/task", 1, "")
     assert(doc.instruction.byte_len() > 500)
-    assert(text.starts_with("[crew] Режим «Планирование»"))
+    assert(text.starts_with("[crew] Режим «Подготовка задачи»"))
     assert(text.contains("Подзадача 1"))
 }
 

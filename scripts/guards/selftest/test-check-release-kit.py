@@ -42,6 +42,8 @@ def machines(lib=LIB, tree_version="0.28", table_version="0.28", tree_hash=None,
              "- Файл: libs/call_cancel.alula.md\n- Хеш: %s\n" % (table_version, table_hash or dhash(LIB)))
     files = {"machines/product/dialog.alula.json": json.dumps(tree, ensure_ascii=False),
              "machines/product/dialog.alula.md": table,
+             "machines/product/work-mode.alula.json": json.dumps({"alula_version": "0.28"}),
+             "machines/product/work-mode.alula.md": "# Машина: Политика\n\n- alula_version: 0.28\n",
              "machines/product/journal.md": "# Журнал продукта\n",
              "machines/product/tests/dialog-x.alula.test.json": "{}\n"}
     if with_lib:
@@ -95,7 +97,7 @@ def main():
         return fn
 
     pr.probe("законное", "согласованные машины дерева, tests/ не судятся",
-             lambda: stlib.expect(check(fresh(machines())), 0, "ок: осмотрено 4"))
+             lambda: stlib.expect(check(fresh(machines())), 0, "ок: осмотрено 6"))
     pr.probe("законное", "комплект: программы и машины диалога",
              lambda: stlib.expect(check(fresh(machines()), "--kit", kit(kit_files())), 0, "ок: осмотрено"))
     pr.probe("красная", "дерево чужой версии языка", red_tree(machines(tree_version="0.26"), "alula-version"))

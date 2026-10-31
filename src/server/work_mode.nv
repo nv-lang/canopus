@@ -1,0 +1,34 @@
+// Lifecycle decisions belong to Alula; this adapter supplies the saved mode and asks whether the operation has a row.
+module crew_harness.server
+
+import alula.engine.{Incoming, StepEnvironment}
+import alula.machine_run.{AlulaMachine, ProjectValue, load_alula_machine_with}
+import alula.machine.{Registry}
+
+export fn work_mode_machine(text str, registry Registry) -> Result[AlulaMachine, str] => load_alula_machine_with(text, registry, []ProjectValue.new())
+
+export fn work_mode_allows(machine AlulaMachine, route str, operation str) -> bool {
+    mut environment = StepEnvironment.new()
+    ro initial = machine.initial()
+    ro state = match machine.step(initial, Incoming.signal(route, ""), environment) {
+        Go(next) => next
+        Stay => initial
+    }
+    machine.accepts_signal(state, operation)
+}
+
+fn Hub @work_allowed(at int, operation str) -> bool => work_mode_allows(@work_mode, @sessions[at].rt.route, operation)
+
+fn Hub mut @work_require(at int, operation str) Time -> bool {
+    if @work_allowed(at, operation) { return true }
+    @tell_error(0, @sessions[at].id, @sessions[at].engine.step_number(), "", "Подготовка задачи: исполнение, ветки и рабочие копии запрещены")
+    false
+}
+
+// Protocol names to capability names; the allow/deny decision is made by WorkModePolicy.
+fn work_signal_operation(kind str) -> str {
+    if ["session_worktree", "route_subtask_worktree", "route_subtask_choose", "route_tree_drop"].contains(kind) { return "tree" }
+    if kind == "session_result_repo" { return "repository" }
+    if ["route_run", "route_skip", "route_new_task", "route_subtask_new", "route_subtask_same", "route_subtask_done", "route_subtask_parallel", "route_merge", "route_publish", "route_tests_run", "route_children_merge", "route_ext_undo"].contains(kind) { return "execute" }
+    ""
+}

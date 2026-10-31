@@ -204,6 +204,15 @@ function mountSingle(extra = {}, deps = {}) {
   return { ui, log, session, el: ui.el };
 }
 
+test('Подготовка: подтверждение названо сохранением постановки; смена режима обновляет карточку', () => {
+  const { ui, session, el } = mountSingle();
+  ui.render({ ...session, route: 'planning' });
+  assert.match(el.textContent, /Сохранить постановку/);
+  ui.render({ ...session, route: 'interactive' });
+  assert.doesNotMatch(el.textContent, /Сохранить постановку/);
+  assert.match(el.textContent, /В работу/);
+});
+
 test('карточка: подписи «Как оформить / Кто делает / Режим выполнения», фраза «Агент предлагает», нет фразы про кодовое слово', () => {
   const { el } = mountSingle({}, { agents: () => ['codex', 'opencode'] });
   const text = el.textContent;

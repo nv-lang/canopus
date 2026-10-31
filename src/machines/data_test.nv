@@ -53,11 +53,11 @@ test "dt the one extension of a table is alula md" {
 }
 
 test "dt the numbers of the files" {
-    assert(machine_files().len() == 2)
-    assert(table_files().len() == 2)
+    assert(machine_files().len() == 3)
+    assert(table_files().len() == 3)
     assert(library_files().len() == 1)
-    assert(test_files().len() == 81)
-    assert(dt_with_prefix(test_files(), "chat-").len() + dt_with_prefix(test_files(), "dialog-").len() + dt_with_prefix(test_files(), "free-input-").len() == 81)
+    assert(test_files().len() == 82)
+    assert(dt_with_prefix(test_files(), "chat-").len() + dt_with_prefix(test_files(), "dialog-").len() + dt_with_prefix(test_files(), "free-input-").len() + dt_with_prefix(test_files(), "work-mode-").len() == 82)
     assert(dt_with_prefix(test_files(), "agent-step-").len() == 0)
     assert(dt_with_prefix(test_files(), "nested-steps-").len() == 0)
 }

@@ -231,6 +231,7 @@ fn Hub @route_bound_main(s Dialog) Proc -> Result[str, str] {
 fn Hub mut @route_repo(trace str, repo str) Proc Detach Time -> () {
     ro at = @find(trace)
     if at < 0 { return }
+    if !@work_require(at, "repository") { return }
     ro s = @sessions[at]
     if s.rt.task_open || s.rt.worktree.byte_len() > 0 || s.rt.wip_tree.byte_len() > 0 || s.rt.wip_prep > 0 {
         @tell_error(0, trace, s.engine.step_number(), "", "у работы уже есть дерево: репозиторий результата не меняется")
@@ -286,6 +287,11 @@ fn Hub mut @take_task_number(session str) Proc Detach Time -> int {
 }
 
 fn Hub mut @route_make_task(session str, route str, text str, use_tree bool) Proc Detach Time -> TaskMade {
+    ro preparation_at = @find(session)
+    if preparation_at >= 0 && !@work_allowed(preparation_at, "execute") {
+        ro dir = "${@settings.data_dir}/${session}/tasks/draft/task"
+        return { ok: true, id: "draft", number: "", dir, shown: dir, branch: "", worktree: "", base: "", repo_dir: "" }
+    }
     ro own = @route_repo_dir(session)
     // task 257: the result may go to another known repository (the project of `rt.result_repo`): the number and the folder of the task stay
     // with the session that asked, the tree and the publish go to the repository of the result. A target that cannot be resolved - no tree.
@@ -472,12 +478,20 @@ fn Hub mut @route_set(trace str, route str) Proc Detach Time -> () {
         @say_log("a mode of work that does not exist: ${route}")
         return
     }
+    if !work_mode_allows(@work_mode, route, "tree") && (@sessions[at].rt.worktree.byte_len() > 0 || @sessions[at].rt.wip_tree.byte_len() > 0 || @sessions[at].rt.wip_prep > 0) {
+        @tell_error(0, trace, @sessions[at].engine.step_number(), "", "Для Подготовки нужен чат без рабочего дерева; существующая работа не переносится и не удаляется")
+        return
+    }
     if @sessions[at].rt.route != route {
         ro was = @sessions[at].rt.route
         @route_stop(at)
         mut o = JsonObject.new()
         js(o, "route", route)
         @rt_journal(at, "route_set", JsonValue.object(o).to_str())
+        if !@work_allowed(at, "execute") {
+            ro reason = @ensure_client(at)
+            if reason.byte_len() > 0 { @tell_error(0, trace, @sessions[at].engine.step_number(), "", reason) }
+        }
         if was == "planning" { @route_leave_planning(at) }
         // the checklist of the last subtask is made again when the new mode has steps and the file has no boxes yet
         ro s = @sessions[at]
@@ -497,7 +511,7 @@ fn Hub mut @route_set(trace str, route str) Proc Detach Time -> () {
 fn Hub mut @route_leave_planning(at int) Proc Detach Time -> () {
     ro s = @sessions[at]
     if !s.rt.task_open || s.rt.last_sub() == 0 { return }
-    if s.rt.use_tree && s.rt.worktree.byte_len() == 0 { ro made = @route_attach_tree(at) }
+    // Changing a chat mode is not an instruction to create a branch or start a task.
     ro me = @sessions[at]
     ro n = me.rt.last_sub()
     ro wrote = write_file("${me.rt.task_dir}/${me.rt.prog_file(n)}", progress_template(n, @route_doc(me.rt.route).steps))
@@ -506,6 +520,7 @@ fn Hub mut @route_leave_planning(at int) Proc Detach Time -> () {
 // A task that was made without a tree gets one: the branch `task/NNN-slug`, the folder of the task goes into it whole (with `images/`) and from now on lives there, the agent works in the tree.
 // Task 257: the tree is cut in the repository of the RESULT (`rt.result_repo`); a tree of a foreign repository does not take the folder of the task in.
 fn Hub mut @route_attach_tree(at int) Proc Detach Time -> bool {
+    if !@work_require(at, "tree") { return false }
     ro s = @sessions[at]
     if !s.rt.task_open || s.rt.worktree.byte_len() > 0 { return false }
     ro own = @route_repo_dir(s.id)
@@ -552,6 +567,9 @@ fn Hub mut @route_attach_tree(at int) Proc Detach Time -> bool {
 
 // The switch "Worktree" of a session: on - the next task (or the task that is open without a tree) gets a tree; off - only while no tree has been made.
 fn Hub mut @route_worktree(trace str, on bool) Proc Detach Time -> () {
+    ro preparation_at = @find(trace)
+    if preparation_at < 0 { return }
+    if !@work_require(preparation_at, "tree") { return }
     ro at = @find(trace)
     if at < 0 { return }
     ro s = @sessions[at]
@@ -825,6 +843,7 @@ fn Hub mut @route_turn_done(at int) Proc Detach Time -> () {
 
 // The work of a moment of a session: the turn of a step ended, the next step starts.
 fn Hub mut @route_tick(at int) Proc Detach Time -> () {
+    if !@work_allowed(at, "execute") { @route_stop(at); return }
     mut s = @sessions[at]
     if s.rt.awaiting {
         if !@takes_message_at(at) { return }
@@ -867,6 +886,7 @@ fn Hub mut @route_drop_review(session str) Time -> () {
 }
 
 fn Hub mut @route_start_review(at int, index int, step RouteStep) Proc Detach Time -> () {
+    if !@work_require(at, "execute") { return }
     ro s = @sessions[at]
     ro family = pick_reviewer_for(@preset_family_of(s, "dev_accept"), @settings.route_reviewer_order, @agent_ids(), s.agent)
     if family.byte_len() == 0 {
@@ -1519,6 +1539,7 @@ fn Hub mut @route_tests_record(at int, verdict str, command str) Proc Detach Tim
 fn Hub mut @route_tests_run(trace str) Proc Detach Time -> () {
     ro at = @find(trace)
     if at < 0 { return }
+    if !@work_require(at, "execute") { return }
     ro s = @sessions[at]
     if !s.rt.task_open || s.rt.worktree.byte_len() == 0 {
         @tell_error(0, trace, s.engine.step_number(), "", "у задачи нет дерева: тесты гонять негде")
