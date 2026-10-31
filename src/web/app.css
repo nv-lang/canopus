@@ -1098,6 +1098,7 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .env-format { font-size: 12px; }
 
 .picker-path-row { display: flex; gap: 8px; }
+.picker-search { min-height: 36px; margin-top: 8px; }
 .picker-bar { display: flex; align-items: center; gap: 10px; margin: 8px 0 0; }
 .picker-up { display: inline-flex; align-items: center; gap: 4px; min-height: 34px; padding: 0 10px; }
 .picker-hint { font-size: 12px; }
@@ -1105,6 +1106,7 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .picker-list { min-height: 120px; max-height: 240px; margin: 0; padding: 4px; overflow-y: auto; list-style: none; border: 1px solid var(--border); border-radius: var(--radius); }
 .picker-item { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 34px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; text-align: left; }
 .picker-item:hover { background: var(--hover); }
+.picker-item .icon { color: var(--accent); }
 .picker-note { margin: 4px 0 0 !important; font-size: 13px; }
 .picker-recent { margin-top: 4px; }
 .picker-recent-name { flex: none; }
@@ -1247,6 +1249,11 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .draft-folder { width: auto; max-width: 100%; min-height: 32px; padding: 4px 10px; border-radius: 8px; font-size: 14px; }
 /* Новая сессия: проект выбирается списком посреди пустого чата, под полем строка проект · Worktree · режим */
 .project-picker { align-self: center; margin: auto; width: min(400px, 100%); display: flex; flex-direction: column; padding: 6px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow-soft); }
+.chat[data-draft="true"] .log { flex: 0 1 40%; }
+.chat[data-draft="true"] .composer { margin-top: auto; margin-bottom: auto; }
+.project-search { min-height: 36px; margin-bottom: 4px; padding: 6px 10px; }
+.draft-browse { min-height: 38px; margin-top: 4px; border-color: transparent; background: transparent; color: var(--accent); text-align: left; }
+.draft-browse:hover { background: var(--hover); }
 .project-row { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; padding: 6px 10px; border: 0; border-radius: 10px; background: transparent; color: var(--fg); font: inherit; text-align: left; cursor: pointer; }
 .project-row:hover, .project-row:focus-visible { background: var(--hover); outline: none; }
 .project-row[aria-selected="true"] { background: color-mix(in srgb, var(--fg) 5%, transparent); }
