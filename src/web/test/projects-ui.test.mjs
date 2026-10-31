@@ -160,6 +160,18 @@ test('выбор папки: путь руками, «..», ошибка, дво
   assert.equal(await third, null);
 });
 
+test('выбор папки: поиск фильтрует каталоги текущего реального ответа API', async () => {
+  const s = setup();
+  const result = s.ui.pickFolder('C:/work');
+  await settle();
+  const search = s.q('.picker-search');
+  await s.type(search, 'crew');
+  assert.deepEqual(s.top().querySelectorAll('.picker-list .picker-item').map(s.textOf), ['crew-harness']);
+  await s.click(s.pickItem('C:/work/crew-harness'));
+  await s.click(s.q('.primary'));
+  assert.equal(await result, 'C:/work/crew-harness');
+});
+
 test('Esc закрывает только верхнее окно, Tab ходит по кругу, фокус возвращается', async () => {
   const s = setup();
   const opener = s.doc.createElement('button');

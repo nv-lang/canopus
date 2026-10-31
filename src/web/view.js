@@ -430,6 +430,19 @@ export function createView(doc, refs, deps) {
   const draftFolder = h(doc, 'select', { class: 'draft-folder', 'aria-label': t('chat.draft_folder'), hidden: true });
   draftFolder.addEventListener('change', () => { if (currentTrace) handlers.onDraftFolder(currentTrace, draftFolder.value); });
   const projectPicker = h(doc, 'div', { class: 'project-picker', role: 'listbox', 'aria-label': t('chat.draft_project') });
+  const draftBrowse = h(doc, 'button', { type: 'button', class: 'draft-browse', text: t('chat.project_browse') });
+  const draftSearch = h(doc, 'input', { type: 'search', class: 'project-search', autocomplete: 'off', placeholder: t('chat.project_search'), 'aria-label': t('chat.project_search') });
+  let draftSearchText = '';
+  let browseTicket = 0;
+  draftBrowse.addEventListener('click', async () => {
+    const trace = currentTrace;
+    if (!trace) return;
+    const ticket = ++browseTicket;
+    const path = await projectsUi.pickFolder('');
+    if (path === null || ticket !== browseTicket || currentTrace !== trace) return;
+    handlers.onDraftBrowseFolder?.(trace, path);
+  });
+  draftSearch.addEventListener('input', () => { draftSearchText = draftSearch.value; draftSig = ''; if (current.session?.draft) syncProjectPicker(current.session); });
   let draftSig = '';
   function projectRow({ id, name, checked }) {
     const row = h(doc, 'button', { type: 'button', class: 'project-row', role: 'option', 'aria-selected': checked ? 'true' : 'false', 'data-project': id },
@@ -455,8 +468,10 @@ export function createView(doc, refs, deps) {
     draftFolder.replaceChildren(...(many ? project.folders.map((f) => h(doc, 'option', { value: f.path, text: f.path })) : []));
     if (many) draftFolder.value = session.folder;
     projectPicker.replaceChildren(
+      draftSearch,
       projectRow({ id: '', name: t('chat.project_none'), checked: !project }),
-      ...list.map((p) => projectRow({ id: p.id, name: p.name, checked: Boolean(project) && p.id === project.id })),
+      ...list.filter((p) => p.name.toLocaleLowerCase().includes(draftSearchText.trim().toLocaleLowerCase())).map((p) => projectRow({ id: p.id, name: p.name, checked: Boolean(project) && p.id === project.id })),
+      draftBrowse,
       ...(many ? [h(doc, 'div', { class: 'project-folder' }, draftFolder)] : []));
   }
   // Шапка чата (задача 192.6): только название (с «родитель ›» и номером задачи) и шеврон ⌄ с меню действий сессии
@@ -1660,9 +1675,11 @@ export function createView(doc, refs, deps) {
     pick.hidden = Boolean(session);
     chat.hidden = !session;
     titleBlock.hidden = !session;
-    if (!session) { currentTrace = null; return; }
+    if (!session) { browseTicket += 1; currentTrace = null; return; }
+    chat.dataset.draft = String(Boolean(session.draft));
 
     if (currentTrace !== session.id) {
+      browseTicket += 1;
       if (currentTrace) {
         drafts.set(currentTrace, input.value);
         attachDrafts.set(currentTrace, attach.take());
