@@ -13,10 +13,10 @@ import std.encoding.json.{Json, JsonValue, JsonObject}
 import std.fs.{Fs, Path, read_dir}
 
 /// Pick: what a role is given in a preset: the family ("" - not said), the model and the effort ("" - the agent's own).
-export type Pick { role str, family str, model str, effort str }
+export type Pick { role str, family str, model str, effort str, pool str, level str }
 
 /// Preset: the name, a line about it, where it comes from (`built-in`, `user`, `project`) and the picks of its roles.
-export type Preset { name str, description str, origin str, picks []Pick }
+export type Preset { name str, description str, origin str, picks []Pick, pools []ModelPool }
 
 /// The name of the preset that is used when no one chose.
 export const DEFAULT_PRESET = "default"
@@ -27,9 +27,9 @@ export fn preset_name_ok(name str) -> bool => role_id_ok(name)
 /// The built-in preset `default`: `dev` is the first family of `order`, `dev_accept` the next one (a family that is not the author).
 export fn builtin_preset(order []str) -> Preset {
     mut picks = []Pick.new()
-    if order.len() > 0 { picks.push(Pick { role: "dev", family: order[0], model: "", effort: "" }) }
-    if order.len() > 1 { picks.push(Pick { role: "dev_accept", family: order[1], model: "", effort: "" }) }
-    { name: DEFAULT_PRESET, description: "Исполнитель и приёмщик из разных семей по порядку route_reviewer_order", origin: "built-in", picks }
+    if order.len() > 0 { picks.push(Pick { role: "dev", family: order[0], model: "", effort: "", pool: "", level: "" }) }
+    if order.len() > 1 { picks.push(Pick { role: "dev_accept", family: order[1], model: "", effort: "", pool: "", level: "" }) }
+    { name: DEFAULT_PRESET, description: "Исполнитель и приёмщик из разных семей по порядку route_reviewer_order", origin: "built-in", picks, pools: []ModelPool.new() }
 }
 
 fn str_of(o JsonObject, key str) -> str {
@@ -64,14 +64,30 @@ export fn parse_preset(name str, origin str, file str, text str) -> Result[Prese
                     None => return Err("${file}:${key_line(text, role)}: the role ${role} must be an object {family, model, effort}")
                 }
                 for (k, field) in pick {
-                    if k != "family" && k != "model" && k != "effort" { return Err("${file}:${key_line(text, k)}: unknown key ${k} in the role ${role} (family, model, effort)") }
+                    if k != "family" && k != "model" && k != "effort" && k != "pool" && k != "level" { return Err("${file}:${key_line(text, k)}: unknown key ${k} in the role ${role} (family, model, effort, pool, level)") }
                     if field.str() == None { return Err("${file}:${key_line(text, k)}: ${k} of the role ${role} must be a string") }
                 }
-                picks.push(Pick { role, family: str_of(pick, "family"), model: str_of(pick, "model"), effort: str_of(pick, "effort") })
+                ro pool = str_of(pick, "pool")
+                ro level = str_of(pick, "level")
+                if pool.byte_len() > 0 {
+                    if !pool_level_ok(level) { return Err("${file}:1: pool source needs level light, medium or heavy") }
+                    if str_of(pick, "family").byte_len() > 0 || str_of(pick, "model").byte_len() > 0 || str_of(pick, "effort").byte_len() > 0 { return Err("${file}:1: pool and direct source are mutually exclusive") }
+                } else if level.byte_len() > 0 { return Err("${file}:1: level needs a pool") }
+                picks.push(Pick { role, family: str_of(pick, "family"), model: str_of(pick, "model"), effort: str_of(pick, "effort"), pool, level })
             }
         }
     }
-    Ok({ name, description: str_of(o, "description"), origin, picks })
+    ro pools = match o.get("pools") {
+        Some(v) => match parse_model_pools(v) { Ok(p) => p, Err(e) => return Err("${file}:1: ${e}") }
+        None => []ModelPool.new()
+    }
+    for pick in picks {
+        if pick.pool.byte_len() == 0 { continue }
+        mut found = false
+        for pool in pools { if pool.name == pick.pool { found = true } }
+        if !found { return Err("${file}:1: unknown pool ${pick.pool} for role ${pick.role}") }
+    }
+    Ok({ name, description: str_of(o, "description"), origin, picks, pools })
 }
 
 fn json_names(dir str) Fs -> []str {
@@ -160,6 +176,10 @@ export fn presets_json(list []Preset, active str, roles []Role) -> str {
             ign(one.insert("family", JsonValue.str(k.family)))
             ign(one.insert("model", JsonValue.str(k.model)))
             ign(one.insert("effort", JsonValue.str(k.effort)))
+            if k.pool.byte_len() > 0 {
+                ign(one.insert("pool", JsonValue.str(k.pool)))
+                ign(one.insert("level", JsonValue.str(k.level)))
+            }
             ign(table.insert(k.role, JsonValue.object(one)))
         }
         mut o = JsonObject.new()
@@ -167,6 +187,7 @@ export fn presets_json(list []Preset, active str, roles []Role) -> str {
         ign(o.insert("description", JsonValue.str(p.description)))
         ign(o.insert("origin", JsonValue.str(p.origin)))
         ign(o.insert("roles", JsonValue.object(table)))
+        ign(o.insert("pools", model_pools_json(p.pools)))
         items.push(JsonValue.object(o))
     }
     mut out = JsonObject.new()

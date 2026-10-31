@@ -22,6 +22,7 @@ import crew_harness.product_machines.{find_machines_dir, load_product_machines}
 import alula.machine_run.{AlulaMachine, AlulaState}
 import crew_harness.acp.{AcpConfig, AcpClient, AcpImage, AcpPreset, AskSetup, no_ask, open_client_full, acp_link, page_event, TRACE_LIMIT}
 import crew_harness.config.{pick_prompt, ConfigLayout, load_presets, preset_named, preset_family, DEFAULT_PRESET, presets_reply}
+import crew_harness.config.{PoolEntry, ModelPool, parse_agent_source, preset_pick, resolve_pool_pinned}
 import crew_harness.projects.{EnvEntry, projects_get, parse_dotenv, normalize_folder_path, project_has_folder, valid_project_id}
 import crew_harness.storage.{remove_session_dir, open_data_dir, file_journal, file_store, list_sessions, valid_session_name, session_file_made, migrate_flat_sessions, image_ext, decode_image, save_image, find_image, replace_file}
 import crew_harness.pgstore.{PgWorld, pg_journal, pg_store}
@@ -1023,6 +1024,10 @@ fn Hub mut @create(conn int, trace str, input JsonObject) Proc Detach Time -> ()
             ro at = @sessions.len() - 1
             @drain(at)
             if jtext(input, "preset").byte_len() > 0 { @set_preset(trace, jtext(input, "preset")) }
+            match jchild(input, "source") {
+                Some(source) => @set_source(trace, source)
+                None => ()
+            }
             // the mode and the place of work chosen on the page before the first message (the default: interactive, with a tree)
             mut place = JsonObject.new()
             js(place, "route", if route_valid(jtext(input, "route")) { jtext(input, "route") } else { "interactive" })
@@ -1153,6 +1158,7 @@ fn Hub mut @say(trace str, text str, items []JsonValue) Proc Detach Time -> () {
         return
     }
     @route_sync_cwd(at)
+    if !@source_for_turn(trace) { return }
     ro reason = @ensure_client(at)
     if reason.byte_len() > 0 {
         @route_broadcast(at, true)
@@ -1674,6 +1680,166 @@ fn Hub mut @switch_agent(trace str, agent str) Proc Detach Time -> () {
     }
 }
 
+// Sources are journal metadata: old sessions need no rewrite, and restart restores the last source.
+fn Hub @source_pools(s Dialog) -> []ModelPool {
+    match with Fs = real_fs() { load_presets(@settings.layout, @settings.route_reviewer_order) } {
+        Ok(list) => match preset_named(list, @preset_name_of(s)) {
+            Some(p) => p.pools
+            None => []ModelPool.new()
+        }
+        Err(e) => []ModelPool.new()
+    }
+}
+
+fn Hub mut @set_source(trace str, input JsonObject) Proc Detach Time -> () {
+    ro at = @find(trace)
+    if at < 0 { return }
+    mut s = @sessions[at]
+    if !@takes_message_at(at) {
+        @tell_error(0, trace, s.engine.step_number(), "", "Нельзя менять источник во время хода")
+        return
+    }
+    match parse_agent_source(input, @source_pools(s)) {
+        Err(e) => { @tell_error(0, trace, s.engine.step_number(), "", e); return }
+        Ok(p) => {
+            if p.pool.byte_len() == 0 && @settings.agent(p.family).is_none() {
+                @tell_error(0, trace, s.engine.step_number(), "", "Неизвестная семья: ${p.family}")
+                return
+            }
+        }
+    }
+    accept_in(@settings.store == "pg", @settings.data_dir, s, Incoming.signal("session_source", JsonValue.object(input).to_str()))
+    @drain(at)
+}
+
+fn Hub mut @source_for_turn(trace str) Proc Detach Time -> bool {
+    ro at = @find(trace)
+    mut s = @sessions[at]
+    mut source Option[JsonObject] = None
+    mut pinned Option[JsonObject] = None
+    for e in history_in(@settings.store == "pg", @settings.data_dir, s) {
+        if e.kind == EventKind.Input && e.name == "session_source" {
+            source = jobject(e.input)
+            pinned = None
+        }
+        if e.kind == EventKind.Input && e.name == "agent_selected" { pinned = jobject(e.input) }
+    }
+    if source.is_none() && @preset_name_of(s) != DEFAULT_PRESET {
+        match with Fs = real_fs() { load_presets(@settings.layout, @settings.route_reviewer_order) } {
+            Ok(list) => match preset_named(list, @preset_name_of(s)) {
+                Some(p) => match preset_pick(p, "dev") {
+                    Some(k) => {
+                        mut o = JsonObject.new()
+                        if k.pool.byte_len() > 0 {
+                            jput(o, "pool", JsonValue.str(k.pool))
+                            jput(o, "level", JsonValue.str(k.level))
+                        } else {
+                            jput(o, "family", JsonValue.str(k.family))
+                            jput(o, "model", JsonValue.str(k.model))
+                            jput(o, "effort", JsonValue.str(k.effort))
+                        }
+                        source = Some(o)
+                    }
+                    None => ()
+                }
+                None => ()
+            }
+            Err(e) => { @tell_error(0, trace, s.engine.step_number(), "", e); return false }
+        }
+    }
+    if source.is_none() { return true }
+    ro pools = @source_pools(s)
+    ro pick = match parse_agent_source(source.unwrap(), pools) {
+        Ok(p) => p
+        Err(e) => { @tell_error(0, trace, s.engine.step_number(), "", e); return false }
+    }
+    mut actual = PoolEntry { family: if pick.family.byte_len() > 0 { pick.family } else { s.agent }, model: pick.model, effort: pick.effort, active: true }
+    if pick.pool.byte_len() > 0 {
+        mut available = []PoolEntry.new()
+        for (family, record) in @catalog {
+            if @settings.agent(family).is_none() { continue }
+            match record.object() {
+                Some(o) => for model in jlist(o, "models") {
+                    match model.object() {
+                        Some(m) => available.push(PoolEntry { family, model: jtext(m, "id"), effort: "", active: true })
+                        None => ()
+                    }
+                }
+                None => ()
+            }
+        }
+        ro bytes = with Random = real_random() { Random.bytes(4) }
+        mut ticket = 0
+        for b in bytes { ticket = ticket * 256 + b as int }
+        mut previous Option[PoolEntry] = None
+        match pinned {
+            Some(o) => {
+                if jtext(o, "pool") == pick.pool && jtext(o, "level") == pick.level {
+                    previous = Some(PoolEntry { family: jtext(o, "family"), model: jtext(o, "model"), effort: jtext(o, "source_effort"), active: true })
+                }
+            }
+            None => ()
+        }
+        actual = match resolve_pool_pinned(pools, pick.pool, pick.level, available, previous, ticket) {
+            Ok(p) => p
+            Err(e) => { @tell_error(0, trace, s.engine.step_number(), "", e); return false }
+        }
+    }
+    match pinned {
+        Some(o) => {
+            if s.clients.len() > 0 && s.clients[0].phase() == "ready" && s.agent == actual.family && jtext(o, "family") == actual.family && jtext(o, "source_effort") == actual.effort {
+                match jobject(s.clients[0].options()) {
+                    Some(current) => {
+                        if (actual.model.byte_len() == 0 || jtext(current, "model_id") == actual.model) && (actual.effort.byte_len() == 0 || jtext(current, "effort") == actual.effort) { return true }
+                    }
+                    None => ()
+                }
+            }
+        }
+        None => ()
+    }
+    if s.agent != actual.family {
+        for e in history_in(@settings.store == "pg", @settings.data_dir, s) {
+            if e.kind == EventKind.Input && e.name == "user_message" {
+                @tell_error(0, trace, s.engine.step_number(), "", "Смена семьи источника остановлена: драйвер не гарантирует полный перенос контекста без отдельного хода. Сообщение не отправлено; история сохранена.")
+                return false
+            }
+        }
+    }
+    @switch_agent(trace, actual.family)
+    if @sessions[at].agent != actual.family { return false }
+    ro start_error = @ensure_client(at)
+    if start_error.byte_len() > 0 {
+        @tell_error(0, trace, s.engine.step_number(), "", start_error)
+        return false
+    }
+    s = @sessions[at]
+    ro preserved = chosen_without(chosen_without(s.chosen, actual.family, "model"), actual.family, "effort")
+    mut required = presets_for(preserved, actual.family)
+    if actual.model.byte_len() > 0 { required.push(AcpPreset { setting: "model", value: actual.model }) }
+    if actual.effort.byte_len() > 0 { required.push(AcpPreset { setting: "effort", value: actual.effort }) }
+    s.clients[0].set_source(required)
+    if s.clients[0].phase() == "failed" {
+        @sessions[at] = s
+        @tell_error(0, trace, s.engine.step_number(), "", s.clients[0].last_error())
+        return false
+    }
+    s.announced = false
+    s.model_announced = false
+    s.started_at = now_millis()
+    mut selected = JsonObject.new()
+    jput(selected, "family", JsonValue.str(actual.family))
+    jput(selected, "model", JsonValue.str(actual.model))
+    jput(selected, "effort", JsonValue.str(actual.effort))
+    jput(selected, "source_effort", JsonValue.str(actual.effort))
+    jput(selected, "pool", JsonValue.str(pick.pool))
+    jput(selected, "level", JsonValue.str(pick.level))
+    accept_in(@settings.store == "pg", @settings.data_dir, s, Incoming.signal("agent_selection", JsonValue.object(selected).to_str()))
+    @sessions[at] = s
+    @drain(at)
+    true
+}
+
 // The owner chose a model, an effort or a mode (task 192): the agent is asked; the answer comes back as `agent_model`.
 fn Hub mut @choose(trace str, setting str, value str) Proc Detach Time -> () {
     ro at = @find(trace)
@@ -1820,6 +1986,8 @@ export fn Hub mut @handle(conn int, text str) Proc Detach Time -> () {
         @answer(trace, input)
     } else if kind == "session_agent" {
         @switch_agent(trace, jtext(input, "agent"))
+    } else if kind == "session_source" {
+        @set_source(trace, input)
     } else if kind == "session_delete" {
         @delete(conn, trace, jtext(input, "branch"))
     } else if kind == "session_reorder" {
@@ -1927,13 +2095,34 @@ fn Hub mut @watch_agent(at int) Time -> () {
         return
     }
     // the first summary waits until the choices asked for after the start are settled (a few seconds at most), so that it shows them
-    if phase == "ready" && (s.clients[0].sets_pending() == 0 || now_millis() - s.started_at > 5000) {
+    if phase == "ready" && s.clients[0].sets_pending() == 0 {
         s.announced = true
         @say_log("the agent of ${s.id} is ready: ${s.clients[0].agent_name()}")
         @apply_choices(s)
         if !s.model_announced {
             s.model_announced = true
             accept_in(@settings.store == "pg", @settings.data_dir, s, Incoming.signal("agent_model", s.clients[0].options()))
+            mut selected Option[JsonObject] = None
+            for e in history_in(@settings.store == "pg", @settings.data_dir, s) {
+                if e.kind == EventKind.Input && e.name == "agent_selection" { selected = jobject(e.input) }
+            }
+            match selected {
+                Some(o) => {
+                    if jtext(o, "family") == s.agent {
+                        mut confirmed = JsonObject.new()
+                        for (key, value) in o { jput(confirmed, key, value) }
+                        match jobject(s.clients[0].options()) {
+                            Some(options) => {
+                                jput(confirmed, "model", JsonValue.str(jtext(options, "model_id")))
+                                jput(confirmed, "effort", JsonValue.str(jtext(options, "effort")))
+                            }
+                            None => ()
+                        }
+                        accept_in(@settings.store == "pg", @settings.data_dir, s, Incoming.signal("agent_selected", JsonValue.object(confirmed).to_str()))
+                    }
+                }
+                None => ()
+            }
             model_arrived = true
         }
     } else if phase == "failed" {

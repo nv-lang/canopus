@@ -1,5 +1,24 @@
 # server: the session server of the product
 
+## Agent sources and model pools (269)
+
+`GET /api/presets` additionally returns `pools` for each preset:
+`{"mix":{"heavy":[{"family":"codex","model":"model-id","effort":"high","active":true}]}}`.
+Levels `light`, `medium`, `heavy` are independent of native model effort and task weight.
+Existing preset role records remain readable; a role can instead use `{"pool":"mix","level":"heavy"}`.
+
+The `session_source` page signal takes either `{family,model,effort}` or `{pool,level}` as its input.
+`session_created.input.source` accepts the same source. The source is persisted in the session journal.
+`agent_selection` records a requested choice; `agent_selected` records the confirmed model and native effort.
+The selection stays pinned across turns and restarts while that exact pool entry remains active and available.
+Availability requires the exact family/model pair in the ACP catalog; an empty level is an error, never a fallback.
+ACP prompts wait for source settings to settle; refusal fails closed rather than running the default model.
+
+Current boundaries: automatic source-family changes after conversation messages are refused before sending,
+because the existing driver's bounded, separate transfer prompt cannot guarantee a full context transfer.
+The ACP driver has no structured quota-exhaustion contract, so transport/RPC errors are not interpreted as
+quota signals and no uncertain or already-started turn is retried automatically.
+
 The first slice of the MVP: **open the page in a browser, create a session, talk to an agent.** The server serves the page of
 [`src/web/`](../web/README.md), keeps a WebSocket `/ws` for it, and runs one state machine engine
 (`alula.engine` of the package `alula`) per session: the machine of a many-turn dialog, **written as data in Alula and run by `AlulaMachine`**

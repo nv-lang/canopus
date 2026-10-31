@@ -1,0 +1,17 @@
+module crew_harness.acp
+
+import alula.engine.{Incoming}
+import std.encoding.json.{Json}
+
+test "269: requested and confirmed selections stay distinct in page history" {
+    for kind in ["session_source", "agent_selection", "agent_selected"] {
+        ro event = Incoming.signal(kind, "{\"family\":\"a\",\"model\":\"real-model\",\"effort\":\"low\",\"pool\":\"mix\",\"level\":\"heavy\"}")
+        ro line = page_event(event, "turn-1").unwrap()
+        ro page = Json.parse(line).unwrap().object().unwrap()
+        assert(page.get("kind").unwrap().str().unwrap() == kind)
+        ro input = page.get("input").unwrap().object().unwrap()
+        assert(input.get("model").unwrap().str().unwrap() == "real-model")
+        assert(input.get("effort").unwrap().str().unwrap() == "low")
+        assert(input.get("level").unwrap().str().unwrap() == "heavy")
+    }
+}

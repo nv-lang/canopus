@@ -1,0 +1,8 @@
+module crew_harness.server_live
+
+import crew_harness.server.{kit_files, scenario_agent_source}
+
+test "269: exact source, confirmation before prompt, history, restart and no fallback" {
+    ro report = scenario_agent_source(kit_files("source269", 30000))
+    if report.byte_len() > 0 { panic("agent source: ${report}") }
+}

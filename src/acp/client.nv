@@ -102,6 +102,7 @@ export type AcpClient {
     attached []AcpImage,
     prelude str,
     presets []AcpPreset,
+    strict_source bool,
     settled []AcpPreset,
     dropped []AcpDrop,
     marker MarkerState,
@@ -354,7 +355,7 @@ export fn open_client_full(config AcpConfig, trace_path str, trace_limit int, as
                 config, link, phase: "initializing", next_rpc: 0, init_rpc: -1, new_rpc: -1, prompt_rpc: -1,
                 session: "", agent: "", model_name: "", modes: JsonValue.null(), models: JsonValue.null(), choices_cfg: JsonValue.null(), mode_now: "", model_now: "", sets: []AcpSet.new(), queue: []AcpQueued.new(), active: "", permissions: []AcpPending.new(), ask, asks: []AcpAsk.new(), mcp_http: false, hint_due: false,
                 ready, taken: []AcpInboxItem.new(), next_seq: next, stderr: "", exit_code: -2, last_error: "", trace: trace_open(trace_path, trace_limit),
-                images_ok: false, attached: []AcpImage.new(), prelude: "", presets: []AcpPreset.new(), settled: []AcpPreset.new(), dropped: []AcpDrop.new(), marker: marker_start(), commands: []str.new()
+                images_ok: false, attached: []AcpImage.new(), prelude: "", presets: []AcpPreset.new(), strict_source: false, settled: []AcpPreset.new(), dropped: []AcpDrop.new(), marker: marker_start(), commands: []str.new()
             }
             client.init_rpc = client.next_id()
             client.say(rpc_request_line(client.init_rpc, "initialize", initialize_params(ask.form)))
@@ -624,6 +625,10 @@ fn AcpClient mut @settle_set(key str, result JsonValue) -> bool {
             if done.setting == "model" { @model_now = done.value }
         }
     }
+    if @strict_source && @current_of(done.setting) != done.value {
+        @fail_handshake("agent source was not confirmed: ${done.setting}=${done.value}")
+        return true
+    }
     // a choice of the owner that the agent took is told to the hub, which keeps it (the ones the client made itself are not)
     if done.owner { @settled.push(AcpPreset { setting: done.setting, value: done.value }) }
     @push_options()
@@ -638,6 +643,7 @@ fn AcpClient mut @fail_set(key str, why str) -> bool {
     }
     if !found { return false }
     @sets = rest
+    if @strict_source { @fail_handshake("agent source rejected: ${why}"); return true }
     @note("the agent refused a choice: ${why}")
     true
 }
@@ -686,6 +692,7 @@ fn AcpClient mut @apply_presets() -> () {
     for p in list {
         if @current_of(p.setting) == p.value { continue }
         if !@send_set(p.setting, p.value, false) {
+            if @strict_source { @fail_handshake("agent source not offered: ${p.setting}=${p.value}"); return }
             @dropped.push(AcpDrop { setting: p.setting, value: p.value, used: @current_of(p.setting) })
         }
     }
@@ -694,6 +701,13 @@ fn AcpClient mut @apply_presets() -> () {
 /// The choices of the owner for the agent that is just started (before `session/new` is answered); see `AcpPreset`.
 export fn AcpClient mut @set_presets(list []AcpPreset) -> () {
     @presets = list
+}
+
+/// A source is mandatory, unlike best-effort restored owner choices. Never send with a fallback model.
+export fn AcpClient mut @set_source(list []AcpPreset) -> () {
+    @strict_source = true
+    @presets = list
+    if @phase == "ready" { @apply_presets() }
 }
 
 /// How many requests for a choice wait for the agent's answer.
@@ -864,7 +878,8 @@ fn AcpClient mut @take(item Inbound) -> () {
 
 // Send the next waiting prompt when the session is open and no turn is in flight.
 fn AcpClient mut @drive() -> () {
-    if @phase != "ready" || @prompt_rpc >= 0 || @queue.len() == 0 { return }
+    if @phase != "ready" || @sets.len() > 0 || @prompt_rpc >= 0 || @queue.len() == 0 { return }
+    @strict_source = false
     ro next = @queue.remove(0)
     @active = next.request
     @prompt_rpc = @next_id()

@@ -1,0 +1,128 @@
+// Agent sources: pool levels are not native model efforts (task 269).
+module crew_harness.config
+
+import std.encoding.json.{JsonValue, JsonObject}
+
+export type PoolEntry { family str, model str, effort str, active bool }
+export type PoolLevel { level str, entries []PoolEntry }
+export type ModelPool { name str, levels []PoolLevel }
+
+export fn pool_level_ok(level str) -> bool => level == "light" || level == "medium" || level == "heavy"
+
+fn pool_text(o JsonObject, key str) -> str => match o.get(key) {
+    Some(v) => v.str() ?? ""
+    None => ""
+}
+
+export fn parse_model_pools(value JsonValue) -> Result[[]ModelPool, str] {
+    ro table = match value.object() { Some(o) => o, None => return Err("pools must be an object") }
+    mut pools = []ModelPool.new()
+    for (name, raw) in table {
+        if !preset_name_ok(name) { return Err("invalid pool name: ${name}") }
+        ro levels = match raw.object() { Some(o) => o, None => return Err("pool ${name} must be an object") }
+        mut parsed = []PoolLevel.new()
+        for (level, items) in levels {
+            if !pool_level_ok(level) { return Err("unknown pool level: ${level}") }
+            ro list = match items.array() { Some(a) => a, None => return Err("pool ${name}/${level} must be an array") }
+            mut entries = []PoolEntry.new()
+            for item in list {
+                ro o = match item.object() { Some(x) => x, None => return Err("pool entry must be an object") }
+                for (key, field) in o {
+                    if key == "active" {
+                        if field.bool() == None { return Err("pool active must be a boolean") }
+                    } else {
+                        if key != "family" && key != "model" && key != "effort" { return Err("unknown pool entry key: ${key}") }
+                        if field.str() == None { return Err("pool ${key} must be a string") }
+                    }
+                }
+                ro family = pool_text(o, "family")
+                ro model = pool_text(o, "model")
+                if family.byte_len() == 0 || model.byte_len() == 0 { return Err("pool entry needs family and model") }
+                ro active = match o.get("active") { Some(v) => v.bool() ?? false, None => true }
+                entries.push(PoolEntry { family, model, effort: pool_text(o, "effort"), active })
+            }
+            parsed.push(PoolLevel { level, entries })
+        }
+        pools.push(ModelPool { name, levels: parsed })
+    }
+    Ok(pools)
+}
+
+/// Availability is a list of actual family/model pairs, not just configured families.
+/// Entropy is injected by the host only when a selection is needed.
+export fn resolve_pool(pools []ModelPool, name str, level str, available []PoolEntry, ticket int) -> Result[PoolEntry, str] {
+    if !pool_level_ok(level) { return Err("unknown pool level: ${level}") }
+    for pool in pools {
+        if pool.name != name { continue }
+        mut candidates = []PoolEntry.new()
+        for group in pool.levels {
+            if group.level != level { continue }
+            for entry in group.entries {
+                if !entry.active { continue }
+                mut found = false
+                for actual in available {
+                    if actual.family == entry.family && actual.model == entry.model { found = true }
+                }
+                if found { candidates.push(entry) }
+            }
+        }
+        if candidates.len() == 0 { return Err("pool ${name}/${level} has no active available models") }
+        if ticket < 0 { return Err("pool selection needs nonnegative entropy") }
+        return Ok(candidates[ticket % candidates.len()])
+    }
+    Err("unknown pool: ${name}")
+}
+
+/// Keep the exact pinned entry while it remains active and available at the same level.
+export fn resolve_pool_pinned(pools []ModelPool, name str, level str, available []PoolEntry, pinned Option[PoolEntry], ticket int) -> Result[PoolEntry, str] {
+    match pinned {
+        Some(previous) => {
+            for pool in pools {
+                if pool.name != name { continue }
+                for group in pool.levels {
+                    if group.level != level { continue }
+                    for entry in group.entries {
+                        if !entry.active || entry.family != previous.family || entry.model != previous.model || entry.effort != previous.effort { continue }
+                        for actual in available {
+                            if actual.family == entry.family && actual.model == entry.model { return Ok(entry) }
+                        }
+                    }
+                }
+            }
+        }
+        None => ()
+    }
+    resolve_pool(pools, name, level, available, ticket)
+}
+
+export fn model_pools_json(pools []ModelPool) -> JsonValue {
+    mut table = JsonObject.new()
+    for pool in pools {
+        mut levels = JsonObject.new()
+        for group in pool.levels {
+            mut entries = []JsonValue.new()
+            for entry in group.entries {
+                mut o = JsonObject.new()
+                ign(o.insert("family", JsonValue.str(entry.family)))
+                ign(o.insert("model", JsonValue.str(entry.model)))
+                ign(o.insert("effort", JsonValue.str(entry.effort)))
+                ign(o.insert("active", JsonValue.bool(entry.active)))
+                entries.push(JsonValue.object(o))
+            }
+            ign(levels.insert(group.level, JsonValue.array(entries)))
+        }
+        ign(table.insert(pool.name, JsonValue.object(levels)))
+    }
+    JsonValue.object(table)
+}
+
+/// Reuse the preset parser for API sources so storage and wire validation cannot drift.
+export fn parse_agent_source(source JsonObject, pools []ModelPool) -> Result[Pick, str] {
+    mut roles = JsonObject.new()
+    ign(roles.insert("dev", JsonValue.object(source)))
+    mut root = JsonObject.new()
+    ign(root.insert("roles", JsonValue.object(roles)))
+    ign(root.insert("pools", model_pools_json(pools)))
+    ro preset = parse_preset("source", "session", "agent_source", JsonValue.object(root).to_str())?
+    Ok(preset.picks[0])
+}

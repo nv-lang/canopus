@@ -1,0 +1,9 @@
+// ACP integration alone, without collecting all sibling server_live tests.
+module crew_harness.agent_pool_live_tests
+
+import crew_harness.server.{kit_files, scenario_agent_source}
+
+test "269: source pin, actual model, disabling, restart and refusal without context loss" {
+    ro report = scenario_agent_source(kit_files("isolatedlive269", 30000))
+    if report.byte_len() > 0 { panic("agent source: ${report}") }
+}

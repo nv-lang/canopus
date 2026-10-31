@@ -1,0 +1,43 @@
+// Isolated tests: importing config does not execute unrelated tests of that module.
+module crew_harness.agent_pool_tests
+
+import std.text
+
+import crew_harness.config.{PoolEntry, PoolLevel, ModelPool, parse_model_pools, resolve_pool, resolve_pool_pinned, parse_preset, preset_pick, presets_json, builtin_roles}
+import std.encoding.json.{Json}
+
+test "269: exact candidates, deterministic entropy and no empty fallback" {
+    ro pools = parse_model_pools(Json.parse("{\"mix\":{\"heavy\":[{\"family\":\"a\",\"model\":\"one\",\"effort\":\"low\"},{\"family\":\"a\",\"model\":\"off\",\"active\":false},{\"family\":\"a\",\"model\":\"missing\"},{\"family\":\"b\",\"model\":\"two\",\"effort\":\"max\"}]}}").unwrap()).unwrap()
+    ro a = PoolEntry { family: "a", model: "one", effort: "low", active: true }
+    ro b = PoolEntry { family: "b", model: "two", effort: "max", active: true }
+    ro off = PoolEntry { family: "a", model: "off", effort: "", active: true }
+    assert(resolve_pool(pools, "mix", "heavy", [a,b,off], 0).unwrap().model == "one")
+    assert(resolve_pool(pools, "mix", "heavy", [a,b,off], 1).unwrap().model == "two")
+    assert(resolve_pool(pools, "mix", "heavy", [a,b,off], 3).unwrap().effort == "max")
+    assert(resolve_pool(pools, "mix", "light", [a,b], 0).is_err())
+    assert(resolve_pool(pools, "mix", "heavy", [], 0).is_err())
+    assert(resolve_pool(pools, "absent", "heavy", [a], 0).is_err())
+    assert(resolve_pool(pools, "mix", "heavy", [a], -1).is_err())
+}
+
+test "269: pin is retained until disabled or unavailable" {
+    ro a = PoolEntry { family: "a", model: "one", effort: "high", active: true }
+    ro b = PoolEntry { family: "b", model: "two", effort: "low", active: true }
+    ro pools = [ModelPool { name: "mix", levels: [PoolLevel { level: "heavy", entries: [a,b] }] }]
+    assert(resolve_pool_pinned(pools, "mix", "heavy", [a,b], Some(a), 1).unwrap().family == "a")
+    ro disabled = PoolEntry { family: "a", model: "one", effort: "high", active: false }
+    ro changed = [ModelPool { name: "mix", levels: [PoolLevel { level: "heavy", entries: [disabled,b] }] }]
+    assert(resolve_pool_pinned(changed, "mix", "heavy", [a,b], Some(a), 0).unwrap().family == "b")
+    assert(resolve_pool_pinned(pools, "mix", "heavy", [b], Some(a), 0).unwrap().family == "b")
+    assert(resolve_pool_pinned(changed, "mix", "heavy", [], Some(a), 0).is_err())
+}
+
+test "269: strict schema and legacy preset compatibility" {
+    assert(parse_model_pools(Json.parse("{\"x\":{\"max\":[]}}").unwrap()).is_err())
+    assert(parse_model_pools(Json.parse("{\"x\":{\"light\":[{\"family\":\"a\",\"model\":\"m\",\"active\":\"yes\"}]}}").unwrap()).is_err())
+    assert(parse_preset("p", "user", "p.json", "{\"roles\":{\"dev\":{\"pool\":\"x\",\"level\":\"light\",\"family\":\"a\"}},\"pools\":{\"x\":{}}}").is_err())
+    ro p = parse_preset("p", "user", "p.json", "{\"roles\":{\"dev\":{\"family\":\"a\",\"model\":\"m\",\"effort\":\"high\"}}}").unwrap()
+    ro pick = preset_pick(p, "dev").unwrap()
+    assert(pick.family == "a" && pick.model == "m" && pick.effort == "high" && pick.pool == "")
+    assert(presets_json([p], "p", builtin_roles()).contains("high"))
+}
