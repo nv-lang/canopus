@@ -18,6 +18,8 @@ export const S = Object.freeze({
   'sessions.search': 'Поиск по сессиям',
   'sessions.pinned': 'Закреплённые',
   'sessions.no_project': 'Без проекта',
+  'sessions.show_more': 'Показать больше ({n})',
+  'sessions.show_less': 'Показать меньше',
   'sessions.group_add': 'Новая сессия в проекте {project}',
   'sessions.child': 'дочерняя',
   'sessions.fold': 'Свернуть дочерние сессии',

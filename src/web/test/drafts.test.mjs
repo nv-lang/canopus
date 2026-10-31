@@ -134,7 +134,7 @@ test('Worktree новой сессии: по умолчанию выключен
   assert.equal(m.sessions.d9.worktree, false);
   assert.equal(addDraft(initialModel(), { id: 'd8', agent: 'codex', worktree: true, now: 1 }).sessions.d8.worktree, true);
   const app = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
-  assert.match(app, /worktree: readWorktreePref\(\), now: Date\.now\(\)/);
+  assert.match(app, /worktree: Boolean\(project\) && readWorktreePref\(\), now: Date\.now\(\)/);
   assert.match(app, /onDraftWorktree\(trace, on\) \{ saveWorktreePref\(on === true\)/);
   assert.match(app, /try \{ return globalThis\.localStorage\.getItem\(WORKTREE_KEY\) === '1'; \} catch/);
   assert.equal(t('where.draft_off'), 'работа пойдёт прямо в папке проекта');

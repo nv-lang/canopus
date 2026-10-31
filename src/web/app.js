@@ -79,6 +79,16 @@ for (const saved of delivery.sessions()) {
 }
 let status = { state: 'connecting' };
 const UNREAD_KEY = 'crew-console-unread';
+const PINS_KEY = 'crew-console-session-pins';
+function readPins() {
+  try {
+    const v = JSON.parse(globalThis.localStorage.getItem(PINS_KEY) || '{}');
+    return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+  } catch { return {}; }
+}
+function savePins(value) {
+  try { globalThis.localStorage.setItem(PINS_KEY, JSON.stringify(value)); } catch { /* выбор живёт до перезагрузки */ }
+}
 function readUnread() {
   try {
     const v = JSON.parse(globalThis.localStorage.getItem(UNREAD_KEY) || '{}');
@@ -91,7 +101,7 @@ function saveUnread(value) {
 // ссылка на сессию (#s=<id>): после загрузки журнала страница её открывает
 const linked = /^#s=(.+)$/.exec(globalThis.location ? globalThis.location.hash : '');
 const ui = {
-  selected: null, projects: null, pane: 'list', flash: '', flashTone: 'error', awaiting: linked ? decodeURIComponent(linked[1]) : null, theme: readTheme(), pins: {}, unread: readUnread(), acked: {}, silentMin: SILENT_DEFAULT_MIN, notify: { bell: notifier.bellOn(), sound: notifier.soundOn(), denied: false },
+  selected: null, projects: null, pane: 'list', flash: '', flashTone: 'error', awaiting: linked ? decodeURIComponent(linked[1]) : null, theme: readTheme(), pins: readPins(), unread: readUnread(), acked: {}, silentMin: SILENT_DEFAULT_MIN, notify: { bell: notifier.bellOn(), sound: notifier.soundOn(), denied: false },
 };
 // A failed first create has no server row to select. Reopen its saved local copy on reload;
 // an explicit session link always takes precedence. This never resends anything.
@@ -311,7 +321,7 @@ const handlers = {
     const agent = (agentList.find((a) => !a.disabled) || { id: '' }).id;
     const id = newId();
     model = addDraft(dropDrafts(model), {
-      id, agent, projectId: project ? project.id : '', project: project ? project.name : '', folder: folder ? folder.path : '', branch: folder && folder.branch ? folder.branch : '', worktree: readWorktreePref(), now: Date.now(),
+      id, agent, projectId: project ? project.id : '', project: project ? project.name : '', folder: folder ? folder.path : '', branch: folder && folder.branch ? folder.branch : '', worktree: Boolean(project) && readWorktreePref(), now: Date.now(),
     });
     ui.selected = id;
     ui.pane = 'chat';
@@ -321,7 +331,7 @@ const handlers = {
     const project = (ui.projects || []).find((p) => p.id === projectId);
     const folder = project && project.folders[0] ? project.folders[0] : null;
     model = patchDraft(model, trace, {
-      projectId: project ? project.id : '', project: project ? project.name : '', folder: folder ? folder.path : '', branch: folder && folder.branch ? folder.branch : '',
+      projectId: project ? project.id : '', project: project ? project.name : '', folder: folder ? folder.path : '', branch: folder && folder.branch ? folder.branch : '', worktree: Boolean(project) && model.sessions[trace]?.worktree === true,
     });
     render();
   },
@@ -365,7 +375,7 @@ const handlers = {
   },
   onProjectsChanged() { loadProjects(); },
   onNotice(text, tone) { flash(text, tone); },
-  onPin(trace, pinned) { ui.pins = { ...ui.pins, [trace]: pinned }; render(); },
+  onPin(trace, pinned) { ui.pins = { ...ui.pins, [trace]: pinned }; savePins(ui.pins); render(); },
   onTheme() {
     ui.theme = nextTheme(ui.theme);
     applyTheme(ui.theme);
