@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
-  ROUTES, DEFAULT_ROUTE, INTERACTIVE_STATE, STEP_ICON, STEP_STATE_KEY, normalizeRoute, routeName, routeDescription, parseRouteState,
+  ROUTES, CHAT_MODES, DEFAULT_ROUTE, INTERACTIVE_STATE, STEP_ICON, STEP_STATE_KEY, normalizeRoute, routeName, routeDescription, parseRouteState,
   stepCounter, counterText, stepToSkip, showStrip, stripActions, subtaskPercent, subtaskProgressText, routeSignal,
   subtaskCountText, showSubtasks, taskHeading, subtaskActions, hasSubtaskActions, bannerCount, subtaskNotes,
   commitsText, filesText, mergeLabel, diffTotals, finishPrompt, readyPrompt, overlapPrompt, parseWhere, whereText, wipStalePrompt,
@@ -21,16 +21,17 @@ const steps = (...states) => states.map((state, i) => ({ n: i + 1, title: `ша�
 
 test('четыре режима по порядку, у каждого название и описание из strings.js; по умолчанию интерактивный', () => {
   assert.deepEqual(ROUTES.map((r) => r.id), ['interactive', 'fast', 'full', 'planning']);
+  assert.deepEqual(CHAT_MODES.map((r) => r.id), ['interactive', 'planning']);
   assert.equal(DEFAULT_ROUTE, 'interactive');
   assert.equal(routeName('interactive'), 'Интерактивный');
   assert.equal(routeName('fast'), 'Быстрая задача');
   assert.equal(routeName('full'), 'Полный путь');
-  assert.equal(routeName('planning'), 'Планирование');
+  assert.equal(routeName('planning'), 'Подготовка задачи');
   for (const r of ROUTES) {
     assert.ok(S[r.nameKey] && S[r.descKey], r.id);
     assert.ok(!routeDescription(r.id).includes('\n'), 'описание в одну строку');
   }
-  assert.deepEqual(ROUTES.map((r) => r.hasSteps), [false, true, true, true]);
+  assert.deepEqual(ROUTES.map((r) => r.hasSteps), [false, true, true, false]);
 });
 
 test('normalizeRoute: неизвестное значение — интерактивный', () => {
@@ -536,7 +537,8 @@ test('режим без шагов: подзадач в интерфейсе н�
   const subs = [{ n: 1, title: 'привет', state: 'planned', done: 0, total: 0 }, { n: 2, title: 'задай мне вопрос?', state: 'planned', done: 0, total: 0 }];
   const inter = parseRouteState({ route: 'interactive', task: taskRaw({ subtasks: subs }) });
   assert.equal(showSubtasks(inter), false);
-  for (const route of ['fast', 'full', 'planning']) assert.equal(showSubtasks(parseRouteState({ route, task: taskRaw({ subtasks: subs }) })), true, route);
+  for (const route of ['fast', 'full']) assert.equal(showSubtasks(parseRouteState({ route, task: taskRaw({ subtasks: subs }) })), true, route);
+  assert.equal(showSubtasks(parseRouteState({ route: 'planning', task: taskRaw({ subtasks: subs }) })), false);
   assert.equal(showSubtasks(INTERACTIVE_STATE), false);
   assert.deepEqual(subtaskNotes(inter.task, parseRouteState({ route: 'interactive', task: taskRaw({ subtasks: [...subs, { n: 3 }] }) }).task, true), []);
   const card = view.slice(view.indexOf('function subtasksCard'), view.indexOf('// Вкладки правой колонки'));

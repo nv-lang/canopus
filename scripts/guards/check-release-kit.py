@@ -34,7 +34,7 @@ import guardlib  # noqa: E402
 
 PREFIX = "machines/product/"
 KIT_PROGRAMS = ("crew-harness.exe", "crew-hub.exe")
-KIT_MACHINES = ("dialog.alula.json", "dialog.alula.md", "journal.md")
+KIT_MACHINES = ("dialog.alula.json", "dialog.alula.md", "work-mode.alula.json", "work-mode.alula.md", "journal.md")
 LOCK_VERSION = re.compile(r'name\s*=\s*"alula"[^\[]*?\bversion\s*=\s*"(\d+)\.(\d+)', re.S)
 
 

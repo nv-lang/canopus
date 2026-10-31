@@ -8,7 +8,7 @@ The relative links inside a table (`*.alula.md`) are the links of the table of a
 
 | Folder | Whose | What is in it |
 |---|---|---|
-| `product/` | the product | `chat`, `dialog` (tables and trees), their 81 scenarios, `journal.md` (10 journal codes of the product), `libs/call_cancel.alula.md` (the library «Отмена запроса», see below). The product calls no primitive of its own: no `registry.md`, the registry is the language (`new_id`; the time is the stamp of the event, `event.at`) |
+| `product/` | the product | `chat`, `dialog`, `work-mode` (tables and trees), their 82 scenarios, `journal.md` (10 journal codes of the product), `libs/call_cancel.alula.md` (the library «Отмена запроса», see below). `work-mode` decides lifecycle capabilities, not native agent isolation. The product calls no primitive of its own: no `registry.md`, the registry is the language (`new_id`; the time is the stamp of the event, `event.at`) |
 
 The machines of the methodology (`agent_step`, `cycle_check`, `session_start`, `task_runner`, the pair `dialog_steps`, the called `meeting`, their registry, journal and libraries) lay in `methodology/` until task 249: they live in the set of the methodology,
 [`alula-machines/`](https://github.com/unitcraft/ai-dev-methodology/tree/main/alula-machines) of its repository. What the product kept and the set of the methodology does not hold is listed in the log of [task 249](../doc/tasks/249-alula-0-27-gruppa-metodiki-uhodit-iz-pro/log.md).
