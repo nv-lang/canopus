@@ -1,0 +1,4 @@
+2026-10-31 04:26 документ: задание заведено плагином: «Переход пульта на раскладку ADR-0016»; task/message.md — текст агента (--message-file); основа — task/267-perehod-pulta-na-raskladku-adr0016 4d1f9e01
+2026-10-31 04:35 документ: миграция dry-run готова: session -> data/sessions, serve logs -> state; live-пульт не тронут (перенос только в окно остановки)
+2026-10-31 04:35 документ: корень экземпляра (~/.crew-harness) создан (config/ data/ state/ cache/ tools/); config/config.json — оригинал старого файла сервера без data_dir, проверен config list --show-origin: origin user, data_dir — умолчание нового корня
+2026-10-31 04:36 документ: запускатель пульта рядом с репозиторием (crew-server-start.ps1) переключён на serve из config/ нового корня, exe — target основной копии; прежний сохранён рядом с суффиксом bak-267; живой запуск произойдёт в окне остановки
