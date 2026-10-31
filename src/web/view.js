@@ -49,6 +49,7 @@ const NEAR_BOTTOM_PX = 40;
 const FOLD_DIFFS = 3;
 const FOLD_OUTPUTS = 4;
 const FOLD_TASKS = 3;
+const SIDEBAR_PAGE_SIZE = 12;
 const WIDE_QUERY = '(min-width: 1101px)';
 
 // Таблицы значков и подписей — литералами, чтобы проверка страницы и проверка строк видели каждый ключ.
@@ -202,6 +203,7 @@ export function createView(doc, refs, deps) {
   });
   let listSig = '';
   const foldedParents = new Set(); // родители, чьи дочерние свёрнуты в списке
+  const expandedGroups = new Set();
   let activeProject = null; // проект выбранной сессии или черновика ('' - без проекта), null - ничего не выбрано
   /** Номер и название задачи сессии, если у неё есть задача с номером; иначе null. */
   function sessionTask(s) {
@@ -307,7 +309,23 @@ export function createView(doc, refs, deps) {
       ? h(doc, 'p', { class: 'group-empty', text: t('loading.sessions') })
       : rows.length === 0
       ? h(doc, 'p', { class: 'group-empty', text: t('projects.group_empty') })
-      : h(doc, 'ul', { class: 'group-list' }, ...rows.map((r) => sessionRow(r, ui, pins, gctx)));
+      : (() => {
+        const expanded = expandedGroups.has(group ? group.id : title);
+        const visible = expanded ? rows : rows.slice(0, SIDEBAR_PAGE_SIZE);
+        const list = h(doc, 'ul', { class: 'group-list' }, ...visible.map((r) => sessionRow(r, ui, pins, gctx)));
+        if (rows.length > SIDEBAR_PAGE_SIZE) {
+          const label = expanded ? t('sessions.show_less') : t('sessions.show_more', { n: rows.length - SIDEBAR_PAGE_SIZE });
+          const more = h(doc, 'button', { type: 'button', class: 'link-btn group-show-more', text: label });
+          more.addEventListener('click', () => {
+            const key = group ? group.id : title;
+            if (expandedGroups.has(key)) expandedGroups.delete(key); else expandedGroups.add(key);
+            listSig = '';
+            if (current.ui) renderList(current.model, current.ui);
+          });
+          return h(doc, 'div', { class: 'group-content' }, list, more);
+        }
+        return list;
+      })();
     const active = Boolean(group) && activeProject !== null && group.id === activeProject;
     const section = h(doc, 'section', { class: 'group', 'data-active': active ? 'true' : false, 'data-project': isProject ? 'true' : false }, head, body);
     if (group) sideKit.projectDnd({ section, head, projectId: group.id, free: Boolean(group.free) });
@@ -355,7 +373,7 @@ export function createView(doc, refs, deps) {
     const filtered = filterSessions(all, query);
     const groups = groupSessions(filtered, { pinned: pins, projects: projectsList, includeEmpty: query.trim() === '', collapsed: foldedParents });
     const rowSig = (r) => [r.depth, r.kids, r.collapsed, r.session.parent, r.session.id, r.session.name, r.session.state, r.session.updatedAt, r.session.rank, r.session.projectId, (sessionTask(r.session) || {}).number, ui.unread ? ui.unread[r.session.id] : undefined, Boolean(r.session.pendingQuestion), (mergeLabel(r.session.routeState && r.session.routeState.task) || {}).text, (() => { const a = attention(r.session, { now: now(), silentMin: ui.silentMin ?? SILENT_DEFAULT_MIN, unread: Boolean(ui.unread && ui.unread[r.session.id] === true), acked: (ui.acked || {})[r.session.id] || '' }); return `${a.state}:${a.blink}:${a.minutes}`; })()];
-    const sig = JSON.stringify([loading?.sessions.phase, ui.selected, activeProject, query, groupMenu, sideKit.sig(), groups.pinned.map(rowSig), groups.projects.map((p) => [p.project, p.id, p.rows.map(rowSig)])]);
+    const sig = JSON.stringify([loading?.sessions.phase, ui.selected, activeProject, query, groupMenu, [...expandedGroups], sideKit.sig(), groups.pinned.map(rowSig), groups.projects.map((p) => [p.project, p.id, p.rows.map(rowSig)])]);
     const shown = groups.pinned.length + groups.projects.length;
     listEmpty.hidden = Boolean(loading && (loading.projects.phase !== 'ready' || loading.sessions.phase !== 'ready')) || all.length > 0 || (projectsList !== null && projectsList.length > 0);
     notFound.hidden = Boolean(loading && (loading.sessions.phase !== 'ready' || loading.projects.phase !== 'ready')) || !(all.length > 0 && shown === 0);
@@ -1733,7 +1751,7 @@ export function createView(doc, refs, deps) {
     resultRepoButton.disabled = Boolean(task) || hasTree || busy || Boolean(session.routeState && session.routeState.where && session.routeState.where.kind === 'preparing');
     fillResultRepos(resultRepo || '', resultLabel);
     const treeOn = session.draft ? session.worktree !== false : (session.routeState ? session.routeState.useTree !== false : true);
-    worktreeButton.hidden = false;
+    worktreeButton.hidden = currentRoute === 'planning' || (session.draft && !session.projectId);
     worktreeButton.dataset.draft = String(Boolean(session.draft));
     worktreeButton.setAttribute('aria-pressed', String(treeOn || hasTree));
     // задача 192.6: папка проекта не git-репозиторий — дерево сделать нельзя, переключатель выключен и недоступен

@@ -55,6 +55,22 @@ test('выбор/снятие проекта сохраняет черновик
   assert.match(viewSrc, /row\.addEventListener\('click', \(\) => \{ invalidateBrowse\(\); if \(currentTrace\) handlers\.onDraftProject\(currentTrace, id\); \}\)/);
 });
 
+test('новый чат без проекта не наследует worktree, папку или ветку; закрепления переживают перезапуск', () => {
+  assert.match(appSrc, /worktree: Boolean\(project\) && readWorktreePref\(\)/);
+  assert.match(appSrc, /projectId: project \? project\.id : '', project: project \? project\.name : '', folder: folder \? folder\.path : '', branch: folder && folder\.branch \? folder\.branch : '', worktree: Boolean\(project\)/);
+  assert.match(appSrc, /const PINS_KEY = 'crew-console-session-pins'/);
+  assert.match(appSrc, /pins: readPins\(\)/);
+  assert.match(appSrc, /onPin\(trace, pinned\) \{ ui\.pins = \{ \.\.\.ui\.pins, \[trace\]: pinned \}; savePins\(ui\.pins\);/);
+});
+
+test('список групп имеет show-more, ограничивает первоначальный список и сохраняет реальную группировку', () => {
+  assert.match(viewSrc, /const SIDEBAR_PAGE_SIZE = 12/);
+  assert.match(viewSrc, /rows\.slice\(0, SIDEBAR_PAGE_SIZE\)/);
+  assert.match(viewSrc, /t\('sessions\.show_more'/);
+  assert.match(viewSrc, /groupSessions\(filtered, \{ pinned: pins, projects: projectsList/);
+  assert.equal(t('sessions.show_more', { n: 3 }), 'Показать больше (3)');
+});
+
 test('название по умолчанию из первых слов первого сообщения; пусто — пусто', () => {
   assert.equal(nameFromText('  Сделай   список задач для релиза и проверь тесты на старой версии '), 'Сделай список задач для релиза и');
   assert.equal(nameFromText(''), '');
@@ -116,7 +132,7 @@ test('Worktree новой сессии: по умолчанию выключен
   assert.equal(m.sessions.d9.worktree, false);
   assert.equal(addDraft(initialModel(), { id: 'd8', agent: 'codex', worktree: true, now: 1 }).sessions.d8.worktree, true);
   const app = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
-  assert.match(app, /worktree: readWorktreePref\(\), now: Date\.now\(\)/);
+  assert.match(app, /worktree: Boolean\(project\) && readWorktreePref\(\), now: Date\.now\(\)/);
   assert.match(app, /onDraftWorktree\(trace, on\) \{ saveWorktreePref\(on === true\)/);
   assert.match(app, /try \{ return globalThis\.localStorage\.getItem\(WORKTREE_KEY\) === '1'; \} catch/);
   assert.equal(t('where.draft_off'), 'работа пойдёт прямо в папке проекта');
