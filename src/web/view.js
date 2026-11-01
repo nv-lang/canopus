@@ -870,11 +870,27 @@ export function createView(doc, refs, deps) {
         if (efforts.length) {
           const index = Math.max(0, efforts.findIndex((e) => e.id === effort));
           const slider = h(doc, 'input', { type: 'range', class: 'effort-slider', min: '0', max: String(efforts.length - 1), step: '1', value: String(index), 'aria-label': `Усилие ${m.name}` });
-          slider.style.setProperty('--effort-fill', `${efforts.length < 2 ? 100 : index * 100 / (efforts.length - 1)}%`);
+          const control = h(doc, 'div', { class: 'effort-control' });
+          const sparkleLayer = h(doc, 'span', { class: 'effort-sparkles', 'aria-hidden': 'true' });
+          const paintEffort = (at) => {
+            const ratio = efforts.length < 2 ? 1 : at / (efforts.length - 1);
+            slider.style.setProperty('--effort-fill', `${ratio * 100}%`);
+            sparkleLayer.replaceChildren();
+            const count = ratio < 0.5 ? 0 : Math.max(1, Math.round((ratio - 0.5) * 14) + 1);
+            sparkleLayer.dataset.count = String(count);
+            for (let n = 0; n < count; n += 1) {
+              const star = h(doc, 'span', { class: 'effort-sparkle', text: '✦' });
+              star.style.setProperty('--star-offset', `${n * 11}px`);
+              star.style.setProperty('--star-delay', `${n * -0.17}s`);
+              sparkleLayer.append(star);
+            }
+          };
+          paintEffort(index);
           slider.addEventListener('click', (e) => e.stopPropagation());
-          slider.addEventListener('input', () => { if (pickerDraft) { pickerDraft.effort = efforts[Number(slider.value)].id; slider.style.setProperty('--effort-fill', `${efforts.length < 2 ? 100 : Number(slider.value) * 100 / (efforts.length - 1)}%`); } });
+          slider.addEventListener('input', () => { const at = Number(slider.value); paintEffort(at); if (pickerDraft) pickerDraft.effort = efforts[at].id; });
           slider.addEventListener('change', () => pickSource({ family: m.family, model: m.model, effort: pickerDraft ? pickerDraft.effort : efforts[Number(slider.value)].id }));
-          row.append(slider);
+          control.append(slider, sparkleLayer);
+          row.append(control);
           row.classList.add('agent-model-row');
         }
         rows.push(row);
