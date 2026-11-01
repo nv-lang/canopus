@@ -132,11 +132,13 @@ import {
   questionCall,
   letterExistsFor,
   branchDeps,
+  questionRouterFor,
+  questionCardOf,
 } from "./core.ts"
 import { branchNotes, checkWindow, pruneStates, registerBranchHooks, turnWarning } from "./branch-guard.ts"
 import { holderOf, stepNotes, watchCovers, watchTick } from "./idle-watch.ts"
 import { answerTurn, markInterventions } from "./answer.ts"
-import { answerModesOn } from "./answer-parse.ts"
+import { answerModesOn, parseTurn } from "./answer-parse.ts"
 import { DECISION_RU, readApprovals, removeApproval } from "./approvals.ts"
 import { runRetention } from "./retention.ts"
 import { allSteps, nextPlanNumber, parsePlan, stepDeps } from "./plans.ts"
@@ -149,7 +151,7 @@ import { countedOpen, waitingCleanup, ACCEPTED_REMINDERS_MAX, acceptedReminderId
 import { EXECUTOR_CODE, sesLabel, sessionOf, sessionRef, taskNo } from "./tasks.ts"
 import { profileProblems, profileState, stateSignature, syncProjectFiles, syncSnapshot, syncTaskFile } from "./profile-layer.ts"
 import { cellOfState, clampTier, resolveStageProfile, splitLaunchModel, stageOfLaunch, tabFitsCell } from "./profiles.ts"
-import { cleanupForms, FORM_RESTART_GRACE_MS, blockingQuestion, formLookEvery, formReminders, formTick, pendingForms, settleOnRequest, shownForms, startFormWait, waitingForms } from "./form-wait.ts"
+import { cleanupForms, FORM_RESTART_GRACE_MS, blockingQuestion, formLookEvery, formReminders, formTick, pendingForms, recordedForms, removeForm, settleOnRequest, shownForms, startFormWait, waitingForms } from "./form-wait.ts"
 import { restoreForms } from "./form-restore.ts"
 import { systemToast } from "./toast-win.ts"
 import { probeEnabled, startEventProbe } from "./event-probe.ts"
@@ -160,7 +162,11 @@ import { precheckLines, releaseLandedLock } from "./precheck.ts"
 import { isLauncherCard, noteLoopLag, registerJournalTools } from "./journal.ts"
 import { answerTick } from "./owner-answer.ts"
 import { replyForm } from "./form-reply.ts"
-import { autoNotes, autoTick } from "./form-auto.ts"
+import { autoNotes, autoTick, closedHits } from "./form-auto.ts"
+import { formRequest, requestOf, routingSummary, type QuestionFormIO } from "./question-routing.ts"
+import { questionId } from "./question-router.ts"
+import { getQuestionJson, inspectQuestionText, productionQuestionIO } from "./question-native.ts"
+import { QUESTION_ROUTING_SYSTEM } from "./question-policy.ts"
 import { clearLoop, loopLetter, loopOf, loopTick, noteDelivered } from "./answer-loop.ts"
 import { factsOf, isOwnerAnswer, nudgeHold, serviceKindOf, verdicts } from "./queue-gate.ts"
 import { writeLaunch } from "./task-folders.ts"
@@ -170,7 +176,7 @@ import { registerGluedHooks } from "./glued-guard.ts"
 
 export { parseProjects, projectOf, parseAddr, HELP, helpFor } from "./core.ts"
 
-export default {
+export function createCrewPlugin(routing: { questionIO?: QuestionFormIO } = {}) { return {
   id: "crew-harness",
   async setup(ctx: any) {
     const mine = new Map<string, Card>() // сессии этого процесса
@@ -184,6 +190,24 @@ export default {
     const projOf = (c: Card) => c.project ?? projectOf(c.directory, projects)
     const keyOf = (c: Card) => roleKey(projOf(c), normalizeRole(c.role)) // старые визитки с assistant — это worker
     const now = () => Date.now()
+    // Separate question seam; 279 owns native busy/wake/HOLD. No legacy interrupt/autoanswer fallback here.
+    const questionHost = { questionIO: routing.questionIO ?? productionQuestionIO, questionInspectText: (r: import("./question-router.ts").QuestionRequest) => inspectQuestionText(getQuestionJson, r.session, r.source.at) }
+    const questions = questionRouterFor(questionHost, text => closedHits(text).length > 0 || /(?:^|\n)\s*Тип:\s*gate\b/i.test(text))
+    const routedForm = (session: string, id: string) => {
+      const c = readJson<Card>(cardFile(session)), project = (c?.task ?? c?.review)?.project ?? c?.project
+      try {
+        return (project ? questions.get(questionId({ project, session, channel: "form", qid: id })) : undefined)
+          ?? questions.list().find(r => r.session === session && r.form?.id === id)
+      } catch {
+        // A corrupt/unknown record is still routed: never let it fall through into a guessed legacy autoanswer.
+        return { status: "unknown" as const, qid: id, why: "запись маршрута не проверена; сохранена для диагностики", decision: undefined, escalationQueued: undefined }
+      }
+    }
+    function routeText(card: Card, end: { text: string; at: number; ownerAfter?: boolean } | undefined): boolean {
+      if (!(card.task || card.review) || !end || end.ownerAfter || (!endsWithQuestion(end.text) && !parseTurn(end.text).blocks.some(b => b.question))) return false
+      questions.open(requestOf(questionCardOf(card), "text", `turn-${end.at}`, end.text, "Исходный конец хода; роль/рекомендация не изменяют рабочий маршрут", end.at), now())
+      return true // Even owner/settled routes must not fall through into the old guessed recommendation path.
+    }
 
     async function sessionInfo(sessionID: string): Promise<any> {
       try {
@@ -469,6 +493,7 @@ export default {
       // отчёт, тоже получает ответ) и до пересылки вопроса и условия !turn?.owner (ход, начатый словом владельца, тоже). Режимы
       // выключены — ход не читается, дальше всё как раньше. handled — ни пересылки, ни «Не завершено», счётчики не растут.
       const cfgA = loadConfig(card.directory)
+      if (routeText(card, await turnEnd(card.session))) { await questions.tick(now()); return }
       if (answerModesOn(cfgA.answerMode)) {
         const endA = await turnEnd(card.session)
         if (endA) {
@@ -496,7 +521,7 @@ export default {
             if (letterExists(to, id)) continue
             const ref = card.task ?? card.review
             const what = ref ? `${card.review && !card.task ? "приёмка задачи" : "задача"} ${taskRef(ref)}` : "вопрос"
-            postLetter(to, { id, from_role: PLUGIN_SENDER, from_session: PLUGIN_SENDER, to, time: t, text: `${what}: вкладка ${keyOf(card)} (сессия ${card.session}) остановилась с вопросом, работа стоит до ответа:\n«${q}»\n\nКонец её ответа:\n${tail}\n\nОтветь ей сам: crew_send {to: "${card.session}", text: "..."}. Решить без владельца нельзя — спроси владельца (вопросом в конце своего хода).` })
+            postLetter(to, { id, from_role: PLUGIN_SENDER, from_session: PLUGIN_SENDER, to, time: t, text: `${what}: вкладка ${keyOf(card)} (сессия ${card.session}) остановилась с вопросом, работа стоит до ответа:\n«${q}»\n\nКонец её ответа:\n${tail}\n\nРабочий вопрос разбери через question router: проверь факт/источник и ответь исходному qid через crew_question resolve. Только точное оставшееся решение/настоящие ворота — владельцу инструментом question; служебный путь предоставляет команда.` })
             log(`question of ${card.session} forwarded to ${to}`)
           }
           if (askers.length) return // не «продолжай»: ждёт ответа
@@ -1115,6 +1140,7 @@ export default {
       const windows = liveWindows()
       const t = now()
       const cards = allCards()
+      const questionRoutes = questions.list()
       // вопросы с ответом (expect_reply) — обязательства получателя перед спросившим; задачи и приёмки — не вопросы
       // ЗАДАЧА 032: закрытый адресат или очищенная задача снимают вопрос (то же правило чистит висящее при запуске — это первый
       // проход); старше ASKED_STALE_MS — «устарел», reply не держит. Письмо адресата автору закрывает вопрос в crew_send.
@@ -1187,11 +1213,17 @@ export default {
         const s0 = statusOf({ card: c, busy, busySince: c.busySince, end, asked: asked.get(c.session) ?? [], askedStale: askedStale.get(c.session) ?? [], now: t, watches: ws, longTurnMs: loadConfig(c.directory).longTurnMin * 60_000, ...(staleSince ? { staleSince } : {}), ...(hungSince ? { hungSince } : {}), ...(gate ? { gate } : {}), ...(dialog ? { dialog } : {}) })
         const idle = await idleStep(c, s0, end, !!tab, saved, t)
         const s = idle ? withIdle(s0, idle, t) : s0
+        const qr = questionRoutes.find(r => r.session === c.session && !["answered", "settled"].includes(r.status))
+        if (qr && qr.status !== "owner") {
+          s.state = "question"
+          s.detail = `рабочий вопрос через интегратора: ${qr.status}${qr.target ? ` → ${qr.target}` : ""}; ${qr.receivedAt ? "получен интегратором" : "получение не подтверждено"}${qr.why ? `; ${qr.why}` : ""}`
+        }
         const prev = saveStatus(s)
         // РЕЖИМЫ ОТВЕТА НА ВОПРОСЫ (задача 007, ADR-0010): решение принимается раньше блока уведомлений. Режимы выключены —
         // ничего не читается и прежний путь идёт как был. handled — «ждёт вас» по этому ходу подавлено целиком; остаток вопросов
         // на вкладке владельца уходит одним уведомлением (повтор по owner_reminder_min), markNotified не вызывается.
         const cfgA = loadConfig(c.directory)
+        if (end && !busy && routeText(c, end)) { await questions.tick(t); continue }
         if (answerModesOn(cfgA.answerMode)) {
           // слово владельца после автоответа или остатка — каждый проход, даже если ход уже идёт (отзыв не ждёт конца хода)
           try {
@@ -1462,9 +1494,18 @@ export default {
       } catch (e) {
         log(`form restore failed: ${e}`)
       }
+      // 280: includes forms that were already open when the router was installed. Preserve original id/context.
+      // Intake precedes recommendation autoanswers; an uninspectable legacy form remains visibly unknown.
+      for (const { session, form } of recordedForms()) {
+        const card = readJson<Card>(cardFile(session))
+        if (!(card?.task || card?.review) || form.dead || form.replacedBy || routedForm(session, form.id)) continue
+        const detail = await questionHost.questionIO.get(session, form.id).catch(() => undefined)
+        questions.open(formRequest(questionCardOf(card), form, detail), now())
+      }
       await formTick(
         {
           processStart: PROCESS_START,
+          routed: (s, f) => !!routedForm(s, f.id),
           tab: formTab,
           call: (s) => questionCall(s),
           queued: async (s) => (await queuedTexts(s)).length,
@@ -1482,6 +1523,7 @@ export default {
       // варианта, вне закрытого списка, закрывается через answer_delay_sec: плагин кладёт файл-ответ в answers/, доставка — answerTick ниже (прерывание хода и письмо)
       await autoTick(
         {
+          routed: (s, f) => !!routedForm(s, f.id),
           config: (s) => {
             const c = readJson<Card>(cardFile(s))
             if (!c?.directory) return undefined
@@ -1498,6 +1540,7 @@ export default {
       // ОТВЕТ ВЛАДЕЛЬЦА СНАРУЖИ ОКНА (задача 059, owner-answer.ts): файл из scripts/crew-answer.mjs — ответом на форму через
       // API службы (задача 263, form-reply.ts), без reply — прежним путём (прерывание хода и письмо с ответом)
       await answerTick({
+        routed: (s, f) => !!routedForm(s, f.id),
         call: (s) => questionCall(s),
         reply: (s: string, fid: string, ans: string) => replyForm(s, fid, ans),
         interrupt: (s) => interruptTurn(ctx.session, s),
@@ -1517,6 +1560,9 @@ export default {
         },
         say: (line) => log(line),
       }, now())
+      // Owner files/native replies have priority over a ready integrator answer on the same pass.
+      await questions.tick(now())
+      for (const r of questions.list()) if (r.form && (r.status === "answered" || (r.status === "settled" && r.observed?.state !== "unknown"))) removeForm(r.session, r.form.id)
       // ЦИКЛ НА ВОПРОСЕ (задача 078, answer-loop.ts): форма после доставленного ответа, без рабочего хода между ними, трижды подряд
       await loopTick(
         {
@@ -1547,6 +1593,9 @@ export default {
         now(),
       )
       formReminders(now(), (session, f, message) => {
+        const routed = routedForm(session, f.id)
+        if (routed && routed.status !== "owner" && !routed.escalationQueued) return false
+        if (routed) message = routed.decision ?? `Командный маршрут вопроса ${routed.qid}: ${routed.why ?? routed.status}. Служебный факт/путь выясняет команда; исходный вопрос сохранён.`
         const c = readJson<Card>(cardFile(session))
         const title = `${short(sessionLabel(session, c ? keyOf(c) : session), 40)} ждёт вас`
         const wins = liveWindows()
@@ -2093,7 +2142,7 @@ export default {
       log(`session.idle subscribe failed: ${e}`)
     }
 
-    cleanupForms()
+    cleanupForms(now(), undefined, session => { const c = readJson<Card>(cardFile(session)); return !!(c?.task || c?.review) })
     // ответ владельца на вопросник снимает «застряла» у всех обязательств вкладки сразу (задача 052)
     void startFormWait(ctx, log, (s) => void clearStuck(s, "the owner answered the question form")).catch(() => {}) // ожидание по встроенному вопроснику (task 026), всегда включено
     if (probeEnabled()) void startEventProbe(ctx, log).catch(() => {}) // проба событий (task 026), по умолчанию выкл
@@ -2233,7 +2282,7 @@ export default {
         if (!card) return
         setBusy(card, true) // запрос вкладки: она занята ходом до строки простоя
         // новый запрос модели после вопроса владельцу: ход пошёл дальше, вопрос закрыт (form-wait.ts, задача 040)
-        void settleOnRequest(card.session, now(), async (since) => (await ownerWordAfter(card.session, since)) > 0, undefined, (sid) => questionCall(sid)).catch(() => {})
+        if (!questions.list().some(r => r.session === card.session && r.form && !["answered", "settled"].includes(r.status))) void settleOnRequest(card.session, now(), async (since) => (await ownerWordAfter(card.session, since)) > 0, undefined, (sid) => questionCall(sid)).catch(() => {})
         // ПОДСКАЗКА — НЕИЗМЕННАЯ, пока не сменилась роль: системная часть стоит перед всей историей, и любое её
         // изменение заново оплачивает историю (замер 2026-10-04). Соседи — crew_list.
         // Правила проекта (project_rules) — в конец: их изменение, как и смена роли, один раз заново оплачивает историю.
@@ -2243,16 +2292,17 @@ export default {
         ev.system.push({
           type: "text",
           text:
-            `crew-harness: You are the crew-harness tab with the role "${card.role}" in project ${projOf(card)} (address ${keyOf(card)}), repository ${card.repo || "?"}, session ${card.session}. ` +
-            `Name a task with its title: "031 "merge lock"" at the first mention, then just "031". ` +
-            `Ask the owner for a decision with the question tool: one decision, 2-4 options, the recommended one first marked "(Recommended)" with the reason. ` +
+            `crew-harness: You are the crew-harness tab with the role "${card.role}" in project ${projOf(card)} (${keyOf(card)}), repo ${card.repo || "?"}, session ${card.session}. ` +
+            `Task first mention: number and title (031 "merge lock"), then number. ` +
+            `Owner decision: question tool; 2-4 options, first "(Recommended)" with reason. ` +
             `A stop at a gate, and any report that needs the owner's decision, ends with the question tool, not with a summary; ` +
             `a question in prose does not reach the owner. ` +
+            QUESTION_ROUTING_SYSTEM +
             `Everything the owner reads (replies, questions, option texts, reasons, letters to other tabs and task reports) is in ${cfg.ownerLanguage}; code, commands and identifiers stay unchanged. ` +
             `Create a task (crew_spawn, crew_task assign or order) only when the owner says so; you may propose one with a reason. ` +
-            `A task changes code or texts on main and needs independent acceptance. ` +
-            `Not tasks: an answer, a fact check, an analysis, an edit of 1-3 lines (the integrator's, or a worker's on the owner's word), a repeat of a cancelled task. ` +
-            `Help on the tools: crew_help.` +
+            `A task changes main code/texts and needs independent acceptance. ` +
+            `Not tasks: an answer, a fact check, an analysis, an edit of 1-3 lines (integrator; worker only on owner's word), a repeat of a cancelled task. ` +
+            `See crew_help.` +
             (rules ? ` Project rules: ${rules}` : ""),
         })
         // окно не на своей ветке или не в своём каталоге: одна строка в системную часть, пока расхождение есть (branch-guard.ts)
@@ -2343,11 +2393,13 @@ export default {
       },
       startTask,
       doctor,
-      doctorNotes: () => autoNotes(now()),
+      doctorNotes: () => [...autoNotes(now()), ...routingSummary(questions.list()), ...questions.problems()],
       dirOf: dirOfSession,
       // задача 263: блокирующее ожидание вопросника для crew_list — запись формы или открытый по базе вызов question
       blocker: (s) => blockingQuestion(s, now(), (x) => questionCall(x, 1)),
       activity: (s) => activityEvidence(s),
+      questionIO: questionHost.questionIO,
+      questionInspectText: questionHost.questionInspectText,
     })
     const toEditor = (t: (typeof tools)[number]) => ({ name: t.name, description: t.description, input: t.input, execute: (input: any, context: any) => t.execute(input, context?.sessionID) })
     await ctx.tool.transform((editor: any) => {
@@ -2377,9 +2429,9 @@ export default {
     const DOCTOR_EVERY_MS = Number(process.env.CREW_HARNESS_DOCTOR_MS) || 10 * 60_000
     let doctorSaid = ""
     const runDoctor = async () => {
-      const problems = [...(await doctor()), ...commonDoctor(), ...settingsProblems(projects, settingsContext().local), ...profileProblems()]
+      const problems = [...(await doctor()), ...commonDoctor(), ...settingsProblems(projects, settingsContext().local), ...profileProblems(), ...questions.problems()]
       try {
-        writeFileSync(DOCTOR_FILE, JSON.stringify({ at: Date.now(), problems, notes: [...settingsNotes(), ...autoNotes(now()), ...branchNotes(BASE), ...stepNotes(now())] }))
+        writeFileSync(DOCTOR_FILE, JSON.stringify({ at: Date.now(), problems, notes: [...settingsNotes(), ...autoNotes(now()), ...branchNotes(BASE), ...stepNotes(now()), ...routingSummary(questions.list())] }))
       } catch {}
       const said = problems.join(" | ")
       if (said === doctorSaid) return
@@ -2496,4 +2548,6 @@ export default {
       }
     }
   },
-}
+} }
+
+export default createCrewPlugin()

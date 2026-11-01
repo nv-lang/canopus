@@ -836,7 +836,35 @@ folder, empty outside a repository). A value the plugin cannot read is `null`, n
 
 ## Answering session questions (`answer_mode`)
 
-By default every question of a session waits for the owner. A project can hand some of them to the session's own
+### Рабочие вопросы через интегратора (280, ADR-0017)
+
+Рабочий вопрос исполнителя/приёмщика — и с рекомендацией, и без неё — идёт доступному ответственному `task.author`, иначе актуальному интегратору проекта. Интегратор исполняет роль оркестратора **внутри** методики; внешний чат не обязательный посредник. Недостающий факт, команда Alula, служебный путь, артефакт и сверка требований — работа команды. `Recommended` не заменяет источник и не выдаёт полномочия.
+
+`crew_question {action: "ask", text, context}` сохраняет исходный `qid`, проект, задачу, адресата, канал и контекст. `crew_send {expect_reply:true}` от сессии задачи её автору/интегратору тоже создаёт такую корреляцию. Концы текстовых ходов, включая блоки `В-NN`, и новые/**уже открытые** native формы входят в тот же router, прежде старого recommendation autoanswer. Возраст старой записи не даёт права стереть действительно pending native вопрос. Роль приёмщика не исключение — blanket exception отменено ADR-0010 от 2026-10-19.
+
+Интегратору доступны `crew_question`:
+
+- `status {id}` — исходный вопрос и устойчивое состояние;
+- `claim {id, epoch}` — подтверждение получения, не ответ;
+- `resolve {id, epoch, text, sources:[{path:"doc/...", sha256, quote}]}` — ответ с проверяемым артефактом: относительный публичный `doc/` путь в репозитории исходного адресата, SHA256 всего текста и точная выдержка. Проверяются границы пути, размер, hash и quote. Это подтверждение личности артефакта, не доказательство истинности произвольной фразы и **не** разрешение владельца. Интегратор отвечает за содержательную сверку происхождения;
+- `escalate {id, epoch, text, sources}` — только точное оставшееся решение владельца с источниками. Настоящий closed-list action нельзя разрешить нейтральным «да» через integrator reply;
+- `ack {id}` — исходный адресат подтверждает получение текстового/почтового ответа. Постановка в ящик/HTTP 200 не означает receipt или started.
+
+Состояние — `<mailbox>/question-routing/<sha256-correlation>.json`, версия `v:1`. Исходный вопрос не переписывается. `routing`/`queuedAt` — маршрут поставлен, `receivedAt` — интегратор явно подтвердил; `ready` — есть проверенный ответ; `applying` — единственная native попытка записана до I/O; `answer_queued` — текстовый ответ в ящике, не receipt; `answered` — native 204 либо ack; `settled` — актуальная native форма закрыта другим ответом/заменена; `unknown` — результат или схема не проверены; `owner` — точный необходимый остаток/ограниченная эскалация недоступного маршрута. Диагностика — `crew_question status`, `crew_list`, `crew_doctor`.
+
+Смена интегратора увеличивает `epoch`: старый адресат/эпоха не может ответить. Маршрут и answer outbox имеют устойчивые id. Native ответ использует **ключ из текущего `Form.Detail.fields`**, не предполагает старый `q0`, и идёт через `/api/session/{sessionID}/form/{formID}/reply`. Только 204 подтверждает наш ответ; 409 не приписывает нам чужой выбор. После timeout/restart между попыткой и результатом — только сверка, без второго POST. Вопрос/предложенный ответ/источник остаются в записи. Актуальный native ответ владельца старше позднего ответа команды; новый native пользовательский ввод для текста — барьер stale ответа, не источник разрешения из произвольной фразы. Неизвестная legacy схема видима и fail-closed.
+
+Предел командного маршрута — 15 минут от intake (для давно открытой формы не от её старого timestamp); отсутствие интегратора/проверенного ответа или receipt ведёт к ограниченной явной эскалации, не к бесконечному внешнему чату. По unknown форме сначала диагностическое письмо команде; владельцу — лишь восстановление ответственного маршрута/точное оставшееся решение, не поиск пути. До источника ничего не угадывается.
+
+`execution_pause`/legacy HOLD не снимаются: перед native reply, который продолжает вызов, проверяется trusted execution guard; блок сохраняет `ready` без `attempted`. Сохранение отчёта/состояния и остановка на уже выданной границе либо продолжение ранее разрешённой работы в её пределах не требуют новой формы. Диагностика CI timeout не разрешает autorerun, merge или увеличение timeout. Закрытый список и личные `answer_*` неизменны.
+
+Для documentary small сохраняется **явный** `task.criteria`: проверяемый артефакт/exact SHA не заменяется выдуманным web URL. Независимый просмотр идёт до отдельной финальной приёмки владельцем. После отрицательного дополнительного просмотра `crew_task rework {candidate:"<exact SHA>", text:"конкретные замечания"}` от интегратора возвращает только submitted/reviewing результат прежнему исполнителю в прежних границах (`status:rework`), без formal reviewer/full cycle/accept. Потолок корректировок и execution/legacy HOLD сохраняются; письмо лишь поставлено, не «разбудило» и не делает busy. Старый шаг больше не изображает ожидание финальной приёмки во время исправления. Это не разрешение main/push/публикации.
+
+Схемы сверены по [официальному V2 OpenAPI](https://opencode.ai/v2/openapi.json) (`Form.Detail`, `Form.State`, `Form.StringField`, `Form.Reply`, `SessionMessagesResponse`, `Session.Message.User`), а не по старому SDK. Native fixtures полностью изолируют `XDG_STATE_HOME`/data/config/cache/DB и запрещают неожиданный transport; `createCrewPlugin({questionIO})` даёт явный adapter seam, production не имеет test=>idle fallback. Пять новых файлов входят в `pretest`; parallel runner учитывает `pretest` + `test`.
+
+### Legacy recommendation path
+
+Вне рабочего question router прежний путь сохраняется: by default every question of a session waits for the owner. A project can hand some of them to the session's own
 recommendation with two keys of `.opencode/crew-harness.json`, which only a person sets (edit the file and commit; `crew_config set`
 refuses them) — [ADR-0010](../doc/canon/decisions/ADR-0010-question-answering-modes.md):
 

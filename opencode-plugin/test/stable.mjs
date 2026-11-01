@@ -74,9 +74,10 @@ for (let i = 0; i < args.length; i++) {
 }
 let files = names
 if (all) {
-  const script = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8")).scripts.test
+  const scripts = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8")).scripts
+  const script = [scripts.pretest, scripts.test].filter(Boolean).join(" && ")
   execFileSync(process.execPath, [path.join(here, "cleanup-tmp.mjs")], { stdio: "inherit" })
-  files = [...script.matchAll(/node (test\/[\w.-]+\.mjs)/g)].map((m) => m[1]).filter((f) => !/cleanup-tmp/.test(f))
+  files = [...new Set([...script.matchAll(/node (test\/[\w.-]+\.mjs)/g)].map((m) => m[1]).filter((f) => !/cleanup-tmp/.test(f)))]
 } else if (!files.length) files = STABLE_FILES
 files = files.map((f) => (f.endsWith(".mjs") ? f : `test/${f}.test.mjs`).replace(/^\.?\//, ""))
 

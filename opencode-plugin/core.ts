@@ -5,7 +5,7 @@
 
 import { judge as judgeGlued } from "./glued-guard.ts"
 import { type Deps as BranchDeps, branchNotes, branchProblems, noteBranch } from "./branch-guard.ts"
-import { noteStep, stepNotes, stepProblems } from "./idle-watch.ts"
+import { noteStep, readRecord, stepNotes, stepProblems } from "./idle-watch.ts"
 import { execFileSync } from "node:child_process"
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync, appendFileSync } from "node:fs"
 import os from "node:os"
@@ -35,6 +35,9 @@ import { watchRefusal } from "./deny.ts"
 import { linkErrorsOfWrite, profileProblems, profileState, profilesShow } from "./profile-layer.ts"
 import { releaseTaskWindow } from "./profile-windows.ts"
 import { type Bounds, type Resolved, boundsOf, clampTier, familyOfModel, resolveStageProfile, stageOfLaunch } from "./profiles.ts"
+import { createQuestionRouting, requestOf, routingSummary, type QuestionFormIO } from "./question-routing.ts"
+import { QUESTION_ROUTING_HINT, smallHandoff } from "./question-policy.ts"
+import { type QuestionObservation, type QuestionRequest } from "./question-router.ts"
 
 export const POLL_MS = Number(process.env.CREW_HARNESS_POLL_MS) || 1_000 // переопределение — для самотеста
 export const LIVE_MS = 15 * 60_000
@@ -1651,8 +1654,8 @@ acceptor — роль приёмщика (разделяемая) при нас�
     Малый маршрут (задача 191; владелец, 2026-10-25): вход — фразы владельца «сделай X мгновенно» и «сделай X, супер быстро»,
     распознаёт их оркестратор, плагин фразу не разбирает: crew_spawn {route: "small", route_word: "<фраза
     дословно с датой>", estimate: "<T одной строкой>"} — папка из трёх строк (что; T; слова владельца), приёмщика и цикла нет; исполнитель сдаёт (submit),
-    поднимает тестовый контур (scripts/test-contour), даёт владельцу ссылку и пишет метку crew_task {action: "contour", n, link} — в log.md задачи идёт
-    строка с отношением к норме 10 минут от слова владельца; принимает интегратор по слову владельца: crew_task {action: "accept", n, text: "<слово
+    сохраняет явный критерий/exact SHA для технического просмотра интегратором. Только для критерия по умолчанию поднимает разрешённый тестовый контур (scripts/test-contour), даёт владельцу ссылку и пишет метку crew_task {action: "contour", n, link} — в log.md задачи идёт
+    строка с отношением к норме 10 минут от слова владельца; documentary результат не требует выдумывать URL. Технический просмотр не финальная owner acceptance; принимает интегратор по слову владельца: crew_task {action: "accept", n, text: "<слово
     владельца с датой>"} — влитие в целевую ветку обязательно, замка и шагов приёмки нет. Время фразы: route_word_at (ISO-дата или
     миллисекунды) — время сообщения владельца; без него отсчёт идёт от записи постановки, и в журнале пометка «время записи, не сообщения».
   Подзадача — отдельная задача со своим номером и папкой: crew_spawn {part_of: N, ...}; первая строка её task/message.md —
@@ -1743,23 +1746,30 @@ merge без предпроверки отклоняется: сначала pre
 «Ответ по настройке проекта (answer_mode: recommendations, тип <тип>), не слово владельца» с текстом рекомендации.
 Это не слово владельца: ворота (утверждение spec.md и plan.md, согласование плана, пуш, слияние, удаление, перезапуск или переключение
 службы, публикация, деньги, общие среды, отказ от требования, потолок заходов и раунды, решения по результату и сдаче) — только слово владельца;
-вышел за рекомендацию — вопрос владельцу; слово владельца старше автоответа: если владелец написал в диалоге после ответа, действует его слово.
+вышел за рекомендацию — рабочий вопрос интегратору, настоящее решение владельцу; слово владельца старше автоответа: если владелец написал в диалоге после ответа, действует его слово.
 Чтобы вопрос мог получить такой ответ, задавай его формой: блок «В-01 …?», в нём строки \`Тип: requirements|plan|implementation|gate\`,
 \`Рекомендация: …\` и \`Автоответ: допустим\`, «?» в конце строки с вопросом; \`Рекомендация:\` — одним абзацем без пустых строк, вопрос заканчивай знаком «?» в конце строки, поля — отдельными строками ниже.
 Вопрос про ворота объявляй \`gate\`: он всегда у владельца; вопрос
-без типа, без рекомендации или без строки \`Автоответ: допустим\` тоже идёт владельцу. Вопросы, которые не закрыты, письмо называет по номерам:
-по ним жди слов владельца. Рекомендуемое значение для владельца — \`{"implementation": "recommendations"}\`, для \`requirements\` и \`plan\` — \`owner\`;
+без типа, без рекомендации или без строки \`Автоответ: допустим\` не получает автоответ по рекомендации: рабочий вопрос разбирает интегратор. Вопросы, которые не закрыты, письмо называет по номерам:
+по настоящим воротам жди слов владельца. Рекомендуемое значение для владельца — \`{"implementation": "recommendations"}\`, для \`requirements\` и \`plan\` — \`owner\`;
 число ответов — счётчик answers в /crew, сами ответы — история задачи (crew_task show).
 
 ФОРМЫ ВСТРОЕННОГО ВОПРОСНИКА (инструмент question). При answer_mode: recommendations плагин сам закрывает формы встроенного вопросника рекомендацией через
 answer_delay_sec секунд (60 по умолчанию; ключ ставит человек, владелец успевает ответить сам, его ответ главнее). Условия все сразу: у ПЕРВОГО варианта единственная
-пометка «(Recommended)» (нет пометки, две пометки или пометка не у первого — вопрос владельцу); вопрос не из закрытого списка: закрыт вопрос, который ПРЕДЛАГАЕТ действие
+пометка «(Recommended)» (нет пометки, две пометки или пометка не у первого — автоответа нет, рабочий вопрос разбирает интегратор); вопрос не из закрытого списка: закрыт вопрос, который ПРЕДЛАГАЕТ действие
 из списка (пуш в main, слияние, удаление, перезапуск службы, живая проверка, tag и выпуск, утверждение спецификации и плана, решение по результату и сдаче, потолок заходов,
 force, пароль, токен, деньги, расширение прав, снятие запретов и границ задачи, «слово владельца», ключи answer_*) или чей рекомендованный вариант содержит такое действие;
 слово из описания положения («на main красный», «найдено при сдаче») вопрос не закрывает; в форме один
 вопрос без множественного выбора; предел answer_max подряд не исчерпан. Тип вопроса — default или «Тип: …» в тексте; вопрос про ворота объявляй «Тип: gate». Придёт
 служебное письмо «Ответ по настройке проекта (answer_mode: recommendations, тип <тип>), не слово владельца»: форма закрыта прерыванием хода, не задавай вопрос заново,
-продолжай с этим ответом. Это закрытый список в виде таблицы действий в коде (form-auto.ts); сомнение уходит владельцу.
+продолжай с этим ответом. Это закрытый список в виде таблицы действий в коде (form-auto.ts); сомнение разбирает интегратор, настоящее решение остаётся владельцу. Рабочие task forms сначала идут question router, не в угадывание Recommended.
+
+РАБОЧИЕ ВОПРОСЫ (ADR-0017). ${QUESTION_ROUTING_HINT}
+crew_question {action: "ask", text, context} сохраняет исходный qid/task/project/source/context.
+Интегратору: claim подтверждает получение, resolve {id, epoch, text, sources:[{path:"doc/...", sha256, quote}]} возвращает ответ с проверенным артефактом. Это не полномочие владельца.
+escalate с точным оставшимся решением и источником — только для настоящего owner gate. status показывает исходный вопрос и состояние.
+Исходный адресат после получения текстового/почтового ответа вызывает ack {id}; постановка в ящик и HTTP 200 не означают получения или старта.
+Уже открытые native формы сохраняются; replaced/stale/answered не получают повторного ответа. Не обходи router через owner-answer или unverified reply_to.
 
 КОНТРОЛЬНЫЙ ВОПРОС. Вопрос вида «кто тут integrator проекта X?» (адресован роли или всем) отвечает вкладка, которая
 им является: «я integrator проекта X». Остальные молчат — ответ на чужой вопрос это лишний ход у спрашивающего.
@@ -1913,7 +1923,51 @@ export type CrewHost = {
    *  вызов question (form-wait.ts blockingQuestion); нет — undefined. crew_list показывает его вместо голого «занята». */
   blocker?(session: string): Promise<{ since: number; question?: string; formId?: string; rid?: string; options?: string[]; norecord?: boolean } | undefined>
   activity?(session: string): Promise<string>
+  /** 280: explicit native form transport; absent is unknown, never a legacy answer/interrupt fallback. */
+  questionIO?: QuestionFormIO
+  questionCanReply?(project: string, n: number): string | undefined
+  questionInspectText?(request: QuestionRequest): Promise<QuestionObservation>
 }
+
+/** Same durable router for OpenCode and MCP. Trusted target/roots come from task records, live tabs and role locks. */
+export function questionCardOf(card: Card): Card {
+  if (card.task && card.review) {
+    const task = loadTask(card.task.project, card.task.n)
+    if (!task || !isOpen(task) || task.executor !== card.session) return { ...card, task: undefined }
+  }
+  return card
+}
+export function questionRouterFor(host: Pick<CrewHost, "questionIO" | "questionCanReply" | "questionInspectText">, closed: (text: string) => boolean = () => true) {
+  return createQuestionRouting({
+    dir: path.join(BASE, "question-routing"),
+    target: r => {
+      const windows = liveWindows()
+      const cards = allCards().filter(c => mayWakeCard(c, windows) && (c.project ?? projectOf(c.directory, currentProjects)) === r.project && c.session !== r.session)
+      const task = r.task ? loadTask(r.project, r.task) : undefined
+      const authorWasIntegrator = task?.author_role === roleKey(r.project, "integrator")
+      const author = cards.find(c => c.session === task?.author && (!authorWasIntegrator || (c.role === "integrator" && holdsExclusive(roleKey(r.project, "integrator"), c.session))))
+      return author?.session ?? cards.find(c => c.role === "integrator" && holdsExclusive(roleKey(r.project, "integrator"), c.session))?.session
+    },
+    root: r => readJson<Card>(cardFile(r.session))?.directory,
+    validate: r => {
+      if (!r.task) return undefined
+      const task = loadTask(r.project, r.task)
+      if (!task) return { state: "unknown", why: "исходная запись задачи недоступна; контекст не угадывается" }
+      const card = readJson<Card>(cardFile(r.session))
+      const bound = [card?.task, card?.review].some(ref => ref?.project === r.project && ref.n === r.task)
+      if (!bound || !isOpen(task) || (task.executor !== r.session && task.reviewer !== r.session)) return { state: "stale", why: "исходная задача закрыта или у вопроса уже нет прежнего исполнителя/приёмщика; поздний ответ не применяется" }
+      return undefined
+    },
+    inspectText: r => host.questionInspectText ? host.questionInspectText(r) : Promise.resolve({ state: "unknown", why: "native проверка более позднего пользовательского ввода недоступна; вопрос сохранён" }),
+    io: host.questionIO,
+    closed,
+    canReply: r => r.task ? questionExecutionBlock(host, r.project, r.task) : "задача/контекст исполнения неизвестны; native ответ не отправлен",
+    post: (to, text, id, replyTo) => {
+      if (!letterExistsFor(to, id)) postLetter(to, { id, from_role: PLUGIN_SENDER, from_session: PLUGIN_SENDER, to, text, time: Date.now(), ...(replyTo ? { reply_to: replyTo } : {}) })
+    },
+  })
+}
+export const questionExecutionBlock = (host: Pick<CrewHost, "questionCanReply">, project: string, n: number) => host.questionCanReply ? host.questionCanReply(project, n) : readRecord(project, n)?.hold ? "legacy HOLD/STOP: побочный ответ/корректировка не разрешает execution" : undefined
 
 /** Зависимости контроля каталога и ветки окон (branch-guard.ts, задача 157): задачи, настройки и замок вливания плагина. */
 export function branchDeps(projects: Projects): BranchDeps {
@@ -2016,19 +2070,24 @@ export function makeTools(host: CrewHost): CrewTool[] {
         }
       }
       const rows: string[] = []
+      const questionRouter = questionRouterFor(host)
+      const questionRoutes = questionRouter.list()
       for (const c of cards) {
         const w = waiting(c)
         // задача 263: «занята» не доказывает работу — вкладка может ждать ответа владельца в вопроснике (инцидент 258);
         // блокирующее ожидание называется явно: что, с какого времени, id формы
         const b = host.blocker ? await host.blocker(c.session).catch(() => undefined) : undefined
-        const bw = b ? `, ждёт ответа владельца с ${hhmm(b.since)} (${Math.max(0, Math.floor((now - b.since) / 60_000))} мин)${b.norecord ? " (диалог без записи формы)" : b.formId ? ` (форма ${b.formId}, rid ${b.rid ?? b.formId})` : ""}${b.question ? `: ${short(b.question, 120)}` : ""}${b.options?.length ? `; варианты: ${b.options.map((o) => short(o, 80)).join(" | ")}` : ""}` : ""
+        const qr = questionRoutes.find(r => r.session === c.session && !["answered", "settled"].includes(r.status) && (!b?.formId || r.form?.id === b.formId))
+        const waitFor = qr && qr.status !== "owner" ? `ответа команды через интегратора (${qr.status}${qr.target ? `, ${qr.target}` : ""}; ${qr.receivedAt ? "получен интегратором" : "получение не подтверждено"})` : "ответа владельца"
+        const bw = b ? `, ждёт ${waitFor} с ${hhmm(b.since)} (${Math.max(0, Math.floor((now - b.since) / 60_000))} мин)${b.norecord ? " (диалог без записи формы)" : b.formId ? ` (форма ${b.formId}, rid ${b.rid ?? b.formId})` : ""}${b.question ? `: ${short(b.question, 120)}` : ""}${b.options?.length ? `; варианты: ${b.options.map((o) => short(o, 80)).join(" | ")}` : ""}` : qr ? `; рабочий вопрос qid ${qr.qid}: ${qr.status}${qr.why ? ` (${qr.why})` : ""}` : ""
         const evidence = host.activity && (b || c.spawned || isBusy(c, windows)) ? `; ${await host.activity(c.session).catch(() => "источники активности недоступны: неизвестно")}` : ""
         rows.push(`${c.session === me?.session ? "* " : "  "}${keyOf(c)}${c.auto ? " (авто)" : ""} — ${tabStatus(c, windows)}, ${c.repo || "?"}, сессия ${c.session}, модель ${modelLabel(c, now)}${famOf(c)}${w ? `, ждут писем: ${w}` : ""}${bw}${c.title ? `, «${c.title}»` : ""}${evidence}`)
       }
       const others = input?.all || !home ? 0 : all.length - cards.length
       const openTasks = home ? listTasks(home).filter(isOpen).sort(byPriority) : []
       const tasksPart = openTasks.length ? `\nЗадачи (crew_task):\n${openTasks.map((t) => `  ${taskNo(t)} ${t.priority} ${statusRu(t.status)} «${t.title}»${t.executor ? ` — ${t.executor}` : ""}`).join("\n")}` : ""
-      const tail = tasksPart + (others ? `\n(ещё ${others} вкладок в других проектах — crew_list {all: true})` : "")
+      const routeProblems = questionRouter.problems()
+      const tail = tasksPart + (others ? `\n(ещё ${others} вкладок в других проектах — crew_list {all: true})` : "") + (routeProblems.length ? `\nПроблемы маршрута: ${routeProblems.slice(0, 10).join("; ")}` : "")
       const noWindow = windows.length || process.env.CREW_HARNESS_PRESENCE === "all" ? "" : "\n(ни одно окно OpenCode с плагином окна сейчас не открыто — письма ждут; crew_doctor)"
       return { content: (rows.length ? rows.join("\n") : `Вкладок проекта ${home} нет.`) + tail + noWindow }
     },
@@ -2139,6 +2198,11 @@ export function makeTools(host: CrewHost): CrewTool[] {
       let wake = input.wake !== false
       const qid = input.expect_reply ? `q${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}` : undefined
       const replyTo = input.reply_to ? String(input.reply_to) : undefined
+      // A source-backed routing answer cannot be downgraded to an unverified ordinary mail reply.
+      if (replyTo) {
+        const routed = questionRouterFor(host).list().find(r => r.qid === replyTo && r.session === to)
+        if (routed) return { content: `Не отправлено: qid ${replyTo} ведёт question router (${routed.status}). Ответ с источником — crew_question {action: "resolve", id: "${routed.id}", epoch: ${routed.epoch}, text, sources}; поздний ответ не отменяет решение владельца.` }
+      }
       const cards = allCards()
       const windows = liveWindows()
       const addr = parseAddr(to, home, (s) => cards.some((c) => c.session === s))
@@ -2173,6 +2237,11 @@ export function makeTools(host: CrewHost): CrewTool[] {
         wake = sessionReport
       }
       const base = { from_role: fromRole, from_session: sessionID, text, time: now, ...(wake ? {} : { wake: false }), ...(qid ? { qid } : {}), ...(replyTo ? { reply_to: replyTo } : {}) }
+      const questionCard = me ? questionCardOf(me) : undefined, questionTask = questionCard?.task ?? questionCard?.review
+      if (qid && questionCard && questionTask && ((addr.kind === "role" && addr.role === "integrator" && addr.project === home) || to === loadTask(questionTask.project, questionTask.n)?.author)) {
+        const r = questionRouterFor(host).open(requestOf(questionCard, "mail", qid, text, `crew_send to=${to}; ожидание исходного qid`, now))
+        base.text += `\nВопрос сохранён router: id ${r.id}. Ответ с проверенным источником — crew_question resolve с текущим epoch из status/маршрутного письма; обычный reply_to не подменяет проверку источника.`
+      }
       if (replyTo && !isReport) settleObligation(sessionID, replyTo)
       if (replyTo && me?.spawned && !me.task && me.spawned.status === "running" && me.spawned.qid === replyTo) {
         me.spawned.status = "done"
@@ -2242,6 +2311,48 @@ export function makeTools(host: CrewHost): CrewTool[] {
     },
   }
 
+  const crewQuestion: CrewTool = {
+    name: "crew_question",
+    description: "Рабочие вопросы через ответственного автора/актуального интегратора (ADR-0017). ask сохраняет qid/контекст, status читает состояние. claim подтверждает получение. resolve требует проверяемых doc/ источников (path, sha256, точная quote), не выдаёт прав владельца. escalate передаёт только оставшееся настоящее решение владельца. ack исходного адресата подтверждает получение текстового/почтового ответа; enqueue не receipt. Настройки answer_*, закрытый список и HOLD не меняются.",
+    input: {
+      type: "object", properties: {
+        action: { type: "string", enum: ["ask", "status", "claim", "resolve", "escalate", "ack"] },
+        id: str("Устойчивый идентификатор вопроса из маршрутного письма"),
+        epoch: { type: "integer", minimum: 1, description: "Текущая эпоха маршрута; ответы прежнего интегратора отвергаются" },
+        text: str("Исходный вопрос, ответ с проверенным источником или точное оставшееся решение владельца"),
+        context: str("Контекст вопроса, не источник полномочий или разрешения"),
+        sources: { type: "array", maxItems: 8, items: { type: "object", properties: { path: str("Публичный doc/ артефакт относительно репозитория исходного адресата"), sha256: str("SHA256 точного артефакта"), quote: str("Точная проверенная выдержка; не выдуманная цитата владельца") }, required: ["path", "sha256", "quote"], additionalProperties: false } },
+      }, required: ["action"], additionalProperties: false,
+    },
+    execute: async (input: any, sessionID: string) => {
+      const me = await host.touch(sessionID)
+      if (!me) return { content: "Вкладка не зарегистрирована; вопрос не отправлен." }
+      try {
+        const { closedHits } = await import("./form-auto.ts")
+        const router = questionRouterFor(host, text => closedHits(text).length > 0 || /(?:^|\n)\s*Тип:\s*gate\b/i.test(text))
+        if (input.action === "ask") {
+          const qid = newQid()
+          const r = router.open(requestOf(questionCardOf(me), "text", qid, String(input.text ?? ""), String(input.context ?? ""), Date.now()))
+          await router.tick()
+          host.posted([])
+          return { content: `Вопрос ${qid} сохранён: id ${r.id}. Маршрут — команда через интегратора; это не ответ/не разрешение. ${routingSummary([router.get(r.id)!]).join("\n")}` }
+        }
+        const r = router.get(String(input.id ?? ""))
+        if (!r || (r.project !== projOf(me)) || (r.session !== sessionID && router.deps.target(r) !== sessionID && r.target !== sessionID)) return { content: "Вопрос не найден или недоступен этой вкладке." }
+        if (input.action === "status") return { content: JSON.stringify(r, null, 2) }
+        if (input.action === "claim") router.claim(r.id, sessionID, input.epoch)
+        else if (input.action === "ack") router.ack(r.id, sessionID)
+        else if (input.action === "resolve") await router.resolve(r.id, sessionID, input.epoch, String(input.text ?? ""), input.sources ?? [])
+        else if (input.action === "escalate") await router.escalate(r.id, sessionID, input.epoch, String(input.text ?? ""), input.sources ?? [])
+        else return { content: "Неизвестное действие question router." }
+        if (input.action === "resolve") settleObligation(sessionID, r.qid)
+        await router.tick()
+        host.posted([])
+        return { content: `Вопрос ${r.qid}: ${router.get(r.id)!.status}. Исходный вопрос/контекст сохранены; постановка в ящик не подтверждает получение.` }
+      } catch (e) { return { content: `Маршрутизатор вопросов: ${String(e)}. Вопрос не стирается; не обходи отказ ответом владельца.` } }
+    },
+  }
+
   const crewWait: CrewTool = {
     name: "crew_wait",
     description: `Wait in this same turn for the answer to a question sent with crew_send {expect_reply: true} (its qid). Returns the answer as soon as it arrives -- no second wake. seconds: up to ${WAIT_MAX_S} (default 120). No answer in time -> it will come as an ordinary letter.`,
@@ -2295,7 +2406,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
   }
   // МАРШРУТ ЗАДАЧИ (задача 092): поля входа crew_spawn и crew_task route; имена зарезервированы в config-schema.ts (RESERVED_FIELD_IDS)
   const routeInput = {
-    route: { type: "string", enum: ["full", "fast", "small"], description: "Route of the task (the methodology: data of the task): full (default), fast or small (task 191). fast needs: task/message.md with the numbered points of «Критерии приёмки» and a branch line («Репозиторий: …, ветка …» or «Ветка: …»), route_word with «заводи» and its date; otherwise the answer says «быстрый путь требует: …» and no task is made. The invariants of the route are not switched off by it. small is chosen by the owner's entry phrases («сделай X мгновенно» / «сделай X, супер быстро»), recognized by the orchestrator — the plugin does not parse the phrase: route_word = the phrase word for word with the date, estimate = the time T in one line; the folder is three lines, there is no reviewer, the acceptance is the owner's word on the test contour (crew_task contour records the link mark)" },
+    route: { type: "string", enum: ["full", "fast", "small"], description: "Маршрут задачи: full (по умолчанию), fast или small. fast требует полного task/message.md с нумерованными критериями, веткой и route_word («заводи» дословно с датой); инварианты не снимаются. small распознаёт оркестратор по фразам владельца «сделай X мгновенно»/«сделай X, супер быстро»: route_word дословно с датой, estimate = T, папка из трёх строк, формального приёмщика нет. По умолчанию приёмка — слово владельца на контуре (crew_task contour); явный documentary criterion/exact SHA сохраняется, технический просмотр не отменяет финальные owner gates и не требует выдумывать URL." },
     route_word: str("fast: the owner's word «заводи <number>» word for word with the date and the source, e.g. «заводи 093» (владелец, 2026-10-18, чат оркестратора); required, must contain «заводи». small: the owner's entry phrase word for word with the date and the source; the plugin does not parse its wording"),
     route_word_date: str("fast/small: the date of the word, ГГГГ-ММ-ДД; absent - taken from route_word"),
     route_word_at: str("small: the time of the owner's message (an ISO date or milliseconds); absent - the time the spawn is recorded, and the task's log carries the honest note «время слова — время записи, не сообщения»"),
@@ -2498,7 +2609,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
       }
       if (t.route === "fast" || t.route === "small") taskEvent(t, me.session, undefined, routeLogText(t))
       fresh = true
-      made = `Задача ${taskRef(t)} заведена: папка ${t.folder}/ на ветке ${t.branch}${t.route === "fast" ? `; маршрут быстрый по слову владельца ${t.route_word_date} (числа цикла: потолок ${t.ceiling}, чистых ${t.clean_runs}, проб ${t.probes})` : t.route === "small" ? `; маршрут малый по фразе владельца ${t.route_word_date} (приёмщика нет: приёмка — слово владельца на тестовом контуре; норма — ссылка за ${SMALL_NORM_MIN} мин, метка — crew_task {action: "contour", n: ${t.n}, link})` : ""}`
+      made = `Задача ${taskRef(t)} заведена: папка ${t.folder}/ на ветке ${t.branch}${t.route === "fast" ? `; маршрут быстрый по слову владельца ${t.route_word_date} (числа цикла: потолок ${t.ceiling}, чистых ${t.clean_runs}, проб ${t.probes})` : t.route === "small" ? `; маршрут малый по фразе владельца ${t.route_word_date} (приёмщика нет). ${smallHandoff(t)}` : ""}`
     }
     const s = startSession(t, code, goal, input.place, cfg, me.session)
     t.model = model
@@ -2525,7 +2636,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
         "A task session is a part of the task, not a task: session \"<code>\" (С1, С2, С3п, С4…; default исп = the executor) adds a session to task N: ident 045 С4-3 (code and its ordinal in the task) plus the launch number №n; the plugin writes the launch lines into progress.log and log.md of the folder. A method session submits to you (crew_task submit), with no plugin review; the plugin's review of the task starts once, after crew_task deliver. place: own (default for С2/С4/С6) - its own worktree and branch task/NNN-<code>-<k> from the task branch; task (default for the others) - the task worktree.",
         "A sub-task (part_of: N) is a task of its own: own number and folder, the first line of its task/message.md is «Часть задачи NNN «…».», a line in the parent's log.md. The rule: an own acceptance or an own landing in main - a sub-task; the next step of the same work (a check, a fix by findings, a continuation, a handover) - a session.",
         "goal, criteria - required (the project may require more: boundaries, open_questions; task_fields). title? priority? P0..P3.",
-        "route? full (default) | fast (task 092) | small (task 191): the route of the task is data of the record (route, route_basis, route_source, route_proposal, route_word, route_word_date, clean_runs, ceiling, probes, delivery_compressed, sources_list). fast needs the owner's word in route_word («заводи <number>» word for word with the date) and a complete brief (numbered «Критерии приёмки», a branch line); without them the answer is «быстрый путь требует: …» and no task is made. Numbers below the methodology's minimum (clean_runs 1, probes 3) are refused on both routes; the project's route_defaults set the numbers. A brief edited after the word marks the task (route_word_stale): crew_task route renews the word or returns to full. small is chosen by the owner's entry phrases («сделай X мгновенно» / «сделай X, супер быстро»), recognized by the orchestrator — the plugin does not parse the phrase: route_word = the phrase word for word with the date, estimate = the time T in one line; the folder is three lines, criteria are not required (acceptance is the owner's word on the test contour), there is no reviewer and no review cycle.",
+        "route? full (по умолчанию) | fast (092) | small (191) — данные записи: route, route_basis, route_source, route_proposal, route_word, route_word_date, clean_runs, ceiling, probes, delivery_compressed, sources_list. fast требует route_word («заводи <номер>» дословно с датой) и полной постановки с нумерованными критериями/веткой; иначе отказ. Минимумы clean_runs 1/probes 3 не снижаются, числа задаёт route_defaults; правка постановки помечает route_word_stale, crew_task route обновляет слово или возвращает full. small распознаёт оркестратор по фразам владельца «сделай X мгновенно»/«сделай X, супер быстро»: route_word дословно с датой, estimate=T, папка из трёх строк. criteria необязателен (по умолчанию слово владельца на контуре); явный documentary criterion/exact SHA сохраняется. Формального приёмщика/цикла нет; технический просмотр не отменяет финальные owner gates и не требует выдумывать URL.",
         "The task text of a new task with a folder (no task:, part_of included) follows one template: «# Задание: <title>», a header, then sections «Чего хочет владелец», «Что нужно», «Критерии приёмки», «Результат и куда он попадает», «Связи», «Границы» in this order; an empty section is «нет: <why>». Without message the plugin builds it from the fields: owner_words (required: the owner's words word for word with date and source, e.g. - «сделай X» (владелец, 2026-10-17, чат оркестратора)), goal (paragraphs and «- » lines become the numbered points of «Что нужно»), criteria, result (required: where the result lands, or «нет: результат — код: <what is delivered>»), links? (Зависит от / Блокирует / Пересекается (файлы) / Начинается после), boundaries?; absent links or boundaries become «нет: … не передано». Without owner_words with a date or without result - a refusal naming what to add; a message without the template's sections is refused too. A project without task folders and a session of a task (task: N) need none of these fields.",
         "tier heavy|medium|light - picks the model: by default claude-code opus|sonnet|haiku, spawn_models of the project overrides; an enabled model-profile set (/crew-sets) overrides both for the stage it describes (the tier then picks the tier inside the set's family). model - explicit provider/id[#variant]; required when the project has no model settings (ask the owner first).",
         "role? - role of the new session, default worker. extra {id: one line up to 300 characters} - the project's extra task fields (task_extra_fields; crew_config show lists them). parent \"project#N\" - the order of another project this task fulfils.",
@@ -2697,7 +2808,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
         "target - integrator - n, dir, remote?, branch?, word - bind the explicit RESULT repository of the task (task 257): the result lands or is already published not in the repository the task was posted in. dir is its local clone (checked: a git repository, not the task's own one, the remote and the branch on it exist); word is the owner's word with its date. The landing loop (precheck, base freshness, the merge gate, accept) then works against the bound repository; an already published candidate (an ancestor of the remote branch tip) finishes the precheck as published - no merge, accept with commit fixes the record. dir: \"\" lifts the binding.",
         "contour - executor of a small-route task - n, link - record the mark «ссылка на контур выдана» (task 191): the test contour URL given to the owner goes to log.md of the task with the relation to the 10 minute norm from the owner's word (route_word_ts). The acceptance of a small task: the integrator calls accept with text = the owner's word word for word with its date — no reviewer, no merge lock, no check steps; the landing in the target branch is still required.",
         "migrate - integrator - n, message (exact saved sent-letter text), source_id, source_session, source_to, source_qid, source_sha256, route_word, route_word_date - migrate an open folderless legacy record in place. Accepts only a strictly matched historical task-letter envelope; archive identity and exact UTF-8 text digest are required, never reconstruct the letter. Requires matching project/number/title/branch and the owner's explicit «заводи <number>» word. Edits no archive or external project files; preserves sessions, rounds, branch/worktree, history, precheck and evidence. A second migration is refused.",
-        "submit - executor - n, text - submit the task's work with the report (what was done, how it was checked, what is left); no qid is needed. The first submission, one after rework or after a sync (the reviewer is woken), a plan task (the plan file and its form are checked). Already submitted: refused. Small route: after the submit raise the test contour (scripts/test-contour), give the owner the link and record the mark with contour.",
+        "submit - исполнитель - n, text - сдать отчёт: что сделано, как проверено, что осталось; qid не нужен. Повтор уже сданного отклоняется; после rework/sync сдать снова. Для small сохрани явный критерий и exact SHA/артефакт для технического просмотра интегратором; финальное решение владельца остаётся. Только если критерий по умолчанию требует контур, подними разрешённый scripts/test-contour и запиши contour; не выдумывай URL для documentary результата.",
         "track - executor, reviewer, integrator - n, branch?, worktree? - record a side branch or worktree of the task (no duplicates) so cleanup removes it; branches integrate/t<N> and integrate/t<N>-* are recorded by the plugin itself.",
         "plan_decide - integrator, only the plan task's author, only when the project's plan_approver is integrator - n, decision ok|ok-shortcuts|no, text (required with no) - decide a plan that passed the recheck rounds and waits for approval (status approval). ok = approved with no shortcuts; ok-shortcuts = approved, the shortcuts written in the plan stay; no = back to the executor, text lists what to change, the rounds start over. With plan_approver: owner (default) the owner decides in the window with /plans and this action is refused.",
         "review - reviewer - n - start reviewing a submitted task; the answer lists the acceptance steps. For a plan task the steps are the plan recheck steps.",
@@ -2706,7 +2817,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
         "precheck - reviewer - n, then {n, candidate, result} - on by default (project setting merge_precheck: required; merge_precheck: off returns the old order). First precheck {n}: the plugin reads the target branch tip on origin and names it. Then merge that tip with the task branch into a candidate branch (for example integrate/t<N>), run the full CI of the project without any lock, and record {n, candidate: branch or commit, result: the CI verdict} for that exact candidate.",
         "merge - reviewer - n - take the project's merge lock (one task is landed at a time) and land that exact checked candidate: you fast-forward it into the target branch and push; the plugin merges and pushes nothing itself. With merge_precheck: required a merge without a green precheck is refused. If the target tip moved, never land the old candidate: rebuild and recheck. The lock is released by accept, also by rework and cancel; unlock {n} releases it when the merge is abandoned before accept; cleanup does not release it; the service releases it by itself when the checked candidate is already in the target tip on origin.",
         "unlock - reviewer - unlock {n} - release the merge lock you hold for the task (the precheck record becomes stale).",
-        "rework - reviewer - n, text, sync? - return the task to the executor with remarks; sync: true only asks to merge the fresh target branch (not a rework round, not counted in rework_max). Releases the merge lock.",
+        "rework - приёмщик - n, text, sync? - вернуть замечания исполнителю; sync:true только для свежей целевой ветки, не круг rework_max; отпускает замок. Для small — только интегратор, submitted/reviewing, text и candidate (точный SHA из последнего отчёта): прежний исполнитель/границы, статус rework, без full цикла/автоприёмщика и ложного busy/started. Потолок и execution/legacy HOLD сохраняются; closed/accepted/cleanup не возвращаются автоматически.",
         "accept - reviewer - n, checks?, commit? - accept after landing: the plugin checks that the required steps are marked and that the task branch (or commit, when squashed) is in the target branch, releases the merge lock, and with accepted_slot: free the task stops taking a place in inflight_limit; the answer lists the cleanup steps. For a plan task the approval must exist first. commit: the commit in the target branch for a squash merge. Small route (task 191): the integrator accepts with text = the owner's word with its date (see contour).",
         "cleanup - reviewer - n, keep? - after accept, remove the task's worktree, branch and recorded side branches/worktrees yourself, then call this; the plugin checks they are gone and the task becomes done. keep: up to 8 paths of worktrees to keep as evidence (a worktree of the repository or a folder in the project's worktree folder; absolute or from the repository root; not the main tree); the check skips them and the answer says \"Сохранено: <path> (не проверялось уборкой)\"; the task branch must still be deleted. cleanup_limit bounds the queue of accepted tasks waiting for cleanup.",
         "With the project setting reviewer: acceptor, merge, unlock, precheck, accept and cleanup need the acceptor role (or the integrator). The executor never lands or accepts its own task. Reviewer order: review, check each step, precheck, merge, accept, cleanup.",
@@ -2880,7 +2991,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
             t.review_kind = undefined
             t.review_letter = undefined
             t.review_qid = undefined
-            postLetter(rev, { id: `review-lifted-${safeKey(project)}-${t.n}-${rounds(t)}`, from_role: keyOf(me), from_session: me.session, to: rev, time: Date.now(), wake: false, text: `Полномочия приёмки задачи ${taskNo(t)} «${t.title}» сняты: маршрут сменён на малый (фраза владельца ${t.route_word_date}), приёмщика у него нет — принимает интегратор по слову владельца на тестовом контуре. Твоя текущая работа (контур, проверки) не отменяется; дальше по задаче решает интегратор.` })
+            postLetter(rev, { id: `review-lifted-${safeKey(project)}-${t.n}-${rounds(t)}`, from_role: keyOf(me), from_session: me.session, to: rev, time: Date.now(), wake: false, text: `Полномочия приёмки задачи ${taskNo(t)} «${t.title}» сняты: маршрут сменён на малый (фраза владельца ${t.route_word_date}), приёмщика у него нет. ${smallHandoff(t)} Твоя текущая работа (контур, проверки) не отменяется; дальше по задаче решает интегратор.` })
           }
           if (t.status === "reviewing") {
             markPrecheckStale(t, "маршрут сменён на малый: цикл приёмки снят")
@@ -2974,7 +3085,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
         const rv = routeView(t)
         const lines = [
           taskRow(t),
-          t.route === "fast" ? `${routeLogText(t)}; числа цикла: потолок ${rv.ceiling}, чистых подряд ${rv.clean_runs} (серия ${rv.clean_series}), проб ${rv.probes}, сдача ${rv.delivery_compressed ? "сжата" : "не сжата"}${rv.proposal ? `; предложение правила: ${ROUTE_RU[rv.proposal]}` : ""}` : t.route === "small" ? `${routeLogText(t)}; норма: ссылка на тестовый контур в пределах ${SMALL_NORM_MIN} мин от слова владельца (метка — crew_task {action: "contour", n: ${t.n}, link}); приёмщика нет — приёмка словом владельца на контуре` : "",
+          t.route === "fast" ? `${routeLogText(t)}; числа цикла: потолок ${rv.ceiling}, чистых подряд ${rv.clean_runs} (серия ${rv.clean_series}), проб ${rv.probes}, сдача ${rv.delivery_compressed ? "сжата" : "не сжата"}${rv.proposal ? `; предложение правила: ${ROUTE_RU[rv.proposal]}` : ""}` : t.route === "small" ? `${routeLogText(t)}; приёмщика нет. ${smallHandoff(t)}` : "",
           `автор ${t.author_role} (${t.author}), ступень ${t.tier}${t.model ? `, модель ${t.model}` : ""}, qid ${t.qid}`,
           t.worktree ? `worktree ${t.worktree}, ветка ${t.branch}` : t.branch ? `ветка ${t.branch}` : "",
           t.refinement ? `уточнение при передаче: ${t.refinement.text} (${hhmm(t.refinement.at)})` : "",
@@ -3032,7 +3143,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
         closeAskedByLetter(me.session, [t.author], (s) => cards.filter((c) => c.session === s).map(keyOf), now)
         host.posted([t.author])
         log(`submit ${keyOf(me)} -> ${t.author} task ${taskNo(t)}`)
-        if (t.route === "small") return { content: `Задача ${taskRef(t)} сдана (${hhmm(now)}): отчёт ушёл автору. Малый маршрут: приёмщика нет — приёмка словом владельца на тестовом контуре; дай владельцу ссылку и запиши метку: crew_task {action: "contour", n: ${t.n}, link: "<адрес контура>"}.` }
+        if (t.route === "small") return { content: `Задача ${taskRef(t)} сдана (${hhmm(now)}): отчёт ушёл автору. Малый маршрут: приёмщика нет. ${smallHandoff(t)}` }
         return { content: `Задача ${taskRef(t)} сдана (${hhmm(now)}): отчёт ушёл автору, дальше приёмка. Остановись и жди; вернут на доработку — придёт письмо.` }
       }
       // МЕТКА «ССЫЛКА НА КОНТУР ВЫДАНА» (задача 191): малому маршруту плагин пишет метку в log.md с отношением к норме 10 минут от слова владельца
@@ -3068,7 +3179,27 @@ export function makeTools(host: CrewHost): CrewTool[] {
         // контуре), без замка вливания и шагов приёмки; влитие в целевую ветку обязательно. cleanup — общим кодом ниже.
         if (t.route === "small") {
           if (!isIntegrator(me)) return { content: `Задача ${taskRef(t)} — малый маршрут: приёмщика нет, ${action} по ней делает интегратор (у тебя роль ${keyOf(me)}).` }
-          if (action !== "accept" && action !== "cleanup") return { content: `Задача ${taskRef(t)} — малый маршрут: цикла приёмки (review/check/round/merge/rework) и замка вливания нет. Приёмка — слово владельца на тестовом контуре: влей в ${loadConfig(t.directory).targetBranch}, запушь и вызови crew_task {action: "accept", n: ${t.n}, text: "<слово владельца дословно с датой и источником>"${t.branch ? "" : ', commit: "<хэш>"'}}.` }
+          if (action === "rework") {
+            const text = String(input.text ?? "").trim(), candidate = String(input.candidate ?? "").trim()
+            if (!text || !/^[a-f0-9]{40}$/.test(candidate)) return { content: "Малая корректировка: нужны text с конкретными замечаниями и candidate с точным SHA просмотренного результата. Это не новый full цикл и не разрешение интеграции." }
+            if (input.sync === true) return { content: "Малая корректировка не разрешает merge/синхронизацию с целевой веткой; передай замечания к exact SHA в прежних границах." }
+            if (!["submitted", "reviewing"].includes(t.status) || !t.executor) return { content: `Корректировка возвращает только сданный результат прежнему исполнителю; сейчас ${statusRu(t.status)}. Новое назначение или финальная приёмка этим не разрешаются.` }
+            const blocked = questionExecutionBlock(host, project, t.n)
+            if (blocked) return { content: `Корректировка не запущена: ${blocked}. HOLD и границы сохранены.` }
+            if (!t.report?.toLowerCase().includes(candidate)) return { content: "Exact candidate не подтверждён последним сданным отчётом. Сверь SHA/артефакт с исполнителем через командный маршрут; это служебный факт, не вопрос владельцу о поиске адреса." }
+            if ((t.rework ?? 0) >= loadConfig(t.directory).reworkMax) return { content: "Потолок корректировок достигнут: нужно настоящее решение владельца; маршрут и HOLD не меняются." }
+            t.rework = (t.rework ?? 0) + 1
+            t.rework_sync = false
+            t.rework_note = `Корректировка после просмотра exact SHA ${candidate}: ${text}\nТолько прежняя задача/границы; технический просмотр не финальная owner acceptance. Сохрани новый SHA и сдай автору повторно; native started не подтверждён постановкой письма.`
+            t.reviewer = undefined
+            t.reviewer_role = undefined
+            markPrecheckStale(t, "малый результат возвращён на корректировку; старый SHA не принимается")
+            taskEvent(t, me.session, "rework", `малая корректировка ${t.rework}, кандидат ${candidate}, источник замечаний — ${keyOf(me)}: ${text}`)
+            addObligation(t.executor, { qid: t.qid, from_session: t.author, from_role: t.author_role, at: Date.now(), nudges: 0, task: t.title })
+            host.posted(postExpected(t))
+            return { content: `Корректировка задачи ${taskRef(t)} поставлена прежнему исполнителю с замечаниями на exact SHA ${candidate}; учёт шага — rework. Новый ход не подтверждён. Маршрут small, границы и финальные ворота сохранены; автоматического приёмщика нет.` }
+          }
+          if (action !== "accept" && action !== "cleanup") return { content: `Задача ${taskRef(t)} — малый маршрут: формального цикла review/check/round и замка вливания нет. ${smallHandoff(t)} Отрицательный дополнительный exact-SHA просмотр — rework {candidate, text} прежнему исполнителю в прежних границах, не main/accept.` }
           if (action === "accept") {
             if (t.status !== "submitted") return { content: `Принять можно сданную задачу (сейчас ${statusRu(t.status)}).` }
             const word = String(input.text ?? "").trim().replace(/\s+/g, " ")
@@ -3785,7 +3916,7 @@ ${lockStillYours(stillHeld.n)}` : "") }
     }
   }
 
-  return [crewList, crewRole, crewSend, crewWait, crewWatch, crewTimer, crewSpawn, crewTask, crewConfig, crewInbox, crewDoctor, crewBranchNote, crewStepNote, crewHelp]
+  return [crewList, crewRole, crewSend, crewQuestion, crewWait, crewWatch, crewTimer, crewSpawn, crewTask, crewConfig, crewInbox, crewDoctor, crewBranchNote, crewStepNote, crewHelp]
 }
 
 /** Шаги приёмки задачи: у задачи-плана — перепроверка плана (план 004), у остальных — приёмка проекта. */
@@ -3855,6 +3986,7 @@ export function formatTaskLetter(t: Task): string {
     refinementBlock(t),
     t.refinement ? `ЦЕЛЬ (исходная; действует уточнение выше): ${t.goal}` : `ЦЕЛЬ: ${s?.goal && s.goal !== t.goal ? `${s.goal}\nЦЕЛЬ ЗАДАЧИ: ${t.goal}` : t.goal}`,
     t.criteria ? `КРИТЕРИИ ПРИЁМКИ: ${t.criteria}` : "",
+    t.route === "small" ? smallHandoff(t) : "",
     t.boundaries ? `ГРАНИЦЫ (не делаем): ${t.boundaries}` : "",
     t.open_questions ? `ОТКРЫТЫЕ ВОПРОСЫ: ${t.open_questions}` : "",
     extraBlock(t),
