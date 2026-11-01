@@ -406,7 +406,7 @@ fn Hub mut @route_on_message(at int, text str) Proc Detach Time -> str {
 // The folder of the agent follows the mode: a tree of the task or of the subtask; an agent that works in another folder is closed (it is started again in the right one).
 fn Hub mut @route_sync_cwd(at int) Time -> () {
     mut s = @sessions[at]
-    ro want = @agent_cwd(s)
+    ro want = if !@work_allowed(at, "execute") { "${tk_canon(@settings.data_dir)}/${s.id}" } else { @agent_cwd(s) }
     if s.clients.len() > 0 && s.rt.cwd_now != want {
         s.clients[0].close()
         s.clients = []AcpClient.new()
@@ -496,6 +496,13 @@ fn Hub mut @route_set(trace str, route str) Proc Detach Time -> () {
     if @sessions[at].rt.route != route {
         ro was = @sessions[at].rt.route
         @route_stop(at)
+        if was == "planning" || route == "planning" {
+            mut changed = @sessions[at]
+            mut i = 0
+            while i < changed.clients.len() { changed.clients[i].close(); i += 1 }
+            changed.clients = []AcpClient.new()
+            @sessions[at] = changed
+        }
         mut o = JsonObject.new()
         js(o, "route", route)
         @rt_journal(at, "route_set", JsonValue.object(o).to_str())

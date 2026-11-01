@@ -1,0 +1,12 @@
+module crew_harness.server_preparation_backend_live
+
+// ORACLE-WORKAROUND(32): keep fs before text for direct test entry code generation.
+import std.fs.{Path}
+import std.text
+import crew_harness.server.{kit_routes, scenario_preparation_backend}
+
+test "preparation backend: fixture HTTP through real ACP, assigned document, denied effects and mode recovery" {
+    ro report = scenario_preparation_backend(kit_routes("restricted-preparation-271"))
+    if report.byte_len() > 0 { panic(report) }
+    assert(report == "")
+}

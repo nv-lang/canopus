@@ -38,6 +38,7 @@ def tree_files(lib_hash=None, hub=True):
     tree = {"kind": "machine", "alula_version": "0.28",
             "includes": [{"hash": lib_hash or dhash(LIB), "file": "libs/call_cancel.alula.md"}]}
     files = {"nova.lock.toml": LOCK,
+             "src/server/preparation-agent.mjs": "// fixture adapter\n",
              "machines/product/dialog.alula.json": json.dumps(tree),
              "machines/product/dialog.alula.md": "# Машина: Диалог\n\n- alula_version: 0.28\n",
              "machines/product/work-mode.alula.json": json.dumps({"alula_version": "0.28"}),
@@ -83,7 +84,7 @@ def main():
                           "machines/product/dialog.alula.md", "machines/product/family-approval.alula.json",
                           "machines/product/family-approval.alula.md", "machines/product/journal.md",
                            "machines/product/libs/call_cancel.alula.md", "machines/product/work-mode.alula.json",
-                           "machines/product/work-mode.alula.md"], listed
+                           "machines/product/work-mode.alula.md", "preparation-agent.mjs"], listed
         assert stlib.has_line(proc, "ок: осмотрено"), proc.out
 
     def no_hub():

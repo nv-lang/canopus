@@ -75,7 +75,7 @@ def main():
         return path
 
     def kit_files(extra=None, drop=None):
-        files = {"crew-harness.exe": b"MZ", "crew-hub.exe": b"MZ"}
+        files = {"crew-harness.exe": b"MZ", "crew-hub.exe": b"MZ", "preparation-agent.mjs": "// fixture adapter\n"}
         for k, v in machines().items():
             if "/tests/" not in k:
                 files[k] = v
@@ -102,6 +102,8 @@ def main():
              lambda: stlib.expect(check(fresh(machines())), 0, "ок: осмотрено 8"))
     pr.probe("законное", "комплект: программы и машины диалога",
              lambda: stlib.expect(check(fresh(machines()), "--kit", kit(kit_files())), 0, "ок: осмотрено"))
+    pr.probe("красная", "в комплекте отсутствует ограниченный адаптер Подготовки",
+             red_kit(kit_files(drop=["preparation-agent.mjs"]), "kit-program"))
     pr.probe("красная", "дерево чужой версии языка", red_tree(machines(tree_version="0.26"), "alula-version"))
     pr.probe("красная", "таблица чужой версии языка", red_tree(machines(table_version="0.26"), "alula-version"))
     pr.probe("красная", "библиотека чужой версии языка",

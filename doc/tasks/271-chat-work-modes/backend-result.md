@@ -1,0 +1,45 @@
+# Возобновлённая 271: ограниченный backend
+
+Целевые host/backend проверки завершены GREEN. Delta подготовлен поверх signed carrier `81daedf5`; exact SHA передаётся сборщику после финальных стражей и коммита. Прежний fail-closed отдельно не выдаётся за работающую беседу.
+
+## Реальная граница
+
+Добавлен встроенный доверенный Node ACP adapter `src/server/preparation-agent.mjs`, а не provider, OpenCode CLI, новый движок или OS sandbox. Ход по-прежнему ведёт существующая машина диалога Алулы. Нова выбирает фиксированный adapter для Подготовки; обычный ACP не является fallback. При смене режима старый клиент закрывается, при смене launch сравниваются границы аргументов, а не склеенная строка.
+
+Adapter обращается только к stateless `POST /api/experimental/generate/text` существующей зарегистрированной службы 2.2.5. Body содержит только `prompt` и явно назначенный `model`; нет session ID, tools, MCP, native permissions, cwd или provider/runtime override. Модель не получает HTTP credential. Ответ — данные: обязательный `reply`, необязательный `statement`; неизвестные поля, пути и команды отклоняются до записи.
+
+Записываются только назначенный сервером `<data_dir>/<session>/tasks/draft/task/message.md` и session-owned `history.json` уровнем выше `task/`. Модель не назначает путь. Предыдущая постановка и история читаются из этих же фиксированных целей. Ссылки/junction в назначенных путях отвергаются. Реализация исходников, shell, Git, ветки/worktree и автозапуск задач не предоставлены. Git ancestor у каталога данных не меняет набор возможностей. Проект передаётся только текстовым контекстом; при отсутствии проекта нет fallback к рабочему репозиторию сервера.
+
+Доверенными остаются host, его код/настройки, регистрация существующей службы и администратор ОС. Защита от произвольного вредоносного provider или администратора не является новым обещанием sandbox. Нет выполнения кода, полученного от модели; текст кода в Markdown не становится исходником или командой.
+
+## Source/auth/model hook для 277
+
+- Default registration: `$XDG_STATE_HOME/opencode/service.json` либо `~/.local/state/opencode/service.json`, как `serviceReg` в `opencode-plugin/form-reply.ts`. URL и password читаются только доверенным adapter в память. Только проверенный registered loopback, `redirect:error`, никакого recruit/autostart службы. Version проверяется как 2.2.5; неизвестная регистрация закрывает именно этот transport.
+- Модель — сохранённый выбор назначенной семьи либо её существующий `dev`-пресет, формат `provider/model`; provider не угадывается из короткого имени и не выбирается default модели сервиса. Поддерживаются уже назначенные семьи `codex`/`opencode`. Выбор model/effort допускается только из ранее предложенного каталога, после завершения/отмены хода. Native mode не расширяет возможности; adapter не перезаписывает общий каталог семьи своей ограниченной сводкой.
+- Для отдельного изолированного fixture/candidate разрешена ссылка `CREW_PREPARATION_SERVICE_REGISTRATION`. Только при такой явной ссылке и отсутствии существующего выбора/пресета допустимы DI `CREW_PREPARATION_MODEL` и `CREW_PREPARATION_VARIANT`. Тесты используют отдельную фиктивную регистрацию, не owner registry.
+- Необязательный `CREW_PREPARATION_ADAPTER` указывает на встроенный runtime asset. Без override host ищет его в исходниках рядом с `routes_dir`, затем рядом с бинарником. Путь, endpoint и model не берутся из ответа модели или произвольного payload хода.
+- Runtime asset `preparation-agent.mjs` добавлен в комплект и обязательный состав стража упаковки. Нужен существующий Node с builtin fetch; npm-зависимостей нет.
+- Личные настройки, main, pin и работающие стенды не менялись. Никакой новый OpenCode CLI не запускался. Обычный Интерактивный сохраняет свой прежний драйвер.
+
+## Что действительно проверено
+
+1. Fresh read-only проверка существующей service registration: version 2.2.5; credential не выводился. Полученный `/openapi.json` подтвердил `/api/experimental/generate/text`, `prompt/model`, `additionalProperties:false`, stateless assistant text. Прежний `/generate` оказался deprecated alias; новый код использует `/text`.
+2. По конкретному разрешению интегратора (Crew, 2026-11-01, 18:37, `qmvxzbwm4pnie`) выполнен **ровно один** короткий stateless POST с уже выбранным Model.Ref `openai/gpt-6.1-sol`, variant `low`: HTTP 200, JSON `reply=ok`, без statement, 11 484 мс. Сессия/модель не менялись; files/tools/CLI не использовались. Durable once-marker вне репозитория исключает автоматический повтор. Это PASS transport/model probe, **не полный product/provider E2E**.
+3. Node-набор: 10/10 PASS, watch `1793549981841-5lqero`. Настоящий локальный fake HTTP endpoint с fixture auth, ACP framing и отдельный процесс adapter, постановка/история, restart, Git ancestor, отказ path/tools/native permissions/fs/terminal, cancellation без записи, строгий argv parser, symlink/junction/hardlink. После этого менялся только Nova host/fixture DI; Node повторно не запускался.
+4. Legacy recovery live: 1/1 PASS в том же watch. Ранее был RED на ожидании длинного echo: 725 частей, завершение через 30 093 мс. Raw и разбор в `checks/live-timeout.md`; окно теста исправлено 20→60 секунд, production timeout не менялся. Новый backend не использует это увеличение. Direct host entry тогда имел CODEGEN-FAIL Vec.join/Path.join; известный ORACLE-WORKAROUND(32) применён только к порядку fs→text импортов test entries, core/oracle не менялись.
+5. Первый исправленный снимок: watch `1793551812977-72rcs7`, exit 0 — host 208/208, restricted backend live 1/1. Backend сам запускает локальный HTTP fixture через существующий `connect`, делает настоящие ACP ходы, проверяет assigned document, запрещённые эффекты, restart и возврат в interactive. Fixture завершается через kill/EOF. Это fake-service E2E, не provider E2E.
+6. После первого GREEN устранено лишнее чтение production env/пресетов до fixture fallback: exact-session trusted injection теперь возвращается ДО `CREW_PREPARATION_*` и `load_presets`, используя только injected registration/model/variant/adapter и локальные settings. Общий `preparation_config_at` сохраняет `preparation_launch`, root/cwd/context и все ограничения. Browser/model/ACP setter для DI отсутствует; production выбор не менялся. Само прежнее чтение не доказывало обращения к owner credentials/provider; таких эффектов не наблюдалось.
+7. Финальный снимок после этой правки: watch `1793552449930-w29wvb`, exit 0 — host 208/208 и restricted backend live 1/1. Предыдущий PASS не подменяет эту проверку. Старые Node/legacy/full/native POST не повторялись.
+8. Packaging selftests: 18/18 и 5/5; guards 10/10, watch `1793550780237-5w28yv`. Это снимок до последней Nova DI-правки. Финальные guards/privacy: watch `1793553299896-qi7e3g`, exit 0, guards 10/10 и privacy 2818 файлов. Generated workaround index синхронизирован; отрицательный fixture credentialed URL представлен через URL.username/password вместо literal, проверка отказа сохранена, её адресный повтор 1/1 PASS. Production код после последнего Nova GREEN не менялся.
+
+## Контракт сборки 277
+
+Последний fixture-only delta: commit hook дополнительно обнаружил синтетические password literals (`--index` строже `--tree`). Значения заменены штатным placeholder `example`, matching Basic auth сохранён; guard и production код не менялись. Watch `1793553581389-ehxf4g`, exit 0: адресные Node auth/URL/standalone tests, backend live 1/1, guards 10/10, tree privacy GREEN. Index privacy проверяется commit hook, его первый RED не выдаётся за успешный коммит.
+
+- Включать узкий signed delta поверх `81daedf5`, не WIP; общий checkpoint сборщика `85eac750c5e2749abc8d246eec69d4bb98875329`. Чужое дерево не менялось.
+- Union с signed 276 `6f4795d9ca540e15efa26ac7a9d6650118a720fd`: restricted launch cwd `<data_dir>/<id>`, root `<data_dir>/<id>/tasks/draft`; `rt.cwd_now = config.cwd`. Для ordinary ACP сохранить её `@agent_cwd`; restricted cwd не заменять project/workdir fallback.
+- Публичный self-contained запуск: `nova test src/server_preparation_backend_live --jobs 1 --timeout 300 -v`. Приватный runner/env/bootstrap не нужен: fixture `src/server/test/preparation-generate-fixture.mjs` запускается самим сценарием; регистрация и settings локальны.
+- Все `src/**/*.test.mjs` безопасны для обычного Node lane: fixture registration задана явно; импорт adapter не запускает main благодаря сравнению `import.meta.url` с `argv[1]`. Единственный настоящий POST выполнял внешний once-script вне repo/test glob, с durable marker до POST. Его не повторять.
+- Обязательный runtime asset комплекта — `preparation-agent.mjs`, Node с builtin fetch. Финальные guards/privacy и exact SHA фиксируются в checkpoint и письме сдачи; старые широкие проверки других задач не повторяются.
+
+Предел минимального backend: текстовые сообщения; картинки/прочие embedded parts явно отклоняются, а не выдаются за просмотренные. Полный product/provider E2E с настоящей моделью и документом не запускался; разрешённый одиночный probe не расширяется на такие вызовы. Неподдерживаемый ref/transport получает явный отказ, без обычного ACP и без выбора нового платного provider.

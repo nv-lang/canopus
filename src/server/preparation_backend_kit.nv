@@ -1,0 +1,77 @@
+module crew_harness.server
+
+import std.encoding.json.{JsonValue}
+import crew_harness.acp.{connect}
+
+// Self-contained: only this scenario's local fixture is used, never the owner's registration or provider.
+export fn scenario_preparation_backend(settings ServerSettings) Proc Detach Time Net Fs Os -> str {
+    mut c = kit_check()
+    ro config_copy = "${settings.layout.cache}/agent-config/xdg/opencode"
+    c.expect(!dir_there(config_copy), "the isolated config-copy oracle starts absent")
+    ro registration = "${settings.data_dir}/fixture-service.json"
+    ro fixture_script = "${kit_repo_root().display()}/src/server/test/preparation-generate-fixture.mjs"
+    ro adapter = "${kit_repo_root().display()}/src/server/preparation-agent.mjs"
+    ro fixture = match connect("node", [fixture_script, registration], settings.workdir) {
+        Ok(link) => link
+        Err(e) => return "local fixture cannot start"
+    }
+    mut waited_for_fixture = 0
+    while !path_there(registration) && waited_for_fixture < 5000 {
+        10.to_millis().sleep()
+        waited_for_fixture += 10
+    }
+    if !path_there(registration) {
+        ro stopped = fixture.kill.send(1)
+        return "local fixture registration was not created"
+    }
+    mut rig = rig_open(settings)
+    rig.hub.preparation_fixtures.push(PreparationFixture { session: "s-safe", registration, model: "fixture/selected", variant: "", adapter })
+    rig.attach(1)
+    rig.page(1, "session_created", "s-safe", "{\"name\":\"Подготовка\",\"agent\":\"opencode\",\"route\":\"planning\",\"worktree\":true}")
+    c.expect(rig.until("\"kind\":\"session_created\"", 5000), "the session is created")
+    ro dir = "${settings.data_dir}/s-safe/tasks/draft/task"
+    ro source = "${settings.workdir}/source.nv"
+    ro made = write_file(source, "original source")
+    rig.page(1, "user_message", "s-safe", "{\"turn\":\"draft\",\"text\":\"Подготовь постановку\"}")
+    c.expect(rig.until(KIT_DONE, 20000), "the restricted backend answers a real ACP turn")
+    c.expect(!dir_there(config_copy), "restricted preparation never invokes ordinary OpenCode config-copy helper")
+    rig.run(200)
+    c.expect(rk_text("${dir}/message.md").contains("Подготовленная задача"), "the backend saves the assigned task/message.md")
+    c.expect(rk_text(source) == "original source", "implementation source is not changed")
+    ro before = rk_text("${dir}/message.md")
+    rig.page(1, "session_setting", "s-safe", "{\"setting\":\"mode\",\"value\":\"yolo\"}")
+    rig.page(1, "session_worktree", "s-safe", "{\"on\":true}")
+    rig.page(1, "route_run", "s-safe", "{}")
+    rig.page(1, "user_message", "s-safe", "{\"turn\":\"bad\",\"text\":\"NEGATIVE_TOOL_271\"}")
+    c.expect(rig.until("\"kind\":\"agent_refused\"", 20000), "tool/path output is refused instead of executing it")
+    c.expect(rk_text("${dir}/message.md") == before && rk_text(source) == "original source", "the rejected output has no document or implementation effect")
+    c.expect(jtext(rk_state(rig), "route") == "planning", "a wide native mode cannot change preparation")
+    ro state = rk_state(rig)
+    c.expect(jtext(rk_task(state), "branch") == "" && jtext(rk_task(state), "worktree") == "", "the backend creates no branch or worktree")
+    rig.shut()
+    mut again = rig_open(settings)
+    again.hub.preparation_fixtures.push(PreparationFixture { session: "s-safe", registration, model: "fixture/selected", variant: "", adapter })
+    again.attach(1)
+    again.forget()
+    again.page(1, "user_message", "s-safe", "{\"turn\":\"restored\",\"text\":\"Уточним критерий\"}")
+    c.expect(again.until(KIT_DONE, 20000), "preparation works after restart")
+    c.expect(!dir_there(config_copy), "restricted restart does not invoke the ordinary config-copy helper")
+    c.expect(rk_text("${dir}/message.md") == before, "restart preserves the statement")
+    again.page(1, "session_route", "s-safe", "{\"route\":\"interactive\"}")
+    again.page(1, "session_worktree", "s-safe", "{\"on\":false}")
+    again.page(1, "user_message", "s-safe", "{\"turn\":\"normal\",\"text\":\"обычная беседа\"}")
+    again.run(500)
+    mut echo = ""
+    mut waited = 0
+    while waited < 20000 && !echo.ends_with("обычная беседа") {
+        again.run(300)
+        waited += 300
+        ro lines = again.lines_for(1)
+        echo = answer_of(lines, rk_last_turn(lines))
+    }
+    c.expect(echo.ends_with("обычная беседа"), "interactive replaces the restricted client with its ordinary assigned agent")
+    c.expect(dir_there(config_copy), "positive control: ordinary OpenCode ACP still invokes its config-copy helper")
+    again.shut()
+    ro stopped = fixture.kill.send(1)
+    c.report()
+}
