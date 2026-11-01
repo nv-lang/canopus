@@ -23,7 +23,7 @@ const tasks = await import("../tasks.ts")
 // a task waiting to start: the plugin's pass calls session.create for it -- which never returns
 tasks.createTask({ project: "proj", title: "t1", goal: "g", criteria: "c", priority: "P2", tier: "light", role: "worker", model: "claude-code/haiku", author: "sesINTEG1", author_role: "proj.integrator", qid: "q1", status: "starting", kind: "spawn", directory: proj })
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const hooks = {}
 const events = {}
 const delivered = []
@@ -73,7 +73,7 @@ const lagLines = readFileSync(path.join(os.tmpdir(), "opencode-plugins.log"), "u
 cell("a held main thread is logged with its length and the plugin's step", lagLines.some((l) => { const ms = Number(/loop lag (\d+) ms/.exec(l)[1]); return ms >= 1_000 && /шаг прохода|плагин свободен/.test(l) && /память \d+ МБ/.test(l) }), JSON.stringify(lagLines))
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 try {
   rmSync(tmp, { recursive: true, force: true })
 } catch {}

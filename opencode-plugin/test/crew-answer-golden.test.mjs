@@ -81,7 +81,7 @@ cell("AC-19 статус", off === onn, off + NL + onn)
   const snap = JSON.parse(readFileSync(process.env.ANSWER_GOLDEN_FILE || path.join(here, "answer-golden.json"), "utf8"))["letters: formatLetters"]
   cell("AC-18 прежние письма", shown === snap, shown + NL + "---" + NL + snap)
 }
-H.close()
+await H.close()
 
 // the control: one line of a copy of the snapshot is spoiled -- the check must say "golden differs"
 const spoiled = path.join(tmp, "spoiled.json")

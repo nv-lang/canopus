@@ -64,7 +64,7 @@ const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.s
 beat()
 const heart = setInterval(beat, 300)
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const delivered = []
 const sessions = new Map()
 const creates = []
@@ -123,7 +123,7 @@ cell("006: an existing obligation keeps its counters", o6?.nudges === 2 && o6?.s
 
 // a second restart: nothing new
 const before = { letters: delivered.length, creates: sessions.size }
-stop?.()
+await stop?.()
 stop = await mod.default.setup(mkctx())
 await wait(3500)
 const extra = delivered.slice(before.letters)
@@ -133,7 +133,7 @@ cell("a second restart creates no sessions", sessions.size === before.creates, J
 cell("007: a deleted session is tried once, not on every pass", goneTries === 1, String(goneTries))
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-restart.test: FAIL ${fail}` : "crew-restart.test ok")
 process.exit(fail ? 1 : 0)

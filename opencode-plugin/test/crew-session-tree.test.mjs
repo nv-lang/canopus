@@ -51,7 +51,7 @@ git(proj, "add", "-A")
 git(proj, "commit", "-q", "-m", "init")
 const wtRoot = path.join(tmp, "worktrees")
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const core = await import("../core.ts")
 const tasks = await import("../tasks.ts")
 const tools = {}
@@ -204,7 +204,7 @@ await wait()
 const s4 = task(1)?.sessions?.find((s) => s.code === "С4")
 cell("own: the session takes the tree of its branch made by hand, the record of the session names it", /запущена/.test(a6) && !/не запущена/.test(a6) && s4?.branch === "task/001-s4-1" && same(s4?.worktree, own1) && same(sessions.get(s4?.session)?.location?.directory, own1) && treesOn("task/001-s4-1").length === 1, JSON.stringify({ a6: a6.slice(0, 300), s4, trees: trees() }))
 
-stop?.()
+await stop?.()
 try {
   rmSync(tmp, { recursive: true, force: true })
 } catch {}

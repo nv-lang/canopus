@@ -22,7 +22,7 @@ db.prepare("insert into session_message values (?,?,?,?,?,?,?)").run(
 )
 db.close()
 
-const mod = await import(process.env.CREW_MODULE ?? "../index.ts")
+const mod = await import(process.env.CREW_MODULE ?? "./fixture-plugin.mjs")
 const hooks = {}
 const tools = {}
 const ctx = {
@@ -70,7 +70,7 @@ await hooks["model.request"]({ sessionID: "sesYYYYYY", kind: "title", model: { i
 const fifth = lineOf(await listOf("sesYYYYYY"), "sesYYYYYY")
 cell("a non-primary request does not change the model", /claude-opus-5-5#medium/.test(fifth), fifth)
 
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-model.test: FAIL ${fail}` : "crew-model.test ok")
 process.exit(fail ? 1 : 0)

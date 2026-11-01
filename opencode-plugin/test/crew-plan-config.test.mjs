@@ -66,7 +66,7 @@ cell("the round rules name the project's grades", /важное \(major\)/.test(
 cell("bad settings fall back to the defaults", core.planFormOf({ plan_grades: [{ id: "x", name: "x", text: "", clean: true }], plan_prefix: " " }).grades.length === 3 && core.planFormOf({ plan_prefix: " " }).prefix === "Ф", "no fallback")
 
 // 2. the plugin with these settings
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const tools = {}
 const hooks = {}
 const events = {}
@@ -133,7 +133,7 @@ await until(() => letters("sesINTEG1").some((l) => /plan_steps: manual/.test(l.t
 const listed = letters("sesINTEG1").find((l) => /plan_steps: manual/.test(l.text))
 cell("manual steps: one letter lists them, no step tasks", !!listed && /Ш\.1\.1 шаг один: сделать раз/.test(listed.text) && /приёмка: тест 1\/1/.test(listed.text) && !tasks.listTasks("proj").some((x) => x.plan_step), JSON.stringify(listed?.text))
 
-stop?.()
+await stop?.()
 try {
   rmSync(tmp, { recursive: true, force: true })
 } catch {}

@@ -66,7 +66,7 @@ st("s6", "readproj", "openai/gpt-6-luna#default", undefined)
 st("s7", "readproj", "openai/gpt-6-luna#default", { n: 91, status: "accepted", as: "executor", title: "Принята" })
 st("s8", "readproj", "openai/gpt-6-luna#default", { n: 33, status: "rework", as: "reviewer", title: "Приёмщик отдал на доработку" })
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const Cmd = await import("../profile-cmd.ts")
 const { writeSettings } = await import("../settings.ts")
 const ctx = {
@@ -211,7 +211,7 @@ cell("the refusal to delete a family in use still lists the sets by their cells 
   cell("files line: an error or a foreign file is a warning that names it", /^⚠ Окна задач не записаны/.test(bad) && /y: EPERM/.test(bad) && /чужой файл окон/.test(bad), String(bad))
 }
 
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-set-screens.test: FAIL ${fail}` : "crew-set-screens.test ok")
 process.exit(fail ? 1 : 0)

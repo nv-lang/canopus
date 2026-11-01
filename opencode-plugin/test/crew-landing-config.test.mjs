@@ -27,7 +27,7 @@ writeFileSync(file, JSON.stringify({ project: "proj", root: "..", cleanup: "loca
 git(cfgDir, "add", "-A")
 git(cfgDir, "commit", "-q", "-m", "settings")
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const core = await import("../core.ts")
 const schema = await import("../config-schema.ts")
 const hooks = {}
@@ -114,7 +114,7 @@ const taskFields = Object.keys(tools.crew_task.input.properties)
 cell("AC-25 reserved ids: action, n and session of crew_task are reserved", ["action", "n", "session"].every((f) => taskFields.includes(f) && schema.RESERVED_FIELD_IDS.includes(f)), JSON.stringify(taskFields))
 
 cell("AC-25 reserved ids: service names of an object (constructor, __proto__, prototype) are reserved", ["constructor", "__proto__", "prototype"].every((f) => schema.RESERVED_FIELD_IDS.includes(f) && schema.invalid("task_extra_fields", [{ id: f, label: "X" }]) !== undefined), JSON.stringify(["constructor", "__proto__", "prototype"].map((f) => schema.invalid("task_extra_fields", [{ id: f, label: "X" }]))))
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-landing-config.test: FAIL ${fail}` : "crew-landing-config.test ok")
 process.exit(fail ? 1 : 0)

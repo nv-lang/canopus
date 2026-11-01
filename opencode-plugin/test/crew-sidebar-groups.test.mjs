@@ -72,14 +72,14 @@ cell("the sections and their order: working, acceptance, pause, HOLD/STOP", JSON
   "‖ 055 пауза · Ждать гейта",
   "↳ исп  ⧗ гейт 1м",
   "HOLD/STOP · 2",
-  "■ 146 HOLD · Старое дерево",
-  "■ 147 STOP · Перенос архива",
+  "■ 146 HOLD legacy: неуточнённый…",
+  "■ 147 STOP legacy: неуточнённый…",
 ]), JSON.stringify(printed, null, 1))
 cell("the section headers are base, the HOLD/STOP block is muted", tone("В работе · 1") === "base" && tone("На приёмке · 1") === "base" && tone("Пауза · 3") === "base" && tone("HOLD/STOP · 2") === "muted", JSON.stringify([tone("В работе · 1"), tone("HOLD/STOP · 2")]))
 cell("the heading of a task that needs an answer is accent, the quiet ones are base", tone("▶ 033 нужен ответ · Выпустить") === "accent" && tone("• 077 в работе · Починить сборку") === "base" && tone("✓ 091 на приёмке · Проверить") === "base" && tone("‖ 022 пауза · Отчёт по воротам") === "base", "")
 cell("inside «Пауза»: the task that needs an answer first, then by number", printed.indexOf("▶ 033 нужен ответ · Выпустить") < printed.indexOf("‖ 022 пауза · Отчёт по воротам") && printed.indexOf("‖ 022 пауза · Отчёт по воротам") < printed.indexOf("‖ 055 пауза · Ждать гейта"), JSON.stringify(printed))
 cell("a HOLD task is not shown as working: no heading, no tab row of 146 in «В работе»", !printed.some((l) => /146.*в работе/.test(l)) && !printed.some((l) => l.includes("работает 3 мин")), JSON.stringify(printed))
-cell("a STOP task without any tab is shown by its task file", printed.includes("■ 147 STOP · Перенос архива"), JSON.stringify(printed))
+cell("a STOP task without any tab retains its number and unclassified legacy scope", printed.includes("■ 147 STOP legacy: неуточнённый…"), JSON.stringify(printed))
 cell("a hold mark of a closed task is not shown", !printed.some((l) => l.includes("148")), JSON.stringify(printed))
 cell("the foot is as before (it counts tabs, not tasks)", v.foot === "ход 2 · ждут 0 · ⧗ 1 · /crew", v.foot)
 cell("every printed row fits the panel", printed.every((l) => l.length <= SIDE_WIDTH && !/^\s/.test(l)), JSON.stringify(printed.filter((l) => l.length > SIDE_WIDTH || /^\s/.test(l))))

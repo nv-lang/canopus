@@ -118,6 +118,8 @@ export type AnswerDeps = {
   call?(session: string): Promise<QuestionCall>
   /** задача 263: завершение формы штатным ответом службы (form-reply.ts). Есть — ответ владельца (не plugin) идёт ответом на форму, без прерывания и письма */
   reply?(session: string, formId: string, answer: string): Promise<ReplyResult>
+  /** 280: an old queued recommendation may not bypass the source-backed question router. Owner answers are unaffected. */
+  routed?(session: string, form: PendingForm): boolean
 }
 
 /** Один проход по папке входящих ответов: каждый новый файл — применён или отказан, итог в файле и в журнале. */
@@ -213,6 +215,12 @@ export async function answerTick(deps: AnswerDeps, now = Date.now(), dir = ANSWE
       finish(file, a, { status: r.unknown ? "unknown" : "refused", why: r.why, done: now })
       a.status = r.unknown ? "unknown" : "refused"
       deps.say(`owner answer ${a.id} not applied: ${r.why}`)
+      continue
+    }
+    if (a.source === "plugin" && deps.routed?.(session, form)) {
+      addForm(session, form, formsDir)
+      finish(file, a, { status: "refused", why: "рабочий вопрос передан интегратору: рекомендация не заменяет проверенный источник", done: now })
+      a.status = "refused"
       continue
     }
     if (!a.interrupted) {

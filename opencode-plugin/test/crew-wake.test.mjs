@@ -15,7 +15,7 @@ delete process.env.CREW_HARNESS_PRESENCE
 const proj = path.join(tmp, "proj")
 mkdirSync(proj, { recursive: true })
 
-const mod = await import(process.env.CREW_MODULE ?? "../index.ts")
+const mod = await import(process.env.CREW_MODULE ?? "./fixture-plugin.mjs")
 const core = await import(process.env.CREW_CORE ?? "../core.ts")
 const sessions = ["sesFRONT1", "sesBACK01", "sesCLOSED", "sesSENDER"]
 const hooks = {}
@@ -147,7 +147,7 @@ await until(() => got("sesFRONT1", "after-freeze").length === 1)
 cell("the window comes back -> the letter goes out", got("sesFRONT1", "after-freeze").length === 1, JSON.stringify(delivered))
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-wake.test: FAIL ${fail}` : "crew-wake.test ok")
 process.exit(fail ? 1 : 0)

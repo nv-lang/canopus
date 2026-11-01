@@ -89,7 +89,7 @@ const msg = (session, type, data, at = Date.now()) => db.prepare("insert into se
 const SESS = ["sesGATE1", "sesGATE2", "sesGATE3", "sesGATE4", "sesGATE5"]
 for (const s of SESS) db.prepare("insert into session_v2 values (?, ?, ?, null, null, null, null, null)").run(s, proj, s)
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const hooks = {}
 const tools = {}
 const prompts = []
@@ -189,7 +189,7 @@ await wait(1200)
 cell("GS-4k the turn is not over (no idle row after the stop): no letter, no mark yet, the stop is kept (the word that started the turn is not a word after the stop)", letters("sesGATE5").length === 0 && !stOf("sesGATE5")?.gate && !!gateOf("sesGATE5"), JSON.stringify([letters("sesGATE5").length, stOf("sesGATE5")]))
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 db.close()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-gate-stop.test: FAIL ${fail}` : "crew-gate-stop.test ok")

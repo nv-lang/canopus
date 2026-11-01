@@ -9,7 +9,7 @@ import path from "node:path"
 const tmp = mkdtempSync(path.join(os.tmpdir(), "crew-help-"))
 process.env.XDG_DATA_HOME = tmp
 process.env.CREW_HARNESS_PRESENCE ??= "all" // every tab taken as open (presence has its own test)
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 
 const hooks = {}
 const tools = {}
@@ -68,7 +68,7 @@ const ev = { sessionID: "sesHELP01", system: [] }
 await hooks.context(ev)
 cell("the context hint points at crew_help", /crew_help/.test(ev.system.map((s) => s.text).join("\n")), JSON.stringify(ev.system))
 
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-help.test: FAIL ${fail}` : "crew-help.test ok")
 process.exit(fail ? 1 : 0)

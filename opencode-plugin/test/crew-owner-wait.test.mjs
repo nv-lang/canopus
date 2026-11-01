@@ -77,7 +77,7 @@ const msg = (session, type, data, at = Date.now()) => db.prepare("insert into se
 const SESS = ["sesOW1", "sesOW2", "sesOW3", "sesOW4", "sesOW5", "sesOW6", "sesOW7"]
 for (const s of SESS) db.prepare("insert into session_v2 values (?, ?, ?, null, null, null, null, null)").run(s, proj, s)
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const hooks = {}
 const tools = {}
 const prompts = []
@@ -176,7 +176,7 @@ await until(() => card("sesOW7") && !card("sesOW7").task)
 cell("9h the binding of an integrator tab to a cancelled task is dropped", card("sesOW7") && !card("sesOW7").task, JSON.stringify(card("sesOW7")))
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 db.close()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-owner-wait.test: FAIL ${fail}` : "crew-owner-wait.test ok")

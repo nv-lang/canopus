@@ -11,7 +11,7 @@ process.env.XDG_DATA_HOME = tmp
 process.env.CREW_HARNESS_PRESENCE ??= "all" // every tab taken as open (presence has its own test)
 process.env.CREW_HARNESS_DB = path.join(tmp, "absent.db")
 process.env.CREW_HARNESS_POLL_MS = "60"
-const mod = await import(process.env.CREW_MODULE ?? "../index.ts")
+const mod = await import(process.env.CREW_MODULE ?? "./fixture-plugin.mjs")
 
 const hooks = {}
 const tools = {}
@@ -50,6 +50,7 @@ const idleWin = async (sid, model, role) => {
 }
 const busyWin = async (sid, model, role) => {
   await idleWin(sid, model, role)
+  mod.fixtureNativeActive.add(sid)
   await hooks.context({ sessionID: sid, system: [], model })
 }
 const got = (text) => delivered.filter((d) => d.text.includes(text)).map((d) => d.sessionID)
@@ -86,12 +87,14 @@ cell("when an Opus frees up the queued letter goes to it", JSON.stringify(got("h
 
 // 4. busy / idle by events
 await idleWin("sesSONNE4", SONNET, "w4")
+mod.fixtureNativeActive.add("sesSONNE4")
 await hooks.context({ sessionID: "sesSONNE4", system: [], model: SONNET })
 delivered.length = 0
 const busyRes = await call("crew_send", sender, { to: "w4", text: "mid-busy", tier: "medium" })
 await wait()
 cell("a window busy with its request is not chosen (queued)", /В очереди/.test(busyRes.content) && got("mid-busy").length === 0, busyRes.content)
 cell("the plugin subscribed to session.idle", typeof events["session.idle"] === "function", JSON.stringify(Object.keys(events)))
+mod.fixtureNativeActive.delete("sesSONNE4") // authoritative fixture ownership settles before idle notification
 await events["session.idle"]({ properties: { sessionID: "sesSONNE4" } })
 await wait(250)
 cell("the idle event frees the window and the queued letter goes to it", JSON.stringify(got("mid-busy")) === '["sesSONNE4"]', JSON.stringify(got("mid-busy")))
@@ -165,7 +168,7 @@ clearInterval(heart)
 const bad = await call("crew_send", sender, { to: "w7", text: "x", tier: "huge" })
 cell("an unknown tier is refused", /не годится/.test(bad.content), bad.content)
 
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-tier.test: FAIL ${fail}` : "crew-tier.test ok")
 process.exit(fail ? 1 : 0)

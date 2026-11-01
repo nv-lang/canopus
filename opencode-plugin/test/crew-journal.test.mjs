@@ -12,7 +12,7 @@ import path from "node:path"
 const tmp = mkdtempSync(path.join(os.tmpdir(), "crew-journal-"))
 process.env.XDG_DATA_HOME = path.join(tmp, "data")
 process.env.CREW_HARNESS_PRESENCE ??= "all"
-const plugin = (await import("../index.ts")).default
+const plugin = (await import("./fixture-plugin.mjs")).default
 const { progressLine, logLine, usageLine, noteLoopLag, maxLoopLagSince, resetLoopLagForTest, isLauncherCard } = await import("../journal.ts")
 const { parseLine, keywordOf, stopKind, sessionsOf, entryOf, DEFAULT_THRESHOLDS } = await import("../progress.ts")
 
@@ -602,7 +602,7 @@ const now = new Date(Date.UTC(2026, 9, 9, 10, 30, 0))
   const role = await tools.crew_role.execute({ role: "integrator" }, { sessionID: "ses_int" })
   const li = await tools.progress_line.execute({ file: rel, code: "С9", kind: "launch" }, { sessionID: "ses_int" })
   cell("progress tool writes a launch from the integrator tab and the record in log.md", /^Записано: С9 0\/0 \[[^\]]+\] запуск №\d+/.test(li.content) && /пуск: запуск №\d+ С9 \[/.test(read(path.join(dir, "log.md"))), JSON.stringify([role, li]))
-  stop?.()
+  await stop?.()
 }
 
 rmSync(tmp, { recursive: true, force: true })
