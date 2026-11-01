@@ -3,22 +3,25 @@
 Первый диагностический полный прогон: `node opencode-plugin/test/stable.mjs --all --runs 1 --jobs 3`:
 35 RED / 157 файлов, exit 1, 2068 с. Это не проверенный кандидат. Снимок содержит незавершённую миграцию fixtures.
 
-Срез 2026-11-01 14:46. Первый отдельный runner `--jobs 1 --runs 1`, exit 1, 1136 с:
+Срез 2026-11-01 15:10. Первый отдельный runner `--jobs 1 --runs 1`, exit 1, 1136 с:
 27 GREEN / 37 вызовов (25 исходных файлов и 2 новых), 5 настоящих RED и 5 NOT RUN из-за моей ошибки invocation:
 аргумент `crew-flow.test` без расширения превратился в `crew-flow.test.test.mjs` (аналогично ещё четырём).
-Это не подтверждение тестов. Все 10 оставшихся поставлены правильными именами на отдельный jobs 1 повтор.
+Это не подтверждение тестов. Корректный отдельный повтор всех 10: 6 GREEN / 10, 4 RED, exit 1, 269 с.
+После разбора последних четырёх: `crew-push crew-review crew-stuck-clear crew-answer-golden` — **4/4 GREEN**, exit 0,
+83 с, jobs 1. Дополнительный `crew-tier` — GREEN, exit 0, 6 с. Теперь каждый из исходных 35 действительно повторён
+отдельно и имеет GREEN; это всё ещё не окончательный полный набор.
 
 | Файл `test/*.test.mjs` | Сигнал первого RED / установленный общий корень | Отдельный повтор |
 |---|---|---|
 | crew-track-extra | landing-harness без native DI, isolation sentinel | GREEN |
 | crew-tool-texts | landing-harness без native DI, isolation sentinel | GREEN |
-| crew-flow | nudge/delivery/закрытие; причина ещё не подтверждена | NOT RUN: invocation; корректный повтор в очереди |
-| crew-tasks | push проверяется до подтверждённого старта | NOT RUN: invocation; корректный повтор в очереди |
-| crew-push | изменившиеся счётчики failed turn; причина ещё не подтверждена | NOT RUN: invocation; корректный повтор в очереди |
-| crew-review | native delivery; причина ещё не подтверждена | NOT RUN: invocation; корректный повтор в очереди |
-| crew-status | background watch ошибочно отображается foreground working | NOT RUN: invocation; корректный повтор в очереди |
-| crew-watch-tree | прежний oracle требовал убить живых потомков по исчезновению wrapper; теперь explicit cancel | RED; обновлённый explicit cancel повтор в очереди |
-| crew-stuck-clear | answer-harness без native DI; затем H.open не удерживал native до idle | RED 1a/4; explicit fixture ownership повтор в очереди |
+| crew-flow | nudge/delivery/закрытие | GREEN после исправления invocation |
+| crew-tasks | push после подтверждённого старта | GREEN после исправления invocation |
+| crew-push | до-model admission не означает assistant turn; bounded timeout/escalation вместо phantom nudges | GREEN после RED; без ложного wokeAt, одна эскалация |
+| crew-review | готовность worktree записывается раньше async native admission; ожидать letter как условие | GREEN после RED; oracle текста/числа писем сохранён |
+| crew-status | background watch ошибочно отображался foreground working | GREEN после исправления invocation |
+| crew-watch-tree | прежний oracle требовал убить живых потомков по исчезновению wrapper; теперь explicit cancel | GREEN |
+| crew-stuck-clear | H.open удерживает native до idle; сохранена прежняя строка log «a working turn» при строгом новом timestamp guard | GREEN после RED 1a/4 |
 | crew-acceptor | background reservation закрывала доставку результата команды | GREEN |
 | crew-landing-precheck | landing-harness без native DI | GREEN |
 | crew-landing-hints | landing-harness без native DI | GREEN |
@@ -29,7 +32,7 @@
 | crew-lock-task | landing-harness без native DI | GREEN |
 | crew-lock-wait | landing-harness без native DI | GREEN |
 | crew-landing-candidate | landing-harness без native DI | GREEN |
-| crew-answer-golden | намеренно изменён только help-контракт HOLD/wake | RED help; explicit expected delta повтор в очереди |
+| crew-answer-golden | намеренно изменён help-контракт HOLD/wake; лишний пробел в expected delta устранён | GREEN, включая spoiled negative control |
 | crew-answer-view | answer-harness без native DI, unknown status | GREEN |
 | crew-stale-candidate | landing-harness без native DI | GREEN |
 | crew-landing-race | общий native-state `.tmp` между процессами + отсутствующий DI | GREEN исходного межпроцессного теста |
@@ -39,8 +42,8 @@
 | crew-sidebar-groups | oracle старой строки HOLD без обязательной legacy-классификации | GREEN |
 | crew-panel-busy | synthetic fixture terminal перекрывает исторический assistant; нет explicit active для свежего хода | GREEN |
 | crew-compaction-summary | landing-harness без native DI | GREEN |
-| crew-no-queue-behind-question | H/K не завершали native execution при удалении UI-формы | RED; добавлена отрицательная active и положительная idle проверки, повтор в очереди |
-| crew-answer-loop | legacyAnswerPass использовал исходный ctx мимо terminal fixture | RED C; explicit settlement повтор в очереди |
+| crew-no-queue-behind-question | H/K не завершали native execution при удалении UI-формы | GREEN после отрицательной active и положительной idle проверок |
+| crew-answer-loop | legacyAnswerPass использовал исходный ctx мимо terminal fixture | GREEN после explicit settlement |
 | crew-idle-watch-burst-flow | busy fixture без native execution | GREEN |
 | crew-idle-watch-flow | busy fixture без native execution | GREEN |
 | crew-landing-crossrepo | landing-harness без native DI | GREEN |

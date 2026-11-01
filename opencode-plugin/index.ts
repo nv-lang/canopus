@@ -594,7 +594,7 @@ export function createCrewPlugin(native: { get?: NativeGet; spacingMs?: number }
         turn = await lastTurn(card.session, since)
         turnRead = true
         const stuckAt = Math.max(...obligationsOf(card.session).filter(o => o.stuck).map(o => o.stuckAt ?? PROCESS_START))
-        if (turn && turn.at > stuckAt && (turn.tools || turn.owner)) revived = clearStuck(card.session, turn.tools ? "a new working turn" : "the owner wrote in the tab")
+        if (turn && turn.at > stuckAt && (turn.tools || turn.owner)) revived = clearStuck(card.session, turn.tools ? "a working turn" : "the owner wrote in the tab")
       }
       // ВКЛАДКА В ЦИКЛЕ НА ВОПРОСЕ (задача 078, answer-loop.ts): владелец уже ответил, а она спрашивает снова — напоминание «продолжай» ей не уходит
       // (в очереди сервера и без него стоят старые сообщения, каждое новое только удлиняет цикл); рабочий ход вкладки цикл снимает здесь же

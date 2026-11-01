@@ -50,6 +50,7 @@ const idleWin = async (sid, model, role) => {
 }
 const busyWin = async (sid, model, role) => {
   await idleWin(sid, model, role)
+  mod.fixtureNativeActive.add(sid)
   await hooks.context({ sessionID: sid, system: [], model })
 }
 const got = (text) => delivered.filter((d) => d.text.includes(text)).map((d) => d.sessionID)
@@ -86,12 +87,14 @@ cell("when an Opus frees up the queued letter goes to it", JSON.stringify(got("h
 
 // 4. busy / idle by events
 await idleWin("sesSONNE4", SONNET, "w4")
+mod.fixtureNativeActive.add("sesSONNE4")
 await hooks.context({ sessionID: "sesSONNE4", system: [], model: SONNET })
 delivered.length = 0
 const busyRes = await call("crew_send", sender, { to: "w4", text: "mid-busy", tier: "medium" })
 await wait()
 cell("a window busy with its request is not chosen (queued)", /В очереди/.test(busyRes.content) && got("mid-busy").length === 0, busyRes.content)
 cell("the plugin subscribed to session.idle", typeof events["session.idle"] === "function", JSON.stringify(Object.keys(events)))
+mod.fixtureNativeActive.delete("sesSONNE4") // authoritative fixture ownership settles before idle notification
 await events["session.idle"]({ properties: { sessionID: "sesSONNE4" } })
 await wait(250)
 cell("the idle event frees the window and the queued letter goes to it", JSON.stringify(got("mid-busy")) === '["sesSONNE4"]', JSON.stringify(got("mid-busy")))

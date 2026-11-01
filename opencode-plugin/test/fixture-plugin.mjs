@@ -13,6 +13,7 @@ if (!process.env.XDG_DATA_HOME) throw new Error("fixture-plugin requires an isol
 // Explicit native ownership for legacy cases that deliberately have no message
 // yet. A local card flag alone is NOT the production source of this fact.
 export const fixtureNativeActive = new Set()
+export const fixtureAdmissionOnly = new Set()
 const fixtureSettlers = new WeakMap()
 export const settleFixtureNative = (ctx, session) => fixtureSettlers.get(ctx)?.(session)
 
@@ -77,7 +78,7 @@ export function nativeFixture(ctx) {
     admitted.get(input.sessionID).set(input.id, item)
     if (input.resume === false) return item // quiet queued input does NOT start a generation
     const timeline = projected.get(input.sessionID) ?? []
-    timeline.unshift({ id: `${input.id}_assistant`, type: "assistant", time: { created: at }, agent: "fixture", model: { providerID: "fixture", modelID: "fixture" }, content: [] }, { id: input.id, type: "user", text: input.text, time: { created: at } })
+    timeline.unshift(...(fixtureAdmissionOnly.has(input.sessionID) ? [] : [{ id: `${input.id}_assistant`, type: "assistant", time: { created: at }, agent: "fixture", model: { providerID: "fixture", modelID: "fixture" }, content: [] }]), { id: input.id, type: "user", text: input.text, time: { created: at } })
     projected.set(input.sessionID, timeline)
     return item
   }
