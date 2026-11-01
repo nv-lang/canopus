@@ -43,6 +43,11 @@ export type QuestionRouterDeps = {
   /** Trusted execution/HOLD guard immediately before native reply (which resumes a waiting call). */
   canReply?(request: QuestionRequest): string | undefined
   scope?(request: QuestionRequest): QuestionScope | undefined
+  /** 281 (089/WC-2): trusted repair of a stored scope. Called ONLY when the freshly computed scope differs from the
+   * stored one (or none was stored). The host returns the recorded reason when the record provably belongs to the
+   * SAME assignment identity (same task/assignment qid, same holder session, task open, route word fresh); otherwise
+   * undefined and the mismatch stands. Never a model argument; never a permission. */
+  scopeRepair?(request: QuestionRecord, current: QuestionScope): string | undefined
   recoveryState?(request: QuestionRequest): Promise<"present" | "absent_idle" | "absent_blocked" | "unknown">
   recoveryProof?(request: QuestionRequest, letter: string): { nativeId: string; proof: string; startedAt: number } | undefined
   /** Idempotent durable mailbox write with this exact id. Does NOT mean delivered/read/started. */
@@ -123,6 +128,20 @@ export class QuestionRouter {
       return { ...input, v: 1, id, revision: 0, status: "routing", epoch: 0, created: now, updated: now, deadline: now + QUESTION_ROUTE_TERM_MS, workScope: this.deps.scope?.(input) }
     })!
   }
+  // 281 (089/WC-2): a stored scope computed over lifecycle fields, or never stored (crash before it was recorded),
+  // is repaired ONLY when the trusted host confirms the same assignment identity; the reason is recorded as evidence.
+  // A genuinely different assignment, a changed holder or a closed/stale task is never repaired: the mismatch stands.
+  private repair(id: string, now: number): QuestionRecord | undefined {
+    if (!this.deps.scope || !this.deps.scopeRepair) return undefined
+    return this.change(id, current => {
+      if (!current || terminal(current)) return undefined
+      const fresh = this.deps.scope!(current)
+      if (!fresh || JSON.stringify(fresh) === JSON.stringify(current.workScope)) return undefined
+      const reason = this.deps.scopeRepair!(current, fresh)
+      if (!reason) return undefined
+      return { ...current, workScope: fresh, why: `${reason} (281: scope переведён на стабильную идентичность поручения)`, updated: now }
+    })
+  }
   private async observe(r: QuestionRecord, now: number): Promise<QuestionRecord> {
     const observed = await this.deps.inspect(r).catch(e => ({ state: "unknown" as const, why: String(e) }))
     return this.change(r.id, current => {
@@ -153,6 +172,7 @@ export class QuestionRouter {
     const recoveryState = r.form && r.attempted === undefined && this.deps.recoveryState ? await this.deps.recoveryState(r).catch(() => "unknown" as const) : undefined
     const absent = recoveryState === "absent_idle" || recoveryState === "absent_blocked"
     if ((r.status === "unknown" && !absent) || r.attempted !== undefined || r.answerQueuedAt !== undefined || r.recovery) throw new Error("[unknown] исход не проверен или ответ уже поставлен; новая попытка ответа запрещена")
+    r = this.repair(r.id, now) ?? r
     if (absent && !r.workScope) throw new Error("[scope] нет исходной проверенной порученной цепочки; исчезнувшая форма не разрешение")
     if (r.workScope && JSON.stringify(this.deps.scope?.(r)) !== JSON.stringify(r.workScope)) throw new Error("[scope] исходная порученная цепочка/границы изменились; поздний ответ не применяется")
     // Data restriction only, never authority: a SHA in the original question cannot authorize publication.
@@ -164,7 +184,12 @@ export class QuestionRouter {
     return this.change(id, current => {
       if (!current) throw new Error("[unknown] вопрос неизвестен")
       this.responsible(current, actor, epoch)
-      if (current.workScope && JSON.stringify(this.deps.scope?.(current)) !== JSON.stringify(current.workScope)) throw new Error("[scope] цепочка изменилась во время проверки источника")
+      if (current.workScope && JSON.stringify(this.deps.scope?.(current)) !== JSON.stringify(current.workScope)) {
+        const fresh = this.deps.scope?.(current)
+        const reason = fresh && this.deps.scopeRepair ? this.deps.scopeRepair(current, fresh) : undefined
+        if (!fresh || !reason) throw new Error("[scope] цепочка изменилась во время проверки источника")
+        return { ...current, workScope: fresh, why: `${reason} (281: scope переведён на стабильную идентичность поручения)`, answer: answer.trim(), sources: verified, status: "ready", receivedAt: now, defaulted: undefined, blocker: current.blocker ? { ...current.blocker, resolvedAt: now } : undefined, updated: now }
+      }
       return { ...current, answer: answer.trim(), sources: verified, status: "ready", receivedAt: now, defaulted: undefined, blocker: current.blocker ? { ...current.blocker, resolvedAt: now } : undefined, updated: now }
     })!
   }
@@ -243,6 +268,7 @@ export class QuestionRouter {
   async tick(now = Date.now()) {
     for (let r of this.list()) {
       if (terminal(r)) continue
+      r = this.repair(r.id, now) ?? r
       if (r.form && !r.recovery && r.attempted === undefined && r.status !== "owner" && this.deps.ownerGate?.(r)) {
         r = this.change(r.id, c => !c || terminal(c) || c.attempted !== undefined ? undefined : { ...c, status: "owner", decision: c.text, why: "положительно распознанные настоящие ворота владельца; не рабочий поиск факта", escalationQueued: now, updated: now })!
       }
@@ -333,7 +359,8 @@ export class QuestionRouter {
   }
   /** Also checked by native delivery immediately before admission, not just at outbox enqueue. */
   async recoveryBlock(id: string): Promise<string | undefined> {
-    const r = this.get(id)
+    let r = this.get(id)
+    if (r) r = this.repair(id, Date.now()) ?? r
     if (!r?.form || !r.answer || !r.sources?.length || !r.workScope || !r.receivedAt || r.attempted !== undefined || r.defaulted !== undefined || r.decision || ["owner", "settled"].includes(r.status)) return "нет ранее независимо проверенного решения для восстановления"
     if (this.deps.target(r) !== r.target) return "ответственный прежнего решения изменился"
     if (JSON.stringify(this.deps.scope?.(r)) !== JSON.stringify(r.workScope)) return "исходный scope/subject/SHA изменился"
