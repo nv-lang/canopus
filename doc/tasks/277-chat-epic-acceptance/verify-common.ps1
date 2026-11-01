@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{40}$')][string]$Candidate,
     [Parameter(Mandatory = $true)][string]$NovaHome,
     [Parameter(Mandatory = $true)][string]$Artifacts,
-    [ValidateSet('build', 'web', 'unit', 'live', 'acp', 'package', 'guards')][string]$Lane = 'unit'
+    [ValidateSet('build', 'web', 'unit', 'live', 'acp', 'migration', 'package', 'guards')][string]$Lane = 'unit'
 )
 # Run only through crew_watch(machine:true). Never reuse the old audit runner's
 # fixed 73c97b5f result for this new assembly. No service or real agent is started.
@@ -34,6 +34,10 @@ if ($Lane -eq 'guards') {
     & bash scripts/guards/run-all.sh
     exit $LASTEXITCODE
 }
+if ($Lane -eq 'migration') {
+    & python scripts/test-convert-model-presets.py
+    exit $LASTEXITCODE
+}
 if ($Lane -eq 'package') {
     & python scripts/guards/selftest/test-check-release-kit.py
     $first = $LASTEXITCODE
@@ -59,7 +63,15 @@ if ($Lane -eq 'build') {
     & $nova build src/crew_harness.nv -o target/crew-harness.exe
     $front = $LASTEXITCODE
     if ($hub -ne 0) { exit $hub }
-    exit $front
+    if ($front -ne 0) { exit $front }
+    $attestation = [ordered]@{
+        candidate = $Candidate
+        source_tree = ((& git rev-parse HEAD:src) -join '').Trim()
+        hub_sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath 'target/crew-hub.exe').Hash.ToLowerInvariant()
+        front_sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath 'target/crew-harness.exe').Hash.ToLowerInvariant()
+    }
+    $attestation | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $artifactRoot 'build-attestation.json') -Encoding UTF8
+    exit 0
 }
 [string[]]$paths = switch ($Lane) {
     'unit' { @('src/config', 'src/acp', 'src/server', 'src/projects', 'src/agent_pool_tests', 'src/family_approval_tests', 'src/product_machines') }
