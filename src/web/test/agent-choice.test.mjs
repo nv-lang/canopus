@@ -8,12 +8,13 @@ import { timeline } from '../lists.js';
 
 for (const agents of [[], [{ id: 'opencode' }]]) {
   test(`недоступные настройки объясняют клик: агентов ${agents.length}`, () => {
-    const doc = createFakeDocument(); const refs = {}; const notices = [];
+    const doc = createFakeDocument(); const refs = {}; const notices = []; const effects = [];
     for (const key of ['app', 'side', 'main', 'rail', 'status', 'overlay']) {
       refs[key] = doc.createElement('div'); doc.body.append(refs[key]);
     }
     const view = createView(doc, refs, { agents, now: () => 0, handlers: {
       queued: () => 0, queuedItems: () => [], onNotice: (text) => notices.push(text),
+      onSwitchAgent: (...args) => effects.push(args), onSource: (...args) => effects.push(args), onDraftSource: (...args) => effects.push(args),
     } });
     const model = reduce(initialModel(), { id: 'create', trace: 's', step: 0, time: 1,
       kind: 'session_created', input: { name: 'Проверка', agent: 'opencode' } });
@@ -22,16 +23,32 @@ for (const agents of [[], [{ id: 'opencode' }]]) {
     assert.equal(group.children.length, 1);
     const buttons = group.querySelectorAll('button');
     assert.equal(buttons.length, 1);
-    assert.equal(buttons[0].dataset.noChoices, 'true');
     const approvals = refs.main.querySelector('.family-approvals-button');
     approvals.click();
     assert.match(refs.main.querySelector('.family-approvals-menu').textContent, /не сообщил поддерживаемые режимы/);
-    for (const button of buttons) {
-      const before = notices.length;
-      button.click();
-      assert.equal(notices.length, before + 1, button.title);
-      assert.equal(notices.at(-1), button.title);
+    if (agents.length === 0) {
+      assert.equal(buttons[0].dataset.noChoices, 'true');
+      assert.match(buttons[0].title, /нет настроенных|недоступны|агент/i);
+      for (const button of buttons) {
+        const before = notices.length;
+        button.click();
+        assert.equal(notices.length, before + 1, button.title);
+        assert.equal(notices.at(-1), button.title);
+      }
+    } else {
+      const familyButton = buttons[0];
+      assert.equal(familyButton.dataset.noChoices, 'false');
+      familyButton.click();
+      const rows = refs.main.querySelectorAll('.agent-picker-anchor .menu-item');
+      assert.equal(rows.length, 1, 'настроенная семья видна без выдуманной модели');
+      assert.equal(rows[0].disabled, true);
+      assert.equal(rows[0].getAttribute('aria-disabled'), 'true');
+      assert.match(rows[0].textContent, /недоступ|не подтверждён|unavailable/i);
+      assert.equal(refs.main.querySelectorAll('.agent-model-row').length, 0);
+      rows[0].click();
+      assert.equal(notices.length, 0, 'недоступная семья не подменяется сообщением о пустом реестре');
     }
+    assert.deepEqual(effects, []);
   });
 }
 
