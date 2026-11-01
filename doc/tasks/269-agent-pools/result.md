@@ -2,6 +2,12 @@
 
 Статус: проверяемый инкремент подготовлен для независимой приёмки; не закрытие всего требования владельца. Полный server_live остаётся красным.
 
+## F-07: optional metadata-only hook, cold-ready не доказан
+
+По отдельному разрешению интегратора 18:45/19:10 подготовлен минимальный optional hook `/api/model-metadata`. Native mapper проверен по публичному OpenCode v2.2.5: ACP model — providerID/id, усилия — per-model native variants, без подмены Model.Info.family на configured family. Pure mapping/freshness `1793549385078-18jklb`: exit 0, PASS 1 / FAIL 0. После сохранённого front Option-inference CC-FAIL необходимый targeted `1793550463482-25235i`: **exit 0, PASS 3 / FAIL 0** (source mapper, hook/freshness/binding negatives, affected front unit). Это partial hook compile/unit evidence, не real HTTP/native cold-ready smoke.
+
+Stock front не имеет подтверждённого same-context native observer и отдаёт **unavailable/same_context_binding_unverified**, а не personal catalog/defaults. Trusted-host hook требует реально установленного exact family/launch/config/location binding и identity hash snapshot; поля структуры/hash сами не устанавливают provenance. Legacy/expired/unbound source не становится ready. Никаких native/program/session/prompt starts, paid calls или personal settings изменений. Реальный cold-ready **NOT VERIFIED**, REQ-05 **не закрыт**; F-02/остальные исправления независимы. Точный wire, source evidence и пределы: [followup-f07-metadata.md](followup-f07-metadata.md).
+
 ## Возобновление 268: узкий F-02 actual-agent delta
 
 По передаче интегратора 2026-11-01 15:45 нового слова владельца 15:37 и GO после обновления 17:32 выполнен только подтверждённый остаток F-02/REQ-07: journal Progress `agent_actual` на каждый ACP dispatch после settings confirmations. Canonical page `input.turn` и `turn_id` совпадают с ключом chunk/done; `dispatch_id` отдельный audit key. Семья — фактически открытая catalog family, не ACP agentInfo display name; модель/усилие — подтверждённые current options, не requested/pool level. Контракт согласован с 270/277.

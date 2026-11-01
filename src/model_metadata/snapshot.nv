@@ -1,0 +1,15 @@
+// Only an explicitly supplied trusted-host snapshot path is read; no discovery,
+// fetch, CLI, session creation, writes or native program startup.
+module crew_harness.model_metadata
+
+import std.fs.{Fs, Path, metadata, read_text}
+
+export fn read_metadata_snapshot(path str) Fs -> Option[str] {
+    ro file = Path.from_bytes(path.bytes())
+    ro info = match metadata(file) { Ok(value) => value, Err(e) => return None }
+    if !info.is_file() || info.len() == 0 || info.len() > MODEL_METADATA_MAX_BYTES { return None }
+    match read_text(file) {
+        Ok(text) => if text.byte_len() <= MODEL_METADATA_MAX_BYTES { Some(text) } else { None }
+        Err(e) => None
+    }
+}

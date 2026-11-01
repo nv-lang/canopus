@@ -1,0 +1,30 @@
+module model_metadata_tests.source_test
+
+import std.text
+import crew_harness.model_metadata.{opencode225_models, model_metadata_fresh}
+
+test "269 F07 exact OpenCode225 native model and per-model effort mapping" {
+    ro source = "{\"data\":[{\"providerID\":\"example\",\"id\":\"native/model\",\"modelID\":\"not-the-acp-id\",\"family\":\"not-a-configured-family\",\"name\":\"Example\",\"enabled\":true,\"variants\":[{\"id\":\"native-effort\"}]},{\"providerID\":\"example\",\"id\":\"plain\",\"name\":\"Plain\",\"enabled\":true,\"variants\":[]},{\"enabled\":false}]}"
+    ro models = opencode225_models(source, "2.2.5").unwrap()
+    assert(models.len() == 2)
+    ro first = models[0].object().unwrap()
+    assert(first.get("id").unwrap().str().unwrap() == "example/native/model")
+    ro efforts = first.get("efforts").unwrap().array().unwrap()
+    assert(efforts.len() == 2)
+    assert(efforts[0].object().unwrap().get("id").unwrap().str().unwrap() == "native-effort")
+    assert(efforts[1].object().unwrap().get("id").unwrap().str().unwrap() == "default")
+    assert(models[1].object().unwrap().get("efforts").unwrap().array().unwrap().len() == 0)
+    assert(opencode225_models(source, "unknown").is_err())
+    assert(opencode225_models("not-json", "2.2.5").is_err())
+    assert(opencode225_models("{\"data\":[{}]}", "2.2.5").is_err())
+    assert(opencode225_models(source.replace("native-effort", ""), "2.2.5").is_err())
+}
+
+test "269 F07 stale future missing and oversized freshness cannot be ready" {
+    assert(model_metadata_fresh(1000, 2000, 1500))
+    assert(!model_metadata_fresh(0, 2000, 1500))
+    assert(!model_metadata_fresh(1600, 2000, 1500))
+    assert(!model_metadata_fresh(1000, 1500, 1500))
+    assert(!model_metadata_fresh(1000, 400000, 1500))
+    assert(!model_metadata_fresh(1000, 2000, 3000))
+}
