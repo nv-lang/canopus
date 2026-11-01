@@ -1,0 +1,64 @@
+{
+  "candidate": "73c97b5f3cda582831575a5133bc3375cba3e932",
+  "productTrees": {
+    "src": "3402120077c2fdf66863caf94129ae78e10e8422",
+    "machines": "b221603aeb6c14aab8b6e78bd46ff09928c089bd"
+  },
+  "binariesSha256": {
+    "crew-hub.exe": "628cd84e2ce8ea5ef47ab4ab95e07ca4d89bd8b4bc26b50050991518c350c36a",
+    "crew-harness.exe": "4fe85a59dc5315b13f06c414f3174a9f9f165775758620ff585644f65088e91b"
+  },
+  "boundaries": {
+    "sameCodexFamilyDisclosed": true,
+    "realModelCalls": 0,
+    "microphoneRecorded": false,
+    "realLocalWhisperPrerecordedOnly": true,
+    "frontAndHubAreReal": true,
+    "acpAgentsAreFixtures": true,
+    "productionChanged": false,
+    "port8100Changed": false,
+    "acceptanceDecisionMade": false
+  },
+  "counts": {
+    "originalWeb": { "pass": 550, "total": 553 },
+    "originalUnit": { "pass": 451, "total": 452 },
+    "isolatedConfigRepeat": { "pass": 47, "total": 47 },
+    "jointFocusedLive": { "pass": 13, "total": 13 },
+    "fullServerLive": { "pass": 24, "total": 38, "failureNamesVisible": 11, "failureNamesUnknown": 3 },
+    "appBoundaryAndPickerContract": { "pass": 7, "total": 7 },
+    "packageSelftests": { "pass": 26, "total": 26 },
+    "guards": { "pass": 10, "total": 10, "skipped": 0 },
+    "releaseKitMachineFiles": 10,
+    "acpFixtureSuite": { "reportedPass": 60, "reportedTotal": 60, "realAgentSkipPaths": 1 },
+    "voiceSttRecorderNamesVerifiedInOriginalRaw": { "pass": 28, "total": 28 },
+    "initialRealApi": { "pass": 21, "total": 22, "wrongHarnessWireExpectation": 1 },
+    "supplementaryRealApi": { "pass": 10, "total": 10 },
+    "finalRealBrowser": { "pass": 26, "total": 30 },
+    "actualAnswerCaptionRequirement": { "pass": 0, "total": 1 },
+    "coldCatalogRequirement": { "pass": 2, "total": 3 },
+    "projectlessActualCwdRequirement": { "pass": 2, "total": 3 },
+    "realPrerecordedWhisper": { "pass": 5, "total": 5 }
+  },
+  "rawArtifactsOutsideRepository": [
+    { "artifact": "1793500345912-br68cs.out", "bytes": 88561, "sha256": "fc9516bfe7e7e7037958a16f194f7e390b2fee2558ba40b3ded607f9315107cd" },
+    { "artifact": "crew-277-build.log", "bytes": 16123, "sha256": "1691c23e2e0b3285ed00d10be7b6e754f84b376730480cec6bd7a165bd535e9f" },
+    { "artifact": "crew-277-unit.log", "bytes": 40311, "sha256": "079a6629494f38b2b93294fa5ca2081dcb06a4f607854d783949a3e1d159b244" },
+    { "artifact": "crew-277-focused-live.log", "bytes": 2851, "sha256": "ddd811e5d7b376e812d5fd008c71cf9a0c82efc60cd124588d2b3f0f522090b9" },
+    { "artifact": "1793502701717-p6rnmr.out", "bytes": 9586, "sha256": "716bde338308745734fb3fdb536edd2ec62eb1e8afc65317c0313c0f8337a567" },
+    { "artifact": "1793502701842-c9cxaw.out", "bytes": 4691, "sha256": "0b1ff0c50cf0325951cca5904dfd94aa12b929605432aa3511c8b9f9cefad728" },
+    { "artifact": "1793502701951-m7wxtd.out", "bytes": 862, "sha256": "5f7facb0406ffb8f3ff121444d9479b02c58152dff8c3441345e732dd4de6509" },
+    { "artifact": "crew-277-package.log", "bytes": 2599, "sha256": "ecd5b54bc0aad3dcff5a39adb64a3747b55d717885bce585512769593ea18671" },
+    { "artifact": "1793503214752-qf9200.out", "bytes": 189, "sha256": "dd38d63c934c851b24d95c453a83e06f90f48670433cc6cdb033e529ae2f8e1c" },
+    { "artifact": "1793503541657-q6nydl.out", "bytes": 1301, "sha256": "c293b03c454efc922979584a993336f641341627d9bf748c8bf4a8c07321ef12" },
+    { "artifact": "1793504295370-5tquu2.out", "bytes": 4511, "sha256": "9885f94595c2bb274dbed24113251a35f5e1965b7222eeabc77ac95f826c9b98" },
+    { "artifact": "api-result.json", "bytes": 2643, "sha256": "20b69c357d092c976c7c180713cb73c72ca0e5f75188f66c6007bbd3bed0ce6c" },
+    { "artifact": "api-extra-result.json", "bytes": 1357, "sha256": "cf55278fc5567ddaebb793d4c1c0fc4e1f10a811f95e7aeaeca3f0538ee9de87" },
+    { "artifact": "browser-result.json", "bytes": 10800, "sha256": "d5e08722b0c3f3b4c98639e29c106d0b12fb396f9c1ac3dd6f6473faa9e30029" },
+    { "artifact": "cold-catalog-result.json", "bytes": 3878, "sha256": "45fd64e51352f9f91b3210f1f11bd875809c96d4e2786fb77f0610840b5ddfd8" },
+    { "artifact": "projectless-cwd-result.json", "bytes": 504, "sha256": "8934d86bfb5f7832de3eeb58e88a8c64ad8a9c324a1cb8ec08c3cc6325450d9a" },
+    { "artifact": "stt-result.json", "bytes": 818, "sha256": "57c912320c50fae7896b60cb2b8971aa190850a0974f62a7a797e861bdf87767" },
+    { "artifact": "agent-1024.png", "bytes": 53839, "sha256": "8f17d613922061a432b23d6d8ed8c0dca396e56f22426e998607e6e339486599" },
+    { "artifact": "folder-picker-360.png", "bytes": 28183, "sha256": "f75263f0b56d2c95b6858444a58a6a2f7d9a9be2b335f0dde33de5a137e1da82" },
+    { "artifact": "1793505201763-0upsvz.out", "bytes": 1710, "sha256": "8dbbc347cc2a2d07f04dde48f77dcb598ae9f59af0191bd0c81b9fd9741103fe" }
+  ]
+}
