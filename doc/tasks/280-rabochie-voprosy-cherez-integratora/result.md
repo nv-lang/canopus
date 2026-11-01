@@ -46,3 +46,23 @@ RED через реальный router: по сроку без default было 
 На совмещённых байтах targeted form/087/controlled unload без позднего POST, real entry/HOLD scopes, default и native — exit 0. Отдельный RED→GREEN: собственное outbound crew-mail больше не считается answered; проверяются точные session/id/text/time/mode/phase из trusted receipt и старшие страницы user history, чтобы crew-mail не скрывал другой новый ввод. Ни receipt, ни отсутствие receipt не объявляются owner approval. Исправлен query type filter изолированной native fixture без production fallback.
 
 Этот checkpoint ещё не финал: общего full на моих байтах нет. Отдельный pending-create lifecycle RED 279 и новая immutable delta остаются у автора; дальнейший WIP не переносится без адресного разрешения. Повторные перезапуски сервиса не потеряли пяти файлов собственного follow-up; никакие main/live/push/merge/личные настройки не менялись.
+
+## Контрольная точка перед управляемым переходом OpenCode
+
+Подписанный HEAD — **`0242ec531e035d0fa5ba85750392afef93cc9c99`**. Watch `1793539830009-nage77`: совмещённый pretest 17 и hook guards 10/10 **exit 0**, подпись подтверждена git log. Этот результат повторять не нужно.
+
+Автор адресно разрешил lifecycle delta 279 **`cc9a11f927003ef055088c765cba4c3b9a7529df`** (письма 2026-11-01 16:32/16:37). После branch_note применена через `cherry-pick -s --no-commit`; конфликты index/package разрешены вручную, union 18 pretest сохранён. Question I/O совмещён с lifetime.call и реальным AbortSignal; controlled never-return GET завершается локально при unload, поздний результат не начинает POST. Это не заявление об отмене уже принятой удалённой операции.
+
+Watch **`1793542079767-efmgvb`**: `npm run pretest` (18 файлов) **exit 0**; последовавший `git cherry-pick --continue` — **exit 128**, потому что после `--no-commit` нет продолжаемой операции. Вся команда exit 128, **нового commit нет**, guards для этого WIP ещё не выполнены. Изменения сохранены и зарегистрированы в индексе, не удалять и не применять delta заново:
+
+- документы 279 evidence/log/repeats; plugin README/index/native-state/package;
+- новые plugin-lifetime и crew-native-dispose-late; обновлённый crew-native-dispose;
+- собственные question-native/question-routing и question native/forms tests.
+
+Следующий шаг после подтверждённого восстановления: проверить root/ветку/HEAD/status; обычный signed commit с явным перечнем этих файлов и hook guards через queue (не `cherry-pick --continue`, не повторный перенос). По разрешению автора взять только exact test-only settings delta после cc9a11f9, если требуется; неизвестный WIP не брать. Полный 279 **161/161 GREEN на `d01263fa064471bec3831ee2ac64c4c4242c0b0e`** — результат другой задачи, не собственный full 280. После итогового freeze нужен свой полный затронутый набор/guards через очередь, независимая проверка exact SHA и подтверждение small без платного auto reviewer перед submit.
+
+Открытый технический остаток от письма автора 16:35: исторический streaming/empty question после restart при свежем forms=[]/active absent не считать живой формой и не POSTить старому id; нужен допустимый current-input путь для уже проверенного решения, со сохранением исходного subject/scope/source и подтверждённым продолжением. Минимальный вход уточняется у автора, не выдуман и не объявлен реализованным. HOLD/owner gates неизвестностью не снимаются.
+
+По письму автора 17:04 до управляемого перехода OpenCode 2.2.5 **новых тяжёлых прогонов не начинать**, идущие не убивать. Сейчас активных собственных прогонов нет. Службу/main/личные настройки не менять. Это та же сессия и незавершённая единица 5/5, не новый запуск; сделанное/исходные T и 2T не сбрасываются.
+
+Автор уточнил следующий разрешённый шаг (письмо 2026-11-01 17:12, ответ на технический вопрос): один durable Crew-letter в ту же исходную сессию через проверенный native idle/receipt 279; исходные qid/question id, актуальный ответственный, независимо проверенные решение/source/subject/scope. Исчезновение формы, собственный outbound receipt и текст модели не создают разрешение. Старому form id не POST, исторический question не править и не interrupt. Стабильные recovery letter/native ID сохраняются до I/O; restart/unknown/pending не создают повторный POST. Admission/enqueue не доказательство продолжения: нужен связанный новый assistant/tool. Active/unknown/HOLD/new gate/wrong SHA/scope не обходятся. После восстановления — RED→GREEN через настоящий plugin entry с forms=[]/историческим streaming call и отдельный absent-permission negative. **Это записанный следующий шаг, не сделанная реализация; до восстановления новых тяжёлых прогонов нет.**

@@ -32,8 +32,8 @@ export function verifyQuestionSources(root: string | undefined, sources: Questio
 // Official https://opencode.ai/v2/openapi.json, Form.Detail/State/StringField, inspected 2026-11-01.
 // Never reinterpret a legacy guessed schema as pending. Answer field comes from native fields, not hardcoded q0.
 export type QuestionFormIO = {
-  get(session: string, form: string): Promise<unknown>
-  reply(session: string, form: string, field: string, answer: string): Promise<{ state: "applied" | "settled" | "unknown" | "refused"; why?: string }>
+  get(session: string, form: string, signal?: AbortSignal): Promise<unknown>
+  reply(session: string, form: string, field: string, answer: string, signal?: AbortSignal): Promise<{ state: "applied" | "settled" | "unknown" | "refused"; why?: string }>
 }
 export function formObservation(request: QuestionRequest, envelope: unknown): QuestionObservation {
   const value = envelope as any

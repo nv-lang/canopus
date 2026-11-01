@@ -161,8 +161,9 @@ try {
   const pending = qtool.execute({ action: 'resolve', id: closingRecord.id, epoch: closingRecord.epoch, text: 'Команда проверена, без новых разрешений.', sources: [{ path: 'doc/source.md', sha256: digest(sourceText), quote: sourceText }] }, { sessionID: integrator })
   await entered
   const draining = stop()
-  release()
   await Promise.all([draining, pending])
+  release() // An uncancellable injected transport can return late; its local caller was already fenced.
+  for (let i = 0; i < 3; i++) await new Promise(r => setImmediate(r))
   stop = undefined
   assert.equal(posts, 5, 'late question GET cannot POST through a disposed plugin')
   assert.equal(router.get(closingRecord.id).attempted, undefined)

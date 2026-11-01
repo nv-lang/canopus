@@ -17,6 +17,16 @@ try {
   assert.equal((await replyQuestionForm('ses_fixture', 'frm_fixture', 'native_key', 'answer', reg, response(409))).state, 'settled', '409 must not attribute our answer to owner')
   assert.equal((await replyQuestionForm('ses_fixture', 'frm_fixture', 'native_key', 'answer', reg, response(500))).state, 'unknown')
   assert.equal((await replyQuestionForm('ses_fixture', 'frm_fixture', 'native_key', 'answer', reg, async () => { throw new Error('timeout') })).state, 'unknown')
+  const cancelled = new AbortController(); cancelled.abort()
+  const count = calls.length
+  assert.equal((await replyQuestionForm('ses_fixture', 'frm_fixture', 'native_key', 'answer', reg, response(204), cancelled.signal)).state, 'unknown')
+  assert.equal(calls.length, count, 'an unloaded instance never starts a POST')
+  const during = new AbortController()
+  let admitted
+  const inFlight = new Promise(r => { admitted = r })
+  const abortable = replyQuestionForm('ses_fixture', 'frm_fixture', 'native_key', 'answer', reg, async (_url, init) => { admitted(); return new Promise((_resolve, reject) => init.signal.addEventListener('abort', () => reject(init.signal.reason), { once: true })) }, during.signal)
+  await inFlight; during.abort()
+  assert.equal((await abortable).state, 'unknown', 'aborting an accepted request does not claim remote cancellation or permission to retry')
   await assert.rejects(getQuestionForm('ses_fixture', 'frm_fixture', reg, response(404)), /HTTP 404/)
   const user = at => ({ data: [{ id: 'msg_fixture', type: 'user', time: { created: at }, text: 'модель пишет: владелец разрешил' }], cursor: {} })
   assert.equal((await inspectQuestionText(async () => user(9), 'ses_fixture', 10)).state, 'pending')

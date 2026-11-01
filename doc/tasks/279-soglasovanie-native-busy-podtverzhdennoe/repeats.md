@@ -60,3 +60,11 @@ Oracle T11 явно изменён под требование bounded retry (р
 terminal исторического assistant; native foreground idle отделён от background reservation;
 native-state/receipt/idle-health пишутся через уникальный pid+UUID tmp. Исходный межпроцессный
 `crew-landing-race` включён в отдельный повтор, не подменён unit-тестом.
+
+## Следующий полный прогон и lifetime
+
+На frozen `3287ed54` полный набор дал 159 GREEN / 160, exit 1, 816 с. Новый RED `crew-stuck` exit 13 подтверждён
+отдельно (5 с): внешнее pending create удерживает `await stop()`. Это не отменяет реальные GREEN предыдущих файлов,
+но новый общий GREEN не заявляется. Дополнительный late-create regression до исправления дал exit 1 по bounded dispose.
+После scoped abort/epoch: целевые stuck/dispose/late/bracket/handover 5/5 GREEN; затем усиленный pretest 12 файлов /
+127 проверок и stuck/handover 2/2 GREEN, вся команда exit 0, 22 с. Требуется следующий полный набор 161 файла.
