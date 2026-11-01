@@ -254,6 +254,9 @@ export function timeline(session) {
       flushGroup();
       const last = content[content.length - 1];
       if (last && last.type === 'text' && m.status === 'streaming') last.streaming = true;
+      if (m.status === 'done' && m.text.trim().length > 0) {
+        items.push({ type: 'author', key: `author:${m.turn}`, actual: m.actual || null, turn: m.turn });
+      }
       items.push(...content);
 
       // расход токенов хода (задача 192): строка под ответом агента, только если агент его сообщил

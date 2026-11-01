@@ -807,9 +807,10 @@ export function createView(doc, refs, deps) {
   const whereNote = h(doc, 'p', { class: 'where-note', hidden: true });
   const spinner = h(doc, 'span', { class: 'spinner', role: 'img', 'aria-label': t('composer.working'), hidden: true });
   const menu = h(doc, 'div', { class: 'menu', role: 'menu', hidden: true });
-  // Одна группа чипов у правого края: семья, режим, модель и усилие; за ней кольцо контекста и спиннер (задача 192).
-  const statusGroup = h(doc, 'div', { class: 'status-group' }, familyButton);
-  const status = h(doc, 'div', { class: 'composer-status', 'data-empty': 'true' }, worktreeButton, routeButton, resultRepoButton, h(doc, 'span', { class: 'grow' }), statusGroup, ringBox, spinner, presetSelect, menu);
+  const agentAnchor = h(doc, 'div', { class: 'agent-picker-anchor' }, familyButton, menu);
+  // The picker owns its anchor; family approvals stay before the microphone.
+  const statusGroup = h(doc, 'div', { class: 'status-group' }, agentAnchor);
+  const status = h(doc, 'div', { class: 'composer-status', 'data-empty': 'true' }, worktreeButton, routeButton, resultRepoButton, h(doc, 'span', { class: 'grow' }), statusGroup, ringBox, spinner, presetSelect);
 
   // Меню выбора режима, модели и усилия (задача 192): показывает только то, что агент отдал по ACP.
   // Задача 265: сюда же меню репозитория результата ('result').
@@ -822,6 +823,7 @@ export function createView(doc, refs, deps) {
   let currentRoute = INTERACTIVE_STATE.route;
   let menuQuery = '';
   let menuSig = '';
+  let menuTrigger = null;
   const menuSearch = h(doc, 'input', { type: 'search', class: 'menu-search', placeholder: t('menu.search'), 'aria-label': t('menu.search'), autocomplete: 'off', hidden: true });
   const menuList = h(doc, 'div', { class: 'menu-list' });
   menu.append(menuSearch, menuList);
@@ -1012,6 +1014,8 @@ export function createView(doc, refs, deps) {
     if ((kind === 'model' || kind === 'more') && !hasOpts('models')) return;
     if (kind === 'effort' && !hasOpts('efforts')) return;
     menuKind = kind;
+    menuTrigger = { agent: familyButton, route: routeButton, result: resultRepoButton, mode: modeButton, model: modelButton, more: modelButton, effort: effortButton }[kind] || null;
+    if (kind === 'agent') agentAnchor.append(menu); else status.append(menu);
     if (kind === 'agent') pickerDraft = null;
     menuQuery = '';
     menuSearch.value = '';
@@ -1070,7 +1074,7 @@ export function createView(doc, refs, deps) {
   // номера строк — горячие клавиши; у строк без номера (Назад, подменю) их нет
   doc.addEventListener('keydown', (e) => {
     if (!menuKind) return;
-    if (e.key === 'Escape') { closeMenu(); return; }
+    if (e.key === 'Escape') { const trigger = menuTrigger; closeMenu(); trigger?.focus(); return; }
     if (/^[1-9]$/.test(e.key)) {
       const rows = [...menuList.querySelectorAll('.menu-num')];
       const at = rows.findIndex((n) => n.textContent === e.key);
@@ -1577,6 +1581,13 @@ export function createView(doc, refs, deps) {
         node.dataset.streaming = String(item.streaming);
         node.replaceChildren(h(doc, 'span', { class: 'sr', text: t('chat.agent') }), h(doc, 'div', { class: 'prose' }, ...proseNodes(item.text)));
         break;
+      case 'author': {
+        const label = item.actual
+          ? [item.actual.family, item.actual.model, item.actual.effort || 'усилие не подтверждено'].join(' · ')
+          : 'Автор не подтверждён';
+        node.replaceChildren(h(doc, 'span', { class: 'agent-signature', text: label, 'aria-label': `Фактический автор ответа: ${label}` }));
+        break;
+      }
       case 'work':
         fillWork(entry, item);
         break;
