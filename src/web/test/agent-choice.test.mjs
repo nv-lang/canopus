@@ -17,8 +17,11 @@ for (const agents of [[], [{ id: 'opencode' }]]) {
     const model = reduce(initialModel(), { id: 'create', trace: 's', step: 0, time: 1,
       kind: 'session_created', input: { name: 'Проверка', agent: 'opencode' } });
     view.render(model, { selected: 's', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
-    const buttons = refs.main.querySelectorAll('.status-btn').filter((b) => b.getAttribute('aria-disabled') === 'true');
-    assert.ok(buttons.length >= 1);
+    const group = refs.main.querySelector('.status-group');
+    assert.equal(group.children.length, 1);
+    const buttons = group.querySelectorAll('button');
+    assert.equal(buttons.length, 1);
+    assert.equal(buttons[0].dataset.noChoices, 'true');
     const approvals = refs.main.querySelector('.family-approvals-button');
     approvals.click();
     assert.match(refs.main.querySelector('.family-approvals-menu').textContent, /не сообщил поддерживаемые режимы/);
@@ -69,7 +72,7 @@ test('компактный селектор отправляет direct source �
   view.render(withCatalog, { selected: 's', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
   const picker = refs.main.querySelector('.agent-picker-button');
   assert.ok(picker);
-  assert.equal(refs.main.querySelectorAll('.status-group .status-btn').length, 2);
+  assert.equal(refs.main.querySelectorAll('.status-group .status-btn').length, 1);
   picker.click();
   const modelRow = refs.main.querySelectorAll('.menu-item').find((r) => r.textContent.includes('Model One'));
   assert.ok(modelRow);
