@@ -390,6 +390,7 @@ const handlers = {
       const folderInfo = (((ui.projects || []).find((p) => p.id === draft.projectId) || { folders: [] }).folders).find((f) => f.path === draft.folder);
       const treeOk = !(folderInfo && folderInfo.repo === false); // папка не git: сессия создаётся без дерева
       const input = { name: nameFromText(text) || t('sessions.new_name_placeholder'), agent: draft.agent, route: normalizeRoute(draft.route), worktree: draft.worktree !== false && treeOk };
+      if (draft.source) input.source = draft.source;
       if (draft.preset) input.preset = draft.preset;
       if (draft.projectId) {
         input.project = draft.project;
@@ -442,6 +443,11 @@ const handlers = {
   onChoose(trace, setting, value) {
     send('session_setting', trace, nextStep(model, trace), { setting, value });
   },
+  onSource(trace, source) {
+    const session = model.sessions[trace];
+    if (!session || session.draft || isBusy(session.state)) { flash('Источник можно изменить только между ходами.', 'info'); return; }
+    if (!send('session_source', trace, nextStep(model, trace), source)) flash('Источник не изменён: соединение недоступно.', 'error');
+  },
   onAnswer(trace, answer) {
     return send('question_answer', trace, nextStep(model, trace), answer);
   },
@@ -452,6 +458,7 @@ const handlers = {
     send(...signal(trace, routeSignal.set(route)));
   },
   onDraftPreset(trace, name) { model = patchDraft(model, trace, { preset: name }); render(); },
+  onDraftSource(trace, source) { model = patchDraft(model, trace, { source }); render(); },
   onSessionPreset(trace, name) { send('session_preset', trace, nextStep(model, trace), { preset: name }); },
   onDraftWorktree(trace, on) { saveWorktreePref(on === true); model = patchDraft(model, trace, { worktree: on === true }); render(); },
   onWorktree(trace, on) { send(...signal(trace, routeSignal.worktree(on))); },

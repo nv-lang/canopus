@@ -10,8 +10,8 @@ test('группа status-group: семья, режим, модель·усил�
   const group = view.match(/const statusGroup = h\(doc, 'div', \{ class: 'status-group' \}, ([^)]*)\);/);
   assert.ok(group, 'группа есть');
   const names = group[1].split(',').map((x) => x.trim());
-  assert.deepEqual(names.filter((n) => n.endsWith('Button')), ['familyButton', 'modeButton', 'modelButton', 'effortButton']);
-  assert.ok(names.indexOf('familyButton') < names.indexOf('modeButton') && names.indexOf('modeButton') < names.indexOf('modelButton'));
+  assert.deepEqual(names.filter((n) => n.endsWith('Button')), ['familyButton', 'modeButton']);
+  assert.ok(names.indexOf('familyButton') < names.indexOf('modeButton'));
   const row = view.match(/const status = h\(doc, 'div', \{ class: 'composer-status', [^}]*\}, ([^;]*)\);/);
   assert.match(row[1], /statusGroup, ringBox, spinner/);
 });

@@ -202,7 +202,7 @@ test('строка статуса — плоский серый текст 13 px
     const line = viewSrc.split('\n').find((l) => l.includes(`${name}.replaceChildren`) || (name === 'modelButton' && l.includes('}));') && false));
     if (line) assert.ok(!/chevron/.test(line), `${name}: нет шеврона`);
   }
-  const statusCode = viewSrc.slice(viewSrc.indexOf('familyButton.replaceChildren'), viewSrc.indexOf('statusModel.hidden = hasModels'));
+  const statusCode = viewSrc.slice(viewSrc.indexOf('familyButton.replaceChildren'), viewSrc.indexOf('modeButton.hidden = false'));
   assert.ok(!/chevron/.test(statusCode), 'в сборке строки статуса нет шевронов');
   assert.match(cssSrc, /\.status-group > :not\(\[hidden\]\) ~ :not\(\[hidden\]\)::before \{ content: "\\00b7"/);
 });

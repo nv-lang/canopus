@@ -43,10 +43,11 @@ test('выбор результата недоступен при задаче/�
 test('текущий агент виден при любом числе доступных: чип не прячется, при 0/1 — приглушён и title называет причину', () => {
   assert.doesNotMatch(view, /familyButton\.hidden = agents\.length/, 'чип агента больше не исчезает при одном агенте');
   assert.match(view, /familyButton\.hidden = false/);
-  assert.match(view, /familyButton\.setAttribute\('aria-disabled', String\(agents\.length < 2\)\)/);
-  assert.match(view, /t\('status\.agent_one'\)/, 'один агент — причина в подсказке');
+  assert.match(view, /familyButton\.setAttribute\('aria-disabled', String\(busy && !session\.draft\)\)/);
+  assert.match(view, /familyButton\.dataset\.noChoices = String\(!canChoose\)/);
+  assert.match(view, /agents\.length === 1 \? 'status\.agent_one'/, 'один агент — причина в подсказке');
   assert.match(view, /t\('status\.agents_loading'\)/, 'реестр ещё грузится — причина в подсказке');
-  assert.match(view, /if \(kind === 'agent' && agents\.length < 2\) return;/, 'меню выбора не открывается, когда выбирать не из чего');
+  assert.match(view, /familyButton\.dataset\.noChoices === 'true'/, 'меню выбора не открывается, когда выбирать не из чего');
 });
 
 test('режим и усилие не пропадают без объяснения: чип остаётся, приглушён, title — фактическая причина', () => {
