@@ -4,6 +4,7 @@ import { createView } from '../view.js';
 import { initialModel, reduce } from '../state.js';
 import { createFakeDocument } from './fake-dom.mjs';
 import { t } from '../strings.js';
+import { timeline } from '../lists.js';
 
 for (const agents of [[], [{ id: 'opencode' }]]) {
   test(`недоступные настройки объясняют клик: агентов ${agents.length}`, () => {
@@ -90,6 +91,25 @@ test('звёзды усилия декоративны, едут справа н
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{ \.effort-sparkle \{ animation: none/);
 });
 
+test('Escape из поиска закрывает picker и возвращает focus trigger; меню привязано к нему', () => {
+  const doc = createFakeDocument(); const refs = {};
+  for (const key of ['app', 'side', 'main', 'rail', 'status', 'overlay']) { refs[key] = doc.createElement('div'); doc.body.append(refs[key]); }
+  const view = createView(doc, refs, { agents: [{ id: 'opencode' }], now: () => 0, handlers: { queued: () => 0, queuedItems: () => [] } });
+  const base = reduce(initialModel(), { id: 'create', trace: 's', step: 0, time: 1, kind: 'session_created', input: { name: 'x', agent: 'opencode' } });
+  const options = { models: [{ id: 'm', name: 'M' }], model_id: 'm', efforts: [{ id: 'low', name: 'low' }], effort: 'low', modes: [], mode: '' };
+  const model = { ...base, catalog: { opencode: { agent: 'opencode', updated: 1, model: 'm', options } } };
+  view.render(model, { selected: 's', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
+  const picker = refs.main.querySelector('.agent-picker-button');
+  picker.click();
+  const anchor = refs.main.querySelector('.agent-picker-anchor');
+  const menu = anchor.querySelector('.menu');
+  assert.equal(menu.parentNode, anchor);
+  assert.equal(doc.activeElement.getAttribute('type'), 'search');
+  doc.dispatchEvent({ type: 'keydown', key: 'Escape' });
+  assert.equal(menu.hidden, true);
+  assert.equal(doc.activeElement, picker);
+});
+
 test('session_source принимает плоский direct/pool wire без смешения уровня и effort', () => {
   const create = (source) => reduce(initialModel(), { id: 'create', trace: 's', step: 0, time: 1, kind: 'session_created', input: { name: 'x', agent: 'opencode', source } });
   let direct = create({ family: 'opencode', model: 'm', effort: 'xhigh' });
@@ -99,4 +119,83 @@ test('session_source принимает плоский direct/pool wire без �
   assert.equal(direct.sessions.s.selectedModel, 'actual');
   assert.equal(direct.sessions.s.selectedEffort, 'high');
   assert.equal(direct.sessions.s.selectedPool, '');
+});
+
+test('подпись ответа фиксирует только turn-bound actual и остаётся той же при смене source/replay', () => {
+  const events = [
+    { id: 'c', trace: 's', step: 0, time: 1, kind: 'session_created', input: { name: 'x', agent: 'family-a' } },
+    { id: 'u1', trace: 's', step: 1, time: 2, kind: 'user_message', input: { turn: 'turn-a', text: 'first' } },
+    { id: 'a1', trace: 's', step: 2, time: 3, kind: 'agent_actual', input: { turn: 'turn-a', dispatch_id: 'dispatch-a', family: 'family-a', model: 'model-a', effort: 'native-a', role: 'dev' } },
+    { id: 'chunk1', trace: 's', step: 3, time: 4, kind: 'agent_chunk', input: { turn: 'turn-a', text: 'answer A' } },
+    { id: 'done1', trace: 's', step: 4, time: 5, kind: 'agent_done', input: { turn: 'turn-a' } },
+    { id: 'source-b', trace: 's', step: 5, time: 6, kind: 'session_source', input: { family: 'family-b', model: 'model-b', effort: 'native-b' } },
+    { id: 'u2', trace: 's', step: 6, time: 7, kind: 'user_message', input: { turn: 'turn-b', text: 'second' } },
+    { id: 'a2', trace: 's', step: 7, time: 8, kind: 'agent_actual', input: { turn: 'turn-b', dispatch_id: 'dispatch-b', family: 'family-b', model: 'model-b', effort: 'native-b', role: 'dev' } },
+    { id: 'chunk2', trace: 's', step: 8, time: 9, kind: 'agent_chunk', input: { turn: 'turn-b', text: 'answer B' } },
+    { id: 'done2', trace: 's', step: 9, time: 10, kind: 'agent_done', input: { turn: 'turn-b' } },
+  ];
+  const applyAll = () => events.reduce((model, event) => reduce(model, event), initialModel());
+  const model = applyAll();
+  const session = model.sessions.s;
+  const replies = session.messages.filter((message) => message.role === 'agent');
+  assert.deepEqual(replies.map((message) => message.actual), [
+    { family: 'family-a', model: 'model-a', effort: 'native-a', role: 'dev', dispatchId: 'dispatch-a' },
+    { family: 'family-b', model: 'model-b', effort: 'native-b', role: 'dev', dispatchId: 'dispatch-b' },
+  ]);
+  const authors = timeline(session).filter((item) => item.type === 'author');
+  assert.deepEqual(authors.map((item) => [item.turn, item.actual.family, item.actual.model, item.actual.effort]), [
+    ['turn-a', 'family-a', 'model-a', 'native-a'], ['turn-b', 'family-b', 'model-b', 'native-b'],
+  ]);
+  const replayed = applyAll().sessions.s;
+  assert.deepEqual(timeline(replayed).filter((item) => item.type === 'author'), authors);
+});
+
+test('catalog, session selection/request и событие без turn не приписываются ответу', () => {
+  const events = [
+    { id: 'c', trace: 's', step: 0, time: 1, kind: 'session_created', input: { name: 'x', agent: 'family-a' } },
+    { id: 'catalog', trace: 's', step: 1, time: 2, kind: 'agent_catalog', input: { agent: 'family-b', model: 'catalog-model' } },
+    { id: 'request', trace: 's', step: 2, time: 3, kind: 'agent_selection', input: { family: 'family-b', model: 'requested-model', effort: 'requested-effort' } },
+    { id: 'selected', trace: 's', step: 3, time: 4, kind: 'agent_selected', input: { family: 'family-b', model: 'session-model', effort: 'session-effort' } },
+    { id: 'unbound', trace: 's', step: 4, time: 5, kind: 'agent_actual', input: { family: 'family-b', model: 'unbound-model', effort: 'unbound-effort' } },
+    { id: 'u', trace: 's', step: 5, time: 6, kind: 'user_message', input: { turn: 'turn-unknown', text: 'unknown' } },
+    { id: 'chunk', trace: 's', step: 6, time: 7, kind: 'agent_chunk', input: { turn: 'turn-unknown', text: 'answer' } },
+    { id: 'late', trace: 's', step: 7, time: 8, kind: 'agent_actual', input: { turn: 'turn-unknown', family: 'family-b', model: 'late-model', effort: 'late-effort' } },
+    { id: 'done', trace: 's', step: 8, time: 9, kind: 'agent_done', input: { turn: 'turn-unknown' } },
+  ];
+  const model = events.reduce((current, event) => reduce(current, event), initialModel());
+  const session = model.sessions.s;
+  assert.equal(session.messages.find((message) => message.role === 'agent').actual, null);
+  assert.equal(timeline(session).find((item) => item.type === 'author').actual, null);
+  assert.equal(model.catalog['family-b'].model, 'catalog-model');
+});
+
+test('ответ отображает фактическую или явную неподтверждённую подпись через text DOM', () => {
+  const doc = createFakeDocument(); const refs = {};
+  const createElement = doc.createElement;
+  doc.createElement = (tag) => {
+    const node = createElement(tag);
+    node.insertBefore = (child, before) => {
+      if (child.parentNode) child.remove();
+      const index = before ? node.childNodes.indexOf(before) : -1;
+      child.parentNode = node;
+      if (index < 0) node.childNodes.push(child); else node.childNodes.splice(index, 0, child);
+      return child;
+    };
+    return node;
+  };
+  for (const key of ['app', 'side', 'main', 'rail', 'status', 'overlay']) { refs[key] = doc.createElement('div'); doc.body.append(refs[key]); }
+  const view = createView(doc, refs, { agents: [], now: () => 0, handlers: { queued: () => 0, queuedItems: () => [] } });
+  const events = [
+    { id: 'c', trace: 's', step: 0, time: 1, kind: 'session_created', input: { name: 'x', agent: '' } },
+    { id: 'u', trace: 's', step: 1, time: 2, kind: 'user_message', input: { turn: 'turn-visible', text: 'question' } },
+    { id: 'actual', trace: 's', step: 2, time: 3, kind: 'agent_actual', input: { turn: 'turn-visible', family: 'family-x', model: 'model-x', effort: 'native-x' } },
+    { id: 'chunk', trace: 's', step: 3, time: 4, kind: 'agent_chunk', input: { turn: 'turn-visible', text: 'answer' } },
+    { id: 'done', trace: 's', step: 4, time: 5, kind: 'agent_done', input: { turn: 'turn-visible' } },
+  ];
+  const model = events.reduce((current, event) => reduce(current, event), initialModel());
+  view.render(model, { selected: 's', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
+  assert.equal(refs.main.querySelector('.agent-signature').textContent, 'family-x · model-x · native-x');
+  const unknown = events.filter((event) => event.kind !== 'agent_actual').reduce((current, event) => reduce(current, event), initialModel());
+  view.render(unknown, { selected: 's', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
+  assert.equal(refs.main.querySelector('.agent-signature').textContent, 'Автор не подтверждён');
 });

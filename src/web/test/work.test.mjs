@@ -27,6 +27,7 @@ const base = () => [
 
 test('виды событий: девять прежних, шесть рабочих, картинки, вопросы и каталог семьи', () => {
   assert.deepEqual([...st.KINDS].sort(), [
+    'agent_actual',
     'agent_catalog',
     'agent_chunk',
     'agent_done',

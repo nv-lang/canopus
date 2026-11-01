@@ -23,7 +23,7 @@ import { parseTurnRequest, addRequest } from './request.js';
 import { safeError } from './delivery.js';
 
 export const KINDS = Object.freeze([
-  'session_created', 'user_message', 'agent_chunk', 'agent_done', 'agent_refused',
+  'session_created', 'user_message', 'agent_actual', 'agent_chunk', 'agent_done', 'agent_refused',
   'permission_request', 'permission_decision', 'cancel', 'error',
   // задача 094: рабочие события хода (соответствуют ACP session/update)
   'usage_update', 'tool_call', 'tool_call_update', 'output_file', 'file_diff',
@@ -186,8 +186,15 @@ const userKey = (turn) => `u:${turn}`;
 const agentKey = (turn) => `a:${turn}`;
 const permKey = (request) => `p:${request}`;
 
-function newAgentMessage(turn) {
-  return { key: agentKey(turn), role: 'agent', turn, text: '', chunks: [], status: 'streaming', reason: '', doneAt: 0 };
+function newAgentMessage(turn, actual = null) {
+  return { key: agentKey(turn), role: 'agent', turn, text: '', chunks: [], actual, status: 'streaming', reason: '', doneAt: 0 };
+}
+
+function actualAgentOf(input) {
+  const family = str(input.family);
+  const model = str(input.model);
+  if (!family || !model) return null;
+  return { family, model, effort: str(input.effort), role: str(input.role), dispatchId: str(input.dispatch_id) };
 }
 
 const pick = (v, list, fallback) => (list.includes(v) ? v : fallback);
@@ -200,10 +207,10 @@ function parseCost(v) {
 }
 
 /** Сообщение агента по ходу: найти или (если его user_message потерялся) завести. */
-function agentMessageFor(messages, turn) {
+function agentMessageFor(messages, turn, actual = null) {
   const key = agentKey(turn);
   const i = messages.findIndex((m) => m.key === key);
-  return i >= 0 ? { index: i, message: messages[i] } : { index: -1, message: newAgentMessage(turn) };
+  return i >= 0 ? { index: i, message: messages[i] } : { index: -1, message: newAgentMessage(turn, actual) };
 }
 
 function putMessage(messages, index, message) {
@@ -258,6 +265,16 @@ function apply(session, event) {
       return { ...session, selectedModel: str(input.model), selectedEffort: str(input.effort), selectedPool: str(input.pool), selectedLevel: str(input.level), selectionPending: false };
     case 'agent_selection':
       return { ...session, selectionPending: true, selectedModel: str(input.model), selectedEffort: str(input.effort) };
+    case 'agent_actual': {
+      const actual = actualAgentOf(input);
+      const actualTurn = str(input.turn);
+      if (!actual || !actualTurn) return session;
+      const { index, message } = agentMessageFor(session.messages, actualTurn);
+      if (index < 0) return { ...session, pendingActual: { ...(session.pendingActual || {}), [actualTurn]: actual } };
+      // A turn's author is sealed by its first response chunk; later/session-wide state cannot rewrite history.
+      if (message.status !== 'streaming' || message.chunks.length > 0) return session;
+      return { ...session, messages: putMessage(session.messages, index, { ...message, actual }) };
+    }
     case 'session_placed': {
       // владелец перетащил сессию (задача 192): место в списке; project_id и project — если её перенесли в другой проект ('' — без проекта)
       const out = Number.isFinite(input.rank) ? { ...session, rank: input.rank } : { ...session };
@@ -300,24 +317,30 @@ function apply(session, event) {
       const userTurn = str(input.turn, event.id);
       const user = { key: userKey(userTurn), role: 'user', turn: userTurn, text: str(input.text), images: session.pendingImages ?? [], at: event.time };
       if (session.messages.some((m) => m.key === user.key)) return session;
+      const pendingActual = { ...(session.pendingActual || {}) };
+      const actual = pendingActual[userTurn] || null;
+      delete pendingActual[userTurn];
       return {
         ...session,
+        pendingActual,
         pendingImages: [],
         state: 'answering',
         pending: null,
         turnStartedAt: event.time,
-        messages: [...session.messages, user, newAgentMessage(userTurn)],
+        messages: [...session.messages, user, newAgentMessage(userTurn, actual)],
       };
     }
 
     case 'agent_chunk': {
-      const { index, message } = agentMessageFor(session.messages, turn);
+      const pendingActual = session.pendingActual && session.pendingActual[turn];
+      const { index, message } = agentMessageFor(session.messages, turn, pendingActual || null);
       if (message.status !== 'streaming' && message.status !== 'error') return session; // после отмены/отказа/конца — запоздалый
       if (message.chunks.some((c) => c.step === event.step)) return session; // другой id, тот же шаг: уже есть
       const chunks = [...message.chunks, { step: event.step, text: str(input.text) }].sort((a, b) => a.step - b.step);
       return {
         ...session,
         state: session.state === 'permission' ? 'permission' : 'answering',
+        pendingActual: pendingActual ? Object.fromEntries(Object.entries(session.pendingActual).filter(([key]) => key !== turn)) : session.pendingActual,
         messages: putMessage(session.messages, index, { ...message, status: 'streaming', reason: '', chunks, text: chunks.map((c) => c.text).join('') }),
       };
     }
@@ -547,7 +570,7 @@ export function reduce(model, event) {
 
   if (event.kind === 'session_created') {
     if (model.sessions[event.trace] && !model.sessions[event.trace].draft) return { ...model, seen };
-    const session = {
+      const session = {
       id: event.trace,
       name: str(event.input.name, event.trace),
       agent: str(event.input.agent),
@@ -569,6 +592,7 @@ export function reduce(model, event) {
       updatedAt: event.time,
       lastStep: event.step,
       messages: [],
+      pendingActual: {},
       pending: null,
       pendingImages: [],
       pendingQuestion: null,
