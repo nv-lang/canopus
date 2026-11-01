@@ -29,7 +29,7 @@ db.exec("create table session_v2 (id text primary key, directory text, title tex
 for (const [id, dir] of Object.entries({ ...dirOf, sesDDDDDD: dirs.D })) db.prepare("insert into session_v2 values (?, ?, ?, null, null)").run(id, dir, id)
 db.close()
 
-const mod = await import(process.env.CREW_MODULE ?? "../index.ts")
+const mod = await import(process.env.CREW_MODULE ?? "./fixture-plugin.mjs")
 const hooks = {}
 const tools = {}
 const delivered = []
@@ -107,7 +107,7 @@ try {
   cell("initialize answers with tools capability", !!init.result?.capabilities?.tools, JSON.stringify(init))
   cell("instructions name the window's session", /sesCCCCCC/.test(init.result?.instructions ?? ""), init.result?.instructions)
   const listed = (await mcp.rpc("tools/list", {})).result?.tools?.map((t) => t.name).sort() ?? []
-  cell("fourteen peer tools", JSON.stringify(listed) === JSON.stringify(["crew_branch_note", "crew_config", "crew_doctor", "crew_help", "crew_inbox", "crew_list", "crew_role", "crew_send", "crew_spawn", "crew_step_note", "crew_task", "crew_timer", "crew_wait", "crew_watch"]), JSON.stringify(listed))
+  cell("fifteen peer tools including source-backed crew_question", JSON.stringify(listed) === JSON.stringify(["crew_branch_note", "crew_config", "crew_doctor", "crew_help", "crew_inbox", "crew_list", "crew_question", "crew_role", "crew_send", "crew_spawn", "crew_step_note", "crew_task", "crew_timer", "crew_wait", "crew_watch"]), JSON.stringify(listed))
   const schema = (await mcp.rpc("tools/list", {})).result.tools.find((t) => t.name === "crew_send").inputSchema
   cell("crew_send schema requires to and text", JSON.stringify(schema.required) === JSON.stringify(["to", "text"]), JSON.stringify(schema))
 
@@ -213,7 +213,7 @@ try {
   integ.child.kill()
 }
 
-stop?.()
+await stop?.()
 await wait(100)
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-mcp.test: FAIL ${fail}` : "crew-mcp.test ok")

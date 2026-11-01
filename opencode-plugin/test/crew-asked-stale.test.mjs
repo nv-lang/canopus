@@ -29,7 +29,7 @@ for (const s of S) db.prepare("insert into session_v2 values (?, ?, ?, null, nul
 
 const core = await import("../core.ts")
 const status = await import("../status.ts")
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const hooks = {}
 const events = {}
 const tools = {}
@@ -99,7 +99,7 @@ cell("/crew counts the stale question (stale asks), the session stays out of the
 cell("the stale constant is 120 minutes", core.ASKED_STALE_MIN === 120, String(core.ASKED_STALE_MIN))
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 db.close()
 try {
   rmSync(tmp, { recursive: true, force: true })

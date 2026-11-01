@@ -105,7 +105,7 @@ const ctx = {
   tool: { transform: async () => {} },
   events: { on: async (name, cb) => (events[name] = cb) },
 }
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const stop = await mod.default.setup(ctx)
 
 let fail = 0
@@ -134,7 +134,8 @@ const until = async (f, ms = 60_000) => {
 const got = (s, t) => delivered.filter((d) => d.sessionID === s && d.text.includes(t))
 const put = (name, a) => (mkdirSync(oa.ANSWERS, { recursive: true }), writeFileSync(path.join(oa.ANSWERS, `${name}.json`), JSON.stringify({ id: name, at: Date.now(), ...a })))
 const result = (name) => core.readJson(path.join(oa.ANSWERS, `${name}.json`))
-const created = (id, session, question, options) => ({ type: "form.created", data: { form: { id, sessionID: session, title: "Questions", metadata: { kind: "question" }, fields: [{ key: "q0", description: question, options: options.map((label) => ({ label })) }] } } })
+// Owner permission/gate loops remain legacy owner waits, not working fact searches (ADR-0017).
+const created = (id, session, question, options) => ({ type: "form.created", data: { form: { id, sessionID: session, title: "Questions", metadata: { kind: "question" }, fields: [{ key: "q0", description: `Тип: gate\n${question}`, options: options.map((label) => ({ label })) }] } } })
 const stateOf = (s) => status.statusOf({ card: core.readJson(core.cardFile(s)), busy: false, asked: [], now: Date.now() })
 
 // the live shape: the labels drift (task 078), the texts differ every time
@@ -355,7 +356,7 @@ await safe("E", async () => {
 })
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 db.close()
 try {
   rmSync(tmp, { recursive: true, force: true })

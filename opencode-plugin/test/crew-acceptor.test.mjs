@@ -42,7 +42,7 @@ writeFileSync(path.join(proj, "a.txt"), "a\n")
 git(proj, "add", "-A")
 git(proj, "commit", "-q", "-m", "init")
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const core = await import("../core.ts")
 const tasks = await import("../tasks.ts")
 const review = await import("../review.ts")
@@ -205,7 +205,7 @@ const help = await call("crew_help", "sesINTEG1")
 cell("crew_help names the acceptor role and the deny check", /reviewer: acceptor/.test(help) && /permissions\.deny/.test(help) && /CREW_REVIEW_N/.test(help), help.slice(0, 200))
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 await wait(300)
 try {
   rmSync(tmp, { recursive: true, force: true })

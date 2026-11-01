@@ -41,7 +41,7 @@ const status = await import("../status.ts")
 const fw = await import("../form-wait.ts")
 const watch = await import("../watch.ts")
 const iw = await tryImport("../idle-watch.ts")
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 
 const HOUR = 3_600_000
 const T0 = Date.now() - 2 * HOUR
@@ -89,6 +89,7 @@ const rec = (n) => iw?.readRecord?.(P, n)
 core.saveCard({ ...core.readJson(core.cardFile("sesAUTH")), busy: true, busySince: Date.now() })
 // the executor of 93 works a turn ON ITS OWN task (its card says so): that is the exception; a busy window on another task would not be
 core.saveCard({ ...core.readJson(core.cardFile("sesEXEC")), task: { project: P, n: 93 }, busy: true, busySince: Date.now() })
+mod.fixtureNativeActive.add("sesEXEC")
 // 92: goes, no executor (the author holds the step), the step did not change for two hours, `updated` is fresh (the noise of the plugin)
 putTask(mkTask(92, "running", { title: "Carina target_os cross-emit", history: [{ at: T0, by: "sesAUTH", status: "running", note: "поставлена" }, { at: Date.now() - 60_000, by: core.PLUGIN_SENDER, note: "приёмка застряла: 3 хода подряд остановилась без работы и без ответа" }] }))
 // 93: an executor at work on it (a turn goes); 94: an open watch with a ceiling; 95: HOLD (set below); 96: an open question to the owner
@@ -146,7 +147,7 @@ cell("F-3d no answer to the second letter: the question to the owner; the letter
 // ---- F-4 a restart of the plugin repeats nothing
 const idsBefore = lettersOf("sesAUTH").map((l) => l.id).sort()
 const dueBefore = rec(92)?.ep?.due
-stop?.()
+await stop?.()
 stop = await mod.default.setup(ctx)
 for (const [s, role] of Object.entries(SES)) await tools.crew_role.execute({ role }, { sessionID: s })
 await wait(2500)
@@ -167,7 +168,7 @@ cell("F-6a the tool crew_step_note is registered and crew_help names it", typeof
 const nothing = await tools.crew_step_note?.execute({}, { sessionID: "sesEXEC3" })
 cell("F-6b a call with nothing to answer says so", /нет|нечего|не найден/i.test(nothing?.content ?? ""), J(nothing))
 
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `\n${fail} FAILED` : "\nall ok")
 process.exit(fail ? 1 : 0)

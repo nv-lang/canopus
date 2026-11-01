@@ -19,7 +19,7 @@ const dirs = {
 for (const d of Object.values(dirs)) mkdirSync(d, { recursive: true })
 const dirOf = { sesAAAAAA: dirs.A, sesBBBBBB: dirs.B, sesCCCCCC: dirs.C, sesTASKL1: dirs.A }
 
-const mod = await import(process.env.CREW_MODULE ?? "../index.ts")
+const mod = await import(process.env.CREW_MODULE ?? "./fixture-plugin.mjs")
 const hooks = {}
 const tools = {}
 const delivered = []
@@ -97,7 +97,7 @@ cell("crew_list all shows every project", /limits\.integrator/.test(every), ever
 const bad = await call("crew_send", "sesAAAAAA", { to: "No Such.x", text: "bad" })
 cell("invalid project in the address is refused", /не годится/.test(bad.content), bad.content)
 
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-project.test: FAIL ${fail}` : "crew-project.test ok")
 process.exit(fail ? 1 : 0)

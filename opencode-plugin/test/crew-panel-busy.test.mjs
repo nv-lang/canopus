@@ -107,7 +107,7 @@ const panel = (s) => sidebarLines([s], now, "nova")
   cell("111 AC-2 statusOf keeps the state 'working' and carries the threshold", s1.state === "working" && s1.longTurnMs === LIM && s1.since === card.busySince, JSON.stringify(s1))
   const s0 = statusOf({ card, busy: true, busySince: card.busySince, asked: [], now })
   cell("111 AC-2 without the threshold the status has no field", s0.state === "working" && !("longTurnMs" in s0), JSON.stringify(s0))
-  cell("111 AC-2 isFree does not change: a flag older than 30 min frees the window, a fresh one does not", core.isFree({ ...card, busySince: now - 7 * H }, now) === true && core.isFree({ ...card, busySince: now - 10 * 60_000 }, now) === false, "isFree")
+  cell("279 stale busy age cannot prove idle: both old and fresh active flags stay reserved", core.isFree({ ...card, busySince: now - 7 * H }, now) === false && core.isFree({ ...card, busySince: now - 10 * 60_000 }, now) === false, "isFree")
 
   // the setting
   const k = schema.SCHEMA.find((x) => x.key === "long_turn_minutes")
@@ -119,7 +119,7 @@ const panel = (s) => sidebarLines([s], now, "nova")
 }
 
 // 3. the busy flag of a closed task
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const hooks = {}
 const tools = {}
 const events = {}
@@ -177,6 +177,7 @@ await stick(b, 3 * H)
 await stick(c3, 3 * H, { pid: 2_000_000_000 }) // the process of the service that set the flag is gone
 await stick(d, 10_000) // the request was just made: the turn is not in the database yet
 await stick(e, 3 * H)
+for (const session of [b, d, e]) mod.fixtureNativeActive.add(session)
 await stick(f, 3 * H)
 // the turn of b is going: its row in the database was updated a moment ago
 msg(b, "user", { text: "работай" }, Date.now() - 20_000)
@@ -207,6 +208,7 @@ cell("111 AC-3 a running task keeps the flag of its session", cardOf(e).busy ===
 // a session handed over to another one (the transfer) is closed at once, its stale flag goes too
 {
   const t = tasksMod.listTasks("proj").find((x) => x.n === nOf(e))
+  mod.fixtureNativeActive.delete(e) // the handoff fixture explicitly settled native execution
   core.releaseExecutor(t, e) // what reassign does with the old executor
   await wait(1200)
   const E = cardOf(e)

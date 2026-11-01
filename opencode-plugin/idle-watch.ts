@@ -17,6 +17,7 @@
 // Модуль без обращений к окнам и службе: всё внешнее (письма, уведомления, факты окон) приходит в Deps — его проверяют без плагина.
 import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
+import { randomUUID } from "node:crypto"
 import { PLUGIN_SENDER, readJson, safeKey } from "./core.ts"
 import { BASE } from "./paths.ts"
 import { type Task, type TaskStatus, isOpen, loadTask, statusRu, taskNo, taskRef } from "./tasks.ts"
@@ -100,16 +101,40 @@ export type Decision = { kind: OptionId; label: string; who: string; at: number;
 export type Question = { id: string; at: number; why: string; recommend: OptionId; options: Option[]; text: string; decision?: Decision }
 export type Answer = { at: number; by: string; reason?: string; minutes?: number; done?: true; repeat?: true }
 export type Episode = { key: string; role: StepRole; status: string; since: number; due: number; holder: string; label: string; round: number; letters: { at: number; id: string }[]; answers: Answer[]; repeat?: true; question?: Question }
-export type Rec = { project: string; n: number; hold?: { kind: "HOLD" | "STOP"; who: string; at: number }; ep?: Episode; decisions?: Decision[] }
+export type HoldScope = "execution" | "external" | "gate" | "legacy"
+export type ExternalResult = "failed" | "cancelled" | "timeout" | "succeeded"
+export type Hold = { kind: "HOLD" | "STOP"; scope?: Exclude<HoldScope, "legacy">; gate?: boolean; who: string; at: number; wait?: { id: string; deadline: number; result?: ExternalResult; at?: number; why?: string; proof?: string } }
+export const holdScope = (hold: Hold): HoldScope => {
+  if (!["execution", "external", "gate"].includes(String(hold.scope)) || (hold.gate !== undefined && typeof hold.gate !== "boolean")) return "legacy"
+  if (hold.scope === "external" && (!hold.wait?.id || !Number.isFinite(hold.wait?.deadline))) return "legacy"
+  return hold.scope!
+}
+export const HOLD_SCOPE_RU: Record<HoldScope, string> = { execution: "пауза исполнения", external: "ожидание внешнего результата", gate: "запрет приёмки/слияния", legacy: "legacy: неуточнённый смысл, исполнение запрещено" }
+export const executionHeld = (hold?: Hold) => !!hold && ["execution", "legacy"].includes(holdScope(hold))
+export const gateHeld = (hold?: Hold) => !!hold && (hold.gate === true || ["execution", "legacy", "gate"].includes(holdScope(hold)))
+export const taskHold = (project: string, n: number, dir = WATCH_DIR) => readRecord(project, n, dir)?.hold
+export type HealthSource = { session?: string; nativeIdle?: number; waitId?: string }
+export type Rec = { project: string; n: number; hold?: Hold; ep?: Episode; decisions?: Decision[]; healthRecovered?: { fingerprint: string; at: number; proof: string }; health?: { fingerprint: string; letter: string; responsible: string; source?: HealthSource; at: number; why: string; deadline: number; escalated?: boolean; diagnosed?: { at: number; by: string; proof: string }; blockers?: number; blocker?: { at: number; by: string; reason: string; nextCheck: number } } }
+
+/** Correlated terminal event; it changes neither scope nor gate. A late result
+ * from a previous run is ignored. Native CI controllers are outside this module. */
+export function externalResult(project: string, n: number, id: string, result: ExternalResult, why: string, now: number, dir = WATCH_DIR): boolean {
+  const rec = readRecord(project, n, dir)
+  if (!rec?.hold?.wait || rec.hold.wait.id !== id || rec.hold.wait.result) return false
+  rec.hold.wait = { ...rec.hold.wait, result, at: now, why }
+  writeRecord(rec, dir)
+  return true
+}
 
 const fileOf = (project: string, n: number, dir: string) => path.join(dir, safeKey(project), `${n}.json`)
 export const readRecord = (project: string, n: number, dir = WATCH_DIR): Rec | undefined => readJson<Rec>(fileOf(project, n, dir))
 function writeRecord(r: Rec, dir = WATCH_DIR) {
   const file = fileOf(r.project, r.n, dir)
-  if (!r.ep && !r.hold && !r.decisions?.length) return void rmSync(file, { force: true })
+  if (!r.ep && !r.hold && !r.decisions?.length && !r.health && !r.healthRecovered) return void rmSync(file, { force: true })
   mkdirSync(path.dirname(file), { recursive: true })
-  writeFileSync(`${file}.tmp`, JSON.stringify(r, null, 1))
-  renameSync(`${file}.tmp`, file)
+  const tmp = `${file}.${process.pid}.${randomUUID()}.tmp`
+  writeFileSync(tmp, JSON.stringify(r, null, 1))
+  renameSync(tmp, file)
 }
 /** Все записи сторожа (проект: только его). */
 export function records(dir = WATCH_DIR, project?: string): Rec[] {
@@ -157,6 +182,11 @@ export type Deps = {
   notice(title: string, message: string): void
   taskNote?(t: Task, text: string): void
   say?(line: string): void
+  /** Independent from ordinary step term and HOLD; diagnostics never resume execution. */
+  health?(t: Task): { failed: boolean; fingerprint: string; why: string; source?: HealthSource } | undefined
+  external?(t: Task, id: string): { result: ExternalResult; why: string; proof?: string } | undefined
+  recovered?(t: Task, health: NonNullable<Rec["health"]>): string | undefined
+  diagnosed?(t: Task, health: NonNullable<Rec["health"]>): { by: string; proof: string } | undefined
 }
 
 const letterId = (t: Task, ep: Episode, k: number | "q") => `idle-step-${k === "q" ? "q-" : ""}${safeKey(t.project)}-${t.n}-${ep.since}-${ep.round}${k === "q" ? "" : `-${k}`}`
@@ -253,6 +283,45 @@ function summaryText(project: string, items: SummaryItem[], oldMin: number, now:
 export function watchTick(tasks: Task[], d: Deps, now: number): { letters: number; questions: number } {
   const dir = d.dir ?? WATCH_DIR
   const sum = { letters: 0, questions: 0 }
+  // Health does not disappear behind HOLD, an external run, a disabled term or
+  // an owner question. Alert the author only; do not execute under a pause.
+  for (const t of tasks.filter(isOpen)) {
+    const rec = readRecord(t.project, t.n, dir) ?? { project: t.project, n: t.n }
+    const diagnosis = rec.health && d.diagnosed?.(t, rec.health)
+    if (rec.health && diagnosis && rec.health.diagnosed?.proof !== diagnosis.proof) {
+      rec.health.diagnosed = { ...diagnosis, at: now }
+      rec.health.deadline = now + 15 * MIN
+      rec.health.escalated = false
+      writeRecord(rec, dir)
+      d.taskNote?.(t, `реакция на аварию подтверждена: ${diagnosis.proof}; это не устранение причины; следующая проверка через 15 минут`)
+    }
+    const proof = rec.health && d.recovered?.(t, rec.health)
+    if (rec.health && proof) {
+      rec.healthRecovered = { fingerprint: rec.health.fingerprint, at: now, proof }
+      rec.health = undefined
+      writeRecord(rec, dir)
+      d.taskNote?.(t, `диагностика аварии подтверждена: ${proof}; HOLD и gate сохранены`)
+    }
+    const wait = rec.hold?.wait
+    const event = wait && !wait.result ? d.external?.(t, wait.id) : undefined
+    if (wait && event) { wait.result = event.result; wait.why = event.why; wait.at = now; wait.proof = event.proof; writeRecord(rec, dir) }
+    const expired = !!wait && !wait.result && now >= wait.deadline
+    const terminal = !!wait && (expired || (!!wait.result && wait.result !== "succeeded"))
+    const health = terminal ? { failed: true, fingerprint: `external:${wait!.id}:${wait!.result ?? "deadline"}`, source: { waitId: wait!.id }, why: `внешнее ожидание ${wait!.id}: ${wait!.result ?? "срок проверки результата истёк"}${wait!.why ? ` (${wait!.why})` : ""}; старое «жду результат» больше не оправдывает тишину` } : d.health?.(t)
+    if (rec.health && !rec.health.escalated && now >= rec.health.deadline) {
+      d.letter(t.author, `task-health-overdue-${safeKey(t.project)}-${t.n}-${rec.health.at}`, `Диагностика аварии задачи ${taskRef(t)} не подтверждена за 15 минут: ${rec.health.why}. Нужен явный блокер: crew_step_note {n: ${t.n}, health_blocker: "<что мешает диагностике>"}, либо проверяемый результат диагностики. Запись «разбужен» прогрессом не считается; HOLD и запрет приёмки/слияния сохранены.`, "question")
+      d.notice(`${taskNo(t)} · диагностика не подтверждена`, rec.health.why)
+      rec.health.escalated = true; writeRecord(rec, dir); sum.letters++
+    }
+    if (!health?.failed || rec.health?.fingerprint === health.fingerprint || rec.healthRecovered?.fingerprint === health.fingerprint) continue
+    const id = `task-health-${safeKey(t.project)}-${t.n}-${now}`
+    const scope = rec.hold ? ` Метка ${rec.hold.kind}: ${HOLD_SCOPE_RU[holdScope(rec.hold)]}${rec.hold.gate ? "; запрет приёмки/слияния" : ""}; она сохранена.` : ""
+    d.letter(t.author, id, `Аварийная остановка задачи ${taskRef(t)}: ${health.why}. Эпизод ${id}; fingerprint ${health.fingerprint}.${scope} Нужна диагностика; это уведомление не снимает HOLD и не разрешает запуск исполнения или приёмку/слияние.`, "question")
+    d.notice(`${taskNo(t)} · аварийная остановка`, health.why)
+    rec.health = { fingerprint: health.fingerprint, letter: id, responsible: t.author, source: health.source, at: now, why: health.why, deadline: now + 15 * MIN }
+    writeRecord(rec, dir)
+    sum.letters++
+  }
   let sent = 0 // письма этого прохода: не больше passMax
   const open = new Map<string, number>() // открытые вопросы владельцу по проектам
   for (const r of records(dir)) if (r.ep?.question && !r.ep.question.decision) open.set(r.project, (open.get(r.project) ?? 0) + 1)
@@ -276,7 +345,8 @@ export function watchTick(tasks: Task[], d: Deps, now: number): { letters: numbe
       dirty = true
     }
     const save = () => dirty && writeRecord(rec, dir)
-    if (rec.hold) {
+    const scope = rec.hold && holdScope(rec.hold)
+    if (rec.health || (rec.hold && (scope === "legacy" || scope === "execution" || (scope === "external" && !rec.hold.wait?.result && now < (rec.hold.wait?.deadline ?? 0)) || (scope === "gate" && ["review", "cleanup", "plan"].includes(st.role))))) {
       save()
       continue
     }
@@ -379,7 +449,7 @@ export function watchTick(tasks: Task[], d: Deps, now: number): { letters: numbe
 
 // ---- инструмент crew_step_note
 
-export type NoteInput = { n?: number; project?: string; reason?: string; minutes?: number; done?: boolean; decide?: string; who?: string; hold?: string; release?: boolean }
+export type NoteInput = { n?: number; project?: string; reason?: string; minutes?: number; done?: boolean; decide?: string; who?: string; hold?: string; hold_scope?: string; hold_gate?: boolean; wait_id?: string; wait_result?: ExternalResult; health_blocker?: string; release?: boolean }
 export type NoteDeps = { dir?: string; cfg(t: Task): StepConfig; task(project: string, n: number): Task | undefined; tasks(): Task[]; taskNote?(t: Task, text: string): void }
 const refuse = (text: string) => ({ ok: false as const, text })
 const NEED_WHO = "who — слово владельца с датой и источником («владелец, 2026-10-24, чат оркестратора, «…»»): без него решение не записывается"
@@ -403,6 +473,25 @@ export function noteStep(input: NoteInput, me: { session: string; project?: stri
   const no = taskNo(t)
   const isAuthor = t.author === me.session
 
+  if (input.wait_result || input.health_blocker) {
+    if (![t.author, t.executor, t.reviewer].includes(me.session)) return refuse("Результат ожидания/блокер диагностики записывает автор или держатель задачи.")
+    if (input.health_blocker) {
+      if (!rec.health || !input.health_blocker.trim()) return refuse("Нет открытого эпизода аварийной диагностики или не указан блокер.")
+      if (norm(rec.health.blocker?.reason) === norm(input.health_blocker)) return refuse("Тот же блокер уже записан; срок следующей проверки не переносится, требуется действие или эскалация.")
+      rec.health.blockers = (rec.health.blockers ?? 0) + 1
+      const nextCheck = rec.health.blockers > 2 ? now : now + Math.min(30, Math.max(1, Number(input.minutes) || 15)) * MIN
+      rec.health.blocker = { at: now, by: me.session, reason: input.health_blocker.trim(), nextCheck }
+      rec.health.deadline = nextCheck
+      rec.health.escalated = false
+      writeRecord(rec, dir)
+      d.taskNote?.(t, `блокер диагностики: ${input.health_blocker.trim()}; HOLD и gate сохранены`)
+      return { ok: true, text: `Блокер диагностики задачи ${no} записан; ответственный ${rec.health.responsible}, следующая проверка ${hm(nextCheck)}. Это не восстановление прогресса. HOLD и запрет приёмки/слияния сохранены; просрочка эскалирует ответственному интегратору.` }
+    }
+    if (!input.wait_id || !["failed", "cancelled", "timeout", "succeeded"].includes(String(input.wait_result)) || !input.reason?.trim()) return refuse("Нужны wait_id текущего ожидания, wait_result и reason с источником результата.")
+    if (!externalResult(t.project, t.n, input.wait_id, input.wait_result!, input.reason.trim(), now, dir)) return refuse("Результат не записан: ID ожидания не совпадает или terminal уже записан; HOLD и gate не менялись.")
+    return { ok: true, text: `Результат ${input.wait_result} ожидания ${input.wait_id} записан; сторож здоровья уведомит автора. Это не разрешение rerun, изменения timeout или слияния; HOLD и gate сохранены.` }
+  }
+
   if (input.hold || input.release) {
     if (!isAuthor) return refuse(`Метку HOLD/STOP ставит и снимает только автор задачи ${no} (оркестратор) по слову владельца.`)
     if (!input.who?.trim()) return refuse(NEED_WHO)
@@ -414,10 +503,17 @@ export function noteStep(input: NoteInput, me: { session: string; project?: stri
     }
     const kind = String(input.hold).toUpperCase()
     if (kind !== "HOLD" && kind !== "STOP") return refuse('hold — "HOLD" или "STOP".')
-    rec.hold = { kind, who: input.who.trim(), at: now }
+    if (input.hold_scope && !["execution", "external", "gate"].includes(input.hold_scope)) return refuse('hold_scope — "execution", "external" или "gate"; без него метка остаётся legacy/неуточнённой.')
+    // An ordinary repeated HOLD must not silently erase an already explicit scope.
+    const scope = input.hold_scope as Hold["scope"] ?? rec.hold?.scope
+    if (kind === "STOP" && scope && scope !== "execution") return refuse("STOP допускает только execution или неуточнённый legacy. Для внешнего ожидания/ворот используй HOLD с явным словом владельца.")
+    if (scope === "external" && !input.wait_id?.trim() && !rec.hold?.wait) return refuse("Для external укажи wait_id — ID внешнего прогона/наблюдения; minutes — срок проверки (по умолчанию 30).")
+    const gate = input.hold_gate ?? rec.hold?.gate
+    const wait = scope === "external" ? (input.wait_id?.trim() && input.wait_id.trim() !== rec.hold?.wait?.id ? { id: input.wait_id.trim(), deadline: now + Math.max(1, Number(input.minutes) || c.extendMin) * MIN } : rec.hold?.wait) : undefined
+    rec.hold = { kind, ...(scope ? { scope } : {}), ...(gate ? { gate: true } : {}), ...(wait ? { wait } : {}), who: input.who.trim(), at: now }
     writeRecord(rec, dir)
-    d.taskNote?.(t, `${kind} по слову владельца: ${input.who.trim()}; сторож срока шага молчит, пока метка не снята`)
-    return { ok: true, text: `${kind} записан для задачи ${no} по слову владельца: срок шага не тревожит, пока метка не снята (crew_step_note {n: ${t.n}, release: true, who}). Метка видна в /crew и crew_doctor.` }
+    d.taskNote?.(t, `${kind} (${HOLD_SCOPE_RU[holdScope(rec.hold)]}) по слову владельца: ${input.who.trim()}; метка не подавляет мониторинг аварий`)
+    return { ok: true, text: `${kind} записан для задачи ${no}: ${HOLD_SCOPE_RU[holdScope(rec.hold)]}. Мониторинг аварий остаётся включён; метка снимается только по слову владельца (crew_step_note {n: ${t.n}, release: true, who}). Метка видна в /crew и crew_doctor.` }
   }
 
   if (input.decide) {
@@ -488,7 +584,7 @@ const live = (now: number, o: View): Live[] => {
     const t = of(rec.project, rec.n)
     if (!t || !isOpen(t)) continue
     const st = stepOf(t)
-    if (rec.hold) out.push({ rec, t })
+    if (rec.hold || rec.health) out.push({ rec, t, ...(rec.hold ? {} : { ep: rec.ep }) })
     else if (rec.ep && st && st.key === rec.ep.key) out.push({ rec, t, ep: rec.ep })
   }
   return out
@@ -517,7 +613,8 @@ export function stepRows(now: number, o: View = {}): Row[] {
   const rows: Row[] = []
   for (const { rec, t, ep } of live(now, o)) {
     const ref = taskRef(t, 28)
-    if (rec.hold && !ep) rows.push({ tone: "muted", text: `⏸ ${ref}: ${rec.hold.kind} по слову владельца (${rec.hold.who}); срок шага не тревожит` })
+    if (rec.hold && !ep) rows.push({ tone: "muted", text: `⏸ ${ref}: ${rec.hold.kind} — ${HOLD_SCOPE_RU[holdScope(rec.hold)]}${rec.hold.gate ? "; запрет приёмки/слияния" : ""} по слову владельца (${rec.hold.who}); мониторинг аварий включён` })
+    if (rec.health) rows.push({ tone: "error", text: `⚠ ${ref}: аварийная остановка — ${rec.health.why} (${hm(rec.health.at)}); ${rec.health.diagnosed ? "реакция подтверждена, причина не устранена; " : ""}${rec.health.blocker ? `блокер диагностики: ${rec.health.blocker.reason}, ответственный ${rec.health.responsible}, проверка ${hm(rec.health.blocker.nextCheck)}; ` : ""}HOLD не снят` })
     else if (ep && openQ(ep)) rows.push({ tone: "error", text: `⌛ ${ref}: срок вышел, вопрос открыт — ждёт владельца с ${hm(ep.question!.at)} (шаг стоит ${mins(ep.since, now)} мин, ${ep.label})` })
     else if (ep && now >= ep.due) rows.push({ tone: "warn", text: `⌛ ${ref}: шаг стоит ${mins(ep.since, now)} мин, срок вышел · письма ${ep.letters.length} из ${LETTERS_MAX}, ${ep.label}` })
     else if (ep) rows.push({ tone: "muted", text: `⌛ ${ref}: срок продлён до ${hm(ep.due)} (${ep.label})` })
@@ -529,7 +626,8 @@ export function stepRows(now: number, o: View = {}): Row[] {
 /** Строки боковой панели: короткие (до 32 знаков), только то, что требует внимания. */
 export function stepSideRows(now: number, o: View = {}): Row[] {
   const rows: Row[] = []
-  for (const { t, ep } of live(now, o)) {
+  for (const { rec, t, ep } of live(now, o)) {
+    if (rec.health) rows.push({ tone: "error", text: `⚠ ${taskNo(t)} авария, диагностика` })
     if (!ep) continue
     if (openQ(ep)) rows.push({ tone: "error", text: `⌛ ${taskNo(t)} срок вышел, вопрос` })
     else if (now >= ep.due) rows.push({ tone: "warn", text: `⌛ ${taskNo(t)} срок вышел ${mins(ep.since, now)}м` })
@@ -540,13 +638,13 @@ export function stepSideRows(now: number, o: View = {}): Row[] {
 
 /** Открытые задачи под меткой HOLD/STOP (панель, задача 262): метка записи сторожа + открытая задача. Вкладки такой задачи
  *  панель скрывает, а саму её показывает одной строкой блока «HOLD/STOP» и никогда — как работающую. */
-export function holdsOf(o: { project?: string; dir?: string; taskOf?: (project: string, n: number) => Task | undefined } = {}): { t: Task; kind: "HOLD" | "STOP" }[] {
+export function holdsOf(o: { project?: string; dir?: string; taskOf?: (project: string, n: number) => Task | undefined } = {}): { t: Task; kind: "HOLD" | "STOP"; scope: HoldScope }[] {
   const of = o.taskOf ?? loadTask
-  const out: { t: Task; kind: "HOLD" | "STOP" }[] = []
+  const out: { t: Task; kind: "HOLD" | "STOP"; scope: HoldScope }[] = []
   for (const rec of records(o.dir ?? WATCH_DIR, o.project)) {
     if (!rec.hold) continue
     const t = of(rec.project, rec.n)
-    if (t && isOpen(t)) out.push({ t, kind: rec.hold.kind })
+    if (t && isOpen(t)) out.push({ t, kind: rec.hold.kind, scope: holdScope(rec.hold) })
   }
   return out
 }
@@ -564,14 +662,15 @@ const taskProblems = (now: number, o: View): string[] =>
 
 export function stepProblems(now: number, o: View = {}): string[] {
   const sums = summaries(o).map(({ s, ns }) => `проект ${s.project}: задачи ${ns.map((n) => taskNo({ n })).join(", ")} стоят давно или без окна держателя, вопрос владельцу открыт с ${hm(s.question!.at)}: ${s.question!.why}; автор спрашивает владельца (question) и пишет решение по каждой: crew_step_note {n, decide | hold, who}`)
-  return [...taskProblems(now, o), ...sums]
+  const health = live(now, o).filter(x => x.rec.health).map(({ t, rec }) => `задача ${taskRef(t)}: аварийная остановка — ${rec.health!.why}; ${rec.health!.blocker ? `блокер диагностики: ${rec.health!.blocker.reason}` : "диагностика не подтверждена"}; HOLD/gate сохранены`)
+  return [...health, ...taskProblems(now, o), ...sums]
 }
 
 /** Справка для crew_doctor: срок вышел, вопрос ещё не поднят; метки HOLD/STOP. Не проблема. */
 export function stepNotes(now: number, o: View = {}): string[] {
   const out: string[] = []
   for (const { rec, t, ep } of live(now, o)) {
-    if (rec.hold) out.push(`${rec.hold.kind} по слову владельца: задача ${taskRef(t)} (проект ${rec.project}), ${rec.hold.who}`)
+    if (rec.hold) out.push(`${rec.hold.kind} (${HOLD_SCOPE_RU[holdScope(rec.hold)]}) по слову владельца: задача ${taskRef(t)} (проект ${rec.project}), ${rec.hold.who}`)
     if (ep && !openQ(ep) && now >= ep.due) out.push(`задача ${taskRef(t)} (проект ${rec.project}): шаг стоит ${mins(ep.since, now)} мин, срок вышел; писем держателю ${ep.letters.length} из ${LETTERS_MAX}`)
   }
   return out

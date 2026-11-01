@@ -77,7 +77,7 @@ mkdirSync(wt5, { recursive: true })
 base(5, { status: "accepted", executor: "sesEX5", reviewer: "sesREV05", review_kind: "spawn", worktree: wt5 })
 const watchMod = await import("../watch.ts")
 const w5 = watchMod.requestWatch({ session: "sesREV05", command: "sleep 30", cwd: wt5, note: "жду уборки" })
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const tools = {}
 const hooks = {}
 const events = {}
@@ -120,14 +120,16 @@ const heart = setInterval(beat, 300)
 const stop = await mod.default.setup(ctx)
 
 // 1. the reviewer's turn ends with a question: it goes to the integrator, the reviewer is not told "continue"
+await tools.crew_role.execute({ role: "integrator" }, { sessionID: "sesINTEG1" }) // trusted current role lock, not merely a card label
 await hooks.context({ sessionID: "sesREV01", system: [], model: { id: "x", providerID: "y" } })
 msg("sesREV01", "user", { text: "[opencode-peers] ПРИЁМКА задачи 001" })
 msg("sesREV01", "assistant", { content: [{ type: "tool", name: "bash" }, { type: "text", text: "Проверки зелёные. Влить в main мне запрещено правилами.\n\nВливать?\n\nСТОП: неавторизовано слияние" }] })
 msg("sesREV01", "idle", { outcome: "succeeded" })
 await events["session.idle"]({ properties: { sessionID: "sesREV01" } })
-await until(() => letters("sesINTEG1").some((l) => /остановилась с вопросом/.test(l.text)))
-const ask = letters("sesINTEG1").filter((l) => /остановилась с вопросом/.test(l.text))
-cell("the question goes to the integrator, once", ask.length === 1 && /«Вливать\?»/.test(ask[0].text) && ask[0].text.includes('crew_send {to: "sesREV01"'), JSON.stringify(ask.map((l) => l.text.slice(0, 200))))
+await until(() => letters("sesINTEG1").some((l) => /^question-route-/.test(l.id)))
+const ask = letters("sesINTEG1").filter((l) => /^question-route-/.test(l.id))
+const routed = core.questionRouterFor({}).list().find(r => r.session === 'sesREV01')
+cell("ADR-0017 question reaches current integrator once with original context and source-backed reply contract", ask.length === 1 && /Вливать\?/.test(ask[0].text) && ask[0].text.includes('crew_question') && ask[0].text.includes('sources:') && routed?.task === 1 && routed.target === 'sesINTEG1' && routed.answer === undefined && routed.text.includes('Вливать?'), JSON.stringify(ask.map((l) => l.text.slice(0, 200))))
 cell("the reviewer is not told 'continue'", letters("sesREV01").every((l) => !/Не завершено/.test(l.text)), JSON.stringify(letters("sesREV01").map((l) => l.text.slice(0, 80))))
 
 // 2. the merge lock held 10 min > stall_minutes: one letter to the task's author
@@ -192,7 +194,7 @@ cell("a watch in an accepted task's tree moves to the main copy", moved.length =
 cell("its tab is told the new id", letters("sesREV05").some((l) => l.text.includes(w5.id) && l.text.includes(moved[0]?.id ?? "?") && /основную копию/.test(l.text)), JSON.stringify(letters("sesREV05").map((l) => l.text.slice(0, 160))))
 for (const w of moved) watchMod.dropWatch(w)
 clearInterval(heart)
-stop?.()
+await stop?.()
 db.close()
 try {
   rmSync(tmp, { recursive: true, force: true })

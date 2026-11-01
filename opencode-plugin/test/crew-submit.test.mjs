@@ -27,7 +27,7 @@ git(proj, "init", "-q", "-b", "main")
 git(proj, "add", "-A")
 git(proj, "commit", "-q", "-m", "init")
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const core = await import("../core.ts")
 const tasks = await import("../tasks.ts")
 const hooks = {}
@@ -152,7 +152,7 @@ const planLetter = got(ex3, "ЗАДАЧА-ПЛАН")[0]?.text ?? ""
 cell("the plan task letter names submit as the only way", planLetter.includes('crew_task {action: "submit", n: 3') && !planLetter.includes("reply_to"), planLetter.slice(-300))
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-submit.test: FAIL ${fail}` : "crew-submit.test ok")
 process.exit(fail ? 1 : 0)

@@ -156,7 +156,7 @@ await registerBranchHooks({}, (l) => logs2.push(l), { cardOf: () => undefined, d
 cell("an OpenCode without the hooks: no exception, a line in the journal", logs2.some((l) => /no tool\.hook/.test(l)), J(logs2))
 
 // ---- the plugin: the turn of the integrator who stands in the folder of task 145
-const mod = await import(pathToFileURL(path.join(plugin, "index.ts")).href)
+const mod = await import(pathToFileURL(path.join(plugin, "test/fixture-plugin.mjs")).href)
 const tools = {}
 const hooks = {}
 const regs = { tool: {}, permission: {} }
@@ -195,7 +195,7 @@ const nt = (await tools.crew_branch_note?.execute({ what: "reading the report of
 cell("crew_branch_note works through the tool: the answer says the reason is recorded", /записан/i.test(nt ?? ""), nt)
 const nt2 = (await tools.crew_branch_note?.execute({ what: "x" }, { sessionID: "sesINTEGR1" }))?.content
 cell("crew_branch_note without the reason answers what is missing", /why|зачем|причин/i.test(nt2 ?? "") && /who|кто/i.test(nt2 ?? ""), nt2)
-stop?.()
+await stop?.()
 
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-branch-panel.test: FAIL ${fail} of ${n}${bg.missing ? " (module: " + bg.missing + ")" : ""}` : `crew-branch-panel.test ok (${n} checks)`)

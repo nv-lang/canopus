@@ -15,7 +15,7 @@ const card = (session, role) =>
   writeFileSync(path.join(cards, `${session}.json`), JSON.stringify({ session, role, auto: false, title: "", directory: process.cwd(), repo: "nova", pid: process.pid, updated: Date.now() }))
 card("sesHINT01", "carina")
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const hooks = {}
 const ctx = {
   location: { directory: process.cwd() },
@@ -49,7 +49,7 @@ cell("the hint tells to write everything the owner reads, letters to other tabs 
 cell("the hint says that a stop at a gate, and a report that needs the owner's decision, end with the question tool (task 062)", /A stop at a gate, and any report that needs the owner's decision, ends with the question tool, not with a summary/.test(h1), h1)
 cell("the hint is byte-identical between requests", h1 === h2 && h1.length > 0, `${h1.length} vs ${h2.length}`)
 
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-system-hint.test: FAIL ${fail}` : "crew-system-hint.test ok")
 process.exit(fail ? 1 : 0)

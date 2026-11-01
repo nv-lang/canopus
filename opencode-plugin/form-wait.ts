@@ -187,14 +187,14 @@ export async function blockingQuestion(session: string, now = Date.now(), call?:
 }
 
 /** Setup: drop wait files whose forms are all stale. */
-export function cleanupForms(now = Date.now(), dir = FORMS) {
+export function cleanupForms(now = Date.now(), dir = FORMS, keep?: (session: string, f: PendingForm) => boolean) {
   try {
     if (!existsSync(dir)) return
     for (const n of readdirSync(dir)) {
       const file = path.join(dir, n)
       if (!n.endsWith(".json")) continue
       const list = readJson<PendingForm[]>(file)
-      const fresh = Array.isArray(list) ? list.filter((f) => current(f, now)) : []
+      const fresh = Array.isArray(list) ? list.filter((f) => current(f, now) || keep?.(f.session ?? n.replace(/\.json$/, ""), f)) : []
       if (!Array.isArray(list) || fresh.length !== list.length) save(file, fresh)
     }
   } catch {}
@@ -469,6 +469,16 @@ export function allForms(now = Date.now(), dir = FORMS, replaced = false, waitin
 /** Task 084: the forms the owner is waited on for: allForms without the spent ones (exhausted, and the tab went on). /ask and the reminders count these. */
 export const waitingForms = (now = Date.now(), dir = FORMS) => allForms(now, dir, false, true)
 
+/** 280: routing intake must also reconcile pre-existing records older than the legacy display TTL.
+ * Only the native Form.Detail may settle these; their original timestamp/question is not rewritten. */
+export function recordedForms(dir = FORMS): { session: string; form: PendingForm }[] {
+  if (!existsSync(dir)) return []
+  return readdirSync(dir).filter(n => n.endsWith(".json")).flatMap(n => {
+    const list = readJson<PendingForm[]>(path.join(dir, n))
+    return Array.isArray(list) ? list.filter(f => f && typeof f.id === "string" && Number.isFinite(f.at)).map(form => ({ session: form.session ?? n.slice(0, -5), form })) : []
+  })
+}
+
 /** Task 071: the history - forms the tab replaced with a newer one (not open questions; an answer to them is refused with the new id). */
 export const replacedForms = (now = Date.now(), dir = FORMS) => allForms(now, dir, true)
 
@@ -522,6 +532,8 @@ export type FormDeps = {
   queued?(session: string): Promise<number>
   /** task 120: the last call `question` of the tab in the database (core.ts questionCall). Without it the rules are the old ones (the request or the end of a turn closes the record). */
   call?(session: string): Promise<QuestionCall>
+  /** 280: native question router owns reconciliation; old DB/idle guesses must not repeat or erase it. */
+  routed?(session: string, form: PendingForm): boolean
   say?(line: string): void
 }
 
@@ -551,6 +563,7 @@ export async function formTick(deps: FormDeps, now = Date.now(), dir = FORMS): P
   }
   for (const { session, form: f } of allForms(now, dir)) {
     try {
+      if (deps.routed?.(session, f)) continue
       const key = `${session}/${f.id}`
       const tab = await deps.tab(session)
       // task 120: a dead dialog is nobody's wait; it leaves the list when its tab is gone (the window needs a few minutes after a restart to report) or the owner wrote in the tab

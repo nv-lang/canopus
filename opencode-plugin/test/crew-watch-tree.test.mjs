@@ -7,7 +7,7 @@
 // Windows program (`cmd /c ping`). Every process is found by a unique number in its command line.
 //   1. cancel (cancelWatch) leaves no process of the tree; a neighbour without the mark (same shape, other number) stays alive;
 //   2. the time limit (exit code 124) leaves no process of the tree;
-//   3. a watch whose own process vanished with no code ("cut off") leaves no process of the tree;
+//   3. a missing old wrapper does NOT authorize killing still live descendants;
 //   4. dropWatch of a watch whose bash is already gone still closes the tree.
 // Red probe: before the fix step 1 is red (the processes of the tree stay alive after the cancel).
 import { execFileSync, spawn } from "node:child_process"
@@ -153,7 +153,7 @@ try {
     console.log("ok  the time limit (124) closes the whole tree")
   }
 
-  // 3. cut off: the own process of the watch is gone without a code, the tree is not
+  // 3. Missing wrapper is not completion: preserve live work until explicit cancel.
   {
     const tok = fresh()
     const a = w.requestWatch({ session: "sesC", command: tree(tok), cwd: tmp, note: "tree cut off" })
@@ -162,14 +162,15 @@ try {
     const rec = record(a.id)
     execFileSync("taskkill", ["/F", "/PID", String(rec.pid)], { stdio: "ignore", windowsHide: true })
     w.pollWatches(post, () => {}, Date.now() + 11_000)
-    const p = posted.find((x) => x.id === a.id)
-    assert.ok(p, "the letter of the cut off watch came")
-    assert.equal(p.code, null)
-    assert.match(p.text, /ОБОРВАНО/)
+    assert.equal(posted.some(x => x.id === a.id), false, "live descendants are not falsely declared cut off")
+    assert.equal(record(a.id).status, "running")
+    assert.ok(find(tok).length > 0, "an absent old wrapper cannot kill live descendants")
+    const cancelled = w.cancelWatch(a.id, "sesC")
+    assert.ok(cancelled.ok, cancelled.text)
     const left = await gone(tok)
     assert.deepEqual(left, [], `a cut off watch left processes of the tree alive: ${names(left)}`)
     assert.ok(find(nTok).length >= 1, "the neighbour is not touched by the cut off check")
-    console.log("ok  a cut off watch: the tree is closed")
+    console.log("ok  missing wrapper preserves live work; explicit cancel closes its tree")
   }
 
   // 4. dropWatch of a watch whose bash is already gone
