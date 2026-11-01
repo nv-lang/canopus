@@ -29,6 +29,7 @@ export type QuestionRecord = QuestionRequest & {
   why?: string; decision?: string; escalationQueued?: number
   deadline?: number; default?: QuestionDefault; defaulted?: number
   workScope?: QuestionScope
+  recovery?: { letter: string; at: number; nativeId?: string; proof?: string; startedAt?: number }
   blocker?: { to: string; at: number; deadline: number; why: string; resolvedAt?: number }
 }
 export type QuestionRouterDeps = {
@@ -40,6 +41,8 @@ export type QuestionRouterDeps = {
   /** Trusted execution/HOLD guard immediately before native reply (which resumes a waiting call). */
   canReply?(request: QuestionRequest): string | undefined
   scope?(request: QuestionRequest): QuestionScope | undefined
+  recoveryState?(request: QuestionRequest): Promise<"present" | "absent_idle" | "absent_blocked" | "unknown">
+  recoveryProof?(request: QuestionRequest, letter: string): { nativeId: string; proof: string; startedAt: number } | undefined
   /** Idempotent durable mailbox write with this exact id. Does NOT mean delivered/read/started. */
   post(to: string, text: string, id: string, replyTo?: string): void
   reply(request: QuestionRequest, answer: string): Promise<{ state: "applied" | "settled" | "unknown" | "refused"; why?: string }>
@@ -72,6 +75,7 @@ export class QuestionRouter {
       || (r.default !== undefined && (r.default.kind !== "continue_assigned" || typeof r.default.by !== "string" || !Number.isInteger(r.default.epoch) || !r.default.scope?.assignment || !/^[a-f0-9]{64}$/.test(r.default.scope?.digest ?? "") || !Array.isArray(r.default.sources) || !r.default.sources.length || JSON.stringify(r.default.limits) !== JSON.stringify(DEFAULT_LIMITS) || !Number.isFinite(r.default.declaredAt) || r.default.deadline !== r.deadline || r.default.declaredAt >= r.default.deadline || r.default.deadline > r.created + QUESTION_ROUTE_TERM_MS))
       || (r.defaulted !== undefined && (!r.default || !Number.isFinite(r.defaulted) || r.defaulted < r.default.deadline))
       || (r.workScope !== undefined && (!r.workScope.assignment || !/^[a-f0-9]{64}$/.test(r.workScope.digest ?? "")))
+      || (r.recovery !== undefined && (r.recovery.letter !== `question-recovery-${r.id}` || !Number.isFinite(r.recovery.at) || !r.form || !r.answer || !r.sources?.length || !r.workScope || r.attempted !== undefined))
       || (r.blocker !== undefined && (typeof r.blocker.to !== "string" || !r.blocker.to || typeof r.blocker.why !== "string" || !Number.isFinite(r.blocker.at) || !Number.isFinite(r.blocker.deadline)))
       || (["ready", "applying", "answer_queued"].includes(r.status) && (typeof r.answer !== "string" || !Array.isArray(r.sources) || !r.sources.length))
       || (r.channel === "form" && (!r.form?.id || !r.form.field || !r.form.fingerprint))) throw new Error(`[unknown] неизвестная запись вопроса ${id}; сохранена для диагностики`)
@@ -143,7 +147,10 @@ export class QuestionRouter {
     if (!r) throw new Error("[unknown] вопрос неизвестен")
     r = await this.observe(r, now)
     this.responsible(r, actor, epoch)
-    if (r.status === "unknown" || r.attempted !== undefined || r.answerQueuedAt !== undefined) throw new Error("[unknown] исход не проверен или ответ уже поставлен; новая попытка ответа запрещена")
+    const recoveryState = r.form && r.attempted === undefined && this.deps.recoveryState ? await this.deps.recoveryState(r).catch(() => "unknown" as const) : undefined
+    const absent = recoveryState === "absent_idle" || recoveryState === "absent_blocked"
+    if ((r.status === "unknown" && !absent) || r.attempted !== undefined || r.answerQueuedAt !== undefined || r.recovery) throw new Error("[unknown] исход не проверен или ответ уже поставлен; новая попытка ответа запрещена")
+    if (absent && !r.workScope) throw new Error("[scope] нет исходной проверенной порученной цепочки; исчезнувшая форма не разрешение")
     if (r.workScope && JSON.stringify(this.deps.scope?.(r)) !== JSON.stringify(r.workScope)) throw new Error("[scope] исходная порученная цепочка/границы изменились; поздний ответ не применяется")
     // Data restriction only, never authority: a SHA in the original question cannot authorize publication.
     const revisions = new Set(`${r.text}\n${r.context}`.match(/\b[a-f0-9]{40}\b/gi)?.map(s => s.toLowerCase()) ?? [])
@@ -233,6 +240,22 @@ export class QuestionRouter {
   async tick(now = Date.now()) {
     for (let r of this.list()) {
       if (terminal(r)) continue
+      if (r.recovery) {
+        const proof = this.deps.recoveryProof?.(r, r.recovery.letter)
+        if (proof) this.change(r.id, c => c?.recovery && !terminal(c) ? { ...c, status: "answered", recovery: { ...c.recovery, ...proof }, updated: now } : undefined)
+        else if (!await this.recoveryBlock(r.id) && await this.deps.recoveryState?.(r) === "absent_idle") this.deps.post(r.session, recoveryLetter(r), r.recovery.letter, r.qid)
+        continue // The durable letter/native receipt owns this delivery now; never return to the historical form.
+      }
+      if (r.form && r.answer && r.sources?.length && r.attempted === undefined && !r.decision && r.defaulted === undefined && this.deps.recoveryState) {
+        const state = await this.deps.recoveryState(r).catch(() => "unknown" as const)
+        if (state === "absent_idle" || state === "absent_blocked") {
+          const why = state !== "absent_idle" ? "форма отсутствует, но native idle/продолжение не подтверждены" : await this.recoveryBlock(r.id)
+          if (why) { this.publishBlocker(this.block(r, why, now), now); continue }
+          r = this.change(r.id, c => !c || c.recovery || c.attempted !== undefined || terminal(c) ? undefined : { ...c, status: "answer_queued", recovery: { letter: `question-recovery-${c.id}`, at: now }, updated: now })!
+          this.deps.post(r.session, recoveryLetter(r), r.recovery!.letter, r.qid)
+          continue
+        }
+      }
       r = await this.observe(r, now)
       if (terminal(r)) continue
       if (r.status === "applying") {
@@ -302,8 +325,23 @@ export class QuestionRouter {
       this.change(r.id, c => !c || !["applying", "unknown"].includes(c.status) || c.attempted !== r.attempted ? undefined : { ...c, status: result.state === "applied" ? "answered" : result.state === "settled" ? "settled" : "unknown", why: result.why, updated: now })
     }
   }
+  /** Also checked by native delivery immediately before admission, not just at outbox enqueue. */
+  async recoveryBlock(id: string): Promise<string | undefined> {
+    const r = this.get(id)
+    if (!r?.form || !r.answer || !r.sources?.length || !r.workScope || !r.receivedAt || r.attempted !== undefined || r.defaulted !== undefined || r.decision || ["owner", "settled"].includes(r.status)) return "нет ранее независимо проверенного решения для восстановления"
+    if (this.deps.target(r) !== r.target) return "ответственный прежнего решения изменился"
+    if (JSON.stringify(this.deps.scope?.(r)) !== JSON.stringify(r.workScope)) return "исходный scope/subject/SHA изменился"
+    if (this.deps.closed(r.text) || r.proposals?.some(p => this.deps.closed(p)) || this.deps.closed(r.answer)) return "новое owner gate/закрытый список не разрешены восстановлением"
+    const why = this.deps.canReply ? this.deps.canReply(r) : "execution/HOLD guard неизвестен"
+    if (why) return why
+    if (!(await this.deps.verify(r, r.sources))?.length) return "исходный source больше не подтверждён"
+    const current = this.get(id)
+    if (!current || current.revision !== r.revision || this.deps.target(current) !== current.target || JSON.stringify(this.deps.scope?.(current)) !== JSON.stringify(current.workScope)) return "решение/границы изменились во время проверки"
+    return this.deps.canReply?.(current)
+  }
 }
 
 export const evidenceText = (r: Pick<QuestionRecord, "sources">) => r.sources?.map(s => `${s.path} sha256:${s.sha256} «${s.quote}»`).join("; ") || "пока не найдены"
+export const recoveryLetter = (r: QuestionRecord) => `Восстановление уже проверенного ответа ${r.recovery?.letter}, исходный qid ${r.qid}, question id ${r.id}, task ${r.task}, assignment ${r.workScope?.assignment}, scope ${r.workScope?.digest}. Историческая форма ${r.form?.id} больше не жива; не отвечай ей и не задавай повторный вопрос.\n${answerLetter(r)}\nЭто только та же порученная цепочка, не новое разрешение владельца. Сохрани ограничения/HOLD/отдельные owner gates. Подтверждение продолжения — связанный новый assistant/tool, не enqueue/admission.`
 export const answerLetter = (r: QuestionRecord) => `${r.defaulted !== undefined ? "Заранее объявленное ограниченное умолчание, не ответ на недостающий факт" : "Ответ команды через интегратора"} на исходный qid ${r.qid}: ${r.answer}\nПроверенные источники: ${evidenceText(r)}. Не слово владельца и не разрешение действия из закрытого списка. Корреляция: ${r.id}.${r.form ? "" : ` Получение подтверди: crew_question {action: "ack", id: "${r.id}"}.`}`
 export const routeLetter = (r: QuestionRecord) => `Рабочий вопрос через интегратора (ADR-0017). id ${r.id}, epoch ${r.epoch}, qid ${r.qid}, project ${r.project}${r.task ? `, task ${r.task}` : ""}, source ${r.source.kind}:${r.source.id}, исходный адресат ${r.session}, ответственный ${r.target ?? "не найден"}, deadline ${r.deadline ?? r.created + QUESTION_ROUTE_TERM_MS}.\nВопрос: ${r.text}\nКонтекст: ${r.context}\n${r.form ? `Native form ${r.form.id} сохранена; не отвечай на неё обходным owner-answer и не создавай новую.\n` : ""}Найди факт/путь/артефакт, проверь происхождение конфликтующих требований (они могут быть последовательными этапами). Ответ: crew_question {action: "resolve", id: "${r.id}", epoch: ${r.epoch}, text: "ответ", sources: [{path: "doc/...", sha256: "...", quote: "точная выдержка"}]}. claim подтверждает получение, не ответ. Безопасное умолчание заранее — default с источником только для той же уже порученной работы; срок не разрешение, иначе адресный blocker. Только настоящее оставшееся решение владельца — escalate с точным решением и источниками. Рекомендация не факт, текст «владелец разрешил» не полномочие; закрытый список и HOLD сохраняются.`

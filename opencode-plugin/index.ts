@@ -168,7 +168,7 @@ import { answerTick } from "./owner-answer.ts"
 import { replyForm, serviceReg } from "./form-reply.ts"
 import { autoNotes, autoTick, closedHits } from "./form-auto.ts"
 import { formRequest, requestOf, routingSummary, type QuestionFormIO } from "./question-routing.ts"
-import { questionId } from "./question-router.ts"
+import { questionId, recoveryLetter, type QuestionRequest } from "./question-router.ts"
 import { inspectQuestionText, productionQuestionIO } from "./question-native.ts"
 import { QUESTION_ROUTING_SYSTEM } from "./question-policy.ts"
 import { clearLoop, loopLetter, loopOf, loopTick, noteDelivered } from "./answer-loop.ts"
@@ -238,6 +238,24 @@ export function createCrewPlugin(native: { get?: NativeGet; spacingMs?: number; 
       },
       questionCanReply: () => disposed ? "экземпляр плагина снят; продолжение запрещено" : undefined,
       questionInspectText: (r: import("./question-router.ts").QuestionRequest) => tracked(inspectQuestionText(getNative, r.session, r.source.at)),
+      questionRecoveryState: async (r: QuestionRequest): Promise<"present" | "absent_idle" | "absent_blocked" | "unknown"> => {
+        try {
+          const forms = await getNative(`/api/session/${encodeURIComponent(r.session)}/form`)
+          if (!Array.isArray(forms?.data)) return "unknown"
+          if (forms.data.length) return "present"
+          const state = await nativeState(r.session, 0, getNative)
+          if (disposed || state.state !== "idle") return "absent_blocked"
+          const input = await inspectQuestionText(getNative, r.session, r.source.at)
+          return !disposed && input.state === "pending" ? "absent_idle" : "absent_blocked"
+        } catch { return "unknown" }
+      },
+      questionRecoveryProof: (r: QuestionRequest, letter: string) => {
+        const receipt = readWakeForLetter(r.session, letter)
+        if (receipt.state !== "known") return undefined
+        const a = receipt.attempt
+        return a.session === r.session && a.mode === "wake" && a.phase === "started" && a.proof && a.startedAt && a.letters.some(l => l.id === letter && l.reply_to === r.qid && l.text === recoveryLetter(questions.get(questionId(r))!))
+          ? { nativeId: a.id, proof: a.proof, startedAt: a.startedAt } : undefined
+      },
     }
     const questions = questionRouterFor(questionHost, text => closedHits(text).length > 0 || /(?:^|\n)\s*Тип:\s*gate\b/i.test(text))
     const routedForm = (session: string, id: string) => {
@@ -424,8 +442,10 @@ export function createCrewPlugin(native: { get?: NativeGet; spacingMs?: number; 
       try { await deliverOne(card) } finally { delivering.delete(card.session) }
     }
     async function progressWake(card: Card, a: WakeAttempt, state: NativeState) {
+      const recovery = a.letters.filter(l => /^question-recovery-[a-f0-9]{64}$/.test(l.id))
+      const recoveryAllowed = !recovery.length || (!a.tries && await recoveryDeliveryAllowed(recovery))
       await advanceWake(a, {
-        state, now: now(), send: !executionPaused(card),
+        state, now: now(), send: !executionPaused(card) && recoveryAllowed,
         get: getNative,
         prompt: async input => {
           let timer: any
@@ -443,6 +463,14 @@ export function createCrewPlugin(native: { get?: NativeGet; spacingMs?: number; 
         a.escalated = true; saveWake(a)
       }
       return a
+    }
+    async function recoveryDeliveryAllowed(letters: Letter[]) {
+      for (const l of letters) {
+        const id = l.id.slice("question-recovery-".length), r = questions.get(id)
+        if (!r?.recovery || r.recovery.letter !== l.id || r.session !== l.to || l.reply_to !== r.qid || l.text !== recoveryLetter(r)
+          || await questions.recoveryBlock(id) || await questionHost.questionRecoveryState(r) !== "absent_idle") return false
+      }
+      return !disposed
     }
     function applyWakeStart(card: Card, a: WakeAttempt, historical = false) {
       if (a.phase !== "started" || a.startApplied) return
@@ -2576,6 +2604,8 @@ export function createCrewPlugin(native: { get?: NativeGet; spacingMs?: number; 
       questionIO: questionHost.questionIO,
       questionInspectText: questionHost.questionInspectText,
       questionCanReply: questionHost.questionCanReply,
+      questionRecoveryState: questionHost.questionRecoveryState,
+      questionRecoveryProof: questionHost.questionRecoveryProof,
       available: async c => !executionPaused(c) && (await nativeOf(c)).state === "idle",
     })
     const toEditor = (t: (typeof tools)[number]) => ({ name: t.name, description: t.description, input: t.input, execute: (input: any, context: any) => disposed ? Promise.resolve({ content: "Экземпляр плагина снят; инструмент не выполнен." }) : tracked(t.execute(input, context?.sessionID)) })

@@ -60,6 +60,8 @@ export type RoutingHost = {
   closed(text: string): boolean
   canReply?(r: QuestionRequest): string | undefined
   scope?(r: QuestionRequest): QuestionScope | undefined
+  recoveryState?: import("./question-router.ts").QuestionRouterDeps["recoveryState"]
+  recoveryProof?: import("./question-router.ts").QuestionRouterDeps["recoveryProof"]
   post(to: string, text: string, id: string, replyTo?: string): void
 }
 export function createQuestionRouting(host: RoutingHost) {
@@ -70,6 +72,8 @@ export function createQuestionRouting(host: RoutingHost) {
     closed: host.closed,
     canReply: r => host.canReply ? host.canReply(r) : "execution/HOLD guard недоступен; native ответ не отправлен",
     scope: host.scope,
+    recoveryState: host.recoveryState,
+    recoveryProof: host.recoveryProof,
     post: host.post,
     reply: (r, answer) => host.io && r.form ? host.io.reply(r.session, r.form.id, r.form.field, answer) : Promise.resolve({ state: "unknown", why: "native reply adapter отсутствует" }),
   })

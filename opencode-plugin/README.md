@@ -917,6 +917,10 @@ folder, empty outside a repository). A value the plugin cannot read is `null`, n
 
 Текстовый stale-input barrier использует тот же `getNative` и просматривает native user pages до границы исходного вопроса (ограничение чтения — fail-closed). Только точные session/id/text/time/mode/phase durable outbound receipt позволяют пропустить **своё служебное письмо**, а не объявить его ответом владельца. За ним всё равно проверяется другой новый ввод. Нет receipt — ввод остаётся stale barrier без атрибуции владельцу; повреждение/mismatch/неполная история — `unknown`. Receipt не даёт owner approval/admission/start и не отменяет HOLD/gates.
 
+После restart исторический streaming/empty `question` не доказывает живую форму. При свежем native form list `[]` старому form id не POST и историю не переписывать/interrupt. Только ранее source-backed ответ текущего ответственного в исходном assignment/subject/SHA/scope может перейти в один durable `question-recovery-<id>` Crew-letter той же сессии; отсутствие формы/receipt/текст модели не заменяют решение. Источник/scope/ответственный/HOLD и свежий native idle проверяются перед outbox и снова непосредственно перед native admission. Новые owner gates запрещены. Native ID сохраняет механизм 279 до I/O; recovery не повторяет POST после первой попытки даже при unknown. После crash восстанавливается тот же letter/receipt, не новая доставка.
+
+Recovery остаётся `answer_queued` до точного per-letter receipt с **связанным новым assistant generation** (`phase: started`, nativeId/proof/startedAt); admission/enqueue/одна запись answered не доказывают продолжение. Отдельная real-plugin регрессия использует настоящие historical DB question, форму, уже исчезнувшую **до** source-backed resolve, и независимый negative без permission. Active/unknown/HOLD/иной SHA/scope/new gate и restart проверяются без старого form POST. Семь question-файлов входят в общий `pretest`.
+
 ### Legacy recommendation path
 
 Вне рабочего question router прежний путь сохраняется: by default every question of a session waits for the owner. A project can hand some of them to the session's own

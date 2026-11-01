@@ -1979,6 +1979,8 @@ export type CrewHost = {
   questionIO?: QuestionFormIO
   questionCanReply?(project: string, n: number): string | undefined
   questionInspectText?(request: QuestionRequest): Promise<QuestionObservation>
+  questionRecoveryState?: import("./question-router.ts").QuestionRouterDeps["recoveryState"]
+  questionRecoveryProof?: import("./question-router.ts").QuestionRouterDeps["recoveryProof"]
   /** New role work requires free native foreground AND no background reservation. */
   available?(card: Card): Promise<boolean>
 }
@@ -1991,7 +1993,7 @@ export function questionCardOf(card: Card): Card {
   }
   return card
 }
-export function questionRouterFor(host: Pick<CrewHost, "questionIO" | "questionCanReply" | "questionInspectText">, closed: (text: string) => boolean = () => true) {
+export function questionRouterFor(host: Pick<CrewHost, "questionIO" | "questionCanReply" | "questionInspectText" | "questionRecoveryState" | "questionRecoveryProof">, closed: (text: string) => boolean = () => true) {
   return createQuestionRouting({
     dir: path.join(BASE, "question-routing"),
     target: r => {
@@ -2014,6 +2016,8 @@ export function questionRouterFor(host: Pick<CrewHost, "questionIO" | "questionC
     },
     inspectText: r => host.questionInspectText ? host.questionInspectText(r) : Promise.resolve({ state: "unknown", why: "native проверка более позднего пользовательского ввода недоступна; вопрос сохранён" }),
     io: host.questionIO,
+    recoveryState: host.questionRecoveryState,
+    recoveryProof: host.questionRecoveryProof,
     closed,
     canReply: r => r.task ? questionExecutionBlock(host, r.project, r.task) : "задача/контекст исполнения неизвестны; native ответ не отправлен",
     scope: r => {
