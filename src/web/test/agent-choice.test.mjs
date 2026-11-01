@@ -75,10 +75,22 @@ test('компактный селектор отправляет direct source �
   assert.ok(modelRow);
   const slider = modelRow.querySelector('.effort-slider');
   assert.ok(slider);
-  slider.value = '0';
+  assert.equal(modelRow.querySelector('.effort-sparkles').dataset.count, '0');
+  slider.value = '1';
   slider.dispatchEvent({ type: 'input', bubbles: true });
+  assert.equal(modelRow.querySelector('.effort-sparkles').dataset.count, '8');
   slider.dispatchEvent({ type: 'change', bubbles: true });
-  assert.deepEqual(sources, [['s', { family: 'opencode', model: 'm1', effort: 'low' }]]);
+  assert.deepEqual(sources, [['s', { family: 'opencode', model: 'm1', effort: 'high' }]]);
+});
+
+test('звёзды усилия декоративны, едут справа налево и неподвижны при reduced-motion', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const css = await readFile(new URL('../app.css', import.meta.url), 'utf8');
+  assert.match(css, /\.effort-slider::-webkit-slider-runnable-track \{[^}]*height: 12px/);
+  assert.match(css, /linear-gradient\(to right, var\(--ok\), var\(--accent\)\)/);
+  assert.match(css, /@keyframes effort-star-drift \{[^}]*translateX\(0\)[\s\S]*?translateX\(-180px\)/);
+  assert.match(css, /\.effort-sparkles \{[^}]*pointer-events: none/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{ \.effort-sparkle \{ animation: none/);
 });
 
 test('session_source принимает плоский direct/pool wire без смешения уровня и effort', () => {
