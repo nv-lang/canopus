@@ -1,0 +1,9 @@
+module crew_harness.server_projectless_live
+
+import crew_harness.server.{kit_routes_wip, scenario_projectless_git_guard}
+
+test "files: projectless sessions reject Git and keep their identity across restart" {
+    ro report = scenario_projectless_git_guard(kit_routes_wip("route-projectless-isolated"))
+    if report.byte_len() > 0 { panic("NOT AS IT MUST BE: ${report}") }
+    assert(report == "")
+}
