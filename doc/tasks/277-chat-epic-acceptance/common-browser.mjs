@@ -41,12 +41,14 @@ async function until(expression) {
   do { if (await evaluate(expression)) return; await pause(50); } while (Date.now() < deadline);
   throw Error(`UI condition timeout: ${expression}`);
 }
-async function click(expression) {
+async function click(expression, count = 1) {
   const point = await evaluate(`(() => { const element=${expression}; if(!element) throw Error('Missing UI target');
     element.scrollIntoView({block:'nearest'}); const rect=element.getBoundingClientRect(), x=rect.x+rect.width/2,y=rect.y+rect.height/2;
     const hit=document.elementFromPoint(x,y); if(element.disabled || !(element===hit || element.contains(hit))) throw Error('UI target not hit-testable'); return {x,y}; })()`);
-  await call('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
-  await call('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
+  for (let clickCount = 1; clickCount <= count; clickCount++) {
+    await call('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount });
+    await call('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount });
+  }
 }
 async function screenshot(name) {
   const image = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
@@ -147,6 +149,69 @@ try {
   check('loaded slider rule uses the resolved purple endpoint (style evidence, not pixel measurement)', paint.background?.includes('var(--effort-end)')
     && paint.endpoint[0] > paint.endpoint[1] && paint.endpoint[2] > paint.endpoint[1], JSON.stringify({paint,effort}));
   await screenshot('effort-100');
+  // F-03 uses the real owned front's fsList endpoint and only our synthetic repo.
+  // Native CDP mouse/key events exercise the same-node double-click sequence.
+  await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
+  await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
+  await call('Emulation.setDeviceMetricsOverride', { width: 1024, height: 768, deviceScaleFactor: 1, mobile: false });
+  await click(`[...document.querySelectorAll('.group-actions button')].find(item=>item.getAttribute('aria-label')?.includes('Без проекта'))`);
+  await until(`!!document.querySelector('.chat[data-draft="true"] #composer-input')`);
+  await evaluate(`(() => { const input=document.querySelector('#composer-input');input.value='common folder draft';input.dispatchEvent(new Event('input',{bubbles:true})); })()`);
+  const pickerRepo = path.join(path.resolve(directory), 'repo').replaceAll('\\', '/');
+  const childSelector = `document.querySelector('.picker-list .picker-item[data-path$="/picker-child"]')`;
+  for (const width of [1024, 360]) {
+    await call('Emulation.setDeviceMetricsOverride', { width, height: width === 360 ? 800 : 768, deviceScaleFactor: 1, mobile: false });
+    await click(`document.querySelector('.draft-browse')`);
+    await until(`!!document.querySelector('.picker-list .picker-item[data-path]')`);
+    const rootBefore = await evaluate(`document.querySelector('#picker-path').value`);
+    await evaluate(`globalThis.__commonRootTarget=document.querySelector('.picker-list .picker-item[data-path]')`);
+    await click(`globalThis.__commonRootTarget`);
+    check(`${width}: single root selection retains target and enables confirmation`, await evaluate(`document.querySelector('.picker-list').contains(globalThis.__commonRootTarget)
+      && globalThis.__commonRootTarget.getAttribute('aria-selected')==='true' && !document.querySelector('.picker .primary').disabled
+      && document.querySelector('#picker-path').value===${JSON.stringify(rootBefore)}`));
+    await evaluate(`(() => { const input=document.querySelector('#picker-path');input.value=${JSON.stringify(pickerRepo)};input.dispatchEvent(new Event('input',{bubbles:true})); })()`);
+    await click(`document.querySelector('.picker-go')`);
+    await until(`!!${childSelector} && document.querySelector('#picker-path').value.replaceAll('\\\\','/').toLowerCase()===${JSON.stringify(pickerRepo.toLowerCase())}`);
+    await evaluate(`globalThis.__commonFolderTarget=${childSelector}`);
+    await click(childSelector);
+    check(`${width}: one click selects without navigation or replacing its target`, await evaluate(`document.querySelector('.picker-list').contains(globalThis.__commonFolderTarget)
+      && globalThis.__commonFolderTarget.getAttribute('aria-selected')==='true' && document.querySelector('#picker-path').value.replaceAll('\\\\','/').toLowerCase()===${JSON.stringify(pickerRepo.toLowerCase())}`));
+    await click(childSelector, 2);
+    await until(`document.querySelector('#picker-path').value.replaceAll('\\\\','/').toLowerCase()===${JSON.stringify(`${pickerRepo}/picker-child`.toLowerCase())}`);
+    check(`${width}: native double-click enters the selected real folder`, true);
+    await click(`document.querySelector('.picker-back')`);
+    await until(`!!${childSelector}`);
+    check(`${width}: Back returns to its real parent listing`, await evaluate(`document.querySelector('#picker-path').value.replaceAll('\\\\','/').toLowerCase()===${JSON.stringify(pickerRepo.toLowerCase())}`));
+    await click(childSelector);
+    await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter' });
+    await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter' });
+    await until(`document.querySelector('#picker-path').value.replaceAll('\\\\','/').toLowerCase()===${JSON.stringify(`${pickerRepo}/picker-child`.toLowerCase())}`);
+    check(`${width}: native Enter enters the selected folder`, true);
+    await screenshot(`folder-child-${width}`);
+    await click(`[...document.querySelectorAll('.picker-crumb')].at(-2)`);
+    await until(`!!${childSelector}`);
+    check(`${width}: breadcrumb returns to its real parent`, await evaluate(`document.querySelector('#picker-path').value.replaceAll('\\\\','/').toLowerCase()===${JSON.stringify(pickerRepo.toLowerCase())}`));
+    if (!await evaluate(`document.querySelector('.picker-favorite').textContent.includes('Убрать')`)) await click(`document.querySelector('.picker-favorite')`);
+    check(`${width}: favorite is visible and persists in the owned profile`, await evaluate(`!!document.querySelector('.picker-place.is-favorite')
+      && JSON.parse(localStorage.getItem('crew-folder-picker-favorites-v1')||'[]').some(item=>item.toLowerCase()===${JSON.stringify(pickerRepo.toLowerCase())})`));
+    await evaluate(`(() => { const input=document.querySelector('.picker-search');input.value='picker-child';input.dispatchEvent(new Event('input',{bubbles:true})); })()`);
+    check(`${width}: search filters the real current folder`, await evaluate(`document.querySelectorAll('.picker-list .picker-item').length===1 && !!${childSelector}`));
+    const rect = await evaluate(`(() => { const rect=document.querySelector('.picker').getBoundingClientRect();return {x:rect.x,right:rect.right,width:innerWidth}; })()`);
+    check(`${width}: folder dialog remains inside the viewport`, rect.x >= 0 && rect.right <= width + 1, JSON.stringify(rect));
+    await screenshot(`folder-picker-${width}`);
+    await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
+    await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
+    await until(`!document.querySelector('.picker')`);
+    check(`${width}: folder cancel preserves draft and returns focus`, await evaluate(`document.querySelector('#composer-input').value==='common folder draft'
+      && document.activeElement===document.querySelector('.draft-browse')`));
+  }
+  await click(`document.querySelector('.draft-browse')`);
+  await until(`!!document.querySelector('.picker-place.is-favorite')`);
+  await click(`[...document.querySelectorAll('.picker-place.is-favorite')].find(item=>item.dataset.path.toLowerCase()===${JSON.stringify(pickerRepo.toLowerCase())})`);
+  await click(`document.querySelector('.picker .primary')`);
+  await until(`!document.querySelector('.picker') && [...document.querySelectorAll('.project-row[aria-selected="true"]')].some(item=>item.dataset.project)`);
+  check('favorite confirmation selects a real project and preserves draft text', await evaluate(`document.querySelector('#composer-input').value==='common folder draft'`));
+  await screenshot('folder-confirmed-360');
   check('real product page has no runtime exceptions', exceptions.length === 0, JSON.stringify(exceptions));
   check('UI inspection did not send another user prompt', !frames.some(frame => frame.kind === 'user_message'));
 } catch (error) {

@@ -93,6 +93,47 @@ Watch `1793552640845-3902eh` выполнил signed checkpoint `c427331a2cd9f41
 
 Watch подписи union `1793554687602-15gl6u` — **exit 0**, штатные guards **10/10**, index privacy **21 files**, message guard **1**. Четыре своих verification/docs файла не попали в него. Следующий signed verification checkpoint фиксирует неподвижный общий source вместе с runner/browser/smoke: его exact SHA передаётся в каждую lane, а результаты будут отдельным дополнением. Первая lane — необходимый `union` host/restricted-backend; при RED дальнейшие полные проверки не начинаются. После GREEN — общий build, Node/web, unit (включая front и metadata), live (включая restricted backend), ACP fixtures, harness, migration, package и guards через очередь. Никакие исходные/авторские PASS не заменяют эти запуски. Asset hash и копия `preparation-agent.mjs` входят в новый build attestation вместе с обеими программами.
 
+### Фактическая первая lane и remaining unit на aa1
+
+Общий signed checkpoint — `aa1b271a82d60efae4bda334ba9dd73edefe3ffa`, `src` tree `258764d4ecdd68446dfdf4dc932630011aaecdc3`. Watch `1793554915414-0wijid` естественно завершён **exit 0**, три модуля **PASS/FAIL 3/0**: `src/server/agent_config` **218/218**, `src/server/front/agent_catalog` **46/46**, `src/server_preparation_backend_live/backend_live_test` **1/1**. Paired config-copy oracle на synthetic XDG прошёл вместе с restricted restart и ordinary positive control. SHA256 raw `f4d92e4b42be776ae70cb727254855ab2128b9527f511d872a53d185e257a68f`. Сохранены внешний `union-results.json` и checkpoint; source чист. Freeze commit guards **10/10**, index **6 files**, message **1**. Это не общий suite и не provider E2E.
+
+Во время согласованного окна обновления/владельческого перезапуска новые lanes не запускались; здоровый watch не прерывался/не дублировался. Адресное GO интегратора 2026-11-01 21:19 сняло только scheduling boundary: aa1 остаётся промежуточным checkpoint, F-03 не waived. Полный web/build/browser ждёт готовую 274. Остальные серверные tests идут независимо, без трёх завершённых модулей union; frozen runner ради оптимизации не меняется.
+
+Read-only карта: unit содержит **11 source modules**, live **8**. В двух каталогах tests есть отдельные per-file modules, поэтому число каталогов не равно покрытию. После union оставались unit **9 modules / 7 dirs**, live **7 modules / 7 dirs**. Внешний runner запускает остаток с exact clean SHA до/после, `Dev/jobs=1/timeout=600`, тем же synthetic XDG union и KEEP_PLUGIN off; прежний файл фиктивного конфига побайтно проверяется.
+
+Watch `1793557255146-pyw21p` выполнил remaining unit на неизменном aa1: **exit 1, 8 PASS modules / 1 CODEGEN-FAIL**. SHA256 raw `a88c33089013d15fe1e5e2e4a813077118e6781702adadcd8f126d3b0c18453f`; полный JSON из девяти записей и отдельный RED checkpoint сохранены вне репозитория. Реально исполнились **193/193** tests восьми PASS модулей:
+
+| Exact result ID | PASS |
+|---|---|
+| `src/acp/agent_source_test` | 93/93 |
+| `src/agent_pool_tests/actual_test` | 1/1 |
+| `src/config/agent_source` | 47/47 |
+| `src/family_approval_tests/approval_test` | 3/3 |
+| `src/model_metadata_tests/hook_test` | 1/1 |
+| `src/model_metadata_tests/source_test` | 2/2 |
+| `src/product_machines/data` | 8/8 |
+| `src/projects/browse` | 38/38 |
+
+`src/agent_pool_tests/source_test` не исполнялся: `E_D78_MODULE_PATH_MISMATCH`, объявление `crew_harness.agent_pool_tests` не соответствует file-entry; требуются `agent_pool_tests.source_test` либо legacy full file namespace. Assertions не являются красными: они не были запущены. Live остановлен по stop-on-RED, обход компилятора не применялся. Исполнитель 269 получил официальный rework на одну строку module и один адресный directory target; готовой подписи на момент записи ещё нет. Восемь PASS не превращают весь remaining unit в GREEN.
+
+### Ready F-03 и следующий freeze
+
+По разрешению интегратора 2026-11-01 21:41 только exact signed UI delta 274 включены последовательно без конфликтов:
+
+- `f394c8bad36da2ab14f84c2c9babe0c8294a1ba6` → `38105380ab37f73abbdac866579cfb9cbd475c87`;
+- `25488541ac8cdb2e5bf8218b9013830dfc1bab49` → `0c4c319d849edeb9a85a6ddf58f6123890f7e8d5`;
+- `a66e9526a82c48ce9580d3f786cbdbfd213f61d0` → `889a36ab3438b8b1826f6bdc545857e198601a3e`.
+
+Исходный parent `273edd4f` и ancestors не включались. Четыре пути: `projects-ui.js`, `app.css`, `strings.js`, `test/projects-ui.test.mjs`. Сохранены `pickWorkspace`/export, theme/violet endpoint, agent-menu clamp и projectless session-data strings. Из aa1 до tip 889a36ab **нет изменений Nova, locks, machines, server или scripts**. Parent..commit delta, а не весь diff веток, добавляет favorites/breadcrumbs/back и требуемую click/Enter/dblclick семантику.
+
+Два узких source review замечания закрыты авторскими signed поправками: выбор больше не пересоздаёт target до native dblclick; root single-click обновляет disabled подтверждения in-place. Авторский target **27/27**, guards **10/10** относится к её цепочке, не к общему browser. Обязательная общая browser обвязка расширена real `fsList`/native mouse+Enter/Back/breadcrumb/favorites/root-select/cancel/confirm на 1024/360, с новыми собственными синтетическими папками; ещё не исполнялась.
+
+Следующий freeze ждёт signed declaration corrective 269. Reuse aa1 допускается **только по доказанной неизменности соответствующих Nova modules/dependencies/fixture parameters**, а не по обещанию «UI-only»: общий diff, lock hashes, source fixtures и настройки запуска сверяются перед объединением результатов. Исправленный `source_test` выполняется отдельно на новых bytes. Если затронутый dependency изменится, соответствующий модуль проверяется повторно с явной причиной. Raw aa1 и RED module остаются историей без переименования на новый SHA.
+
+Готовая однострочная corrective 269 `26b8797a342ab3ff77d6251df2819586d9c021fa` включена как `61b68c320cec4e3eefe6293162d5950bd888c6b2` по письму интегратора 2026-11-01 21:45. Меняется только `module agent_pool_tests.source_test`, без assertions/imports/production/compiler. Авторский directory watch `1793558412612-757pgd` — **exit 0, actual_test + source_test PASS 2/0**, guards/privacy/message `1793558490697-94gva4` — **10/10 GREEN**. Parent f510 и предки повторно не переносились. Отказ отдельного owner-route question не выдаётся за закрытый вопрос; фактические rework, подпись и runtime результат учитываются отдельно.
+
+Состав нового freeze теперь готов: четыре UI пути 274, одна module declaration 269 и проверочные/документальные файлы 277. Неизменные aa1 PASS разрешены к reuse только после exact Git-object сравнения полного Nova/config/ACP/server/projects/metadata/product/live/machines/scripts/routes/lock входа; отдельный actual_test blob также сравнивается. Исправленный source_test запускается отдельно первым и должен дать runtime GREEN до remaining live. Полный Node/web, build обеих программ+adapter attestation, ACP fixtures, harness, converter migration, packaging, guards и real owned smoke/browser выполняются уже на новом неподвижном SHA. F-03 код не выдаётся за browser PASS до этого прогона; REQ-05 и реальные device/provider ограничения отдельно OPEN.
+
 ## Учёт доказательств
 
 Старый `result.md` и `evidence.json` относятся только к `73c97b5f3cda582831575a5133bc3375cba3e932`. Их RED/NOT VERIFIED, три неизвестных server_live исхода и fixture границы не переименовываются в GREEN. Новые exact SHA, watch IDs, raw hashes и итоговая REQ/AC матрица будут отдельным дополнением, не переписыванием старого аудита.

@@ -40,6 +40,7 @@ if (!await portIsFree(port)) throw Error('New isolated port is occupied; never a
 fs.mkdirSync(dir);
 const home = path.join(dir, 'home'), data = path.join(dir, 'data'), repo = path.join(dir, 'repo');
 for (const folder of [home, data, repo]) fs.mkdirSync(folder);
+for (const name of ['picker-child', 'picker-other']) fs.mkdirSync(path.join(repo, name));
 const git = (...args) => command('git', ['-C', repo, ...args]);
 git('init', '-b', 'main');
 fs.writeFileSync(path.join(repo, 'fixture.txt'), 'isolated common smoke\n');
