@@ -41,6 +41,12 @@ Frozen ACL `b765a7011adda82b5e30940ccf7bd38a6402b5c0` не включается:
 - 272/273/274/275: готовые части не означают общий GREEN. Реальные провайдеры, настоящий микрофон/browser SpeechRecognition/все устройства и браузерный pin/restart E2E не становятся проверенными от unit/fixture PASS.
 - 277: миграция настроек требует честной карты сохранённого и unresolved; личные файлы не меняются. Полный source/build/web/server/live/guards выполняется только на новом общем кандидате через очередь, не повтор широкого аудита старого SHA.
 
+## Последующие готовые product delta
+
+270 передала signed `97e0dbd4ac9c10c71973e07baccdf88964e3640d`; в общем кандидате он включён как `85eac750c5e2749abc8d246eec69d4bb98875329`. Это семь web файлов: immutable per-turn author snapshot consumer, unknown author fallback, Escape/focus и picker anchor. Два конфликта с уже встроенной 272 разрешены вручную и подтверждены автором 270 письмом 18:39: statusGroup содержит только agentAnchor(familyButton, menu), native approvals остаются перед микрофоном; отдельный modeButton в группу не возвращён. Адресные четыре web test файла — **54/54 PASS**, штатные commit guards **10/10**, watch `1793547505076-395d6l`. Это не общий full и не backend/browser доказательство.
+
+F-07 остаётся предметным отсутствием metadata-only cold catalog source: известный ACP cache после handshake не устанавливает полноту/актуальность до первого чата. По решению интегратора 2026-11-01 18:45 его минимальный hook поручен прежней 269 после F-02, UI-контракт — 270; доказанные mapping/provenance/freshness обязательны, session/new/start ради каталога и выдуманные defaults не допускаются. Этот остаток не блокирует перенос остальных готовых delta. Независимый purple endpoint шкалы остаётся отдельным маленьким исправлением REQ-06 у 270.
+
 ## Учёт доказательств
 
 Старый `result.md` и `evidence.json` относятся только к `73c97b5f3cda582831575a5133bc3375cba3e932`. Их RED/NOT VERIFIED, три неизвестных server_live исхода и fixture границы не переименовываются в GREEN. Новые exact SHA, watch IDs, raw hashes и итоговая REQ/AC матрица будут отдельным дополнением, не переписыванием старого аудита.
@@ -48,6 +54,8 @@ Frozen ACL `b765a7011adda82b5e30940ccf7bd38a6402b5c0` не включается:
 Signed manifest checkpoint `61c3dd3193dcb805baeb106e15316b98c7e3972c` прошёл штатные commit guards 10/10 через machine queue, watch `1793545078463-gj90ln`. Предыдущий watch `1793544657030-6817fx` был RED из-за описательных состояний children, не входивших в закрытый формат. Исправлена форма документа, не ослаблен guard. Это доказательство документального checkpoint, не полного продуктового набора.
 
 Для финального нового source подготовлены отдельные [runner](verify-common.ps1), [smoke](common-smoke.mjs) и [карта миграции](common-migration.md). Runner требует точный чистый HEAD; build записывает candidate/source-tree/binary hashes в приватный attestation. Smoke проверяет этот attestation, создаёт только новую синтетическую среду на отдельном 18179/18180, использует исключительно fixture ACP, проверяет per-turn actual/cwd/question/cancel/restart и останавливает только свои процессы. По контракту 269/270 от 2026-11-01 18:25 проверяется `agent_actual` с canonical `turn == turn_id`, отдельным `dispatch_id`, exact family/model/effort до chunks и replay после restart; сам общий harness пока не исполнялся. Синтаксический JS/PowerShell parse не считается продуктовым PASS.
+
+Новый [narrow browser harness](common-browser.mjs) вызывается внутри того же собственного контура после restart, с новым headless-профилем/портом 19279 либо 19280. Проверяются реальные author captions, anchor/focus на 1024/360, selected-only fill, animations и computed purple endpoint; системный clipboard/микрофон не используются, user prompts не отправляются. Отсутствие browser executable означает явный NOT VERIFIED/FAIL, не API-only UI PASS. Managed voice выключен в синтетическом конфиге; ни новый recognizer, ни OpenCode/provider не запускаются. Browser также завершается через owned exit/port-release helper. Этот harness ещё не исполнялся, его ожидания не подменяют результаты.
 
 ### Контроли restart-обвязки
 

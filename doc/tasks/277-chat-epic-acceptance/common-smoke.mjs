@@ -1,5 +1,5 @@
 // New assembled candidate only. Real hub/front/Git/HTTP/WS, fixture ACP only.
-// Run through the machine queue: node common-smoke.mjs <exact-sha> <artifacts> [port].
+// Run through the machine queue: node common-smoke.mjs <exact-sha> <artifacts> [port] [browser-executable].
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -11,6 +11,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.
 const candidate = process.argv[2];
 const artifacts = path.resolve(process.argv[3] || '');
 const port = Number(process.argv[4] || 18179);
+const browserExecutable = process.argv[5];
 if (!/^[0-9a-f]{40}$/.test(candidate || '') || !process.argv[3]) throw Error('Exact candidate and artifact directory required');
 if (![18179, 18180].includes(port)) throw Error('Only new isolated common-smoke ports are allowed');
 const command = (program, args, cwd = root) => {
@@ -21,7 +22,8 @@ const command = (program, args, cwd = root) => {
 if (command('git', ['rev-parse', 'HEAD']) !== candidate) throw Error('Candidate HEAD mismatch');
 if (command('git', ['status', '--porcelain', '--untracked-files=all', '--', 'src', 'machines', 'scripts',
   'doc/tasks/277-chat-epic-acceptance/common-smoke.mjs', 'doc/tasks/277-chat-epic-acceptance/common-process.mjs',
-  'doc/tasks/277-chat-epic-acceptance/common-process.test.mjs', 'doc/tasks/277-chat-epic-acceptance/verify-common.ps1'])) throw Error('Dirty product or verification inputs');
+  'doc/tasks/277-chat-epic-acceptance/common-process.test.mjs', 'doc/tasks/277-chat-epic-acceptance/common-browser.mjs',
+  'doc/tasks/277-chat-epic-acceptance/verify-common.ps1'])) throw Error('Dirty product or verification inputs');
 const hash = file => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const built = JSON.parse(fs.readFileSync(path.join(artifacts, 'build-attestation.json'), 'utf8').replace(/^\uFEFF/, ''));
 if (built.candidate !== candidate || built.source_tree !== command('git', ['rev-parse', 'HEAD:src'])) throw Error('Build attestation does not bind this source');
@@ -44,6 +46,7 @@ const settings = {
   port, data_dir: data, store: 'files', workdir: repo,
   web_dir: path.join(root, 'src/web'), machines_dir: path.join(root, 'machines/product'),
   route_tool: false, route_children: false, idle_term_seconds: 15,
+  voice: { managed: false, url: 'http://127.0.0.1:19379/inference' },
   agents: ['codex', 'second'].map(id => ({ id, label: `${id} (fixture only)`, program: process.execPath,
     args: [path.join(root, 'src/acp/testdata/fake_agent.mjs'), '--live', `--prompt-marker=${promptMarker}`] })),
   hub: { program: path.join(root, 'target/crew-hub.exe'), args: [] },
@@ -160,6 +163,16 @@ try {
     page.of('common-plain').some(event => event.kind === 'agent_actual' && event.input.turn === actual.turn
       && event.input.dispatch_id === actual.dispatch_id && event.input.family === actual.family
       && event.input.model === actual.model && event.input.effort === actual.effort)));
+  if (browserExecutable) {
+    const log = fs.openSync(path.join(dir, 'browser.log'), 'w');
+    const browserRun = spawn(process.execPath, [path.join(root, 'doc/tasks/277-chat-epic-acceptance/common-browser.mjs'),
+      candidate, dir, browserExecutable, String(port)], { cwd: root, windowsHide: true, stdio: ['ignore', log, log] });
+    fs.closeSync(log);
+    const browserCode = await new Promise((resolve, reject) => { browserRun.once('error', reject); browserRun.once('exit', resolve); });
+    check('real browser narrow controls passed on this owned contour', browserCode === 0, `exit=${browserCode}`);
+  } else {
+    check('real browser checks were requested for the common candidate', false, 'No browser executable supplied; API-only results are not UI proof');
+  }
   check('synthetic project HEAD/branch/worktree remain unchanged', git('rev-parse', 'HEAD') === repoHead
     && git('branch', '--show-current') === 'main' && !git('worktree', 'list', '--porcelain').includes('detached'));
 } catch (error) {
