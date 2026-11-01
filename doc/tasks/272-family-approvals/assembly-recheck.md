@@ -16,6 +16,7 @@
 
 1. `node --test --test-concurrency=1 src/web/test/family-approvals.test.mjs src/web/test/agent-choice.test.mjs` — **13/13 PASS**, watch `1793556965931-bl7i3i`.
 2. `node --test --test-concurrency=1 doc/tasks/272-family-approvals/assembly-approvals.test.mjs` — **2/2 PASS**, watch `1793557139415-16rn4a`.
+3. `verify.ps1 -Stage guards` — **10/10 PASS**, skipped 0, watch `1793557399009-yjc8rm`; pre-commit также PASS.
 
 Новые проверки используют настоящий `createView`, reducer и компактный source picker с заменённым DOM:
 
@@ -27,4 +28,6 @@
 
 ## Передача
 
-277 переданы готовые SHA, зависимости, прежние counts и пределы REQ-11/12; 271 передан wire и требование не считать native approvals server allowlist. Текущий proof/test delta не содержит продуктовых изменений. Для подтверждения участка на новом frozen product SHA нужен разрешённый узкий повтор после его включения; aa1b271a не объявлен проверенным.
+277 переданы готовые SHA, зависимости, прежние counts и пределы REQ-11/12; 271 передан wire и требование не считать native approvals server allowlist. Signed proof/test delta `125e8642` не содержит продуктовых изменений и принят 277 именно как evidence старой assembly, не product fix.
+
+**Продолжение цели пока BLOCKED:** 277 в 21:15 разрешила только read-only сверку helper и потребовала согласовать актуальную targeted базу с интегратором. Рабочий вопрос `23a44ff66e75` на момент передачи имеет status `routing`, epoch 1. Для подтверждения участка на новом frozen product SHA нужен разрешённый узкий повтор после его включения; aa1b271a не объявлен проверенным. Ни ответ на вопрос, ни право менять свою ветку не подменяются тестами прежней assembly. Новый backend/full не запускался; remaining unit 277 не дублировался.
