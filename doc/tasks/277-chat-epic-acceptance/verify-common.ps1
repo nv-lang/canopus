@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{40}$')][string]$Candidate,
     [Parameter(Mandatory = $true)][string]$NovaHome,
     [Parameter(Mandatory = $true)][string]$Artifacts,
-    [ValidateSet('build', 'web', 'unit', 'live', 'acp', 'migration', 'package', 'guards')][string]$Lane = 'unit'
+    [ValidateSet('build', 'web', 'unit', 'live', 'acp', 'harness', 'migration', 'package', 'guards')][string]$Lane = 'unit'
 )
 # Run only through crew_watch(machine:true). Never reuse the old audit runner's
 # fixed 73c97b5f result for this new assembly. No service or real agent is started.
@@ -32,6 +32,10 @@ if ($Lane -eq 'web') {
 }
 if ($Lane -eq 'guards') {
     & bash scripts/guards/run-all.sh
+    exit $LASTEXITCODE
+}
+if ($Lane -eq 'harness') {
+    & node --test --test-concurrency=1 doc/tasks/277-chat-epic-acceptance/common-process.test.mjs
     exit $LASTEXITCODE
 }
 if ($Lane -eq 'migration') {

@@ -2,10 +2,10 @@
 // Run through the machine queue: node common-smoke.mjs <exact-sha> <artifacts> [port].
 import fs from 'node:fs';
 import path from 'node:path';
-import net from 'node:net';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
+import { portIsFree, stopOwnedFront } from './common-process.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const candidate = process.argv[2];
@@ -20,18 +20,15 @@ const command = (program, args, cwd = root) => {
 };
 if (command('git', ['rev-parse', 'HEAD']) !== candidate) throw Error('Candidate HEAD mismatch');
 if (command('git', ['status', '--porcelain', '--untracked-files=all', '--', 'src', 'machines', 'scripts',
-  'doc/tasks/277-chat-epic-acceptance/common-smoke.mjs', 'doc/tasks/277-chat-epic-acceptance/verify-common.ps1'])) throw Error('Dirty product or verification inputs');
+  'doc/tasks/277-chat-epic-acceptance/common-smoke.mjs', 'doc/tasks/277-chat-epic-acceptance/common-process.mjs',
+  'doc/tasks/277-chat-epic-acceptance/common-process.test.mjs', 'doc/tasks/277-chat-epic-acceptance/verify-common.ps1'])) throw Error('Dirty product or verification inputs');
 const hash = file => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const built = JSON.parse(fs.readFileSync(path.join(artifacts, 'build-attestation.json'), 'utf8').replace(/^\uFEFF/, ''));
 if (built.candidate !== candidate || built.source_tree !== command('git', ['rev-parse', 'HEAD:src'])) throw Error('Build attestation does not bind this source');
 if (built.hub_sha256 !== hash(path.join(root, 'target/crew-hub.exe')) || built.front_sha256 !== hash(path.join(root, 'target/crew-harness.exe'))) throw Error('Built binary changed');
 const dir = path.join(artifacts, 'common-smoke');
 if (fs.existsSync(dir)) throw Error('Use new artifacts; never overwrite old evidence');
-await new Promise((resolve, reject) => {
-  const listener = net.createServer();
-  listener.once('error', reject);
-  listener.listen(port, '127.0.0.1', () => listener.close(resolve));
-});
+if (!await portIsFree(port)) throw Error('New isolated port is occupied; never adopt its server');
 fs.mkdirSync(dir);
 const home = path.join(dir, 'home'), data = path.join(dir, 'data'), repo = path.join(dir, 'repo');
 for (const folder of [home, data, repo]) fs.mkdirSync(folder);
@@ -63,25 +60,28 @@ const check = (name, ok, detail = '') => {
 };
 let front, page, serial = 0;
 const allEvents = [];
+const dispatched = [];
 async function start() {
+  if (!await portIsFree(port)) throw Error('Restart port is occupied; refusing health from another front');
   const output = fs.openSync(path.join(dir, 'front.log'), 'a');
   front = spawn(path.join(root, 'target/crew-harness.exe'), ['serve', config], {
     cwd: repo, env: environment, detached: true, stdio: ['ignore', output, output], windowsHide: true,
   });
+  let launchError;
+  front.once('error', error => { launchError = error; });
   fs.closeSync(output);
   for (let i = 0; i < 150; i++) {
+    if (launchError) throw launchError;
     if (front.exitCode !== null) throw Error('Owned front exited before health');
-    try { if ((await fetch(`http://127.0.0.1:${port}/health`)).ok) return; } catch {}
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/health`, { signal: AbortSignal.timeout(1000) });
+      if (response.ok && front.exitCode === null && front.signalCode === null) return;
+    } catch {}
     await pause(100);
   }
   throw Error('Owned front health timeout');
 }
-function stop() {
-  if (!front || front.exitCode !== null) return;
-  // Only the still-owned isolated process tree; never a global process kill.
-  if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(front.pid), '/T', '/F'], { windowsHide: true });
-  else { try { process.kill(-front.pid, 'SIGTERM'); } catch {} }
-}
+async function stop() { if (front) await stopOwnedFront(front, port); }
 async function connect() {
   const events = [], ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
   ws.onmessage = message => {
@@ -114,15 +114,23 @@ try {
   for (const turn of ['common-first', 'common-second']) {
     const after = page.events.length;
     page.send('user_message', 'common-plain', { text: 'mode', turn });
-    check(`${turn}: actual ACP turn completes`, Boolean(await page.wait('common-plain', 'agent_done', after)));
+    const completed = await page.wait('common-plain', 'agent_done', after);
+    check(`${turn}: actual ACP turn completes`, Boolean(completed));
+    const canonicalTurn = completed?.input.turn;
     const events = page.events.slice(after).filter(event => event.trace === 'common-plain');
     const chunks = events.filter(event => event.kind === 'agent_chunk').map(event => event.input.text || '').join('');
     check(`${turn}: native model/effort/approval reached fixture`, chunks.includes('mode: plan model: fake-model-b effort: high'));
-    const selected = events.findIndex(event => event.kind === 'agent_selected' && event.input.turn === turn
+    const selected = events.findIndex(event => event.kind === 'agent_actual' && typeof canonicalTurn === 'string' && canonicalTurn
+      && event.input.turn === canonicalTurn && event.input.turn_id === canonicalTurn
+      && typeof event.input.dispatch_id === 'string' && event.input.dispatch_id
       && event.input.family === 'codex' && event.input.model === source.model && event.input.effort === source.effort);
     const firstChunk = events.findIndex(event => event.kind === 'agent_chunk');
-    check(`${turn}: confirmed actual selection is causally bound before chunks`, selected >= 0 && firstChunk > selected);
+    check(`${turn}: confirmed actual selection is causally bound before chunks`, selected >= 0 && firstChunk > selected
+      && events[firstChunk].input.turn === canonicalTurn);
+    if (selected >= 0) dispatched.push(events[selected].input);
   }
+  check('two unchanged-model dispatches have distinct causal audit ids', dispatched.length === 2
+    && dispatched[0].turn !== dispatched[1].turn && dispatched[0].dispatch_id !== dispatched[1].dispatch_id);
   const afterPwd = page.events.length;
   page.send('user_message', 'common-plain', { text: 'pwd', turn: 'common-cwd' });
   await page.wait('common-plain', 'agent_done', afterPwd);
@@ -143,19 +151,25 @@ try {
   await page.wait('common-plain', 'agent_chunk', afterSlow);
   page.send('cancel', 'common-plain', {});
   check('streaming cancellation traverses actual front/hub', Boolean(await page.wait('common-plain', 'cancel', afterSlow)));
-  page.close(); stop(); await pause(500); await start(); page = await connect();
+  page.close(); await stop(); await start(); page = await connect();
   const replay = await page.wait('common-plain', 'session_created');
   await page.wait('common-plain', 'question_resolved');
   check('restart preserves projectless identity and real history', replay && !replay.input.project_id && !replay.input.folder
     && page.of('common-plain').some(event => event.kind === 'user_message') && page.of('common-plain').some(event => event.kind === 'question_resolved'));
+  check('restart replays the same per-turn confirmed actual snapshots', dispatched.length === 2 && dispatched.every(actual =>
+    page.of('common-plain').some(event => event.kind === 'agent_actual' && event.input.turn === actual.turn
+      && event.input.dispatch_id === actual.dispatch_id && event.input.family === actual.family
+      && event.input.model === actual.model && event.input.effort === actual.effort)));
   check('synthetic project HEAD/branch/worktree remain unchanged', git('rev-parse', 'HEAD') === repoHead
     && git('branch', '--show-current') === 'main' && !git('worktree', 'list', '--porcelain').includes('detached'));
 } catch (error) {
   check('common harness completed', false, error.stack);
 } finally {
-  page?.close(); stop();
+  page?.close();
+  try { await stop(); }
+  catch (error) { check('owned common contour cleanup confirmed', false, error.message); }
   fs.writeFileSync(path.join(dir, 'events.json'), JSON.stringify(allEvents, null, 2));
   fs.writeFileSync(path.join(dir, 'result.json'), JSON.stringify({ candidate, build: built, port, fixture_only: true, checks }, null, 2));
-  console.log(`RESULT ${checks.filter(item => item.ok).length}/${checks.length}; only owned common contour stopped`);
+  console.log(`RESULT ${checks.filter(item => item.ok).length}/${checks.length}; owned cleanup failures are explicit checks`);
   process.exitCode = checks.every(item => item.ok) ? 0 : 1;
 }

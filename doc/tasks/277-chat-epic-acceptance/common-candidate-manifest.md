@@ -47,7 +47,19 @@ Frozen ACL `b765a7011adda82b5e30940ccf7bd38a6402b5c0` не включается:
 
 Signed manifest checkpoint `61c3dd3193dcb805baeb106e15316b98c7e3972c` прошёл штатные commit guards 10/10 через machine queue, watch `1793545078463-gj90ln`. Предыдущий watch `1793544657030-6817fx` был RED из-за описательных состояний children, не входивших в закрытый формат. Исправлена форма документа, не ослаблен guard. Это доказательство документального checkpoint, не полного продуктового набора.
 
-Для финального нового source подготовлены отдельные [runner](verify-common.ps1), [smoke](common-smoke.mjs) и [карта миграции](common-migration.md). Runner требует точный чистый HEAD; build записывает candidate/source-tree/binary hashes в приватный attestation. Smoke проверяет этот attestation, создаёт только новую синтетическую среду на отдельном 18179/18180, использует исключительно fixture ACP, проверяет per-turn actual/cwd/question/cancel/restart и останавливает только свои процессы. Его causal kind/fields будут окончательно согласованы с signed delta 269/270; сам harness пока не исполнялся. Синтаксический JS/PowerShell parse не считается продуктовым PASS.
+Для финального нового source подготовлены отдельные [runner](verify-common.ps1), [smoke](common-smoke.mjs) и [карта миграции](common-migration.md). Runner требует точный чистый HEAD; build записывает candidate/source-tree/binary hashes в приватный attestation. Smoke проверяет этот attestation, создаёт только новую синтетическую среду на отдельном 18179/18180, использует исключительно fixture ACP, проверяет per-turn actual/cwd/question/cancel/restart и останавливает только свои процессы. По контракту 269/270 от 2026-11-01 18:25 проверяется `agent_actual` с canonical `turn == turn_id`, отдельным `dispatch_id`, exact family/model/effort до chunks и replay после restart; сам общий harness пока не исполнялся. Синтаксический JS/PowerShell parse не считается продуктовым PASS.
+
+### Контроли restart-обвязки
+
+Замечание интегратора 2026-11-01 18:20: прежний новый `stop()` игнорировал exit status taskkill и заменял подтверждение завершения на `pause(500)`, поэтому старый health мог дать ложный restart PASS. До использования smoke это исправлено: [owned lifecycle](common-process.mjs) проверяет результат termination, ждёт exit именно своего ChildProcess и освобождения реального порта; start отдельно отказывается при занятом порте. Failed stop/нет exit/занятый порт — явный FAIL; sleep не увеличивался, global kill не применяется.
+
+Целевые [контроли](common-process.test.mjs), watch `1793546764056-gj7gaq`: **7/7 PASS, exit 0**, без общего product full. Включены три отрицательных сценария, порядок exit → port-free → restart, отсутствие повторного kill уже завершённого процесса, настоящий занятый socket и реальное завершение собственного Node child. Перед запуском ожидалась очередь машины, тяжёлый full другой задачи не прерывался. Это tests собственной обвязки, не положительный результат restart продукта.
+
+```text
+38aa97ddde17b610c1583f61541f9cd3236528edf8c265a98b566767e0d69efc  common-process.mjs
+31d1dadf04019c89f721f326c5054d58c76d22bf2cca7263deb15f41fbd884cd  common-process.test.mjs
+3db6a56daae62a471a75896ce6e3b41f1f35a2d71bcbb1a82a6ff77ed4b66213  1793546764056-gj7gaq.out
+```
 
 Будущие полные lanes: build; все Node tests продукта; unit всех затронутых Nova модулей; общий server_live и целевые live модули; весь fixture ACP; converter migration tests; release-kit checks; все guards. Каждый запуск только через очередь, `jobs=1`/`test-concurrency=1`. На неизменённом source базы эти lanes заново не запускались.
 
