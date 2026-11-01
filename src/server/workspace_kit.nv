@@ -124,6 +124,8 @@ export fn scenario_workspace_failures(settings ServerSettings) Proc Detach Time 
     mut rig = rig_open(settings)
     rig.attach(1)
     rig.page(1, "session_created", "s-fail", "{\"name\":\"Failure\",\"agent\":\"opencode\",\"project_id\":\"${id}\",\"worktree\":true,\"workspace_explicit\":true}")
+    ro cold_fail = rig.hub.find("s-fail")
+    if cold_fail >= 0 { c.expect(rig.hub.sessions[cold_fail].clients.len() == 0, "an explicit pending tree never initializes ACP in main") }
     rig.page(1, "user_message", "s-fail", "{\"turn\":\"failure\",\"text\":\"ACP-PROMPT-FAILURE-275\"}")
     c.expect(rig.until("Сообщение не отправлено агенту", 20000), "a real git worktree add failure is explicit")
     ro at = rig.hub.find("s-fail")
@@ -133,6 +135,16 @@ export fn scenario_workspace_failures(settings ServerSettings) Proc Detach Time 
     rig.page(1, "user_message", "s-fail", "{\"turn\":\"repeat\",\"text\":\"ACP-PROMPT-REPEAT-275\"}")
     rig.run(100)
     c.expect(!ws_has_prompt(rig, "s-fail", "ACP-PROMPT-REPEAT-275"), "resending without an explicit workspace retry stays blocked")
+
+    rig.page(1, "session_created", "s-ready", "{\"name\":\"Ready client\",\"agent\":\"opencode\",\"project_id\":\"${good}\",\"worktree\":false,\"workspace_explicit\":true}")
+    rig.run(500)
+    ro ready_at = rig.hub.find("s-ready")
+    if ready_at >= 0 {
+        c.expect(rig.hub.sessions[ready_at].clients.len() > 0, "folder mode can initialize the ordinary client")
+        rig.page(1, "session_workspace", "s-ready", "{\"worktree\":true,\"source_branch\":\"\"}")
+        ro reason = rig.hub.ensure_client(ready_at)
+        c.expect(reason.byte_len() > 0 && rig.hub.sessions[ready_at].clients.len() == 0, "a ready/cold client cannot bypass centralized workspace readiness")
+    } else { c.expect(false, "the ready-client probe exists") }
 
     rig.page(1, "session_created", "s-timeout", "{\"name\":\"Timeout\",\"agent\":\"opencode\",\"project_id\":\"${good}\",\"worktree\":true,\"workspace_explicit\":true}")
     ro tat = rig.hub.find("s-timeout")
