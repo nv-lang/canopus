@@ -1764,7 +1764,7 @@ export function createView(doc, refs, deps) {
     const noRepo = !session.projectId || !session.folder || (Boolean(draftFolder0) && draftFolder0.repo === false);
     worktreeButton.setAttribute('aria-pressed', String((treeOn && !noRepo) || hasTree));
     const preparingTree = Boolean(session.routeState && session.routeState.where && session.routeState.where.kind === 'preparing');
-    worktreeButton.disabled = hasTree || preparingTree || Boolean(task) || busy || noRepo;
+    worktreeButton.disabled = hasTree || preparingTree || Boolean(task && task.id !== 'draft') || busy || noRepo;
     const sourceBranch = session.draft ? session.sourceBranch : (session.routeState && session.routeState.sourceBranch);
     const workspaceText = noRepo ? 'В папке проекта нет Git' : `${session.project || 'Проект'} · ${sourceBranch ? sourceBranch.replace(/^refs\/(heads|remotes)\//, '') : 'Исходная ветка'} · ${hasTree || treeOn ? 'Отдельная папка' : 'Папка проекта'}`;
     worktreeButton.replaceChildren(icon(doc, 'i-branch'), h(doc, 'span', { text: workspaceText }));

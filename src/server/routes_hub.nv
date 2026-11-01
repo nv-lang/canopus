@@ -606,6 +606,7 @@ fn Hub mut @route_worktree(trace str, on bool) Proc Detach Time -> () {
     }
     mut o = JsonObject.new()
     jput(o, "worktree", JsonValue.bool(on))
+    jput(o, "workspace_explicit", JsonValue.bool(true))
     @rt_journal(at, "route_set", JsonValue.object(o).to_str())
     if on && @sessions[at].rt.task_open && @sessions[at].rt.worktree.byte_len() == 0 { ro made = @route_attach_tree(at) }
     @route_broadcast(at, true)

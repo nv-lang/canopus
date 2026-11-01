@@ -35,6 +35,21 @@ export fn workspace_allows(machine AlulaMachine, route str, locked bool, availab
 
 fn Hub @work_allowed(at int, operation str) -> bool => work_mode_allows(@work_mode, @sessions[at].rt.route, operation)
 
+export fn workspace_dispatch_allows(machine AlulaMachine, route str, required bool, ready bool, failed bool) -> bool {
+    mut environment = StepEnvironment.new()
+    mut state = machine.initial()
+    mut signals = [route]
+    if required {
+        signals.push("workspace_pending")
+        if failed { signals.push("workspace_failed") }
+        if ready { signals.push("workspace_ready") }
+    }
+    for signal in signals {
+        match machine.step(state, Incoming.signal(signal, ""), environment) { Go(next) => { state = next }, Stay => () }
+    }
+    machine.accepts_signal(state, "dispatch")
+}
+
 fn Hub mut @work_require(at int, operation str) Time -> bool {
     if @work_allowed(at, operation) { return true }
     @tell_error(0, @sessions[at].id, @sessions[at].engine.step_number(), "", "Подготовка задачи: исполнение, ветки и рабочие копии запрещены")

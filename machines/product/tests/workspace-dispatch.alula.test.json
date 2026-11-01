@@ -1,0 +1,14 @@
+{
+  "kind": "test",
+  "machine": "WorkModePolicy",
+  "name": "failed explicit workspace never dispatches, including a late ready event",
+  "start_at": 1000,
+  "steps": [
+    {"do":"feed","event":{"kind":"signal","name":"interactive","party":"hub"},"expect":{"state":"Interactive"}},
+    {"do":"feed","event":{"kind":"signal","name":"workspace_pending","party":"hub"},"expect":{"state":"WorkspacePending"}},
+    {"do":"feed","event":{"kind":"signal","name":"dispatch","party":"hub"},"expect":{"state":"WorkspacePending"}},
+    {"do":"feed","event":{"kind":"signal","name":"workspace_failed","party":"hub"},"expect":{"state":"WorkspaceFailed"}},
+    {"do":"feed","event":{"kind":"signal","name":"workspace_ready","party":"hub"},"expect":{"state":"WorkspaceFailed"}},
+    {"do":"feed","event":{"kind":"signal","name":"dispatch","party":"hub"},"expect":{"state":"WorkspaceFailed"}}
+  ]
+}

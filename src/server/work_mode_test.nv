@@ -18,9 +18,20 @@ test "preparation: Alula table and runtime JSON enforce the same capabilities" {
             for available in [false, true] {
                 assert(workspace_allows(table, route, locked, available) == workspace_allows(stored, route, locked, available))
                 assert(workspace_allows(stored, route, locked, available) == (!locked && available))
+                assert(workspace_dispatch_allows(table, route, true, available, locked) == workspace_dispatch_allows(stored, route, true, available, locked))
             }
         }
     }
+}
+
+test "workspace: explicit pending or failed copy never dispatches, even with a late ready fact" {
+    ro m = match work_mode_machine(tree_text("machines/product/work-mode.alula.json"), product_registry()) { Ok(m) => m, Err(e) => panic(e) }
+    assert(!workspace_dispatch_allows(m, "planning", true, true, false))
+    assert(!workspace_dispatch_allows(m, "interactive", true, false, false))
+    assert(!workspace_dispatch_allows(m, "interactive", true, false, true))
+    assert(!workspace_dispatch_allows(m, "interactive", true, true, true))
+    assert(workspace_dispatch_allows(m, "interactive", true, true, false))
+    assert(workspace_dispatch_allows(m, "interactive", false, false, false))
 }
 
 test "preparation: Alula denies execution and git lifecycle, but keeps discussion and statements" {

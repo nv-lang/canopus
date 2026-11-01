@@ -1,6 +1,6 @@
 {
-  "kind":"machine","alula_version":"0.28","machine":"WorkModePolicy","revision":2,"title":"Политика режима работы",
-  "parties":[{"name":"хаб","id":"hub","kind":"free_input","signals":[{"name":"interactive"},{"name":"fast"},{"name":"full"},{"name":"draft"},{"name":"recognize"},{"name":"execute"},{"name":"tree"},{"name":"repository"},{"name":"workspace"},{"name":"workspace_locked"},{"name":"workspace_unavailable"},{"name":"close"}]}],
+  "kind":"machine","alula_version":"0.28","machine":"WorkModePolicy","revision":3,"title":"Политика режима работы",
+  "parties":[{"name":"хаб","id":"hub","kind":"free_input","signals":[{"name":"interactive"},{"name":"fast"},{"name":"full"},{"name":"draft"},{"name":"recognize"},{"name":"execute"},{"name":"tree"},{"name":"repository"},{"name":"workspace"},{"name":"workspace_locked"},{"name":"workspace_unavailable"},{"name":"dispatch"},{"name":"workspace_pending"},{"name":"workspace_ready"},{"name":"workspace_failed"},{"name":"close"}]}],
   "initial":"Preparation",
   "states":[
     {"name":"Preparation","kind":"appeal","reads":[],"party":"хаб","rows":[
@@ -20,10 +20,25 @@
       {"n":3,"event":{"kind":"signal","name":"execute"},"to":"@same"},
       {"n":4,"event":{"kind":"signal","name":"tree"},"to":"@same"},
       {"n":5,"event":{"kind":"signal","name":"repository"},"to":"@same"},
-      {"n":6,"event":{"kind":"signal","name":"workspace"},"to":"@same"},
-      {"n":7,"event":{"kind":"signal","name":"workspace_locked"},"to":"WorkspaceLocked"},
-      {"n":8,"event":{"kind":"signal","name":"workspace_unavailable"},"to":"WorkspaceUnavailable"},
-      {"n":9,"event":{"kind":"signal","name":"close"},"to":"Closed"}
+      {"n":6,"event":{"kind":"signal","name":"dispatch"},"to":"@same"},
+      {"n":7,"event":{"kind":"signal","name":"workspace_pending"},"to":"WorkspacePending"},
+      {"n":8,"event":{"kind":"signal","name":"workspace"},"to":"@same"},
+      {"n":9,"event":{"kind":"signal","name":"workspace_locked"},"to":"WorkspaceLocked"},
+      {"n":10,"event":{"kind":"signal","name":"workspace_unavailable"},"to":"WorkspaceUnavailable"},
+      {"n":11,"event":{"kind":"signal","name":"close"},"to":"Closed"}
+    ]},
+    {"name":"WorkspacePending","kind":"appeal","reads":[],"party":"хаб","rows":[
+      {"n":1,"event":{"kind":"signal","name":"workspace_failed"},"to":"WorkspaceFailed"},
+      {"n":2,"event":{"kind":"signal","name":"workspace_ready"},"to":"WorkspaceReady"},
+      {"n":3,"event":{"kind":"signal","name":"close"},"to":"Closed"}
+    ]},
+    {"name":"WorkspaceReady","kind":"appeal","reads":[],"party":"хаб","rows":[
+      {"n":1,"event":{"kind":"signal","name":"dispatch"},"to":"@same"},
+      {"n":2,"event":{"kind":"signal","name":"workspace_failed"},"to":"WorkspaceFailed"},
+      {"n":3,"event":{"kind":"signal","name":"close"},"to":"Closed"}
+    ]},
+    {"name":"WorkspaceFailed","kind":"appeal","reads":[],"party":"хаб","rows":[
+      {"n":1,"event":{"kind":"signal","name":"close"},"to":"Closed"}
     ]},
     {"name":"WorkspaceLocked","kind":"appeal","reads":[],"party":"хаб","rows":[
       {"n":1,"event":{"kind":"signal","name":"workspace_unavailable"},"to":"WorkspaceUnavailable"},

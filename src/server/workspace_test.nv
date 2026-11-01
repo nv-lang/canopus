@@ -8,6 +8,16 @@ test "workspace: selected preference and detached identity survive journal repla
     rt.apply("route_set", "{\"route\":\"interactive\"}")
     rt.apply("route_task", "{\"op\":\"wip\",\"worktree\":\"/trees/chosen\",\"base\":\"abc123\"}")
     assert(rt.source_branch == "refs/heads/chosen" && rt.wip_tree == "/trees/chosen" && rt.wip_base == "abc123" && rt.branch == "")
+    rt.apply("route_set", "{\"workspace_explicit\":true,\"workspace_failed\":true}")
+    assert(rt.workspace_explicit && rt.workspace_failed)
+}
+
+test "workspace: old journals are implicit but new default-source choices are distinguishable" {
+    mut old = route_session_new()
+    old.apply("route_set", "{\"worktree\":true}")
+    assert(!wip_explicit(old))
+    old.apply("route_set", "{\"workspace_explicit\":true}")
+    assert(wip_explicit(old) && old.source_branch == "")
 }
 
 test "workspace: projectless and no-git requests refuse a tree or a source" {

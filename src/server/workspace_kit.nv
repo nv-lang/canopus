@@ -2,7 +2,8 @@ module crew_harness.server
 
 import crew_harness.projects.{projects_create}
 import std.fs.{Fs, real_fs, create_dir_all, Path}
-import std.os.{Os}
+import std.os.{Os, real_os}
+import std.encoding.json.{JsonValue}
 
 // Real repository + real journal/restart + fake ACP. Native writes remain forbidden in Preparation.
 export fn scenario_workspace(settings ServerSettings) Proc Detach Time Net Fs Os -> str {
@@ -24,20 +25,24 @@ export fn scenario_workspace(settings ServerSettings) Proc Detach Time Net Fs Os
     rig.page(1, "session_created", "s-badsrc", "{\"name\":\"Bad source\",\"agent\":\"opencode\",\"project_id\":\"${id}\",\"source_branch\":\"refs/heads/missing\"}")
     rig.run(50)
     c.expect(rig.hub.find("s-badsrc") < 0, "a missing source is refused before session creation")
-    rig.page(1, "session_created", "s-empty", "{\"name\":\"No project\",\"agent\":\"opencode\",\"worktree\":true}")
+    rig.page(1, "session_created", "s-empty", "{\"name\":\"No project\",\"agent\":\"opencode\",\"worktree\":true,\"workspace_explicit\":true}")
     rig.page(1, "session_workspace", "s-empty", "{\"worktree\":true,\"source_branch\":\"refs/heads/chosen\"}")
     rig.page(1, "session_worktree", "s-empty", "{\"on\":true}")
     rig.run(50)
     ro empty_at = rig.hub.find("s-empty")
     c.expect(empty_at >= 0, "ordinary projectless chat is still available")
     if empty_at >= 0 { c.expect(!rig.hub.sessions[empty_at].rt.use_tree && rig.hub.sessions[empty_at].rt.source_branch == "", "forged choices cannot give projectless chat a Git context") }
+    c.expect(wk_pwd(rig, "s-empty", "ordinary-projectless").contains("cwd:"), "explicit projectless chat still has ordinary conversation without waiting for WIP")
+    rig.page(1, "session_created", "s-folder", "{\"name\":\"Project folder\",\"agent\":\"opencode\",\"project_id\":\"${id}\",\"worktree\":false,\"workspace_explicit\":true,\"source_branch\":\"refs/heads/chosen\"}")
+    c.expect(wk_pwd(rig, "s-folder", "ordinary-folder").contains(repo), "explicit folder mode does not wait for a WIP copy")
+    c.expect(wk_branch(repo) == "main", "inactive source preference never switches the project folder")
     ro notes = kit_slashes("${settings.data_dir}-notes")
     with Fs = real_fs() { ro made = create_dir_all(Path.from_bytes(notes.bytes())) }
     ro notes_id = match projects_create(settings.data_dir, kit_json_object("{\"name\":\"Notes\",\"folders\":[{\"path\":\"${notes}\"}]}")) {
         Ok(id) => id
         Err(f) => panic(f.message)
     }
-    rig.page(1, "session_created", "s-notes", "{\"name\":\"No Git\",\"agent\":\"opencode\",\"project_id\":\"${notes_id}\",\"worktree\":true}")
+    rig.page(1, "session_created", "s-notes", "{\"name\":\"No Git\",\"agent\":\"opencode\",\"project_id\":\"${notes_id}\",\"worktree\":true,\"workspace_explicit\":true}")
     rig.page(1, "session_workspace", "s-notes", "{\"worktree\":true,\"source_branch\":\"refs/heads/chosen\"}")
     rig.page(1, "session_worktree", "s-notes", "{\"on\":true}")
     rig.run(50)
@@ -96,6 +101,77 @@ export fn scenario_workspace(settings ServerSettings) Proc Detach Time Net Fs Os
         again.page(1, "session_delete", "s-ws", "{\"branch\":\"keep\"}")
         again.run(100)
         c.expect(path_there("${tree}/loose.txt"), "closing with keep preserves the dirty tree")
+    }
+    again.shut()
+    c.report()
+}
+
+fn ws_has_prompt(rig Rig, trace str, marker str) -> bool {
+    for line in rig.all_lines_for(1) {
+        if line_field(line, "trace") == trace && line_field(line, "kind") == "user_message" && line_input(line, "text").contains(marker) { return true }
+    }
+    false
+}
+
+export fn scenario_workspace_failures(settings ServerSettings) Proc Detach Time Net Fs Os -> str {
+    mut c = kit_check()
+    ro repo = kit_slashes(settings.workdir)
+    ro blocked = write_file("${repo}/../blocked275", "a file, not a folder\n")
+    ro id = match projects_create(settings.data_dir, kit_json_object("{\"name\":\"Blocked\",\"folders\":[{\"path\":\"${repo}\"}],\"worktrees_dir\":\"blocked275\"}")) { Ok(id) => id, Err(f) => panic(f.message) }
+    ro good = match projects_create(settings.data_dir, kit_json_object("{\"name\":\"Timeout\",\"folders\":[{\"path\":\"${repo}\"}],\"worktrees_dir\":\"worktrees\"}")) { Ok(id) => id, Err(f) => panic(f.message) }
+    ro head = tk_head(repo)
+    ro status = git_run(repo, ["status", "--porcelain"]).text
+    mut rig = rig_open(settings)
+    rig.attach(1)
+    rig.page(1, "session_created", "s-fail", "{\"name\":\"Failure\",\"agent\":\"opencode\",\"project_id\":\"${id}\",\"worktree\":true,\"workspace_explicit\":true}")
+    rig.page(1, "user_message", "s-fail", "{\"turn\":\"failure\",\"text\":\"ACP-PROMPT-FAILURE-275\"}")
+    c.expect(rig.until("Сообщение не отправлено агенту", 20000), "a real git worktree add failure is explicit")
+    ro at = rig.hub.find("s-fail")
+    c.expect(at >= 0, "the failed chat remains reachable")
+    if at < 0 { rig.shut(); return c.report() }
+    c.expect(rig.hub.sessions[at].rt.workspace_failed && !ws_has_prompt(rig, "s-fail", "ACP-PROMPT-FAILURE-275"), "explicit default-source failure cannot prompt the agent in main")
+    rig.page(1, "user_message", "s-fail", "{\"turn\":\"repeat\",\"text\":\"ACP-PROMPT-REPEAT-275\"}")
+    rig.run(100)
+    c.expect(!ws_has_prompt(rig, "s-fail", "ACP-PROMPT-REPEAT-275"), "resending without an explicit workspace retry stays blocked")
+
+    rig.page(1, "session_created", "s-timeout", "{\"name\":\"Timeout\",\"agent\":\"opencode\",\"project_id\":\"${good}\",\"worktree\":true,\"workspace_explicit\":true}")
+    ro tat = rig.hub.find("s-timeout")
+    c.expect(tat >= 0, "the timeout chat exists")
+    if tat < 0 { rig.shut(); return c.report() }
+    ro generation = now_millis() - settings.wip_timeout_ms - 1
+    mut pending = rig.hub.sessions[tat]
+    pending.rt.wip_prep = generation
+    rig.hub.sessions[tat] = pending
+    rig.hub.wip_hold("s-timeout", "ACP-PROMPT-TIMEOUT-275", []JsonValue.new())
+    rig.hub.wip_poll()
+    c.expect(rig.hub.sessions[tat].rt.workspace_failed && rig.hub.held.len() == 0, "timeout stops the explicit dispatch and discards only held transport data")
+    ro plan = tk_wip_plan(repo, "late275", "worktrees")
+    c.expect(plan.ok, "a late copy can still physically complete")
+    if plan.ok {
+        ro made = with Os = real_os() { wip_add_run(plan.plan) }
+        c.expect(made.code == 0, "the late copy is a real Git worktree")
+        ro dirty = write_file("${plan.plan.path}/late.txt", "keep late work\n")
+        rig.hub.wip_done(TreeDone { trace: "s-timeout", generation, code: 0, err: []u8.new(), note: "", path: plan.plan.path, base: plan.plan.base })
+        c.expect(rig.hub.sessions[tat].rt.wip_tree == "" && path_there("${plan.plan.path}/late.txt") && rig.hub.sessions[tat].rt.workspace_late_tree == plan.plan.path, "late completion neither dispatches nor deletes or forgets the copy")
+        c.expect(!ws_has_prompt(rig, "s-timeout", "ACP-PROMPT-TIMEOUT-275"), "no timeout marker reaches the agent")
+    }
+    c.expect(tk_head(repo) == head && git_run(repo, ["status", "--porcelain"]).text == status, "failure and timeout leave main HEAD and files untouched")
+    rig.shut()
+    mut again = rig_open(settings)
+    again.attach(1)
+    ro restored = again.hub.find("s-timeout")
+    c.expect(restored >= 0 && again.hub.sessions[restored].rt.workspace_failed, "restart preserves the failed dispatch stop")
+    if restored >= 0 && plan.ok { c.expect(again.hub.sessions[restored].rt.workspace_late_tree == plan.plan.path, "restart preserves late-copy diagnostic identity") }
+    if restored >= 0 {
+        again.page(1, "session_workspace", "s-timeout", "{\"worktree\":true,\"source_branch\":\"\"}")
+        c.expect(!again.hub.sessions[restored].rt.workspace_failed, "only a new explicit workspace choice clears failure")
+        if plan.ok {
+            mut retry = again.hub.sessions[restored]
+            retry.rt.wip_prep = now_millis()
+            again.hub.sessions[restored] = retry
+            again.hub.wip_done(TreeDone { trace: "s-timeout", generation, code: 0, err: []u8.new(), note: "", path: plan.plan.path, base: plan.plan.base })
+            c.expect(again.hub.sessions[restored].rt.wip_tree == "", "an old generation cannot confirm a new explicit attempt")
+        }
     }
     again.shut()
     c.report()
