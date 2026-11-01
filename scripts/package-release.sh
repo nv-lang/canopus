@@ -41,6 +41,7 @@ fi
 
 mkdir -p "$kit/machines/product/libs" || { echo "FAIL: папка $kit не создаётся"; exit 1; }
 cp "$root/target/crew-harness.exe" "$root/target/crew-hub.exe" "$kit/" || { echo "FAIL: программы не скопированы"; exit 1; }
+cp "$root/src/server/preparation-agent.mjs" "$kit/preparation-agent.mjs" || { echo "FAIL: встроенный адаптер Подготовки не скопирован"; exit 1; }
 for name in dialog.alula.json dialog.alula.md work-mode.alula.json work-mode.alula.md journal.md; do
   cp "$root/machines/product/$name" "$kit/machines/product/" || { echo "FAIL: machines/product/$name не скопирован"; exit 1; }
 done

@@ -130,6 +130,7 @@ export type Hub {
     settings ServerSettings,
     machine AlulaMachine,
     work_mode AlulaMachine,
+    preparation_fixtures []PreparationFixture,
     workdir str,
     sessions []Dialog,
     conns []int,
@@ -413,7 +414,7 @@ fn Hub mut @send(conn int, text str) -> () {
 fn Hub mut @drain(at int) Time -> () {
     mut s = @sessions[at]
     for e in s.engine.take_events() {
-        if e.name == "agent_model" { @catalog_note(s.agent, e.input) }
+        if e.name == "agent_model" && @work_allowed(at, "execute") { @catalog_note(s.agent, e.input) }
         match line_of(s, e) {
             Some(line) => {
                 s.lines.push(line)
@@ -705,38 +706,45 @@ fn Hub mut @agent_env(agent str, base []EnvEntry) -> []EnvEntry {
 // Make sure the session has a live agent: start one if there is none or the old one is gone. "" - well, else the reason.
 fn Hub mut @ensure_client(at int) Proc Detach Time -> str {
     mut s = @sessions[at]
-    // Fail closed until a restricted Preparation backend is installed (278). Native ACP tools are not a security boundary.
-    if !@work_allowed(at, "execute") {
+    ro preparation = !@work_allowed(at, "execute")
+    mut configs = []AcpConfig.new()
+    mut unavailable = ""
+    if preparation {
+        match @preparation_config(s) { Ok(config) => configs.push(config), Err(reason) => { unavailable = reason } }
+    } else {
+        match @open_config(s) { Some(config) => configs.push(config), None => { unavailable = "the agent ${s.agent} is not configured" } }
+    }
+    // No fallback from a missing/unsupported restricted transport to ordinary ACP.
+    if configs.len() == 0 {
         mut i = 0
         while i < s.clients.len() { s.clients[i].close(); i += 1 }
         s.clients = []AcpClient.new()
         @sessions[at] = s
-        return "Подготовка задачи недоступна: ограниченный backend не подключён; обычный ACP-агент не запущен"
+        return unavailable
     }
+    ro config = configs[0]
     if s.clients.len() > 0 {
         ro phase = s.clients[0].phase()
-        if phase == "ready" || phase == "initializing" || phase == "opening" { return "" }
+        ro same = preparation_same_launch(s.clients[0].config, config)
+        if same && (phase == "ready" || phase == "initializing" || phase == "opening") { return "" }
         s.clients[0].close()
         s.clients = []AcpClient.new()
     }
-    match @open_config(s) {
-        None => "the agent ${s.agent} is not configured"
-        Some(config) => match open_client_full(config, @trace_path_of(s), TRACE_LIMIT, @ask_for(s.agent, s.id), @agent_env(s.agent, @env_of(s))) {
+    match open_client_full(config, @trace_path_of(s), TRACE_LIMIT, if preparation { no_ask() } else { @ask_for(s.agent, s.id) }, @agent_env(s.agent, @env_of(s))) {
             Ok(client) => {
                 s.clients.push(client)
                 // the choices of the owner for this family go to every agent started for the session (task 192t)
-                s.clients[0].set_presets(presets_for(s.chosen, s.agent))
+                if !preparation { s.clients[0].set_presets(presets_for(s.chosen, s.agent)) }
                 s.announced = false
                 s.model_announced = false
                 s.slow_told = false
                 s.started_at = now_millis()
-                // the folder the agent is started in is the one `route_sync_cwd` compares with (a session of a project: the folder of the project): else the agent is restarted at EVERY message (task 192.8)
-                s.rt.cwd_now = s.rt.agent_dir(@cwd_of(s.folder))
+                // Record the actual launch cwd; restricted Preparation uses the session directory, not a project fallback.
+                s.rt.cwd_now = config.cwd
                 s.rt.told = false
                 ""
             }
             Err(reason) => reason
-        }
     }
 }
 
@@ -782,6 +790,7 @@ export fn start_hub_from(settings ServerSettings, table_text str) Proc Detach Ti
     ro trees_chan = Chan[TreeDone].new(64)
     ro notes_chan = Chan[str].new(64)
     mut hub = Hub {
+        preparation_fixtures: []PreparationFixture.new(),
         settings, machine, work_mode, workdir, sessions: []Dialog.new(), conns: []int.new(), out: []Outgoing.new(), log: []str.new(), serial: 0, mcps: []McpServer.new(), mcp_pending: []McpPending.new(), mcp_serial: 0, ctl_letters: []CtlLetter.new(), ctl_waits: []CtlWait.new(), ctl_serial: 0, catalog: JsonObject.new(), catalog_dirty: false, catalog_saved_at: 0, choices: []PendingChoice.new(), reviews: []Review.new(), route_obs: 0, marks: []MachMark.new(), trees_tx: trees_chan.tx, trees_rx: trees_chan.rx, notes_tx: notes_chan.tx, notes_rx: notes_chan.rx, held: []HeldMsg.new(), reserved: []int.new()
     }
     if hub.wants_mcp() { ro started = hub.start_mcp() }
@@ -1679,6 +1688,24 @@ fn Hub mut @choose(trace str, setting str, value str) Proc Detach Time -> () {
     ro at = @find(trace)
     if at < 0 { return }
     mut s = @sessions[at]
+    if !@work_allowed(at, "execute") {
+        if !@takes_message_at(at) {
+            @tell_error(0, trace, s.engine.step_number(), "", "Подготовка: дождитесь завершения хода или отмените его перед сменой модели")
+            return
+        }
+        ro offered = jchild(@catalog, s.agent) ?? JsonObject.new()
+        if !preparation_choice_allowed(offered, setting, value) {
+            @tell_error(0, trace, s.engine.step_number(), "", "Подготовка: выбор не предложен назначенной семьёй; native permissions не расширяются")
+            return
+        }
+        s.chosen = chosen_put(s.chosen, s.agent, setting, value)
+        accept_in(@settings.store == "pg", @settings.data_dir, s, Incoming.signal("setting_chosen", chosen_text(s.agent, setting, value, now_millis())))
+        @sessions[at] = s
+        ro reason = @ensure_client(at)
+        @drain(at)
+        if reason.byte_len() > 0 { @tell_error(0, trace, s.engine.step_number(), "", reason) }
+        return
+    }
     // an agent that is not running (a session after a restart, or an idle one): start it, the choice waits until it is ready
     if s.clients.len() == 0 || s.clients[0].phase() != "ready" {
         ro reason = @ensure_client(at)

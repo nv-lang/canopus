@@ -1,0 +1,48 @@
+module crew_harness.server
+
+// ORACLE-WORKAROUND(32): direct test entries import fs before text so Vec.join is not resolved as Path.join.
+import std.fs.{Path}
+import std.text
+import crew_harness.acp.{AcpConfig}
+
+test "preparation launch identity: argument boundaries cannot collide through newline joining" {
+    ro a = AcpConfig { program: "node", args: ["x\ny", "z"], cwd: "C:/work/data", inbox_path: "" }
+    ro b = AcpConfig { program: "node", args: ["x", "y\nz"], cwd: "C:/work/data", inbox_path: "" }
+    assert(!preparation_same_launch(a, b))
+    assert(preparation_same_launch(a, a))
+}
+
+test "preparation choice: only an offered model or effort may change; native modes stay denied" {
+    ro offered = jobject("{\"models\":[{\"id\":\"existing/selected\"}],\"efforts\":[{\"id\":\"high\"}]}") ?? panic("object")
+    assert(preparation_choice_allowed(offered, "model", "existing/selected"))
+    assert(preparation_choice_allowed(offered, "effort", "high"))
+    assert(!preparation_choice_allowed(offered, "model", "unknown/paid"))
+    assert(!preparation_choice_allowed(offered, "mode", "yolo"))
+    assert(!preparation_choice_allowed(offered, "tools", "bash"))
+}
+
+test "preparation launch: fixed adapter receives an assigned session root, never arbitrary native permissions or tools" {
+    ro config = match preparation_launch("C:/work/fixture-service.json", "existing/selected", "high", "C:/work/preparation-agent.mjs", "C:/work/data", "chat-1") {
+        Ok(c) => c
+        Err(e) => panic(e)
+    }
+    assert(config.program == "node")
+    assert(config.cwd == "C:/work/data/chat-1")
+    assert(config.args.contains("C:/work/data/chat-1/tasks/draft"))
+    assert(config.args.contains("--service-registration"))
+    assert(!config.args.contains("acp"))
+    assert(!config.args.contains("--tools"))
+    assert(!config.args.contains("--permissions"))
+    assert(!joined(config.args, " ").contains("Authorization"))
+}
+
+test "preparation launch: missing model or adapter and path escape session identifiers fail closed" {
+    for id in ["../escape", "C:/other", "", "nested/chat"] {
+        match preparation_launch("", "existing/selected", "", "adapter.mjs", "C:/work/data", id) {
+            Ok(c) => assert(false)
+            Err(e) => assert(e.byte_len() > 0)
+        }
+    }
+    match preparation_launch("", "", "", "adapter.mjs", "C:/work/data", "chat") { Ok(c) => assert(false), Err(e) => assert(e.byte_len() > 0) }
+    match preparation_launch("", "selected", "", "adapter.mjs", "C:/work/data", "chat") { Ok(c) => assert(false), Err(e) => assert(e.byte_len() > 0) }
+}

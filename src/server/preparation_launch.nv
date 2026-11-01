@@ -1,0 +1,99 @@
+module crew_harness.server
+
+import crew_harness.acp.{AcpConfig}
+import crew_harness.storage.{valid_session_name, ensure_session_dir}
+import std.os.{Os, real_os, env, args}
+import std.fs.{Fs, real_fs}
+import crew_harness.config.{load_presets, preset_named, preset_pick}
+import std.encoding.json.{JsonObject}
+
+// Trusted host/test DI only; no browser, model response or ACP method can set it.
+type PreparationFixture { session str, registration str, model str, variant str, adapter str }
+
+export fn preparation_same_launch(a AcpConfig, b AcpConfig) -> bool {
+    if a.program != b.program || a.cwd != b.cwd || a.args.len() != b.args.len() { return false }
+    mut i = 0
+    while i < a.args.len() {
+        if a.args[i] != b.args[i] { return false }
+        i += 1
+    }
+    true
+}
+
+export fn preparation_choice_allowed(offered JsonObject, setting str, value str) -> bool {
+    if (setting != "model" && setting != "effort") || value.byte_len() == 0 { return false }
+    ro key = if setting == "model" { "models" } else { "efforts" }
+    for item in jlist(offered, key) {
+        match item.object() { Some(o) => { if jtext(o, "id") == value { return true } }, None => () }
+    }
+    false
+}
+
+export fn preparation_launch(registration str, model str, variant str, adapter str, data str, session str) -> Result[AcpConfig, str] {
+    if !valid_session_name(session) { return Err("Подготовка: недопустимая сессия") }
+    if model.byte_len() == 0 || adapter.byte_len() == 0 {
+        return Err("Подготовка задачи недоступна: ограниченный backend не подключён (нужны выбранная модель и транспорт); обычный ACP запрещён")
+    }
+    ro slash = model.find("/") ?? -1
+    if slash <= 0 || slash == model.byte_len() - 1 { return Err("Подготовка: модель задаётся как provider/model") }
+    mut arguments = [adapter, "--model", model, "--variant", variant, "--root", "${data}/${session}/tasks/draft"]
+    if registration.byte_len() > 0 { arguments.push("--service-registration"); arguments.push(registration) }
+    Ok(AcpConfig { program: "node", args: arguments, cwd: "${data}/${session}", inbox_path: "" })
+}
+
+fn Hub @preparation_config(s Dialog) -> Result[AcpConfig, str] {
+    if s.agent != "codex" && s.agent != "opencode" { return Err("Подготовка: нужен уже выбранный Codex AgentRef или его пресет") }
+    // Exact-session trusted injection returns before any production env or preset discovery.
+    for fixture in @preparation_fixtures {
+        if fixture.session == s.id {
+            if fixture.registration.byte_len() == 0 || !path_there(fixture.adapter) {
+                return Err("Подготовка: неполная изолированная конфигурация")
+            }
+            return @preparation_config_at(s, fixture.registration, fixture.model, fixture.variant, fixture.adapter)
+        }
+    }
+    ro registration = with Os = real_os() { env("CREW_PREPARATION_SERVICE_REGISTRATION") ?? "" }
+    mut model = ""
+    mut variant = ""
+    for pick in presets_for(s.chosen, s.agent) {
+        if pick.setting == "model" { model = pick.value }
+        if pick.setting == "effort" { variant = pick.value }
+    }
+    if model.byte_len() == 0 {
+        match with Fs = real_fs() { load_presets(@settings.layout, @settings.route_reviewer_order) } {
+            Ok(list) => match preset_named(list, @preset_name_of(s)) {
+                Some(preset) => match preset_pick(preset, "dev") {
+                    Some(pick) => {
+                        if pick.family == s.agent { model = pick.model; variant = pick.effort }
+                    }
+                    None => ()
+                }
+                None => ()
+            }
+            Err(reason) => ()
+        }
+    }
+    // Explicit fixture registration permits DI without reading the owner's registry or changing a session model.
+    if model.byte_len() == 0 && registration.byte_len() > 0 {
+        model = with Os = real_os() { env("CREW_PREPARATION_MODEL") ?? "" }
+        variant = with Os = real_os() { env("CREW_PREPARATION_VARIANT") ?? "" }
+    }
+    ro explicit = with Os = real_os() { env("CREW_PREPARATION_ADAPTER") ?? "" }
+    ro argv = with Os = real_os() { args() }
+    ro local = "${@settings.routes_dir}/../../src/server/preparation-agent.mjs"
+    ro packaged = if argv.len() > 0 { "${tw_parent(argv[0])}/preparation-agent.mjs" } else { "" }
+    ro adapter = if explicit.byte_len() > 0 { explicit } else if path_there(local) { local } else { packaged }
+    if !path_there(adapter) { return Err("Подготовка задачи недоступна: встроенный адаптер не найден; обычный ACP запрещён") }
+    @preparation_config_at(s, registration, model, variant, adapter)
+}
+
+fn Hub @preparation_config_at(s Dialog, registration str, model str, variant str, adapter str) -> Result[AcpConfig, str] {
+    mut config = preparation_launch(registration, model, variant, tk_canon(adapter), tk_canon(@settings.data_dir), s.id)?
+    ro made = with Fs = real_fs() { ensure_session_dir(@settings.data_dir, s.id) }
+    if !made {
+        return Err("Подготовка: session-owned каталог недоступен")
+    }
+    config.args.push("--context")
+    config.args.push(if s.project_id.byte_len() > 0 { "Проект: ${s.project_id}; каталог: ${s.folder}. Только контекст постановки, не рабочая копия." } else { "Без проекта. Контекст, история и постановка принадлежат этой сессии." })
+    Ok(config)
+}

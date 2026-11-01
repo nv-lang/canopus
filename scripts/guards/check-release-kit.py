@@ -33,7 +33,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib
 import guardlib  # noqa: E402
 
 PREFIX = "machines/product/"
-KIT_PROGRAMS = ("crew-harness.exe", "crew-hub.exe")
+KIT_PROGRAMS = ("crew-harness.exe", "crew-hub.exe", "preparation-agent.mjs")
 KIT_MACHINES = ("dialog.alula.json", "dialog.alula.md", "work-mode.alula.json", "work-mode.alula.md", "journal.md")
 LOCK_VERSION = re.compile(r'name\s*=\s*"alula"[^\[]*?\bversion\s*=\s*"(\d+)\.(\d+)', re.S)
 
