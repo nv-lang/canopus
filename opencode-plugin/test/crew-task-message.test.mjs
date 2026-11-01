@@ -38,7 +38,7 @@ for (const [dir, folders] of [[proj, true], [flat, false]]) {
   git(dir, "commit", "-q", "-m", "init")
 }
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const tasks = await import("../tasks.ts")
 const folders0 = await import("../task-folders.ts")
 // the red probe runs before the code: a missing function is a red cell, not a crash
@@ -171,7 +171,7 @@ const as2 = await call("crew_task", "sesINTEG1", { action: "assign", session: "s
 const ta = tasks.listTasks("proj").find((t) => t.kind === "assign")
 cell("256: a template and forged owner words cannot authorize capture", !ta && /assign запрещён/.test(as2) && records("proj") === recs7, as2)
 
-stop?.()
+await stop?.()
 try {
   rmSync(tmp, { recursive: true, force: true })
 } catch {}

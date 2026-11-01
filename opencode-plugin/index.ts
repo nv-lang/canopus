@@ -125,6 +125,7 @@ import {
   stampProfile,
   ownerWordAfter,
   workedAfter,
+  diagnosticWorkAfter,
   workedBeyondQuestion,
   lastUserAt,
   idleFactsAfter,
@@ -134,13 +135,15 @@ import {
   branchDeps,
 } from "./core.ts"
 import { branchNotes, checkWindow, pruneStates, registerBranchHooks, turnWarning } from "./branch-guard.ts"
-import { holderOf, stepNotes, watchCovers, watchTick } from "./idle-watch.ts"
+import { executionHeld, gateHeld, holderOf, readRecord, taskHold, stepNotes, watchCovers, watchTick } from "./idle-watch.ts"
+import { boundedNativeGet, nativeGet, nativeState, readNative, saveNative, type NativeGet, type NativeState } from "./native-state.ts"
+import { advanceWake, newWake, readWake, readWakeForLetter, saveWake, wakeComplete, type WakeAttempt } from "./wake-delivery.ts"
 import { answerTurn, markInterventions } from "./answer.ts"
 import { answerModesOn } from "./answer-parse.ts"
 import { DECISION_RU, readApprovals, removeApproval } from "./approvals.ts"
 import { runRetention } from "./retention.ts"
 import { allSteps, nextPlanNumber, parsePlan, stepDeps } from "./plans.ts"
-import { dropWatch, openWatchesBySession, pollWatches, requestWatch, watchesOf } from "./watch.ts"
+import { dropWatch, openWatchesBySession, pollWatches, requestWatch, watchById, watchesOf } from "./watch.ts"
 import { type Status, endOfTurn, endsWithQuestion, markNotified, readStatuses, removeStatus, saveStatus, statusOf, withIdle } from "./status.ts"
 import { clearGate, GATE_LETTER, gateOf, markGateLetter, noteGate, WAIT_LETTER } from "./gate-stop.ts"
 import { type CleanupFact, type RunCtx, type SessionFact, clearIdle as clearIdleTab, holdIdle, idleBlockers, idleLetter, idleOf, idleWhat, newestWaiting, waitsOn } from "./idle-tab.ts" // clearIdle в setup — снятие занятости карточки
@@ -159,20 +162,39 @@ import { addSide, ensureWorktree, fileAtAsync, gitTraces, leftoversOf, mergeHold
 import { precheckLines, releaseLandedLock } from "./precheck.ts"
 import { isLauncherCard, noteLoopLag, registerJournalTools } from "./journal.ts"
 import { answerTick } from "./owner-answer.ts"
-import { replyForm } from "./form-reply.ts"
+import { replyForm, serviceReg } from "./form-reply.ts"
 import { autoNotes, autoTick } from "./form-auto.ts"
 import { clearLoop, loopLetter, loopOf, loopTick, noteDelivered } from "./answer-loop.ts"
 import { factsOf, isOwnerAnswer, nudgeHold, serviceKindOf, verdicts } from "./queue-gate.ts"
 import { writeLaunch } from "./task-folders.ts"
-import { type ResumeTry, RESUME_WINDOW_MS, canInterrupt, interruptTurn, resumeLetter, resumeNote, resumeVerdict } from "./hung-resume.ts"
+import { interruptTurn } from "./hung-resume.ts"
 import { compactionSummaryText } from "./compaction-summary.ts"
 import { registerGluedHooks } from "./glued-guard.ts"
 
 export { parseProjects, projectOf, parseAddr, HELP, helpFor } from "./core.ts"
 
-export default {
+/** Transport injection keeps isolated tests on the same fail-closed production
+ * reconciliation/receipt code; it does not invent a test-only idle policy. */
+export function createCrewPlugin(native: { get?: NativeGet; spacingMs?: number } = {}) {
+  let productionTransport: NativeGet | undefined
+  const getNative = boundedNativeGet(native.get ?? (route => {
+    if (!productionTransport) {
+      const reg = serviceReg()
+      if (!reg) return Promise.reject(new Error("native service registration unavailable"))
+      productionTransport = nativeGet(reg) // pin endpoint/auth for this plugin lifetime
+    }
+    return productionTransport(route)
+  }), Date.now, native.get ? native.spacingMs ?? 25 : 25)
+  return {
   id: "crew-harness",
   async setup(ctx: any) {
+    let disposed = false
+    const inFlight = new Set<Promise<any>>()
+    const tracked = <T>(p: Promise<T>): Promise<T> => {
+      inFlight.add(p)
+      void p.then(() => inFlight.delete(p), () => inFlight.delete(p))
+      return p
+    }
     const mine = new Map<string, Card>() // сессии этого процесса
     const children = new Set<string>()
     const projects = parseProjects(ctx?.options)
@@ -261,17 +283,48 @@ export default {
     // Ответ, которого получатель ждёт в crew_wait, не трогается: его заберёт сам crew_wait в тот же ход.
     const held = new Set<string>()
     const heldLog = new Map<string, number>()
-    const delivering = new Set<string>()
-    const keysOf = (card: Card) => [keyOf(card), card.role, card.session]
-    // Идёт ли ход: у открытой вкладки это знает её окно (плагин окна, раз в секунду); у сессии под задачу окна нет —
-    // флаг визитки (хук запроса ставит, событие или строка простоя в базе снимает).
-    const turnRunning = (card: Card, windows: ReturnType<typeof liveWindows>) => {
-      const t = card.spawned ? undefined : tabOf(card.session, windows)
-      return t ? !!t.tab.busy : !!card.busy
+    const delivering: Set<string> = ((globalThis as any).__crewWakeDelivering ??= new Set<string>())
+    const nativeFacts = new Map<string, NativeState>()
+    const nativeReading = new Map<string, Promise<NativeState>>()
+    const executionPaused = (card: Card) => [card.task, card.review].some(r => r && executionHeld(taskHold(r.project, r.n)))
+    function nativeOf(card: Card): Promise<NativeState> {
+      const existing = nativeReading.get(card.session)
+      if (existing) return existing
+      const p = nativeSnapshot(card)
+      nativeReading.set(card.session, p)
+      void p.then(() => nativeReading.delete(card.session), () => nativeReading.delete(card.session))
+      return p
     }
-    const staleLogged = new Set<string>()
+    async function nativeSnapshot(card: Card): Promise<NativeState> {
+      let state = await nativeState(card.session, card.busy ? card.busySince ?? 0 : 0, getNative)
+      if (disposed) return { state: "unknown", source: "native-api", observedAt: now(), why: "экземпляр плагина снят" }
+      const fresh = readJson<Card>(cardFile(card.session)) ?? card
+      if (state.state === "idle" && fresh.busy && (!state.idleAt || state.idleAt < (fresh.busySince ?? 0)))
+        state = { state: "unknown", source: "native-api", observedAt: now(), why: "новый локальный active сигнал после terminal" }
+      if (state.state === "idle" && fresh.busy) {
+        setBusy(fresh, false)
+        void tracked(nudge(fresh))
+      } else if (state.state === "idle" && fresh.wokeAt && state.idleAt && state.idleAt > fresh.wokeAt) {
+        markWoke(fresh, undefined)
+        if (await idleAfter(fresh.session, fresh.wokeAt)) void tracked(nudge({ ...fresh, busySince: fresh.wokeAt }))
+      }
+      // Reservation prevents a NEW assignment, not communication with a free
+      // foreground. Unknown and active native ownership remain authoritative.
+      if (state.state === "idle" && watchesOf(card.session).some(w => !w.cancelled && !w.dropped && w.status !== "done"))
+        state = { ...state, state: "active", source: "machine-watch", why: "native foreground idle; место держит внешняя команда или очередь" }
+      nativeFacts.set(card.session, state)
+      const previous = readNative(card.session)
+      const record = { ...state, session: card.session, ...(state.state === "unknown" ? { unknownSince: previous?.unknownSince ?? now(), notified: previous?.notified } : {}) }
+      if (record.unknownSince && now() - record.unknownSince >= 120_000 && !record.notified && (fresh.busy || waitingIn(keysOf(fresh)))) {
+        const targets = new Set([fresh.spawned?.by, ...[fresh.task, fresh.review].map(r => r && loadTask(r.project, r.n)?.author), ...peekLetters(keysOf(fresh)).map(l => l.from_session)].filter((s): s is string => !!s?.startsWith("ses") && s !== fresh.session))
+        for (const to of targets) postLetter(to, { id: `native-unknown-${safeKey(fresh.session)}-${record.unknownSince}`, from_role: PLUGIN_SENDER, from_session: PLUGIN_SENDER, to, time: now(), purpose: "diagnostic", text: `Занятость ${fresh.session} неизвестна уже 120 секунд: ${state.why}. Письма остаются в Crew-mailbox; native active/process не прерывались, stuck и HOLD сохранены. Нужна диагностика API/ownership и текущего исполнения, а не ещё один prompt/resume.` })
+        record.notified = true
+      }
+      saveNative(record)
+      return state
+    }
+    const keysOf = (card: Card) => [keyOf(card), card.role, card.session]
     function delivered(card: Card, letters: Letter[], windows: ReturnType<typeof liveWindows>) {
-      for (const l of letters) if (l.qid) addObligation(card.session, { qid: l.qid, from_session: l.from_session, from_role: l.from_role, at: l.time, nudges: 0 })
       // будящее письмо в фоновую вкладку — уведомление её окну (кнопка Open)
       const loud = letters.find((l) => l.wake !== false)
       const t = tabOf(card.session, windows)
@@ -311,23 +364,105 @@ export default {
       if (n === LOST_AFTER) for (const t of heldBy(card)) sessionLost(t, card.session, `доставка писем ${n} раза подряд: ${String(e).slice(0, 200)}`)
     }
 
-    async function deliver(card: Card) {
+    function deliver(card: Card): Promise<void> { return tracked(deliverLocked(card)) }
+    async function deliverLocked(card: Card) {
+      if (disposed) return
       if (delivering.has(card.session)) return
+      delivering.add(card.session)
+      try { await deliverOne(card) } finally { delivering.delete(card.session) }
+    }
+    async function progressWake(card: Card, a: WakeAttempt, state: NativeState) {
+      await advanceWake(a, {
+        state, now: now(), send: !executionPaused(card),
+        get: getNative,
+        prompt: async input => {
+          let timer: any
+          const request = a.mode === "quiet-synthetic" ? ctx.session.synthetic({ ...input, resume: false }) : ctx.session.prompt({ ...input, ...(a.mode === "quiet-prompt" ? { resume: false } : {}) })
+          try { return await Promise.race([request, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("native admission timeout")), Number(process.env.CREW_HARNESS_STEP_MS) || 30_000) })]) }
+          catch (error) { deliveryFailed(card, error); throw error }
+          finally { clearTimeout(timer) }
+        },
+        save: saveWake,
+      })
+      if (a.phase === "started") applyWakeStart(card, a)
+      if (["timeout", "error"].includes(a.phase) && !a.escalated) {
+        const targets = new Set([...heldBy(card).map(t => t.author), ...a.letters.map(l => l.from_session)].filter(s => s !== card.session && s !== PLUGIN_SENDER))
+        for (const to of targets) postLetter(to, { id: `wake-failed-${a.id}`, from_role: PLUGIN_SENDER, from_session: PLUGIN_SENDER, to, time: now(), purpose: "diagnostic", text: `Пробуждение ${card.session} не подтверждено: ${a.phase}, ${a.why}. ID ${a.id}; попыток ${a.tries}, предел 120 секунд. Письма сохранены в Crew; подтверждённые native admissions учтены отдельно. Stuck и HOLD не сняты. Нужна диагностика, автоматического interrupt/resume нет.` })
+        a.escalated = true; saveWake(a)
+      }
+      return a
+    }
+    function applyWakeStart(card: Card, a: WakeAttempt, historical = false) {
+      if (a.phase !== "started" || a.startApplied) return
+      const fresh = readJson<Card>(cardFile(card.session))
+      const terminal = nativeFacts.get(card.session)?.idleAt
+      if (!historical && fresh && !fresh.busy && !(terminal && terminal >= a.at) && (fresh.wokeAt ?? 0) <= a.at) markWoke(fresh, a.at)
+      if (!historical && fresh?.reservedAt) { const current = readJson<Card>(cardFile(card.session)) ?? fresh; delete current.reservedAt; saveCard(current) }
+      const qids = new Map(a.letters.filter(l => l.wake_qid).map(l => [l.wake_qid!, l.time]))
+      const obligations = obligationsOf(card.session)
+      for (const o of obligations) {
+        const pushedAt = qids.get(o.qid)
+        if (pushedAt === undefined || (historical && !o.stuck) || (o.stuck && (o.stuckAt ?? PROCESS_START) > pushedAt)) continue
+        o.nudges = 0; o.empty = 0; o.stuck = false; delete o.stuckAt; delete o.stuckWhat
+      }
+      if (qids.size) saveObligations(card.session, obligations)
+      a.startApplied = true
+      if (readWake(card.session)?.id === a.id) saveWake(a)
+      log(`wake started ${card.session} id=${a.id}: ${a.proof}`)
+    }
+    async function deliverOne(card: Card) {
       const keys = keysOf(card)
-      if (!waitingIn(keys)) return
+      let attempt = readWake(card.session)
       const windows = liveWindows()
-      const fresh = readJson<Card>(cardFile(card.session)) ?? card
-      if (turnRunning(fresh, windows)) {
-        // ход идёт: письма ждут его конца. Но если «идёт» только по окну, а сервер свободен дольше 10 мин (сообщение
-        // потерялось при перезапуске сервиса) — не ждать вечно: доставить, сервер примет письмо новым ходом
-        const tab = fresh.spawned ? undefined : tabOf(fresh.session, windows)
-        const stale = tab?.tab.busy && !fresh.busy ? await staleBusy(fresh.session, now()) : 0
-        if (!stale) return
-        if (!staleLogged.has(fresh.session)) log(`window says ${fresh.session} is busy, the database is idle since ${stale}: delivering`)
-        staleLogged.add(fresh.session)
-      } else staleLogged.delete(fresh.session)
-      // сессия задачи: ход, начатый не плагином (продолженный OpenCode после перезапуска), виден только по базе
-      if (fresh.spawned && (await openTurn(fresh.session, now()))) return
+      if (attempt?.phase === "started") applyWakeStart(card, attempt)
+      // A recovered old claim can outlive a newer latest receipt. Consult its
+      // own write-ahead identity, never re-date/regroup it into another POST.
+      const known: WakeAttempt[] = []
+      let unknownReceipt = false
+      for (const letter of peekLetters(keys)) {
+        const receipt = readWakeForLetter(card.session, letter.id)
+        if (receipt.state === "unknown" || (receipt.state === "none" && letter.delivery_recovered)) {
+          unknownReceipt = true
+          const why = receipt.state === "unknown" ? receipt.why : "legacy claim восстановлен без native receipt; admission неизвестно"
+          const targets = new Set([card.spawned?.by, letter.from_session, ...heldBy(card).map(t => t.author)].filter((s): s is string => !!s?.startsWith("ses") && s !== card.session))
+          const id = `receipt-unknown-${newWake(card.session, [letter], "", 0).id}`
+          for (const to of targets) if (!letterExistsFor(to, id)) postLetter(to, { id, from_role: PLUGIN_SENDER, from_session: PLUGIN_SENDER, to, time: now(), purpose: "diagnostic", text: `Доставка ${card.session} приостановлена: ${why}. Письмо ${letter.id} сохранено в Crew-mailbox. Нового native prompt, снятия stuck/HOLD и угадывания idle нет; нужна диагностика прежнего admission.` })
+          continue
+        }
+        if (receipt.state === "known") known.push(receipt.attempt)
+      }
+      for (const a of known.filter(a => ["accepted", "started"].includes(a.phase))) {
+        if (a.phase === "started") applyWakeStart(card, a, true)
+        const ids = new Set(a.letters.map(l => l.id))
+        const ack = keys.flatMap(k => claimLetters(k, `${process.pid}receipt-${now()}`, l => ids.has(l.id)))
+        if (ack.length) {
+          confirmLetters(ack)
+          for (const c of ack) noteDelivered(card.session, c.letter.id, now())
+          if (a.phase !== "started") delivered(card, ack.map(c => c.letter), windows)
+        }
+      }
+      if (unknownReceipt) return
+      if (!attempt || wakeComplete(attempt)) {
+        const unfinished = known.filter(a => !wakeComplete(a)).sort((a, b) => a.at - b.at)[0]
+        if (unfinished) attempt = unfinished
+      }
+      const pending = attempt && !wakeComplete(attempt) && (!["error", "timeout"].includes(attempt.phase) || now() - (attempt.checkedAt ?? 0) >= 30_000)
+      if (!waitingIn(keys) && !pending) return
+      let fresh = readJson<Card>(cardFile(card.session)) ?? card
+      const state = await nativeOf(fresh)
+      if (disposed) return
+      const commandOnly = state.source === "machine-watch" && state.nativeExecution === "idle"
+      const deliveryState: NativeState = commandOnly ? { ...state, state: "idle", why: "native foreground idle; доставка не отменяет внешнюю команду/резервирование" } : state
+      if (pending) attempt = await progressWake(fresh, attempt!, deliveryState)
+      if (attempt && ["accepted", "started"].includes(attempt.phase)) {
+        // Also settles a claim returned by crash recovery after durable admission.
+        const ids = new Set(attempt.letters.map(l => l.id))
+        const admitted = keys.flatMap(k => claimLetters(k, `${process.pid}ack-${now()}`, l => ids.has(l.id)))
+        if (admitted.length) confirmLetters(admitted)
+      }
+      if (state.state !== "idle" && !commandOnly) return // unknown/native active is NOT free
+      fresh = readJson<Card>(cardFile(card.session)) ?? fresh
+      if (executionPaused(fresh)) return // legacy HOLD is never auto-reinterpreted
       const open = mayWakeCard(fresh, windows)
       if (!open && !hasQuietIn(keys)) {
         if (!held.has(card.session)) log(`hold letters for ${card.session} (${keyOf(card)}): tab not open`)
@@ -335,7 +470,6 @@ export default {
         return
       }
       if (open) held.delete(card.session)
-      delivering.add(card.session)
       try {
         // СЛУЖЕБНЫЕ ПИСЬМА И ОЧЕРЕДЬ СЕРВЕРА (задача 080, queue-gate.ts): напоминание или повтор не ставится в очередь, пока в ней ждёт вопрос владельцу,
         // вместе с письмом-ответом, и вторым того же вида; такие письма ждут в ящике (устаревшие читаются без отправки). Письма людей, вкладок и ответ
@@ -345,7 +479,8 @@ export default {
         const verdictOf = (l: Letter) => verdict?.get(l.id) ?? (serviceKindOf(l) ? "hold" : "send") // служебное письмо, пришедшее между осмотром и захватом, ждёт следующего прохода
         // устаревшие - отдельным захватом (confirmLetters убирает всю папку захвата), потом остальные
         const stale = keys.flatMap((k) => claimLetters(k, `${process.pid}d-${now()}`, (l) => verdictOf(l) === "drop"))
-        let claimed = keys.flatMap((k) => claimLetters(k, `${process.pid}-${now()}`, (l) => verdictOf(l) === "send"))
+        const outstanding = attempt && !wakeComplete(attempt) ? new Set(attempt.letters.map(l => l.id)) : undefined
+        let claimed = keys.flatMap((k) => claimLetters(k, `${process.pid}-${now()}`, (l) => verdictOf(l) === "send" && (!outstanding || outstanding.has(l.id))))
         if (stale.length) {
           confirmLetters(stale)
           log(`service letters not sent to ${card.session}, the reason is stale or a message of the kind stands in the queue: ${stale.map((c) => c.letter.id).join(",")}`)
@@ -376,15 +511,19 @@ export default {
           // (модель недоступна — замер Ф.7: приёмщик на claude-code/sonnet, которой нет на сервере), его не вызывает:
           // без метки конца такого хода не видно — ни напоминания, ни вызова, обязательство висит молча. Доставку
           // метка не держит (в отличие от busy).
-          if (wake) markWoke(card, now())
-          // предел времени: зависшая отправка держала бы вкладку в delivering навсегда (письма ей больше не шли бы)
-          const capped = (p: Promise<any>) => {
-            let timer: any
-            return Promise.race([p, new Promise((_, rej) => (timer = setTimeout(() => rej(new Error("delivery took too long")), Number(process.env.CREW_HARNESS_STEP_MS) || 60_000)))]).finally(() => clearTimeout(timer))
+          const previous = attempt && !wakeComplete(attempt) ? attempt : undefined
+          attempt = previous ?? { ...newWake(card.session, letters, text, now()), mode: wake ? "wake" : typeof ctx.session.synthetic === "function" ? "quiet-synthetic" : "quiet-prompt" }
+          // Record questions BEFORE POST: an immediate native reply may settle
+          // them before admission returns. Never recreate them after a crash.
+          if (!attempt.obligationsPrepared && !attempt.tries) {
+            for (const l of attempt.letters) if (l.qid && !obligationsOf(card.session).some(o => o.qid === l.qid)) addObligation(card.session, { qid: l.qid, from_session: l.from_session, from_role: l.from_role, at: l.time, nudges: 0 })
+            attempt.obligationsPrepared = true
           }
-          if (wake) await capped(ctx.session.prompt({ sessionID: card.session, text, delivery: "queue" }))
-          else if (typeof ctx.session.synthetic === "function") await capped(ctx.session.synthetic({ sessionID: card.session, text, resume: false }))
-          else await ctx.session.prompt({ sessionID: card.session, text, resume: false }) // OpenCode без synthetic: лишний шаг, но без хода
+          // Persist BEFORE sending, including quiet admission: a timeout cannot
+          // regroup the same letters with new arrivals under a second native ID.
+          saveWake(attempt)
+          await progressWake(fresh, attempt, deliveryState)
+          if (!["accepted", "started"].includes(attempt.phase)) { releaseLetters(claimed); return }
           confirmLetters(claimed)
           // задача 078: письмо с ответом владельца ушло вкладке — с этого момента вопрос после него считается звеном цикла (answer-loop.ts)
           for (const l of letters) noteDelivered(card.session, l.id, now())
@@ -396,9 +535,7 @@ export default {
           log(`deliver failed ${card.session}: ${e}`)
           deliveryFailed(card, e)
         }
-      } finally {
-        delivering.delete(card.session)
-      }
+      } finally { /* per-session lock covers reconciliation as well as POST */ }
     }
 
     // ЗАНЯТОСТЬ: busy ставится в хуке запроса (context), снимается строкой `idle` в базе после busySince (таймер).
@@ -407,6 +544,7 @@ export default {
       // начало хода (задача 052) — первый запрос; следующие шаги того же хода его не сдвигают
       fresh.turnStart = busy ? (fresh.busy && fresh.turnStart ? fresh.turnStart : now()) : undefined
       fresh.busy = busy
+      if (busy) delete fresh.reservedAt
       fresh.busySince = busy ? now() : undefined
       if (!busy) fresh.wokeAt = undefined // конец хода увиден обычным путём
       saveCard(fresh)
@@ -442,6 +580,8 @@ export default {
     // вкладка застряла: напоминаний больше нет, спросившему вызов (письмо и уведомление в окне). Ход, в котором писал
     // владелец, — без напоминания (владелец ведёт вкладку сам), счётчик с нуля. Снимает застревание crew_task push.
     async function nudge(card: Card) {
+      const holds = [card.task, card.review].filter(Boolean).map(r => taskHold(r!.project, r!.n)).filter(Boolean)
+      if (holds.some(h => executionHeld(h) || h!.scope === "external") || (card.review && gateHeld(taskHold(card.review.project, card.review.n)))) return
       // ВКЛАДКА ОЖИЛА (задача 052; владелец, 2026-10-15, «заводи 052»): рабочий ход или ход, где писал владелец, снимает «застряла»
       // первым делом — до режимов ответа, сторожа потока и «ждёт по-честному» (наблюдение, открытый вопрос): раньше снятие стояло
       // после этих выходов, и вкладка, работавшая между вопросами, оставалась «застрявшей». Ход читается от его начала (turnStart):
@@ -453,7 +593,8 @@ export default {
       if (obligationsOf(card.session).some((o) => o.stuck)) {
         turn = await lastTurn(card.session, since)
         turnRead = true
-        if (turn?.tools || turn?.owner) revived = clearStuck(card.session, turn.tools ? "a working turn" : "the owner wrote in the tab")
+        const stuckAt = Math.max(...obligationsOf(card.session).filter(o => o.stuck).map(o => o.stuckAt ?? PROCESS_START))
+        if (turn && turn.at > stuckAt && (turn.tools || turn.owner)) revived = clearStuck(card.session, turn.tools ? "a new working turn" : "the owner wrote in the tab")
       }
       // ВКЛАДКА В ЦИКЛЕ НА ВОПРОСЕ (задача 078, answer-loop.ts): владелец уже ответил, а она спрашивает снова — напоминание «продолжай» ей не уходит
       // (в очереди сервера и без него стоят старые сообщения, каждое новое только удлиняет цикл); рабочий ход вкладки цикл снимает здесь же
@@ -607,9 +748,7 @@ export default {
           continue
         }
         if (!(await sessionInfo(c.session))) continue // сессия другого сервера
-        // оборванный ход уже не кончится: отметку «занята» (её снимает только конец хода) снять, иначе письмо ниже
-        // ждало бы конца хода вечно (замер в песочнице 2026-10-05)
-        if (c.busy) setBusy(c, false)
+        if (executionPaused(c) || (await nativeOf(c)).state !== "idle") continue
         const id = `resume-${safeKey(c.session)}-${row.suspended}`
         if (letterExists(c.session, id)) continue
         const task = c.task ? loadTask(c.task.project, c.task.n) : undefined
@@ -641,7 +780,7 @@ export default {
     // (модель недоступна и т. п.), а плагина тогда не было или он ещё не видел такие ходы — никто её больше не будит.
     // Одно письмо «продолжай»; упадёт снова — напоминания и вызов спросившему, как у любого хода без работы.
     async function retryFailed(c: Card) {
-      if (c.busy) return
+      if (executionPaused(c) || (await nativeOf(c)).state !== "idle") return
       const turn = await lastTurn(c.session, 0)
       if (turn?.outcome !== "failed" || turn.at >= setupAt) return
       if (!(await sessionInfo(c.session))) return // сессия другого сервера
@@ -670,8 +809,7 @@ export default {
       if (now() - (c.busySince ?? 0) < BUSY_RELEASE_GRACE_MS) return
       if (tabOf(sid)?.tab.busy) return
       if (t && [c.task, c.review].some((r) => r && (r.project !== t.project || r.n !== t.n) && isOpen(loadTask(r.project, r.n) ?? ({ status: "cancelled" } as Task)))) return
-      if (await openTurn(sid, now())) return
-      setBusy(c, false)
+      if ((await nativeOf(c)).state !== "idle") return
       log(`busy flag of ${sid} dropped${t ? `: task ${taskNo(t)} is ${t.status}` : ": the session is closed"}, no turn runs`)
     }
 
@@ -896,6 +1034,7 @@ export default {
         if (await bud.stop(qi++, queue.length)) break
         const t = loadTask(t0.project, t0.n)
         if (!t || t.status !== "submitted" || t.reviewer || t.route === "small") continue
+        if (gateHeld(taskHold(t.project, t.n))) continue
         const author = readJson<Card>(cardFile(t.author))
         if (author && author.pid !== process.pid && pidAlive(author.pid)) continue // назначает процесс автора
         const cfg = loadConfig(t.directory)
@@ -1048,43 +1187,10 @@ export default {
         log(`hung turn note failed: ${e}`)
       }
     }
-    // САМОВОССТАНОВЛЕНИЕ ЗАВИСШЕГО ХОДА (задача 048, hung-resume.ts): плагин прерывает ход сам и будит вкладку письмом «продолжай».
-    // true — зависание взято на себя (попытка удалась или ждёт итога): владельцу «нажмите Esc» не показывается. false — как в 036.
-    const hungInterrupt = canInterrupt(ctx?.session)
-    log(`hung turn self-recovery: ${hungInterrupt ? "on (session.interrupt)" : "off (no session.interrupt in this OpenCode; the owner is told to press Esc)"}`)
-    const resumeTries = new Map<string, ResumeTry[]>()
-    const resumeOwnerSaid = new Map<string, number>()
-    async function selfResume(c: Card, since: number, t: number): Promise<boolean> {
-      try {
-        const tries = (resumeTries.get(c.session) ?? []).filter((x) => t - x.at < RESUME_WINDOW_MS || x.since === since)
-        resumeTries.set(c.session, tries)
-        const v = resumeVerdict(tries, since, t, hungInterrupt)
-        if (v.act === "wait") return true
-        if (v.act === "owner") {
-          if (resumeOwnerSaid.get(c.session) !== since) log(`hung turn not resumed: ${keyOf(c)} (${c.session}) silent since ${hm(since)}: ${v.why}; the owner is told`)
-          resumeOwnerSaid.set(c.session, since)
-          return false
-        }
-        const r = await interruptTurn(ctx.session, c.session)
-        tries.push({ since, at: t, ok: r.ok })
-        if (!r.ok) {
-          resumeOwnerSaid.set(c.session, since)
-          log(`hung turn not resumed: ${keyOf(c)} (${c.session}) silent since ${hm(since)}: ${r.why}; the owner is told`)
-          return false
-        }
-        postLetter(c.session, { id: `hung-resume-${safeKey(c.session)}-${t}`, from_role: PLUGIN_SENDER, from_session: PLUGIN_SENDER, to: c.session, time: t, text: resumeLetter(t) })
-        for (const ref of [c.task, c.review]) {
-          const task = ref ? loadTask(ref.project, ref.n) : undefined
-          if (task && (task.executor === c.session || task.reviewer === c.session)) taskEvent(task, PLUGIN_SENDER, undefined, resumeNote(since, t))
-        }
-        log(`hung turn resumed: ${keyOf(c)} (${c.session}) silent since ${hm(since)}, interrupted at ${hm(t)}, the tab is asked to go on (try ${tries.filter((x) => t - x.at < RESUME_WINDOW_MS).length} in an hour)`)
-        void deliver(c)
-        return true
-      } catch (e) {
-        log(`hung turn self-recovery failed: ${e}`)
-        return false
-      }
-    }
+    // Silence is not proof that a native execution can safely be interrupted.
+    // The legacy primitive remains for explicitly authorized form-answer fallback,
+    // not automatic hung-turn recovery (279).
+    log("hung turn recovery: diagnostic-only; native active/unknown is never auto-interrupted")
     async function noteStale(c: Card, tab: any, staleSince: number, t: number) {
       try {
         const was = staleDiagAt.get(c.session)
@@ -1160,14 +1266,18 @@ export default {
           const q = await questionCall(c.session, 1)
           return q.state === "open" ? { since: q.at || t } : undefined
         })() : undefined
-        const staleSince = tab?.tab.busy && !(dialog || (formOpen.has(c.session) && (await pendingTool(c.session)))) ? await staleBusy(c.session, t) : 0
+        const native = await nativeOf(c)
+        if (disposed || !running) return
+        const staleSince = (tab?.tab.busy || c.busy) && native.state === "idle" ? native.idleAt ?? 0 : 0
         await noteStale(c, tab, staleSince, t)
         // вопрос владельцу на экране (вопросник, задача 040) - не зависание (задача 048)
         const hungAt = tab?.tab.busy && !staleSince && !formOpen.has(c.session) && !dialog ? await hungTurn(c.session, t, ws.length > 0) : 0
         await noteHung(c, tab, hungAt, t)
         // зависание взял на себя плагин (задача 048): ход прерван и вкладка разбужена письмом - владельцу ничего делать не нужно
-        const hungSince = hungAt && (await selfResume(c, hungAt, t)) ? 0 : hungAt
-        const busy = !staleSince && !hungSince && (!!tab?.tab.busy || !!c.busy || (await openTurn(c.session, t)))
+        // A quiet transcript is not permission to interrupt native active work.
+        // Unknown ownership is fail-closed as well; health diagnostics stay visible.
+        const hungSince = hungAt
+        const busy = (native.nativeExecution ?? native.state) !== "idle"
         let end: Awaited<ReturnType<typeof turnEnd>> = undefined
         if (!busy) {
           const at = await idleAt(c.session)
@@ -1184,7 +1294,7 @@ export default {
           }
         }
         const gate = await gateStep(c, busy, end, formOpen.has(c.session) || !!dialog, t)
-        const s0 = statusOf({ card: c, busy, busySince: c.busySince, end, asked: asked.get(c.session) ?? [], askedStale: askedStale.get(c.session) ?? [], now: t, watches: ws, longTurnMs: loadConfig(c.directory).longTurnMin * 60_000, ...(staleSince ? { staleSince } : {}), ...(hungSince ? { hungSince } : {}), ...(gate ? { gate } : {}), ...(dialog ? { dialog } : {}) })
+        const s0 = statusOf({ card: c, busy, busySince: c.busySince, end, asked: asked.get(c.session) ?? [], askedStale: askedStale.get(c.session) ?? [], now: t, watches: ws, longTurnMs: loadConfig(c.directory).longTurnMin * 60_000, ...(native.state === "unknown" ? { nativeUnknown: { since: readNative(c.session)?.unknownSince ?? t, why: native.why } } : {}), ...(staleSince ? { staleSince } : {}), ...(hungSince ? { hungSince } : {}), ...(gate ? { gate } : {}), ...(dialog ? { dialog } : {}) })
         const idle = await idleStep(c, s0, end, !!tab, saved, t)
         const s = idle ? withIdle(s0, idle, t) : s0
         const prev = saveStatus(s)
@@ -1394,6 +1504,27 @@ export default {
       if (!open.length) return
       const saved = new Map(readStatuses().map((x) => [x.session, x]))
       const t0 = now()
+      const recoveries = new Map<string, string>()
+      const diagnoses = new Map<string, { by: string; proof: string }>()
+      for (const task of open) {
+        const record = readRecord(task.project, task.n)
+        const health = record?.health
+        if (!health) continue
+        const key = `${task.project}:${task.n}`
+        const receipt = readWake(health.responsible)
+        const action = receipt?.phase === "started" && receipt.letters.some(l => l.id === health.letter) ? await diagnosticWorkAfter(health.responsible, health.at, { task, fingerprint: health.fingerprint, healthId: health.letter, nativeMessage: receipt.id, text: receipt.text }) : undefined
+        if (action) diagnoses.set(key, { by: health.responsible, proof: action })
+        const source = health.source
+        if (source?.session && (action || health.diagnosed)) {
+          const native = nativeFacts.get(source.session)
+          const card = readJson<Card>(cardFile(source.session))
+          const linked = [card?.task, card?.review].some(r => r?.project === task.project && r.n === task.n)
+          if (linked && native?.nativeExecution === "idle" && native.outcome === "succeeded" && (native.idleAt ?? 0) > Math.max(source.nativeIdle ?? 0, health.at) && t0 - native.observedAt < 30_000)
+            recoveries.set(key, `задача ${key}: диагностика связанного эпизода и новый native succeeded исполнителя ${source.session}, terminal ${native.idleAt}`)
+        }
+        const wait = record?.hold?.wait
+        if (source?.waitId && wait?.result === "succeeded" && wait.proof && (wait.at ?? 0) > health.at && (action || health.diagnosed)) recoveries.set(key, `задача ${key}: диагностика связанного эпизода, подтверждённый внешний результат ${wait.id}: ${wait.proof}`)
+      }
       watchTick(
         open,
         {
@@ -1416,8 +1547,21 @@ export default {
           formOpen: (x) => [holderOf(x).session, x.executor, x.reviewer].some((sid) => !!sid && pendingForms(sid, t0).length > 0),
           ownerHolds: (x) => (x.status === "approval" && loadConfig(x.directory).planApprover === "owner") || [holderOf(x).session, x.executor, x.reviewer].some((sid) => !!sid && saved.get(sid)?.state === "owner"),
           externalRun: (x, at) => [holderOf(x).session, x.executor, x.reviewer].some((sid) => !!sid && watchesOf(sid).some((w) => !w.cancelled && !w.dropped && (w.started ?? w.created) + w.minutes * 60_000 > at)),
+          health: x => {
+            const failed = [x.executor, x.reviewer].filter(Boolean).map(s => ({ session: s!, state: nativeFacts.get(s!) })).find(x => x.state && t0 - x.state.observedAt < 30_000 && x.state.outcome === "failed")
+            return failed ? { failed: true, fingerprint: `native:${failed.session}:${failed.state!.idleAt}`, source: { session: failed.session, nativeIdle: failed.state!.idleAt }, why: `native execution ${failed.session} завершилось failed (terminal ${failed.state!.idleAt})` } : undefined
+          },
+          external: (x, id) => {
+            const w = watchById(id)
+            if (!w || ![x.author, holderOf(x).session, x.executor, x.reviewer].includes(w.session)) return undefined
+            if (w.cancelled || w.dropped) return { result: "cancelled", why: "наблюдение отменено; результат требует диагностики" }
+            if (w.status === "done") return { result: w.code === 0 ? "succeeded" : "failed", why: `наблюдение завершено, код ${w.code ?? "неизвестен"}`, proof: `crew_watch ${w.id}, code ${w.code}, ended ${w.ended}` }
+            return undefined
+          },
+          recovered: x => recoveries.get(`${x.project}:${x.n}`),
+          diagnosed: x => diagnoses.get(`${x.project}:${x.n}`),
           letter: (to, id, text) => {
-            if (!letterExistsFor(to, id)) postLetter(to, { id, from_role: PLUGIN_SENDER, from_session: PLUGIN_SENDER, to, time: now(), text })
+            if (!letterExistsFor(to, id)) postLetter(to, { id, from_role: PLUGIN_SENDER, from_session: PLUGIN_SENDER, to, time: now(), text, ...(id.startsWith("task-health-") ? { purpose: "diagnostic" as const } : {}) })
           },
           notice: (title, message) => {
             for (const w of liveWindows()) postNotice(w.pid, { title, message: short(message, 100), attention: true, duration: 30_000 })
@@ -1447,12 +1591,8 @@ export default {
         const c = readJson<Card>(cardFile(s))
         const tab = tabOf(s, windows)
         const open = !!tab || (!!c && mayWakeCard(c, windows))
-        let busy = tab ? !!tab.tab.busy : !!c?.busy
-        // окно или визитка говорит «идёт», а база ходов не видит (после перезапуска): не занята. Вопрос на экране (инструмент ждёт) - занята
-        if (busy && !(await pendingTool(s)) && (await staleBusy(s, now()))) busy = false
-        if (!busy && !tab && (await openTurn(s, now()))) busy = true
-        // задача 080: инструмент question ещё ждёт ответа в базе - ход жив, вопрос на экране, а не потерян (окно может не считать такой ход идущим)
-        if (!busy && (await pendingTool(s))) busy = true
+        const state = c ? await nativeOf(c) : await nativeState(s, 0, getNative)
+        const busy = state.state !== "idle" || (!!c && executionPaused(c))
         return { open, busy }
       }
       // ЗАПИСЬ ФОРМЫ ЖИВЁТ, ПОКА ВЫЗОВ question ОТКРЫТ (задача 120, form-restore.ts): удержанная владельцу форма без записи, чей вызов открыт по базе, возвращается из forms/auto и forms/loops.
@@ -1485,6 +1625,7 @@ export default {
           config: (s) => {
             const c = readJson<Card>(cardFile(s))
             if (!c?.directory) return undefined
+            if (executionPaused(c)) return undefined
             const cfg = loadConfig(c.directory)
             return { mode: cfg.answerMode, max: cfg.answerMax, delaySec: cfg.answerDelaySec, project: c.project, ...(c.task ? { task: c.task.n } : {}) }
           },
@@ -1499,8 +1640,14 @@ export default {
       // API службы (задача 263, form-reply.ts), без reply — прежним путём (прерывание хода и письмо с ответом)
       await answerTick({
         call: (s) => questionCall(s),
-        reply: (s: string, fid: string, ans: string) => replyForm(s, fid, ans),
-        interrupt: (s) => interruptTurn(ctx.session, s),
+        reply: (s: string, fid: string, ans: string) => {
+          const card = cardNow(s)
+          return card && executionPaused(card) ? Promise.resolve({ ok: false as const, why: "HOLD/STOP запрещает продолжение исполнения; форма и метка сохранены" }) : replyForm(s, fid, ans)
+        },
+        interrupt: s => {
+          const card = cardNow(s)
+          return card && executionPaused(card) ? Promise.resolve({ ok: false, why: "HOLD/STOP запрещает interruption/resume" }) : interruptTurn(ctx.session, s)
+        },
         letter: (s, text, id) => {
           if (!letterExistsFor(s, id)) postLetter(s, { id, from_role: PLUGIN_SENDER, from_session: PLUGIN_SENDER, to: s, time: now(), text })
         },
@@ -1571,6 +1718,7 @@ export default {
     function applyApprovals() {
       for (const a of readApprovals()) {
         const t = loadTask(a.project, a.n)
+        if (t && gateHeld(taskHold(t.project, t.n))) continue
         removeApproval(a.project, a.n)
         if (!t?.plan || t.status !== "approval") continue
         const p = t.plan
@@ -1622,6 +1770,7 @@ export default {
       planStepsAt = now()
       for (const pt of listTasks()) {
         if (!pt.plan || pt.status !== "done" || pt.plan.finished || !pt.plan.approval || pt.plan.approval.decision === "no") continue
+        if (executionHeld(taskHold(pt.project, pt.n))) continue
         const author = readJson<Card>(cardFile(pt.author))
         if (author && author.pid !== process.pid && pidAlive(author.pid)) continue // ставит процесс автора
         const cfg = loadConfig(pt.directory)
@@ -1904,6 +2053,7 @@ export default {
       return undefined
     }
     async function startTask(t0: Task): Promise<{ session?: string; error?: string }> {
+      if (executionHeld(taskHold(t0.project, t0.n))) return { error: "HOLD/STOP запрещает исполнение; нужно явное решение владельца" }
       const key = `${t0.project}#${t0.n}`
       if (startingNow.has(key)) return { error: "запуск уже идёт" }
       startingNow.add(key)
@@ -2055,7 +2205,8 @@ export default {
             const letter = readJson<Letter>(path.join(dir, f))
             if (!letter?.tier) continue
             const holders = allCards().filter((c) => safeKey(keyOf(c)) === roleDir && !children.has(c.session) && mayWakeCard(c, windows))
-            const free = holders.filter((c) => !isBusy(c, windows)).map((c) => ({ ...c, busy: false }))
+            const free: Card[] = []
+            for (const c of holders) if (!executionPaused(c) && (await nativeOf(c)).state === "idle") free.push({ ...c, busy: false })
             if (!free.length) continue
             const cfg = loadConfig(free[0].directory)
             const pick = pickHolder(free, letter.tier, cfg)
@@ -2068,7 +2219,7 @@ export default {
             }
             postLetter(pick.session, { ...letter, to: pick.session })
             rmSync(claim, { force: true })
-            setBusy(pick, true) // письмо займёт вкладку: следующее с tier не должно уйти туда же
+            saveCard({ ...(readJson<Card>(cardFile(pick.session)) ?? pick), reservedAt: now() })
             log(`queue ${f} -> ${pick.session} (${pick.role}, ${tierOf(pick.model, cfg)})`)
           }
         }
@@ -2077,11 +2228,10 @@ export default {
       }
     }
 
-    const clearIdle = (sessionID: string) => {
+    const clearIdle = async (sessionID: string) => {
       const c = readJson<Card>(cardFile(sessionID))
       if (!c?.busy) return
-      setBusy(c, false)
-      void nudge(c) // ход закончился: если есть невыполненное обязательство — напоминание
+      await nativeOf(c) // old idle events cannot override a newer native execution
     }
 
     // Событие простоя сессии (если контекст плагина его даёт); запас — строка `idle` в базе (таймер).
@@ -2113,11 +2263,12 @@ export default {
     const SLOW_STEP_MS = Number(process.env.CREW_HARNESS_SLOW_STEP_MS) || 1000
     const slowLoggedAt = new Map<string, number>()
     const step = async (name: string, fn: () => any) => {
+      if (!running) return
       passStage = name
       let timer: any
       const t0 = Date.now()
       try {
-        await Promise.race([Promise.resolve().then(fn), new Promise((_, rej) => (timer = setTimeout(() => rej(new Error(`step ${name} took over ${STEP_MS} ms`)), STEP_MS)))])
+        await Promise.race([tracked(Promise.resolve().then(fn)), new Promise((_, rej) => (timer = setTimeout(() => rej(new Error(`step ${name} took over ${STEP_MS} ms`)), STEP_MS)))])
       } catch (e) {
         log(`pass step ${name} failed: ${e}`)
       } finally {
@@ -2129,7 +2280,9 @@ export default {
         }
       }
     }
-    async function pass() {
+    function pass(): Promise<void> { return tracked(passOne()) }
+    async function passOne() {
+      if (!running) return
       if (passBusy) {
         if (now() - passStartedAt < PASS_STUCK_MS) return
         log(`pass stuck at ${passStage} for ${Math.round((now() - passStartedAt) / 1000)} s -- the next pass does not wait`)
@@ -2139,21 +2292,6 @@ export default {
       const id = ++passId
       try {
         recoverClaims()
-        for (const c of allCards()) {
-          if (c.busy && c.pid === process.pid && !children.has(c.session))
-            void idleAfter(c.session, c.busySince ?? 0).then((done) => {
-              if (done) clearIdle(c.session)
-            })
-          // разбудили, а запроса к модели не было (ход упал раньше): конец хода — строка idle после побудки
-          else if (!c.busy && c.wokeAt && c.pid === process.pid)
-            void idleAfter(c.session, c.wokeAt).then((done) => {
-              if (!done) return
-              const fresh = readJson<Card>(cardFile(c.session))
-              if (!fresh?.wokeAt || fresh.busy) return
-              markWoke(fresh, undefined)
-              void nudge({ ...fresh, busySince: c.wokeAt })
-            })
-        }
         // Вкладка открыта в окне, но ещё не делала запросов (визитки нет), а письмо по её id ждёт — завести визитку.
         // Чужая сессия (другого сервера) не найдётся в ctx.session.get — touch вернёт пусто.
         await step("cards", async () => {
@@ -2178,7 +2316,14 @@ export default {
         await step("housekeep", housekeep)
         await step("processQueue", processQueue)
         // наблюдения crew_watch (watch.ts): запустить новые, по концу — письмо окну с побудкой
-        await step("watches", () => pollWatches((w, text) => postLetter(w.session, { id: `watch-${w.id}`, from_role: PLUGIN_SENDER, from_session: PLUGIN_SENDER, to: w.session, time: Date.now(), text }), log, now(), (w) => loadConfig(w.cwd).machineSlots))
+        await step("watches", () => pollWatches((w, text) => postLetter(w.session, { id: `watch-${w.id}`, from_role: PLUGIN_SENDER, from_session: PLUGIN_SENDER, to: w.session, time: Date.now(), text }), log, now(), w => loadConfig(w.cwd).machineSlots, {
+          canStart: w => {
+            const c = readJson<Card>(cardFile(w.session))
+            if (c && executionPaused(c)) return false
+            return ![w.env?.CREW_TASK_N, w.env?.CREW_REVIEW_N].some(n => n && w.project && executionHeld(taskHold(w.project, Number(n))))
+          },
+        }))
+        if (!running) return
         passStage = "deliver"
         // АДРЕСАТЫ — ИЗ ВИЗИТОК НА ДИСКЕ (после перезагрузки плагина память пуста). Визитки этого процесса и умершего;
         // двойной доставки нет: письмо забирает тот, чей rename в claimLetters прошёл первым.
@@ -2317,7 +2462,6 @@ export default {
       const out: string[] = []
       for (const [name, f] of [["session.prompt", ctx?.session?.prompt], ["session.create", ctx?.session?.create], ["session.get", ctx?.session?.get], ["session.hook", ctx?.session?.hook]] as const)
         if (typeof f !== "function") out.push(`в этой версии OpenCode у плагина нет ${name} — доставка или задачи не работают`)
-      if (!hungInterrupt) out.push("в этой версии OpenCode у плагина нет session.interrupt — зависший ход плагин сам не снимает: владельцу приходит «нажмите Esc в окне и напишите «продолжай»» (задача 048)")
       const probe = allCards()[0]
       if (probe) {
         const row = await sessionFromDb(probe.session)
@@ -2334,7 +2478,7 @@ export default {
       isChild: (s) => children.has(s),
       posted: () => void pass(),
       picked: (pick) => {
-        setBusy(pick, true)
+        saveCard({ ...(readJson<Card>(cardFile(pick.session)) ?? pick), reservedAt: now() })
         void pass()
       },
       roleTaken: (me) => {
@@ -2348,6 +2492,7 @@ export default {
       // задача 263: блокирующее ожидание вопросника для crew_list — запись формы или открытый по базе вызов question
       blocker: (s) => blockingQuestion(s, now(), (x) => questionCall(x, 1)),
       activity: (s) => activityEvidence(s),
+      available: async c => !executionPaused(c) && (await nativeOf(c)).state === "idle",
     })
     const toEditor = (t: (typeof tools)[number]) => ({ name: t.name, description: t.description, input: t.input, execute: (input: any, context: any) => t.execute(input, context?.sessionID) })
     await ctx.tool.transform((editor: any) => {
@@ -2377,7 +2522,9 @@ export default {
     const DOCTOR_EVERY_MS = Number(process.env.CREW_HARNESS_DOCTOR_MS) || 10 * 60_000
     let doctorSaid = ""
     const runDoctor = async () => {
+      if (disposed) return
       const problems = [...(await doctor()), ...commonDoctor(), ...settingsProblems(projects, settingsContext().local), ...profileProblems()]
+      if (disposed) return
       try {
         writeFileSync(DOCTOR_FILE, JSON.stringify({ at: Date.now(), problems, notes: [...settingsNotes(), ...autoNotes(now()), ...branchNotes(BASE), ...stepNotes(now())] }))
       } catch {}
@@ -2397,7 +2544,9 @@ export default {
     // снимок каталога моделей для окна (model-catalog.ts): при загрузке (после 3 с) и раз в 10 минут
     const snapCatalog = async () => {
       try {
-        if (!writeCatalog(catalogModels(await ctx.model.list()))) log("model catalog snapshot: empty reply, not written")
+        if (disposed) return
+        const models = await ctx.model.list()
+        if (!disposed && !writeCatalog(catalogModels(models))) log("model catalog snapshot: empty reply, not written")
       } catch (e) {
         log(`model catalog snapshot failed: ${e}`)
       }
@@ -2425,16 +2574,16 @@ export default {
       if (running) return
       running = true
       startPass()
-      doctorTimer = setTimeout(() => void runDoctor(), 10_000)
+      doctorTimer = setTimeout(() => void tracked(runDoctor()), 10_000)
       // и ещё раз через минуту: при подъёме сервиса окна переподключаются позже 10 с, и первая проверка видит «ни одно
       // окно не отмечается» (2026-10-07) — без повтора ложное замечание висело в /crew-doctor до плановой проверки
-      doctorAgain = setTimeout(() => void runDoctor(), 70_000)
+      doctorAgain = setTimeout(() => void tracked(runDoctor()), 70_000)
       doctorAgain.unref?.()
-      catalogFirst = setTimeout(() => void snapCatalog(), 3_000)
-      catalogTimer = setInterval(() => void snapCatalog(), 10 * 60_000)
+      catalogFirst = setTimeout(() => void tracked(snapCatalog()), 3_000)
+      catalogTimer = setInterval(() => void tracked(snapCatalog()), 10 * 60_000)
       catalogFirst.unref?.()
       catalogTimer.unref?.()
-      doctorEvery = setInterval(() => void runDoctor(), DOCTOR_EVERY_MS)
+      doctorEvery = setInterval(() => void tracked(runDoctor()), DOCTOR_EVERY_MS)
       doctorEvery.unref?.()
       lagExpected = Date.now() + LAG_EVERY_MS
       lagTimer = setInterval(lagTick, LAG_EVERY_MS)
@@ -2483,7 +2632,8 @@ export default {
     const legacyDispose = () => stop()
     g.__crewHarnessDispose = legacyDispose
     start()
-    return () => {
+    return async () => {
+      disposed = true
       const owned = running
       stop()
       const i = loops.indexOf(me)
@@ -2494,6 +2644,10 @@ export default {
         log(`loop of ${directory || "?"} released, handed over to ${next.directory || "?"}`)
         next.start()
       }
+      // Stop is observable: tests and unloaders can await background reads and
+      // outstanding admissions instead of deleting state under a running pass.
+      while (inFlight.size) await Promise.allSettled([...inFlight])
     }
   },
-}
+} }
+export default createCrewPlugin()

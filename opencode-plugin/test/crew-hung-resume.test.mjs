@@ -1,6 +1,6 @@
 // Self-test of the self-recovery of a hung turn, task 048 (node >= 24):  node test/crew-hung-resume.test.mjs
-// A hung turn (task 036) is interrupted by the plugin itself (ctx.session.interrupt) and the tab is woken by a letter "go on".
-// One try per hang, at most 2 tries per session in an hour; a failed try or the limit - the old notice to the owner.
+// Contract 279 supersedes automatic interruption from transcript silence: native
+// active remains owned, health is visible, no interrupt or fabricated resume.
 // A running tool and an open question to the owner are not a hang: no interrupt.
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { DatabaseSync } from "node:sqlite"
@@ -102,21 +102,21 @@ const cell = (name, ok, detail) => {
   if (!ok) fail++
 }
 
-const mod = await import("../index.ts")
+const mod = await import(process.env.CREW_MODULE ?? "./fixture-plugin.mjs")
 const stop = await mod.default.setup(ctx)
-for (const end = Date.now() + 20_000; Date.now() < end && !(callsFor(A).length >= 2 && st(A)?.state === "owner"); ) await wait(200)
-await wait(2000)
+for (const end = Date.now() + 20_000; Date.now() < end && !(st(A)?.state === "owner" && st(E)?.state === "owner"); ) await wait(200)
+await wait(600) // negative: repeated passes must still not interrupt
 
-cell("the probe at load names the interrupt method", /hung turn self-recovery: on \(session\.interrupt\)/.test(fresh()), fresh().split("\n").filter((l) => /self-recovery/.test(l)).join(" | "))
-cell("hung A: the plugin interrupted the turn", callsFor(A).length >= 1 && callsFor(A)[0].resume === true, JSON.stringify(calls))
+cell("the probe declares diagnostic-only recovery", /hung turn recovery: diagnostic-only/.test(fresh()), fresh())
+cell("native active A: no automatic interruption even after long silence", callsFor(A).length === 0, JSON.stringify(calls))
 const la = lettersTo(A)
-cell("hung A: the letter go-on went to the tab", la.length >= 1 && la.every((l) => /Ход завис и прерван плагином в \d\d:\d\d; продолжай с того места, где остановился/.test(l)), JSON.stringify(la))
-cell("hung again within an hour: at most 2 tries", callsFor(A).length === 2 && la.length === 2, `calls ${callsFor(A).length}, letters ${la.length}`)
-cell("limit reached: the old notice to the owner", st(A)?.state === "owner" && /ход завис с \d\d:\d\d .*нажмите Esc/.test(st(A)?.question ?? "") && noticesFor(A).length >= 1, JSON.stringify(st(A)))
-cell("the log has the self-recovery lines and the limit", /hung turn resumed: .*sesHUNG_A/.test(fresh()) && /hung turn not resumed: .*sesHUNG_A.*2 tries in an hour/.test(fresh()), fresh().split("\n").filter((l) => /sesHUNG_A/.test(l)).join(" | "))
+cell("native active A: no continue letter claims a fabricated recovery", la.length === 0, JSON.stringify(la))
+cell("repeated passes never start a second prompt or resume", callsFor(A).length === 0 && la.length === 0, `calls ${callsFor(A).length}, letters ${la.length}`)
+cell("silent native execution remains a visible diagnostic alarm", st(A)?.state === "owner" && /нужна диагностика/.test(st(A)?.question ?? "") && !/нажмите Esc/.test(st(A)?.question ?? "") && noticesFor(A).length >= 1, JSON.stringify(st(A)))
+cell("journal does not falsely report resumed execution", !/hung turn resumed: .*sesHUNG_A/.test(fresh()) && /hung turn: .*sesHUNG_A/.test(fresh()), fresh())
 const hist = tasks.loadTask("proj", task.n)?.history ?? []
-cell("the task history has the self-recovery", hist.some((h) => /ход завис с \d\d:\d\d; плагин прервал его в \d\d:\d\d и попросил продолжить/.test(h.note ?? "")), JSON.stringify(hist))
-cell("interrupt found nothing (E): one try, no letter, the owner is told", callsFor(E).length === 1 && lettersTo(E).length === 0 && st(E)?.state === "owner" && noticesFor(E).length >= 1 && /hung turn not resumed: .*sesNOSTOP_E.*interrupted=false/.test(fresh()), `calls ${callsFor(E).length}, letters ${lettersTo(E).length}, ${JSON.stringify(st(E))}`)
+cell("task history does not claim interruption or recovered progress", !hist.some(h => /плагин прервал|попросил продолжить/.test(h.note ?? "")), JSON.stringify(hist))
+cell("E: unavailable proof of safe interruption is not probed by mutation", callsFor(E).length === 0 && lettersTo(E).length === 0 && st(E)?.state === "owner" && noticesFor(E).length >= 1, `calls ${callsFor(E).length}, ${JSON.stringify(st(E))}`)
 cell("open question to the owner (F): no interrupt, not hung", callsFor(F).length === 0 && !/ход завис/.test(st(F)?.question ?? ""), `calls ${callsFor(F).length}, ${JSON.stringify(st(F))}`)
 cell("running tool (G): no interrupt", callsFor(G).length === 0 && st(G)?.state !== "owner", `calls ${callsFor(G).length}, ${JSON.stringify(st(G))}`)
 cell("live turn (B): no interrupt", callsFor(B).length === 0 && st(B)?.state === "working", `calls ${callsFor(B).length}, ${JSON.stringify(st(B))}`)
@@ -137,7 +137,7 @@ const dr = doctor ? String((await doctor.execute({}, { sessionID: B }))?.content
 cell("crew_doctor does not complain about interrupt when it is there", !/session\.interrupt/.test(dr), dr)
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 db.close()
 try {
   rmSync(tmp, { recursive: true, force: true })

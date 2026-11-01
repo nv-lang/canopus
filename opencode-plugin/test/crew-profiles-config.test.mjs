@@ -41,7 +41,7 @@ const SETS = {
   "kimi-only": { develop: c("kimi", "heavy"), plan: c("kimi", "heavy"), accept: c("kimi", "heavy"), plan_accept: c("kimi", "heavy") },
 }
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const core = await import("../core.ts")
 const { writeSettings } = await import("../settings.ts")
 const hooks = {}
@@ -186,7 +186,7 @@ writeFileSync(file, JSON.stringify(g, null, 2))
 commit("no profiles")
 cell("AC-24 a project without profiles is not touched: no word about profiles in the doctor or show", !/профил|набор/i.test(await doctor("sesINT")) && !/Профили моделей/.test(await call("sesWRK", { action: "show" })), (await doctor("sesINT")).slice(0, 300))
 
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-profiles-config.test: FAIL ${fail}` : "crew-profiles-config.test ok")
 process.exit(fail ? 1 : 0)

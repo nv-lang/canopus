@@ -1,0 +1,6 @@
+исп 0/0 [2026-11-01 11:39] запуск №1
+исп 0/6 [2026-11-01 13:23] старт — исправление native, receipt, HOLD и проверенная сдача
+исп 1/6 [2026-11-01 13:23] RED исходных дефектов и in-flight snapshot воспроизведён
+исп 2/6 [2026-11-01 13:24] Native reconciliation GREEN; active не coalesce, GET ограничены
+исп 3/6 [2026-11-01 13:24] Receipt GREEN: admission отдельно, start по связанному assistant
+исп 4/6 [2026-11-01 13:24] HOLD/health, A/B correlation, bounded blocker и isolation GREEN

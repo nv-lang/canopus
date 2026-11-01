@@ -108,7 +108,7 @@ const cell = (name, ok, detail) => {
   if (!ok) fail++
 }
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const stop = await mod.default.setup(ctx)
 
 // A
@@ -153,7 +153,7 @@ await until(() => recOf(D).some((f) => f.id === "frm_FD" && (f.cancelled || f.re
 cell("D: the call ended - the cancel is taken, the repeat of task 040 goes on", recOf(D).some((f) => f.id === "frm_FD" && (f.cancelled || f.repeats)), JSON.stringify(recOf(D)))
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 db.close()
 try {
   rmSync(tmp, { recursive: true, force: true })

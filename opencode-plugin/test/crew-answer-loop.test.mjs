@@ -105,7 +105,7 @@ const ctx = {
   tool: { transform: async () => {} },
   events: { on: async (name, cb) => (events[name] = cb) },
 }
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const stop = await mod.default.setup(ctx)
 
 let fail = 0
@@ -355,7 +355,7 @@ await safe("E", async () => {
 })
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 db.close()
 try {
   rmSync(tmp, { recursive: true, force: true })

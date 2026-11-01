@@ -44,7 +44,7 @@ writeFileSync(file, JSON.stringify({ project: "cmdproj", root: "..", model_profi
 git(cfgDir, "add", "-A")
 git(cfgDir, "commit", "-q", "-m", "settings")
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const Core = await import("../core.ts")
 const Cmd = await import("../profile-cmd.ts")
 const Tui = await import("../tui.ts")
@@ -127,7 +127,7 @@ const run = async (script, args, name = "crew-sets") => {
   const { api, out } = mkApi(script)
   const stop = Tui.default.setup(api)
   await slashOf(out, name).run(args)
-  stop?.()
+  await stop?.()
   return out
 }
 {

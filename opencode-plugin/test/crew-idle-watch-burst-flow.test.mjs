@@ -37,7 +37,7 @@ const tryImport = (p) => import(p).catch((e) => (console.log(`import ${p}: ${Str
 const core = await import("../core.ts")
 const tasks = await import("../tasks.ts")
 const iw = await tryImport("../idle-watch.ts")
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 
 const T0 = Date.now() - 2 * 3_600_000
 const hooks = {}
@@ -86,6 +86,7 @@ putTask(mkTask(20, "idle", { title: "Между сессиями" }))
 putTask(mkTask(22, "running", { title: "Исполнитель пропал", executor: "sesGONE", updated: T0 }))
 // 30 and 31: the reviewer sesREV holds both, works a turn on 31 (its card says so), the author is sesAUTH2
 core.saveCard({ ...core.readJson(core.cardFile("sesREV")), review: { project: P, n: 31 }, busy: true, busySince: Date.now() })
+mod.fixtureNativeActive.add("sesREV")
 putTask(mkTask(30, "reviewing", { author: "sesAUTH2", reviewer: "sesREV", title: "Приёмка на другой задаче окна" }))
 putTask(mkTask(31, "reviewing", { author: "sesAUTH2", reviewer: "sesREV", title: "Приёмка идёт" }))
 
@@ -102,7 +103,7 @@ cell("BF-3c the author gets the summary letter once", lettersTo("sesAUTH").filte
 cell("BF-2a a reviewer that works a turn on task 31 is no excuse for task 30: the letter of the watch goes to it about 30", watchLetters("sesREV", 30).length >= 1 && /crew_step_note/.test(watchLetters("sesREV", 30)[0].text), J(lettersTo("sesREV").map((l) => l.text.slice(0, 80))))
 cell("BF-2b and no letter about task 31, where the turn of its window goes", watchLetters("sesREV", 31).length === 0 && !iw?.readRecord?.(P, 31)?.ep, J([watchLetters("sesREV", 31).length, iw?.readRecord?.(P, 31)?.ep]))
 
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `\n${fail} FAILED` : "\nall ok")
 process.exit(fail ? 1 : 0)

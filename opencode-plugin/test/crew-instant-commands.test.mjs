@@ -45,7 +45,7 @@ writeFileSync(file, JSON.stringify({ project: "cmdproj", root: "..", model_profi
 git(cfgDir, "add", "-A")
 git(cfgDir, "commit", "-q", "-m", "settings")
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const core = await import("../core.ts")
 const Core = core
 const Tui = await import("../tui.ts")
@@ -180,7 +180,7 @@ await new Promise((r) => setTimeout(r, 3600))
   await slashOf(out, "crew-sets").run()
   cell("an old snapshot is not used, the reason names its age", /каталог недоступен: снимок каталога старый \(3 ч назад\)/.test(msg(out)), msg(out).slice(0, 300))
   writeFileSync(Cat.CATALOG_FILE, keep)
-  stop?.()
+  await stop?.()
 }
 
 {
@@ -191,7 +191,7 @@ await new Promise((r) => setTimeout(r, 3600))
   await slashOf(out, "crew-profiles").run()
   cell("without the worker the same answer arrives (the fallback in the process of the window)", out.shown.at(-2)?.message === "Загрузка…" && /Семья «claude»/.test(msg(out)), JSON.stringify(out.shown.map((x) => x.message.slice(0, 20))))
   delete process.env.CREW_HARNESS_NO_WORKER
-  stop?.()
+  await stop?.()
 }
 
 {
@@ -204,7 +204,7 @@ await new Promise((r) => setTimeout(r, 3600))
   const stop = Tui.default.setup(api)
   await slashOf(out, "crew-sets").run()
   cell("with the provider list in the window the models are compared with it (the note names the source)", /Каталог моделей OpenCode: список окна OpenCode/.test(msg(out)), msg(out).slice(0, 400))
-  stop?.()
+  await stop?.()
   const { api: api2, out: out2 } = mkApi(["__verbs", "check"], [{ id: "claude-code", models: { opus: { id: "opus" } } }])
   const stop2 = Tui.default.setup(api2)
   await slashOf(out2, "crew-sets").run()
@@ -218,7 +218,7 @@ await new Promise((r) => setTimeout(r, 3600))
   const stop = Tui.default.setup(api)
   await slashOf(out, "crew-config").run()
   cell("/crew-config shows «Загрузка…» first and then the settings of the project of the tab", out.shown.at(-2)?.message === "Загрузка…" && msg(out).length > 20 && !/Не прочитать/.test(msg(out)), JSON.stringify(out.shown.map((x) => x.message.slice(0, 30))))
-  stop?.()
+  await stop?.()
 }
 
 {
@@ -267,7 +267,7 @@ await new Promise((r) => setTimeout(r, 3600))
     await slashOf(out, "crew-sets").run(empty)
     cell(`run(${JSON.stringify(empty)}) opens the pick (the sets and other actions)`, menus === 1, String(menus))
   }
-  stop?.()
+  await stop?.()
 }
 
 {
@@ -292,7 +292,7 @@ await new Promise((r) => setTimeout(r, 3600))
   writeFileSync(core.DOCTOR_FILE, JSON.stringify({ at: Date.now(), problems: [7, { a: 1 }, null, "text"] }))
   await slashOf(out, "crew-doctor").run()
   cell("a self-check with problems that are numbers and objects reaches the dialog as strings", out.shown.length > 0 && out.shown.every((x) => typeof x.title === "string" && typeof x.message === "string"), JSON.stringify(out.shown))
-  stop?.()
+  await stop?.()
 }
 
 stopServer?.()

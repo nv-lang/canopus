@@ -24,7 +24,7 @@ const beat = () => writeFileSync(path.join(base, "windows", "56032.json"), JSON.
 beat()
 const heart = setInterval(beat, 200)
 
-const mod = await import(process.env.CREW_MODULE ?? "../index.ts")
+const mod = await import(process.env.CREW_MODULE ?? "./fixture-plugin.mjs")
 const delivered = []
 const host = (name, dir) => ({
   location: { directory: dir },

@@ -20,7 +20,7 @@ for (const d of [dirA, dirB]) mkdirSync(path.join(d, ".opencode"), { recursive: 
 const inbound = (v) => writeFileSync(path.join(dirB, ".opencode", "crew-harness.json"), JSON.stringify(v ? { inbound: v, allow_default_models: true } : { allow_default_models: true }))
 inbound(undefined)
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const core = await import("../core.ts")
 const tasks = await import("../tasks.ts")
 const hooks = {}
@@ -115,7 +115,7 @@ await wait()
 cell("a cancelled child wakes the orderer with a call", got("sesAINT", "Заказ 002 «второй»: задачу beta 003 отменили").some((d) => !d.synthetic), JSON.stringify(got("sesAINT", "Заказ 002")))
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-cross.test: FAIL ${fail}` : "crew-cross.test ok")
 process.exit(fail ? 1 : 0)

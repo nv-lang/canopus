@@ -15,7 +15,7 @@ import { BASE } from "./paths.ts"
 import { answerCounts, answerSideRow } from "./answer.ts"
 import { divergenceLineFor, unconfiguredLineFor } from "./config-diverge.ts"
 import { branchRows, branchSideRows } from "./branch-guard.ts"
-import { holdsOf, stepRows, stepSideRows } from "./idle-watch.ts"
+import { holdsOf, HOLD_SCOPE_RU, stepRows, stepSideRows } from "./idle-watch.ts"
 import { DEAD_WHY, FORM_MAX_REPEATS, shownForms } from "./form-wait.ts"
 import { lockWaitLine, lockWaiters } from "./review.ts"
 import { refreshRouteStale } from "./task-folders.ts"
@@ -182,6 +182,7 @@ export type StatusInput = {
   staleSince?: number
   /** ход завис: модель молчит с этого времени, строки idle нет (core.ts hungTurn) */
   hungSince?: number
+  nativeUnknown?: { since: number; why: string }
   /** порог «завис?» панели, мс (cfg.longTurnMin, задача 111); 0 или нет — не показывать */
   longTurnMs?: number
   /** Задача 120: вызов question вкладки открыт по базе (core.ts questionCall), а записи формы в forms/ нет: с какого времени открыт диалог */
@@ -253,11 +254,11 @@ function statusOfAll(x: StatusInput): Status {
     updated: now,
   }
   if (x.staleSince) {
-    const q = `окно считает ход идущим, а сервер свободен с ${hm(x.staleSince)}: сообщение, видимо, не дошло — нажмите Esc в окне и отправьте его снова`
+    const q = `карточка/окно считают ход идущим, native execution отсутствует с ${hm(x.staleSince)}: занятость согласована, доставка проверяется без interrupt`
     return { ...base, state: "owner", since: x.staleSince, question: q, detail: q, sys: "lost" }
   }
   if (x.hungSince) {
-    const q = `ход завис с ${hm(x.hungSince)} (${minutes(x.hungSince, now)}): нажмите Esc в окне и напишите «продолжай»`
+    const q = `ход молчит с ${hm(x.hungSince)} (${minutes(x.hungSince, now)}): нужна диагностика; native active/unknown и живой процесс автоматически не прерываются`
     return { ...base, state: "owner", since: x.hungSince, question: q, detail: q, sys: "hung" }
   }
   // встроенный вопросник OpenCode (события form.*, form-wait.ts): адресован человеку всегда, и у вкладки владельца, и у сессии задачи
@@ -283,6 +284,7 @@ function statusOfAll(x: StatusInput): Status {
     const q = "диалог вопроса открыт, записи формы нет"
     return { ...base, state: "owner", since: x.dialog.since, question: q, dialog: "norecord", detail: `ждёт вас с ${hm(x.dialog.since)} (диалог без записи формы)` }
   }
+  if (x.nativeUnknown) return { ...base, state: "owner", since: x.nativeUnknown.since, question: `native занятость неизвестна: ${x.nativeUnknown.why}; доставка закрыта, нужна диагностика`, detail: `native unknown: ${x.nativeUnknown.why}; не «свободна» и не подтверждённая работа` }
   if (x.busy) return { ...base, state: "working", since: x.busySince, ...(x.longTurnMs && x.busySince ? { longTurnMs: x.longTurnMs } : {}), detail: `работает${x.busySince ? ` (${minutes(x.busySince, now)})` : ""}` }
   // сессию задачи ведёт интегратор, и её вопрос в конце хода бывает ему (сдавший воркер спросил интегратора), а бывает
   // владельцу (приёмщик просил «вливай?»): кому — по тексту не определить. Поэтому у сессии задачи — «question»: видно
@@ -767,8 +769,8 @@ export function sidebarLines(list: Status[], now = Date.now(), project?: string,
   // HOLD/STOP (задача 262): метка сторожа шага по слову владельца + открытая задача — старше любой карточки: вкладки такой задачи
   // скрыты, и она не показывается работающей, даже если старая карточка ещё «working»; сама — одной строкой блока «HOLD/STOP»
   const held = holdsOf(project ? { project } : {})
-  const holdKind = new Map(held.map((h) => [h.t.n, h.kind]))
-  const notHeld = sorted0.filter((s) => !(s.task && holdKind.has(s.task.n)))
+  const heldExecution = new Set(held.filter(h => h.scope === "legacy" || h.scope === "execution").map(h => `${h.t.project}:${h.t.n}`))
+  const notHeld = sorted0.filter(s => !s.task || !heldExecution.has(`${s.project}:${s.task.n}`) || !!s.sys || s.state === "owner" || s.state === "question")
   const live = notHeld.filter((s) => !finished(s))
   const sorted: Status[] = []
   for (const s of live) {
@@ -913,7 +915,7 @@ export function sidebarLines(list: Status[], now = Date.now(), project?: string,
   // HOLD/STOP (задача 262): по одной строке на задачу, компактно, вне бюджета вкладок
   if (held.length) {
     rows.push({ mark: " ", who: "", what: `HOLD/STOP · ${held.length}`, tone: "muted" })
-    for (const h of held) rows.push({ mark: " ", who: "", what: short(`■ ${taskNo(h.t)} ${h.kind} · ${titleText(h.t.title)}`, width), tone: "muted" })
+    for (const h of held) rows.push({ mark: " ", who: "", what: short(`■ ${taskNo(h.t)} ${h.kind} ${HOLD_SCOPE_RU[h.scope]} · ${titleText(h.t.title)}`, width), tone: "muted" })
   }
   const auto = answerSideRow(project, now)
   if (auto) rows.push(auto)

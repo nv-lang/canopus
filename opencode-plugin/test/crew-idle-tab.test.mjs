@@ -226,7 +226,8 @@ const BUSY = new Set(["sesI5", "sesX2", "sesX6b", "sesY4", "sesZ3"])
 const ALL = [...TABS, "sesI9"]
 for (const s of ALL) db.prepare("insert into session_v2 values (?, ?, ?, null, null, null, null, null)").run(s, proj, s)
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
+for (const session of BUSY) mod.fixtureNativeActive.add(session)
 const hooks = {}
 const tools = {}
 const prompts = []
@@ -423,7 +424,7 @@ cell("IT-7q and no new letter while the session goes", letters("sesI1").length =
 }
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 db.close()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-idle-tab.test: FAIL ${fail}` : "crew-idle-tab.test ok")

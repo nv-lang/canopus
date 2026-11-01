@@ -106,7 +106,7 @@ const lettersTo = (id) => [...filesIn(path.join(core.INBOX, core.safeKey(id))), 
 const autoFile = (id) => core.readJson(path.join(oa.ANSWERS, `auto-${core.safeKey(id)}.json`))
 const tools = {}
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const stop = await mod.default.setup(ctx)
 const t0 = Date.now()
 fw.handleFormEvent(form("frm_A", A, "Какой формат отчёта?", ["Короткий (Recommended)", "Длинный"]))
@@ -155,7 +155,7 @@ cell("crew_doctor: the note of the form answers is in the tail", /автоотв
 cell("the settings file was not written by the plugin", readFileSync(settingsFile, "utf8") === settingsBefore, readFileSync(settingsFile, "utf8"))
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 db.close()
 try {
   rmSync(tmp, { recursive: true, force: true })

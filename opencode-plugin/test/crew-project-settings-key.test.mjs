@@ -42,7 +42,7 @@ mkRepo(cfgB, { project: "beta", root: "..", allow_default_models: true })
 
 const settings = await import("../settings.ts")
 const core = await import("../core.ts")
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const Cmd = await import("../profile-cmd.ts")
 
 let fail = 0
@@ -134,24 +134,24 @@ const shown = await call("crew_config", { action: "show" })
 cell("crew_config show works there", /project_rules/.test(shown) && /файл, ветка main/.test(shown), shown)
 const used = await Cmd.runSetsCommand(work, "use default", { version: "2.0.23-test", catalog: async () => [{ providerID: "claude-code", modelID: "opus" }, { providerID: "claude-code", modelID: "sonnet" }, { providerID: "claude-code", modelID: "haiku" }] })
 cell("/crew-sets use works in a project given by project_settings", /^Набор «default» включён$/m.test(used) && JSON.parse(readFileSync(fileA, "utf8")).profile_set === "default", used)
-stop?.()
+await stop?.()
 
 ;({ tools, stop } = await boot({ projects: [cfgA] }))
 const doc2 = await call("crew_doctor", {})
 const [head2, tail2] = doc2.split("К сведению:\n")
 cell("crew_doctor with the old key: the rename note is below the problems, not among them, and is the only line about the keys", mine(head2).length === 0 && tail2 === "- ключ projects переименован в project_settings; прежнее имя работает", doc2)
 cell("the old key: crew_config set works as before", /Записано/.test(await call("crew_config", { action: "set", values: { inflight_limit: 4 } })), "")
-stop?.()
+await stop?.()
 
 ;({ tools, stop } = await boot({ project_settings: [cfgA], projects: [cfgB] }))
 const doc3 = await call("crew_doctor", {})
 cell("crew_doctor with both keys: a problem, one line, the differing entry", /есть проблемы/.test(doc3) && doc3.split("\n").filter((l) => /project_settings/.test(l) && /projects/.test(l)).length === 1 && doc3.includes("beta-settings"), doc3)
-stop?.()
+await stop?.()
 
 ;({ tools, stop } = await boot({ projects: { oldp: oldRoot } }))
 const doc4 = await call("crew_doctor", {})
 cell("crew_doctor with the old form: the old advice with the new key name", /есть проблемы/.test(doc4) && doc4.includes('"project_settings": ["<папка с .opencode/crew-harness.json>"]'), doc4)
-stop?.()
+await stop?.()
 
 // the window text of /crew-doctor shows the notes below the verdict
 const { doctorText } = await import("../status.ts")

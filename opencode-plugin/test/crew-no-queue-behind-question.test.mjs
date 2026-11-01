@@ -108,7 +108,7 @@ const ctx = {
   tool: { transform: async () => {} },
   events: { on: async (name, cb) => (events[name] = cb) },
 }
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const stop = await mod.default.setup(ctx)
 
 let fail = 0
@@ -253,7 +253,10 @@ await safe("H", async () => {
   pendingQuestion(H)
   ask(H)
   letter(H, "human-1", "Привет от интегратора: уточни по задаче.", "ses_other_tab")
-  cell("H: a letter of a person goes although a question waits", await until(() => queued(H, "уточни по задаче").length === 1, 5000), JSON.stringify(queue(H).map((x) => x.slice(0, 60))))
+  await wait(300)
+  cell("H: human mail cannot resume native-active question; the letter is preserved", queued(H, "уточни по задаче").length === 0 && existsSync(path.join(core.INBOX, core.safeKey(H), "human-1.json")))
+  await endTurn(H)
+  cell("H: a letter of a person goes after native idle although the form still waits", await until(() => queued(H, "уточни по задаче").length === 1, 5000), JSON.stringify(queue(H).map((x) => x.slice(0, 60))))
 })
 await safe("K", async () => {
   ask(K)
@@ -263,6 +266,7 @@ await safe("K", async () => {
   await wait(2000)
   cell("K: the reminders about idle time and cleanup wait in the mailbox while the question is open", queue(K).length === 0 && existsSync(path.join(core.INBOX, core.safeKey(K), "idle-ses_K-1.json")) && existsSync(path.join(core.INBOX, core.safeKey(K), "stall-left-proj-9-abc.json")), JSON.stringify({ queue: queue(K).map((x) => x.slice(0, 50)), inbox: existsSync(path.join(core.INBOX, core.safeKey(K))) }))
   for (const f of fw.allForms().filter((x) => x.session === K)) fw.removeForm(K, f.form.id) // the owner answered inside the window
+  await endTurn(K) // the fixture must settle native execution as well as remove UI state
   cell("K: ... they are not lost: after the wait they are queued", await until(() => queued(K, "простаиваешь").length === 1 && queued(K, "хвосты").length === 1, 6000), JSON.stringify(queue(K).map((x) => x.slice(0, 50))))
 })
 await safe("P", async () => {
@@ -291,7 +295,7 @@ await safe("T", async () => {
 })
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 db.close()
 try {
   rmSync(tmp, { recursive: true, force: true })

@@ -11,7 +11,7 @@ process.env.XDG_DATA_HOME = tmp
 process.env.CREW_HARNESS_PRESENCE ??= "all" // every tab taken as open (presence has its own test)
 process.env.CREW_HARNESS_DB = path.join(tmp, "absent.db")
 process.env.CREW_HARNESS_POLL_MS = "60"
-const mod = await import(process.env.CREW_MODULE ?? "../index.ts")
+const mod = await import(process.env.CREW_MODULE ?? "./fixture-plugin.mjs")
 
 const hooks = {}
 const tools = {}
@@ -165,7 +165,7 @@ clearInterval(heart)
 const bad = await call("crew_send", sender, { to: "w7", text: "x", tier: "huge" })
 cell("an unknown tier is refused", /не годится/.test(bad.content), bad.content)
 
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-tier.test: FAIL ${fail}` : "crew-tier.test ok")
 process.exit(fail ? 1 : 0)

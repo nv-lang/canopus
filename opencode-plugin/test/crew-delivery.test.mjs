@@ -13,7 +13,7 @@ process.env.CREW_HARNESS_PRESENCE = "all"
 const proj = path.join(tmp, "proj")
 mkdirSync(proj, { recursive: true })
 
-const mod = await import(process.env.CREW_MODULE ?? "../index.ts")
+const mod = await import(process.env.CREW_MODULE ?? "./fixture-plugin.mjs")
 const core = await import(process.env.CREW_CORE ?? "../core.ts")
 const base = path.join(tmp, "opencode", "crew-harness")
 const hooks = {}
@@ -39,6 +39,7 @@ const cell = (name, ok, detail) => {
   if (!ok) fail++
 }
 const wait = (ms = 400) => new Promise((r) => setTimeout(r, ms))
+const until = async condition => { const end = Date.now() + 20_000; while (!condition() && Date.now() < end) await wait(25) }
 const files = (...p) => {
   const d = path.join(base, ...p)
   return existsSync(d) ? readdirSync(d).filter((f) => f.endsWith(".json")) : []
@@ -63,7 +64,7 @@ await wait()
 cell("a failed prompt leaves the letter in the inbox", files("inbox", "sesRECEIVER").length === 1 && files("read", "sesRECEIVER").length === 1, `inbox ${files("inbox", "sesRECEIVER")} read ${files("read", "sesRECEIVER")}`)
 cell("and no claim is left behind", claims().length === 0, claims().join(","))
 failPrompt = false
-await wait()
+await until(() => delivered.some(d => d.text.includes("fail-letter")))
 cell("the next tick delivers it", delivered.some((d) => d.text.includes("fail-letter")), JSON.stringify(delivered))
 
 // 3. a crashed process left a claim: young claims stay, old ones come back and are delivered
@@ -74,12 +75,12 @@ writeFileSync(path.join(young, "1-young.json"), letter("1-young", "young-claim")
 const old = path.join(base, "delivering", `999998-${Date.now() - core.CLAIM_MAX_MS - 1000}`, "sesRECEIVER")
 mkdirSync(old, { recursive: true })
 writeFileSync(path.join(old, "2-old.json"), letter("2-old", "crashed-claim"))
-await wait()
-cell("a stale claim of a crashed process comes back and is delivered", delivered.some((d) => d.text.includes("crashed-claim")), JSON.stringify(delivered.map((d) => d.text.slice(-40))))
+await until(() => files("inbox", "sesRECEIVER").includes("2-old.json"))
+cell("a legacy stale claim without native provenance is preserved, not posted twice", !delivered.some((d) => d.text.includes("crashed-claim")) && files("inbox", "sesRECEIVER").includes("2-old.json"), JSON.stringify(delivered.map((d) => d.text.slice(-40))))
 cell("a young claim (another process mid-delivery) is left alone", !delivered.some((d) => d.text.includes("young-claim")) && existsSync(path.join(young, "1-young.json")), "touched")
-cell("recoverClaims returns the young one too once it is old", core.recoverClaims(0) === 1 && files("inbox", "sesRECEIVER").length === 1, files("inbox", "sesRECEIVER").join(","))
+cell("recoverClaims returns the young one too without deleting ambiguous legacy claims", core.recoverClaims(0) === 1 && files("inbox", "sesRECEIVER").length === 2, files("inbox", "sesRECEIVER").join(","))
 
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-delivery.test: FAIL ${fail}` : "crew-delivery.test ok")
 process.exit(fail ? 1 : 0)

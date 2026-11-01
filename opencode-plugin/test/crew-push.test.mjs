@@ -49,7 +49,7 @@ core.addObligation("ses_retry1", { qid: "rqOLD", from_session: "sesINTEG1", from
 msg("ses_retry1", "user", { text: "[opencode-peers] ПРИЁМКА задачи 007" }, Date.now() - 60_000)
 msg("ses_retry1", "idle", { outcome: "failed" }, Date.now() - 60_000)
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const hooks = {}
 const tools = {}
 const events = {}
@@ -282,7 +282,7 @@ cell("three failed turns: stuck, the call says the turns fail", got("sesINTEG1",
   const readSt = () => { try { return JSON.parse(readFileSync(stFile, "utf8")) } catch { return {} } }
   for (let i = 0; i < 40 && readSt().state !== "owner"; i++) await wait(100)
   const st = readSt()
-  cell("the owner is told to press Esc and resend", st.state === "owner" && /нажмите Esc/.test(st.detail), JSON.stringify({ state: st.state, detail: st.detail }))
+  cell("reconciliation reports evidence without asking to interrupt/resend", st.state === "owner" && /занятость согласована/.test(st.detail) && !/нажмите Esc/.test(st.detail), JSON.stringify({ state: st.state, detail: st.detail }))
   tabs.pop()
 }
 
@@ -305,7 +305,7 @@ cell("a second plugin instance does not call a running turn interrupted", resume
 stop2?.()
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 db.close()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-push.test: FAIL ${fail}` : "crew-push.test ok")

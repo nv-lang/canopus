@@ -77,7 +77,7 @@ mkdirSync(wt5, { recursive: true })
 base(5, { status: "accepted", executor: "sesEX5", reviewer: "sesREV05", review_kind: "spawn", worktree: wt5 })
 const watchMod = await import("../watch.ts")
 const w5 = watchMod.requestWatch({ session: "sesREV05", command: "sleep 30", cwd: wt5, note: "жду уборки" })
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const tools = {}
 const hooks = {}
 const events = {}
@@ -192,7 +192,7 @@ cell("a watch in an accepted task's tree moves to the main copy", moved.length =
 cell("its tab is told the new id", letters("sesREV05").some((l) => l.text.includes(w5.id) && l.text.includes(moved[0]?.id ?? "?") && /основную копию/.test(l.text)), JSON.stringify(letters("sesREV05").map((l) => l.text.slice(0, 160))))
 for (const w of moved) watchMod.dropWatch(w)
 clearInterval(heart)
-stop?.()
+await stop?.()
 db.close()
 try {
   rmSync(tmp, { recursive: true, force: true })
