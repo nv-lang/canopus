@@ -68,3 +68,9 @@ native-state/receipt/idle-health пишутся через уникальный 
 но новый общий GREEN не заявляется. Дополнительный late-create regression до исправления дал exit 1 по bounded dispose.
 После scoped abort/epoch: целевые stuck/dispose/late/bracket/handover 5/5 GREEN; затем усиленный pretest 12 файлов /
 127 проверок и stuck/handover 2/2 GREEN, вся команда exit 0, 22 с. Требуется следующий полный набор 161 файла.
+
+На `cc9a11f9` полный набор: 160 GREEN / 161, exit 1, 991 с. Единственный RED `crew-project-settings-key` отдельно
+GREEN (18 с), причина — собственные set/use изменения fixture, предупреждение о которых попадало в rename-case
+в зависимости от TTL. Runtime frozen без изменений; узкая стабилизация fixture сохраняет точный oracle и добавляет
+положительную проверку divergence до коммита своего временного файла. Окончательные три повтора **3/3 GREEN**, 65 с,
+exit 0. Впереди полный набор на новом frozen test SHA, production байты относительно cc9a11f9 не менялись.
