@@ -877,6 +877,10 @@ fn Hub mut @resume_session(id str) Proc Detach Time -> () {
                                 Some(v) => { s.project_id = jtext(change, "project_id") }
                                 None => ()
                             }
+                            match change.get("folder") {
+                                Some(v) => { s.folder = jtext(change, "folder") }
+                                None => ()
+                            }
                         }
                         None => ()
                     }
@@ -947,6 +951,8 @@ fn Hub mut @resume_session(id str) Proc Detach Time -> () {
                 }
             }
             s.rt.normalize()
+            // A projectless session never inherits the hub worktree preference. Existing trees are preserved, not cleaned up on restart.
+            if s.project_id.byte_len() == 0 { s.rt.use_tree = false }
             // the open questions of the tool are waiting again; the numbering goes on past the highest key of the journal
             for p in open_mcp {
                 @mcp_pending.push(p)
@@ -974,7 +980,7 @@ fn Hub mut @cs_make_session(cid str, name str, agent str, folder str, project_id
     mut world = PgWorld.open(@settings.pg, cid)
     ro engine = begin_session_engine(pg, root, world, @machine, cid)
     mut s = Dialog { id: cid, name, agent, engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), announced: false, model_announced: false, started_at: 0, slow_told: false, folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
-    accept_in(pg, root, s, Incoming.signal("session_created", meta_text_child(name, agent, @cwd_of(folder), "", project_id, parent, pkind)))
+    accept_in(pg, root, s, Incoming.signal("session_created", meta_text_child(name, agent, folder, "", project_id, parent, pkind)))
     @add_session(s)
     ro at = @sessions.len() - 1
     @drain(at)
@@ -1020,7 +1026,7 @@ fn Hub mut @create(conn int, trace str, input JsonObject) Proc Detach Time -> ()
             mut world = PgWorld.open(@settings.pg, trace)
             ro engine = begin_session_engine(pg, root, world, @machine, trace)
             mut s = Dialog { id: trace, name, agent, engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), announced: false, model_announced: false, started_at: 0, slow_told: false, folder: launch.folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
-            accept_in(pg, root, s, Incoming.signal("session_created", meta_text(name, agent, @cwd_of(launch.folder), project, project_id)))
+            accept_in(pg, root, s, Incoming.signal("session_created", meta_text(name, agent, launch.folder, project, project_id)))
             @add_session(s)
             ro at = @sessions.len() - 1
             @drain(at)
@@ -1032,7 +1038,7 @@ fn Hub mut @create(conn int, trace str, input JsonObject) Proc Detach Time -> ()
             // the mode and the place of work chosen on the page before the first message (the default: interactive, with a tree)
             mut place = JsonObject.new()
             js(place, "route", if route_valid(jtext(input, "route")) { jtext(input, "route") } else { "interactive" })
-            jput(place, "worktree", JsonValue.bool(match input.get("worktree") { Some(v) => jflag(input, "worktree"), None => true }))
+            jput(place, "worktree", JsonValue.bool(project_id.byte_len() > 0 && match input.get("worktree") { Some(v) => jflag(input, "worktree"), None => true }))
             @rt_journal(at, "route_set", JsonValue.object(place).to_str())
             @route_broadcast(at, true)
             ro reason = @ensure_client(at)
@@ -1564,6 +1570,10 @@ fn placed_text(rank int, move bool, project_id str, project str) -> str {
     if move {
         jput(o, "project_id", JsonValue.str(project_id))
         jput(o, "project", JsonValue.str(project))
+        if project_id.byte_len() == 0 {
+            jput(o, "folder", JsonValue.str(""))
+            jput(o, "worktree", JsonValue.bool(false))
+        }
     }
     JsonValue.object(o).to_str()
 }
@@ -1607,12 +1617,32 @@ fn Hub mut @move(trace str, project_id str) Proc Detach Time -> () {
         if other.id != trace && other.project_id == project_id && other.has_rank && other.rank - 1 < front { front = other.rank - 1 }
     }
     mut s = @sessions[at]
-    if s.project_id == project_id { return }
+    if s.project_id == project_id && (project_id.byte_len() > 0 || s.folder.byte_len() == 0) { return }
+    if project_id.byte_len() == 0 {
+        if !@takes_message_at(at) {
+            @tell_error(0, trace, s.engine.step_number(), "", "Дождитесь завершения хода перед переносом чата без проекта")
+            return
+        }
+        if s.rt.worktree.byte_len() > 0 || s.rt.wip_tree.byte_len() > 0 || s.rt.wip_prep != 0 || s.rt.result_repo.byte_len() > 0 || s.rt.repo_dir.byte_len() > 0 {
+            @tell_error(0, trace, s.engine.step_number(), "", "Сначала завершите или сохраните Git-работу; проект чата не изменён")
+            return
+        }
+        mut i = 0
+        while i < s.clients.len() { s.clients[i].close(); i += 1 }
+        s.clients = []AcpClient.new()
+        s.folder = ""
+        s.rt.use_tree = false
+    }
     s.project_id = project_id
     s.has_rank = true
     s.rank = front
     accept_in(@settings.store == "pg", @settings.data_dir, s, Incoming.signal("session_placed", placed_text(front, true, project_id, name)))
     @sessions[at] = s
+    if project_id.byte_len() == 0 {
+        mut place = JsonObject.new()
+        jput(place, "worktree", JsonValue.bool(false))
+        @rt_journal(at, "route_set", JsonValue.object(place).to_str())
+    }
     @drain(at)
 }
 

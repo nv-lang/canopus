@@ -1747,11 +1747,11 @@ export function createView(doc, refs, deps) {
     const hasTree = Boolean((task && task.worktree) || (session.routeState && session.routeState.where && session.routeState.where.kind === 'wip'));
     const resultRepo = session.routeState ? session.routeState.resultRepo : '';
     const resultLabel = session.routeState ? session.routeState.resultLabel : '';
-    resultRepoButton.hidden = Boolean(session.draft) || currentRoute === 'planning';
+    resultRepoButton.hidden = Boolean(session.draft) || currentRoute === 'planning' || !session.projectId;
     resultRepoButton.disabled = Boolean(task) || hasTree || busy || Boolean(session.routeState && session.routeState.where && session.routeState.where.kind === 'preparing');
     fillResultRepos(resultRepo || '', resultLabel);
     const treeOn = session.draft ? session.worktree !== false : (session.routeState ? session.routeState.useTree !== false : true);
-    worktreeButton.hidden = currentRoute === 'planning' || (session.draft && !session.projectId);
+    worktreeButton.hidden = currentRoute === 'planning' || !session.projectId;
     worktreeButton.dataset.draft = String(Boolean(session.draft));
     worktreeButton.setAttribute('aria-pressed', String(treeOn || hasTree));
     // задача 192.6: папка проекта не git-репозиторий — дерево сделать нельзя, переключатель выключен и недоступен

@@ -61,6 +61,8 @@ test('новый чат без проекта не наследует worktree, 
   assert.match(appSrc, /const PINS_KEY = 'crew-console-session-pins'/);
   assert.match(appSrc, /pins: readPins\(\)/);
   assert.match(appSrc, /onPin\(trace, pinned\) \{ ui\.pins = \{ \.\.\.ui\.pins, \[trace\]: pinned \}; savePins\(ui\.pins\);/);
+  assert.match(viewSrc, /worktreeButton\.hidden = currentRoute === 'planning' \|\| !session\.projectId/);
+  assert.match(viewSrc, /resultRepoButton\.hidden = Boolean\(session\.draft\) \|\| currentRoute === 'planning' \|\| !session\.projectId/);
 });
 
 test('список групп имеет show-more, ограничивает первоначальный список и сохраняет реальную группировку', () => {

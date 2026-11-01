@@ -4,6 +4,7 @@ module crew_harness.server
 
 import crew_harness.projects.{projects_create}
 import std.encoding.json.{Json, JsonValue, JsonObject}
+import std.fs.{Fs, real_fs, Path, create_dir_all}
 
 /// The settings of the scenarios of the wip branch: a repository with a bare origin, the sessions make a wip tree at the first message, "В работу" makes the children.
 export fn kit_routes_wip(name str) Proc -> ServerSettings {
@@ -179,6 +180,51 @@ export fn scenario_wip_flow(settings ServerSettings) Proc Detach Time Net Fs Os 
     ro w2 = jchild(ck_state(again, 1, "s-w2"), "where") ?? JsonObject.new()
     c.expect(jtext(w2, "kind") == "wip" && jtext(w2, "branch") == "" && jtext(w2, "worktree") == tree_b, "after the restart: the same copy: ${jtext(w2, "branch")} ${jtext(w2, "worktree")}")
     c.expect(wk_pwd(again, "s-w2", "u1").contains("/repo-s-w2"), "the agent works in the same tree again")
+    again.shut()
+    c.report()
+}
+
+/// Projectless sessions ignore inherited tree requests, refuse direct Git actions, and detach a moved session from its old folder across restart.
+export fn scenario_projectless_git_guard(settings ServerSettings) Proc Detach Time Net Fs Os -> str {
+    mut c = kit_check()
+    ro repo = settings.workdir
+    ro baseline_trees = wk_trees(repo)
+    mut rig = rig_open(settings)
+    rig.attach(1)
+    rig.page(1, "session_created", "s-plain", "{\"name\":\"Без проекта\",\"agent\":\"opencode\",\"worktree\":true}")
+    c.expect(rig.until("\"kind\":\"session_created\"", 5000), "projectless session is created")
+    c.expect(!((ck_state(rig, 1, "s-plain").get("use_tree") ?? JsonValue.null()).bool() ?? true), "old client worktree=true is ignored")
+    rig.page(1, "session_worktree", "s-plain", "{\"on\":true}")
+    c.expect(rig.until("чат без проекта не включает Git-worktree", 5000), "direct worktree signal is refused")
+    rig.page(1, "session_result_repo", "s-plain", "{\"repo_id\":\"missing\"}")
+    c.expect(rig.until("чат без проекта не использует репозитории", 5000), "direct repository signal is refused")
+    rig.page(1, "user_message", "s-plain", "{\"turn\":\"plain-1\",\"text\":\"hello\"}")
+    c.expect(rig.until(KIT_DONE, 20000), "projectless ordinary conversation still works")
+    c.expect(wk_trees(repo) == baseline_trees, "projectless creation, direct signals and a message do not create Git worktrees")
+
+    ro folder = kit_slashes("${settings.data_dir}-project-folder")
+    with Fs = real_fs() { ro made = create_dir_all(Path.from_bytes(folder.bytes())) }
+    ro body = "{\"name\":\"Move source\",\"folders\":[{\"path\":\"${folder}\"}]}"
+    ro project_id = match projects_create(settings.data_dir, kit_json_object(body)) {
+        Ok(id) => id
+        Err(e) => panic("project is not created: ${e.message}")
+    }
+    rig.page(1, "session_created", "s-move", "{\"name\":\"Move me\",\"agent\":\"opencode\",\"project_id\":\"${project_id}\",\"folder\":\"${folder}\",\"worktree\":false}")
+    c.expect(rig.until("\"kind\":\"session_created\"", 5000), "project session is created")
+    c.expect(wk_pwd(rig, "s-move", "move-before").ends_with("project-folder"), "project session starts in its project folder")
+    rig.page(1, "session_move", "s-move", "{\"project_id\":\"\"}")
+    c.expect(rig.until("\"project_id\":\"\"", 5000), "move to no project is persisted")
+    ro moved = first_of(rig.lines_for(1), "session_placed", 0)
+    c.expect(line_input(moved, "folder") == "", "move clears the stored project folder")
+    c.expect(wk_pwd(rig, "s-move", "move-after").ends_with(kit_slashes(settings.workdir)), "the restarted agent no longer uses the old project folder")
+    c.expect(wk_trees(repo) == baseline_trees, "move to no project creates no Git worktree")
+    rig.shut()
+
+    mut again = rig_open(settings)
+    again.attach(2)
+    c.expect(!((ck_state(again, 2, "s-move").get("use_tree") ?? JsonValue.null()).bool() ?? true), "restart keeps projectless worktree disabled")
+    c.expect(wk_pwd(again, "s-move", "move-restart").ends_with(kit_slashes(settings.workdir)), "restart keeps the hub folder, not the former project")
+    c.expect(wk_trees(repo) == baseline_trees, "restart does not create Git work")
     again.shut()
     c.report()
 }
