@@ -4,6 +4,7 @@
 import { serviceReg } from "./form-reply.ts"
 import { type QuestionFormIO } from "./question-routing.ts"
 import { type QuestionObservation } from "./question-router.ts"
+import { readWakeById } from "./wake-delivery.ts"
 
 type Registration = { url: string; password: string }
 const route = (session: string, form: string) => `/api/session/${encodeURIComponent(session)}/form/${encodeURIComponent(form)}`
@@ -28,14 +29,34 @@ export async function replyQuestionForm(session: string, form: string, field: st
 
 export const productionQuestionIO: QuestionFormIO = { get: getQuestionForm, reply: replyQuestionForm }
 
-/** Any newer native user input is a stale-answer barrier, NOT proof of approval/owner authority.
- * In particular no phrase/metadata supplied by a model can grant a permission here. */
+/** Newer unrelated user input is a stale-answer barrier, NOT owner authority.
+ * Exact durable outbound provenance excludes our own crew mail, never grants permission.
+ * Inspect older pages too: a fresh crew message must not hide an intervening user input. */
 export async function inspectQuestionText(get: (route: string) => Promise<any>, session: string, since: number): Promise<QuestionObservation> {
   try {
-    const result = await get(`/api/session/${encodeURIComponent(session)}/message?type=user&limit=1&order=desc`)
-    if (!Array.isArray(result?.data) || !result.cursor || result.data.length > 1) return { state: "unknown", why: "неизвестная native SessionMessagesResponse" }
-    const m = result.data[0]
-    if (m && (m.type !== "user" || typeof m.id !== "string" || !Number.isFinite(m.time?.created) || typeof m.text !== "string")) return { state: "unknown", why: "неизвестная native Session.Message.User" }
-    return m && m.time.created > since ? { state: "answered", why: `новый native пользовательский ввод ${m.id}; поздний ответ команды не применяется, это не новое разрешение` } : { state: "pending" }
+    let cursor: string | undefined
+    const seen = new Set<string>(), ids = new Set<string>()
+    for (let page = 0; page < 4; page++) {
+      const result = await get(`/api/session/${encodeURIComponent(session)}/message?type=user&limit=100&${cursor ? `cursor=${encodeURIComponent(cursor)}` : "order=desc"}`)
+      if (!Array.isArray(result?.data) || !result.cursor || typeof result.cursor !== "object" || result.data.length > 100 || (result.cursor.next != null && typeof result.cursor.next !== "string")) return { state: "unknown", why: "неизвестная native SessionMessagesResponse" }
+      for (const m of result.data) {
+        if (m?.type !== "user" || typeof m.id !== "string" || ids.has(m.id) || !Number.isFinite(m.time?.created) || typeof m.text !== "string") return { state: "unknown", why: "неизвестная/повторная native Session.Message.User" }
+        ids.add(m.id)
+        if (m.time.created <= since) continue
+        const receipt = readWakeById(session, m.id)
+        if (receipt.state === "unknown") return { state: "unknown", why: "provenance native input не проверена; это не ответ/полномочие владельца" }
+        if (receipt.state === "known") {
+          const a = receipt.attempt
+          if (a.session !== session || a.id !== m.id || a.text !== m.text || a.at > m.time.created || !a.tries || !Number.isFinite(a.triedAt) || a.triedAt! > m.time.created || ![undefined, "wake", "quiet-prompt"].includes(a.mode) || !["sending", "accepted", "started", "error", "timeout"].includes(a.phase)) return { state: "unknown", why: "native input не совпадает с точной outbound корреляцией/фазой; не полномочие владельца" }
+          continue
+        }
+        return { state: "answered", why: `новый несопоставленный native пользовательский ввод ${m.id}; поздний ответ команды не применяется, это не новое разрешение` }
+      }
+      const next = result.cursor.next
+      if (!next || result.data.some((m: any) => m.time.created <= since)) return { state: "pending" }
+      if (seen.has(next)) break
+      seen.add(next); cursor = next
+    }
+    return { state: "unknown", why: "native история ввода не проверена целиком в пределах чтения; продолжение не разрешено" }
   } catch { return { state: "unknown", why: "native пользовательский ввод не проверен; поздний ответ не применяется" } }
 }

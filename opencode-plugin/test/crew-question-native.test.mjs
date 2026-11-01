@@ -24,6 +24,18 @@ try {
   assert.equal(barrier.state, 'answered')
   assert.match(barrier.why, /не новое разрешение/)
   assert.equal(barrier.answer, undefined, 'native user input is only a stale-answer barrier, not extracted owner approval')
+  const { newWake, saveWake } = await import('../wake-delivery.ts')
+  const letter = { id: 'question-route-fixture', to: 'ses_fixture', from_session: 'ses_other', from_role: 'sample.integrator', text: 'служебный ответ', time: 11 }
+  const own = newWake('ses_fixture', [letter], 'Точное служебное письмо', 11)
+  own.phase = 'sending'; own.tries = 1; own.triedAt = 11; saveWake(own)
+  const ownMessage = { id: own.id, type: 'user', text: own.text, time: { created: 12 } }
+  assert.equal((await inspectQuestionText(async () => ({ data: [ownMessage], cursor: {} }), 'ses_fixture', 10)).state, 'pending', 'trusted own outbound mail is not an owner answer/stale barrier')
+  assert.equal((await inspectQuestionText(async () => ({ data: [{ ...ownMessage, text: 'другой текст' }], cursor: {} }), 'ses_fixture', 10)).state, 'unknown')
+  assert.equal((await inspectQuestionText(async () => ({ data: [ownMessage], cursor: {} }), 'ses_wrong', 10)).state, 'unknown', 'wrong session cannot borrow provenance')
+  assert.equal((await inspectQuestionText(async () => ({ data: [ownMessage, user(11).data[0]], cursor: {} }), 'ses_fixture', 10)).state, 'answered', 'own newest mail must not hide a newer unrelated user input')
+  let page = 0
+  assert.equal((await inspectQuestionText(async route => { page++; if (page === 1) return { data: [ownMessage], cursor: { next: 'opaque-next' } }; assert.match(route, /cursor=opaque-next/); assert.doesNotMatch(route, /order=/); return user(11) }, 'ses_fixture', 10)).state, 'answered')
+  assert.equal((await inspectQuestionText(async () => ({ data: [ownMessage], cursor: { next: 'repeat' } }), 'ses_fixture', 10)).state, 'unknown', 'incomplete/repeating pages never mean pending')
   assert.equal((await inspectQuestionText(async () => ({ data: [] }), 'ses_fixture', 10)).state, 'unknown')
   assert.equal((await inspectQuestionText(async () => { throw new Error('unavailable') }, 'ses_fixture', 10)).state, 'unknown')
   console.log('ok exact native Form.Reply statuses/schema, explicit transport isolation and no model-text authority')

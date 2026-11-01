@@ -59,7 +59,7 @@ export function nativeFixture(ctx) {
     if (!match) throw new Error(`unsupported isolated native route: ${route}`)
     const session = decodeURIComponent(match[1]), tail = match[2]
     if (tail.startsWith("/message/")) return { data: projected.get(session)?.find(m => m.id === decodeURIComponent(tail.slice(9))) }
-    if (tail === "/message") return { data: projected.get(session) ?? [], cursor: {} }
+    if (tail === "/message") return { data: (projected.get(session) ?? []).filter(m => !url.searchParams.get("type") || m.type === url.searchParams.get("type")), cursor: {} }
     if (tail === "/inbox") return { data: [] }
     const info = await ctx.session.get({ sessionID: session })
     const value = info?.data ?? info

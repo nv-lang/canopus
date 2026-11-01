@@ -148,7 +148,28 @@ try {
   const late = await qtool.execute({ action: 'resolve', id: chain.id, epoch: chain.epoch, text: `Передай exact SHA ${sha} ещё раз.`, sources: chainProof }, { sessionID: integrator })
   assert.match(late.content, /settled/)
   assert.equal(posts, 5)
+  // An in-flight tool/native read drains across unload; it must not turn into a new reply POST.
+  const closing = 'frm_dispose'
+  forms.set(closing, { id: closing, sessionID: worker, title: 'Alula', metadata: { kind: 'question' }, fields, state: { status: 'pending' } })
+  fw.addForm(worker, { id: closing, session: worker, at: Date.now(), kind: 'question', nq: 1, full: fields[0].description })
+  await until(() => router.list().some(r => r.form?.id === closing && r.target === integrator))
+  const closingRecord = router.list().find(r => r.form?.id === closing)
+  let enter, release
+  const entered = new Promise(r => { enter = r }), blocked = new Promise(r => { release = r })
+  const get = questionIO.get
+  questionIO.get = async (s, f) => { if (f === closing) { enter(); await blocked }; return get(s, f) }
+  const pending = qtool.execute({ action: 'resolve', id: closingRecord.id, epoch: closingRecord.epoch, text: 'Команда проверена, без новых разрешений.', sources: [{ path: 'doc/source.md', sha256: digest(sourceText), quote: sourceText }] }, { sessionID: integrator })
+  await entered
+  const draining = stop()
+  release()
+  await Promise.all([draining, pending])
+  stop = undefined
+  assert.equal(posts, 5, 'late question GET cannot POST through a disposed plugin')
+  assert.equal(router.get(closingRecord.id).attempted, undefined)
+  const unloaded = await qtool.execute({ action: 'claim', id: closingRecord.id, epoch: closingRecord.epoch }, { sessionID: integrator })
+  assert.match(unloaded.content, /снят/)
   console.log('ok real plugin: existing form -> integrator with source -> exact native field once, no guessed Recommended/interrupt')
   console.log('ok real plugin AC-1 matrix: worker/reviewer with/without Recommended preserve native qid and source')
   console.log('ok 087: current decision/same SHA/scope -> original call continued; wrong SHA/scope/second reply refused')
+  console.log('ok question tool/GET unload drains; no late reply POST or new native attempt')
 } finally { await stop?.(); rmSync(tmp, { recursive: true, force: true }) }

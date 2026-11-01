@@ -64,6 +64,14 @@ try {
   assert.match(refused.content, /HOLD/)
   assert.equal(loadTask('sample', held.n).status, 'submitted')
   assert.deepEqual(core.readJson(holdFile), holdRecord)
+  assert.match(core.questionExecutionBlock({ questionCanReply: () => undefined }, 'sample', held.n), /HOLD/, 'host override cannot silently release durable legacy HOLD')
+  for (const scope of ['execution', 'external', 'gate']) {
+    const scoped = { ...holdRecord, hold: { ...holdRecord.hold, scope, gate: true, ...(scope === 'external' ? { wait: { id: 'fixture-current-ci', deadline: 1_000_000 } } : {}) } }
+    writeFileSync(holdFile, JSON.stringify(scoped))
+    assert.equal(!!core.questionExecutionBlock({}, 'sample', held.n), scope === 'execution')
+    assert.deepEqual(core.readJson(holdFile), scoped, 'question adapter never clears or migrates HOLD')
+  }
+  writeFileSync(holdFile, JSON.stringify(holdRecord))
   const next = { ...integrator, session: 'ses_fixture_new_integrator' }
   core.saveCard(next); core.takeExclusive('sample.integrator', 'integrator', next.session, true)
   assert.equal(core.questionRouterFor(host).deps.target({ project: 'sample', task: small.n, session: worker.session }), next.session, 'stale task.author role cannot override the current integrator lock')
