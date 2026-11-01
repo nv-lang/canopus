@@ -1,9 +1,19 @@
 // Isolated 272 integration entry: Nova otherwise collects every peer test in server_live.
 module crew_harness.family_approval_tests
 
-import crew_harness.server.{kit_files, scenario_family_approvals}
+import crew_harness.server.{kit_files, scenario_family_approvals, scenario_choose_cold, scenario_approval_launch_gates}
 
 test "272: approvals persist across source and restart, unknown and preparation block dispatch" {
     ro report = scenario_family_approvals(kit_files("approval272isolated", 30000))
     if report.byte_len() > 0 { panic("family approvals: ${report}") }
+}
+
+test "272: the ordinary setting API still starts and configures a cold current family" {
+    ro report = scenario_choose_cold(kit_files("approval272cold", 30000))
+    if report.byte_len() > 0 { panic("cold family approvals: ${report}") }
+}
+
+test "272: cold current, inactive, preparation and creation approval launch gates" {
+    ro report = scenario_approval_launch_gates(kit_files("approval272gates", 30000))
+    if report.byte_len() > 0 { panic("approval launch gates: ${report}") }
 }

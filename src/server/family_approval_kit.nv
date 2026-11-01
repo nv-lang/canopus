@@ -51,3 +51,36 @@ export fn scenario_family_approvals(settings ServerSettings) Proc Detach Time Ne
     again.shut()
     c.report()
 }
+
+export fn scenario_approval_launch_gates(settings ServerSettings) Proc Detach Time Net Fs Os -> str {
+    mut c = kit_check()
+    mut configured = ServerSettings { ...settings }
+    configured.acp_trace = true
+    mut rig = rig_open(configured)
+    rig.attach(1)
+    rig.page(1, "session_created", "s-gates", "{\"name\":\"Запуск режимом\",\"agent\":\"opencode\",\"worktree\":false}")
+    c.expect(source_ask(rig, "s-gates", "mode") == KIT_DEFAULTS, "native capabilities are known before the cold-setting probes")
+    rig.shut()
+    mut again = rig_open(configured)
+    again.attach(1)
+    c.expect(!again.hub.has_agent("s-gates"), "restart leaves the current family cold")
+    ro trace_file = kit_session_file(configured, "s-gates", "acp.jsonl")
+    ro before = kit_file_text(trace_file)
+    again.page(1, "session_setting", "s-gates", "{\"family\":\"second\",\"setting\":\"mode\",\"value\":\"plan\"}")
+    again.run(200)
+    c.expect(!again.hub.has_agent("s-gates") && kit_file_text(trace_file) == before, "inactive family setting does not launch any ACP client")
+    again.page(1, "session_route", "s-gates", "{\"route\":\"planning\"}")
+    again.page(1, "session_setting", "s-gates", "{\"family\":\"opencode\",\"setting\":\"mode\",\"value\":\"yolo\"}")
+    again.run(200)
+    c.expect(!again.hub.has_agent("s-gates") && kit_file_text(trace_file) == before, "WorkModePolicy denies ACP launch by a wide native mode in preparation")
+    again.page(1, "session_created", "s-prep-input", "{\"name\":\"Подготовка с настройкой\",\"agent\":\"opencode\",\"route\":\"planning\",\"worktree\":false,\"approvals\":{\"opencode\":\"yolo\"}}")
+    again.run(200)
+    c.expect(!again.hub.has_agent("s-prep-input"), "session_created installs the final preparation mode before any ACP launch")
+    c.expect(!kit_file_text(kit_session_file(configured, "s-prep-input", "acp.jsonl")).contains("initialize"), "no transient initialize was sent before the final work mode was saved")
+    again.page(1, "session_route", "s-gates", "{\"route\":\"interactive\"}")
+    again.forget()
+    again.page(1, "session_setting", "s-gates", "{\"family\":\"opencode\",\"setting\":\"mode\",\"value\":\"plan\"}")
+    c.expect(again.until("\"mode\":\"plan\"", 10000) && again.hub.has_agent("s-gates"), "explicit mode starts and configures the current cold family when WorkModePolicy allows it")
+    again.shut()
+    c.report()
+}

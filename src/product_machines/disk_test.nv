@@ -71,6 +71,10 @@ test "disk: a missing file is an error that names its path" {
     assert(e.contains("missing"))
     ro dir2 = dk_copy("missing-lib", "libs/", "", "", true)
     assert(dk_error(dir2).contains("${dir2}/libs/call_cancel.alula.md"))
+    for name in ["family-approval.alula.json", "family-approval.alula.md"] {
+        ro missing = dk_copy("missing-${name}", name, "", "", true)
+        assert(dk_error(missing).contains("${missing}/${name}"))
+    }
 }
 
 test "disk: a tree, a table or a library of another alula_version is refused" {

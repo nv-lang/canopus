@@ -44,6 +44,8 @@ def machines(lib=LIB, tree_version="0.28", table_version="0.28", tree_hash=None,
              "machines/product/dialog.alula.md": table,
              "machines/product/work-mode.alula.json": json.dumps({"alula_version": "0.28"}),
              "machines/product/work-mode.alula.md": "# Машина: Политика\n\n- alula_version: 0.28\n",
+             "machines/product/family-approval.alula.json": json.dumps({"alula_version": "0.28"}),
+             "machines/product/family-approval.alula.md": "# Машина: Родные режимы\n\n- alula_version: 0.28\n",
              "machines/product/journal.md": "# Журнал продукта\n",
              "machines/product/tests/dialog-x.alula.test.json": "{}\n"}
     if with_lib:
@@ -97,7 +99,7 @@ def main():
         return fn
 
     pr.probe("законное", "согласованные машины дерева, tests/ не судятся",
-             lambda: stlib.expect(check(fresh(machines())), 0, "ок: осмотрено 6"))
+             lambda: stlib.expect(check(fresh(machines())), 0, "ок: осмотрено 8"))
     pr.probe("законное", "комплект: программы и машины диалога",
              lambda: stlib.expect(check(fresh(machines()), "--kit", kit(kit_files())), 0, "ок: осмотрено"))
     pr.probe("красная", "дерево чужой версии языка", red_tree(machines(tree_version="0.26"), "alula-version"))
@@ -112,6 +114,8 @@ def main():
     pr.probe("красная", "подключённой библиотеки нет", red_tree(machines(with_lib=False), "library-missing"))
     pr.probe("красная", "в комплекте нет crew-hub.exe", red_kit(kit_files(drop=["crew-hub.exe"]), "kit-program"))
     pr.probe("красная", "в комплекте нет journal.md", red_kit(kit_files(drop=["machines/product/journal.md"]), "kit-machine"))
+    for name in ("family-approval.alula.json", "family-approval.alula.md"):
+        pr.probe("красная", "в комплекте нет " + name, red_kit(kit_files(drop=["machines/product/" + name]), "kit-machine"))
     pr.probe("красная", "в комплекте tests/",
              red_kit(kit_files({"machines/product/tests/dialog-x.alula.test.json": "{}\n"}), "kit-extra"))
     pr.probe("красная", "в комплекте чат", red_kit(kit_files({"machines/product/chat.alula.json": "{}\n"}), "kit-extra"))

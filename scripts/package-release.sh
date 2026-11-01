@@ -4,7 +4,7 @@
 #     эта папка; руками её не собирают, а собранное проверяет страж.
 # Проверяет: target/crew-harness.exe и target/crew-hub.exe есть (с --build собирает их nova build);
 #     папка комплекта пуста или её нет; кладёт обе программы и machines/product: dialog.alula.json,
-#     dialog.alula.md, journal.md и libs/ (без tests/, без чата chat.* — он только для тестов);
+#     dialog.alula.md, work-mode.*, family-approval.*, journal.md и libs/ (без tests/, без чата chat.*);
 #     затем зовёт стража scripts/guards/check-release-kit.py --kit на собранной папке.
 # Не проверяет: что программы собраны из этого дерева без --build, что nova в PATH (без --build не нужна).
 # Правило: задача 248; AGENTS.md п.14 (не должно быть ручных команд там, где их может сделать программа).
@@ -41,7 +41,7 @@ fi
 
 mkdir -p "$kit/machines/product/libs" || { echo "FAIL: папка $kit не создаётся"; exit 1; }
 cp "$root/target/crew-harness.exe" "$root/target/crew-hub.exe" "$kit/" || { echo "FAIL: программы не скопированы"; exit 1; }
-for name in dialog.alula.json dialog.alula.md work-mode.alula.json work-mode.alula.md journal.md; do
+for name in dialog.alula.json dialog.alula.md work-mode.alula.json work-mode.alula.md family-approval.alula.json family-approval.alula.md journal.md; do
   cp "$root/machines/product/$name" "$kit/machines/product/" || { echo "FAIL: machines/product/$name не скопирован"; exit 1; }
 done
 for lib in "$root"/machines/product/libs/*.alula.md; do

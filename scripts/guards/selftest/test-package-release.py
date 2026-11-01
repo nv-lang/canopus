@@ -4,7 +4,7 @@
 Зачем: комплект — то, что владелец запускает; сборщик, который забыл файл машины, положил тесты,
     чат или чужие машины или не позвал стража, выдаёт комплект, который не стартует или несёт лишнее.
 Проверяет: зелёные — из дерева с программами в target/ собирается комплект: две программы,
-    machines/product с dialog.alula.json, dialog.alula.md, journal.md и libs/, без tests/ и chat.*,
+    machines/product с dialog.*, work-mode.*, family-approval.*, journal.md и libs/, без tests/ и chat.*,
     страж комплекта зелёный; красные — нет target/crew-hub.exe; папка комплекта не пуста; машины
     дерева несогласованы (страж красный); без папки комплекта — отказ с кодом 2.
 Не проверяет: сборку программ nova build (флаг --build), сам страж (его самотест test-check-release-kit.py).
@@ -42,6 +42,8 @@ def tree_files(lib_hash=None, hub=True):
              "machines/product/dialog.alula.md": "# Машина: Диалог\n\n- alula_version: 0.28\n",
              "machines/product/work-mode.alula.json": json.dumps({"alula_version": "0.28"}),
              "machines/product/work-mode.alula.md": "# Машина: Политика\n\n- alula_version: 0.28\n",
+             "machines/product/family-approval.alula.json": json.dumps({"alula_version": "0.28"}),
+             "machines/product/family-approval.alula.md": "# Машина: Родные режимы\n\n- alula_version: 0.28\n",
              "machines/product/chat.alula.json": json.dumps({"alula_version": "0.28"}),
              "machines/product/chat.alula.md": "# Машина: Чат\n\n- alula_version: 0.28\n",
              "machines/product/journal.md": "# Журнал\n",
@@ -78,7 +80,8 @@ def main():
         listed = sorted(os.path.relpath(os.path.join(b, n), kit).replace("\\", "/")
                         for b, _, names in os.walk(kit) for n in names)
         assert listed == ["crew-harness.exe", "crew-hub.exe", "machines/product/dialog.alula.json",
-                          "machines/product/dialog.alula.md", "machines/product/journal.md",
+                          "machines/product/dialog.alula.md", "machines/product/family-approval.alula.json",
+                          "machines/product/family-approval.alula.md", "machines/product/journal.md",
                            "machines/product/libs/call_cancel.alula.md", "machines/product/work-mode.alula.json",
                            "machines/product/work-mode.alula.md"], listed
         assert stlib.has_line(proc, "ок: осмотрено"), proc.out
@@ -101,10 +104,18 @@ def main():
         proc = package(fresh(tree_files()))
         assert proc.returncode == 2, proc.out
 
+    def missing_policy(name):
+        files = tree_files()
+        files.pop("machines/product/" + name)
+        proc = package(fresh(files), kit_path())
+        assert proc.returncode == 1 and stlib.has_line(proc, name), proc.out
+
     pr.probe("законное", "комплект: две программы и машины диалога, без tests/, чата и чужих машин", legit)
     pr.probe("красная", "нет target/crew-hub.exe", no_hub)
     pr.probe("красная", "папка комплекта не пуста", not_empty)
     pr.probe("красная", "хеш подключения не равен хешу библиотеки — страж красный", broken_hash)
+    for name in ("family-approval.alula.json", "family-approval.alula.md"):
+        pr.probe("красная", "нет обязательной политики " + name, lambda name=name: missing_policy(name))
     pr.probe("мишень", "папка комплекта не названа — отказ", no_kit)
     return pr.done()
 

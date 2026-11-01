@@ -1045,7 +1045,7 @@ fn Hub mut @create(conn int, trace str, input JsonObject) Proc Detach Time -> ()
             @drain(at)
             if jtext(input, "preset").byte_len() > 0 { @set_preset(trace, jtext(input, "preset"), input) }
             match jchild(input, "approvals") {
-                Some(approvals) => for (family, mode) in approvals { @family_approval(trace, family, mode.str() ?? "") }
+                Some(approvals) => for (family, mode) in approvals { @family_approval(trace, family, mode.str() ?? "", false) }
                 None => ()
             }
             match jchild(input, "source") {
@@ -2110,7 +2110,7 @@ export fn Hub mut @handle(conn int, text str) Proc Detach Time -> () {
     } else if kind == "session_setting" {
         if jtext(input, "setting") == "mode" && active_at >= 0 {
             ro family = if jtext(input, "family").byte_len() > 0 { jtext(input, "family") } else { @sessions[active_at].agent }
-            @family_approval(trace, family, jtext(input, "value"))
+            @family_approval(trace, family, jtext(input, "value"), true)
         } else {
             @choose(trace, jtext(input, "setting"), jtext(input, "value"))
         }

@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('focused', 'unit', 'server-live', 'acp-fixtures', 'web', 'guards')]
+    [ValidateSet('focused', 'unit', 'server-live', 'acp-fixtures', 'web', 'guards', 'package')]
     [string]$Stage = 'focused',
     [string]$NovaHome = 'C:/work/nova/nova-oracle-0.1.0-windows-x86_64'
 )
@@ -11,6 +11,12 @@ if ($Stage -eq 'web') {
 }
 if ($Stage -eq 'guards') {
     & bash scripts/guards/run-all.sh
+    exit $LASTEXITCODE
+}
+if ($Stage -eq 'package') {
+    & python scripts/guards/selftest/test-check-release-kit.py
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    & python scripts/guards/selftest/test-package-release.py
     exit $LASTEXITCODE
 }
 . (Join-Path $NovaHome 'setup-env.ps1')
@@ -28,6 +34,6 @@ $paths = switch ($Stage) {
     # CREW_REAL_ACP is cleared above so the real-agent test takes its explicit skip branch.
     'acp-fixtures' { @('src/acp_live/client_test.nv') }
 }
-$arguments = @('test') + $paths + @('--jobs', '1', '--timeout', '600')
+$arguments = @('test') + $paths + @('--jobs', '1', '--timeout', '600', '--verbose')
 & (Join-Path $NovaHome 'nova.exe') @arguments
 exit $LASTEXITCODE
