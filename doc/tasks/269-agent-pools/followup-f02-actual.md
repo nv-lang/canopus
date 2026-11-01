@@ -1,0 +1,26 @@
+# 269. F-02: фактический агент каждого dispatch
+
+Основание: интегратор, 2026-11-01, письмо 15:45, передача нового слова владельца 15:37 о завершении эпика 268; после управляемого обновления 17:32 GO. Общий кандидат собирает 277, его согласованная assembly база `61c3dd3193dcb805baeb106e15316b98c7e3972c` (source эквивалентен `782c6eba`). Дельта разрабатывается только на собственной ветке поверх `b765a701`; Windows ACL не меняется и не переносится вместе с узкой дельтой.
+
+## Контракт с 270 и 277
+
+- Каждый фактический prompt dispatch из `AcpClient.drive`, после ready/pending-settings/native-mode gates, создаёт `agent_actual` Progress Incoming с request binding и payload `{dispatch_id,family,model,effort,role}`. Это snapshot подтверждённых current options, не preset/requested selection. Он создаётся и при неизменном pinned выборе, и после restart.
+- `dispatch_id` — native engine request id, дополнительный audit key. `page_input_of` добавляет **canonical** `turn` и `turn_id`: оба равны `input.turn` у `agent_chunk`/`agent_done` из того же существующего mapper `hub.line_of`. Журналированный request/snapshot проходит stream/replay, не реконструируется из последних requested настроек страницы.
+- Catalog family задаётся hub из реально открытой семьи сессии; ACP `agentInfo.name` — другое, display имя, оно не используется как family. Неизвестная family/model/effort не заменяется requested/pool/default.
+- Старые `agent_selection`/`agent_selected` и независимые `review_selection`/`review_selected` сохраняются. Роль reviewer задаётся отдельно `dev_accept`; существующий reviewer route не превращает reviewer metadata в executor response. Frontend принадлежит 270, common smoke/replay — 277.
+- Автоматический quota fallback, hot cross-family migration и OS sandbox не являются новым обязательством этого исправления.
+
+## RED → GREEN и пределы
+
+- Первый test-module имел неверное module path, второй legacy spelling также отклонён compiler D78; оба CODEGEN-FAIL, **не RED поведения**. Canonical rev-3 `agent_pool_tests.actual_test` принят без flags/toolchain/C изменений.
+- `1793546209944-fldku2`: RUN-FAIL, `page_event(agent_actual)` возвращал None. После dispatch/projection source delta `1793546533620-c5fvxi`: exit 0, PASS 1 / FAIL 0. Проверены canonical turn вместо native request id, сохранённые exact fields и повторяемость page projection.
+- Live `1793546681570-n54481`: настоящий RUN-FAIL на exact family/model/effort. Причина: ACP client `agent` содержит `agentInfo.name`, не catalog family. Добавлена отдельная `dispatch_family`, устанавливаемая hub/reviewer из реальной launch family; ожидание exact settings не ослаблено. Остальные assertions, включая два неизменных dispatch с разными audit ids, не сообщили ошибки.
+- Необходимый live повтор `1793547101342-mxh80t`: **exit 0, PASS 1 / FAIL 0**, около трёх минут, fake ACP без provider/платных вызовов. Подтверждены exact actual family/model/effort, два последовательных неизменных dispatch с разными request audit ids и точным canonical turn, ровно один snapshot на dispatch; также прежние isolated pool/pinning/disable/restart/refusal сценарии. Это GREEN данного isolated сценария, не старого полного server_live и не нового общего кандидата 277.
+- Узкий итоговый unit `1793547364187-z4ldru`: canonical page actual projection **PASS**, но direct `signals_test.nv` entry **CODEGEN-FAIL Vec.join → Path fallback**, при уже имеющемся `import std.text`. Dictionary assertions этим запуском **NOT RUN**; C/flags/toolchain/import-order обходов нет. Для изменённого словаря поставлен штатный aggregated `src/server` unit entry (`1793547636290-yzsp8m`), не старый server_live аудит. Полная общая smoke/replay двух ходов и restart на assembly SHA — у 277, здесь её результат не предсказывается.
+- Штатный агрегированный `powershell -NoLogo -NoProfile -NonInteractive -File doc/tasks/269-agent-pools/verify.ps1 -Paths src/server`, watch `1793547636290-yzsp8m`: **exit 0, PASS 2 / FAIL 0**, server/agent_config и front/agent_catalog, около шести минут. Изменённый словарь и его scanner проверены этим поддержанным entry, не direct-file entry. `git diff --check` без ошибок. Source и expectations не менялись ради compiler workaround. Отдельный full ACP-live набор не повторялся; общий assembly smoke/replay и независимая проверка нового commit остаются у 277.
+
+## REQ-01..04 и REQ-23
+
+Готовые pools/weighted commits в assembly уже присутствуют как `d97f02d9` / `d2019375`; словарь `0240df73` patch-identical `af9790ff` по квитанции 277. Повторного переноса этих изменений не требуется. Отдельный signed F-02 delta передаётся после проверки.
+
+Минимум миграции REQ-23 согласован с 277: исходный JSON сохраняется побайтно, dry-run без записи, новые файлы только при нуле unresolved в отсутствующем каталоге, без личной активации. Exact ACP mapping обязателен; aliases/inheritance сохраняются по [conversion.md](conversion.md), metadata не является доказательством эквивалентного поведения. Фактические несовместимые входы: context/input/output windows, tier task без explicit default weight, missing/duplicate/ambiguous mapping, неразрешённый spawn_models/unknown profile fields/неоднозначные aliases. Они блокируют запись, не теряются молча. History/restart — отдельный runtime контракт REQ-21/22, не новая hot migration.

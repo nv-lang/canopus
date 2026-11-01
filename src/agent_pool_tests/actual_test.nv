@@ -1,0 +1,20 @@
+// 269 F-02: page turn binding must use the same mapper as response chunks.
+module agent_pool_tests.actual_test
+
+import alula.engine.{Incoming, EventKind}
+import crew_harness.acp.{page_event}
+import std.encoding.json.{Json}
+
+test "269 actual dispatch snapshot binds to response turn not request id" {
+    ro actual = Incoming.incoming(EventKind.Progress, "agent_actual", Some("dispatch-1"), "{\"dispatch_id\":\"dispatch-1\",\"family\":\"fake\",\"model\":\"confirmed\",\"effort\":\"native\",\"role\":\"dev\"}")
+    ro line = page_event(actual, "user-turn-2").unwrap()
+    ro event = Json.parse(line).unwrap().object().unwrap()
+    ro input = event.get("input").unwrap().object().unwrap()
+    assert(event.get("kind").unwrap().str().unwrap() == "agent_actual")
+    assert(input.get("turn_id").unwrap().str().unwrap() == "user-turn-2")
+    assert(input.get("turn").unwrap().str().unwrap() == "user-turn-2")
+    assert(input.get("dispatch_id").unwrap().str().unwrap() == "dispatch-1")
+    assert(input.get("model").unwrap().str().unwrap() == "confirmed")
+    assert(input.get("effort").unwrap().str().unwrap() == "native")
+    assert(page_event(actual, "user-turn-2").unwrap() == line)
+}

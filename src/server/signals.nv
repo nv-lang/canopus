@@ -29,6 +29,7 @@ export fn signals_given_by_code() -> []CodeSignal => [
     cs("session_source", "input", "src/server/hub.nv: Hub.set_source", "family, model, effort OR pool, level (JSON text)", false),
     cs("agent_selection", "input", "src/server/hub.nv: Hub.source_for_turn (requested executor source)", "family, model, effort, source_effort, pool, level, role, weight (JSON text)", false),
     cs("agent_selected", "input", "src/server/hub.nv: Hub.watch_agent (confirmed executor ACP model and effort)", "family, model, effort, source_effort, pool, level, role, weight (JSON text)", false),
+    cs("agent_actual", "progress", "src/acp/client.nv: AcpClient.drive (every dispatch after ACP confirmations)", "dispatch_id, family, model, effort, role; page adds canonical turn and turn_id (JSON text)", false),
     cs("review_selection", "input", "src/server/routes_hub.nv: Hub.route_start_review (requested independent source)", "family, model, effort, pool?, level?, role, weight (JSON text)", false),
     cs("review_selected", "input", "src/server/routes_hub.nv: Hub.route_review_poll (confirmed independent ACP model and effort before dispatch)", "family, model, effort, pool?, level?, role, weight (JSON text)", false),
     cs("session_placed", "input", "src/server/hub.nv: Hub.reorder, Hub.move", "rank, and project_id, project when the session goes to another project (JSON text)", false),

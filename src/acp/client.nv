@@ -103,6 +103,8 @@ export type AcpClient {
     prelude str,
     presets []AcpPreset,
     strict_source bool,
+    dispatch_role str,
+    dispatch_family str,
     required_mode str,
     settled []AcpPreset,
     dropped []AcpDrop,
@@ -356,7 +358,7 @@ export fn open_client_full(config AcpConfig, trace_path str, trace_limit int, as
                 config, link, phase: "initializing", next_rpc: 0, init_rpc: -1, new_rpc: -1, prompt_rpc: -1,
                 session: "", agent: "", model_name: "", modes: JsonValue.null(), models: JsonValue.null(), choices_cfg: JsonValue.null(), mode_now: "", model_now: "", sets: []AcpSet.new(), queue: []AcpQueued.new(), active: "", permissions: []AcpPending.new(), ask, asks: []AcpAsk.new(), mcp_http: false, hint_due: false,
                 ready, taken: []AcpInboxItem.new(), next_seq: next, stderr: "", exit_code: -2, last_error: "", trace: trace_open(trace_path, trace_limit),
-                images_ok: false, attached: []AcpImage.new(), prelude: "", presets: []AcpPreset.new(), strict_source: false, required_mode: "", settled: []AcpPreset.new(), dropped: []AcpDrop.new(), marker: marker_start(), commands: []str.new()
+                images_ok: false, attached: []AcpImage.new(), prelude: "", presets: []AcpPreset.new(), strict_source: false, dispatch_role: "dev", dispatch_family: "", required_mode: "", settled: []AcpPreset.new(), dropped: []AcpDrop.new(), marker: marker_start(), commands: []str.new()
             }
             client.init_rpc = client.next_id()
             client.say(rpc_request_line(client.init_rpc, "initialize", initialize_params(ask.form)))
@@ -931,8 +933,20 @@ fn AcpClient mut @drive() -> () {
             @push(Incoming.signal("images_skipped", skipped_text(@agent, next.images.len())))
         }
     }
+    // Every dispatch gets its own confirmed snapshot, including unchanged
+    // pinned choices and restarted clients. Never copy pending/requested picks.
+    mut actual = JsonObject.new()
+    put(actual, "dispatch_id", JsonValue.str(@active))
+    put(actual, "family", JsonValue.str(@dispatch_family))
+    put(actual, "model", JsonValue.str(@current_of("model")))
+    put(actual, "effort", JsonValue.str(@current_of("effort")))
+    put(actual, "role", JsonValue.str(@dispatch_role))
+    @push(Incoming.incoming(EventKind.Progress, "agent_actual", Some(@active), JsonValue.object(actual).to_str()))
     @say(rpc_request_line(@prompt_rpc, "session/prompt", prompt_params(@session, text, pictures)))
 }
+
+export fn AcpClient mut @set_dispatch_role(role str) -> () { @dispatch_role = role }
+export fn AcpClient mut @set_dispatch_family(family str) -> () { @dispatch_family = family }
 
 /// A hidden note for the NEXT request that is sent to the agent (task 192q): it is put before its text in the prompt and is forgotten after.
 export fn AcpClient mut @set_prelude(text str) -> () {

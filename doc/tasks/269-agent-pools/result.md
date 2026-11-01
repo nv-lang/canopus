@@ -2,6 +2,12 @@
 
 Статус: проверяемый инкремент подготовлен для независимой приёмки; не закрытие всего требования владельца. Полный server_live остаётся красным.
 
+## Возобновление 268: узкий F-02 actual-agent delta
+
+По передаче интегратора 2026-11-01 15:45 нового слова владельца 15:37 и GO после обновления 17:32 выполнен только подтверждённый остаток F-02/REQ-07: journal Progress `agent_actual` на каждый ACP dispatch после settings confirmations. Canonical page `input.turn` и `turn_id` совпадают с ключом chunk/done; `dispatch_id` отдельный audit key. Семья — фактически открытая catalog family, не ACP agentInfo display name; модель/усилие — подтверждённые current options, не requested/pool level. Контракт согласован с 270/277.
+
+RED projection `1793546209944-fldku2` → unit GREEN `1793546533620-c5fvxi`; настоящий live RED exact family `1793546681570-n54481` → исправление отдельной dispatch_family → **isolated live GREEN `1793547101342-mxh80t`, exit 0, PASS 1 / FAIL 0**. Final projection также PASS в `1793547364187-z4ldru`, но direct signals entry дал compiler Vec.join error; штатный aggregated server unit `1793547636290-yzsp8m` затем **exit 0, PASS 2 / FAIL 0**, включая изменённый словарь. Подробный scope и незакрытый общий smoke/replay: [followup-f02-actual.md](followup-f02-actual.md). ACL ниже — отдельная замороженная история, не зависимость этого исправления и не переносится механически в общий candidate. Старые широкие PASS/RED на новые SHA не переносятся.
+
 ## Ограниченный этап Windows ACL adapter
 
 Разрешение 08:30, начало 08:33, только adapter/проверки/runtime asset — **не** cwd/env/launch-интеграция F-09. Первый signed WIP `13240da5` сохраняет начальный script/policy результат, не готовность всей границы. После разрешённых compiler capability/control-flow шагов подготовлены отдельный native wrapper, bounded concurrent transport и kit asset/manifest.

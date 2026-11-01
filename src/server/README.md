@@ -30,6 +30,7 @@ fail closed. ACP model/effort requests must all settle before its prompt; `revie
 record the requested and confirmed independent choice separately from the executor's pinned source.
 `session_created.input.source` accepts the same source. The source is persisted in the session journal.
 `agent_selection` records a requested choice; `agent_selected` records the confirmed model and native effort.
+`agent_actual` is emitted for every ACP prompt dispatch after pending settings settle, even when a pinned model does not change. Its journal payload carries the dispatch request id and confirmed family/model/native effort/role; page projection adds canonical `turn` and `turn_id` using the same mapper as `agent_chunk`/`agent_done`. Requested selections are not evidence of the model that produced a response. Missing native model/effort stays unknown, never substituted from a preset or pool level.
 The selection stays pinned across turns and restarts while that exact pool entry remains active and available.
 Availability requires the exact family/model pair in the ACP catalog; an empty level is an error, never a fallback.
 ACP prompts wait for source settings to settle; refusal fails closed rather than running the default model.
