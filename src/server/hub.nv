@@ -160,7 +160,7 @@ export type Hub {
 }
 
 /// TreeDone: the answer of the background job that makes the wip tree of a session (task 192.8): the exit code of `git worktree add` (-1: not run), its error stream as bytes, the note, the path and the base.
-export type TreeDone { trace str, code int, err []u8, note str, path str, base str }
+export type TreeDone { trace str, generation int, code int, err []u8, note str, path str, base str }
 
 /// HeldMsg: a message of the owner that waits for the tree of its session (task 192.8); it is sent to the agent when the tree is ready or has failed.
 export type HeldMsg { trace str, text str, items []JsonValue }
@@ -1044,6 +1044,7 @@ fn Hub mut @create(conn int, trace str, input JsonObject) Proc Detach Time -> ()
             js(place, "route", if route_valid(jtext(input, "route")) { jtext(input, "route") } else { "interactive" })
             jput(place, "worktree", JsonValue.bool(tree))
             js(place, "source_branch", source)
+            jput(place, "workspace_explicit", JsonValue.bool(jflag(input, "workspace_explicit") || source.byte_len() > 0))
             @rt_journal(at, "route_set", JsonValue.object(place).to_str())
             @route_broadcast(at, true)
             ro reason = @ensure_client(at)
@@ -1172,6 +1173,12 @@ fn Hub mut @say(trace str, text str, items []JsonValue) Proc Detach Time -> () {
     // task 192.8: the tree of the session is made in the background; the message waits for it (it is not lost) and the hub answers the pages meanwhile
     if @sessions[at].rt.wip_prep > 0 {
         @wip_hold(trace, text, items)
+        return
+    }
+    ro workspace = @sessions[at]
+    ro required_tree = workspace.rt.use_tree && wip_explicit(workspace.rt) && workspace.rt.worktree.byte_len() == 0 && workspace.rt.result_repo.byte_len() == 0
+    if required_tree && @work_allowed(at, "execute") && !workspace_dispatch_allows(@work_mode, workspace.rt.route, true, workspace.rt.wip_tree.byte_len() > 0, workspace.rt.workspace_failed) {
+        @tell_error(0, trace, workspace.engine.step_number(), "", "Выбранная отдельная папка не готова: сообщение не отправлено агенту. После ошибки снова сохраните выбор папки и явно повторите сообщение из исходящих.")
         return
     }
     @route_sync_cwd(at)

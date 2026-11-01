@@ -1,9 +1,15 @@
 module crew_harness.server_workspace_live
 
-import crew_harness.server.{kit_routes_wip, scenario_workspace}
+import crew_harness.server.{kit_routes_wip, scenario_workspace, scenario_workspace_failures}
 
 test "workspace: preparation, selected detached source, restart and dirty close over the hub" {
     ro report = scenario_workspace(kit_routes_wip("workspace-275"))
+    if report.byte_len() > 0 { panic(report) }
+    assert(report == "")
+}
+
+test "workspace: git failure, timeout and late completion never prompt main for an explicit choice" {
+    ro report = scenario_workspace_failures(kit_routes_wip("workspace-failure-275"))
     if report.byte_len() > 0 { panic(report) }
     assert(report == "")
 }

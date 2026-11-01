@@ -402,6 +402,7 @@ const handlers = {
       const input = { name: nameFromText(text) || t('sessions.new_name_placeholder'), agent: draft.agent, route: normalizeRoute(draft.route), worktree: draft.worktree !== false && treeOk };
       if (draft.source) input.source = draft.source;
       input.worktree = Boolean(draft.projectId && draft.folder) && input.worktree;
+      input.workspace_explicit = true; // new UI always states the chosen place, unlike old journal defaults
       if (draft.projectId && draft.sourceBranch) input.source_branch = draft.sourceBranch;
       if (draft.preset) input.preset = draft.preset;
       if (draft.projectId) {

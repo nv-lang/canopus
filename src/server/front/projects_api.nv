@@ -251,7 +251,7 @@ fn fs_git_route(port int) -> fn(ServerRequest) -> ServerResponse {
         api_put(o, "branch", JsonValue.str(state.branch))
         mut sources = []JsonValue.new()
         if state.is_repo {
-            for ref in git_sources(req.query_param("path") ?? "") { sources.push(JsonValue.str(ref)) }
+            for source in git_sources(req.query_param("path") ?? "") { sources.push(JsonValue.str(source)) }
         }
         api_put(o, "sources", JsonValue.array(sources))
         json_reply(200, JsonValue.object(o).to_str())
