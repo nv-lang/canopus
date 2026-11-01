@@ -217,6 +217,9 @@ export type Task = RouteFields & {
   folder?: string
   /** сессии задачи (задача 058): по записи на запуск, в порядке запуска */
   sessions?: TaskSession[]
+  /** автоматическое ведение задачи (задача 281, coordinate.ts): явно подключённая версионированная policy, кем и когда;
+   *  ставится только действием crew_task {action: "drive"} интегратора; без отметки координационный тик задачу не трогает */
+  drive?: { policy: string; version: string; at: number; by: string }
   /** подзадача: номер задачи-родителя; у родителя — номера подзадач */
   part_of?: number
   parts?: number[]

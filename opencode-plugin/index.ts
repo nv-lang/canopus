@@ -177,6 +177,7 @@ import { writeLaunch } from "./task-folders.ts"
 import { interruptTurn } from "./hung-resume.ts"
 import { compactionSummaryText } from "./compaction-summary.ts"
 import { registerGluedHooks } from "./glued-guard.ts"
+import { coordinateTick, listDrives } from "./coordinate.ts"
 
 export { parseProjects, projectOf, parseAddr, HELP, helpFor } from "./core.ts"
 
@@ -1665,6 +1666,43 @@ export function createCrewPlugin(native: { get?: NativeGet; spacingMs?: number; 
       )
     }
 
+    // АВТОМАТИЧЕСКОЕ ВЕДЕНИЕ РАЗРЕШЁННОЙ ЗАДАЧИ (задача 281, coordinate.ts). Раз в COORD_EVERY_MS по durable drive-записям
+    // (ставятся только crew_task {action: "drive"} интегратора): bounded проход (лимиты задач/действий/IO), намерение до вызова
+    // адаптера и квитанция после, ограниченный recheck unknown, ворота владельца — одним письмом с qid автору, решение —
+    // crew_task drive-decide на исходный qid. Перезапуск не повторяет шаги (id письма выводится из id шага, letterExistsFor).
+    const COORD_EVERY_MS = Number(process.env.CREW_HARNESS_COORD_MS) || 10_000
+    let coordAt = 0
+    async function coordWatch() {
+      if (now() - coordAt < COORD_EVERY_MS) return
+      coordAt = now()
+      if (!listDrives().some((d) => !d.done && !d.failed)) return
+      await coordinateTick(
+        {
+          task: (p, n) => loadTask(p, n),
+          letter: (to, id, text) => {
+            if (letterExistsFor(to, id)) return false
+            postLetter(to, { id, from_role: PLUGIN_SENDER, from_session: PLUGIN_SENDER, to, time: now(), text })
+            return true
+          },
+          note: (x, text) => {
+            const fresh = loadTask(x.project, x.n)
+            if (fresh) taskEvent(fresh, PLUGIN_SENDER, undefined, text)
+          },
+          known: (to, receipt) => letterExistsFor(to, receipt),
+          // ворота владельца открываются ТОЛЬКО проверенным durable question-путём (280/ADR-0017) под qid ворот;
+          // open идемпотентен: повтор с тем же исходным вопросом — no-op, конфликт qid — видимый блокер
+          openGate: (d, gate, qid, question) => {
+            const gt = loadTask(d.project, d.n)
+            if (!gt) throw new Error("задача ворот неизвестна")
+            questions.open({ qid, project: d.project, task: d.n, session: gt.author, channel: "text", text: question, context: `автоматическое ведение ${d.policy.id}@${d.policy.version}, ворота ${gate}; рекомендация/таймаут полномочием не являются`, source: { kind: "text", id: qid, at: now() } }, now())
+          },
+          save: (x) => saveTask(x),
+          say: (line) => log(line),
+        },
+        now(),
+      )
+    }
+
     // ВОПРОС ВЛАДЕЛЬЦУ НЕ ПРОПАДАЕТ МОЛЧА (задача 040, form-wait.ts). Раз в FORM_EVERY_MS: (1) запись о вопросе встроенного вопросника открыта,
     // а хода во вкладке нет (перезапуск окна или службы, вопрос закрыли без ответа, событие не дошло) - вкладку будит служебное письмо с
     // текстом и вариантами: задать вопрос заново (до 3 раз, не чаще раза в 2 минуты; потом «без ответа, нужен владелец»); (2) уведомление
@@ -2421,6 +2459,7 @@ export function createCrewPlugin(native: { get?: NativeGet; spacingMs?: number; 
         await step("leftWatch", leftWatch)
         await step("branchWatch", branchWatch)
         await step("stepWatch", stepWatch)
+        await step("coordWatch", coordWatch)
         await step("housekeep", housekeep)
         await step("processQueue", processQueue)
         // наблюдения crew_watch (watch.ts): запустить новые, по концу — письмо окну с побудкой

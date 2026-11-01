@@ -32,6 +32,7 @@ import { STALE_WARNING, SMALL_NORM_MIN, applyRouteChange, contourMarkText, exact
 import { acceptanceFromFile } from "./acceptance-file.ts"
 import { acceptWarning, acceptedTip, beginPrecheck, finishPrecheck, gateMerge, landedFresh, landingLine, markPrecheckStale, neighbourHints, originTip, precheckLines, runGit, unlockMerge } from "./precheck.ts"
 import { addSide, autoTrack, cleanupDone, removeSide, sideItems, cleanupSteps, fileAt, holdsMergeLock, isMerged, keptOnBranch, keptPaths, mergeHolder, pubKeyOf, releaseMergeLock, releaseTaskLocks, repoDir, resolveKeep, reworkLetter, sameFs, takeMergeLock, takePubLock } from "./review.ts"
+import { applyDriveDecision, knownPolicies, startDrive } from "./coordinate.ts"
 import { WATCH_DEFAULT_MIN, WATCH_MAX_MIN, cancelWatch, machineQueue, requestWatch, timerSpec, watchesOf } from "./watch.ts"
 import { watchRefusal } from "./deny.ts"
 import { linkErrorsOfWrite, profileProblems, profileState, profilesShow } from "./profile-layer.ts"
@@ -2912,6 +2913,8 @@ export function makeTools(host: CrewHost): CrewTool[] {
         "cancel - integrator - n, text? - cancel the task; text goes to the executor. Releases the merge lock if the task held it.",
         "priority - integrator - n, priority P0..P3 - change the priority.",
         "route - integrator - n, route full|fast|small, text (the reason, for full), route_word and route_word_date (fast: «заводи N»; small: the owner's entry phrase word for word) - change the route of an open task BY A RECORD (tasks 092, 191, 264). To full: the reason becomes the basis, the word is emptied, the series is zeroed. A new word (fast) renews a marked word. To small: as the small crew_spawn; on an already-small record an omitted route_word reuses the recorded phrase with its time. To small under review: the review cycle is lifted by the record (the reviewer released, the locks freed, the task reads as submitted again) — not an acceptance. A line «маршрут: …» goes to log.md.",
+        "drive - integrator - n, policy «<id>@<version>», text? (epic: «needs: 2<=1; 3<=1,2») - attach a versioned workflow policy of the trusted registry to an open task (task 281): the bounded coordination tick then drives the task to an evidence-backed completion or a real owner gate. An unknown policy is refused; a second drive on the task is refused; owner gates (push/merge/restart/live/money/ceiling/HOLD) are never driven.",
+        "drive-decide - integrator - n, qid, text (the decision), quote (the owner's word with its date) - apply the owner decision of the ORIGINAL qid of the drive's open gate. The authority is ONLY the durable question record of that qid in a terminal state with an answer (the verified question path): a quote, a recommendation, a model text or a timeout alone never clear a gate. One application; a duplicate or a late answer is recorded and changes nothing; a decision for a gate that is not open is refused.",
         "target - integrator - n, dir, remote?, branch?, word - bind the explicit RESULT repository of the task (task 257): the result lands or is already published not in the repository the task was posted in. dir is its local clone (checked: a git repository, not the task's own one, the remote and the branch on it exist); word is the owner's word with its date. The landing loop (precheck, base freshness, the merge gate, accept) then works against the bound repository; an already published candidate (an ancestor of the remote branch tip) finishes the precheck as published - no merge, accept with commit fixes the record. dir: \"\" lifts the binding.",
         "contour - executor of a small-route task - n, link - record the mark «ссылка на контур выдана» (task 191): the test contour URL given to the owner goes to log.md of the task with the relation to the 10 minute norm from the owner's word (route_word_ts). The acceptance of a small task: the integrator calls accept with text = the owner's word word for word with its date — no reviewer, no merge lock, no check steps; the landing in the target branch is still required.",
         "migrate - integrator - n, message (exact saved sent-letter text), source_id, source_session, source_to, source_qid, source_sha256, route_word, route_word_date - migrate an open folderless legacy record in place. Accepts only a strictly matched historical task-letter envelope; archive identity and exact UTF-8 text digest are required, never reconstruct the letter. Requires matching project/number/title/branch and the owner's explicit «заводи <number>» word. Edits no archive or external project files; preserves sessions, rounds, branch/worktree, history, precheck and evidence. A second migration is refused.",
@@ -2932,7 +2935,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
     input: {
       type: "object",
       properties: {
-        action: { type: "string", enum: ["list", "show", "assign", "order", "push", "reassign", "cancel", "backlog", "resume", "priority", "track", "plan_decide", "submit", "deliver", "review", "check", "round", "merge", "unlock", "precheck", "rework", "accept", "cleanup", "cleaned", "route", "migrate", "contour", "target"] },
+        action: { type: "string", enum: ["list", "show", "assign", "order", "push", "reassign", "cancel", "backlog", "resume", "priority", "track", "plan_decide", "submit", "deliver", "review", "check", "round", "merge", "unlock", "precheck", "rework", "accept", "cleanup", "cleaned", "route", "migrate", "contour", "target", "drive", "drive-decide"] },
         to: str("order: the other project's integrator, \"project.integrator\"; push: \"executor\" (default) or \"reviewer\""),
         keep: { type: "array", maxItems: 8, items: { type: "string" }, description: "cleanup: up to 8 worktree paths to keep as evidence" },
         checks: { type: "object", description: "accept: report per acceptance step {step id: what proves it}", additionalProperties: { type: "string" } },
@@ -2965,6 +2968,9 @@ export function makeTools(host: CrewHost): CrewTool[] {
         route_word_date: str("route/migrate: date of the owner's word in YYYY-MM-DD"),
         route_word_at: str("route to small: the time of the owner's message (an ISO date or milliseconds); absent - the time the change is recorded, with the honest note «время слова — время записи, не сообщения» in the log"),
         link: str("contour: the test contour URL given to the owner (route small); the mark «ссылка на контур выдана» with the relation to the 10 minute norm goes to log.md of the task"),
+        policy: str("drive: the versioned workflow policy «<id>@<version>» from the trusted registry (crew_task drive)"),
+        qid: str("drive-decide: the qid of the open owner gate (from the gate letter)"),
+        quote: str("drive-decide: the owner's word word for word with its date and source — the authority of the decision"),
         ...taskInput,
         ...routeInput,
       },
@@ -3073,6 +3079,40 @@ export function makeTools(host: CrewHost): CrewTool[] {
         taskEvent(t, me.session, preserveCleanup ? undefined : nextStatus, `возвращена из бэклога (до паузы: ${statusRu(previous)}; восстановлен статус: ${statusRu(nextStatus)})${String(input.text ?? "").trim() ? `; ${String(input.text).trim()}` : ""}`)
         host.posted([])
         return { content: `Задача ${taskRef(t)} возвращена из бэклога в состояние «${statusRu(t.status)}» без автозапуска и повторного назначения. До паузы: ${statusRu(previous)}; при необходимости явно назначь следующую сессию.` }
+      }
+      if (action === "drive") {
+        if (!isIntegrator(me)) return notIntegrator(me)
+        const policyRef = String(input.policy ?? "").trim()
+        if (!policyRef) return { content: `Нужна версионированная policy: crew_task {action: "drive", n: ${t.n}, policy: "<id>@<version>"}. Доверенный реестр: ${knownPolicies().join(", ")}.` }
+        // эпик: рёбра зависимостей веток в text строкой «needs: 2<=1; 3<=1,2» (ветка <= её зависимости)
+        let needs: Record<string, number[]> | undefined
+        const nm = /needs:\s*([0-9<=,;\s]+)/.exec(String(input.text ?? ""))
+        if (nm) {
+          needs = {}
+          for (const edge of nm[1].split(";").map((s) => s.trim()).filter(Boolean)) {
+            const em = /^(\d+)\s*<=\s*([0-9,\s]+)$/.exec(edge)
+            if (!em) return { content: `Не разобрано ребро зависимости «${edge}»: формат «<ветка><=<зависимости через запятую>».` }
+            needs[em[1]] = em[2].split(",").map((s) => Number(s.trim())).filter((x) => Number.isInteger(x) && x > 0)
+          }
+        }
+        const res = startDrive(t, policyRef, me.session, needs)
+        if (!res.ok) return { content: `Ведение не поставлено: ${res.why}.` }
+        saveTask(t)
+        taskEvent(t, me.session, undefined, `подключено автоматическое ведение policy ${policyRef} (задача 281)${needs ? `, зависимости веток: ${JSON.stringify(needs)}` : ""}`)
+        return { content: `Задача ${taskRef(t)} поставлена на автоматическое ведение policy ${policyRef}. Тик координации ведёт её до завершения с доказательством или до настоящих ворот владельца; ворота owner-порядка (push/merge/restart/live/деньги/потолок/HOLD) ведением не исполняются.` }
+      }
+      if (action === "drive-decide") {
+        if (!isIntegrator(me)) return notIntegrator(me)
+        // The authority is the durable question record of the ORIGINAL qid in a terminal state with an answer
+        // (281, integrator 2026-11-01): a quote, a recommendation or a timeout alone never clear a gate.
+        const gateAnswer = (qid: string) => {
+          const r = questionRouterFor(host).list().find((x) => x.qid === qid)
+          return r && (r.status === "answered" || r.status === "settled") && typeof r.answer === "string" && r.answer.trim() ? { answer: r.answer, at: r.updated } : undefined
+        }
+        const res = applyDriveDecision(t.project, t.n, String(input.qid ?? ""), String(input.text ?? ""), String(input.quote ?? ""), me.session, gateAnswer)
+        if (!res.ok) return { content: `Решение не применено: ${res.why}.` }
+        taskEvent(t, me.session, undefined, res.line)
+        return { content: `${res.line}. Ведение продолжится на ближайшем тике координации.` }
       }
       if (action === "route") {
         if (!isIntegrator(me)) return notIntegrator(me)
