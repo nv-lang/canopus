@@ -639,7 +639,6 @@ export const S = Object.freeze({
   'picker.roots': 'Диски',
   'picker.empty': 'Здесь нет вложенных папок',
   'picker.no_matches': 'В этой папке ничего не найдено по запросу',
-  'picker.recent': 'Недавние',
   'picker.choose': 'Выбрать',
   'picker.cancel': 'Отмена',
   'picker.loading': 'Загрузка…',
