@@ -554,7 +554,8 @@ test('задача 192.4: подпись, где идёт работа — пр�
   assert.equal(whereText(sess(rs({ where: { kind: 'folder', branch: '' } }))), '', 'папка не репозиторий или отсоединённая голова: подписи нет');
   assert.equal(whereText(sess(rs({ where: { kind: 'wip', branch: '', worktree: '/w/repo-ab12' } }))), 'работа идёт в отдельной копии (без ветки)');
   assert.equal(whereText(sess(rs({ task: { id: '007-x', branch: 'task/007-x', worktree: '/w/t' } }))), 'работа идёт в ветке task/007-x');
-  assert.equal(whereText({ draft: true, worktree: false }), 'работа пойдёт прямо в папке проекта, без отдельной ветки');
+  assert.equal(whereText({ draft: true, projectId: 'project-1', worktree: false }), 'работа пойдёт прямо в папке проекта, без отдельной ветки');
+  assert.equal(whereText({ draft: true, projectId: '', worktree: false }), S['where.draft_no_project']);
   assert.match(whereText({ draft: true }), /без ветки/);
   assert.equal(whereText(null), '');
   assert.equal(whereText(sess(null)), '');

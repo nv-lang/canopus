@@ -545,7 +545,7 @@ fn Hub @trace_path_of(s Dialog) -> str {
     }
 }
 
-fn Hub @open_config(s Dialog) -> Option[AcpConfig] => @open_config_for(s.agent, s.id, s.rt.agent_dir(@cwd_of(s.folder)))
+fn Hub @open_config(s Dialog) -> Option[AcpConfig] => @open_config_for(s.agent, s.id, @agent_cwd(s))
 
 // What the agent of this session is offered for its questions (task 192i): nothing when the setting `ask_form` is off or the agent is `off`; the form
 // (its own tool of questions) when it is `native`; the MCP tool of the hub, and no form, when it is `mcp`.
@@ -623,8 +623,14 @@ export fn Hub @mcp_address(id str) -> str => @mcp_url_for(id)
 /// The token of the MCP server of the questions ("" - it is not running).
 export fn Hub @mcp_token() -> str => @mcp_token_value()
 
-// The folder an agent works in: the folder of the project chosen for the session, else the working folder of the server.
+// The folder an agent works in: the chosen project folder, else this session's ordinary storage folder for projectless chats.
 fn Hub @cwd_of(folder str) -> str => if folder.byte_len() > 0 { folder } else { @workdir }
+
+// A projectless chat keeps its cwd beside its normal journal/history, never at the hub's global repository cwd.
+fn Hub @session_cwd(s Dialog) -> str => if s.folder.byte_len() > 0 { s.folder } else if s.project_id.byte_len() == 0 { "${@settings.data_dir}/${s.id}" } else { @workdir }
+
+// A stale worktree from an older projectless journal is preserved as data, but is never the cwd of its ACP client.
+fn Hub @agent_cwd(s Dialog) -> str => if s.project_id.byte_len() == 0 { @session_cwd(s) } else { s.rt.agent_dir(@session_cwd(s)) }
 
 fn Hub @open_config_for(agent str, id str, cwd str) -> Option[AcpConfig] {
     match @settings.agent(agent) {
@@ -743,7 +749,7 @@ fn Hub mut @ensure_client(at int) Proc Detach Time -> str {
                 s.slow_told = false
                 s.started_at = now_millis()
                 // the folder the agent is started in is the one `route_sync_cwd` compares with (a session of a project: the folder of the project): else the agent is restarted at EVERY message (task 192.8)
-                s.rt.cwd_now = s.rt.agent_dir(@cwd_of(s.folder))
+                s.rt.cwd_now = @agent_cwd(s)
                 s.rt.told = false
                 ""
             }
@@ -1654,7 +1660,7 @@ fn Hub mut @move(trace str, project_id str) Proc Detach Time -> () {
             @tell_error(0, trace, s.engine.step_number(), "", "Дождитесь завершения хода перед переносом чата без проекта")
             return
         }
-        if s.rt.worktree.byte_len() > 0 || s.rt.wip_tree.byte_len() > 0 || s.rt.wip_prep != 0 || s.rt.result_repo.byte_len() > 0 || s.rt.repo_dir.byte_len() > 0 {
+        if s.rt.worktree.byte_len() > 0 || s.rt.wip_tree.byte_len() > 0 || s.rt.wip_prep != 0 || s.rt.branch.byte_len() > 0 || s.rt.result_repo.byte_len() > 0 || s.rt.repo_dir.byte_len() > 0 {
             @tell_error(0, trace, s.engine.step_number(), "", "Сначала завершите или сохраните Git-работу; проект чата не изменён")
             return
         }
@@ -1687,6 +1693,11 @@ fn Hub mut @delete(conn int, trace str, branch str) Proc Detach Time -> () {
     if at < 0 { return }
     if @settings.store == "pg" {
         @tell_error(conn, trace, @sessions[at].engine.step_number(), "", "a session cannot be deleted over PostgreSQL")
+        return
+    }
+    ro s0 = @sessions[at]
+    if s0.project_id.byte_len() == 0 && (s0.rt.worktree.byte_len() > 0 || s0.rt.wip_tree.byte_len() > 0 || s0.rt.branch.byte_len() > 0 || s0.rt.repo_dir.byte_len() > 0) {
+        @tell_error(conn, trace, s0.engine.step_number(), "", "Сначала выберите проект, чтобы удалить сохранённую Git-работу; данные сессии не удалены")
         return
     }
     @mcp_withdraw(trace)
@@ -1752,7 +1763,7 @@ fn Hub mut @switch_agent(trace str, agent str) Proc Detach Time -> () {
         @tell_error(0, trace, s.engine.step_number(), "", "the turn is still open: the agent is not changed, try again in a moment")
         return
     }
-    ro config = match @open_config_for(agent, s.id, s.rt.agent_dir(@cwd_of(s.folder))) {
+    ro config = match @open_config_for(agent, s.id, @agent_cwd(s)) {
         Some(c) => c
         None => {
             @tell_error(0, trace, s.engine.step_number(), "", "the agent ${agent} is not configured")
@@ -1777,7 +1788,7 @@ fn Hub mut @switch_agent(trace str, agent str) Proc Detach Time -> () {
             s.model_announced = false
             s.slow_told = false
             s.started_at = now_millis()
-            s.rt.cwd_now = s.rt.agent_dir(@cwd_of(s.folder))
+            s.rt.cwd_now = @agent_cwd(s)
             s.rt.told = false
             accept_in(@settings.store == "pg", @settings.data_dir, s, Incoming.signal("agent_switched", switched_text(from, agent, transfer.shown, transfer.total, transfer.cut)))
             @sessions[at] = s

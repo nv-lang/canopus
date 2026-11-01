@@ -210,7 +210,7 @@ fn Hub @route_target(session str) Proc -> Result[RouteTarget, str] {
 
 // The main copy the publish and the clean-up of the tree of this session go to (task 257): the one pinned to the tree when it was made
 // (`repo_dir`), else the folder of the session - a tree made before this task or without a target lives in the repository of the session.
-fn Hub @route_main_copy(s Dialog) -> str => if s.rt.repo_dir.byte_len() > 0 { s.rt.repo_dir } else { @cwd_of(s.folder) }
+fn Hub @route_main_copy(s Dialog) -> str => if s.rt.repo_dir.byte_len() > 0 { s.rt.repo_dir } else { @session_cwd(s) }
 
 // Resolve again before any publication or cleanup; neither the project registry nor the saved path alone is sufficient.
 fn Hub @route_bound_main(s Dialog) Proc -> Result[str, str] {
@@ -406,7 +406,7 @@ fn Hub mut @route_on_message(at int, text str) Proc Detach Time -> str {
 // The folder of the agent follows the mode: a tree of the task or of the subtask; an agent that works in another folder is closed (it is started again in the right one).
 fn Hub mut @route_sync_cwd(at int) Time -> () {
     mut s = @sessions[at]
-    ro want = s.rt.agent_dir(@cwd_of(s.folder))
+    ro want = @agent_cwd(s)
     if s.clients.len() > 0 && s.rt.cwd_now != want {
         s.clients[0].close()
         s.clients = []AcpClient.new()
@@ -963,7 +963,7 @@ fn Hub mut @route_start_review(at int, index int, step RouteStep) Proc Detach Ti
         @route_stop(at)
         return
     }
-    ro cwd = s.rt.agent_dir(@cwd_of(s.folder))
+    ro cwd = @agent_cwd(s)
     ro config = match @settings.agent(family) {
         Some(spec) => acp_config_of(spec.program, spec.args, cwd, "")
         None => {

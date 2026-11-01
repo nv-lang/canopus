@@ -1855,9 +1855,10 @@ export function createView(doc, refs, deps) {
     const preparingTree = Boolean(session.routeState && session.routeState.where && session.routeState.where.kind === 'preparing');
     worktreeButton.disabled = hasTree || preparingTree || Boolean(task && task.id !== 'draft') || busy || noRepo;
     const sourceBranch = session.draft ? session.sourceBranch : (session.routeState && session.routeState.sourceBranch);
-    const workspaceText = noRepo ? 'В папке проекта нет Git' : `${session.project || 'Проект'} · ${sourceBranch ? sourceBranch.replace(/^refs\/(heads|remotes)\//, '') : 'Исходная ветка'} · ${hasTree || treeOn ? 'Отдельная папка' : 'Папка проекта'}`;
+    const noProject = !session.projectId;
+    const workspaceText = noProject ? t('where.projectless_workspace') : noRepo ? 'В папке проекта нет Git' : `${session.project || 'Проект'} · ${sourceBranch ? sourceBranch.replace(/^refs\/(heads|remotes)\//, '') : 'Исходная ветка'} · ${hasTree || treeOn ? 'Отдельная папка' : 'Папка проекта'}`;
     worktreeButton.replaceChildren(icon(doc, 'i-branch'), h(doc, 'span', { text: workspaceText }));
-    worktreeButton.title = noRepo ? t('route.worktree_not_repo') : hasTree || preparingTree ? t('route.worktree_locked') : `${workspaceText} — исходная ветка и рабочая папка`;
+    worktreeButton.title = noProject ? t('where.projectless_workspace') : noRepo ? t('route.worktree_not_repo') : hasTree || preparingTree ? t('route.worktree_locked') : `${workspaceText} — исходная ветка и рабочая папка`;
     worktreeButton.setAttribute('aria-label', workspaceText);
     worktreeButton.setAttribute('aria-haspopup', 'dialog');
     routeButton.title = `${t('route.label')}: ${routeDescription(currentRoute)}`;
@@ -1875,7 +1876,7 @@ export function createView(doc, refs, deps) {
       presetSelect.value = chosen;
       presetSelect.dataset.draft = String(Boolean(session.draft));
     }
-    const where = session.draft ? (noRepo ? t('where.draft_folder') : (treeOn ? whereText(session) : t('where.draft_off'))) : whereText(session);
+    const where = session.draft ? (noProject ? t('where.draft_no_project') : noRepo ? t('where.draft_folder') : (treeOn ? whereText(session) : t('where.draft_off'))) : whereText(session);
     whereNote.hidden = !where;
     const accounting = session.folder || (projectById(session.projectId) || {}).name || 'проект сессии';
     const resultWhere = resultRepo ? `Учёт: ${accounting} → результат: ${resultLabel || resultRepo}` : '';

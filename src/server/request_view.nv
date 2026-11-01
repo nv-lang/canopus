@@ -254,7 +254,7 @@ fn Hub mut @req_commit(at int, label str, extra []ReqPart) -> () {
     ro hub_tools = if tools.byte_len() > 0 { req_hub_tools(tools) } else { JsonValue.array([]JsonValue.new()) }
     ro kind = if tools.byte_len() > 0 { "http, 127.0.0.1 (локально), адрес и токен не показываются" } else { "" }
     @serial += 1
-    ro text = req_event_text("srv-${@serial}", s.id, s.engine.step_number(), s.rt.req_turn, now_millis(), s.agent, s.rt.agent_dir(@cwd_of(s.folder)), @req_setting(s, "mode"), s.rt.route, model, @req_setting(s, "effort"), label, parts, hub_tools, s.rt.req_tools, kind, from_line, if s.clients.len() > 0 { s.clients[0].commands_seen() } else { []str.new() })
+    ro text = req_event_text("srv-${@serial}", s.id, s.engine.step_number(), s.rt.req_turn, now_millis(), s.agent, @agent_cwd(s), @req_setting(s, "mode"), s.rt.route, model, @req_setting(s, "effort"), label, parts, hub_tools, s.rt.req_tools, kind, from_line, if s.clients.len() > 0 { s.clients[0].commands_seen() } else { []str.new() })
     // the previous turn ended where this one begins: its end is told to the pages
     if from_line > 1 && s.rt.reqs.len() > 0 {
         ro last = s.rt.reqs.len() - 1

@@ -233,11 +233,12 @@ export function parseWhere(raw) {
 }
 
 /**
- * Подпись под полем: где идёт работа. Черновик: Worktree включён — «в отдельной копии (без ветки), создастся с первым сообщением», выключен — «прямо в папке проекта».
+ * Подпись под полем: где идёт работа. Projectless draft остаётся в данных сессии; проектный draft показывает папку/копию.
  * Открытая сессия: задача с веткой — «в ветке task/…»; wip — «в отдельной копии (без ветки)»; без дерева — «прямо в main» или «прямо в ветке X» (текущая ветка папки проекта).
  */
 export function whereText(session) {
   if (!session) return '';
+  if (session.draft && session.projectId === '') return t('where.draft_no_project');
   if (session.route === 'planning' || (session.routeState && session.routeState.route === 'planning')) return 'Подготовка задачи: ветки и рабочие копии не создаются';
   if (session.projectId === '') return 'Без проекта: исходной ветки и рабочей копии нет';
   if (session.draft) return session.worktree === false ? t('where.draft_folder') : t('where.draft_tree');
