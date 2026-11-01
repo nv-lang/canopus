@@ -736,7 +736,7 @@ export function createView(doc, refs, deps) {
   micButton.addEventListener('click', (e) => { if (e.detail === 0) micPress.key(); });
 
   const statusModel = h(doc, 'span', { class: 'status-model' });
-  const familyButton = h(doc, 'button', { type: 'button', class: 'status-btn', hidden: true, title: t('status.agent'), 'aria-label': t('status.agent'), 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
+  const familyButton = h(doc, 'button', { type: 'button', class: 'status-btn agent-picker-button', hidden: true, title: t('status.agent'), 'aria-label': t('status.agent'), 'aria-haspopup': 'dialog', 'aria-expanded': 'false' });
   const modeButton = h(doc, 'button', { type: 'button', class: 'status-btn', hidden: true, title: t('menu.mode'), 'aria-label': t('menu.mode'), 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
   const modelButton = h(doc, 'button', { type: 'button', class: 'status-btn', hidden: true, title: t('status.model'), 'aria-label': t('status.model'), 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
   const effortButton = h(doc, 'button', { type: 'button', class: 'status-btn', hidden: true, title: t('menu.effort'), 'aria-label': t('menu.effort'), 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
@@ -801,7 +801,7 @@ export function createView(doc, refs, deps) {
   const spinner = h(doc, 'span', { class: 'spinner', role: 'img', 'aria-label': t('composer.working'), hidden: true });
   const menu = h(doc, 'div', { class: 'menu', role: 'menu', hidden: true });
   // Одна группа чипов у правого края: семья, режим, модель и усилие; за ней кольцо контекста и спиннер (задача 192).
-  const statusGroup = h(doc, 'div', { class: 'status-group' }, familyButton, modeButton, statusModel, modelButton, effortButton);
+  const statusGroup = h(doc, 'div', { class: 'status-group' }, familyButton, modeButton);
   const status = h(doc, 'div', { class: 'composer-status', 'data-empty': 'true' }, worktreeButton, routeButton, resultRepoButton, h(doc, 'span', { class: 'grow' }), statusGroup, ringBox, spinner, presetSelect, menu);
 
   // Меню выбора режима, модели и усилия (задача 192): показывает только то, что агент отдал по ACP.
@@ -810,6 +810,8 @@ export function createView(doc, refs, deps) {
   let menuKind = null; // null | 'agent' | 'route' | 'result' | 'mode' | 'model' | 'more' | 'effort'
   let options = null;
   let currentAgent = '';
+  let currentSession = null;
+  let pickerDraft = null;
   let currentRoute = INTERACTIVE_STATE.route;
   let menuQuery = '';
   let menuSig = '';
@@ -836,6 +838,15 @@ export function createView(doc, refs, deps) {
     closeMenu();
   }
 
+  function pickSource(source) {
+    if (!currentTrace || !currentSession) return;
+    if (currentSession.draft) handlers.onDraftSource?.(currentTrace, source);
+    else if (typeof handlers.onSource === 'function') handlers.onSource(currentTrace, source);
+    else handlers.onNotice?.('Этот сервер не поддерживает выбор источника агента');
+    pickerDraft = null;
+    closeMenu();
+  }
+
   function menuRow({ name, description, checked, number, arrow, tip, onPick }) {
     const row = h(doc, 'button', { type: 'button', class: 'menu-item', role: 'menuitem', 'aria-checked': checked ? 'true' : 'false', title: tip || false },
       h(doc, 'span', { class: 'menu-check' }, checked ? icon(doc, 'i-check') : false),
@@ -848,12 +859,52 @@ export function createView(doc, refs, deps) {
   function renderMenu() {
     menuList.replaceChildren();
     if (menuKind === 'agent') {
-      menuSearch.hidden = true;
+      const draftSelection = pickerDraft;
+      menuSearch.hidden = false;
+      menuSearch.placeholder = 'Поиск модели или пула';
+      menuSearch.setAttribute('aria-label', 'Поиск модели или пула');
       menu.dataset.side = 'right';
-      menuList.append(h(doc, 'div', { class: 'menu-head', text: t('menu.agent') }), ...agents.map((a, i) => menuRow({
-        name: agentLabel(a.id), checked: a.id === currentAgent, number: i < 9 ? i + 1 : 0,
-        onPick: () => { if (currentTrace && a.id !== currentAgent) handlers.onSwitchAgent(currentTrace, a.id); closeMenu(); },
-      })));
+      const query = menuQuery.trim().toLocaleLowerCase();
+      const rows = [];
+      const sourceInfo = presets() || {};
+      const preset = (sourceInfo.presets || []).find((p) => p.name === (currentSession && currentSession.preset || sourceInfo.active || 'default'));
+      const pools = preset && preset.pools && typeof preset.pools === 'object' ? preset.pools : {};
+      const source = draftSelection ? { family: draftSelection.family, model: draftSelection.model, effort: draftSelection.effort } : currentSession && currentSession.source;
+      rows.push(h(doc, 'div', { class: 'menu-head', text: 'Модели' }));
+      const catalog = current && current.model.catalog || {};
+      const allModels = agents.flatMap((a) => {
+        const entry = catalog[a.id];
+        return (entry && entry.options.models || []).map((m) => ({ family: a.id, model: m.id, name: m.name || m.id }));
+      }).filter((m) => !query || `${m.family} ${m.name} ${m.model}`.toLocaleLowerCase().includes(query));
+      if (!allModels.length) rows.push(h(doc, 'div', { class: 'menu-head', text: 'Нет доступных моделей' }));
+      for (const m of allModels) {
+        const chosen = source && !source.pool && source.family === m.family && source.model === m.model;
+        const entry = catalog[m.family];
+        const efforts = entry && entry.options.efforts || [];
+        const draftEffort = draftSelection && draftSelection.family === m.family && draftSelection.model === m.model;
+        const effort = draftEffort ? draftSelection.effort : chosen ? source.effort : (efforts[0] && efforts[0].id || '');
+        const row = menuRow({ name: m.name, description: m.family, checked: chosen,
+          onPick: () => { if (efforts.length) { pickerDraft = { family: m.family, model: m.model, efforts, effort }; renderMenu(); } else pickSource({ family: m.family, model: m.model, effort: '' }); } });
+        if (efforts.length) {
+          const index = Math.max(0, efforts.findIndex((e) => e.id === effort));
+          const slider = h(doc, 'input', { type: 'range', class: 'effort-slider', min: '0', max: String(efforts.length - 1), step: '1', value: String(index), 'aria-label': `Усилие ${m.name}` });
+          slider.style.setProperty('--effort-fill', `${efforts.length < 2 ? 100 : index * 100 / (efforts.length - 1)}%`);
+          slider.addEventListener('click', (e) => e.stopPropagation());
+          slider.addEventListener('input', () => { if (pickerDraft) { pickerDraft.effort = efforts[Number(slider.value)].id; slider.style.setProperty('--effort-fill', `${efforts.length < 2 ? 100 : Number(slider.value) * 100 / (efforts.length - 1)}%`); } });
+          slider.addEventListener('change', () => pickSource({ family: m.family, model: m.model, effort: pickerDraft ? pickerDraft.effort : efforts[Number(slider.value)].id }));
+          row.append(slider);
+          row.classList.add('agent-model-row');
+        }
+        rows.push(row);
+      }
+      for (const [poolName, levels] of Object.entries(pools)) for (const level of ['light', 'medium', 'heavy']) {
+        const choices = Array.isArray(levels && levels[level]) ? levels[level] : [];
+        for (const choice of choices) {
+          if (choice.active === false || (query && !`${poolName} ${level} ${choice.family} ${choice.model}`.toLocaleLowerCase().includes(query))) continue;
+          rows.push(menuRow({ name: `${poolName} · ${level}`, description: `${choice.family} / ${choice.model}`, checked: Boolean(source && source.pool === poolName && source.level === level), onPick: () => pickSource({ pool: poolName, level }) }));
+        }
+      }
+      menuList.append(...rows);
       menu.hidden = false;
       return;
     }
@@ -932,12 +983,13 @@ export function createView(doc, refs, deps) {
   // Задача 265: меню не открывается, когда выбирать не из чего или чип выключен; причина — в подсказке чипа.
   const hasOpts = (key) => Boolean(options && options[key].length > 0);
   function openMenu(kind) {
-    if (kind === 'agent' && agents.length < 2) return;
+    if (kind === 'agent' && agents.length === 0 && !Object.values((presets() || {}).presets || {}).some((p) => p && p.pools)) return;
     if (kind === 'result' && resultRepoButton.disabled) return;
     if (kind === 'mode' && !hasOpts('modes')) return;
     if ((kind === 'model' || kind === 'more') && !hasOpts('models')) return;
     if (kind === 'effort' && !hasOpts('efforts')) return;
     menuKind = kind;
+    if (kind === 'agent') pickerDraft = null;
     menuQuery = '';
     menuSearch.value = '';
     menuSig = kind === 'route' ? currentRoute : kind === 'result' ? JSON.stringify(resultRepoShown) : JSON.stringify(options);
@@ -949,7 +1001,7 @@ export function createView(doc, refs, deps) {
     effortButton.setAttribute('aria-expanded', kind === 'effort' ? 'true' : 'false');
     renderMenu();
     if (kind === 'result') refreshResultRepos();
-    if (kind === 'model' || kind === 'more') menuSearch.focus();
+    if (kind === 'model' || kind === 'more' || kind === 'agent') menuSearch.focus();
     else menu.querySelector('.menu-item')?.focus();
   }
 
@@ -974,7 +1026,12 @@ export function createView(doc, refs, deps) {
     const button = { agent: familyButton, mode: modeButton, model: modelButton, effort: effortButton }[kind];
     // aria-disabled оставляет кнопку доступной с клавиатуры: Enter/Space, как и клик,
     // объясняют отсутствие выбора через общую доступную строку уведомлений.
-    if (button?.getAttribute('aria-disabled') === 'true') {
+    if (kind === 'agent' && (familyButton.getAttribute('aria-disabled') === 'true' || familyButton.dataset.noChoices === 'true')) {
+      closeMenu();
+      handlers.onNotice?.(familyButton.title);
+      return;
+    }
+    if (button?.getAttribute('aria-disabled') === 'true' && kind !== 'agent') {
       closeMenu();
       handlers.onNotice?.(button.title);
       return;
@@ -986,6 +1043,7 @@ export function createView(doc, refs, deps) {
   modeButton.addEventListener('click', () => toggleMenu('mode'));
   modelButton.addEventListener('click', () => toggleMenu('model'));
   effortButton.addEventListener('click', () => toggleMenu('effort'));
+  // effort/model/family legacy controls are hidden; the picker owns those choices as one compact control.
   // номера строк — горячие клавиши; у строк без номера (Назад, подменю) их нет
   doc.addEventListener('keydown', (e) => {
     if (!menuKind) return;
@@ -1739,6 +1797,7 @@ export function createView(doc, refs, deps) {
     syncSend(busy);
     options = shown.options;
     currentAgent = shown.agent;
+    currentSession = session;
     currentRoute = session.route || INTERACTIVE_STATE.route;
     routeButton.hidden = false;
     routeButton.replaceChildren(h(doc, 'span', { text: currentRoute === 'planning' ? 'Подготовка' : routeName(currentRoute) }));
@@ -1784,14 +1843,21 @@ export function createView(doc, refs, deps) {
     whereNote.title = whereNote.textContent;
     // Задача 265: текущий агент виден при любом числе доступных. Выбора нет (0/1 агент) — чип приглушён,
     // а подсказка называет фактическую причину, а не прячет чип.
+    const selectedModel = session.selectedModel || (session.source && !session.source.pool ? session.source.model : shown.model);
+    const selectedEffort = session.selectedEffort || (session.source && !session.source.pool ? session.source.effort : options.effort);
+    const selectedPool = session.selectedPool ? `${session.selectedPool} · ${session.selectedLevel}` : session.source && session.source.pool ? `${session.source.pool} · ${session.source.level}` : '';
+    const pickerLabel = session.selectionPending ? 'Подтверждение…' : [selectedModel || (shown.loading ? t('session.loading') : t('session.model_unknown')), selectedPool, selectedEffort].filter(Boolean).join(' / ');
     familyButton.hidden = false;
-    familyButton.replaceChildren(h(doc, 'span', { text: agentLabel(shown.agent) }));
-    familyButton.setAttribute('aria-disabled', String(agents.length < 2));
-    familyButton.title = agents.length > 1 ? t('status.agent')
-      : agents.length === 1 ? `${t('status.agent')}: ${t('status.agent_one')}`
-      : registryPending ? t('status.agents_loading')
-      : t(registryFailed ? 'sessions.agents_unavailable' : 'sessions.agents_none');
-    familyButton.setAttribute('aria-label', `${t('status.agent')}: ${agentLabel(shown.agent)}`);
+    familyButton.replaceChildren(h(doc, 'span', { text: pickerLabel || 'Выбрать агента' }));
+    const presetData = presets() || {};
+    const activePreset = (presetData.presets || []).find((p) => p.name === (session.preset || presetData.active || 'default'));
+    const availablePools = activePreset && activePreset.pools && Object.values(activePreset.pools).some((levels) => Object.values(levels || {}).some((entries) => Array.isArray(entries) && entries.some((e) => e.active !== false)));
+    const availableDirect = agents.some((a) => model.catalog && model.catalog[a.id] && model.catalog[a.id].options.models.length);
+    const canChoose = Boolean(availableDirect || availablePools);
+    familyButton.setAttribute('aria-disabled', String(busy && !session.draft));
+    familyButton.dataset.noChoices = String(!canChoose);
+    familyButton.title = busy && !session.draft ? 'Выбор источника доступен между ходами' : canChoose ? t('menu.agent') : registryPending ? t('status.agents_loading') : t(registryFailed ? 'sessions.agents_unavailable' : (agents.length === 1 ? 'status.agent_one' : 'sessions.agents_none'));
+    familyButton.setAttribute('aria-label', `Агент: ${pickerLabel || 'не выбран'}`);
     const hasModes = Boolean(options && options.modes.length > 0);
     const hasModels = Boolean(options && options.models.length > 0);
     const hasEfforts = Boolean(options && options.efforts.length > 0);
@@ -1805,19 +1871,18 @@ export function createView(doc, refs, deps) {
     modeButton.title = modeLabel.title ? `${t('menu.mode')}: ${modeLabel.title}` : t('menu.mode');
     if (!hasModes) modeButton.title = paramWhy(t('status.mode_unsupported'));
     modeButton.replaceChildren(h(doc, 'span', { text: hasModes ? (modeLabel.name || t('menu.mode')) : (shown.loading ? '…' : t('menu.mode')) }));
-    modelButton.hidden = !hasModels;
-    modelButton.replaceChildren(h(doc, 'span', { text: hasModels ? (shown.model || nameOf(options.models, options.modelId) || t('session.model_unknown')) : '' }));
-    effortButton.hidden = false;
+    modelButton.hidden = true;
+    effortButton.hidden = true;
     effortButton.setAttribute('aria-disabled', String(!hasEfforts));
     const effortLabel = hasEfforts ? labelFor('effort', effortChoices(options.efforts), options.effort) : { name: '', title: '' };
     effortButton.title = effortLabel.title ? `${t('menu.effort')}: ${effortLabel.title}` : t('menu.effort');
     if (!hasEfforts) effortButton.title = paramWhy(t('status.effort_unsupported'));
     effortButton.replaceChildren(h(doc, 'span', { text: hasEfforts ? effortLabel.name : (shown.loading ? '…' : t('menu.effort')) }));
-    statusModel.hidden = hasModels;
+    statusModel.hidden = true;
     statusModel.textContent = shown.model || (shown.loading ? t('session.loading') : t('session.model_unknown'));
     statusModel.title = hasModels ? '' : paramWhy(t('status.model_unsupported'));
     spinner.hidden = !busy;
-    status.dataset.empty = String(routeButton.hidden && worktreeButton.hidden && resultRepoButton.hidden && familyButton.hidden && !statusModel.textContent && !busy && !session.usage);
+    status.dataset.empty = String(routeButton.hidden && worktreeButton.hidden && resultRepoButton.hidden && familyButton.hidden && !busy && !session.usage);
     if (menuKind === 'agent') renderMenu();
     else if (menuKind === 'route') {
       if (menuSig !== currentRoute) renderMenu();

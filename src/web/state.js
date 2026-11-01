@@ -28,7 +28,7 @@ export const KINDS = Object.freeze([
   // задача 094: рабочие события хода (соответствуют ACP session/update)
   'usage_update', 'tool_call', 'tool_call_update', 'output_file', 'file_diff',
   'background_task', 'background_task_update',
-  'session_model', 'agent_switched', 'session_renamed',
+  'session_model', 'agent_switched', 'session_renamed', 'session_source', 'agent_selected', 'agent_selection',
   // задача 192.12: набор «роль → семья, модель, усилие», выбранный для сессии
   'session_preset',
   // задача 192: место сессии в списке проекта (и проект, если её перенесли) и удаление сессии (его шлёт сервер, в журнале его нет)
@@ -252,6 +252,12 @@ function apply(session, event) {
       // владелец выбрал набор сессии (задача 192.12): последнее слово журнала; пусто — набор из настроек
       return { ...session, preset: str(input.preset) };
     }
+    case 'session_source':
+      return { ...session, source: input.pool ? { pool: str(input.pool), level: str(input.level) } : { family: str(input.family), model: str(input.model), effort: str(input.effort) } };
+    case 'agent_selected':
+      return { ...session, selectedModel: str(input.model), selectedEffort: str(input.effort), selectedPool: str(input.pool), selectedLevel: str(input.level), selectionPending: false };
+    case 'agent_selection':
+      return { ...session, selectionPending: true, selectedModel: str(input.model), selectedEffort: str(input.effort) };
     case 'session_placed': {
       // владелец перетащил сессию (задача 192): место в списке; project_id и project — если её перенесли в другой проект ('' — без проекта)
       const out = Number.isFinite(input.rank) ? { ...session, rank: input.rank } : { ...session };
@@ -545,6 +551,7 @@ export function reduce(model, event) {
       id: event.trace,
       name: str(event.input.name, event.trace),
       agent: str(event.input.agent),
+      source: isObject(event.input.source) ? event.input.source : null,
       model: '',
       options: NO_OPTIONS,
       optionsAgent: '',
@@ -656,7 +663,7 @@ export function addDraft(model, { id, agent, projectId = '', project = '', folde
   const session = next.sessions[id];
   if (!session) return model;
   // режим по умолчанию у человека — «Интерактивный»; Worktree по умолчанию выключен (выбор владельца приходит параметром)
-  return { ...next, sessions: { ...next.sessions, [id]: { ...session, draft: true, route: INTERACTIVE_STATE.route, worktree: worktree === true, preset: '' } } };
+  return { ...next, sessions: { ...next.sessions, [id]: { ...session, draft: true, route: INTERACTIVE_STATE.route, worktree: worktree === true, preset: '', source: null } } };
 }
 
 /** Убрать все черновики (кроме `keep`). */
