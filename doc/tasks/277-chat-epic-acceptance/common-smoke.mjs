@@ -14,6 +14,11 @@ const port = Number(process.argv[4] || 18179);
 const browserExecutable = process.argv[5];
 if (!/^[0-9a-f]{40}$/.test(candidate || '') || !process.argv[3]) throw Error('Exact candidate and artifact directory required');
 if (![18179, 18180].includes(port)) throw Error('Only new isolated common-smoke ports are allowed');
+// Test fixtures themselves must not inherit this checkout's Git context.
+for (let at = artifacts; ; at = path.dirname(at)) {
+  if (fs.existsSync(path.join(at, '.git'))) throw Error('Common artifacts must be outside existing Git repositories');
+  if (path.dirname(at) === at) break;
+}
 const command = (program, args, cwd = root) => {
   const result = spawnSync(program, args, { cwd, encoding: 'utf8', windowsHide: true });
   if (result.status !== 0) throw Error(`${program} failed: ${result.stderr}`);
@@ -109,6 +114,7 @@ async function connect() {
 }
 const source = { family: 'codex', model: 'fake-model-b', effort: 'high' };
 const normalized = value => String(value).replaceAll('\\', '/').toLowerCase();
+const realFolder = value => { try { return normalized(fs.realpathSync.native(value)); } catch { return ''; } };
 try {
   await start(); page = await connect();
   page.send('session_created', 'common-plain', { agent: 'codex', name: 'Common isolated', folder: repo,
@@ -138,9 +144,11 @@ try {
   page.send('user_message', 'common-plain', { text: 'pwd', turn: 'common-cwd' });
   await page.wait('common-plain', 'agent_done', afterPwd);
   const cwdText = page.events.slice(afterPwd).filter(event => event.kind === 'agent_chunk').map(event => event.input.text || '').join('');
-  check('projectless actual cwd is session-owned and does not inherit hub repository', Boolean(cwdText)
-    && normalized(cwdText).includes(normalized(data)) && cwdText.includes('common-plain')
-    && !normalized(cwdText).includes(normalized(repo)), cwdText);
+  const reportedCwd = /^cwd: (.+)$/m.exec(cwdText)?.[1]?.trim();
+  const actualCwd = reportedCwd ? realFolder(reportedCwd) : '';
+  const expectedCwd = realFolder(path.join(data, 'common-plain'));
+  check('projectless actual cwd is the exact session folder rather than the hub repository', Boolean(actualCwd)
+    && Boolean(expectedCwd) && actualCwd === expectedCwd && actualCwd !== realFolder(repo), cwdText);
   const created = page.of('common-plain').find(event => event.kind === 'session_created');
   check('projectless metadata has no project/branch/folder', created && !created.input.project_id && !created.input.folder && !created.input.branch);
   const afterAsk = page.events.length;
