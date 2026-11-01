@@ -11,7 +11,7 @@ test "preparation: Alula table and runtime JSON enforce the same capabilities" {
     ro table = match work_mode_machine(report.json, product_registry()) { Ok(m) => m, Err(e) => panic(e) }
     ro stored = match work_mode_machine(tree_text("machines/product/work-mode.alula.json"), product_registry()) { Ok(m) => m, Err(e) => panic(e) }
     for route in ["planning", "interactive", "fast", "full", "unknown"] {
-        for op in ["execute", "tree", "repository", "draft", "recognize", "unknown"] {
+        for op in ["execute", "tree", "repository", "draft", "recognize", "workspace", "unknown"] {
             assert(work_mode_allows(table, route, op) == work_mode_allows(stored, route, op))
         }
     }
@@ -26,6 +26,7 @@ test "preparation: Alula denies execution and git lifecycle, but keeps discussio
         for op in ["execute", "tree", "repository", "shell", "native_write"] { assert(!work_mode_allows(m, route, op)) }
         assert(work_mode_allows(m, route, "draft"))
         assert(work_mode_allows(m, route, "recognize"))
+        assert(work_mode_allows(m, route, "workspace"))
     }
     for route in ["interactive", "fast", "full"] {
         for op in ["execute", "tree", "repository", "draft", "recognize"] { assert(work_mode_allows(m, route, op)) }

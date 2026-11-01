@@ -1,0 +1,18 @@
+module crew_harness.server
+
+test "workspace: selected preference and detached identity survive journal replay" {
+    mut rt = route_session_new()
+    rt.apply("route_set", "{\"route\":\"planning\",\"worktree\":true,\"source_branch\":\"refs/heads/chosen\"}")
+    assert(rt.source_branch == "refs/heads/chosen" && rt.use_tree)
+    assert(rt.wip_tree == "" && rt.branch == "" && !rt.task_open)
+    rt.apply("route_set", "{\"route\":\"interactive\"}")
+    rt.apply("route_task", "{\"op\":\"wip\",\"worktree\":\"/trees/chosen\",\"base\":\"abc123\"}")
+    assert(rt.source_branch == "refs/heads/chosen" && rt.wip_tree == "/trees/chosen" && rt.wip_base == "abc123" && rt.branch == "")
+}
+
+test "workspace: projectless and no-git requests refuse a tree or a source" {
+    assert(workspace_problem("", "", "refs/heads/main", true).byte_len() > 0)
+    assert(workspace_problem("", "/ignored", "", true).byte_len() > 0)
+    assert(workspace_problem("", "", "", false) == "")
+    assert(workspace_problem("project", "missing-workspace-project", "refs/heads/main", true).byte_len() > 0)
+}

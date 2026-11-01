@@ -75,7 +75,7 @@ const delivery = createDelivery((() => { try { return globalThis.localStorage; }
 for (const saved of delivery.sessions()) {
   if (model.sessions[saved.id]) continue;
   model = addDraft(model, { ...saved, now: saved.createdAt || Date.now() });
-  model = patchDraft(model, saved.id, { route: saved.route, worktree: saved.worktree });
+  model = patchDraft(model, saved.id, { route: saved.route, worktree: saved.worktree, sourceBranch: saved.sourceBranch || '' });
 }
 let status = { state: 'connecting' };
 const UNREAD_KEY = 'crew-console-unread';
@@ -196,7 +196,7 @@ function send(kind, trace, step, input) {
 function savedSession(trace) {
   const s = model.sessions[trace];
   return s ? { id: trace, agent: s.agent, projectId: s.projectId, project: s.project, folder: s.folder, branch: s.branch,
-    route: normalizeRoute(s.route), worktree: s.worktree === true, createdAt: s.createdAt } : null;
+    route: normalizeRoute(s.route), worktree: s.worktree === true, sourceBranch: s.sourceBranch || '', createdAt: s.createdAt } : null;
 }
 function sendMessage(trace, text, images = [], retry = null) {
   const event = makeEvent('user_message', trace, nextStep(model, trace), messageInput(newId(), text, images), ctx);
@@ -401,6 +401,8 @@ const handlers = {
       const treeOk = !(folderInfo && folderInfo.repo === false); // папка не git: сессия создаётся без дерева
       const input = { name: nameFromText(text) || t('sessions.new_name_placeholder'), agent: draft.agent, route: normalizeRoute(draft.route), worktree: draft.worktree !== false && treeOk };
       if (draft.source) input.source = draft.source;
+      input.worktree = Boolean(draft.projectId && draft.folder) && input.worktree;
+      if (draft.projectId && draft.sourceBranch) input.source_branch = draft.sourceBranch;
       if (draft.preset) input.preset = draft.preset;
       if (draft.projectId) {
         input.project = draft.project;
@@ -471,6 +473,15 @@ const handlers = {
   onDraftSource(trace, source) { model = patchDraft(model, trace, { source }); render(); },
   onSessionPreset(trace, name) { send('session_preset', trace, nextStep(model, trace), { preset: name }); },
   onDraftWorktree(trace, on) { saveWorktreePref(on === true); model = patchDraft(model, trace, { worktree: on === true }); render(); },
+  onWorkspace(trace, folder, choice) {
+    const s = model.sessions[trace];
+    if (!s || s.folder !== folder) return; // the project changed while the read-only dialog was open
+    if (s.draft) {
+      saveWorktreePref(choice.worktree);
+      model = patchDraft(model, trace, choice);
+      render();
+    } else send('session_workspace', trace, nextStep(model, trace), { worktree: choice.worktree, source_branch: choice.sourceBranch });
+  },
   onWorktree(trace, on) { send(...signal(trace, routeSignal.worktree(on))); },
   onResultRepo(trace, repoId) { send(...signal(trace, routeSignal.resultRepo(repoId))); },
   onRouteRun(trace) { send(...signal(trace, routeSignal.run())); },

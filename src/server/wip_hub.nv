@@ -33,8 +33,10 @@ fn wip_name(id str) -> str {
 
 // Did the owner write to this session already (the first message makes the tree, not the later ones)?
 fn wip_had_message(lines []str) -> bool {
+    mut route = "interactive"
     for line in lines {
-        if line_field(line, "kind") == "user_message" { return true }
+        if line_field(line, "kind") == "route_set" && route_valid(line_input(line, "route")) { route = line_input(line, "route") }
+        if line_field(line, "kind") == "user_message" && route != "planning" { return true }
     }
     false
 }
@@ -67,6 +69,7 @@ fn Hub mut @wip_start(at int) Proc Detach Time -> () {
     ro s = @sessions[at]
     // A projectless conversation never probes or mutates the hub's global working directory.
     if s.project_id.byte_len() == 0 { return }
+    if !@work_allowed(at, "tree") { return }
     // A foreign result is opened only as an explicit numbered task; never start an unbound wip in the owner's repository.
     if s.rt.result_repo.byte_len() > 0 { return }
     if !@settings.route_wip || !s.rt.use_tree || s.rt.wip_tree.byte_len() > 0 || s.rt.kind == "child" || s.rt.wip_prep != 0 { return }
@@ -75,7 +78,7 @@ fn Hub mut @wip_start(at int) Proc Detach Time -> () {
     if !tk_is_repo(base) { return }
     ro name = wip_name(s.id)
     if name.byte_len() == 0 { return }
-    ro made = tk_wip_plan(base, name, @route_trees(s.id))
+    ro made = tk_wip_plan_from(base, name, @route_trees(s.id), s.rt.source_branch)
     if !made.ok {
         @tell_error(0, s.id, s.engine.step_number(), "", "дерево для работы не создано (${made.text}): агент работает в папке проекта")
         mut off = @sessions[at]

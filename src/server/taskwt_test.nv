@@ -813,6 +813,48 @@ test "taskwt publish: a temporary file left in the tree does not hold up the pub
     tt_rm(w.root)
 }
 
+test "workspace: selected source creates a real detached worktree without switching the main folder" {
+    ro w = tt_world("source")
+    tg(w.main, ["switch", "-c", "chosen"])
+    tt_commit(w.main, "selected.txt", "selected\n", "selected")
+    ro chosen = tg(w.main, ["rev-parse", "HEAD"])
+    tg(w.main, ["switch", "main"])
+    ro original = tg(w.main, ["rev-parse", "HEAD"])
+    ro dirty = write_file("${w.main}/dirty.txt", "keep main\n")
+    ro plan = match wip_tree_plan_from(w.main, "selected", "worktrees", "refs/heads/chosen") {
+        Ok(p) => p
+        Err(e) => panic(e)
+    }
+    assert(plan.base == chosen && !plan.origin)
+    ro run = wip_add_run(plan)
+    assert(run.code == 0)
+    assert(tg(plan.path, ["rev-parse", "HEAD"]) == chosen)
+    assert(tw_common_dir(plan.path) == tw_common_dir(w.main))
+    assert(tw_current_branch(plan.path) == "")
+    assert(tg(w.main, ["rev-parse", "HEAD"]) == original && tw_current_branch(w.main) == "main")
+    assert(tw_exists("${w.main}/dirty.txt") && !tw_exists("${w.main}/selected.txt"))
+    tt_commit(plan.path, "own.txt", "own\n", "own")
+    ro work_head = tg(plan.path, ["rev-parse", "HEAD"])
+    ro loose = write_file("${plan.path}/loose.txt", "keep tree\n")
+    match branch_create(plan.path, "task/001-source") { Ok(v) => (), Err(e) => panic(e) }
+    assert(tg(plan.path, ["rev-parse", "HEAD"]) == work_head && tw_exists("${plan.path}/loose.txt"))
+    tt_rm(w.root)
+}
+
+test "workspace: missing or malformed sources are refused before worktree side effects" {
+    ro w = tt_world("bad-source")
+    ro before = tg(w.main, ["worktree", "list", "--porcelain"])
+    for source in ["--help", "main~1", "refs/heads/missing", "refs/heads/main^{commit}", "refs/heads/main\n"] {
+        match wip_tree_plan_from(w.main, "badsource", "worktrees", source) {
+            Ok(p) => panic("bad source accepted: ${source}")
+            Err(e) => ()
+        }
+    }
+    assert(tg(w.main, ["worktree", "list", "--porcelain"]) == before)
+    assert(!tw_exists("${w.root}/worktrees"))
+    tt_rm(w.root)
+}
+
 test "taskwt wip: a wip tree (detached head, no branch) is cut from a fresh origin/main; the call is idempotent; bad names and a foreign folder are refused" {
     ro w = tt_world("wip")
     // somebody else pushes: the tree must be cut from the news of origin, not from the local main

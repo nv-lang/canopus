@@ -16,6 +16,7 @@ import crew_harness.projects.{Project, StoreFail, Listing, GitState, projects_lo
 import polaris.{ServerRequest, ServerResponse}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 import std.text
+import crew_harness.projects.{git_sources}
 import crew_harness.projects.{result_repo_inspect, result_repo_register, result_repo_json, result_repos_list}
 
 fn result_repos_route(data_dir str, port int) -> fn(ServerRequest) -> ServerResponse {
@@ -248,6 +249,11 @@ fn fs_git_route(port int) -> fn(ServerRequest) -> ServerResponse {
         mut o = JsonObject.new()
         api_put(o, "is_repo", JsonValue.bool(state.is_repo))
         api_put(o, "branch", JsonValue.str(state.branch))
+        mut sources = []JsonValue.new()
+        if state.is_repo {
+            for ref in git_sources(req.query_param("path") ?? "") { sources.push(JsonValue.str(ref)) }
+        }
+        api_put(o, "sources", JsonValue.array(sources))
         json_reply(200, JsonValue.object(o).to_str())
     }
 }

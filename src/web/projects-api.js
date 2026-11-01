@@ -61,7 +61,7 @@ export function createProjectsApi(fetchFn, failText = 'Нет связи с се
       const r = await call('GET', `/api/fs/git?path=${encodeURIComponent(path)}`);
       if (!r.ok) return { ok: false, isRepo: false, branch: '', error: r.error };
       const b = r.body || {};
-      return { ok: true, isRepo: b.is_repo === true, branch: typeof b.branch === 'string' ? b.branch : '' };
+      return { ok: true, isRepo: b.is_repo === true, branch: typeof b.branch === 'string' ? b.branch : '', sources: Array.isArray(b.sources) ? b.sources.filter(s => typeof s === 'string') : [] };
     },
   };
 }

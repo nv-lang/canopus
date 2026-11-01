@@ -1,0 +1,15 @@
+// Read-only source choices. No fetch/switch/worktree operation belongs to this endpoint.
+module crew_harness.projects
+
+export fn git_sources(path str) Proc -> []str {
+    mut sources = []str.new()
+    ro dir = match normalize_folder_path(path) { Ok(p) => p, Err(e) => return sources }
+    ro text = match rr_git(dir, ["for-each-ref", "--format=%(refname)", "refs/heads/", "refs/remotes/"]) {
+        Ok(t) => t
+        Err(e) => return sources
+    }
+    for ref in text.lines() {
+        if ref.byte_len() > 0 && !ref.ends_with("/HEAD") { sources.push(ref) }
+    }
+    sources
+}

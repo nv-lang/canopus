@@ -1021,6 +1021,10 @@ fn Hub mut @create(conn int, trace str, input JsonObject) Proc Detach Time -> ()
                     return
                 }
             }
+            ro source = jtext(input, "source_branch")
+            ro tree = project_id.byte_len() > 0 && launch.folder.byte_len() > 0 && tk_is_repo(launch.folder) && (match input.get("worktree") { Some(v) => jflag(input, "worktree"), None => true })
+            ro workspace_error = workspace_problem(project_id, launch.folder, source, tree)
+            if workspace_error.byte_len() > 0 { @tell_error(conn, trace, 1, "", workspace_error); return }
             ro pg = @settings.store == "pg"
             ro root = @settings.data_dir
             mut world = PgWorld.open(@settings.pg, trace)
@@ -1038,7 +1042,8 @@ fn Hub mut @create(conn int, trace str, input JsonObject) Proc Detach Time -> ()
             // the mode and the place of work chosen on the page before the first message (the default: interactive, with a tree)
             mut place = JsonObject.new()
             js(place, "route", if route_valid(jtext(input, "route")) { jtext(input, "route") } else { "interactive" })
-            jput(place, "worktree", JsonValue.bool(project_id.byte_len() > 0 && match input.get("worktree") { Some(v) => jflag(input, "worktree"), None => true }))
+            jput(place, "worktree", JsonValue.bool(tree))
+            js(place, "source_branch", source)
             @rt_journal(at, "route_set", JsonValue.object(place).to_str())
             @route_broadcast(at, true)
             ro reason = @ensure_client(at)
@@ -1158,6 +1163,11 @@ fn Hub mut @say(trace str, text str, items []JsonValue) Proc Detach Time -> () {
         return
     }
     // the mode of work (task 192q): the task, its tree and its files first, then the agent in the right folder
+    ro pending = @sessions[at]
+    if @work_allowed(at, "tree") && pending.rt.source_branch.byte_len() > 0 && pending.rt.wip_tree.byte_len() == 0 && !pending.rt.task_open {
+        ro problem = workspace_problem(pending.project_id, pending.folder, pending.rt.source_branch, pending.rt.use_tree)
+        if problem.byte_len() > 0 { @tell_error(0, trace, pending.engine.step_number(), "", problem); return }
+    }
     ro line = @route_on_message(at, text)
     // task 192.8: the tree of the session is made in the background; the message waits for it (it is not lost) and the hub answers the pages meanwhile
     if @sessions[at].rt.wip_prep > 0 {
@@ -2114,6 +2124,8 @@ export fn Hub mut @handle(conn int, text str) Proc Detach Time -> () {
         @route_tree_drop(trace, jflag(input, "force"))
     } else if kind == "session_worktree" {
         @route_worktree(trace, jflag(input, "on"))
+    } else if kind == "session_workspace" {
+        @workspace_set(trace, input)
     } else if kind == "session_result_repo" {
         @route_repo(trace, jtext(input, "repo_id"))
     } else if kind == "route_diff" {

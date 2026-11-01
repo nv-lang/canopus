@@ -426,5 +426,50 @@ export function createProjectsUi(doc, deps) {
     return true;
   }
 
-  return { openEditor, createByFolder, confirm, removeProject, pickFolder, editEnv, openCount: () => layers.length };
+  // Both choices are preferences. This dialog only reads Git; it never opens a session.
+  async function pickWorkspace({ folder, worktree = true, sourceBranch = '', preparation = false }) {
+    const source = h(doc, 'select', { 'aria-label': 'Исходная ветка', disabled: true });
+    const place = h(doc, 'select', { 'aria-label': 'Рабочая папка', disabled: true },
+      h(doc, 'option', { value: 'folder', text: 'Папка проекта' }),
+      h(doc, 'option', { value: 'tree', text: 'Отдельная папка (Git worktree)' }));
+    place.value = worktree ? 'tree' : 'folder';
+    const info = h(doc, 'p', { class: 'muted', text: folder ? 'Проверяем Git…' : 'Без проекта: исходной ветки и рабочей копии нет.' });
+    const save = h(doc, 'button', { type: 'button', class: 'primary', text: 'Сохранить выбор', disabled: true });
+    const cancel = h(doc, 'button', { type: 'button', text: 'Отмена' });
+    const dialog = dialogShell('workspace-title', 'project',
+      h(doc, 'h3', { id: 'workspace-title', text: 'Исходная ветка и рабочая папка' }),
+      h(doc, 'label', { class: 'field' }, h(doc, 'span', { text: 'Исходная ветка' }), source),
+      h(doc, 'label', { class: 'field' }, h(doc, 'span', { text: 'Рабочая папка' }), place), info,
+      h(doc, 'p', { class: 'muted', text: 'Git worktree — ещё одна рабочая папка с общей историей Git, не новый clone. Копия создаётся без ветки с первым исполнением; ветка задачи — только при «В работу».' }),
+      preparation ? h(doc, 'p', { class: 'plate', text: 'Подготовка задачи: выбор сохраняется для будущего исполнения. Ветки и рабочие копии сейчас не создаются.' }) : false,
+      h(doc, 'div', { class: 'actions' }, cancel, save));
+    const layer = pushLayer(dialog, { cancelValue: null, scrimClose: true });
+    cancel.addEventListener('click', () => layer.close());
+    save.addEventListener('click', () => layer.close({ worktree: place.value === 'tree', sourceBranch: source.value }));
+    cancel.focus();
+    if (folder) {
+      const r = await api.fsGit(folder);
+      if (layers.includes(layer)) {
+        if (!r.ok || !r.isRepo) {
+          info.textContent = !r.ok ? r.error : 'В папке проекта нет Git: исходной ветки и отдельной Git-копии нет.';
+        } else {
+          source.replaceChildren(h(doc, 'option', { value: '', text: 'По умолчанию (origin/main, main или текущая)' }),
+            ...(r.sources || []).map(ref => h(doc, 'option', { value: ref, text: ref.replace(/^refs\/(heads|remotes)\//, '') })));
+          source.value = sourceBranch;
+          if (source.value !== sourceBranch) source.value = '';
+          place.disabled = false;
+          const paint = () => {
+            source.disabled = place.value !== 'tree';
+            info.textContent = `Папка проекта: ${r.branch === 'HEAD' ? 'отсоединённый commit' : r.branch}. ${place.value === 'folder' ? 'Её ветка не переключается; исходная ветка применяется только к отдельной папке.' : 'Исходная ветка — предпочтение, а не текущая ветка чата.'}`;
+          };
+          place.addEventListener('change', paint);
+          paint();
+          save.disabled = false;
+        }
+      }
+    }
+    return layer.promise;
+  }
+
+  return { openEditor, createByFolder, confirm, removeProject, pickFolder, editEnv, pickWorkspace, openCount: () => layers.length };
 }
