@@ -55,6 +55,24 @@ test('выбор/снятие проекта сохраняет черновик
   assert.match(viewSrc, /row\.addEventListener\('click', \(\) => \{ invalidateBrowse\(\); if \(currentTrace\) handlers\.onDraftProject\(currentTrace, id\); \}\)/);
 });
 
+test('новый чат без проекта не наследует worktree, папку или ветку; закрепления переживают перезапуск', () => {
+  assert.match(appSrc, /worktree: Boolean\(project\) && readWorktreePref\(\)/);
+  assert.match(appSrc, /projectId: project \? project\.id : '', project: project \? project\.name : '', folder: folder \? folder\.path : '', branch: folder && folder\.branch \? folder\.branch : '', worktree: Boolean\(project\)/);
+  assert.match(appSrc, /const PINS_KEY = 'crew-console-session-pins'/);
+  assert.match(appSrc, /pins: readPins\(\)/);
+  assert.match(appSrc, /onPin\(trace, pinned\) \{ ui\.pins = \{ \.\.\.ui\.pins, \[trace\]: pinned \}; savePins\(ui\.pins\);/);
+  assert.match(viewSrc, /worktreeButton\.hidden = currentRoute === 'planning' \|\| !session\.projectId/);
+  assert.match(viewSrc, /resultRepoButton\.hidden = Boolean\(session\.draft\) \|\| currentRoute === 'planning' \|\| !session\.projectId/);
+});
+
+test('список групп имеет show-more, ограничивает первоначальный список и сохраняет реальную группировку', () => {
+  assert.match(viewSrc, /const SIDEBAR_PAGE_SIZE = 12/);
+  assert.match(viewSrc, /rows\.slice\(0, SIDEBAR_PAGE_SIZE\)/);
+  assert.match(viewSrc, /t\('sessions\.show_more'/);
+  assert.match(viewSrc, /groupSessions\(filtered, \{ pinned: pins, projects: projectsList/);
+  assert.equal(t('sessions.show_more', { n: 3 }), 'Показать больше (3)');
+});
+
 test('название по умолчанию из первых слов первого сообщения; пусто — пусто', () => {
   assert.equal(nameFromText('  Сделай   список задач для релиза и проверь тесты на старой версии '), 'Сделай список задач для релиза и');
   assert.equal(nameFromText(''), '');

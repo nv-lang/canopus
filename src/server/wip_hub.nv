@@ -68,6 +68,8 @@ fn wip_head_branch(dir str) -> str {
 fn Hub mut @wip_start(at int) Proc Detach Time -> () {
     ro s = @sessions[at]
     if !@work_allowed(at, "tree") { return }
+    // A projectless conversation never probes or mutates the hub's global working directory.
+    if s.project_id.byte_len() == 0 { return }
     // A foreign result is opened only as an explicit numbered task; never start an unbound wip in the owner's repository.
     if s.rt.result_repo.byte_len() > 0 { return }
     if !@settings.route_wip || !s.rt.use_tree || s.rt.wip_tree.byte_len() > 0 || s.rt.kind == "child" || s.rt.wip_prep != 0 { return }
