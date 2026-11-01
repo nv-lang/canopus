@@ -75,22 +75,27 @@ test('реестр live-агентов: только непустые id/label, 
 });
 
 test('model metadata accepts only a fresh, provenance-bound, configured partial snapshot', () => {
-  const now = Date.parse('2026-11-01T00:00:00Z');
+  const now = 1793491200000;
   const body = {
-    v: 1, status: 'ready', reason: '', family: 'codex', source: 'opencode-acp', source_version: '2.2.5',
-    observed_at: '2026-11-01T00:00:00Z', expires_at: '2026-11-01T00:04:00Z', complete: false, permissions_status: 'blocked',
+    v: 1, status: 'ready', reason: 'bound_native_snapshot', family: 'codex', source: 'opencode.api.model', source_version: '2.2.5',
+    observed_at: now, expires_at: now + 240000, complete: false, permissions_status: 'blocked',
     models: [{ id: 'provider/model-x', name: 'Model X', efforts: [{ id: 'native-low', name: 'Low' }, { id: 'native-high', name: 'High' }] }],
   };
   assert.deepEqual(parseModelMetadata(body, ['codex', 'second'], now), {
-    status: 'ready', reason: '', family: 'codex', source: 'opencode-acp', sourceVersion: '2.2.5',
+    status: 'ready', reason: '', family: 'codex', source: 'opencode.api.model', sourceVersion: '2.2.5',
     observedAt: now, expiresAt: now + 240000, complete: false, permissionsStatus: 'blocked',
     models: [{ id: 'provider/model-x', name: 'Model X', efforts: [{ id: 'native-low', name: 'Low' }, { id: 'native-high', name: 'High' }] }],
   });
   assert.equal(parseModelMetadata(body, ['second'], now).status, 'unavailable', 'metadata family must be in /api/agents registry');
-  assert.equal(parseModelMetadata({ ...body, expires_at: '2026-10-31T23:59:59Z' }, ['codex'], now).reason, 'metadata_expired_or_invalid');
-  assert.equal(parseModelMetadata({ ...body, observed_at: '2026-11-01T00:00:01Z' }, ['codex'], now).reason, 'metadata_expired_or_invalid');
+  assert.equal(parseModelMetadata({ ...body, expires_at: now }, ['codex'], now).reason, 'metadata_expired_or_invalid');
+  assert.equal(parseModelMetadata({ ...body, observed_at: now + 1 }, ['codex'], now).reason, 'metadata_expired_or_invalid');
+  assert.equal(parseModelMetadata({ ...body, source: 'opencode.api.other' }, ['codex'], now).reason, 'metadata_provenance_mismatch');
+  assert.equal(parseModelMetadata({ ...body, source_version: '2.2.4' }, ['codex'], now).reason, 'metadata_provenance_mismatch');
+  assert.equal(parseModelMetadata({ ...body, expires_at: now + 300001 }, ['codex'], now).reason, 'metadata_expired_or_invalid');
   assert.equal(parseModelMetadata({ ...body, complete: true }, ['codex'], now).reason, 'metadata_contract_mismatch');
-  assert.equal(parseModelMetadata({ ...body, models: [{ id: '', name: 'bad', efforts: [] }] }, ['codex'], now).reason, 'metadata_empty');
+  assert.equal(parseModelMetadata({ ...body, models: [{ id: '', name: 'bad', efforts: [] }] }, ['codex'], now).reason, 'metadata_models_malformed_or_duplicate');
+  assert.equal(parseModelMetadata({ ...body, models: [body.models[0], body.models[0]] }, ['codex'], now).reason, 'metadata_models_malformed_or_duplicate');
+  assert.equal(parseModelMetadata({ ...body, models: [{ ...body.models[0], efforts: [{ id: 'same', name: 'x' }, { id: 'same', name: 'duplicate' }] }] }, ['codex'], now).reason, 'metadata_efforts_malformed_or_duplicate');
   assert.equal(parseModelMetadata({ ...body, status: 'unavailable', reason: 'same_context_binding_unverified' }, ['codex'], now).reason, 'same_context_binding_unverified');
   assert.equal(parseModelMetadata(null, ['codex'], now).reason, 'metadata_invalid');
 });

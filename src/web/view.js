@@ -865,6 +865,20 @@ export function createView(doc, refs, deps) {
     closeMenu();
   }
 
+  function positionAgentMenu() {
+    if (menuKind !== 'agent' || menu.hidden || typeof familyButton.getBoundingClientRect !== 'function' || typeof menu.getBoundingClientRect !== 'function') return;
+    const trigger = familyButton.getBoundingClientRect();
+    const anchor = agentAnchor.getBoundingClientRect();
+    const popover = menu.getBoundingClientRect();
+    const viewportWidth = Number(win && win.innerWidth) || Number(doc.documentElement && doc.documentElement.clientWidth);
+    if (!(viewportWidth > 0) || !Number.isFinite(popover.width) || popover.width <= 0) return;
+    const minLeft = 8;
+    const maxLeft = Math.max(minLeft, viewportWidth - popover.width - 8);
+    const left = Math.min(Math.max(minLeft, trigger.left), maxLeft);
+    menu.style.setProperty('--agent-menu-left', `${left - anchor.left}px`);
+    menu.style.setProperty('--agent-menu-right', 'auto');
+  }
+
   function menuRow({ name, description, checked, number, arrow, tip, disabled = false, onPick }) {
     const row = h(doc, 'button', { type: 'button', class: 'menu-item', role: 'menuitem', 'aria-checked': checked ? 'true' : 'false', 'aria-disabled': disabled ? 'true' : undefined, disabled: disabled || undefined, title: tip || false },
       h(doc, 'span', { class: 'menu-check' }, checked ? icon(doc, 'i-check') : false),
@@ -949,6 +963,7 @@ export function createView(doc, refs, deps) {
       }
       menuList.append(...rows);
       menu.hidden = false;
+      positionAgentMenu();
       return;
     }
     if (menuKind === 'route') {
@@ -1051,6 +1066,7 @@ export function createView(doc, refs, deps) {
   }
 
   menuSearch.addEventListener('input', () => { menuQuery = menuSearch.value; renderMenu(); });
+  win?.addEventListener?.('resize', positionAgentMenu);
   // стрелки ходят по строкам, Enter в поиске берёт первую найденную
   menu.addEventListener('keydown', (e) => {
     const items = [...menuList.querySelectorAll('.menu-item')].filter((item) => !item.disabled);

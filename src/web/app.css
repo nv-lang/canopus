@@ -647,7 +647,7 @@ pre code { font: inherit; }
 .menu[hidden] { display: none; }
 .menu[data-side="left"] { left: 0; }
 .menu[data-side="right"] { right: 0; }
-.agent-picker-anchor > .menu { left: 0; right: auto; }
+.agent-picker-anchor > .menu { left: var(--agent-menu-left, auto); right: var(--agent-menu-right, 0px); }
 .menu-list { max-height: min(60vh, 420px); overflow-y: auto; }
 .menu-search { display: block; width: 100%; margin: 0 0 6px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: inherit; font: inherit; }
 .menu-search[hidden] { display: none; }

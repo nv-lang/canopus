@@ -65,7 +65,7 @@ test('компактный селектор отправляет direct source �
   for (const key of ['app', 'side', 'main', 'rail', 'status', 'overlay']) { refs[key] = doc.createElement('div'); doc.body.append(refs[key]); }
   const presets = { active: 'default', presets: [{ name: 'default', roles: {}, pools: { team: { light: [{ family: 'opencode', model: 'm1', effort: 'low', active: true }] } } }] };
   const agents = [{ id: 'opencode' }];
-  const metadata = { status: 'ready', family: 'opencode', source: 'trusted-snapshot', sourceVersion: '1', observedAt: 1, expiresAt: 1000, complete: false, permissionsStatus: 'blocked', models: [{ id: 'm1', name: 'Model One', efforts: [{ id: 'low', name: 'Low' }, { id: 'high', name: 'High' }] }] };
+  const metadata = { status: 'ready', family: 'opencode', source: 'opencode.api.model', sourceVersion: '2.2.5', observedAt: 1, expiresAt: 1000, complete: false, permissionsStatus: 'blocked', models: [{ id: 'm1', name: 'Model One', efforts: [{ id: 'low', name: 'Low' }, { id: 'high', name: 'High' }] }] };
   const view = createView(doc, refs, { agents, now: () => 0, presets: () => presets, modelMetadata: () => metadata, handlers: {
     queued: () => 0, queuedItems: () => [], onSource: (...args) => sources.push(args), onDraftSource: (...args) => draftSources.push(args),
   } });
@@ -91,7 +91,7 @@ test('partial cold metadata exposes only its bound family; other configured fami
   const doc = createFakeDocument(); const refs = {}; const sources = [];
   for (const key of ['app', 'side', 'main', 'rail', 'status', 'overlay']) { refs[key] = doc.createElement('div'); doc.body.append(refs[key]); }
   const agents = [{ id: 'codex', label: 'Codex' }, { id: 'second', label: 'Second' }];
-  let metadata = { status: 'ready', family: 'codex', source: 'opencode-acp', sourceVersion: '2.2.5', observedAt: 1, expiresAt: 1000, complete: false, permissionsStatus: 'blocked', models: [{ id: 'native/model-x', name: 'Model X', efforts: [{ id: 'native-high', name: 'High' }] }] };
+  let metadata = { status: 'ready', family: 'codex', source: 'opencode.api.model', sourceVersion: '2.2.5', observedAt: 1, expiresAt: 1000, complete: false, permissionsStatus: 'blocked', models: [{ id: 'native/model-x', name: 'Model X', efforts: [{ id: 'native-high', name: 'High' }] }] };
   const view = createView(doc, refs, { agents, now: () => 0, modelMetadata: () => metadata, handlers: {
     queued: () => 0, queuedItems: () => [], onSource: (...args) => sources.push(args),
   } });
@@ -147,6 +147,24 @@ test('Escape из поиска закрывает picker и возвращает
   doc.dispatchEvent({ type: 'keydown', key: 'Escape' });
   assert.equal(menu.hidden, true);
   assert.equal(doc.activeElement, picker);
+});
+
+test('anchor-position clamps a right-edge trigger inside a narrow viewport', () => {
+  const doc = createFakeDocument(); const refs = {};
+  doc.defaultView = { innerWidth: 360, addEventListener() {}, matchMedia: () => ({ matches: false }) };
+  for (const key of ['app', 'side', 'main', 'rail', 'status', 'overlay']) { refs[key] = doc.createElement('div'); doc.body.append(refs[key]); }
+  const view = createView(doc, refs, { agents: [{ id: 'codex', label: 'Codex' }], now: () => 0, handlers: { queued: () => 0, queuedItems: () => [] } });
+  const model = reduce(initialModel(), { id: 'create', trace: 's', step: 0, time: 1, kind: 'session_created', input: { name: 'x', agent: 'codex' } });
+  view.render(model, { selected: 's', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
+  const anchor = refs.main.querySelector('.agent-picker-anchor');
+  const picker = refs.main.querySelector('.agent-picker-button');
+  const menu = anchor.querySelector('.menu');
+  anchor.getBoundingClientRect = () => ({ left: 300, right: 360, width: 60 });
+  picker.getBoundingClientRect = () => ({ left: 300, right: 360, width: 60 });
+  menu.getBoundingClientRect = () => ({ left: 0, right: 250, width: 250 });
+  picker.click();
+  assert.equal(menu.style['--agent-menu-left'], '-198px');
+  assert.equal(menu.style['--agent-menu-right'], 'auto');
 });
 
 test('session_source принимает плоский direct/pool wire без смешения уровня и effort', () => {
