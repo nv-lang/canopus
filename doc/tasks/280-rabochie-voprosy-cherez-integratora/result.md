@@ -26,3 +26,15 @@
 После разрешённого переноса на своей ветке объединить get/spacingMs/questionIO factory, использовать getNative и executionHeld(taskHold(...)), сохранить обе стороны core/index и union pretest, await disposer drain. Только затем полный plugin набор/guards через machine queue, signed frozen SHA автору и его короткая независимая проверка. Автоматический платный reviewer не запускается (small/human); перед submit маршрут сверяется ещё раз.
 
 Ни main/live update, ни merge/push/перезапуск, ни снятие текущих HOLD/пересмотр 269/277 этим checkpoint не разрешаются. Общий T=180 минут от исходного старта, 2T=360; время/объём не обнуляются.
+
+## Отдельное дополнение после исходного SHA
+
+Исходный checkpoint — **9f2deaef68eaaddeaae8764f2deb1f00d6973430**, signed, hook guards через очередь exit 0 (10/10). Он не переписывается и не объявляется полным GREEN.
+
+По новому согласованию default/deadline добавлен отдельный diff: заранее фиксированный continue_assigned с проверяемым источником, trusted assignment/scope, ответственным и deadline; иначе durable адресный blocker без автоматического нового owner-вопроса. Источник цитаты/статус ahead-of-pin — датированные task/message, ADR/process и log. Нормативный кандидат методики не ждём, pin не меняем.
+
+RED через реальный router: по сроку без default было owner вместо blocked. После исправления `crew-question-default` и real tool `crew-question-entry` — exit 0, базовый router — 20 ячеек exit 0. Ограничения источника/scope/deadline, gate/HOLD, смена ответственного, late owner/закрытая форма и отсутствие второго POST проверены. Шестой файл зарегистрирован в pretest.
+
+Дополнен настоящий plugin кейс 087: текущий ответственный/тот же exact SHA/объём/проверенный источник снимают ожидание исходного fixture вызова и дают реальное продолжение; иной SHA/scope и второй ответ отвергаются. Все assertions этого кейса и AC-1 проходят, но процесс по-прежнему exit 1 на старом sync disposer после cleanup (ENOENT cards). Ни sleep, ни подавления ошибки нет; нужен frozen await-drain 279 и итоговый повтор exit 0. Готовность стенда/полного набора этим не подтверждается.
+
+Последующий targeted повтор `npm run pretest` (шесть файлов) завершился **exit 0 без поздних ошибок**; 087 также воспроизводит durable ожидание 26 минут и подтверждённое продолжение исходного fixture вызова. Ранее воспроизведённый sync-disposer race этим не объявляется исправленным: deterministic await-drain контракт всё равно берётся только из пригодного frozen 279 и перепроверяется на совмещённых байтах. Полного набора/готового стенда пока нет.

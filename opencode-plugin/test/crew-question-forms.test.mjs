@@ -14,8 +14,8 @@ let stop
 try {
   const core = await import('../core.ts')
   const fw = await import('../form-wait.ts')
-  const { createTask } = await import('../tasks.ts')
-  const { digest } = await import('../question-routing.ts')
+  const { createTask, loadTask, saveTask } = await import('../tasks.ts')
+  const { digest, formRequest } = await import('../question-routing.ts')
   const { getQuestionForm, replyQuestionForm } = await import('../question-native.ts')
   const root = path.join(tmp, 'repo'); mkdirSync(path.join(root, '.opencode'), { recursive: true }); mkdirSync(path.join(root, 'doc'))
   writeFileSync(path.join(root, '.opencode', 'crew-harness.json'), JSON.stringify({ answer_mode: { default: 'recommendations' }, answer_delay_sec: 0 }))
@@ -27,18 +27,29 @@ try {
   core.takeExclusive('sample.integrator', 'integrator', integrator, false)
   const fields = [{ key: 'q_native', type: 'string', custom: true, description: 'Где проверенная команда Alula?', options: [{ value: 'guess', label: 'Угадать (Recommended)' }] }]
   let posts = 0, interrupts = 0
+  const waiting = new Map(), continued = []
+  const awaitingCall = id => {
+    if (!waiting.has(id)) {
+      let resume
+      const done = new Promise(resolve => { resume = resolve }).then(answer => { continued.push({ id, answer }); return answer })
+      waiting.set(id, { resume, done })
+    }
+    return waiting.get(id)
+  }
   const forms = new Map([['frm_fixture', { id: 'frm_fixture', sessionID: worker, title: 'Alula', metadata: { kind: 'question' }, fields, state: { status: 'pending' } }]])
   const fakeFetch = async (url, init = {}) => {
     const match = /^http:\/\/question-fixture\.invalid\/api\/session\/([^/]+)\/form\/([^/]+)(\/reply)?$/.exec(String(url))
     const form = match && forms.get(match[2])
     if (!form || match[1] !== form.sessionID) throw new Error(`unexpected real transport: ${url}`)
+    const call = awaitingCall(form.id)
     if (init.method === 'POST') {
       posts++
       const body = JSON.parse(init.body)
       assert.deepEqual(Object.keys(body.answer), ['q_native'])
-      assert.match(body.answer.q_native, /doc\/source.md sha256:/)
+      assert.match(body.answer.q_native, /doc\/(?:source|chain)\.md sha256:/)
       assert.equal(form.state.status, 'pending', 'fixture forbids double answer just like native settlement')
       form.state = { status: 'answered', answer: body.answer }
+      call.resume(body.answer.q_native) // Native reply settles the actual fixture's waiting question call.
       return new Response(null, { status: 204 })
     }
     return Response.json({ data: form })
@@ -66,9 +77,12 @@ try {
   const record = router.list().find(r => r.form?.id === 'frm_fixture')
   assert.equal(record.status, 'routing')
   assert.equal(posts, 0, 'Recommended must not guess a missing fact')
+  assert.equal(continued.length, 0, 'a routing/outbox enqueue is not continuation of the waiting call')
   const result = await tools.find(t => t.name === 'crew_question').execute({ action: 'resolve', id: record.id, epoch: record.epoch, text: 'Проверенная команда Alula: alula check fixture.', sources: [{ path: 'doc/source.md', sha256: digest(sourceText), quote: sourceText }] }, { sessionID: integrator })
   assert.match(result.content, /answered/)
   assert.equal(posts, 1)
+  await awaitingCall('frm_fixture').done
+  assert.equal(continued.length, 1)
   assert.equal(interrupts, 0, 'native reply must not interrupt a live question call')
   await new Promise(r => setTimeout(r, 100))
   assert.equal(posts, 1)
@@ -88,9 +102,51 @@ try {
     assert.match(answer.content, /answered/)
     assert.equal(posts, before + 1)
     assert.equal(forms.get(id).state.status, 'answered')
+    await awaitingCall(id).done
   }
   assert.equal(posts, 4)
   assert.equal(interrupts, 0)
+  // 087: confirmed current integrator decision for the SAME assignment/SHA/scope unblocks the original call.
+  const sha = 'd7e541a7818e86b12bb9748aba38dc6e8450c879'
+  const assignment = loadTask('sample', t.n)
+  assignment.goal = `Передать exact SHA ${sha} на независимый просмотр по той же ранее порученной цепочке.`
+  assignment.boundaries = 'Не менять SHA/объём; финальные owner gates и HOLD сохраняются.'
+  saveTask(assignment)
+  const chainSource = `Решение текущего ответственного: exact SHA ${sha}, та же цепочка и объём. Независимый просмотр перед отдельной финальной owner acceptance; нового разрешения на публикацию нет.`
+  writeFileSync(path.join(root, 'doc', 'chain.md'), chainSource)
+  const id = 'frm_chain'
+  const question = `Публикация упомянута как контекст той же ранее порученной цепочки. Какой exact SHA ${sha} передать автору на независимый просмотр?`
+  forms.set(id, { id, sessionID: worker, title: 'Та же цепочка', metadata: { kind: 'question' }, fields: [{ ...fields[0], description: question, options: [{ value: 'same', label: 'Тот же маршрут (Recommended)' }] }], state: { status: 'pending' } })
+  const historicalAt = Date.now() - 26 * 60_000
+  const historicalForm = { id, session: worker, at: historicalAt, kind: 'question', nq: 1, full: question, options: ['Тот же маршрут (Recommended)'] }
+  fw.addForm(worker, historicalForm)
+  // Isolated durable restart/history fixture: already routed 26 minutes ago, no safe default was declared.
+  const historicalRouter = core.questionRouterFor({ questionIO })
+  historicalRouter.open(formRequest(core.readJson(core.cardFile(worker)), historicalForm, { data: forms.get(id) }), historicalAt)
+  await historicalRouter.tick()
+  await until(() => router.list().some(r => r.form?.id === id && r.target === integrator))
+  const chain = router.list().find(r => r.form?.id === id)
+  assert.equal(chain.status, 'blocked', 'a late current decision resolves the original addressed blocker, not a repeated owner form')
+  const chainProof = [{ path: 'doc/chain.md', sha256: digest(chainSource), quote: chainSource }]
+  const qtool = tools.find(t => t.name === 'crew_question')
+  const wrong = await qtool.execute({ action: 'resolve', id: chain.id, epoch: chain.epoch, text: `Передай SHA ${'f'.repeat(40)} на просмотр.`, sources: chainProof }, { sessionID: integrator })
+  assert.match(wrong.content, /иной SHA/)
+  assignment.boundaries += ' Новый объём.'; saveTask(assignment)
+  const changed = await qtool.execute({ action: 'resolve', id: chain.id, epoch: chain.epoch, text: `Передай exact SHA ${sha} на независимый просмотр.`, sources: chainProof }, { sessionID: integrator })
+  assert.match(changed.content, /границы изменились/)
+  assignment.boundaries = 'Не менять SHA/объём; финальные owner gates и HOLD сохраняются.'; saveTask(assignment)
+  assert.equal(continued.length, 4)
+  assert.equal(posts, 4)
+  const accepted = await qtool.execute({ action: 'resolve', id: chain.id, epoch: chain.epoch, text: `Передай exact SHA ${sha} автору на независимый просмотр той же цепочки; финальное решение владельца остаётся отдельным.`, sources: chainProof }, { sessionID: integrator })
+  assert.match(accepted.content, /answered/)
+  const actualResult = await awaitingCall(id).done
+  assert.match(actualResult, new RegExp(sha))
+  assert.equal(continued.length, 5, 'receipt is the waiting native call continuation, not HTTP enqueue/record alone')
+  assert.equal(continued.at(-1).id, id)
+  const late = await qtool.execute({ action: 'resolve', id: chain.id, epoch: chain.epoch, text: `Передай exact SHA ${sha} ещё раз.`, sources: chainProof }, { sessionID: integrator })
+  assert.match(late.content, /settled/)
+  assert.equal(posts, 5)
   console.log('ok real plugin: existing form -> integrator with source -> exact native field once, no guessed Recommended/interrupt')
   console.log('ok real plugin AC-1 matrix: worker/reviewer with/without Recommended preserve native qid and source')
+  console.log('ok 087: current decision/same SHA/scope -> original call continued; wrong SHA/scope/second reply refused')
 } finally { await stop?.(); rmSync(tmp, { recursive: true, force: true }) }

@@ -2,7 +2,7 @@
 import { createHash } from "node:crypto"
 import { readFileSync, realpathSync, statSync } from "node:fs"
 import path from "node:path"
-import { QuestionRouter, type QuestionEvidence, type QuestionObservation, type QuestionRecord, type QuestionRequest } from "./question-router.ts"
+import { QuestionRouter, type QuestionEvidence, type QuestionObservation, type QuestionRecord, type QuestionRequest, type QuestionScope } from "./question-router.ts"
 
 export const digest = (value: string) => createHash("sha256").update(value).digest("hex")
 
@@ -59,6 +59,7 @@ export type RoutingHost = {
   io?: QuestionFormIO
   closed(text: string): boolean
   canReply?(r: QuestionRequest): string | undefined
+  scope?(r: QuestionRequest): QuestionScope | undefined
   post(to: string, text: string, id: string, replyTo?: string): void
 }
 export function createQuestionRouting(host: RoutingHost) {
@@ -68,6 +69,7 @@ export function createQuestionRouting(host: RoutingHost) {
     verify: async (r, sources) => verifyQuestionSources(host.root(r), sources),
     closed: host.closed,
     canReply: r => host.canReply ? host.canReply(r) : "execution/HOLD guard недоступен; native ответ не отправлен",
+    scope: host.scope,
     post: host.post,
     reply: (r, answer) => host.io && r.form ? host.io.reply(r.session, r.form.id, r.form.field, answer) : Promise.resolve({ state: "unknown", why: "native reply adapter отсутствует" }),
   })

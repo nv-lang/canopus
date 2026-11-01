@@ -35,9 +35,9 @@ import { watchRefusal } from "./deny.ts"
 import { linkErrorsOfWrite, profileProblems, profileState, profilesShow } from "./profile-layer.ts"
 import { releaseTaskWindow } from "./profile-windows.ts"
 import { type Bounds, type Resolved, boundsOf, clampTier, familyOfModel, resolveStageProfile, stageOfLaunch } from "./profiles.ts"
-import { createQuestionRouting, requestOf, routingSummary, type QuestionFormIO } from "./question-routing.ts"
+import { createQuestionRouting, digest as questionScopeDigest, requestOf, routingSummary, type QuestionFormIO } from "./question-routing.ts"
 import { QUESTION_ROUTING_HINT, smallHandoff } from "./question-policy.ts"
-import { type QuestionObservation, type QuestionRequest } from "./question-router.ts"
+import { QUESTION_ROUTE_TERM_MS, type QuestionObservation, type QuestionRequest } from "./question-router.ts"
 
 export const POLL_MS = Number(process.env.CREW_HARNESS_POLL_MS) || 1_000 // переопределение — для самотеста
 export const LIVE_MS = 15 * 60_000
@@ -1767,6 +1767,7 @@ force, пароль, токен, деньги, расширение прав, с
 РАБОЧИЕ ВОПРОСЫ (ADR-0017). ${QUESTION_ROUTING_HINT}
 crew_question {action: "ask", text, context} сохраняет исходный qid/task/project/source/context.
 Интегратору: claim подтверждает получение, resolve {id, epoch, text, sources:[{path:"doc/...", sha256, quote}]} возвращает ответ с проверенным артефактом. Это не полномочие владельца.
+default {id, epoch, sources, deadline?} — заранее объявить только continue_assigned той же порученной неблокированной работы, не произвольный текст/разрешение. Host сохраняет assignment/scope и проверяет его снова по сроку; предел — исходные 15 минут. Нет безопасного default/продолжения — durable адресный blocker ответственному, не новый owner-вопрос о поиске факта. HOLD, owner gates и границы сроком не снимаются.
 escalate с точным оставшимся решением и источником — только для настоящего owner gate. status показывает исходный вопрос и состояние.
 Исходный адресат после получения текстового/почтового ответа вызывает ack {id}; постановка в ящик и HTTP 200 не означают получения или старта.
 Уже открытые native формы сохраняются; replaced/stale/answered не получают повторного ответа. Не обходи router через owner-answer или unverified reply_to.
@@ -1962,6 +1963,15 @@ export function questionRouterFor(host: Pick<CrewHost, "questionIO" | "questionC
     io: host.questionIO,
     closed,
     canReply: r => r.task ? questionExecutionBlock(host, r.project, r.task) : "задача/контекст исполнения неизвестны; native ответ не отправлен",
+    scope: r => {
+      if (!r.task) return undefined
+      const task = loadTask(r.project, r.task), card = readJson<Card>(cardFile(r.session))
+      if (!task || !card || task.route_word_stale || ![card.task, card.review].some(ref => ref?.project === r.project && ref.n === r.task)) return undefined
+      const currentWork = task.executor === r.session && ["running", "rework"].includes(task.status)
+      const currentReview = task.reviewer === r.session && task.status === "reviewing"
+      if (!currentWork && !currentReview) return undefined
+      return { assignment: task.qid, digest: questionScopeDigest(JSON.stringify([task.project, task.n, task.qid, task.goal, task.boundaries ?? "", task.criteria ?? "", task.status, task.route ?? "full", task.branch, task.author, task.author_role, task.executor, task.reviewer, task.rework ?? 0, task.syncs ?? 0])) }
+    },
     post: (to, text, id, replyTo) => {
       if (!letterExistsFor(to, id)) postLetter(to, { id, from_role: PLUGIN_SENDER, from_session: PLUGIN_SENDER, to, text, time: Date.now(), ...(replyTo ? { reply_to: replyTo } : {}) })
     },
@@ -2313,14 +2323,15 @@ export function makeTools(host: CrewHost): CrewTool[] {
 
   const crewQuestion: CrewTool = {
     name: "crew_question",
-    description: "Рабочие вопросы через ответственного автора/актуального интегратора (ADR-0017). ask сохраняет qid/контекст, status читает состояние. claim подтверждает получение. resolve требует проверяемых doc/ источников (path, sha256, точная quote), не выдаёт прав владельца. escalate передаёт только оставшееся настоящее решение владельца. ack исходного адресата подтверждает получение текстового/почтового ответа; enqueue не receipt. Настройки answer_*, закрытый список и HOLD не меняются.",
+    description: "Рабочие вопросы через ответственного автора/актуального интегратора (ADR-0017). ask сохраняет qid/контекст, status читает состояние. claim подтверждает получение. resolve требует doc/ источники (path, sha256, точная quote). default заранее фиксирует только continue_assigned, источник и deadline: host привязывает к той же порученной работе; срок не выдаёт прав, иначе адресный blocker. escalate — только настоящее оставшееся решение владельца. ack исходного адресата подтверждает получение; enqueue не receipt. answer_*, закрытый список и HOLD не меняются.",
     input: {
       type: "object", properties: {
-        action: { type: "string", enum: ["ask", "status", "claim", "resolve", "escalate", "ack"] },
+        action: { type: "string", enum: ["ask", "status", "claim", "resolve", "default", "escalate", "ack"] },
         id: str("Устойчивый идентификатор вопроса из маршрутного письма"),
         epoch: { type: "integer", minimum: 1, description: "Текущая эпоха маршрута; ответы прежнего интегратора отвергаются" },
         text: str("Исходный вопрос, ответ с проверенным источником или точное оставшееся решение владельца"),
         context: str("Контекст вопроса, не источник полномочий или разрешения"),
+        deadline: { type: "integer", minimum: 0, description: "default: срок в миллисекундах эпохи; по умолчанию исходный deadline. Задать заранее, не продлевая исходный 15-минутный предел" },
         sources: { type: "array", maxItems: 8, items: { type: "object", properties: { path: str("Публичный doc/ артефакт относительно репозитория исходного адресата"), sha256: str("SHA256 точного артефакта"), quote: str("Точная проверенная выдержка; не выдуманная цитата владельца") }, required: ["path", "sha256", "quote"], additionalProperties: false } },
       }, required: ["action"], additionalProperties: false,
     },
@@ -2342,13 +2353,15 @@ export function makeTools(host: CrewHost): CrewTool[] {
         if (input.action === "status") return { content: JSON.stringify(r, null, 2) }
         if (input.action === "claim") router.claim(r.id, sessionID, input.epoch)
         else if (input.action === "ack") router.ack(r.id, sessionID)
+        else if (input.action === "default") await router.setDefault(r.id, sessionID, input.epoch, input.sources ?? [], input.deadline ?? r.deadline ?? r.created + QUESTION_ROUTE_TERM_MS)
         else if (input.action === "resolve") await router.resolve(r.id, sessionID, input.epoch, String(input.text ?? ""), input.sources ?? [])
         else if (input.action === "escalate") await router.escalate(r.id, sessionID, input.epoch, String(input.text ?? ""), input.sources ?? [])
         else return { content: "Неизвестное действие question router." }
         if (input.action === "resolve") settleObligation(sessionID, r.qid)
         await router.tick()
         host.posted([])
-        return { content: `Вопрос ${r.qid}: ${router.get(r.id)!.status}. Исходный вопрос/контекст сохранены; постановка в ящик не подтверждает получение.` }
+        const current = router.get(r.id)!
+        return { content: `Вопрос ${r.qid}: ${current.status}${current.default ? `, умолчание ${current.default.kind}, deadline ${current.deadline}` : ""}. Исходный вопрос/контекст сохранены; постановка в ящик не подтверждает получение.` }
       } catch (e) { return { content: `Маршрутизатор вопросов: ${String(e)}. Вопрос не стирается; не обходи отказ ответом владельца.` } }
     },
   }
