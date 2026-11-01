@@ -9,6 +9,8 @@ import { createProjectsUi } from '../projects-ui.js';
 
 function setup(wrap = (api) => api) {
   const doc = createFakeDocument();
+  const stored = new Map();
+  doc.defaultView = { localStorage: { getItem: (key) => stored.get(key) ?? null, setItem: (key, value) => stored.set(key, String(value)) } };
   const fetchFn = mockFetch(async () => { throw new Error('настоящий fetch не должен вызываться'); });
   const api = createProjectsApi(() => fetchFn);
   const log = { changed: 0, notices: [] };
@@ -23,7 +25,8 @@ function setup(wrap = (api) => api) {
   const type = async (el, value) => { el.value = value; el.dispatchEvent(inputEvent()); await settle(); };
   const submit = async (form) => { form.dispatchEvent(event('submit')); await settle(); };
   const pickItem = (path) => q(`.picker-item[data-path="${path}"]`);
-  return { doc, api, ui, log, layers, top, q, textOf, click, type, submit, pickItem };
+  const enterItem = async (path) => { await click(pickItem(path)); pickItem(path)?.dispatchEvent(dbl()); await settle(); };
+  return { doc, api, ui, log, stored, layers, top, q, textOf, click, type, submit, pickItem, enterItem };
 }
 
 test('«Новый проект»: окно с ролью dialog и подписью, название обязательно', async () => {
@@ -58,8 +61,8 @@ test('создание проекта: выбор папки, ветка из gi
   assert.deepEqual(s.top().querySelectorAll('.picker-list .picker-item').map(s.textOf), ['C:', 'D:'], 'корни дисков');
   assert.ok(s.q('.picker-recent').querySelectorAll('.picker-item').length === 3, 'недавние');
   assert.equal(s.q('.primary').disabled, true, 'в корне выбрать нечего');
-  await s.click(s.pickItem('C:/'));
-  await s.click(s.pickItem('C:/work'));
+  await s.enterItem('C:/');
+  await s.enterItem('C:/work');
   assert.equal(s.q('#picker-path').value, 'C:/work');
   assert.deepEqual(s.top().querySelectorAll('.picker-list .picker-item').map(s.textOf), ['api-server', 'crew-harness', 'docs-site', 'notes']);
   await s.click(s.pickItem('C:/work/crew-harness'));
@@ -89,8 +92,8 @@ test('создание проекта: выбор папки, ветка из gi
 
   // повтор той же папки не добавляется
   await s.click(s.q('.add-folder'));
-  await s.click(s.pickItem('C:/'));
-  await s.click(s.pickItem('C:/work'));
+  await s.enterItem('C:/');
+  await s.enterItem('C:/work');
   await s.click(s.pickItem('C:/work/notes'));
   await s.click(s.q('.primary'));
   assert.equal(s.q('.proj-folders').querySelectorAll('.proj-folder').length, 2);
@@ -145,13 +148,17 @@ test('выбор папки: путь руками, «..», ошибка, дво
   assert.match(s.textOf(s.q('.plate')), /папка не найдена/);
   assert.equal(s.top().querySelector('.picker-list').dispatchEvent(dbl()), true);
   await settle();
+  assert.equal(s.layers().length, 1, 'двойной клик по пустой области не подтверждает папку');
+  await s.type(s.q('#picker-path'), 'C:/work');
+  await s.click(s.q('.primary'));
   const picked = await result;
-  assert.equal(picked, 'C:/work', 'двойной клик выбрал текущий каталог (ошибка не сменила его)');
+  assert.equal(picked, 'C:/work', 'после ошибки можно подтвердить текущую папку');
 
   const again = s.ui.pickFolder('');
   await settle();
   await s.click(s.q('.picker-recent .picker-item'));
-  assert.equal(await again, 'C:/work/crew-harness', 'клик по недавней сразу выбирает её');
+  await s.click(s.q('.primary'));
+  assert.equal(await again, 'C:/work/crew-harness', 'недавнее место выбирается и подтверждается');
 
   const third = s.ui.pickFolder('C:/work');
   await settle();
@@ -170,6 +177,65 @@ test('выбор папки: поиск фильтрует каталоги те
   await s.click(s.pickItem('C:/work/crew-harness'));
   await s.click(s.q('.primary'));
   assert.equal(await result, 'C:/work/crew-harness');
+});
+
+test('выбор папки: одиночный выбор не входит, Enter и двойной клик входят, breadcrumb и Назад ведут по истории', async () => {
+  const s = setup();
+  const result = s.ui.pickFolder('C:/work');
+  await settle();
+  const selected = s.pickItem('C:/work/crew-harness');
+  await s.click(selected);
+  assert.equal(s.q('#picker-path').value, 'C:/work', 'один клик только выделяет каталог');
+  assert.equal(s.pickItem('C:/work/crew-harness').getAttribute('aria-selected'), 'true');
+  s.pickItem('C:/work/crew-harness').focus();
+  s.pickItem('C:/work/crew-harness').dispatchEvent(key('Enter'));
+  await settle();
+  assert.equal(s.q('#picker-path').value, 'C:/work/crew-harness', 'Enter входит в выделенную папку');
+  assert.equal(s.q('.picker-back').disabled, false);
+  await s.click(s.q('.picker-back'));
+  assert.equal(s.q('#picker-path').value, 'C:/work', 'Назад возвращает предыдущий каталог');
+  const crumb = s.q('.picker-breadcrumbs').querySelectorAll('.picker-crumb')[0];
+  assert.equal(s.textOf(crumb), 'C:/');
+  await s.click(crumb);
+  assert.equal(s.q('#picker-path').value, 'C:/', 'breadcrumb открывает выбранного предка');
+  const again = s.pickItem('C:/work');
+  await s.enterItem('C:/work');
+  assert.equal(s.q('#picker-path').value, 'C:/work', 'двойной клик входит в каталог');
+  assert.ok(again, 'папка была доступна для выделения');
+  s.doc.dispatchEvent(key('Escape'));
+  assert.equal(await result, null);
+});
+
+test('выбор папки: избранное хранится локально, выбирается отдельно и подтверждается', async () => {
+  const s = setup();
+  const first = s.ui.pickFolder('C:/work');
+  await settle();
+  await s.click(s.q('.picker-favorite'));
+  assert.deepEqual(JSON.parse(s.stored.get('crew-folder-picker-favorites-v1')), ['C:/work']);
+  s.doc.dispatchEvent(key('Escape'));
+  assert.equal(await first, null, 'закрытие не подтверждает путь');
+
+  const second = s.ui.pickFolder('');
+  await settle();
+  const fav = s.q('.picker-place.is-favorite');
+  assert.ok(fav);
+  await s.click(fav);
+  assert.equal(s.q('#picker-path').value, '', 'клик по избранному только выбирает путь');
+  await s.click(s.q('.primary'));
+  assert.equal(await second, 'C:/work');
+});
+
+test('устаревшее избранное перепроверяется через API и не подтверждается при ошибке', async () => {
+  const s = setup();
+  s.stored.set('crew-folder-picker-favorites-v1', JSON.stringify(['C:/missing']));
+  const result = s.ui.pickFolder('C:/work');
+  await settle();
+  await s.click(s.q('.picker-place.is-favorite'));
+  await s.click(s.q('.primary'));
+  assert.equal(s.layers().length, 1, 'ошибочный путь не закрывает окно');
+  assert.match(s.textOf(s.q('.plate')), /папка не найдена/);
+  s.doc.dispatchEvent(key('Escape'));
+  assert.equal(await result, null);
 });
 
 test('Esc закрывает только верхнее окно, Tab ходит по кругу, фокус возвращается', async () => {
@@ -256,7 +322,7 @@ test('выбор папки открывается без пути: сервер
   const ui = fs.readFileSync(new URL('../projects-ui.js', import.meta.url), 'utf8');
   const api = fs.readFileSync(new URL('../projects-api.js', import.meta.url), 'utf8');
   assert.equal((ui.match(/await pickFolder\(''\)/g) || []).length, 2, 'оба выбора начинают с пустого пути');
-  assert.match(ui, /state = \{ path: r\.path, parent: r\.parent/);
+  assert.match(ui, /state = \{ \.\.\.state, path: r\.path, parent: r\.parent/);
   assert.match(api, /last: typeof b\.last === 'string' \? normalizePath\(b\.last\) : ''/);
 });
 

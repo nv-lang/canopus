@@ -7,7 +7,7 @@
 import { t } from './strings.js';
 import { h, icon } from './dom.js';
 import {
-  countEnv, folderName, joinPath, makeFolder, normalizePath, parseEnv, pluralRu, projectPayload, samePath, uniqueProjectName, validateProject, worktreesDirHint,
+  countEnv, folderName, joinPath, makeFolder, normalizePath, parentPath, parseEnv, pluralRu, projectPayload, samePath, uniqueProjectName, validateProject, worktreesDirHint,
 } from './projects.js';
 
 const FOCUSABLE = 'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])';
@@ -82,14 +82,35 @@ export function createProjectsUi(doc, deps) {
 
   /** Открыть окно выбора папки. Результат: нормальный путь или null (отмена). */
   function pickFolder(start = '') {
-    let state = { path: '', parent: null, entries: [], recent: [], error: '', loading: true, search: '' };
+    let state = { path: '', parent: null, entries: [], recent: [], error: '', loading: true, search: '', selectedPath: '' };
     let ticket = 0;
+    let history = [];
+    let historyAt = -1;
+    const FAVORITES_KEY = 'crew-folder-picker-favorites-v1';
+    let favorites = [];
+    try {
+      const saved = JSON.parse(doc.defaultView?.localStorage?.getItem(FAVORITES_KEY) || '[]');
+      if (Array.isArray(saved)) {
+        for (const value of saved) {
+          if (typeof value !== 'string' || normalizePath(value) === '') continue;
+          const path = normalizePath(value);
+          if (!favorites.some((savedPath) => samePath(savedPath, path))) favorites.push(path);
+        }
+        favorites = favorites.slice(-20);
+      }
+    } catch { /* Browser storage may be disabled or contain invalid data. */ }
+    const saveFavorites = () => {
+      try { doc.defaultView?.localStorage?.setItem(FAVORITES_KEY, JSON.stringify(favorites)); } catch { /* Keep working for this dialog if storage is unavailable. */ }
+    };
     const pathInput = h(doc, 'input', {
       type: 'text', id: 'picker-path', class: 'mono', autocomplete: 'off', spellcheck: 'false', placeholder: t('picker.path_placeholder'), 'aria-label': t('picker.path'),
     });
     const goButton = h(doc, 'button', { type: 'submit', class: 'picker-go', text: t('picker.go') });
     const upButton = h(doc, 'button', { type: 'button', class: 'picker-up', 'aria-label': t('picker.up'), title: t('picker.up') }, icon(doc, 'i-arrow-up'), h(doc, 'span', { text: '..' }));
+    const backButton = h(doc, 'button', { type: 'button', class: 'picker-back', 'aria-label': t('picker.back'), title: t('picker.back') }, icon(doc, 'i-back'), h(doc, 'span', { text: t('picker.back') }));
+    const favoriteButton = h(doc, 'button', { type: 'button', class: 'picker-favorite' });
     const listTitle = h(doc, 'div', { class: 'picker-head', id: 'picker-list-title' });
+    const breadcrumbs = h(doc, 'nav', { class: 'picker-breadcrumbs', 'aria-label': t('picker.breadcrumbs') });
     const searchInput = h(doc, 'input', { type: 'search', class: 'picker-search', autocomplete: 'off', placeholder: t('picker.search'), 'aria-label': t('picker.search') });
     const list = h(doc, 'ul', { class: 'picker-list', 'aria-labelledby': 'picker-list-title' });
     const note = h(doc, 'p', { class: 'picker-note muted' });
@@ -101,44 +122,75 @@ export function createProjectsUi(doc, deps) {
     const dialog = dialogShell('picker-title', 'picker',
       h(doc, 'h3', { id: 'picker-title', text: t('picker.title') }),
       form, searchInput,
-      h(doc, 'div', { class: 'picker-bar' }, upButton, h(doc, 'span', { class: 'muted picker-hint', text: t('picker.hint') })),
-      listTitle, list, note, recentBox, errorBox,
+      h(doc, 'div', { class: 'picker-bar' }, backButton, upButton, favoriteButton, h(doc, 'span', { class: 'muted picker-hint', text: t('picker.hint') })),
+      breadcrumbs, listTitle, list, note, recentBox, errorBox,
       h(doc, 'div', { class: 'actions' }, cancel, choose));
     const layer = pushLayer(dialog, { cancelValue: null, scrimClose: true });
 
     function paint() {
       const atRoots = state.path === '';
       listTitle.textContent = atRoots ? t('picker.roots') : state.path;
+      backButton.disabled = historyAt <= 0 || state.loading;
       upButton.disabled = state.parent === null || state.loading;
-      choose.disabled = atRoots || state.loading;
-      note.textContent = state.loading ? t('picker.loading') : (state.entries.length === 0 && !state.error ? t('picker.empty') : '');
+      choose.disabled = state.loading || (!state.selectedPath && atRoots);
+      const currentIsFavorite = favorites.some((p) => samePath(p, state.path));
+      favoriteButton.disabled = atRoots || state.loading;
+      favoriteButton.textContent = t(currentIsFavorite ? 'picker.favorite_remove' : 'picker.favorite_add');
+      breadcrumbs.replaceChildren(...breadcrumbItems(state.path).map((crumb, index, crumbs) => {
+        const last = index === crumbs.length - 1;
+        const part = h(doc, 'button', { type: 'button', class: 'picker-crumb', disabled: last, text: crumb.label, 'aria-current': last ? 'page' : undefined });
+        part.addEventListener('click', () => { if (!last) go(crumb.path); });
+        return h(doc, 'span', { class: 'picker-crumb-part' }, part, last ? false : h(doc, 'span', { class: 'picker-crumb-separator', 'aria-hidden': 'true', text: '›' }));
+      }));
       errorBox.hidden = state.error === '';
       errorBox.textContent = state.error;
       const entries = state.entries.filter((e) => e.name.toLocaleLowerCase().includes((state.search || '').trim().toLocaleLowerCase()));
+      note.textContent = state.loading ? t('picker.loading')
+        : state.entries.length === 0 && !state.error ? t('picker.empty')
+        : entries.length === 0 && !state.error ? t('picker.no_matches') : '';
       list.replaceChildren(...entries.map((e) => {
         const target = joinPath(state.path, e.name);
-        const item = h(doc, 'button', { type: 'button', class: 'picker-item', 'data-path': target },
+        const selected = samePath(state.selectedPath, target);
+        const item = h(doc, 'button', { type: 'button', class: `picker-item${selected ? ' is-selected' : ''}`, 'data-path': target, 'aria-selected': String(selected) },
           icon(doc, atRoots ? 'i-laptop' : 'i-folder'), h(doc, 'span', { text: e.name.replace(/\/$/, '') || e.name }));
-        item.addEventListener('click', () => go(target));
+        item.addEventListener('click', () => {
+          state = { ...state, selectedPath: target };
+          paint();
+          [...list.querySelectorAll('.picker-item')].find((n) => n.dataset.path === target)?.focus();
+        });
         return h(doc, 'li', {}, item);
       }));
       const recent = state.recent.filter((p) => p !== '');
-      recentBox.hidden = recent.length === 0;
-      recentBox.replaceChildren(...(recent.length === 0 ? [] : [
-        h(doc, 'div', { class: 'picker-head', text: t('picker.recent') }),
-        ...recent.map((p) => {
-          const b = h(doc, 'button', { type: 'button', class: 'picker-item', title: p }, icon(doc, 'i-folder'),
+      const places = [
+        ...favorites.map((p) => ({ path: p, kind: 'favorite' })),
+        ...recent.filter((p) => !favorites.some((f) => samePath(f, p))).map((p) => ({ path: p, kind: 'recent' })),
+      ];
+      recentBox.hidden = places.length === 0;
+      recentBox.replaceChildren(...(places.length === 0 ? [] : [
+        h(doc, 'div', { class: 'picker-head', text: t('picker.places') }),
+        ...places.map(({ path: p, kind }) => {
+          const b = h(doc, 'button', { type: 'button', class: `picker-item picker-place${kind === 'favorite' ? ' is-favorite' : ''}`, title: p, 'data-path': p }, icon(doc, kind === 'favorite' ? 'i-pin' : 'i-folder'),
             h(doc, 'span', { class: 'picker-recent-name', text: folderName(p) }), h(doc, 'span', { class: 'muted picker-recent-path', text: p }));
-          b.addEventListener('click', () => layer.close(p));
+          b.addEventListener('click', () => { state = { ...state, selectedPath: p }; paint(); });
           return b;
         }),
       ]));
     }
 
-    async function go(path) {
+    function breadcrumbItems(path) {
+      const out = [];
+      let at = normalizePath(path);
+      while (at) {
+        out.unshift({ path: at, label: at === '/' ? '/' : folderName(at) });
+        at = parentPath(at);
+      }
+      return out;
+    }
+
+    async function go(path, { record = true, historyIndex = null } = {}) {
       const mine = ticket + 1;
       ticket = mine;
-      state = { ...state, loading: true, error: '' };
+      state = { ...state, loading: true, error: '', selectedPath: '' };
       paint();
       const r = await api.fsList(normalizePath(path));
       if (mine !== ticket) return false;
@@ -147,7 +199,14 @@ export function createProjectsUi(doc, deps) {
         paint();
         return false;
       }
-      state = { path: r.path, parent: r.parent, entries: r.entries, recent: r.recent.length > 0 ? r.recent : state.recent, error: '', loading: false };
+      state = { ...state, path: r.path, parent: r.parent, entries: r.entries, recent: r.recent.length > 0 ? r.recent : state.recent, error: '', loading: false, selectedPath: '' };
+      if (historyIndex !== null) historyAt = historyIndex;
+      else if (record && (historyAt < 0 || !samePath(history[historyAt], r.path))) {
+        history = history.slice(0, historyAt + 1);
+        history.push(r.path);
+        if (history.length > 50) history.shift();
+        historyAt = history.length - 1;
+      }
       pathInput.value = r.path;
       paint();
       return true;
@@ -156,18 +215,40 @@ export function createProjectsUi(doc, deps) {
     form.addEventListener('submit', (e) => { e.preventDefault(); go(pathInput.value); });
     searchInput.addEventListener('input', () => { state = { ...state, search: searchInput.value }; paint(); });
     upButton.addEventListener('click', () => { if (state.parent !== null) go(state.parent); });
-    // двойной клик выбирает текущий каталог (первый клик уже вошёл в папку)
-    list.addEventListener('dblclick', () => { if (state.path !== '' && !state.loading) layer.close(state.path); });
+    backButton.addEventListener('click', async () => {
+      const next = historyAt - 1;
+      if (next < 0) return;
+      await go(history[next], { record: false, historyIndex: next });
+    });
+    favoriteButton.addEventListener('click', () => {
+      if (state.path === '') return;
+      favorites = favorites.some((p) => samePath(p, state.path))
+        ? favorites.filter((p) => !samePath(p, state.path))
+        : [...favorites, state.path].slice(-20);
+      saveFavorites();
+      paint();
+    });
+    list.addEventListener('dblclick', (e) => {
+      const item = e.target?.closest?.('.picker-item[data-path]');
+      const target = item?.dataset.path;
+      if (target && !state.loading) go(target);
+    });
     cancel.addEventListener('click', () => layer.close());
     choose.addEventListener('click', async () => {
-      const typed = normalizePath(pathInput.value);
-      if (typed !== state.path && typed !== '' && !(await go(typed))) return;
-      if (state.path !== '') layer.close(state.path);
+      const chosen = state.selectedPath || normalizePath(pathInput.value) || state.path;
+      if (chosen !== state.path && chosen !== '' && !(await go(chosen))) return;
+      if (chosen !== '') layer.close(chosen);
     });
     // стрелки ходят по папкам
     list.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const active = doc.activeElement;
+        const target = active?.classList?.contains('picker-item') ? active.dataset.path : '';
+        if (target && !state.loading) { e.preventDefault(); go(target); }
+        return;
+      }
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-      const items = [...list.querySelectorAll('.picker-item')];
+      const items = [...list.querySelectorAll('.picker-item[data-path]')];
       const at = items.indexOf(doc.activeElement);
       if (at < 0) return;
       e.preventDefault();
