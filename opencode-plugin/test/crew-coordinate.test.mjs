@@ -193,8 +193,7 @@ if (!coord) {
 
   // acceptance is by the task record, then the drive completes with evidence
   const t1a = tasks.loadTask("proj", t1.n)
-  t1a.status = "accepted"
-  tasks.saveTask(t1a)
+  tasks.taskEvent(t1a, AUTH, "accepted", "принята: акт приёмщика (fixture)") // the real accept act: status + the accepted history event
   await tick()
   const d1f = coord.loadDrive("proj", t1.n)
   ok(d1f.done?.evidence.includes("status accepted") && d1f.done.evidence.includes("report sha256"), "evidence-backed completion")

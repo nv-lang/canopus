@@ -125,8 +125,12 @@ export function registerPolicy(p: Policy) {
 export const policyOf = (id: string, version: string) => REGISTRY.get(`${id}@${version}`)
 export const knownPolicies = () => [...REGISTRY.keys()].sort()
 
-/** A task is acceptance-evidence only by its own record: an external "done" letter or word is not acceptance. */
-const accepted = (t: Task) => t.status === "accepted" || t.status === "done"
+/** A task is acceptance-evidence only by its own record: an external "done"/"accepted" — a letter, a word or a bare
+ *  status written from outside — is not acceptance. The PROVENANCE of the completion is the acceptance ACT of the
+ *  record itself: the accepted history event that both accept paths of core.ts write (taskEvent "accepted"); a bare
+ *  external end without it (a direct status write, the legacy cleaned→done read) is a terminal end, not a completion
+ *  (281: external/done не acceptance). */
+const accepted = (t: Task) => (t.status === "accepted" || t.status === "done") && t.history.some((h) => h.status === "accepted")
 const evidenceOf = (t: Task) => `status ${t.status}, history ${t.history.length} entries${t.report ? `, report sha256 ${sha(t.report).slice(0, 16)}` : ""}`
 
 /** crew-normal-task@1: one allowed task driven to an evidence-backed completion or the real acceptance gate. */
@@ -285,7 +289,9 @@ function branchesOf(d: Drive, deps: CoordDeps): BranchState[] {
   for (const bn of [...nums].sort((a, b) => a - b)) {
     const bt = deps.task(d.project, bn)
     const status = bt?.status ?? "missing"
-    const success = !!bt && (bt.status === "accepted" || bt.status === "done")
+    // the same provenance as the normal policy: a branch succeeds only by its own recorded acceptance act,
+    // an external bare done/accepted unlocks no dependency
+    const success = !!bt && (bt.status === "accepted" || bt.status === "done") && bt.history.some((h) => h.status === "accepted")
     const terminal = success || status === "cancelled" || status === "missing"
     const blocked = d.blockers.some((b) => b.id === `branch-${bn}` && !b.cleared) || status === "cancelled" || status === "missing"
     out.push({ n: bn, status, needs: d.needs?.[String(bn)] ?? [], blocked, success, terminal })

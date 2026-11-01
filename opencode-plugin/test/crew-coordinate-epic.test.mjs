@@ -69,6 +69,9 @@ const deps = () => ({
 const tick = () => coord.coordinateTick(deps(), Date.now(), { maxTasks: 8, maxActions: 8, maxIO: 32 })
 const setStatus = (t, status) => {
   const f = tasks.loadTask("proj", t.n)
+  // a branch succeeds only by its recorded acceptance act (281: external/done is not acceptance): the fixture
+  // records the act as the real accept paths do before the accepted/done status
+  if ((status === "accepted" || status === "done") && !f.history.some((h) => h.status === "accepted")) f.history.push({ at: Date.now(), by: AUTH, status: "accepted", note: "принята: акт приёмщика (fixture)" })
   f.status = status
   tasks.saveTask(f)
 }
