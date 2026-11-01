@@ -55,7 +55,8 @@ test('ответ реестра снимает loading: ошибка, пусто
   assert.equal(notices.at(-1), t('sessions.agents_none'));
   view.setAgents([{ id: 'opencode' }, { id: 'other' }], false); draw(); family().click();
   const rows = refs.main.querySelectorAll('.menu-item');
-  assert.equal(rows.length, 0, 'семьи без каталога моделей не объявляются выбираемыми');
+  assert.equal(rows.length, 2, 'configured families остаются видимыми как unavailable, без выдуманных model rows');
+  assert.ok(rows.every((row) => row.disabled && row.getAttribute('aria-disabled') === 'true'));
   assert.deepEqual(switches, []);
 });
 
@@ -64,13 +65,12 @@ test('компактный селектор отправляет direct source �
   for (const key of ['app', 'side', 'main', 'rail', 'status', 'overlay']) { refs[key] = doc.createElement('div'); doc.body.append(refs[key]); }
   const presets = { active: 'default', presets: [{ name: 'default', roles: {}, pools: { team: { light: [{ family: 'opencode', model: 'm1', effort: 'low', active: true }] } } }] };
   const agents = [{ id: 'opencode' }];
-  const view = createView(doc, refs, { agents, now: () => 0, presets: () => presets, handlers: {
+  const metadata = { status: 'ready', family: 'opencode', source: 'trusted-snapshot', sourceVersion: '1', observedAt: 1, expiresAt: 1000, complete: false, permissionsStatus: 'blocked', models: [{ id: 'm1', name: 'Model One', efforts: [{ id: 'low', name: 'Low' }, { id: 'high', name: 'High' }] }] };
+  const view = createView(doc, refs, { agents, now: () => 0, presets: () => presets, modelMetadata: () => metadata, handlers: {
     queued: () => 0, queuedItems: () => [], onSource: (...args) => sources.push(args), onDraftSource: (...args) => draftSources.push(args),
   } });
   const model = reduce(initialModel(), { id: 'create', trace: 's', step: 0, time: 1, kind: 'session_created', input: { name: 'Проверка', agent: 'opencode' } });
-  const entry = { agent: 'opencode', updated: 1, model: 'm1', options: { models: [{ id: 'm1', name: 'Model One' }], model_id: 'm1', efforts: [{ id: 'low', name: 'Low' }, { id: 'high', name: 'High' }], modes: [], effort: 'low', mode: '' } };
-  const withCatalog = { ...model, catalog: { opencode: entry } };
-  view.render(withCatalog, { selected: 's', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
+  view.render(model, { selected: 's', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
   const picker = refs.main.querySelector('.agent-picker-button');
   assert.ok(picker);
   assert.equal(refs.main.querySelectorAll('.status-group .status-btn').length, 1);
@@ -85,6 +85,36 @@ test('компактный селектор отправляет direct source �
   assert.equal(modelRow.querySelector('.effort-sparkles').dataset.count, '8');
   slider.dispatchEvent({ type: 'change', bubbles: true });
   assert.deepEqual(sources, [['s', { family: 'opencode', model: 'm1', effort: 'high' }]]);
+});
+
+test('partial cold metadata exposes only its bound family; other configured families stay unavailable', () => {
+  const doc = createFakeDocument(); const refs = {}; const sources = [];
+  for (const key of ['app', 'side', 'main', 'rail', 'status', 'overlay']) { refs[key] = doc.createElement('div'); doc.body.append(refs[key]); }
+  const agents = [{ id: 'codex', label: 'Codex' }, { id: 'second', label: 'Second' }];
+  let metadata = { status: 'ready', family: 'codex', source: 'opencode-acp', sourceVersion: '2.2.5', observedAt: 1, expiresAt: 1000, complete: false, permissionsStatus: 'blocked', models: [{ id: 'native/model-x', name: 'Model X', efforts: [{ id: 'native-high', name: 'High' }] }] };
+  const view = createView(doc, refs, { agents, now: () => 0, modelMetadata: () => metadata, handlers: {
+    queued: () => 0, queuedItems: () => [], onSource: (...args) => sources.push(args),
+  } });
+  const base = reduce(initialModel(), { id: 'create', trace: 's', step: 0, time: 1, kind: 'session_created', input: { name: 'x', agent: 'codex' } });
+  const withLegacyCache = { ...base, catalog: { second: { agent: 'second', model: 'fabricated-old-cache', options: { models: [{ id: 'fabricated-old-cache', name: 'Fake' }], efforts: [{ id: 'fake-effort', name: 'Fake' }], modes: [], modelId: '', effort: '', mode: '' } } } };
+  view.render(withLegacyCache, { selected: 's', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
+  refs.main.querySelector('.agent-picker-button').click();
+  const rows = refs.main.querySelectorAll('.agent-picker-anchor .menu-item');
+  assert.ok(refs.main.querySelector('.menu-catalog-partial'));
+  assert.ok(rows.some((row) => row.textContent.includes('Model X')));
+  assert.ok(!rows.some((row) => row.textContent.includes('Fake') || row.textContent.includes('fabricated-old-cache')));
+  const second = rows.find((row) => row.textContent.includes('Second'));
+  assert.ok(second && second.disabled && second.getAttribute('aria-disabled') === 'true');
+  second.click();
+  assert.deepEqual(sources, []);
+  refs.main.querySelector('.agent-picker-button').click();
+  metadata = { status: 'unavailable', family: 'codex', reason: 'same_context_binding_unverified', models: [] };
+  view.render(withLegacyCache, { selected: 's', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
+  refs.main.querySelector('.agent-picker-button').click();
+  const unavailableRows = refs.main.querySelectorAll('.agent-picker-anchor .menu-item');
+  assert.equal(unavailableRows.length, 2);
+  assert.ok(unavailableRows.every((row) => row.disabled));
+  assert.ok(unavailableRows.some((row) => row.textContent.includes('same_context_binding_unverified')));
 });
 
 test('звёзды усилия декоративны, едут справа налево и неподвижны при reduced-motion', async () => {

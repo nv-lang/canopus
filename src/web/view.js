@@ -94,7 +94,7 @@ const AGO_KEY = { now: 'ago.now', min: 'ago.min', hour: 'ago.hour', day: 'ago.da
  */
 export function createView(doc, refs, deps) {
   const {
-    agents, now, handlers, imageSrc = (image) => image.src, projectsApi, presets = () => null,
+    agents, now, handlers, imageSrc = (image) => image.src, projectsApi, presets = () => null, modelMetadata = () => null,
   } = deps;
   let { registryFailed = false, registryPending = false } = deps;
   const win = doc.defaultView;
@@ -107,7 +107,7 @@ export function createView(doc, refs, deps) {
 
   const agentLabel = (id) => {
     const a = agents.find((x) => x.id === id);
-    return a ? (a.labelKey ? t(a.labelKey) : a.label) : id;
+    return a ? (a.labelKey ? t(a.labelKey) : (a.label || a.id)) : id;
   };
 
   function formatTime(ms) {
@@ -830,6 +830,15 @@ export function createView(doc, refs, deps) {
   const nameOf = (list, id) => (list.find((c) => c.id === id) || { name: '' }).name;
   // Режимы и усилие — по-русски там, где перевод известен; оригинал агента остаётся в title (labels-ru.js).
   const labelFor = (kind, list, id) => labelOf(kind, list.find((c) => c.id === id) || { name: '' });
+  function directModelsFor(family) {
+    const session = currentSession;
+    if (!session?.draft && session?.agent === family && session.optionsAgent === family && session.options.models.length > 0) {
+      return session.options.models.map((model) => ({ ...model, efforts: session.options.efforts }));
+    }
+    const metadata = modelMetadata();
+    if (metadata && metadata.status === 'ready' && metadata.family === family && Number.isFinite(metadata.expiresAt) && metadata.expiresAt > now()) return metadata.models;
+    return null;
+  }
 
   function closeMenu() {
     menuKind = null;
@@ -856,12 +865,12 @@ export function createView(doc, refs, deps) {
     closeMenu();
   }
 
-  function menuRow({ name, description, checked, number, arrow, tip, onPick }) {
-    const row = h(doc, 'button', { type: 'button', class: 'menu-item', role: 'menuitem', 'aria-checked': checked ? 'true' : 'false', title: tip || false },
+  function menuRow({ name, description, checked, number, arrow, tip, disabled = false, onPick }) {
+    const row = h(doc, 'button', { type: 'button', class: 'menu-item', role: 'menuitem', 'aria-checked': checked ? 'true' : 'false', 'aria-disabled': disabled ? 'true' : undefined, disabled: disabled || undefined, title: tip || false },
       h(doc, 'span', { class: 'menu-check' }, checked ? icon(doc, 'i-check') : false),
       h(doc, 'span', { class: 'menu-label' }, h(doc, 'span', { text: name }), description ? h(doc, 'small', { text: description }) : false),
       arrow ? h(doc, 'span', { class: 'menu-end' }, icon(doc, 'i-chevron-right')) : h(doc, 'span', { class: 'menu-end menu-num', text: number ? String(number) : '' }));
-    row.addEventListener('click', onPick);
+    if (!disabled) row.addEventListener('click', onPick);
     return row;
   }
 
@@ -879,17 +888,18 @@ export function createView(doc, refs, deps) {
       const preset = (sourceInfo.presets || []).find((p) => p.name === (currentSession && currentSession.preset || sourceInfo.active || 'default'));
       const pools = preset && preset.pools && typeof preset.pools === 'object' ? preset.pools : {};
       const source = draftSelection ? { family: draftSelection.family, model: draftSelection.model, effort: draftSelection.effort } : currentSession && currentSession.source;
+      const rawMetadata = modelMetadata() || {};
+      const metadata = rawMetadata.status === 'ready' && rawMetadata.expiresAt <= now()
+        ? { ...rawMetadata, status: 'unavailable', reason: 'metadata_expired' }
+        : rawMetadata;
       rows.push(h(doc, 'div', { class: 'menu-head', text: 'Модели' }));
-      const catalog = current && current.model.catalog || {};
-      const allModels = agents.flatMap((a) => {
-        const entry = catalog[a.id];
-        return (entry && entry.options.models || []).map((m) => ({ family: a.id, model: m.id, name: m.name || m.id }));
-      }).filter((m) => !query || `${m.family} ${m.name} ${m.model}`.toLocaleLowerCase().includes(query));
-      if (!allModels.length) rows.push(h(doc, 'div', { class: 'menu-head', text: 'Нет доступных моделей' }));
+      if (metadata.status === 'ready' && metadata.complete === false) rows.push(h(doc, 'div', { class: 'menu-head menu-catalog-partial', text: 'Каталог неполный: доступны только подтверждённые модели.' }));
+      const familyModels = new Map(agents.map((agent) => [agent.id, directModelsFor(agent.id)]));
+      const allModels = agents.flatMap((agent) => (familyModels.get(agent.id) || []).map((m) => ({ family: agent.id, model: m.id, name: m.name || m.id, efforts: m.efforts || [] })))
+        .filter((m) => !query || `${m.family} ${m.name} ${m.model}`.toLocaleLowerCase().includes(query));
       for (const m of allModels) {
         const chosen = source && !source.pool && source.family === m.family && source.model === m.model;
-        const entry = catalog[m.family];
-        const efforts = entry && entry.options.efforts || [];
+        const efforts = m.efforts;
         const draftEffort = draftSelection && draftSelection.family === m.family && draftSelection.model === m.model;
         const effort = draftEffort ? draftSelection.effort : chosen ? source.effort : (efforts[0] && efforts[0].id || '');
         const row = menuRow({ name: m.name, description: m.family, checked: chosen,
@@ -921,6 +931,14 @@ export function createView(doc, refs, deps) {
           row.classList.add('agent-model-row');
         }
         rows.push(row);
+      }
+      for (const agent of agents) {
+        if ((familyModels.get(agent.id) || []).length) continue;
+        const reason = metadata.status === 'loading' ? 'Каталог загружается'
+          : metadata.status === 'unavailable' ? metadata.family === agent.id ? `Каталог недоступен: ${metadata.reason || 'не подтверждён'}` : 'Источник этой семьи не подтверждён'
+            : metadata.status === 'ready' ? 'Для этой семьи нет подтверждённого каталога'
+              : 'Каталог не подтверждён';
+        if (!query || `${agent.id} ${agentLabel(agent.id)} ${reason}`.toLocaleLowerCase().includes(query)) rows.push(menuRow({ name: agentLabel(agent.id), description: reason, disabled: true }));
       }
       for (const [poolName, levels] of Object.entries(pools)) for (const level of ['light', 'medium', 'heavy']) {
         const choices = Array.isArray(levels && levels[level]) ? levels[level] : [];
@@ -1035,7 +1053,7 @@ export function createView(doc, refs, deps) {
   menuSearch.addEventListener('input', () => { menuQuery = menuSearch.value; renderMenu(); });
   // стрелки ходят по строкам, Enter в поиске берёт первую найденную
   menu.addEventListener('keydown', (e) => {
-    const items = [...menuList.querySelectorAll('.menu-item')];
+    const items = [...menuList.querySelectorAll('.menu-item')].filter((item) => !item.disabled);
     const at = items.indexOf(doc.activeElement);
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -1076,7 +1094,7 @@ export function createView(doc, refs, deps) {
     if (!menuKind) return;
     if (e.key === 'Escape') { const trigger = menuTrigger; closeMenu(); trigger?.focus(); return; }
     if (/^[1-9]$/.test(e.key)) {
-      const rows = [...menuList.querySelectorAll('.menu-num')];
+      const rows = [...menuList.querySelectorAll('.menu-num')].filter((n) => !n.closest('.menu-item')?.disabled);
       const at = rows.findIndex((n) => n.textContent === e.key);
       if (at >= 0) { e.preventDefault(); rows[at].closest('.menu-item').click(); }
     }
@@ -1894,8 +1912,8 @@ export function createView(doc, refs, deps) {
     const presetData = presets() || {};
     const activePreset = (presetData.presets || []).find((p) => p.name === (session.preset || presetData.active || 'default'));
     const availablePools = activePreset && activePreset.pools && Object.values(activePreset.pools).some((levels) => Object.values(levels || {}).some((entries) => Array.isArray(entries) && entries.some((e) => e.active !== false)));
-    const availableDirect = agents.some((a) => model.catalog && model.catalog[a.id] && model.catalog[a.id].options.models.length);
-    const canChoose = Boolean(availableDirect || availablePools);
+    const hasConfiguredFamilies = agents.length > 0;
+    const canChoose = Boolean(hasConfiguredFamilies || availablePools);
     familyButton.setAttribute('aria-disabled', String(busy && !session.draft));
     familyButton.dataset.noChoices = String(!canChoose);
     familyButton.title = busy && !session.draft ? 'Выбор источника доступен между ходами' : canChoose ? t('menu.agent') : registryPending ? t('status.agents_loading') : t(registryFailed ? 'sessions.agents_unavailable' : (agents.length === 1 ? 'status.agent_one' : 'sessions.agents_none'));

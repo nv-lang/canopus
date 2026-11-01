@@ -41,6 +41,50 @@ export function parseAgentRegistry(payload) {
 
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
+/** Parse the bound, fail-closed cold metadata snapshot; this never invents a family/model fallback. */
+export function parseModelMetadata(payload, configuredFamilies, now = Date.now()) {
+  const unavailable = (reason = 'metadata_unavailable', family = '') => ({ status: 'unavailable', reason, family, models: [] });
+  if (!isObject(payload) || payload.v !== 1) return unavailable('metadata_invalid');
+  if (payload.status !== 'ready') return unavailable(typeof payload.reason === 'string' && payload.reason ? payload.reason : 'metadata_unavailable', typeof payload.family === 'string' ? payload.family : '');
+
+  const family = typeof payload.family === 'string' ? payload.family : '';
+  const known = Array.isArray(configuredFamilies) && configuredFamilies.includes(family);
+  if (!known || !family) return unavailable('family_unbound', family);
+  if (typeof payload.source !== 'string' || !payload.source || typeof payload.source_version !== 'string' || !payload.source_version) return unavailable('metadata_provenance_missing', family);
+  if (payload.complete !== false || payload.permissions_status !== 'blocked') return unavailable('metadata_contract_mismatch', family);
+
+  if (typeof payload.observed_at !== 'string' || typeof payload.expires_at !== 'string') return unavailable('metadata_expiry_missing', family);
+  const observedAt = Date.parse(payload.observed_at);
+  const expiresAt = Date.parse(payload.expires_at);
+  if (!Number.isFinite(observedAt) || !Number.isFinite(expiresAt) || observedAt > now || expiresAt <= now || expiresAt <= observedAt || expiresAt - observedAt > 300000) {
+    return unavailable('metadata_expired_or_invalid', family);
+  }
+  if (!Array.isArray(payload.models)) return unavailable('metadata_models_invalid', family);
+  const models = payload.models.flatMap((item) => {
+    if (!isObject(item) || typeof item.id !== 'string' || !item.id.trim() || typeof item.name !== 'string' || !item.name.trim() || !Array.isArray(item.efforts)) return [];
+    const efforts = item.efforts.flatMap((effort) => isObject(effort) && typeof effort.id === 'string' && effort.id.trim()
+      ? [{ id: effort.id, name: typeof effort.name === 'string' && effort.name ? effort.name : effort.id }]
+      : []);
+    return [{ id: item.id, name: item.name, efforts }];
+  });
+  if (models.length === 0) return unavailable('metadata_empty', family);
+  return {
+    status: 'ready', reason: '', family, source: payload.source, sourceVersion: payload.source_version,
+    observedAt, expiresAt, complete: false, permissionsStatus: 'blocked', models,
+  };
+}
+
+/** Read only the bound metadata endpoint. The adapter never creates sessions or starts a provider. */
+export async function loadModelMetadata(fetchFn, configuredFamilies, now = Date.now()) {
+  try {
+    const response = await fetchFn('/api/model-metadata', { cache: 'no-store' });
+    if (!response || !response.ok) return { status: 'unavailable', reason: 'metadata_request_failed', family: '', models: [] };
+    return parseModelMetadata(await response.json(), configuredFamilies, now);
+  } catch {
+    return { status: 'unavailable', reason: 'metadata_request_failed', family: '', models: [] };
+  }
+}
+
 /**
  * @param deps.mode           'mock' | 'ws' | 'nofile'
  * @param deps.server         (mock) createMockServer(...)

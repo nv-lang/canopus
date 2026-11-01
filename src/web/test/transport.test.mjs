@@ -1,7 +1,7 @@
 // Проверки транспорта: выбор режима, воспроизведение заглушки, WebSocket с повтором.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { chooseMode, createTransport, parseAgentRegistry, RETRY_STEPS } from '../transport.js';
+import { chooseMode, createTransport, parseAgentRegistry, parseModelMetadata, loadModelMetadata, RETRY_STEPS } from '../transport.js';
 import { createMockServer } from '../mock.js';
 import { makeEvent } from '../state.js';
 
@@ -72,6 +72,41 @@ test('реестр live-агентов: только непустые id/label, 
   ]);
   assert.deepEqual(parseAgentRegistry({ agents: [{ id: 'bad', label: '' }, null, { id: '', label: 'No id' }] }), []);
   assert.deepEqual(parseAgentRegistry(null), []);
+});
+
+test('model metadata accepts only a fresh, provenance-bound, configured partial snapshot', () => {
+  const now = Date.parse('2026-11-01T00:00:00Z');
+  const body = {
+    v: 1, status: 'ready', reason: '', family: 'codex', source: 'opencode-acp', source_version: '2.2.5',
+    observed_at: '2026-11-01T00:00:00Z', expires_at: '2026-11-01T00:04:00Z', complete: false, permissions_status: 'blocked',
+    models: [{ id: 'provider/model-x', name: 'Model X', efforts: [{ id: 'native-low', name: 'Low' }, { id: 'native-high', name: 'High' }] }],
+  };
+  assert.deepEqual(parseModelMetadata(body, ['codex', 'second'], now), {
+    status: 'ready', reason: '', family: 'codex', source: 'opencode-acp', sourceVersion: '2.2.5',
+    observedAt: now, expiresAt: now + 240000, complete: false, permissionsStatus: 'blocked',
+    models: [{ id: 'provider/model-x', name: 'Model X', efforts: [{ id: 'native-low', name: 'Low' }, { id: 'native-high', name: 'High' }] }],
+  });
+  assert.equal(parseModelMetadata(body, ['second'], now).status, 'unavailable', 'metadata family must be in /api/agents registry');
+  assert.equal(parseModelMetadata({ ...body, expires_at: '2026-10-31T23:59:59Z' }, ['codex'], now).reason, 'metadata_expired_or_invalid');
+  assert.equal(parseModelMetadata({ ...body, observed_at: '2026-11-01T00:00:01Z' }, ['codex'], now).reason, 'metadata_expired_or_invalid');
+  assert.equal(parseModelMetadata({ ...body, complete: true }, ['codex'], now).reason, 'metadata_contract_mismatch');
+  assert.equal(parseModelMetadata({ ...body, models: [{ id: '', name: 'bad', efforts: [] }] }, ['codex'], now).reason, 'metadata_empty');
+  assert.equal(parseModelMetadata({ ...body, status: 'unavailable', reason: 'same_context_binding_unverified' }, ['codex'], now).reason, 'same_context_binding_unverified');
+  assert.equal(parseModelMetadata(null, ['codex'], now).reason, 'metadata_invalid');
+});
+
+test('cold metadata adapter makes exactly one read-only no-store request and fails unavailable on network errors', async () => {
+  const calls = [];
+  const fetchFn = async (...args) => {
+    calls.push(args);
+    return { ok: true, json: async () => ({ v: 1, status: 'unavailable', reason: 'same_context_binding_unverified', family: '', source: '', source_version: '', observed_at: '', expires_at: '', complete: false, permissions_status: 'blocked', models: [] }) };
+  };
+  const unavailable = await loadModelMetadata(fetchFn, ['codex'], 1);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], '/api/model-metadata');
+  assert.deepEqual(calls[0][1], { cache: 'no-store' });
+  assert.equal(unavailable.reason, 'same_context_binding_unverified');
+  assert.deepEqual(await loadModelMetadata(async () => { throw new Error('offline'); }, ['codex'], 1), { status: 'unavailable', reason: 'metadata_request_failed', family: '', models: [] });
 });
 
 test('заглушка: статус «mock», журнал сразу, ответ по таймеру, отмена снимает остаток', () => {

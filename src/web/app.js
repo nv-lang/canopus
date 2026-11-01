@@ -15,7 +15,7 @@ import { t } from './strings.js';
 import { createView } from './view.js';
 import { createQueue } from './queue.js';
 import { uploadImages, messageInput } from './attachments.js';
-import { chooseMode, createTransport, parseAgentRegistry } from './transport.js';
+import { chooseMode, createTransport, parseAgentRegistry, loadModelMetadata } from './transport.js';
 import { createProjectsApi } from './projects-api.js';
 import { routeSignal, normalizeRoute } from './routes.js';
 import { crewSignal } from './crew-task.js';
@@ -117,6 +117,7 @@ let queued = false;
 let transport = null;
 let presetInfo = null; // наборы с сервера (задача 192.12): {active, presets, roles}
 let agentList = []; // семьи агентов: нужны, чтобы выбрать первую для черновика новой сессии
+let modelMetadata = { status: 'unavailable', reason: 'metadata_not_loaded', family: '', models: [] };
 // fetch берётся при каждом вызове: в режиме ?mock=1 страница подменяет globalThis.fetch уже после старта
 const projectsApi = createProjectsApi(() => globalThis.fetch.bind(globalThis), t('projects.offline'));
 const loading = createLoading({ timers, projects: () => projectsApi.list(), changed() {
@@ -561,13 +562,17 @@ async function start() {
     app: document.getElementById('app'), side: document.getElementById('side'),
     main: document.getElementById('main'), rail: document.getElementById('rail'),
     status: document.getElementById('status'), overlay: document.getElementById('overlay'),
-  }, { agents, now: ctx.now, handlers, registryFailed, registryPending: picked.mode === 'ws', imageSrc: mock ? mock.mockImageSrc : undefined, projectsApi, presets: () => presetInfo });
+  }, { agents, now: ctx.now, handlers, registryFailed, registryPending: picked.mode === 'ws', imageSrc: mock ? mock.mockImageSrc : undefined, projectsApi, presets: () => presetInfo, modelMetadata: () => modelMetadata });
   if (picked.mode === 'ws') {
     fetch('/api/agents', { cache: 'no-store' }).then(async (response) => {
       if (!response.ok) throw new Error('agent registry unavailable');
       const next = parseAgentRegistry(await response.json());
-      view.setAgents(next, false); agentList = next; render();
-    }).catch(() => { view.setAgents([], true); agentList = []; render(); });
+      view.setAgents(next, false); agentList = next;
+      modelMetadata = { status: 'loading', reason: 'metadata_loading', family: '', models: [] };
+      render();
+      modelMetadata = await loadModelMetadata((...args) => fetch(...args), next.map((agent) => agent.id));
+      render();
+    }).catch(() => { view.setAgents([], true); agentList = []; modelMetadata = { status: 'unavailable', reason: 'agent_registry_unavailable', family: '', models: [] }; render(); });
   }
   setInterval(() => view.tick(), TICK_MS);
   setInterval(() => render(), 30000); // «молчит N мин» в списке обновляется сам
