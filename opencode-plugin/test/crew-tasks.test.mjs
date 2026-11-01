@@ -26,7 +26,7 @@ g("init", "-q", "-b", "main")
 g("add", "-A")
 g("commit", "-q", "-m", "init")
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const core = await import("../core.ts")
 const tasks = await import("../tasks.ts")
 const hooks = {}
@@ -299,7 +299,7 @@ cell("accepted resume: same-number spawn cannot replace the accepted record", /Ñ
 cell("accepted resume: accepted cleanup slot is in waitingCleanup", tasks.waitingCleanup(tasks.listTasks("proj")).filter((x) => x.n === acceptedTask.n).length === 1, JSON.stringify(tasks.waitingCleanup(tasks.listTasks("proj")).map((x) => x.n)))
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-tasks.test: FAIL ${fail}` : "crew-tasks.test ok")
 process.exit(fail ? 1 : 0)

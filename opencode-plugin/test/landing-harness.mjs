@@ -64,10 +64,11 @@ export async function harness(prefix, opts = {}) {
   if (opts.db && !attach) {
     db = new DatabaseSync(path.join(tmp, "opencode.db"))
     db.exec("create table session_v2 (id text primary key, directory text, title text, parent_id text, time_archived integer, time_idle integer, time_viewed integer, time_suspended integer)")
+    db.exec("create table session_message (id text primary key, session_id text, type text, seq integer, time_created integer, time_updated integer, data text)")
     for (const sid of sidsAll) db.prepare("insert into session_v2 values (?, ?, ?, null, null, null, null, null)").run(sid, proj, sid)
   }
 
-  const mod = await load("index.ts")
+  const mod = await load("test/fixture-plugin.mjs")
   const core = await load("core.ts")
   const tasks = await load("tasks.ts")
   const review = await load("review.ts")
@@ -216,9 +217,9 @@ export async function harness(prefix, opts = {}) {
       }),
     /** db: mark the turn of a session as cut off `agoMs` ago (time_suspended), without an idle after it */
     suspend: (sid, agoMs = 5_000) => db?.prepare("update session_v2 set time_suspended = ?, time_idle = null where id = ?").run(Date.now() - agoMs, sid),
-    close: () => {
+    close: async () => {
       clearInterval(heart)
-      stop?.()
+      await stop?.()
       try {
         db?.close()
       } catch {}
@@ -236,8 +237,8 @@ export function reporter(name) {
       console.log(`${ok ? "ok  " : "FAIL"} ${title}${ok ? "" : " :: " + detail}`)
       if (!ok) fail++
     },
-    done: (H) => {
-      H?.close()
+    done: async (H) => {
+      await H?.close()
       console.log(fail ? `${name}: FAIL ${fail}` : `${name} ok`)
       process.exit(fail ? 1 : 0)
     },

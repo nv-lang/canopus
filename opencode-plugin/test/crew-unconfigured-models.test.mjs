@@ -29,7 +29,7 @@ writeCfg({ task_fields: ["goal", "criteria"], worktrees: "wt", branch_name: "p{n
 g("init", "-q", "-b", "main")
 commit("init")
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const core = await import("../core.ts")
 const tasks = await import("../tasks.ts")
 const settings = await import("../settings.ts")
@@ -125,7 +125,7 @@ cell("after the template committed the spawn passes by the set", !/не наст
 cell("doctor: no warning after the template", !/не настроен: модели/.test(await call("crew_doctor", "sesINTEG1")), "warned")
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-unconfigured-models.test: FAIL ${fail}` : "crew-unconfigured-models.test ok")
 process.exit(fail ? 1 : 0)

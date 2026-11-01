@@ -37,7 +37,7 @@ git(proj, "init", "-q", "-b", "main")
 git(proj, "add", "-A")
 git(proj, "commit", "-q", "-m", "init")
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const core = await import("../core.ts")
 const tasks = await import("../tasks.ts")
 const tools = {}
@@ -260,7 +260,7 @@ cell("AC-06 hold: the refusal and the reminders say that the accepted tasks hold
 cell("AC-06 control: the search finds the words in the hold texts", FORBIDDEN.some((re) => re.test(hold.refusal)) && FORBIDDEN.some((re) => re.test(hold.reviewer)), "not found")
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-landing-slot.test: FAIL ${fail}` : "crew-landing-slot.test ok")
 process.exit(fail ? 1 : 0)

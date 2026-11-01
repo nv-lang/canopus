@@ -32,9 +32,9 @@ const settingsBefore = readFileSync(settingsFile, "utf8")
 const db = new DatabaseSync(dbPath)
 db.exec("create table session_v2 (id text primary key, directory text, title text, parent_id text, time_archived integer, time_idle integer, time_viewed integer, time_suspended integer)")
 db.exec("create table session_message (id text primary key, session_id text, type text, seq integer, time_created integer, time_updated integer, data text)")
-const A = "sesAUTO_A", C = "sesAUTO_C", R = "sesAUTO_R", W = "sesAUTO_W", P = "sesPLAIN_P", L = "sesAUTO_L"
+const A = "sesAUTO_A", C = "sesAUTO_C", R = "sesAUTO_R", W = "sesAUTO_W", P = "sesPLAIN_P", L = "sesAUTO_L", T = "sesTASK_T"
 const dirOf = { [P]: plain }
-for (const id of [A, C, R, W, P, L]) db.prepare("insert into session_v2 values (?, ?, ?, null, null, null, null, null)").run(id, dirOf[id] ?? proj, id)
+for (const id of [A, C, R, W, P, L, T]) db.prepare("insert into session_v2 values (?, ?, ?, null, null, null, null, null)").run(id, dirOf[id] ?? proj, id)
 
 let fail = 0
 const cell = (name, ok, detail) => {
@@ -54,14 +54,14 @@ try {
   console.log(`FAIL form-auto.ts is missing :: ${e}`)
   process.exit(1)
 }
-for (const id of [A, C, R, W, L]) core.saveCard({ session: id, role: "worker", auto: false, title: id, directory: proj, repo: "proj", project: "proj", pid: process.pid, updated: Date.now() })
+for (const id of [A, C, R, W, L, T]) core.saveCard({ session: id, role: "worker", auto: false, title: id, directory: proj, repo: "proj", project: "proj", pid: process.pid, updated: Date.now() })
 core.saveCard({ session: P, role: "worker", auto: false, title: P, directory: plain, repo: "plain", project: "plain", pid: process.pid, updated: Date.now() })
-const task = tasks.createTask({ project: "proj", title: "auto work", goal: "g", criteria: "c", priority: "P2", tier: "light", role: "worker", author: "sesAUTHOR", author_role: "proj.integrator", qid: "q-auto", status: "running", kind: "assign", directory: proj, executor: A })
-core.saveCard({ ...core.readJson(core.cardFile(A)), task: { project: "proj", n: task.n } })
+const task = tasks.createTask({ project: "proj", title: "working fact", goal: "g", criteria: "c", priority: "P2", tier: "light", role: "worker", author: "sesAUTHOR", author_role: "proj.integrator", qid: "q-auto", status: "running", kind: "assign", directory: proj, executor: T })
+core.saveCard({ ...core.readJson(core.cardFile(T)), task: { project: "proj", n: task.n } })
 const form = (id, s, question, options) => ({ type: "form.created", data: { form: { id, sessionID: s, title: "Questions", metadata: { kind: "question" }, fields: [{ key: "q0", description: question, options: options.map((label) => ({ label })) }] } } })
 mkdirSync(core.WINDOWS, { recursive: true })
 const WPID = 585858
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: [A, C, R, W, P, L].map((sessionID) => ({ sessionID, active: true, busy: true })) }))
+const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: [A, C, R, W, P, L, T].map((sessionID) => ({ sessionID, active: true, busy: true })) }))
 beat()
 const heart = setInterval(beat, 300)
 
@@ -106,10 +106,11 @@ const lettersTo = (id) => [...filesIn(path.join(core.INBOX, core.safeKey(id))), 
 const autoFile = (id) => core.readJson(path.join(oa.ANSWERS, `auto-${core.safeKey(id)}.json`))
 const tools = {}
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const stop = await mod.default.setup(ctx)
 const t0 = Date.now()
 fw.handleFormEvent(form("frm_A", A, "Какой формат отчёта?", ["Короткий (Recommended)", "Длинный"]))
+fw.handleFormEvent(form("frm_T", T, "Где проверенный рабочий артефакт?", ["Угадать (Recommended)", "Выяснить"]))
 fw.handleFormEvent(form("frm_W", W, "Какой формат отчёта?", ["Короткий (Recommended)", "Длинный"]))
 fw.handleFormEvent(form("frm_C", C, "Вливать в main?", ["Да (Recommended)", "Нет"]))
 fw.handleFormEvent(form("frm_R", R, "Какой формат отчёта?", ["Короткий", "Длинный"]))
@@ -127,7 +128,8 @@ cell("answered: the record of the form is gone (answered, not lost)", fw.pending
 const la = lettersTo(A).filter((t) => /answer_mode/.test(t))
 cell("answered: the tab got ONE service letter 'not the owner's word' with the question and the option", la.length === 1 && /не слово владельца/.test(la[0]) && /Какой формат отчёта\?/.test(la[0]) && /Короткий/.test(la[0]) && !/по слову владельца/.test(la[0]), lettersTo(A).join(" | ").slice(0, 500))
 const hist = tasks.loadTask("proj", task.n)?.history ?? []
-cell("answered: the task history has the event with the source and the answer id", hist.some((h) => /answer_mode/.test(h.note ?? "") && /Короткий/.test(h.note ?? "") && /\[answer auto-frm_A\]/.test(h.note ?? "")), JSON.stringify(hist.map((h) => h.note)))
+const routed = core.questionRouterFor({}).list().find(r => r.session === T && r.form?.id === 'frm_T')
+cell("ADR-0017 task fact: no guessed autoanswer/history event; original question is durably routed", !autoFile('frm_T') && calls.every(c => c.sessionID !== T) && hist.every(h => !/answer_mode/.test(h.note ?? '')) && routed?.qid === 'frm_T' && routed.task === task.n && ['routing', 'unknown', 'blocked'].includes(routed.status), JSON.stringify([hist.map(h => h.note), routed?.status]))
 cell("answered: the log line", /owner answer auto-frm_A applied: form frm_A of sesAUTO_A/.test(logText()), logText().split("\n").filter((l) => /auto-frm_A/.test(l)).join(" | "))
 cell("answered: no repeat of task 040 (no 'не получил ответа' wake)", !lettersTo(A).some((t) => /не получил ответа/.test(t)), "")
 
@@ -155,7 +157,7 @@ cell("crew_doctor: the note of the form answers is in the tail", /автоотв
 cell("the settings file was not written by the plugin", readFileSync(settingsFile, "utf8") === settingsBefore, readFileSync(settingsFile, "utf8"))
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 db.close()
 try {
   rmSync(tmp, { recursive: true, force: true })

@@ -27,7 +27,7 @@ git(proj, "init", "-q", "-b", "main")
 git(proj, "add", "-A")
 git(proj, "commit", "-q", "-m", "init")
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const core = await import("../core.ts")
 const tasks = await import("../tasks.ts")
 const hooks = {}
@@ -112,7 +112,7 @@ cell("the task history records the nudge of the reviewer", (task(1).history ?? [
 cell("the executor is not woken by the push to the reviewer", got(ex1, "Подталкивание по задаче 001").length === 1, JSON.stringify(got(ex1, "Подталкивание по задаче 001").length))
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-push-reviewer.test: FAIL ${fail}` : "crew-push-reviewer.test ok")
 process.exit(fail ? 1 : 0)

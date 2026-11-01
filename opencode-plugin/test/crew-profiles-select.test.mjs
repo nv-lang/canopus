@@ -44,7 +44,7 @@ const innerRoot = path.join(proj, "inner") // a nested root: its own project, no
 mkdirSync(path.join(innerRoot, ".opencode"), { recursive: true })
 writeFileSync(path.join(innerRoot, ".opencode", "crew-harness.json"), JSON.stringify(base))
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const core = await import("../core.ts")
 const tasks = await import("../tasks.ts")
 const L = await import("../profile-layer.ts")
@@ -559,7 +559,7 @@ use(undefined)
 use(undefined)
 clearInterval(heart)
 
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-profiles-select.test: FAIL ${fail}` : "crew-profiles-select.test ok")
 process.exit(fail ? 1 : 0)

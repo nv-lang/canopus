@@ -16,7 +16,7 @@ mkdirSync(path.join(proj, ".opencode"), { recursive: true })
 writeFileSync(path.join(proj, ".opencode", "crew-harness.json"), JSON.stringify({ exclusive_roles: ["lead"], project_rules: "EXTRA-LINE-OF-THE-PROJECT" }))
 
 const dirOf = (sid) => (sid.startsWith("sesP") ? proj : bare)
-const mod = await import(process.env.CREW_MODULE ?? "../index.ts")
+const mod = await import(process.env.CREW_MODULE ?? "./fixture-plugin.mjs")
 const { loadConfig } = await import("../core.ts")
 const hooks = {}
 const tools = {}
@@ -81,7 +81,7 @@ const bom = path.join(tmp, "bom")
 mkdirSync(path.join(bom, ".opencode"), { recursive: true })
 writeFileSync(path.join(bom, ".opencode", "crew-harness.json"), "\uFEFF" + JSON.stringify({ project_rules: "BOM-LINE" }))
 cell("a config saved with a BOM is read", loadConfig(bom).projectRules.includes("BOM-LINE"), "BOM file ignored")
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-config.test: FAIL ${fail}` : "crew-config.test ok")
 process.exit(fail ? 1 : 0)

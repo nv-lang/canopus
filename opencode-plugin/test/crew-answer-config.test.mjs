@@ -32,7 +32,7 @@ const commit = (obj) => {
 git(cfgDir, "init", "-q", "-b", "main")
 commit({})
 
-const mod = await load("index.ts")
+const mod = await load("test/fixture-plugin.mjs")
 const core = await load("core.ts")
 const schema = await load("config-schema.ts")
 const settings = await load("settings.ts")
@@ -132,7 +132,7 @@ cell("REQ-01 answerModesOn", !parse.answerModesOn(m({})) && !parse.answerModesOn
 cell("REQ-02 answer_max default", parse.normalizeAnswerMax(undefined) === 3 && parse.normalizeAnswerMax(2) === 2 && parse.normalizeAnswerMax(0) === 3 && parse.normalizeAnswerMax(2.5) === 3 && parse.normalizeAnswerMax("4") === 3, "normalizeAnswerMax")
 cell("REQ-01 a string is read as absent, with a note", parse.normalizeAnswerMode("owner").notes.length === 1 && JSON.stringify(m("owner")) === "{}" && parse.normalizeAnswerMode(undefined).notes.length === 0, "string")
 
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-answer-config.test: FAIL ${fail}` : "crew-answer-config.test ok")
 process.exit(fail ? 1 : 0)

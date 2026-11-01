@@ -770,6 +770,8 @@ export type AutoDeps = {
   ownerWrote(session: string, since: number): Promise<boolean>
   /** the time of the first word of the owner in the tab after `at` (0: none) */
   ownerWordAfter(session: string, at: number): Promise<number>
+  /** 280: a task's working question is handled by its durable integrator router, not a guessed recommendation. */
+  routed?(session: string, form: PendingForm): boolean
   say?(line: string): void
 }
 
@@ -860,6 +862,7 @@ export async function autoTick(deps: AutoDeps, now = Date.now(), formsDir = FORM
 }
 
 async function one(deps: AutoDeps, session: string, f: PendingForm, now: number, formsDir: string, answersDir: string, say: (l: string) => void) {
+  if (deps.routed?.(session, f)) return
   if (f.replacedBy || f.cancelled || f.repeats || f.exhausted || f.dead) return // the repeats of a lost question and the history are not touched (tasks 040, 071, 073)
   const cfg = deps.config(session)
   if (!cfg) return

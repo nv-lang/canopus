@@ -13,7 +13,7 @@ const R = reporter("crew-answer-flow.test")
 const cell = R.cell
 const NL = String.fromCharCode(10)
 const SIDS = Array.from({ length: 40 }, (_, i) => `sesFlow${String(i + 1).padStart(2, "0")}`)
-const H = await harness("crew-answer-flow", { sessions: SIDS, settings: { owner_reminder_min: 1 } })
+const H = await harness("crew-answer-flow", { sessions: [...SIDS, 'sesAuthor1'], ownLog: true, settings: { owner_reminder_min: 1 } })
 const core0 = () => H.core
 // the module of the journal may be absent (the base of the proof of red): then there are no records and the cells that need them fail
 const A = await load("answer.ts").catch(() => ({ ANSWERS: path.join(core0().BASE, "answers"), readRecords: () => [] }))
@@ -189,6 +189,11 @@ const PACK3 = [block({ n: "01", q: "Первый вопрос?", type: "implemen
 
 // ---- the task sessions (nudge): a session started by crew_spawn ends a turn with a question -------------------------------
 const AUTHOR = "sesAuthor1"
+await H.open(AUTHOR)
+await H.call('crew_role', AUTHOR, { role: 'integrator' })
+H.msg(AUTHOR, 'idle', { outcome: 'succeeded' })
+const routeOf = sid => core.questionRouterFor({}).list().find(r => r.session === sid && r.channel === 'text')
+const routedFact = sid => { const r = routeOf(sid); return r?.target === AUTHOR && r.status === 'routing' && !r.answer && recsOf(sid, 'a').length === 0 }
 /** a task session: a card of a spawned task with its task and the obligation to the author; returns the ids */
 const taskSession = (extra = {}, fields = {}) => {
   const sid = nextSid()
@@ -213,42 +218,42 @@ const noWake = (sid) => H.letters(sid).filter((l) => /Не завершено/.t
 {
   modes({ default: "recommendations" })
   const { sid, t } = taskSession()
-  await sessionTurn(sid, [block({ type: "implementation" }), SEEN].join(NL), { ready: (s) => hasA(s) })
+  await sessionTurn(sid, [block({ type: "implementation" }), SEEN].join(NL), { ready: routedFact })
   const o = oblig(sid)[0]
   const t2 = H.tasks.loadTask("proj", t.n)
-  cell("AC-10 сессия задачи", recsOf(sid, "a").length === 1 && noWake(sid) && o.nudges === 0 && (o.empty ?? 0) === 0 && !o.stuck && o.qid === `q-${sid}` && t2.history.some((h) => String(h.note ?? "").includes(recsOf(sid, "a")[0].id)) && toAuthor().filter((l) => String(l.id).includes(sid)).length === 0, JSON.stringify([recsOf(sid).length, oblig(sid), toAuthor().map((l) => l.id)]))
+  cell("AC-10 ADR-0017 task: original fact routed, no fabricated Recommended/history, obligation preserved", routedFact(sid) && noWake(sid) && o.nudges === 0 && (o.empty ?? 0) === 0 && !o.stuck && o.qid === `q-${sid}` && routeOf(sid).task === t.n && !t2.history.some(h => /answer_mode/.test(h.note ?? '')) && toAuthor().some(l => l.text.includes(routeOf(sid).id)), JSON.stringify([routeOf(sid), oblig(sid)]))
 }
 {
   modes({ default: "recommendations" })
   const { sid } = taskSession()
-  await sessionTurn(sid, PACK3, { ready: (s) => hasA(s) && forAuthor(s, /^answer-rest-/).length >= 1 })
+  await sessionTurn(sid, PACK3, { ready: routedFact })
   const lt = lettersText(sid)
   const rest = forAuthor(sid, /^answer-rest-/)
-  cell("AC-10 пакет", recsOf(sid, "a").length === 1 && rest.length === 1 && /В-02/.test(rest[0].text) && /В-03/.test(rest[0].text) && /crew_send \{to:/.test(rest[0].text) && /В-02/.test(lt) && noWake(sid) && noticesOf(sid).length === 0, JSON.stringify([recsOf(sid).map((r) => [r.kind, r.qn]), toAuthor().map((l) => l.id), noticesOf(sid)]))
+  cell("AC-10 pack: no partial guessed autoanswer; original questions/gate retained for source/provenance", routedFact(sid) && routeOf(sid).text === PACK3 && /В-02/.test(routeOf(sid).text) && /Тип: gate/.test(routeOf(sid).text) && noWake(sid) && noticesOf(sid).length === 0 && !/answer_mode/.test(lt), JSON.stringify([routeOf(sid), noticesOf(sid)]))
   const id = rest[0]?.id
   await H.wait(1200)
-  cell("AC-30 в", id === `answer-rest-${sid}-${recsOf(sid, "r")[0]?.end}` && forAuthor(sid, /^answer-rest-/).length === 1 && noticesOf(sid).length === 0 && oblig(sid)[0].nudges === 0 && (oblig(sid)[0].empty ?? 0) === 0, JSON.stringify([id, toAuthor().map((l) => l.id), oblig(sid)]))
+  cell("AC-30 в durable route replay, not legacy partial-answer rest", routedFact(sid) && toAuthor().filter(l => l.id === `question-route-${routeOf(sid).id}-${routeOf(sid).epoch}`).length === 1 && noticesOf(sid).length === 0 && oblig(sid)[0].nudges === 0 && (oblig(sid)[0].empty ?? 0) === 0, JSON.stringify([routeOf(sid).id, oblig(sid)]))
 }
 {
   modes({ default: "recommendations" })
   const { sid } = taskSession()
-  await sessionTurn(sid, ["В-01 Выбор формата", "Тип: implementation", "Рекомендация: json", "Автоответ: допустим"].join(NL), { ready: (s) => forAuthor(s, /^answer-rest-/).length >= 1 })
+  await sessionTurn(sid, ["В-01 Выбор формата", "Тип: implementation", "Рекомендация: json", "Автоответ: допустим"].join(NL), { ready: routedFact })
   const rest = forAuthor(sid, /^answer-rest-/)
-  cell("AC-30 и в письме сессии задачи", recsOf(sid, "a").length === 0 && rest.length === 1 && /нет «\?» в конце строки/.test(rest[0].text), JSON.stringify([recsOf(sid), rest.map((l) => l.text)]))
+  cell("AC-30 task block without question mark keeps original source, not guessed recommendation", routedFact(sid) && routeOf(sid).text.includes('В-01 Выбор формата') && routeOf(sid).sources === undefined, JSON.stringify(routeOf(sid)))
 }
 {
   modes({ default: "recommendations" })
   const { sid } = taskSession()
   const pk = [block({ n: "01", q: "Первый вопрос?", type: "implementation" }), "", "В-02 Второй вопрос без полей?"].join(NL)
-  await sessionTurn(sid, pk, { ready: (s) => forAuthor(s, /^answer-rest-/).length >= 1 })
-  cell("AC-30 з в письме сессии задачи", forAuthor(sid, /^answer-rest-/).length === 1 && toAuthor().filter((l) => String(l.id).startsWith("ask-")).length === 0 && noWake(sid), JSON.stringify(toAuthor().map((l) => l.id)))
+  await sessionTurn(sid, pk, { ready: routedFact })
+  cell("AC-30 short task pack retains every question with no duplicate legacy ask", routedFact(sid) && routeOf(sid).text === pk && toAuthor().filter((l) => String(l.id).startsWith(`ask-${sid}`)).length === 0 && noWake(sid), JSON.stringify(routeOf(sid)))
 }
 {
   // started by the owner's word: the answer comes before the condition !turn?.owner
   modes({ default: "recommendations" })
   const { sid } = taskSession()
-  await sessionTurn(sid, [block({ type: "implementation" }), SEEN].join(NL), { user: "поехали", ready: (s) => hasA(s) })
-  cell("AC-11 b сессия задачи", recsOf(sid, "a").length === 1, JSON.stringify([recsOf(sid)]))
+  await sessionTurn(sid, [block({ type: "implementation" }), SEEN].join(NL), { user: "поехали", ready: routedFact })
+  cell("AC-11 owner-started task is still routed; it is not permission to guess", routedFact(sid), JSON.stringify(routeOf(sid)))
 }
 {
   // review sessions and task-plan sessions
@@ -256,14 +261,14 @@ const noWake = (sid) => H.letters(sid).filter((l) => /Не завершено/.t
   const rv = taskSession({ review: { project: "proj", n: 1 } })
   await sessionTurn(rv.sid, [block({ q: "Вливай?", type: "implementation", rec: "да" }), SEEN].join(NL))
   const rv2 = taskSession({ review: { project: "proj", n: 1 } })
-  await sessionTurn(rv2.sid, [block({ q: "Задача готова, всё зелёное, закрываем?", type: "implementation", rec: "закрываем" }), SEEN].join(NL), { ready: (s) => hasA(s) })
+  await sessionTurn(rv2.sid, [block({ q: "Задача готова, всё зелёное, закрываем?", type: "implementation", rec: "закрываем" }), SEEN].join(NL), { ready: routedFact })
   const pl = taskSession({}, { plan: { n: "7", file: "docs/plans/7-x.md", source: "s", rounds: [], clean: 0 } })
-  await sessionTurn(pl.sid, [block({ q: "Согласовать план?", type: "requirements", rec: "да" }), SEEN].join(NL), { ready: (s) => forAuthor(s, /^answer-rest-/).length >= 1 })
+  await sessionTurn(pl.sid, [block({ q: "Согласовать план?", type: "requirements", rec: "да" }), SEEN].join(NL), { ready: routedFact })
   const ok = taskSession({}, { plan: { n: "8", file: "docs/plans/8-x.md", source: "s", rounds: [], clean: 0 } })
-  await sessionTurn(ok.sid, [block({ q: "Как назвать раздел?", type: "requirements", rec: "Контекст" }), SEEN].join(NL), { ready: (s) => hasA(s) })
+  await sessionTurn(ok.sid, [block({ q: "Как назвать раздел?", type: "requirements", rec: "Контекст" }), SEEN].join(NL), { ready: routedFact })
   // task 097: the acceptance session is NOT an exception any more (owner, 2026-10-19): a question without the words of the gates is answered, the words still rest
-  cell("AC-05 г", recsOf(rv.sid).filter((r) => r.kind === "a").length === 0 && recsOf(rv2.sid).filter((r) => r.kind === "a").length === 1 && recsOf(pl.sid).filter((r) => r.kind === "a").length === 0 && !/сессия приёмки/.test(JSON.stringify(recsOf(rv2.sid, "r"))) && forAuthor(rv2.sid, /^answer-rest-/).length === 0 && forAuthor(pl.sid, /^answer-rest-/).length === 1, JSON.stringify([recsOf(rv.sid), recsOf(rv2.sid), recsOf(pl.sid)]))
-  cell("AC-05 д", recsOf(ok.sid, "a").length === 1, JSON.stringify(recsOf(ok.sid)))
+  cell("AC-05 review is no blanket owner exception; all task questions route with gates retained", [rv.sid, rv2.sid, pl.sid].every(routedFact) && routeOf(rv.sid).text.includes('Вливай?') && routeOf(pl.sid).text.includes('Согласовать план?'), JSON.stringify([routeOf(rv.sid), routeOf(rv2.sid), routeOf(pl.sid)]))
+  cell("AC-05 д naming a section still needs a checked source, not Recommended", routedFact(ok.sid), JSON.stringify(routeOf(ok.sid)))
 }
 
 // ---- AC-16: the answer changes nothing of the task ---------------------------------------------------------------------
@@ -273,22 +278,25 @@ const noWake = (sid) => H.letters(sid).filter((l) => /Не завершено/.t
   const a = taskSession({}, { status: "rework", rework: 2, syncs: 3 })
   const b = taskSession({}, { plan: { n: "9", file: "docs/plans/9-x.md", source: "s", rounds: [{ at: 1, found: 2 }], clean: 1, stuck: false } })
   const before = [snapOf(H.tasks.loadTask("proj", a.t.n)), snapOf(H.tasks.loadTask("proj", b.t.n))]
-  await sessionTurn(a.sid, [block({ type: "implementation" }), SEEN].join(NL), { ready: (s) => hasA(s) })
-  await sessionTurn(b.sid, [block({ type: "requirements", q: "Как назвать раздел?" }), SEEN].join(NL), { ready: (s) => hasA(s) })
+  await sessionTurn(a.sid, [block({ type: "implementation" }), SEEN].join(NL), { ready: routedFact })
+  await sessionTurn(b.sid, [block({ type: "requirements", q: "Как назвать раздел?" }), SEEN].join(NL), { ready: routedFact })
   const after = [snapOf(H.tasks.loadTask("proj", a.t.n)), snapOf(H.tasks.loadTask("proj", b.t.n))]
-  cell("AC-16 снимок", recsOf(a.sid, "a").length === 1 && recsOf(b.sid, "a").length === 1 && before.join() === after.join(), JSON.stringify([before, after]))
+  cell("AC-16 routing snapshot: no fabricated task answer or task/plan mutation", routedFact(a.sid) && routedFact(b.sid) && before.join() === after.join(), JSON.stringify([before, after]))
 }
 
 // ---- AC-15: the approval of plans is not touched by the modes ----------------------------------------------------------------
 {
   modes({ default: "recommendations" })
   const t = H.tasks.createTask({ project: "proj", title: "план 11: проверка", goal: "g", criteria: "c", priority: "P2", tier: "light", role: "worker", model: "claude-code/haiku", author: AUTHOR, author_role: "proj.integrator", qid: "q-plan11", status: "approval", kind: "spawn", directory: H.proj, plan: { n: "11", file: "docs/plans/11-x.md", source: "s", rounds: [], clean: 2 } })
+  cell('AC-15 default plan approver remains owner', H.cfg().planApprover === 'owner', H.cfg().planApprover)
   await H.until(() => H.notices().some((x) => /План 11 ждёт согласования/.test(x.title)), 60_000)
+  const ownerPlanNotice = H.notices().some(x => /План 11 ждёт согласования/.test(x.title))
+  if (!ownerPlanNotice) console.log('plan owner diagnostic:', readFileSync(path.join(H.tmp, 'opencode-plugins.log'), 'utf8').split('\n').filter(l => /applyApprovals|pass step|slow step/.test(l)).slice(-12).join('\n'), JSON.stringify({ windows: core.liveWindows(), task: H.tasks.loadTask('proj', t.n) }))
   const t1 = H.tasks.loadTask("proj", t.n)
   modes({ default: "recommendations" }, { plan_approver: "integrator" })
   const t2 = H.tasks.createTask({ project: "proj", title: "план 12: проверка", goal: "g", criteria: "c", priority: "P2", tier: "light", role: "worker", model: "claude-code/haiku", author: AUTHOR, author_role: "proj.integrator", qid: "q-plan12", status: "approval", kind: "spawn", directory: H.proj, plan: { n: "12", file: "docs/plans/12-x.md", source: "s", rounds: [], clean: 2 } })
   await H.until(() => toAuthor().some((l) => /^plan-approve-/.test(String(l.id))), 60_000)
-  cell("AC-15 планы", H.notices().some((x) => /План 11 ждёт согласования/.test(x.title)) && t1.status === "approval" && !t1.plan.approval && toAuthor().some((l) => /^plan-approve-proj-\d+-12-|^plan-approve-proj-/.test(String(l.id))) && H.tasks.loadTask("proj", t2.n).status === "approval", JSON.stringify([H.notices().map((x) => x.title), toAuthor().map((l) => l.id), t1.status]))
+  cell("AC-15 планы", ownerPlanNotice && t1.status === "approval" && !t1.plan.approval && toAuthor().some((l) => /^plan-approve-proj-\d+-12-|^plan-approve-proj-/.test(String(l.id))) && H.tasks.loadTask("proj", t2.n).status === "approval", JSON.stringify([ownerPlanNotice, H.notices().map((x) => x.title), toAuthor().map((l) => l.id), t1.status, t1.plan, H.cfg().planApprover]))
 }
 
 R.done(H)

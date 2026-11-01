@@ -129,7 +129,7 @@ await registerGluedHooks({}, (l) => logs2.push(l))
 cell("no tool.hook in this OpenCode: no exception, a line in the journal", logs2.some((l) => l.includes("no tool.hook")), J(logs2))
 
 // ---- the plugin: the hooks are registered by the setup, and crew_send lets the second glued letter go
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const tools = {}
 const regs = { tool: {}, permission: {} }
 const ctx = {
@@ -156,7 +156,7 @@ cell("crew_send lets the second glued letter in a row go (no glued refusal)", !/
 const s3 = (await sendGlued()).content
 cell("and refuses the third again", /слиплись/.test(s3), s3)
 
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-glued-hooks.test: FAIL ${fail} of ${n}` : `crew-glued-hooks.test ok (${n} checks)`)
 process.exit(fail ? 1 : 0)

@@ -13,7 +13,7 @@ import { mkdirSync, writeFileSync } from "node:fs"
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true })
 writeFileSync(path.join(proj, ".opencode", "crew-harness.json"), JSON.stringify({ exclusive_roles: ["integrator"] }))
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 
 const hooks = {}
 const tools = {}
@@ -55,7 +55,7 @@ await new Promise((r) => setTimeout(r, 50))
 const to = delivered.filter((d) => /probe/.test(d.text)).map((d) => d.sessionID)
 cell("letter to integrator reaches B only", to.length === 1 && to[0] === "sesBBBBBB", JSON.stringify(to))
 
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-role.test: FAIL ${fail}` : "crew-role.test ok")
 process.exit(fail ? 1 : 0)
