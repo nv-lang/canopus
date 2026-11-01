@@ -1,0 +1,16 @@
+{
+  "kind": "test",
+  "machine": "WorkModePolicy",
+  "name": "workspace preference stays editable in preparation until execution locks the folder",
+  "start_at": 1000,
+  "steps": [
+    {"do":"feed","event":{"kind":"signal","name":"workspace","party":"hub"},"expect":{"state":"Preparation"}},
+    {"do":"feed","event":{"kind":"signal","name":"tree","party":"hub"},"expect":{"state":"Preparation"}},
+    {"do":"feed","event":{"kind":"signal","name":"interactive","party":"hub"},"expect":{"state":"Interactive"}},
+    {"do":"feed","event":{"kind":"signal","name":"workspace","party":"hub"},"expect":{"state":"Interactive"}},
+    {"do":"feed","event":{"kind":"signal","name":"workspace_locked","party":"hub"},"expect":{"state":"WorkspaceLocked"}},
+    {"do":"feed","event":{"kind":"signal","name":"workspace","party":"hub"},"expect":{"state":"WorkspaceLocked"}},
+    {"do":"feed","event":{"kind":"signal","name":"workspace_unavailable","party":"hub"},"expect":{"state":"WorkspaceUnavailable"}},
+    {"do":"feed","event":{"kind":"signal","name":"workspace","party":"hub"},"expect":{"state":"WorkspaceUnavailable"}}
+  ]
+}

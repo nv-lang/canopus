@@ -182,7 +182,7 @@ test('задача 192.6: шапка чата — только название,
 test('задача 192.6/260: папка не git — без Worktree; таймаут сохраняет сообщение и исходный id сессии', () => {
   const app = read('app.js');
   assert.match(read('projects.js'), /if \(raw && raw\.repo === false\) folder\.repo = false/);
-  assert.match(view, /worktreeButton\.disabled = hasTree \|\| noRepo/);
+  assert.match(view, /worktreeButton\.disabled = hasTree \|\| preparingTree \|\| Boolean\(task\) \|\| busy \|\| noRepo/);
   assert.match(view, /noRepo \? t\('route\.worktree_not_repo'\)/);
   assert.match(app, /worktree: draft\.worktree !== false && treeOk/);
   assert.match(app, /watchCreated\(trace\)/);

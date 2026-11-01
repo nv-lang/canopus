@@ -1033,10 +1033,16 @@ export fn wip_tree_plan_from(repo str, name str, trees str, source str) Proc Os 
     }
     ro base = selected
     ro path = "${place}/${tw_base_name(dir)}-${name}"
-    ro pruned = tw_git(dir, ["worktree", "prune"])
     ro want = tw_key(tw_canon(path))
     for t in tw_trees(dir) {
-        if tw_key(t.path) == want || tw_key(tw_canon(t.path)) == want { return Ok(WipPlan { dir, path, base, reuse: true, origin: false }) }
+        if tw_key(t.path) == want || tw_key(tw_canon(t.path)) == want {
+            if !tw_is_repo(path) { return Err("записанная рабочая папка недоступна; автоматическая замена запрещена") }
+            if source.byte_len() > 0 {
+                ro head = tw_git(path, ["rev-parse", "HEAD"])
+                if tw_current_branch(path).byte_len() > 0 || head.code != 0 || head.out.trim_ascii() != base { return Err("существующая рабочая папка не соответствует выбранной исходной ветке; она сохранена") }
+            }
+            return Ok(WipPlan { dir, path, base, reuse: true, origin: false })
+        }
     }
     if tw_exists(path) { return Err("the folder ${path} exists and is not a tree of this repository") }
     Ok(WipPlan { dir, path, base, reuse: false, origin: source.byte_len() == 0 && tw_has_origin(dir) })

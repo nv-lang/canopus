@@ -16,8 +16,8 @@ test('workspace: source and folder are independent read-only preferences in one 
   const s = setup({ ok: true, isRepo: true, branch: 'main', sources: ['refs/heads/main', 'refs/heads/chosen'] });
   const done = s.ui.pickWorkspace({ folder: 'C:/work/project', sourceBranch: 'refs/heads/chosen', worktree: true, preparation: true });
   await settle();
-  const source = s.q('select[aria-label="Исходная ветка"]');
-  const place = s.q('select[aria-label="Рабочая папка"]');
+  const source = s.q('#workspace-source');
+  const place = s.q('#workspace-place');
   assert.equal(source.value, 'refs/heads/chosen');
   assert.equal(source.disabled, false);
   assert.match(s.doc.body.textContent, /не новый clone/);

@@ -18,8 +18,10 @@ fn Hub mut @workspace_set(trace str, input JsonObject) Proc Detach Time -> () {
     ro at = @find(trace)
     if at < 0 || !@work_require(at, "workspace") { return }
     ro s = @sessions[at]
-    if s.rt.task_open || s.rt.wip_tree.byte_len() > 0 || s.rt.worktree.byte_len() > 0 || s.rt.wip_prep != 0 || wip_had_message(s.lines) || s.rt.result_repo.byte_len() > 0 {
-        @tell_error(0, trace, s.engine.step_number(), "", "исполнение уже началось: исходная ветка и рабочая папка закреплены")
+    ro locked = (s.rt.task_open && s.rt.task_id != "draft") || s.rt.wip_tree.byte_len() > 0 || s.rt.worktree.byte_len() > 0 || s.rt.wip_prep != 0 || wip_had_message(s.lines) || s.rt.result_repo.byte_len() > 0
+    ro available = s.project_id.byte_len() > 0 && s.folder.byte_len() > 0 && tk_is_repo(s.folder)
+    if !workspace_allows(@work_mode, s.rt.route, locked, available) {
+        @tell_error(0, trace, s.engine.step_number(), "", if available { "исполнение уже началось: исходная ветка и рабочая папка закреплены" } else { "выбор исходной ветки и Git-папки доступен только в проекте с Git" })
         return
     }
     ro source = jtext(input, "source_branch")

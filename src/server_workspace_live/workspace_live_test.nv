@@ -1,0 +1,9 @@
+module crew_harness.server_workspace_live
+
+import crew_harness.server.{kit_routes_wip, scenario_workspace}
+
+test "workspace: preparation, selected detached source, restart and dirty close over the hub" {
+    ro report = scenario_workspace(kit_routes_wip("workspace-275"))
+    if report.byte_len() > 0 { panic(report) }
+    assert(report == "")
+}

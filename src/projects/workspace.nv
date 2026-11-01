@@ -1,6 +1,8 @@
 // Read-only source choices. No fetch/switch/worktree operation belongs to this endpoint.
 module crew_harness.projects
 
+import std.text
+
 export fn git_sources(path str) Proc -> []str {
     mut sources = []str.new()
     ro dir = match normalize_folder_path(path) { Ok(p) => p, Err(e) => return sources }
@@ -8,8 +10,8 @@ export fn git_sources(path str) Proc -> []str {
         Ok(t) => t
         Err(e) => return sources
     }
-    for ref in text.lines() {
-        if ref.byte_len() > 0 && !ref.ends_with("/HEAD") { sources.push(ref) }
+    for source in text.lines() {
+        if source.byte_len() > 0 && !source.ends_with("/HEAD") { sources.push(source) }
     }
     sources
 }

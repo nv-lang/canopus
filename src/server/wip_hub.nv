@@ -73,7 +73,7 @@ fn Hub mut @wip_start(at int) Proc Detach Time -> () {
     // A foreign result is opened only as an explicit numbered task; never start an unbound wip in the owner's repository.
     if s.rt.result_repo.byte_len() > 0 { return }
     if !@settings.route_wip || !s.rt.use_tree || s.rt.wip_tree.byte_len() > 0 || s.rt.kind == "child" || s.rt.wip_prep != 0 { return }
-    if s.rt.task_open || s.rt.route != "interactive" || wip_had_message(s.lines) { return }
+    if (s.rt.task_open && s.rt.task_id != "draft") || s.rt.route != "interactive" || wip_had_message(s.lines) { return }
     ro base = @route_repo_dir(s.id)
     if !tk_is_repo(base) { return }
     ro name = wip_name(s.id)

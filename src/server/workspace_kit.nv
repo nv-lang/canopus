@@ -1,0 +1,102 @@
+module crew_harness.server
+
+import crew_harness.projects.{projects_create}
+import std.fs.{Fs, real_fs, create_dir_all, Path}
+import std.os.{Os}
+
+// Real repository + real journal/restart + fake ACP. Native writes remain forbidden in Preparation.
+export fn scenario_workspace(settings ServerSettings) Proc Detach Time Net Fs Os -> str {
+    mut c = kit_check()
+    ro repo = kit_slashes(settings.workdir)
+    c.expect(rk_git(repo, ["switch", "-c", "chosen"]), "the source branch exists")
+    ro file = write_file("${repo}/selected.txt", "selected\n")
+    c.expect(rk_git(repo, ["add", "selected.txt"]) && rk_git(repo, ["commit", "-m", "selected"]), "the source has a different commit")
+    ro chosen = git_run(repo, ["rev-parse", "HEAD"]).text.trim_ascii()
+    c.expect(rk_git(repo, ["switch", "main"]), "the main folder stays on main")
+    ro main_head = git_run(repo, ["rev-parse", "HEAD"]).text
+    ro id = match projects_create(settings.data_dir, kit_json_object("{\"name\":\"Workspace\",\"folders\":[{\"path\":\"${repo}\"}],\"worktrees_dir\":\"worktrees\"}")) {
+        Ok(id) => id
+        Err(f) => panic(f.message)
+    }
+    ro trees_before = git_run(repo, ["worktree", "list", "--porcelain"]).text
+    mut rig = rig_open(settings)
+    rig.attach(1)
+    rig.page(1, "session_created", "s-badsrc", "{\"name\":\"Bad source\",\"agent\":\"opencode\",\"project_id\":\"${id}\",\"source_branch\":\"refs/heads/missing\"}")
+    rig.run(50)
+    c.expect(rig.hub.find("s-badsrc") < 0, "a missing source is refused before session creation")
+    rig.page(1, "session_created", "s-empty", "{\"name\":\"No project\",\"agent\":\"opencode\",\"worktree\":true}")
+    rig.page(1, "session_workspace", "s-empty", "{\"worktree\":true,\"source_branch\":\"refs/heads/chosen\"}")
+    rig.page(1, "session_worktree", "s-empty", "{\"on\":true}")
+    rig.run(50)
+    ro empty_at = rig.hub.find("s-empty")
+    c.expect(empty_at >= 0, "ordinary projectless chat is still available")
+    if empty_at >= 0 { c.expect(!rig.hub.sessions[empty_at].rt.use_tree && rig.hub.sessions[empty_at].rt.source_branch == "", "forged choices cannot give projectless chat a Git context") }
+    ro notes = kit_slashes("${settings.data_dir}-notes")
+    with Fs = real_fs() { ro made = create_dir_all(Path.from_bytes(notes.bytes())) }
+    ro notes_id = match projects_create(settings.data_dir, kit_json_object("{\"name\":\"Notes\",\"folders\":[{\"path\":\"${notes}\"}]}")) {
+        Ok(id) => id
+        Err(f) => panic(f.message)
+    }
+    rig.page(1, "session_created", "s-notes", "{\"name\":\"No Git\",\"agent\":\"opencode\",\"project_id\":\"${notes_id}\",\"worktree\":true}")
+    rig.page(1, "session_workspace", "s-notes", "{\"worktree\":true,\"source_branch\":\"refs/heads/chosen\"}")
+    rig.page(1, "session_worktree", "s-notes", "{\"on\":true}")
+    rig.run(50)
+    ro notes_at = rig.hub.find("s-notes")
+    c.expect(notes_at >= 0, "ordinary no-git project chat is still available")
+    if notes_at >= 0 { c.expect(!rig.hub.sessions[notes_at].rt.use_tree && rig.hub.sessions[notes_at].rt.source_branch == "", "forged choices cannot give a no-git project a fictional branch") }
+    c.expect(git_run(repo, ["worktree", "list", "--porcelain"]).text == trees_before && !path_there("${notes}/.git"), "negative projectless/no-git/source probes have no Git side effects")
+    rig.page(1, "session_created", "s-ws", "{\"name\":\"Workspace\",\"agent\":\"opencode\",\"project_id\":\"${id}\",\"route\":\"planning\",\"worktree\":true,\"source_branch\":\"refs/heads/chosen\"}")
+    rig.run(100)
+    ro at = rig.hub.find("s-ws")
+    c.expect(at >= 0, "the preparation session is created")
+    if at < 0 { rig.shut(); return c.report() }
+    for signal in ["session_worktree", "route_subtask_worktree", "route_publish", "route_merge"] {
+        rig.page(1, signal, "s-ws", "{\"on\":true,\"n\":1}")
+    }
+    rig.page(1, "session_workspace", "s-ws", "{\"worktree\":true,\"source_branch\":\"refs/heads/chosen\"}")
+    rig.page(1, "user_message", "s-ws", "{\"turn\":\"p\",\"text\":\"Подготовь задание\"}")
+    rig.run(100)
+    c.expect(git_run(repo, ["worktree", "list", "--porcelain"]).text == trees_before, "preparation and forged signals never change Git")
+    c.expect(rig.hub.sessions[at].clients.len() == 0, "the fail-closed Preparation backend remains closed")
+    c.expect(rig.hub.sessions[at].rt.source_branch == "refs/heads/chosen", "preparation saves only the preference")
+    rig.page(1, "session_route", "s-ws", "{\"route\":\"interactive\"}")
+    rig.run(100)
+    c.expect(git_run(repo, ["worktree", "list", "--porcelain"]).text == trees_before, "changing mode alone creates nothing")
+    c.expect(rk_git(repo, ["branch", "-D", "chosen"]), "the selected source can disappear before execution")
+    rig.page(1, "user_message", "s-ws", "{\"turn\":\"missing-source\",\"text\":\"Не исполнять без выбранной ветки\"}")
+    rig.run(100)
+    c.expect(git_run(repo, ["worktree", "list", "--porcelain"]).text == trees_before && rig.hub.sessions[at].clients.len() == 0, "a disappeared source is refused before a copy or agent execution")
+    c.expect(rk_git(repo, ["branch", "chosen", chosen]), "the source is restored for explicit retry")
+    ro pwd = wk_pwd(rig, "s-ws", "first-execution")
+    ro tree = rig.hub.sessions[at].rt.wip_tree
+    c.expect(tree.byte_len() > 0 && pwd.contains(tree), "first execution works in the detached copy: ${pwd}")
+    if tree.byte_len() == 0 { rig.shut(); return c.report() }
+    c.expect(git_run(tree, ["rev-parse", "HEAD"]).text.trim_ascii() == chosen && wk_branch(tree) == "", "the selected commit is detached, without a task branch")
+    c.expect(git_run(repo, ["rev-parse", "HEAD"]).text == main_head && wk_branch(repo) == "main", "main folder is unchanged")
+    ro loose = write_file("${tree}/loose.txt", "preserve\n")
+    rig.shut()
+    mut again = rig_open(settings)
+    again.attach(1)
+    again.run(100)
+    ro resumed = again.hub.find("s-ws")
+    c.expect(resumed >= 0, "restart restores the session")
+    if resumed >= 0 {
+        c.expect(again.hub.sessions[resumed].rt.source_branch == "refs/heads/chosen" && again.hub.sessions[resumed].rt.wip_tree == tree, "restart restores source preference and exact worktree")
+        c.expect(path_there("${tree}/loose.txt"), "restart preserves dirty work")
+        again.page(1, "session_workspace", "s-ws", "{\"worktree\":false,\"source_branch\":\"refs/heads/main\"}")
+        again.run(100)
+        c.expect(again.hub.sessions[resumed].rt.wip_tree == tree && path_there("${tree}/loose.txt"), "forged relocation preserves the dirty tree")
+        c.expect(ck_idle(again, "s-ws", 20000), "the resumed agent is idle")
+        c.expect(ck_list(again, "s-ws", "take", [ck_item("new", "Selected work", 0, 0, ["loose.txt"])], "Selected work"), "the task is recognised without a branch")
+        c.expect(wk_branch(tree) == "", "recognition alone leaves HEAD detached")
+        ck_press(again, "s-ws", "Selected work", "start")
+        again.run(1500)
+        c.expect(again.hub.sessions[resumed].rt.worktree == tree && again.hub.sessions[resumed].rt.branch.starts_with("task/"), "only explicit work creates the task branch in the same copy")
+        c.expect(path_there("${tree}/loose.txt"), "task adoption preserves the dirty file")
+        again.page(1, "session_delete", "s-ws", "{\"branch\":\"keep\"}")
+        again.run(100)
+        c.expect(path_there("${tree}/loose.txt"), "closing with keep preserves the dirty tree")
+    }
+    again.shut()
+    c.report()
+}
