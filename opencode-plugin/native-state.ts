@@ -5,6 +5,7 @@ import { serviceReg } from "./form-reply.ts"
 import { randomUUID } from "node:crypto"
 import { mkdirSync, readdirSync, existsSync, renameSync, writeFileSync } from "node:fs"
 import path from "node:path"
+import { setTimeout as delay } from "node:timers/promises"
 import { BASE } from "./paths.ts"
 import { readJson, safeKey } from "./core.ts"
 
@@ -17,7 +18,7 @@ export type NativeState = {
   outcome?: string
   why: string
 }
-export type NativeGet = (route: string) => Promise<any>
+export type NativeGet = (route: string, signal?: AbortSignal) => Promise<any>
 
 /** Shared non-active in-flight reads (not idle TTL), two GETs at a time, bounded queue and
  * outage backoff. No idle/identity TTL: every decision checks process ownership
@@ -27,37 +28,57 @@ export function boundedNativeGet(raw: NativeGet, clock = Date.now, spacingMs = 2
   let nextStart = 0
   const queue: (() => void)[] = []
   const pending = new Map<string, Promise<any>>()
+  const scopedPending = new WeakMap<AbortSignal, Map<string, Promise<any>>>()
   const release = () => { const next = queue.shift(); if (next) next(); else running-- }
-  return route => {
+  return (route, signal) => {
     // Never join an active request started before a caller's session-info read:
     // its response may be a delayed OLD snapshot, not a post-info observation.
     const coalesce = route !== "/api/session/active"
-    const same = coalesce ? pending.get(route) : undefined
+    let shared = pending
+    if (signal) {
+      if (!scopedPending.has(signal)) scopedPending.set(signal, new Map())
+      shared = scopedPending.get(signal)!
+    }
+    const same = coalesce ? shared.get(route) : undefined
     if (same) return same
     const begun = clock()
     const run = async () => {
+      signal?.throwIfAborted()
       if (begun < retryAt || queue.length >= 64) throw new Error("native transport backoff/queue bound")
-      if (running >= 2) await new Promise<void>(resolve => queue.push(resolve))
+      if (running >= 2) await new Promise<void>((resolve, reject) => {
+        let admitted = false
+        const ready = () => { admitted = true; signal?.removeEventListener("abort", abort); resolve() }
+        const abort = () => {
+          if (admitted) return
+          const index = queue.indexOf(ready)
+          if (index >= 0) queue.splice(index, 1)
+          reject(signal?.reason)
+        }
+        queue.push(ready)
+        signal?.addEventListener("abort", abort, { once: true })
+      })
       else running++
       try {
+        signal?.throwIfAborted()
         const startAt = Math.max(clock(), nextStart)
         nextStart = startAt + Math.max(0, spacingMs)
-        if (startAt > clock()) await new Promise(resolve => setTimeout(resolve, startAt - clock()))
+        if (startAt > clock()) await delay(startAt - clock(), undefined, { signal })
         if (clock() < retryAt || clock() - begun > 5000) throw new Error("native transport backoff/stale queued request")
-        const result = await raw(route)
+        const result = await raw(route, signal)
+        signal?.throwIfAborted()
         if (route === "/api/info" && (result?.pid !== process.pid || !/^2\./.test(result?.version ?? ""))) throw new Error("native process ownership/version unknown")
         if (route === "/api/session/active" && !activeMap(result)) throw new Error("native active schema unknown")
         failures = 0
         return result
       } catch (error) {
-        retryAt = clock() + Math.min(30_000, 1000 * 2 ** Math.min(failures++, 5))
+        if (!signal?.aborted) retryAt = clock() + Math.min(30_000, 1000 * 2 ** Math.min(failures++, 5))
         throw error
       } finally { release() }
     }
     const result = run()
     if (coalesce) {
-      pending.set(route, result)
-      void result.then(() => pending.delete(route), () => pending.delete(route))
+      shared.set(route, result)
+      void result.then(() => shared.delete(route), () => shared.delete(route))
     }
     return result
   }
@@ -81,14 +102,15 @@ export function nativeProblems(now = Date.now(), dir = NATIVE_DIR): string[] {
 
 /** Only GET: cannot discover/start/restart a service or mutate a session. */
 export function nativeGet(reg = serviceReg(), f: typeof fetch = fetch): NativeGet {
-  return async route => {
+  return async (route, signal) => {
+    signal?.throwIfAborted()
     if (!reg) throw new Error("native service registration unavailable")
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 5_000)
     try {
       const response = await f(`${reg.url}${route}`, {
         headers: { authorization: `Basic ${Buffer.from(`opencode:${reg.password}`).toString("base64")}` },
-        signal: controller.signal,
+        signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
       })
       if (response.status === 404) return undefined
       if (!response.ok) throw new Error(`native GET HTTP ${response.status}`)

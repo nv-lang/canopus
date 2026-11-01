@@ -137,6 +137,7 @@ import {
 import { branchNotes, checkWindow, pruneStates, registerBranchHooks, turnWarning } from "./branch-guard.ts"
 import { executionHeld, gateHeld, holderOf, readRecord, taskHold, stepNotes, watchCovers, watchTick } from "./idle-watch.ts"
 import { boundedNativeGet, nativeGet, nativeState, readNative, saveNative, type NativeGet, type NativeState } from "./native-state.ts"
+import { pluginLifetime } from "./plugin-lifetime.ts"
 import { advanceWake, newWake, readWake, readWakeForLetter, saveWake, wakeComplete, type WakeAttempt } from "./wake-delivery.ts"
 import { answerTurn, markInterventions } from "./answer.ts"
 import { answerModesOn } from "./answer-parse.ts"
@@ -177,24 +178,40 @@ export { parseProjects, projectOf, parseAddr, HELP, helpFor } from "./core.ts"
  * reconciliation/receipt code; it does not invent a test-only idle policy. */
 export function createCrewPlugin(native: { get?: NativeGet; spacingMs?: number } = {}) {
   let productionTransport: NativeGet | undefined
-  const getNative = boundedNativeGet(native.get ?? (route => {
+  const nativeTransport = boundedNativeGet(native.get ?? ((route, signal) => {
     if (!productionTransport) {
       const reg = serviceReg()
       if (!reg) return Promise.reject(new Error("native service registration unavailable"))
       productionTransport = nativeGet(reg) // pin endpoint/auth for this plugin lifetime
     }
-    return productionTransport(route)
+    return productionTransport(route, signal)
   }), Date.now, native.get ? native.spacingMs ?? 25 : 25)
   return {
   id: "crew-harness",
-  async setup(ctx: any) {
+  async setup(rawCtx: any) {
     let disposed = false
+    const lifetime = pluginLifetime()
+    const getNative: NativeGet = route => lifetime.call(() => nativeTransport(route, lifetime.signal))
     const inFlight = new Set<Promise<any>>()
     const tracked = <T>(p: Promise<T>): Promise<T> => {
       inFlight.add(p)
       void p.then(() => inFlight.delete(p), () => inFlight.delete(p))
       return p
     }
+    const callback = (fn: (...args: any[]) => any) => (...args: any[]) => disposed ? Promise.resolve() : tracked(Promise.resolve().then(() => disposed ? undefined : fn(...args)))
+    const scoped = (target: any, methods: string[], register?: string) => !target ? target : new Proxy(target, {
+      get(object, key) {
+        const fn = Reflect.get(object, key, object)
+        if (typeof fn !== "function") return fn
+        if (key === register) return (name: any, handler: any) => Reflect.apply(fn, object, [name, callback(handler)])
+        if (methods.includes(String(key))) return (...args: any[]) => lifetime.call(() => Reflect.apply(fn, object, args))
+        return fn.bind(object)
+      },
+    })
+    const session = scoped(rawCtx.session, ["get", "create", "update", "prompt", "synthetic", "interrupt"], "hook")
+    const model = scoped(rawCtx.model, ["list"])
+    const events = scoped(rawCtx.events, [], "on"), event = scoped(rawCtx.event, [], "on")
+    const ctx = new Proxy(rawCtx, { get(object, key) { return key === "session" ? session : key === "model" ? model : key === "events" ? events : key === "event" ? event : Reflect.get(object, key, object) } })
     const mine = new Map<string, Card>() // сессии этого процесса
     const children = new Set<string>()
     const projects = parseProjects(ctx?.options)
@@ -210,6 +227,7 @@ export function createCrewPlugin(native: { get?: NativeGet; spacingMs?: number }
     async function sessionInfo(sessionID: string): Promise<any> {
       try {
         const r = await ctx.session.get({ sessionID })
+        if (disposed) return undefined
         return r?.data ?? r
       } catch {
         return undefined
@@ -227,12 +245,13 @@ export function createCrewPlugin(native: { get?: NativeGet; spacingMs?: number }
 
     // Визитка сессии: создаётся при первом обращении, отметка жизни — при каждом.
     async function touch(sessionID: string, ev?: any): Promise<Card | undefined> {
-      if (!sessionID || children.has(sessionID)) return undefined
+      if (disposed || !sessionID || children.has(sessionID)) return undefined
       // ФАЙЛ ПЕРВЫМ, память — только запасом. Визитку правят и ДРУГИЕ сессии (crew_role force переписывает роль
       // прежнего владельца); память процесса записала бы старую роль поверх (замер 2026-10-03).
       let card = readJson<Card>(cardFile(sessionID)) ?? mine.get(sessionID)
       if (!card) {
         const info = await sessionInfo(sessionID)
+        if (disposed) return undefined
         if (info?.parentID) {
           children.add(sessionID)
           return undefined
@@ -265,6 +284,7 @@ export function createCrewPlugin(native: { get?: NativeGet; spacingMs?: number }
         }
         card.modelCheckedAt = now()
       }
+      if (disposed) return undefined
       card.pid = process.pid
       card.updated = now()
       saveCard(card)
@@ -940,6 +960,7 @@ export function createCrewPlugin(native: { get?: NativeGet; spacingMs?: number }
         const tierCut = clampTier(t.tier, cfg.tierBounds)
         const model = t.review_model ?? cfg.spawnModels[tierCut.tier] ?? DEFAULT_SPAWN_MODELS[tierCut.tier]
         await ctx.session.create({ id: t.reviewer, title: `${taskNo(t)} прм ${t.title}`, location: { directory: t.directory }, metadata: { crewReview: { project: t.project, n: t.n } }, model: splitLaunchModel(model) })
+        if (disposed) return
         const now = Date.now()
         // роль сессии приёмки — по настройке reviewer (план 002.7): acceptor несёт права вливания и принятия
         const card: Card = { session: t.reviewer, role: reviewerRole(cfg), auto: false, title: `${taskNo(t)} прм ${t.title}`, directory: t.directory, repo: repoLabel(t.directory), project: t.project, model, modelAt: now, modelFrom: "request", pid: process.pid, updated: now, spawned: { by: t.author, task: `приёмка ${taskNo(t)}`, tier: t.review_model ? t.tier : tierCut.tier, status: "running", at: now, qid: t.review_qid ?? "" }, review: { project: t.project, n: t.n } }
@@ -2019,6 +2040,7 @@ export function createCrewPlugin(native: { get?: NativeGet; spacingMs?: number }
         renamed++
         try {
           await ctx.session.update({ sessionID: c.session, title })
+          if (disposed) return
           const fresh = readJson<Card>(cardFile(c.session)) ?? c
           fresh.titleShown = title
           fresh.title = title
@@ -2147,6 +2169,7 @@ export function createCrewPlugin(native: { get?: NativeGet; spacingMs?: number }
         const ses0 = sessionOf(t, sid)
         const head = ses0 && ses0.code !== EXECUTOR_CODE ? `${sessionRef(t, ses0)} исп` : `${taskNo(t)} исп`
         await ctx.session.create({ id: sid, title: `${head} ${t.title}`, location: { directory: dir }, metadata: { crewTask: { project: t.project, n: t.n, attempt: t.attempt } }, ...(t.model ? { model: splitLaunchModel(String(t.model)) } : {}) })
+        if (disposed) return { error: "экземпляр плагина снят; исход remote create не утверждается" }
         const now = Date.now()
         const prev = readJson<Card>(cardFile(sid))
         const card: Card = { ...(prev ?? {}), session: sid, role: t.role, auto: false, title: `${head} ${t.title}`, directory: dir, repo: repoLabel(dir), project: t.project, model: t.model, modelAt: now, modelFrom: "request", pid: process.pid, updated: now, spawned: { by: t.author, task: t.goal.slice(0, 300), tier: t.tier, status: "running", at: now, qid: t.qid }, task: { project: t.project, n: t.n } }
@@ -2378,7 +2401,7 @@ export function createCrewPlugin(native: { get?: NativeGet; spacingMs?: number }
         if (!card) return
         setBusy(card, true) // запрос вкладки: она занята ходом до строки простоя
         // новый запрос модели после вопроса владельцу: ход пошёл дальше, вопрос закрыт (form-wait.ts, задача 040)
-        void settleOnRequest(card.session, now(), async (since) => (await ownerWordAfter(card.session, since)) > 0, undefined, (sid) => questionCall(sid)).catch(() => {})
+        void tracked(settleOnRequest(card.session, now(), async (since) => (await ownerWordAfter(card.session, since)) > 0, undefined, (sid) => questionCall(sid))).catch(() => {})
         // ПОДСКАЗКА — НЕИЗМЕННАЯ, пока не сменилась роль: системная часть стоит перед всей историей, и любое её
         // изменение заново оплачивает историю (замер 2026-10-04). Соседи — crew_list.
         // Правила проекта (project_rules) — в конец: их изменение, как и смена роли, один раз заново оплачивает историю.
@@ -2634,6 +2657,7 @@ export function createCrewPlugin(native: { get?: NativeGet; spacingMs?: number }
     start()
     return async () => {
       disposed = true
+      lifetime.close() // cancel local SDK waits; remote acceptance is deliberately unknown
       const owned = running
       stop()
       const i = loops.indexOf(me)

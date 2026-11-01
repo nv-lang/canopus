@@ -688,6 +688,12 @@ GET coalescing объединяет только одновременно иду
 40 стартов GET/с, очередь до 64, freshness idle-снимка 10 секунд, outage backoff до 30 секунд. Unknown с ждущими письмами
 эскалирует через 120 секунд. Диагностика — `crew_task show`, `crew_doctor`; service registry/credentials не журналируются.
 
+Снятие экземпляра плагина отзывает его локальное владение: AbortSignal отменяет native GET/ожидание очереди,
+а epoch guard отбрасывает поздние ответы SDK до применения к карточкам/задачам. `await stop()` дожидается собственных
+продолжений, но не бесконечно pending чужого `session.create`. Это **не** утверждение, что уже принятый remote create
+отменён: его исход остаётся неизвестным, ID задачи сохраняется. После unload поздний результат не запускает новый
+prompt/create и не пишет файлы старого экземпляра. Cancel не превращает native unknown в idle и не меняет HOLD.
+
 ### A hidden wait of a tab is named (task 263)
 
 «Busy» and «running» do not prove work (incident 258, 2026-10-30: a tab stood inside a `question` call for hours while the

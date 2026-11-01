@@ -23,14 +23,14 @@ const get = async route => {
 }
 const stop = await createCrewPlugin({ get, spacingMs: 0 }).setup({ location: { directory: tmp }, session: { get: async () => ({ id: session }), hook: async () => {}, prompt: async () => { posts++ } }, tool: { transform: async () => {} } })
 await entered
-let stopped = false
-const drain = stop().then(() => { stopped = true })
-await new Promise(r => setImmediate(r))
-assert.equal(stopped, false, "disposer waits for the in-flight native read")
-release()
-await drain
+let deadline
+const drain = stop()
+await Promise.race([drain, new Promise((_, reject) => { deadline = setTimeout(() => reject(new Error("unload must cancel its owned GET wait")), 1000) })])
+clearTimeout(deadline)
 assert.equal(posts, 0, "unloaded instance cannot POST when its old GET resolves")
 rmSync(tmp, { recursive: true, force: true })
+release() // deliberately late raw transport response after ownership was revoked
 for (let n = 0; n < 3; n++) await new Promise(r => setImmediate(r))
 assert.equal(existsSync(tmp), false, "no late pass recreates/deletes fixture data after await stop")
-console.log("crew-native-dispose: 3 checks; cleanup after awaited drain, no sleep workaround")
+assert.equal(posts, 0, "late raw GET completion cannot issue a prompt after cleanup")
+console.log("crew-native-dispose: 3 checks; aborted GET wait + owned drain, late result has no POST/I/O")

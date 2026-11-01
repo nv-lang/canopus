@@ -30,7 +30,9 @@ exit 0
 ## Целевая проверка
 
 Первый целевой `npm run pretest`: **8 файлов, 87 проверок, exit 0** (до crash/background/lifecycle дополнений).
-Последний `npm --prefix opencode-plugin run pretest`: **11 файлов, 116 проверок, exit 0**, 14 с.
+До lifetime-исправления `npm --prefix opencode-plugin run pretest`: **11 файлов, 116 проверок, exit 0**.
+Последний усиленный targeted: **12 файлов / 127 проверок pretest GREEN**, затем `crew-stuck` и `crew-loop-handover`
+по одному — **2/2 GREEN**; вся команда exit 0, 22 с.
 Это целевой checkpoint, не полный набор. Стандартный `npm test` запускает lifecycle автоматически;
 `stable.mjs --all` явно собирает `pretest` и `test`, без дубликатов.
 
@@ -45,7 +47,8 @@ exit 0
 | `crew-health-correlation.test.mjs` | 12 | общий автор A/B, generic AGENTS/status и чужой fingerprint не подтверждают A; реакция не устранение причины; bounded blocker/escalation |
 | `crew-native-isolation.test.mjs` | 3 | unexpected registry/network/missing DI остаются RED даже при caught error и `process.exit(0)` |
 | `crew-wake-recovery.test.mjs` | 15 | restart/latest не меняют ID/at/payload; accepted-before-confirm и previously started не POSTятся заново; exact-ID lookup не передаёт provenance чужой сессии |
-| `crew-native-dispose.test.mjs` | 3 | disposer ждёт удержанный GET; после release нет POST; после await stop нет поздней записи в удалённый fixture |
+| `crew-native-dispose.test.mjs` | 3 | disposer отменяет принадлежащее экземпляру GET-ожидание и drain собственных продолжений; поздний raw ответ после cleanup не POSTит и не воссоздаёт fixture |
+| `crew-native-dispose-late.test.mjs` | 11 | pending create не вешает dispose; поздний SDK result после cleanup не делает I/O/create/prompt; native очередь/fetch реально abort; late rejection не становится unhandled |
 | `crew-native-mcp.test.mjs` | 8 | настоящий MCP tools entry ставит tier-письмо в очередь, plugin пропускает native-active/stale-free, выбирает native-idle/stale-busy; unknown не выбирается, без subprocess/watch |
 
 ## Полный набор
@@ -79,6 +82,24 @@ ID/at/payload, accepted-before-confirm, MCP и lifecycle drain GREEN в посл
 Последние отдельные повторы: 6/10 GREEN и 4 RED (269 с), затем все четыре исправленных GREEN (83 с, jobs 1).
 Tier с явной native ownership fixture GREEN (6 с). Все 35 исходных RED повторены по одному и закрыты GREEN;
 окончательный полный набор — следующий шаг на зафиксированном коде, а не подмена отдельными повторами.
+
+## Дополнительный RED полного прогона и lifetime
+
+На signed `3287ed54b8432ec1f34fd213341730cc428c2c1d` полный набор завершился: **159 GREEN / 160**, exit 1,
+816 с, jobs 3. Единственный RED — `crew-stuck`, exit 13: три функциональные проверки прошли, но `await stop()`
+бесконечно ждал внешнего `session.create`. Отдельный повтор подтвердил тот же exit 13 за 5 с. Это настоящий lifecycle
+дефект, не нагрузка и не общий GREEN.
+
+Новая `crew-native-dispose-late` до исправления: exit 1, `dispose waits forever for an externally pending session.create`.
+После scoped lifetime cancellation/epoch: первый targeted stuck/dispose/dispose-late/bracket/handover **5/5 GREEN**,
+exit 0, 12 с. Окончательный усиленный targeted: pretest **12 файлов / 127 проверок GREEN**, stuck/handover **2/2 GREEN**,
+общий exit 0, 22 с. Late test проверяет abort очереди и HTTP, отсутствие повторного create/prompt и поздней unhandled
+rejection. Oracle не подавляет exit и не убирает `await stop()`.
+
+Контракт: отменяется локальное ожидание, не неизвестный remote create. Native queue/HTTP действительно получают abort;
+SDK, не предоставляющий отмену операции, ограждён epoch до применения ответа. Собственные продолжения остаются в drain.
+После завершения этого исправления нужен новый signed freeze и полный набор, а не перенос 159 GREEN на новые байты.
+Новый manifest: **12 pretest + 149 test = 161 уникальный файл**, без дубликатов; окончательный full ещё не объявлен GREEN.
 
 ## Семантика и источник
 
