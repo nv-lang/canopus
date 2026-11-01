@@ -30,4 +30,18 @@
 
 277 переданы готовые SHA, зависимости, прежние counts и пределы REQ-11/12; 271 передан wire и требование не считать native approvals server allowlist. Signed proof/test delta `125e8642` не содержит продуктовых изменений и принят 277 именно как evidence старой assembly, не product fix.
 
-**Продолжение цели пока BLOCKED:** 277 в 21:15 разрешила только read-only сверку helper и потребовала согласовать актуальную targeted базу с интегратором. Рабочий вопрос `23a44ff66e75` на момент передачи имеет status `routing`, epoch 1. Для подтверждения участка на новом frozen product SHA нужен разрешённый узкий повтор после его включения; aa1b271a не объявлен проверенным. Ни ответ на вопрос, ни право менять свою ветку не подменяются тестами прежней assembly. Новый backend/full не запускался; remaining unit 277 не дублировался.
+**Исторический блокер на момент 6cf53b17:** 277 в 21:15 разрешила только read-only сверку helper и потребовала согласовать актуальную targeted базу с интегратором. Рабочий вопрос `23a44ff66e75` тогда имел status `routing`, epoch 1. Результаты 61c3 не выдавались за проверку aa1b271a. Новый backend/full не запускался; remaining unit 277 не дублировался.
+
+## Минимальный test-only delta для aa1b271a
+
+Ответ команды через интегратора от 21:31 по `23a44ff66e75` штатно подтверждён `ack`: не переносить source/helper/main/settings и не переключать ветку ради повтора; при конкретной несовместимости новых тестов разрешён только адресный targeted на изолированном archive актуального SHA.
+
+- Извлечён только `src/web` из exact `aa1b271a82d60efae4bda334ba9dd73edefe3ffa` в отдельный временный archive. Общий helper и продуктовый source своей ветки не менялись.
+- Проверен Git blob `src/web/view.js`: `6bb61630c8d3a2407d642f89e25f990e7e0a3f16`, совпадает у aa1 и извлечённого файла.
+- На исходной fixture получен **RED 1/2**, watch `1793558610744-2ap5f9`: assertion `current compact source picker exposes model Two`. В aa1 direct models берутся из текущего `session_model`/подтверждённого modelMetadata, а исходная fixture подавала models только через межсессионный `agent_catalog`. Это несовместимость тестовых данных, не доказанный дефект продукта.
+- Единственное исправление — добавить `models` и `efforts` в fixture `session_model`. Нативные идентификаторы, assertions, ограничения Подготовки и продуктовый код не менялись. Signed test-only commit: `9078d6477ec6fe4fcc8994278581504ea98c0219`.
+- Тот же адресный запуск **GREEN 2/2**, watch `1793558722739-2iyamb`, Node concurrency 1 через machine queue. SHA256 теста: `30dfe565132f9a8869ac937ca929c5262453c237a0da5c2a254736397e507de7`.
+
+Для 277 минимальная передача — ровно файл `doc/tasks/272-family-approvals/assembly-approvals.test.mjs` из signed `9078d647`. Если его ещё нет в helper, передать как добавление полного файла, а не вслепую cherry-pick трёхстрочного изменения без родительского `125e8642`. Исходные 61c3 counts остаются только на своём SHA.
+
+На aa1 подтверждены только два DOM/fixture controls REQ-11/12: compact picker/pool/native family state/composer preservation и отсутствие локального изменения route/source от wide native choice в Подготовке. Это **не полный web, не backend security аудит, не реальные API/браузер/провайдеры и не GREEN всего кандидата**. Общая DOM/source приёмка и включение файла остаются у 277. Новые full/backend/model/provider probes и native resume не выполнялись.
