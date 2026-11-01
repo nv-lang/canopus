@@ -112,6 +112,7 @@ cell("task 001 started with worktree and branch from the settings", /wt.proj-1-f
 await until(() => task(1).worktree_ready === true && existsSync(task(1).worktree ?? ""))
 cell("the plugin created the task's worktree on its branch", existsSync(task(1).worktree) && git(task(1).worktree, "rev-parse", "--abbrev-ref", "HEAD") === "p1-ficha" && task(1).worktree_ready === true, JSON.stringify({ wt: task(1).worktree, ready: task(1).worktree_ready }))
 cell("the executor's session is located in the worktree", sessions.get(ex1)?.location?.directory === task(1).worktree, JSON.stringify(sessions.get(ex1)?.location))
+await until(() => got(ex1, "WORKTREE ГОТОВ").length >= 1) // state persistence precedes asynchronous native admission
 cell("the task letter says the worktree is ready", got(ex1, "WORKTREE ГОТОВ").length === 1 && got(ex1, "git worktree add").length === 0, JSON.stringify(got(ex1, "ЗАДАЧА").map((d) => d.text.slice(0, 300))))
 cell("the task letter lists the project's acceptance steps for the executor", got(ex1, "ПРИЁМЩИК ПРОВЕРИТ").length === 1 && got(ex1, "tests: тесты зелёные").length === 1 && got(ex1, "notes (по желанию): заметки").length === 1, JSON.stringify(got(ex1, "ЗАДАЧА").map((d) => d.text.slice(-400))))
 writeFileSync(path.join(task(1).worktree, "f.txt"), "feature\n")

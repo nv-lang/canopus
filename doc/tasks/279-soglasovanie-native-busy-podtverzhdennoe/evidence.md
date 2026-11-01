@@ -72,6 +72,13 @@ ID/at/payload, accepted-before-confirm, MCP и lifecycle drain GREEN в посл
   Дополнительно human mail при native-active остаётся в Crew-mailbox без POST.
 - Expected help task 279 заменяет ровно одну прежнюю строку HOLD явным новым контрактом. Actual help не нормализуется;
   весь остальной snapshot и spoiled negative control продолжают сравниваться побайтно (`answer-help-279.mjs`).
+- Failed-before-model fixture явно моделирует admission без assistant. Это не начавшийся ход: нет ложного wokeAt,
+  обычных progress nudges или подсчёта «трёх assistant turns». Проверяется одна bounded timeout-эскалация с сохранённым
+  receipt; фиктивный срок в тесте истекает детерминированно, настоящий предел 120 с отдельно проверен в receipt unit.
+
+Последние отдельные повторы: 6/10 GREEN и 4 RED (269 с), затем все четыре исправленных GREEN (83 с, jobs 1).
+Tier с явной native ownership fixture GREEN (6 с). Все 35 исходных RED повторены по одному и закрыты GREEN;
+окончательный полный набор — следующий шаг на зафиксированном коде, а не подмена отдельными повторами.
 
 ## Семантика и источник
 
