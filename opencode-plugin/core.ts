@@ -2025,10 +2025,41 @@ export function questionRouterFor(host: Pick<CrewHost, "questionIO" | "questionC
       if (!r.task) return undefined
       const task = loadTask(r.project, r.task), card = readJson<Card>(cardFile(r.session))
       if (!task || !card || task.route_word_stale || ![card.task, card.review].some(ref => ref?.project === r.project && ref.n === r.task)) return undefined
-      const currentWork = task.executor === r.session && ["running", "rework"].includes(task.status)
+      // 281 (089/WC-2): the scope is the STABLE identity of the assignment; the normal lifecycle (submit: running ->
+      // submitted; review rounds; the assigned reviewer) must not change it. status/reviewer/rework/syncs are out of
+      // the digest; the assignment holder gates the scope: the executor while the work is his (running/rework and the
+      // submitted wait), the reviewer while reviewing.
+      const currentWork = task.executor === r.session && ["running", "rework", "submitted"].includes(task.status)
       const currentReview = task.reviewer === r.session && task.status === "reviewing"
       if (!currentWork && !currentReview) return undefined
-      return { assignment: task.qid, digest: questionScopeDigest(JSON.stringify([task.project, task.n, task.qid, task.goal, task.boundaries ?? "", task.criteria ?? "", task.status, task.route ?? "full", task.branch, task.author, task.author_role, task.executor, task.reviewer, task.rework ?? 0, task.syncs ?? 0])) }
+      return { assignment: task.qid, digest: questionScopeDigest(JSON.stringify([task.project, task.n, task.qid, task.goal, task.boundaries ?? "", task.criteria ?? "", task.route ?? "full", task.branch, task.author, task.author_role, task.executor])) }
+    },
+    // The supported repair of a stored scope (281): only a record of the SAME trusted assignment — same task, same
+    // assignment qid, the same holder session, the task open and the route word fresh. The stored digest must be
+    // reproducible by the OLD (lifecycle-full) field list over the CURRENT stable fields: only lifecycle fields
+    // (status, reviewer, rework, syncs) may vary. A digest that no combination reproduces means the real boundaries
+    // (goal/boundaries/criteria/route/branch/author/executor) changed — the repair refuses and the mismatch stands.
+    // A record without a stored scope is NOT adopted: without stored boundary evidence there is nothing to prove;
+    // its supported path is observe -> routing -> resolve with freshly verified sources. Another assignment, a
+    // changed holder or a closed task is never repaired. The checks (closed list, owner gate, HOLD) are untouched.
+    scopeRepair: (r, current) => {
+      const task = r.task ? loadTask(r.project, r.task) : undefined
+      const card = readJson<Card>(cardFile(r.session))
+      if (!task || !card || !isOpen(task) || task.route_word_stale) return undefined
+      if (![card.task, card.review].some(ref => ref?.project === r.project && ref.n === r.task)) return undefined
+      if (task.executor !== r.session && task.reviewer !== r.session) return undefined
+      if (!r.workScope || task.qid !== current.assignment || r.workScope.assignment !== current.assignment) return undefined
+      const head = [task.project, task.n, task.qid, task.goal, task.boundaries ?? "", task.criteria ?? ""]
+      const tail = [task.route ?? "full", task.branch, task.author, task.author_role, task.executor]
+      const legacy = (status: string, reviewer: string | undefined, rework: number, syncs: number) =>
+        questionScopeDigest(JSON.stringify([...head, status, ...tail, reviewer, rework, syncs]))
+      let proven = false
+      outer: for (const status of ["running", "rework"]) for (const reviewer of [undefined, task.reviewer])
+        for (let rework = 0; rework <= Math.min(task.rework ?? 0, 32); rework++)
+          for (let syncs = 0; syncs <= Math.min(task.syncs ?? 0, 32); syncs++)
+            if (legacy(status, reviewer, rework, syncs) === r.workScope!.digest) { proven = true; break outer }
+      if (!proven) return undefined
+      return "записанный digest воспроизведён по прежним полям при неизменных границах поручения (отличаются только lifecycle-поля); подтверждено пересчётом, не строкой «то же поручение»"
     },
     post: (to, text, id, replyTo) => {
       if (!letterExistsFor(to, id)) postLetter(to, { id, from_role: PLUGIN_SENDER, from_session: PLUGIN_SENDER, to, text, time: Date.now(), ...(replyTo ? { reply_to: replyTo } : {}) })

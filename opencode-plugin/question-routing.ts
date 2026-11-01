@@ -61,6 +61,7 @@ export type RoutingHost = {
   ownerGate?: import("./question-router.ts").QuestionRouterDeps["ownerGate"]
   canReply?(r: QuestionRequest): string | undefined
   scope?(r: QuestionRequest): QuestionScope | undefined
+  scopeRepair?: import("./question-router.ts").QuestionRouterDeps["scopeRepair"]
   recoveryState?: import("./question-router.ts").QuestionRouterDeps["recoveryState"]
   recoveryProof?: import("./question-router.ts").QuestionRouterDeps["recoveryProof"]
   post(to: string, text: string, id: string, replyTo?: string): void
@@ -74,6 +75,7 @@ export function createQuestionRouting(host: RoutingHost) {
     ownerGate: host.ownerGate,
     canReply: r => host.canReply ? host.canReply(r) : "execution/HOLD guard недоступен; native ответ не отправлен",
     scope: host.scope,
+    scopeRepair: host.scopeRepair,
     recoveryState: host.recoveryState,
     recoveryProof: host.recoveryProof,
     post: host.post,
