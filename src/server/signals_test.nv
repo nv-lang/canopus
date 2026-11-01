@@ -164,8 +164,8 @@ fn sg_known() -> []CodeSignal {
 
 // ----- the dictionary and the table -----
 
-test "sg the dictionary lists twenty-seven signals of the code and the signals of the agent" {
-    assert(signals_given_by_code().len() == 27)
+test "sg the dictionary lists twenty-eight signals of the code and the signals of the agent" {
+    assert(signals_given_by_code().len() == 28)
     mut receipts = 0
     for s in signals_given_by_code() {
         if s.name == "message_delivery" { receipts += 1; assert(!s.known) }
@@ -308,6 +308,8 @@ test "sg the client of ACP gives only the signals of the dictionary" {
     for n in sg_names_after(project, "chunk_projection(update, \"") { names.push(n) }
     for n in sg_names_after(project, "EventKind.Answered, \"") { names.push(n) }
     for n in sg_names_after(project, "EventKind.Refused, \"") { names.push(n) }
+    for n in sg_names_after(client, "EventKind.Progress, \"") { names.push(n) }
+    assert(names.contains("agent_actual"))
     assert(names.len() >= 8)
     for n in names { assert(sg_in_dictionary(n)) }
 }

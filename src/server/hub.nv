@@ -724,6 +724,7 @@ fn Hub mut @ensure_client(at int) Proc Detach Time -> str {
         return "Выбранная отдельная рабочая папка ещё не подтверждена: ACP не запускается в основной папке"
     }
     if s.clients.len() > 0 {
+        s.clients[0].set_dispatch_family(s.agent)
         ro phase = s.clients[0].phase()
         if phase == "ready" || phase == "initializing" || phase == "opening" { return "" }
         s.clients[0].close()
@@ -734,6 +735,7 @@ fn Hub mut @ensure_client(at int) Proc Detach Time -> str {
         Some(config) => match open_client_full(config, @trace_path_of(s), TRACE_LIMIT, @ask_for(s.agent, s.id), @agent_env(s.agent, @env_of(s))) {
             Ok(client) => {
                 s.clients.push(client)
+                s.clients[0].set_dispatch_family(s.agent)
                 // the choices of the owner for this family go to every agent started for the session (task 192t)
                 s.clients[0].set_presets(presets_for(s.chosen, s.agent))
                 s.announced = false
@@ -1925,6 +1927,8 @@ fn Hub mut @source_for_turn(trace str) Proc Detach Time -> bool {
     mut required = presets_for(preserved, actual.family)
     if actual.model.byte_len() > 0 { required.push(AcpPreset { setting: "model", value: actual.model }) }
     if actual.effort.byte_len() > 0 { required.push(AcpPreset { setting: "effort", value: actual.effort }) }
+    s.clients[0].set_dispatch_role(role)
+    s.clients[0].set_dispatch_family(s.agent)
     s.clients[0].set_source(required)
     if s.clients[0].phase() == "failed" {
         @sessions[at] = s

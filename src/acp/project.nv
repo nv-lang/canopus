@@ -699,6 +699,15 @@ fn page_input_of(e Incoming, turn str) -> Option[PageInput] {
             None
         }
         EventKind.Progress => {
+            if e.name == "agent_actual" {
+                ro value = object_input(e)?
+                ro source = value.object()?
+                mut actual = JsonObject.new()
+                for (key, item) in source { put(actual, key, item) }
+                put(actual, "turn", JsonValue.str(turn))
+                put(actual, "turn_id", JsonValue.str(turn))
+                return page_input("agent_actual", JsonValue.object(actual))
+            }
             if e.name == "agent_model" {
                 ro value = object_input(e)?
                 return page_input("session_model", value)

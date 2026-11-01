@@ -982,6 +982,8 @@ fn Hub mut @route_start_review(at int, index int, step RouteStep) Proc Detach Ti
             mut required = presets_for(chosen_without(chosen_without(s.chosen, family, "model"), family, "effort"), family)
             if actual.model.byte_len() > 0 { required.push(AcpPreset { setting: "model", value: actual.model }) }
             if actual.effort.byte_len() > 0 { required.push(AcpPreset { setting: "effort", value: actual.effort }) }
+            configured.set_dispatch_role("dev_accept")
+            configured.set_dispatch_family(family)
             configured.set_source(required)
             jput(selection, "family", JsonValue.str(actual.family))
             jput(selection, "model", JsonValue.str(actual.model))
