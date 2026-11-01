@@ -2,6 +2,10 @@
 
 Статус: проверяемый инкремент подготовлен для независимой приёмки; не закрытие всего требования владельца. Полный server_live остаётся красным.
 
+## Ограниченный этап Windows ACL adapter
+
+Разрешение 08:30, начало 08:33, только adapter/проверки/runtime asset — **не** cwd/env/launch-интеграция F-09. Первый script и in-memory policy harness сохранены как промежуточный WIP. AST parse PASS; после трёх сохранённых RED финальный targeted in-memory/JSON/path/read-only ancestry набор 09:26 дал 64 PASS, код 0. Реальный outer fixture ещё не создан, файловые ACL не менялись; native canonical/trusted transport и kit не проверены. Trusted-path bootstrap-грань вынесена интегратору отдельно, готового deployable boundary нет. Точные решения policy, исходные RED и остаток: [acl-adapter-stage.md](acl-adapter-stage.md).
+
 ## Follow-up F-09 и triage после аудита 277
 
 Разрешение интегратора 2026-11-01, письма 07:47/08:00: та же 269, только F-09 и ограниченный triage, без повторного submit. База собственного дерева перенесена разрешённым нулевым replay на `782c6eba`, прежний HEAD `0240df73` сохранён в `checkpoint/269-before-f09-0240df73`. Новых продуктовых правок нет.
