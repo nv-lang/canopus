@@ -88,10 +88,10 @@ test('timeline: текст до и после инструмента делит�
     ev('agent_done', { turn: 't1' }, 5),
   ]);
   const items = st.timeline(m.sessions.s);
-  assert.deepEqual(items.map((i) => i.type), ['user', 'text', 'work', 'text', 'actions']);
-  assert.equal(items[1].text, 'до');
-  assert.equal(items[3].text, 'после');
-  assert.equal(items[2].rows[0].type, 'tool');
+  assert.deepEqual(items.map((i) => i.type), ['user', 'author', 'text', 'work', 'text', 'actions']);
+  assert.equal(items[2].text, 'до');
+  assert.equal(items[4].text, 'после');
+  assert.equal(items[3].rows[0].type, 'tool');
   assert.equal(new Set(items.map((i) => i.key)).size, items.length);
 });
 
@@ -130,10 +130,10 @@ test('timeline: идущий ход даёт строку running с начал�
 
   const done = run([...head(), ev('agent_chunk', { turn: 't1', text: 'ответ' }, 2), ev('agent_done', { turn: 't1' }, 3)]);
   const di = st.timeline(done.sessions.s);
-  assert.deepEqual(di.map((i) => i.type), ['user', 'text', 'actions']);
-  assert.equal(di[1].streaming, false);
-  assert.equal(di[2].text, 'ответ');
-  assert.equal(di[2].at, 1003);
+  assert.deepEqual(di.map((i) => i.type), ['user', 'author', 'text', 'actions']);
+  assert.equal(di[2].streaming, false);
+  assert.equal(di[3].text, 'ответ');
+  assert.equal(di[3].at, 1003);
 });
 
 test('timeline: отказ, ошибка и отмена дают заметку; действий под ответом нет', () => {
@@ -154,9 +154,9 @@ test('timeline: карточка правок хода стоит после с�
     ev('agent_done', { turn: 't1' }, 5),
   ]);
   const items = st.timeline(m.sessions.s);
-  assert.deepEqual(items.map((i) => i.type), ['user', 'text', 'diffs', 'actions']);
-  assert.deepEqual(items[2].totals, { files: 2, added: 4, removed: 4 });
-  assert.equal(items[2].rows.length, 2);
+  assert.deepEqual(items.map((i) => i.type), ['user', 'author', 'text', 'diffs', 'actions']);
+  assert.deepEqual(items[3].totals, { files: 2, added: 4, removed: 4 });
+  assert.equal(items[3].rows.length, 2);
 });
 
 test('timeline: пустая сессия — пустая лента; инструмент без ответа агента не пропадает', () => {
