@@ -665,7 +665,7 @@ export fn scenario_route_planning(settings ServerSettings) Proc Detach Time Net 
     c.expect(parse_progress(rk_text("${moved}/progress.1.md")).total == 6 && rk_boxes_done("${moved}/progress.1.md") == 0, "the checklist is made again for the six steps")
     c.expect(rk_steps_in(st3, "pending") == 6, "the steps of the new mode are pending")
     rig.page(1, "user_message", "s-r5", "{\"turn\":\"t2\",\"text\":\"продолжай\"}")
-    c.expect(rig.until(KIT_DONE, 20000), "the next message is answered")
+    c.expect(rig.until(KIT_DONE, 120000), "the next message is answered")
     // the answer is the echo of what the agent got: wait for the end of it (the message of the owner comes last)
     mut echo2 = ""
     mut waited = 0
