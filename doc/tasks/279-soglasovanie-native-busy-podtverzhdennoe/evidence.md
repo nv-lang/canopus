@@ -1,5 +1,23 @@
 # Проверки и границы 279
 
+## Окончательный результат
+
+**GREEN** на tested signed SHA `d01263fa064471bec3831ee2ac64c4c4242c0b0e`:
+
+- `node opencode-plugin/test/stable.mjs --all --runs 1 --jobs 3` — **161/161 GREEN**, exit 0, **943 с**.
+- Manifest из стандартного npm lifecycle: **12 pretest + 149 test = 161 уникальный файл**, каждый своим `node`,
+  без дубликатов; максимум три тестовых файла одновременно, через очередь машины.
+- Перед этим SHA commit hook выполнил весь `scripts/guards/run-all.sh`: **10/10 GREEN**; secrets проверил
+  четыре изменённых файла, commit-message guard — одно сообщение. Обходов хуков/стражей нет.
+- Whole-tree privacy на runtime-identical `cc9a11f9`: **2798 файлов GREEN**; финальные документы дополнительно
+  проверяются перед evidence-only commit. Production после cc9a11f9 не менялся, только один settings fixture.
+- Новые regressions стандартного pretest: **12 файлов / 127 проверок GREEN**. Исходные RED, отдельные повторы,
+  lifecycle RED и fixture race сохранены ниже; неудачные полные прогоны не переименованы в GREEN.
+
+После tested SHA изменяются только документы/журнал задачи. Перед сдачей проверяется пустой
+`git diff d01263fa064471bec3831ee2ac64c4c4242c0b0e..HEAD -- opencode-plugin`.
+Остальной текст — хронологические этапы проверки, в том числе прежние состояния «ожидается».
+
 ## Исходное состояние и RED
 
 Исходный код: `a234806c873b0dd9b8926427f36a46f3433dc7b1`.
