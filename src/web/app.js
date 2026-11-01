@@ -75,7 +75,7 @@ const delivery = createDelivery((() => { try { return globalThis.localStorage; }
 for (const saved of delivery.sessions()) {
   if (model.sessions[saved.id]) continue;
   model = addDraft(model, { ...saved, now: saved.createdAt || Date.now() });
-  model = patchDraft(model, saved.id, { route: saved.route, worktree: saved.worktree, sourceBranch: saved.sourceBranch || '' });
+  model = patchDraft(model, saved.id, { route: saved.route, worktree: saved.worktree, sourceBranch: saved.sourceBranch || '', source: saved.source || null, preset: saved.preset || '', approvals: saved.approvals || {} });
 }
 let status = { state: 'connecting' };
 const UNREAD_KEY = 'crew-console-unread';
@@ -196,7 +196,7 @@ function send(kind, trace, step, input) {
 function savedSession(trace) {
   const s = model.sessions[trace];
   return s ? { id: trace, agent: s.agent, projectId: s.projectId, project: s.project, folder: s.folder, branch: s.branch,
-    route: normalizeRoute(s.route), worktree: s.worktree === true, sourceBranch: s.sourceBranch || '', createdAt: s.createdAt } : null;
+    route: normalizeRoute(s.route), worktree: s.worktree === true, sourceBranch: s.sourceBranch || '', source: s.source || null, preset: s.preset || '', approvals: s.approvals || {}, createdAt: s.createdAt } : null;
 }
 function sendMessage(trace, text, images = [], retry = null) {
   const event = makeEvent('user_message', trace, nextStep(model, trace), messageInput(newId(), text, images), ctx);
@@ -405,6 +405,7 @@ const handlers = {
       input.workspace_explicit = true; // new UI always states the chosen place, unlike old journal defaults
       if (draft.projectId && draft.sourceBranch) input.source_branch = draft.sourceBranch;
       if (draft.preset) input.preset = draft.preset;
+      if (draft.approvals) input.approvals = draft.approvals;
       if (draft.projectId) {
         input.project = draft.project;
         input.project_id = draft.projectId;
@@ -460,6 +461,16 @@ const handlers = {
     const session = model.sessions[trace];
     if (!session || session.draft || isBusy(session.state)) { flash('Источник можно изменить только между ходами.', 'info'); return; }
     if (!send('session_source', trace, nextStep(model, trace), source)) flash('Источник не изменён: соединение недоступно.', 'error');
+  },
+  onApproval(trace, family, value) {
+    const session = model.sessions[trace];
+    if (!session) return;
+    if (session.draft) {
+      model = patchDraft(model, trace, { approvals: { ...(session.approvals || {}), [family]: value } });
+      render();
+      return;
+    }
+    send('session_setting', trace, nextStep(model, trace), { family, setting: 'mode', value });
   },
   onAnswer(trace, answer) {
     return send('question_answer', trace, nextStep(model, trace), answer);

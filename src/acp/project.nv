@@ -651,6 +651,10 @@ fn page_input_of(e Incoming, turn str) -> Option[PageInput] {
                 return page_input("agent_switched", value)
             }
             // a choice of the owner that the agent does not offer any more (task 192t): a line in the feed
+            if e.name == "setting_chosen" {
+                ro value = object_input(e)?
+                return page_input("setting_chosen", value)
+            }
             if e.name == "setting_dropped" {
                 ro value = object_input(e)?
                 return page_input("setting_dropped", value)

@@ -1,0 +1,18 @@
+{
+  "kind":"machine","alula_version":"0.28","machine":"FamilyApprovalPolicy","revision":1,"title":"Выбор родного режима семьи",
+  "parties":[{"name":"хаб","id":"hub","kind":"free_input","signals":[{"name":"offered"},{"name":"unknown"},{"name":"apply"},{"name":"close"}]}],
+  "initial":"Unverified",
+  "states":[
+    {"name":"Unverified","kind":"appeal","reads":[],"party":"хаб","rows":[
+      {"n":1,"event":{"kind":"signal","name":"offered"},"to":"Offered"},
+      {"n":2,"event":{"kind":"signal","name":"unknown"},"to":"@same"},
+      {"n":3,"event":{"kind":"signal","name":"close"},"to":"Closed"}
+    ]},
+    {"name":"Offered","kind":"appeal","reads":[],"party":"хаб","rows":[
+      {"n":1,"event":{"kind":"signal","name":"apply"},"to":"@same"},
+      {"n":2,"event":{"kind":"signal","name":"close"},"to":"Closed"}
+    ]},
+    {"name":"Closed","kind":"end","reads":[]}
+  ],
+  "ends":{"result":"text","rows":[{"state":"Closed","n":1,"when":{"op":"lit","value":true},"answer":{"kind":"answer","value":{"op":"lit","value":"closed"}}}]}
+}

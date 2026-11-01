@@ -103,6 +103,7 @@ export type AcpClient {
     prelude str,
     presets []AcpPreset,
     strict_source bool,
+    required_mode str,
     settled []AcpPreset,
     dropped []AcpDrop,
     marker MarkerState,
@@ -355,7 +356,7 @@ export fn open_client_full(config AcpConfig, trace_path str, trace_limit int, as
                 config, link, phase: "initializing", next_rpc: 0, init_rpc: -1, new_rpc: -1, prompt_rpc: -1,
                 session: "", agent: "", model_name: "", modes: JsonValue.null(), models: JsonValue.null(), choices_cfg: JsonValue.null(), mode_now: "", model_now: "", sets: []AcpSet.new(), queue: []AcpQueued.new(), active: "", permissions: []AcpPending.new(), ask, asks: []AcpAsk.new(), mcp_http: false, hint_due: false,
                 ready, taken: []AcpInboxItem.new(), next_seq: next, stderr: "", exit_code: -2, last_error: "", trace: trace_open(trace_path, trace_limit),
-                images_ok: false, attached: []AcpImage.new(), prelude: "", presets: []AcpPreset.new(), strict_source: false, settled: []AcpPreset.new(), dropped: []AcpDrop.new(), marker: marker_start(), commands: []str.new()
+                images_ok: false, attached: []AcpImage.new(), prelude: "", presets: []AcpPreset.new(), strict_source: false, required_mode: "", settled: []AcpPreset.new(), dropped: []AcpDrop.new(), marker: marker_start(), commands: []str.new()
             }
             client.init_rpc = client.next_id()
             client.say(rpc_request_line(client.init_rpc, "initialize", initialize_params(ask.form)))
@@ -625,7 +626,7 @@ fn AcpClient mut @settle_set(key str, result JsonValue) -> bool {
             if done.setting == "model" { @model_now = done.value }
         }
     }
-    if @strict_source && @current_of(done.setting) != done.value {
+    if (@strict_source || done.setting == "mode") && @current_of(done.setting) != done.value {
         @fail_handshake("agent source was not confirmed: ${done.setting}=${done.value}")
         return true
     }
@@ -637,20 +638,26 @@ fn AcpClient mut @settle_set(key str, result JsonValue) -> bool {
 
 fn AcpClient mut @fail_set(key str, why str) -> bool {
     mut found = false
+    mut mode = false
     mut rest = []AcpSet.new()
     for s in @sets {
-        if "${s.rpc}" == key { found = true } else { rest.push(s) }
+        if "${s.rpc}" == key { found = true; mode = s.setting == "mode" } else { rest.push(s) }
     }
     if !found { return false }
     @sets = rest
-    if @strict_source { @fail_handshake("agent source rejected: ${why}"); return true }
+    if @strict_source || mode { @fail_handshake("agent source rejected: ${why}"); return true }
     @note("the agent refused a choice: ${why}")
     true
 }
 
 /// The owner chose `value` for `setting` (`mode`, `model` or `effort`): the agent is asked, by the method it supports. False - the
 /// agent has not offered that value (or the session is not ready): nothing is sent. The new choice arrives as an event `agent_model`.
-export fn AcpClient mut @select_option(setting str, value str) -> bool => @send_set(setting, value, true)
+export fn AcpClient mut @select_option(setting str, value str) -> bool {
+    if setting == "mode" { @required_mode = value }
+    ro sent = @send_set(setting, value, true)
+    if !sent && setting == "mode" { @fail_handshake("agent mode not offered: ${value}") }
+    sent
+}
 
 // The request for a choice; `owner` - it is a choice the owner made just now (the hub keeps it), not one asked again after a start.
 fn AcpClient mut @send_set(setting str, value str, owner bool) -> bool {
@@ -690,9 +697,14 @@ fn AcpClient mut @apply_presets() -> () {
     ro list = @presets
     @presets = []AcpPreset.new()
     for p in list {
+        if p.setting == "mode" { @required_mode = p.value }
+        if p.setting == "mode" && setting_call(p.setting, p.value, @modes, @models, @choices_cfg).is_none() {
+            @fail_handshake("agent mode not offered: ${p.value}")
+            return
+        }
         if @current_of(p.setting) == p.value { continue }
         if !@send_set(p.setting, p.value, false) {
-            if @strict_source { @fail_handshake("agent source not offered: ${p.setting}=${p.value}"); return }
+            if @strict_source || p.setting == "mode" { @fail_handshake("agent source not offered: ${p.setting}=${p.value}"); return }
             @dropped.push(AcpDrop { setting: p.setting, value: p.value, used: @current_of(p.setting) })
         }
     }
@@ -706,6 +718,16 @@ export fn AcpClient mut @set_presets(list []AcpPreset) -> () {
 /// A source is mandatory, unlike best-effort restored owner choices. Never send with a fallback model.
 export fn AcpClient mut @set_source(list []AcpPreset) -> () {
     @strict_source = true
+    @presets = list
+    if @phase == "ready" { @apply_presets() }
+}
+
+/// Change only native mode, preserving pending source model/effort requirements and in-flight sets.
+export fn AcpClient mut @require_mode(value str) -> () {
+    @required_mode = value
+    mut list = []AcpPreset.new()
+    for p in @presets { if p.setting != "mode" { list.push(p) } }
+    list.push(AcpPreset { setting: "mode", value })
     @presets = list
     if @phase == "ready" { @apply_presets() }
 }
@@ -879,6 +901,10 @@ fn AcpClient mut @take(item Inbound) -> () {
 // Send the next waiting prompt when the session is open and no turn is in flight.
 fn AcpClient mut @drive() -> () {
     if @phase != "ready" || @sets.len() > 0 || @prompt_rpc >= 0 || @queue.len() == 0 { return }
+    if @required_mode.byte_len() > 0 && (@current_of("mode") != @required_mode || setting_call("mode", @required_mode, @modes, @models, @choices_cfg).is_none()) {
+        @fail_handshake("agent mode was not confirmed before dispatch: ${@required_mode}")
+        return
+    }
     @strict_source = false
     ro next = @queue.remove(0)
     @active = next.request

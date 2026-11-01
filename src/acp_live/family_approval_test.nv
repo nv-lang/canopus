@@ -1,0 +1,82 @@
+// Contract fixtures only: no paid or real family agent is launched here.
+module crew_harness.acp_live
+
+import crew_harness.acp.{AcpPreset, acp_link}
+import alula.engine.{Link, EventKind}
+import std.fs.{Fs, real_fs, Path, try_exists, create_dir_all}
+import std.os.{Os, real_os, temp_dir, pid}
+
+fn approval_marker(label str) -> str {
+    ro base = with Os = real_os() { temp_dir() }
+    ro id = with Os = real_os() { pid() }
+    ro dir = base.join("crew-272-${id}-${label}")
+    with Fs = real_fs() { ro made = create_dir_all(dir) }
+    dir.join("prompt.marker").display()
+}
+
+fn approval_not_sent(flag str, mode str, label str) Proc Detach Time -> () {
+    ro marker = approval_marker(label)
+    mut client = start([flag, "--prompt-marker=${marker}"])
+    client.set_presets([AcpPreset { setting: "mode", value: mode }])
+    with Link = acp_link(client) {
+        Link.send(req("blocked", "mode"))
+        ro events = collect_turn(10000)
+        assert(last_of(events).kind == EventKind.Refused)
+        assert(client.phase() == "failed")
+        ro was_sent = with Fs = real_fs() { try_exists(Path.from_bytes(marker.bytes())).unwrap() }
+        assert(!was_sent)
+        Link.send(req("no-retry", "mode"))
+        ro again = collect_turn(1000)
+        assert(last_of(again).kind == EventKind.Refused)
+    }
+    client.close()
+}
+
+test "approvals contract: unknown native id blocks prompt rather than falling back" {
+    approval_not_sent("--no-yolo", "yolo", "unknown")
+}
+test "approvals contract: rejected set blocks queued prompt and repeat dispatch" {
+    approval_not_sent("--reject-mode-set", "plan", "rejected")
+}
+test "approvals contract: a successful but mismatching config response blocks prompt" {
+    approval_not_sent("--mismatch-mode-set", "plan", "mismatch")
+}
+test "approvals contract: reversed modes apply the same exact id before prompt" {
+    mut client = start(["--reverse-modes"])
+    client.set_presets([AcpPreset { setting: "mode", value: "plan" }])
+    with Link = acp_link(client) {
+        Link.send(req("confirmed", "mode"))
+        ro events = collect_turn(10000)
+        assert(text_of(events) == "mode: plan model: fake-model effort: medium")
+        assert(last_of(events).kind == EventKind.Answered)
+    }
+    client.close()
+}
+
+test "approvals contract: an unknown immediate choice fails closed, not a recoverable wider default" {
+    ro marker = approval_marker("immediate-unknown")
+    mut client = start(["--prompt-marker=${marker}"])
+    assert(wait_phase(client, "ready", 15000))
+    assert(!client.select_option("mode", "nobody-offered-this"))
+    with Link = acp_link(client) {
+        Link.send(req("blocked-immediate", "must not dispatch"))
+        ro events = collect_turn(1000)
+        assert(last_of(events).kind == EventKind.Refused)
+        ro was_sent = with Fs = real_fs() { try_exists(Path.from_bytes(marker.bytes())).unwrap() }
+        assert(!was_sent)
+    }
+    client.close()
+}
+
+test "approvals contract: native mode preserves pending exact model and effort before handshake" {
+    mut client = start([])
+    client.set_source([AcpPreset { setting: "model", value: "fake-model-b" }, AcpPreset { setting: "effort", value: "high" }])
+    client.require_mode("plan")
+    with Link = acp_link(client) {
+        Link.send(req("pending-source", "mode"))
+        ro events = collect_turn(10000)
+        assert(text_of(events) == "mode: plan model: fake-model-b effort: high")
+        assert(last_of(events).kind == EventKind.Answered)
+    }
+    client.close()
+}

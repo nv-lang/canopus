@@ -35,6 +35,7 @@ export const KINDS = Object.freeze([
   'session_placed', 'session_deleted',
   // задача 192t: выбранное владельцем значение больше недоступно у агента — строка в ленте
   'setting_dropped',
+  'setting_chosen',
   // задача 192: картинки сообщения и «агент не принимает изображения»
   'message_images', 'images_skipped',
   // форма вопросов агента (задача 192): вопрос, ответ владельца (эхо сервера), снятие вопроса
@@ -279,6 +280,10 @@ function apply(session, event) {
         modelStep: Math.max(session.modelStep, event.step),
         messages: [...session.messages, { role: 'switch', key, from: str(input.from), to: str(input.to), shown, total, cut: input.cut === 1 }],
       };
+    }
+    case 'setting_chosen': {
+      if (input.setting !== 'mode' || !str(input.agent) || !str(input.value)) return session;
+      return { ...session, approvals: { ...(session.approvals || {}), [input.agent]: input.value } };
     }
     case 'setting_dropped': {
       // выбор владельца (режим, модель, усилие) не применён: агент больше его не предлагает (задача 192t)

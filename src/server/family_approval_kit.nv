@@ -1,0 +1,53 @@
+// Real hub and ACP stdio, exclusively local fake_agent.mjs processes (not real family calls).
+module crew_harness.server
+
+import crew_harness.config.{layout_with_data_dir}
+
+export fn scenario_family_approvals(settings ServerSettings) Proc Detach Time Net Fs Os -> str {
+    mut c = kit_check()
+    ro written = write_file("${settings.data_dir}/inst/config/presets/pool272.json", "{\"roles\":{},\"pools\":{\"mix\":{\"heavy\":[{\"family\":\"opencode\",\"model\":\"fake-model-b\",\"effort\":\"high\"}]}}}")
+    mut configured = ServerSettings { ...settings }
+    configured.layout = layout_with_data_dir("${settings.data_dir}/inst", settings.data_dir, "")
+    mut rig = rig_open(configured)
+    rig.attach(1)
+    rig.page(1, "session_created", "s-approval", "{\"name\":\"Режимы\",\"agent\":\"opencode\",\"worktree\":false}")
+    c.expect(source_ask(rig, "s-approval", "mode") == KIT_DEFAULTS, "fixture capabilities arrive through real ACP")
+    rig.page(1, "session_setting", "s-approval", "{\"family\":\"opencode\",\"setting\":\"mode\",\"value\":\"plan\"}")
+    c.expect(source_ask(rig, "s-approval", "mode") == "mode: plan model: fake-model effort: medium", "the exact native id is applied before prompt")
+    c.expect(kit_choose(rig, "s-approval", "model", "fake-model", "\"model_id\":\"fake-model\""), "a legacy owner model choice is saved independently")
+    rig.page(1, "session_source", "s-approval", "{\"family\":\"opencode\",\"model\":\"fake-model-b\",\"effort\":\"high\"}")
+    c.expect(source_ask(rig, "s-approval", "mode") == "mode: plan model: fake-model-b effort: high", "changing model and effort preserves native approvals")
+    rig.page(1, "session_preset", "s-approval", "{\"preset\":\"pool272\"}")
+    rig.page(1, "session_source", "s-approval", "{\"pool\":\"mix\",\"level\":\"heavy\"}")
+    c.expect(source_ask(rig, "s-approval", "mode") == "mode: plan model: fake-model-b effort: high", "pool level does not replace the native mode")
+    rig.page(1, "session_setting", "s-approval", "{\"family\":\"opencode\",\"setting\":\"mode\",\"value\":\"yolo\"}")
+    c.expect(source_ask(rig, "s-approval", "mode") == "mode: yolo model: fake-model-b effort: high", "changing approvals never reapplies a stale model over the pinned source")
+    rig.page(1, "session_setting", "s-approval", "{\"family\":\"opencode\",\"setting\":\"mode\",\"value\":\"plan\"}")
+    rig.page(1, "session_setting", "s-approval", "{\"family\":\"second\",\"setting\":\"mode\",\"value\":\"yolo\"}")
+    c.expect(source_ask(rig, "s-approval", "mode") == "mode: plan model: fake-model-b effort: high", "an inactive family's requested mode cannot change the current family")
+    rig.shut()
+
+    mut again = rig_open(configured)
+    again.attach(1)
+    c.expect(source_ask(again, "s-approval", "mode") == "mode: plan model: fake-model-b effort: high", "pool, model, effort and per-family approvals survive restart")
+    ro at = again.hub.find("s-approval")
+    ro saved = presets_for(again.hub.sessions[at].chosen, "second")
+    c.expect(saved.len() == 1 && saved[0].setting == "mode" && saved[0].value == "yolo", "inactive family's mode survives restart without launching that family")
+    again.page(1, "session_setting", "s-approval", "{\"family\":\"opencode\",\"setting\":\"mode\",\"value\":\"unknown-native-mode\"}")
+    again.forget()
+    again.page(1, "user_message", "s-approval", "{\"text\":\"must not dispatch broad fallback\"}")
+    c.expect(again.until("agent mode not offered", 10000), "unknown mode fails closed on the current ACP offers")
+    c.expect(kit_with(again.lines_for(1), "Echo: must not dispatch") == 0, "no broader fallback prompt is dispatched")
+    again.page(1, "session_setting", "s-approval", "{\"family\":\"opencode\",\"setting\":\"mode\",\"value\":\"yolo\"}")
+    c.expect(source_ask(again, "s-approval", "mode") == "mode: yolo model: fake-model-b effort: high", "explicit valid selection recovers without changing the pinned source")
+    again.page(1, "session_route", "s-approval", "{\"route\":\"planning\"}")
+    again.run(200)
+    c.expect(again.hub.sessions[at].clients.len() == 0, "preparation closes an ACP client even with wide native rights")
+    again.page(1, "session_setting", "s-approval", "{\"family\":\"opencode\",\"setting\":\"mode\",\"value\":\"yolo\"}")
+    again.forget()
+    again.page(1, "route_run", "s-approval", "{}")
+    c.expect(again.until("Подготовка задачи", 5000), "wide native mode does not permit execution in preparation")
+    c.expect(again.hub.sessions[at].clients.len() == 0, "changing native settings in preparation does not open an unrestricted backend")
+    again.shut()
+    c.report()
+}

@@ -222,7 +222,6 @@ test "agent: a mode chosen by the owner goes to the agent and comes back as agen
         assert(client.phase() == "ready")
         assert(client.options().contains("\"modes\""))
         assert(client.options().contains("\"mode\":\"default\""))
-        assert(!client.select_option("mode", "nobody-offered-this"))
         assert(client.select_option("mode", "plan"))
         ro events = collect_until("agent_model", 10000)
         ro last = last_of(events)

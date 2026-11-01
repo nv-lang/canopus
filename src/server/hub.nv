@@ -132,6 +132,7 @@ export type Hub {
     settings ServerSettings,
     machine AlulaMachine,
     work_mode AlulaMachine,
+    approval_policy AlulaMachine,
     workdir str,
     sessions []Dialog,
     conns []int,
@@ -788,10 +789,11 @@ export fn start_hub_from(settings ServerSettings, table_text str) Proc Detach Ti
     }
     ro machine = hub_machine_with(machine_text, registry, settings.idle_term_ms)?
     ro work_mode = work_mode_machine(machines.text("work-mode.alula.json"), registry)?
+    ro approval_policy = work_mode_machine(machines.text("family-approval.alula.json"), registry)?
     ro trees_chan = Chan[TreeDone].new(64)
     ro notes_chan = Chan[str].new(64)
     mut hub = Hub {
-        settings, machine, work_mode, workdir, sessions: []Dialog.new(), conns: []int.new(), out: []Outgoing.new(), log: []str.new(), serial: 0, mcps: []McpServer.new(), mcp_pending: []McpPending.new(), mcp_serial: 0, ctl_letters: []CtlLetter.new(), ctl_waits: []CtlWait.new(), ctl_serial: 0, catalog: JsonObject.new(), catalog_dirty: false, catalog_saved_at: 0, choices: []PendingChoice.new(), reviews: []Review.new(), route_obs: 0, marks: []MachMark.new(), trees_tx: trees_chan.tx, trees_rx: trees_chan.rx, notes_tx: notes_chan.tx, notes_rx: notes_chan.rx, held: []HeldMsg.new(), reserved: []int.new()
+        settings, machine, work_mode, approval_policy, workdir, sessions: []Dialog.new(), conns: []int.new(), out: []Outgoing.new(), log: []str.new(), serial: 0, mcps: []McpServer.new(), mcp_pending: []McpPending.new(), mcp_serial: 0, ctl_letters: []CtlLetter.new(), ctl_waits: []CtlWait.new(), ctl_serial: 0, catalog: JsonObject.new(), catalog_dirty: false, catalog_saved_at: 0, choices: []PendingChoice.new(), reviews: []Review.new(), route_obs: 0, marks: []MachMark.new(), trees_tx: trees_chan.tx, trees_rx: trees_chan.rx, notes_tx: notes_chan.tx, notes_rx: notes_chan.rx, held: []HeldMsg.new(), reserved: []int.new()
     }
     if hub.wants_mcp() { ro started = hub.start_mcp() }
     ro pg = settings.store == "pg"
@@ -1042,6 +1044,10 @@ fn Hub mut @create(conn int, trace str, input JsonObject) Proc Detach Time -> ()
             ro at = @sessions.len() - 1
             @drain(at)
             if jtext(input, "preset").byte_len() > 0 { @set_preset(trace, jtext(input, "preset"), input) }
+            match jchild(input, "approvals") {
+                Some(approvals) => for (family, mode) in approvals { @family_approval(trace, family, mode.str() ?? "") }
+                None => ()
+            }
             match jchild(input, "source") {
                 Some(source) => @set_source(trace, source)
                 None => ()
@@ -2102,7 +2108,12 @@ export fn Hub mut @handle(conn int, text str) Proc Detach Time -> () {
     } else if kind == "session_preset" {
         @set_preset(trace, jtext(input, "preset"), input)
     } else if kind == "session_setting" {
-        @choose(trace, jtext(input, "setting"), jtext(input, "value"))
+        if jtext(input, "setting") == "mode" && active_at >= 0 {
+            ro family = if jtext(input, "family").byte_len() > 0 { jtext(input, "family") } else { @sessions[active_at].agent }
+            @family_approval(trace, family, jtext(input, "value"))
+        } else {
+            @choose(trace, jtext(input, "setting"), jtext(input, "value"))
+        }
     } else if kind == "machine_state_get" {
         @machine_get(trace)
     } else if kind == "request_get" {

@@ -1,0 +1,8 @@
+module crew_harness.server_live
+
+import crew_harness.server.{kit_files, scenario_family_approvals}
+
+test "272: per-family approvals survive source changes and restart; unknown and broad preparation fail closed" {
+    ro report = scenario_family_approvals(kit_files("approval272", 30000))
+    if report.byte_len() > 0 { panic("family approvals: ${report}") }
+}

@@ -1,0 +1,25 @@
+module crew_harness.server
+
+import crew_harness.product_machines.{tree_text, product_registry}
+import alula.machine.{NamedText}
+import alula.machine_text.{translate_checked_with, error_text}
+
+test "approvals: Alula table permits only catalog offered ids" {
+    ro report = translate_checked_with(tree_text("machines/product/family-approval.alula.md"), product_registry(), []NamedText.new())
+    for error in report.errors { panic(error_text(error, "family-approval.alula.md")) }
+    assert(report.errors.len() == 0)
+    ro table = match work_mode_machine(report.json, product_registry()) { Ok(m) => m, Err(e) => panic(e) }
+    ro stored = match work_mode_machine(tree_text("machines/product/family-approval.alula.json"), product_registry()) { Ok(m) => m, Err(e) => panic(e) }
+    for signal in ["offered", "unknown", "", "claude", "yolo"] {
+        assert(work_mode_allows(table, signal, "apply") == (signal == "offered"))
+        assert(work_mode_allows(stored, signal, "apply") == (signal == "offered"))
+    }
+}
+
+test "approvals: reordered native ids preserve meaning, names and positions are not rights" {
+    ro a = jobject("{\"modes\":[{\"id\":\"build\",\"name\":\"Build\"},{\"id\":\"plan\",\"name\":\"Plan\"}]}").unwrap()
+    ro b = jobject("{\"modes\":[{\"id\":\"plan\",\"name\":\"Plan\"},{\"id\":\"build\",\"name\":\"Build\"}]}").unwrap()
+    for id in ["build", "plan"] { assert(approval_offered(a, id) && approval_offered(b, id)) }
+    for id in ["0", "1", "Build", "yolo", ""] { assert(!approval_offered(a, id) && !approval_offered(b, id)) }
+    assert(!approval_offered(jobject("{\"modes\":[]}").unwrap(), "build"))
+}

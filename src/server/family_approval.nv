@@ -1,0 +1,47 @@
+// Native ids are protocol facts; the Alula table decides whether the choice may be applied.
+module crew_harness.server
+
+import alula.engine.{Incoming}
+import std.encoding.json.{JsonObject}
+
+export fn approval_offered(options JsonObject, value str) -> bool {
+    if value.byte_len() == 0 { return false }
+    for item in jlist(options, "modes") {
+        match item.object() {
+            Some(o) => if jtext(o, "id") == value { return true }
+            None => ()
+        }
+    }
+    false
+}
+
+fn Hub mut @family_approval(trace str, family str, value str) Time -> () {
+    ro at = @find(trace)
+    if at < 0 { return }
+    mut s = @sessions[at]
+    if @settings.agent(family).is_none() || value.byte_len() == 0 {
+        @tell_error(0, trace, s.engine.step_number(), "", "Неизвестная семья или пустой родной режим; выбор не применён")
+        return
+    }
+    mut options = JsonObject.new()
+    match @catalog.get(family) {
+        Some(v) => { options = v.object() ?? JsonObject.new() }
+        None => ()
+    }
+    // Current capabilities override a historical catalog, including an empty list.
+    if family == s.agent && s.clients.len() > 0 && s.clients[0].phase() == "ready" {
+        options = jobject(s.clients[0].options()) ?? JsonObject.new()
+    }
+    ro offered = approval_offered(options, value)
+    // Persist the intent even on refusal: restarting must not silently restore broader defaults.
+    s.chosen = chosen_put(s.chosen, family, "mode", value)
+    accept_in(@settings.store == "pg", @settings.data_dir, s, Incoming.signal("setting_chosen", chosen_text(family, "mode", value, now_millis())))
+    ro apply = work_mode_allows(@approval_policy, if offered { "offered" } else { "unknown" }, "apply")
+    if family == s.agent && s.clients.len() > 0 {
+        // ACP validates current offers again and blocks its queue on an unknown id.
+        s.clients[0].require_mode(value)
+    }
+    @sessions[at] = s
+    @drain(at)
+    if !apply { @tell_error(0, trace, s.engine.step_number(), "", "Родной режим ${family}/${value} не поддержан каталогом/ACP; отправка для этой семьи заблокирована до нового выбора") }
+}

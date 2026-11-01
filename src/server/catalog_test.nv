@@ -84,6 +84,12 @@ test "catalog: a list that the summary gives replaces the old one" {
     assert(ct_count(next, "efforts") == 2)
 }
 
+test "catalog: revoked modes do not survive an explicit empty capability list" {
+    ro old = ct_first(ct_summary_claude(), 5000)
+    ro next = catalog_update(old, ct_object("{\"modes\":[]}"), 6000).unwrap()
+    assert(ct_count(next, "modes") == 0)
+}
+
 test "catalog: the time of a record only grows, even if the clock does not" {
     ro r = ct_first(ct_summary_claude(), 5000)
     ro next = match catalog_update(r, ct_object("{\"mode\":\"default\"}"), 4000) {

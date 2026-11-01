@@ -978,7 +978,8 @@ fn Hub mut @route_start_review(at int, index int, step RouteStep) Proc Detach Ti
         }
         Ok(client) => {
             mut configured = AcpClient { ...client }
-            mut required = []AcpPreset.new()
+            // Native family approvals are independent of the reviewer source's model/effort.
+            mut required = presets_for(chosen_without(chosen_without(s.chosen, family, "model"), family, "effort"), family)
             if actual.model.byte_len() > 0 { required.push(AcpPreset { setting: "model", value: actual.model }) }
             if actual.effort.byte_len() > 0 { required.push(AcpPreset { setting: "effort", value: actual.effort }) }
             configured.set_source(required)

@@ -54,7 +54,7 @@ const choice = { mode: "default", model: "fake-model", effort: "medium" };
 function modeList() {
   const list = [{ id: "default", name: "Default", description: "Asks before changes" }, { id: "plan", name: "Plan", description: "Plans first" }];
   if (!noYolo) list.push({ id: "yolo", name: "Yolo", description: "No questions" });
-  return list;
+  return args.includes('--reverse-modes') ? list.reverse() : list;
 }
 function configOptions() {
   return [
@@ -428,7 +428,9 @@ function handle(line) {
       mcpServers = (msg.params && msg.params.mcpServers) || [];
       return respond(msg.id, { sessionId: SESSION, modes: { currentModeId: choice.mode, availableModes: modeList() }, configOptions: configOptions() });
     case "session/set_mode":
+      if (args.includes('--reject-mode-set')) return write({ jsonrpc: '2.0', id: msg.id, error: { code: -32602, message: 'fixture rejected mode' } });
       if (!modeList().some((m) => m.id === (msg.params && msg.params.modeId))) return write({ jsonrpc: "2.0", id: msg.id, error: { code: -32602, message: "unknown mode" } });
+      if (args.includes('--mismatch-mode-set')) return respond(msg.id, { configOptions: [...configOptions(), { id: 'mode', category: 'mode', type: 'select', currentValue: 'default', options: modeList().map(m => ({ value: m.id, name: m.name })) }] });
       choice.mode = msg.params.modeId;
       update({ sessionUpdate: "current_mode_update", currentModeId: choice.mode });
       return respond(msg.id, {});

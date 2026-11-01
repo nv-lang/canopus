@@ -1114,7 +1114,7 @@ const KIT_DEFAULTS = "mode: default model: fake-model effort: medium"
 const KIT_CHOSEN = "mode: yolo model: fake-model-b effort: high"
 
 /// The owner chose a mode, a model and an effort: they are in the journal, and every agent that is started again (the hub restarts, the
-/// agent dies) gets them again; a value the agent does not offer any more is dropped with a line in the feed.
+/// agent dies) gets them again; a native mode no longer offered blocks dispatch instead of widening permissions.
 export fn scenario_settings_persist(settings ServerSettings) Proc Detach Time Net Fs Os -> str {
     mut c = kit_check()
     mut rig = rig_open(settings)
@@ -1145,15 +1145,15 @@ export fn scenario_settings_persist(settings ServerSettings) Proc Detach Time Ne
 
     mut changed = rig_open(kit_without_yolo(settings))
     changed.attach(1)
-    c.expect(kit_ask(changed, "s-set", "mode") == "mode: default model: fake-model-b effort: high", "a mode the agent does not offer is not asked for")
-    c.expect(kit_with(changed.lines_for(1), "\"kind\":\"setting_dropped\"") == 1, "the owner is told in the feed")
-    ro dropped = first_of(changed.lines_for(1), "setting_dropped", 0)
-    c.expect(line_input(dropped, "setting") == "mode" && line_input(dropped, "value") == "yolo" && line_input(dropped, "used") == "default", "the line names the mode, the lost value and the one used")
+    changed.page(1, "user_message", "s-set", "{\"turn\":\"blocked\",\"text\":\"mode\"}")
+    c.expect(changed.until("agent mode not offered", 10000), "a revoked native mode is reported and blocks the adapter")
+    c.expect(kit_with(changed.lines_for(1), "\"kind\":\"setting_dropped\"") == 0, "the mode intent is retained, not silently replaced with defaults")
+    c.expect(!kit_file_text(kit_session_file(settings, "s-set", "journal")).contains("setting_dropped"), "restart cannot forget a refused mode")
     changed.shut()
 
     mut last = rig_open(settings)
     last.attach(1)
-    c.expect(kit_ask(last, "s-set", "mode") == "mode: default model: fake-model-b effort: high", "the dropped choice is gone from the journal")
+    c.expect(kit_ask(last, "s-set", "mode") == KIT_CHOSEN, "restoring native support restores the exact saved choice")
     last.shut()
     c.report()
 }

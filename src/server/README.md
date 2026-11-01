@@ -1,5 +1,16 @@
 # server: the session server of the product
 
+## Родные подтверждения по семьям (272)
+
+`session_setting` принимает `{family,setting:"mode",value:<точный native id>}`.
+При создании сессии `approvals:{family:modeId}` переносит выбор черновика.
+Запрошенные значения сохраняются по сессии/семье существующим `setting_chosen`, независимо от source, model, effort и pool level.
+`session_model` сообщает фактический режим ACP; сохранённый выбор не выдаётся за подтверждение неактивного адаптера.
+Неизвестный режим остаётся блокирующим намерением, не сбрасывается при restart и не заменяется широким умолчанием.
+Перед prompt ACP должен подтвердить точный set; отказ, несовпадение или отзыв возможности блокируют очередь.
+Build/Plan OpenCode — родные режимы агента, а не универсальная шкала прав модели.
+Нативные права не обходят fail-closed Подготовки; отсутствие backend 278 не маскируется.
+
 ## Agent sources and model pools (269)
 
 `GET /api/presets` additionally returns `pools` for each preset:

@@ -434,6 +434,13 @@ test "page: permission request and decision" {
     assert(str_at(input_of(decision), "decision") == "allow")
 }
 
+test "page: requested family mode is projected independently of confirmed agent_model" {
+    ro chosen = page_of(stamped(EventKind.Input, "setting_chosen", "s1", "{\"agent\":\"second\",\"setting\":\"mode\",\"value\":\"plan\"}"), "t1")
+    assert(str_at(chosen, "kind") == "setting_chosen")
+    assert(str_at(input_of(chosen), "agent") == "second")
+    assert(str_at(input_of(chosen), "value") == "plan")
+}
+
 test "page: kinds without a page counterpart give None" {
     assert(page_event(stamped(EventKind.Progress, "plan", "agent-1", "{\"entries\":[]}"), "t1") == None)
     assert(page_event(stamped(EventKind.Progress, "agent_thought", "agent-1", "думаю"), "t1") == None)

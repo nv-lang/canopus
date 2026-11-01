@@ -37,18 +37,18 @@ fn cat_number_of(o JsonObject, key str) -> int {
     }
 }
 
-// The list of the summary if it has one (not empty), else the old one, else none.
+// An explicit list, including an empty one, replaces historical capabilities.
 fn cat_list(summary JsonObject, old JsonObject, key str) -> Option[JsonValue] {
     match summary.get(key) {
         Some(v) => match v.array() {
-            Some(items) => if items.len() > 0 { return Some(v) }
+            Some(items) => return Some(v)
             None => ()
         }
         None => ()
     }
     match old.get(key) {
         Some(v) => match v.array() {
-            Some(items) => if items.len() > 0 { Some(v) } else { None }
+            Some(items) => Some(v)
             None => None
         }
         None => None

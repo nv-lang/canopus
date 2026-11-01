@@ -26,6 +26,7 @@ import { createViewer } from './viewer-ui.js';
 import { createMachinesPanel } from './machines-ui.js';
 import { createRequestPanel } from './request-ui.js';
 import { createCrewTaskUi } from './crew-task-ui.js';
+import { createFamilyApprovals } from './family-approvals.js';
 import { subWaitsText } from './crew-task.js';
 import { labelOf } from './labels-ru.js';
 import { createDraftStore, safeError, restoreText, afterSendText } from './delivery.js';
@@ -524,6 +525,7 @@ export function createView(doc, refs, deps) {
   const voiceList = h(doc, 'div', { class: 'menu-list' });
   voiceMenu.append(voiceList);
   const micWrap = h(doc, 'div', { class: 'mic-wrap' }, micButton, micMore, voiceMenu);
+  const familyApprovals = createFamilyApprovals(doc, (trace, family, value) => handlers.onApproval(trace, family, value));
   // Ошибки голоса — красная плашка над полем: position absolute, место в потоке не занимает, макет не прыгает
   const voiceToastText = h(doc, 'span', { class: 'voice-toast-text' });
   const voiceToastClose = h(doc, 'button', { type: 'button', class: 'voice-toast-close', title: t('voice.dismiss'), 'aria-label': t('voice.dismiss') }, icon(doc, 'i-x'));
@@ -548,7 +550,7 @@ export function createView(doc, refs, deps) {
   const recPanel = h(doc, 'div', { class: 'rec-panel' }, micTimer, wave);
   const plusButton = h(doc, 'button', { type: 'button', class: 'plus-btn', title: t('images.add'), 'aria-label': t('images.add') }, icon(doc, 'i-plus'));
   const box = h(doc, 'div', { class: 'box' }, attach.row, plusButton, input,
-    recPanel, h(doc, 'div', { class: 'box-row' }, cancelButton, sendButton, micWrap));
+    recPanel, h(doc, 'div', { class: 'box-row' }, cancelButton, sendButton, familyApprovals.root, micWrap));
   attach.bindPicker(plusButton);
   attach.bindPaste(input);
   attach.bindDrop(box);
@@ -806,7 +808,7 @@ export function createView(doc, refs, deps) {
   const spinner = h(doc, 'span', { class: 'spinner', role: 'img', 'aria-label': t('composer.working'), hidden: true });
   const menu = h(doc, 'div', { class: 'menu', role: 'menu', hidden: true });
   // Одна группа чипов у правого края: семья, режим, модель и усилие; за ней кольцо контекста и спиннер (задача 192).
-  const statusGroup = h(doc, 'div', { class: 'status-group' }, familyButton, modeButton);
+  const statusGroup = h(doc, 'div', { class: 'status-group' }, familyButton);
   const status = h(doc, 'div', { class: 'composer-status', 'data-empty': 'true' }, worktreeButton, routeButton, resultRepoButton, h(doc, 'span', { class: 'grow' }), statusGroup, ringBox, spinner, presetSelect, menu);
 
   // Меню выбора режима, модели и усилия (задача 192): показывает только то, что агент отдал по ACP.
@@ -1803,6 +1805,7 @@ export function createView(doc, refs, deps) {
     options = shown.options;
     currentAgent = shown.agent;
     currentSession = session;
+    familyApprovals.render(model, session, agents, busy, session.source);
     currentRoute = session.route || INTERACTIVE_STATE.route;
     routeButton.hidden = false;
     routeButton.replaceChildren(h(doc, 'span', { text: currentRoute === 'planning' ? 'Подготовка' : routeName(currentRoute) }));

@@ -19,6 +19,9 @@ for (const agents of [[], [{ id: 'opencode' }]]) {
     view.render(model, { selected: 's', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
     const buttons = refs.main.querySelectorAll('.status-btn').filter((b) => b.getAttribute('aria-disabled') === 'true');
     assert.ok(buttons.length >= 1);
+    const approvals = refs.main.querySelector('.family-approvals-button');
+    approvals.click();
+    assert.match(refs.main.querySelector('.family-approvals-menu').textContent, /не сообщил поддерживаемые режимы/);
     for (const button of buttons) {
       const before = notices.length;
       button.click();

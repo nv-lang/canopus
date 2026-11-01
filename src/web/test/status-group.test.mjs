@@ -6,12 +6,13 @@ import fs from 'node:fs';
 const view = fs.readFileSync(new URL('../view.js', import.meta.url), 'utf8');
 const css = fs.readFileSync(new URL('../app.css', import.meta.url), 'utf8');
 
-test('группа status-group: семья, режим, модель·усилие подряд, затем кольцо и спиннер вне группы', () => {
+test('группа status-group: семья, модель·усилие; родные подтверждения отдельно перед микрофоном', () => {
   const group = view.match(/const statusGroup = h\(doc, 'div', \{ class: 'status-group' \}, ([^)]*)\);/);
   assert.ok(group, 'группа есть');
   const names = group[1].split(',').map((x) => x.trim());
-  assert.deepEqual(names.filter((n) => n.endsWith('Button')), ['familyButton', 'modeButton']);
-  assert.ok(names.indexOf('familyButton') < names.indexOf('modeButton'));
+  assert.deepEqual(names.filter((n) => n.endsWith('Button')), ['familyButton']);
+  assert.doesNotMatch(group[1], /\b(?:modeButton|modelButton|effortButton)\b/);
+  assert.match(view, /familyApprovals\.root, micWrap/);
   const row = view.match(/const status = h\(doc, 'div', \{ class: 'composer-status', [^}]*\}, ([^;]*)\);/);
   assert.match(row[1], /statusGroup, ringBox, spinner/);
 });

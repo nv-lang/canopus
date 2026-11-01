@@ -1,3 +1,9 @@
+/* 272: изолированная кнопка родных подтверждений непосредственно перед микрофоном. */
+.family-approvals { position: relative; min-width: 0; }
+.family-approvals .family-approvals-button { max-width: 11rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.family-approvals .family-approvals-menu { width: min(25rem, calc(100vw - 2rem)); max-height: 60vh; overflow-y: auto; }
+.family-approvals .menu-head { white-space: normal; }
+
 /* app.css — токены темы и раскладка пульта: три колонки (сессии, разговор, сведения).
  *
  * Тема. Светлая (нейтральная, без бежевого; палитра владельца, задача 192) — по умолчанию. Тёмная включается двумя путями с ОДНИМИ значениями:
