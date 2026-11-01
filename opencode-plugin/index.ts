@@ -1702,7 +1702,7 @@ export function createCrewPlugin(native: { get?: NativeGet; spacingMs?: number; 
       await formTick(
         {
           processStart: PROCESS_START,
-          routed: (s, f) => !!routedForm(s, f.id),
+          routed: (s, f) => { const r = routedForm(s, f.id); return !!r && r.status !== "owner" },
           tab: formTab,
           call: (s) => questionCall(s),
           queued: async (s) => (await queuedTexts(s)).length,

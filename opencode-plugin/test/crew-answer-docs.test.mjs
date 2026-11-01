@@ -19,7 +19,7 @@ const PHRASE = "для `requirements` и `plan` — `owner`"
 const missing = (text, list) => list.filter((s) => !text.includes(s))
 
 const FORM = ["Тип:", "Рекомендация:", "Автоответ: допустим", "«?» в конце строки", "ворота объявляй `gate`"]
-const LETTER = ["Ответ по настройке проекта (answer_mode: recommendations, тип", "не слово владельца", "только слово владельца", "вышел за рекомендацию — вопрос владельцу"]
+const LETTER = ["Ответ по настройке проекта (answer_mode: recommendations, тип", "не слово владельца", "только слово владельца", "вышел за рекомендацию — рабочий вопрос интегратору, настоящее решение владельцу"]
 
 const mh = missing(help, [...FORM, ...LETTER])
 cell("AC-25 справка", mh.length === 0, JSON.stringify(mh))

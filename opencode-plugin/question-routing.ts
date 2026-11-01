@@ -58,6 +58,7 @@ export type RoutingHost = {
   validate?(r: QuestionRequest): QuestionObservation | undefined
   io?: QuestionFormIO
   closed(text: string): boolean
+  ownerGate?: import("./question-router.ts").QuestionRouterDeps["ownerGate"]
   canReply?(r: QuestionRequest): string | undefined
   scope?(r: QuestionRequest): QuestionScope | undefined
   recoveryState?: import("./question-router.ts").QuestionRouterDeps["recoveryState"]
@@ -70,6 +71,7 @@ export function createQuestionRouting(host: RoutingHost) {
     inspect: async r => host.validate?.(r) ?? (r.form ? host.io ? formObservation(r, await host.io.get(r.session, r.form.id)) : { state: "unknown", why: "native form inspection недоступна; вопрос сохранён" } : host.inspectText(r)),
     verify: async (r, sources) => verifyQuestionSources(host.root(r), sources),
     closed: host.closed,
+    ownerGate: host.ownerGate,
     canReply: r => host.canReply ? host.canReply(r) : "execution/HOLD guard недоступен; native ответ не отправлен",
     scope: host.scope,
     recoveryState: host.recoveryState,

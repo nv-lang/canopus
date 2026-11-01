@@ -120,14 +120,16 @@ const heart = setInterval(beat, 300)
 const stop = await mod.default.setup(ctx)
 
 // 1. the reviewer's turn ends with a question: it goes to the integrator, the reviewer is not told "continue"
+await tools.crew_role.execute({ role: "integrator" }, { sessionID: "sesINTEG1" }) // trusted current role lock, not merely a card label
 await hooks.context({ sessionID: "sesREV01", system: [], model: { id: "x", providerID: "y" } })
 msg("sesREV01", "user", { text: "[opencode-peers] ПРИЁМКА задачи 001" })
 msg("sesREV01", "assistant", { content: [{ type: "tool", name: "bash" }, { type: "text", text: "Проверки зелёные. Влить в main мне запрещено правилами.\n\nВливать?\n\nСТОП: неавторизовано слияние" }] })
 msg("sesREV01", "idle", { outcome: "succeeded" })
 await events["session.idle"]({ properties: { sessionID: "sesREV01" } })
-await until(() => letters("sesINTEG1").some((l) => /остановилась с вопросом/.test(l.text)))
-const ask = letters("sesINTEG1").filter((l) => /остановилась с вопросом/.test(l.text))
-cell("the question goes to the integrator, once", ask.length === 1 && /«Вливать\?»/.test(ask[0].text) && ask[0].text.includes('crew_send {to: "sesREV01"'), JSON.stringify(ask.map((l) => l.text.slice(0, 200))))
+await until(() => letters("sesINTEG1").some((l) => /^question-route-/.test(l.id)))
+const ask = letters("sesINTEG1").filter((l) => /^question-route-/.test(l.id))
+const routed = core.questionRouterFor({}).list().find(r => r.session === 'sesREV01')
+cell("ADR-0017 question reaches current integrator once with original context and source-backed reply contract", ask.length === 1 && /Вливать\?/.test(ask[0].text) && ask[0].text.includes('crew_question') && ask[0].text.includes('sources:') && routed?.task === 1 && routed.target === 'sesINTEG1' && routed.answer === undefined && routed.text.includes('Вливать?'), JSON.stringify(ask.map((l) => l.text.slice(0, 200))))
 cell("the reviewer is not told 'continue'", letters("sesREV01").every((l) => !/Не завершено/.test(l.text)), JSON.stringify(letters("sesREV01").map((l) => l.text.slice(0, 80))))
 
 // 2. the merge lock held 10 min > stall_minutes: one letter to the task's author

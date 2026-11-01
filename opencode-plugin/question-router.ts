@@ -38,6 +38,8 @@ export type QuestionRouterDeps = {
   inspect(request: QuestionRequest): Promise<QuestionObservation>
   verify(request: QuestionRequest, sources: QuestionEvidence[]): Promise<QuestionEvidence[] | undefined>
   closed(text: string): boolean
+  /** Positive recognition by the host's actual policy, NOT an unknown/fail-closed permission guard. */
+  ownerGate?(request: QuestionRequest): boolean
   /** Trusted execution/HOLD guard immediately before native reply (which resumes a waiting call). */
   canReply?(request: QuestionRequest): string | undefined
   scope?(request: QuestionRequest): QuestionScope | undefined
@@ -125,12 +127,13 @@ export class QuestionRouter {
     const observed = await this.deps.inspect(r).catch(e => ({ state: "unknown" as const, why: String(e) }))
     return this.change(r.id, current => {
       if (!current || terminal(current)) return undefined
-      if (observed.state !== "pending") return { ...current, observed, updated: now, status: observed.state === "unknown" ? "unknown" : "settled", why: observed.why ?? `состояние источника: ${observed.state}` }
+      if (observed.state !== "pending") return { ...current, observed, updated: now, status: observed.state === "unknown" ? current.status === "owner" ? "owner" : "unknown" : "settled", why: observed.why ?? `состояние источника: ${observed.state}` }
       if (current.status === "unknown" && current.attempted === undefined) return { ...current, observed, status: current.decision ? "owner" : current.blocker && current.blocker.resolvedAt === undefined ? "blocked" : current.answer && current.sources?.length ? "ready" : "routing", why: "источник снова проверен; прежний вопрос/источники сохранены", updated: now }
       return undefined
     })!
   }
   private responsible(r: QuestionRecord, actor: string, epoch: number) {
+    if (r.status === "owner") throw new Error("[owner] настоящее решение владельца не заменяется ответом интегратора")
     if (!r.target || actor !== r.target || this.deps.target(r) !== actor) throw new Error("[responsible] ответить может только актуальный ответственный интегратор")
     if (r.epoch !== epoch) throw new Error("[epoch] устаревшая эпоха маршрута")
     if (!["routing", "unknown", "blocked"].includes(r.status)) throw new Error("[settled] вопрос уже закрыт или не ждёт ответа интегратора")
@@ -240,6 +243,9 @@ export class QuestionRouter {
   async tick(now = Date.now()) {
     for (let r of this.list()) {
       if (terminal(r)) continue
+      if (r.form && !r.recovery && r.attempted === undefined && r.status !== "owner" && this.deps.ownerGate?.(r)) {
+        r = this.change(r.id, c => !c || terminal(c) || c.attempted !== undefined ? undefined : { ...c, status: "owner", decision: c.text, why: "положительно распознанные настоящие ворота владельца; не рабочий поиск факта", escalationQueued: now, updated: now })!
+      }
       if (r.recovery) {
         const proof = this.deps.recoveryProof?.(r, r.recovery.letter)
         if (proof) this.change(r.id, c => c?.recovery && !terminal(c) ? { ...c, status: "answered", recovery: { ...c.recovery, ...proof }, updated: now } : undefined)

@@ -182,7 +182,7 @@ const mkTask = (project, n, author, st, extra = {}) => ({
 {
   const items = [{ kind: "between", task: mkTask("p", 61, "me", "idle", { folder: "doc/tasks/061-x", title: "Спека" }) }, { kind: "waits", task: mkTask("p", 22, "me", "submitted", { title: "Приёмка" }), who: "прм" }]
   const l = it?.idleLetter?.(25, items) ?? ""
-  cell("IT-4a the letter: idle N min, the task without a going session, no question to the owner, the next step or the question tool", /^Ты простаиваешь 25 мин: /.test(l) && /061 «Спека» нет идущей сессии/.test(l) && /022 прм.*ждёт твоих указаний/.test(l) && /нет вопроса владельцу/.test(l) && /Сделай следующий шаг цикла/.test(l) && /инструментом question/.test(l), l)
+  cell("IT-4a already-authorized next step; working facts via integrator, genuine decisions via question", /^Ты простаиваешь 25 мин: /.test(l) && /061 «Спека» нет идущей сессии/.test(l) && /022 прм.*ждёт твоих указаний/.test(l) && /нет вопроса владельцу/.test(l) && /Сделай следующий уже разрешённый шаг цикла/.test(l) && /crew_question/.test(l) && /только настоящее неразрешённое решение/.test(l) && /инструментом question/.test(l), l)
   const what = it?.idleWhat?.(items) ?? []
   cell("IT-4b the text for the owner: between sessions, waits for instructions", what.join("; ") === "061 между сессиями; 022 прм ждёт указаний", JSON.stringify(what))
 }

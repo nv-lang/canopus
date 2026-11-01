@@ -921,6 +921,8 @@ folder, empty outside a repository). A value the plugin cannot read is `null`, n
 
 Recovery остаётся `answer_queued` до точного per-letter receipt с **связанным новым assistant generation** (`phase: started`, nativeId/proof/startedAt); admission/enqueue/одна запись answered не доказывают продолжение. Отдельная real-plugin регрессия использует настоящие historical DB question, форму, уже исчезнувшую **до** source-backed resolve, и независимый negative без permission. Active/unknown/HOLD/иной SHA/scope/new gate и restart проверяются без старого form POST. Семь question-файлов входят в общий `pretest`.
 
+Положительно распознанная **той же существующей policy** owner-gate форма не становится командным unknown-wait: сохраняется `owner` даже при неизвестном native detail, а прежний owner form wait/repeat остаётся включённым. Это не unknown→idle, не разрешение ответа и не расширение closed list. Открытая форма не создаёт лишнее письмо/дубликат; рабочая форма с неизвестным фактом по-прежнему идёт ответственному интегратору, не в угадывание Recommended.
+
 ### Legacy recommendation path
 
 Вне рабочего question router прежний путь сохраняется: by default every question of a session waits for the owner. A project can hand some of them to the session's own

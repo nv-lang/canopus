@@ -141,7 +141,8 @@ const REMIND = "Не завершено"
 const consume = (s) => db.prepare("delete from session_inbox where id = (select id from session_inbox where session_id = ? order by enqueued_seq limit 1)").run(s)
 const put = (name, a) => (mkdirSync(oa.ANSWERS, { recursive: true }), writeFileSync(path.join(oa.ANSWERS, `${name}.json`), JSON.stringify({ id: name, at: Date.now(), ...a })))
 const result = (name) => core.readJson(path.join(oa.ANSWERS, `${name}.json`))
-const created = (id, session, question, options) => ({ type: "form.created", data: { form: { id, sessionID: session, title: "Questions", metadata: { kind: "question" }, fields: [{ key: "q0", description: question, options: options.map((label) => ({ label })) }] } } })
+// These are genuine owner permission gates, not missing working facts (ADR-0017).
+const created = (id, session, question, options) => ({ type: "form.created", data: { form: { id, sessionID: session, title: "Questions", metadata: { kind: "question" }, fields: [{ key: "q0", description: `Тип: gate\n${question}`, options: options.map((label) => ({ label })) }] } } })
 const OPTS = ["Разрешить (Recommended)", "Оставить HOLD"]
 let fn = 0
 const ask = (tab, text = "Разрешить ли узкий запуск?") => {

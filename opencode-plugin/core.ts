@@ -1993,7 +1993,7 @@ export function questionCardOf(card: Card): Card {
   }
   return card
 }
-export function questionRouterFor(host: Pick<CrewHost, "questionIO" | "questionCanReply" | "questionInspectText" | "questionRecoveryState" | "questionRecoveryProof">, closed: (text: string) => boolean = () => true) {
+export function questionRouterFor(host: Pick<CrewHost, "questionIO" | "questionCanReply" | "questionInspectText" | "questionRecoveryState" | "questionRecoveryProof">, closed?: (text: string) => boolean) {
   return createQuestionRouting({
     dir: path.join(BASE, "question-routing"),
     target: r => {
@@ -2018,7 +2018,8 @@ export function questionRouterFor(host: Pick<CrewHost, "questionIO" | "questionC
     io: host.questionIO,
     recoveryState: host.questionRecoveryState,
     recoveryProof: host.questionRecoveryProof,
-    closed,
+    closed: closed ?? (() => true),
+    ownerGate: closed ? r => r.channel === "form" && (closed(r.text) || !!r.proposals?.some(closed)) : undefined,
     canReply: r => r.task ? questionExecutionBlock(host, r.project, r.task) : "задача/контекст исполнения неизвестны; native ответ не отправлен",
     scope: r => {
       if (!r.task) return undefined
