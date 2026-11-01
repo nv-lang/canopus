@@ -91,7 +91,10 @@ test('звёзды усилия декоративны, едут справа н
   const { readFile } = await import('node:fs/promises');
   const css = await readFile(new URL('../app.css', import.meta.url), 'utf8');
   assert.match(css, /\.effort-slider::-webkit-slider-runnable-track \{[^}]*height: 12px/);
-  assert.match(css, /linear-gradient\(to right, var\(--ok\), var\(--accent\)\)/);
+  assert.match(css, /--effort-end:\s*#8b5cf6/);
+  assert.match(css, /linear-gradient\(to right, var\(--ok\), var\(--effort-end\)\)/);
+  assert.doesNotMatch(css, /\.effort-slider[^}]*linear-gradient\(to right, var\(--ok\), var\(--accent\)\)/);
+  assert.match(css, /linear-gradient\(to right, var\(--ok\), var\(--effort-end\)\) 0 \/ var\(--effort-fill, 0%\) 100% no-repeat/);
   assert.match(css, /@keyframes effort-star-drift \{[^}]*translateX\(0\)[\s\S]*?translateX\(-180px\)/);
   assert.match(css, /\.effort-sparkles \{[^}]*pointer-events: none/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{ \.effort-sparkle \{ animation: none/);
