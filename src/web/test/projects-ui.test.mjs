@@ -207,6 +207,20 @@ test('выбор папки: одиночный выбор не входит, En
   assert.equal(await result, null);
 });
 
+test('корень: одиночный выбор диска включает подтверждение и проверяется через fsList', async () => {
+  const s = setup();
+  const result = s.ui.pickFolder('');
+  await settle();
+  assert.equal(s.q('.primary').disabled, true, 'в корне без выбора подтверждать нельзя');
+  const drive = s.pickItem('C:/');
+  await s.click(drive);
+  assert.equal(s.pickItem('C:/').getAttribute('aria-selected'), 'true');
+  assert.equal(s.q('.picker-list').contains(drive), true, 'выделенная запись остаётся в списке до confirm');
+  assert.equal(s.q('.primary').disabled, false, 'выбор диска разрешает подтверждение');
+  await s.click(s.q('.primary'));
+  assert.equal(await result, 'C:/', 'подтверждение перед возвратом проверяет выбранный диск через fsList');
+});
+
 test('выбор папки: избранное хранится локально, выбирается отдельно и подтверждается', async () => {
   const s = setup();
   const first = s.ui.pickFolder('C:/work');

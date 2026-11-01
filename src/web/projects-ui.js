@@ -160,6 +160,7 @@ export function createProjectsUi(doc, deps) {
             row.classList.toggle('is-selected', isSelected);
             row.setAttribute('aria-selected', String(isSelected));
           }
+          choose.disabled = state.loading || (!state.selectedPath && state.path === '');
         });
         return h(doc, 'li', {}, item);
       }));
