@@ -26,7 +26,7 @@ writeFileSync(file, JSON.stringify({ project: "proj", root: "..", cleanup: "loca
 git(cfgDir, "add", "-A")
 git(cfgDir, "commit", "-q", "-m", "settings")
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const core = await import("../core.ts")
 const { SCHEMA_KEYS } = await import("../config-schema.ts")
 const hooks = {}
@@ -100,7 +100,7 @@ for (const end = Date.now() + 10_000; Date.now() < end && /Незакоммич�
 }
 cell("no uncommitted keys after the commit", !/Незакоммичено/.test(shown), "still pending")
 
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-cfgtool.test: FAIL ${fail}` : "crew-cfgtool.test ok")
 process.exit(fail ? 1 : 0)

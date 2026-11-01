@@ -31,7 +31,7 @@ for (const s of S) db.prepare("insert into session_v2 values (?, ?, ?, null, nul
 const core = await import("../core.ts")
 const status = await import("../status.ts")
 const watch = await import("../watch.ts")
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const hooks = {}
 const events = {}
 const ctx = {
@@ -119,7 +119,7 @@ const text = status.formatStatuses(status.readStatuses().concat([{ ...st("sesIDL
 cell("/crew text: the waiting first, the summary line on top", text.split("\n")[0] === "Waiting for you: 1 · proj worker" && text.split("\n")[2].startsWith("  ? "), text)
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 db.close()
 try {
   rmSync(tmp, { recursive: true, force: true })

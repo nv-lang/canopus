@@ -7,6 +7,8 @@ export function legacyAnswerPass(oa, core, ctx) {
     call: (s) => core.questionCall(s),
     interrupt: async (sessionID) => {
       await ctx.session.interrupt({ sessionID })
+      const { settleFixtureNative } = await import("./fixture-plugin.mjs")
+      settleFixtureNative(ctx, sessionID) // explicit legacy host terminal, not a card=>idle bypass
       return { ok: true }
     },
     letter: (to, text, id) => core.postLetter(to, { id, from_role: core.PLUGIN_SENDER, from_session: core.PLUGIN_SENDER, to, time: Date.now(), text }),

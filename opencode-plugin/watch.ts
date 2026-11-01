@@ -265,7 +265,7 @@ export function machineQueue(project: string | undefined): Watch[] {
 }
 
 /** Проход плагина: запустить новые, закончить завершённые. post — письмо окну; slots — machine_slots проекта. */
-export function pollWatches(post: (w: Watch, text: string) => void, log: (s: string) => void = () => {}, now = Date.now(), slots: (w: Watch) => number = () => 1): number {
+export function pollWatches(post: (w: Watch, text: string) => void, log: (s: string) => void = () => {}, now = Date.now(), slots: (w: Watch) => number = () => 1, policy: { canStart?(w: Watch): boolean; treePids?(id: string): number[] | undefined } = {}): number {
   if (!existsSync(WATCHES)) return 0
   let changed = 0
   for (const f of readdirSync(WATCHES).sort()) {
@@ -273,6 +273,7 @@ export function pollWatches(post: (w: Watch, text: string) => void, log: (s: str
       // захват переименованием: запускает один процесс, даже если плагинов два
       const id = f.slice(0, -".req.json".length)
       const req = readJson<Watch>(path.join(WATCHES, f))
+      if (req && policy.canStart?.(req) === false) continue
       if (req?.machine) {
         const limit = slots(req)
         if (limit > 0 && runningMachine(req.project) >= limit) continue // ждёт места в очереди машины
@@ -299,7 +300,13 @@ export function pollWatches(post: (w: Watch, text: string) => void, log: (s: str
     const exitFile = file(w.id, ".exit")
     let code: number | null | undefined
     if (existsSync(exitFile)) code = Number(readFileSync(exitFile, "utf8").trim())
-    else if (!pidAlive(w.pid) && now - (w.started ?? w.created) > 10_000 && !existsSync(exitFile)) code = null // пропал без кода
+    else if (!pidAlive(w.pid) && now - (w.started ?? w.created) > 10_000 && !existsSync(exitFile)) {
+      // An old missing wrapper PID is not evidence that its marked descendants
+      // stopped. Unknown scan stays running/fail-closed, never kills new work.
+      const tree = (policy.treePids ?? watchTreePids)(w.id)
+      if (!tree || tree.length) continue
+      code = null
+    }
     else continue
     // предел времени (124) и «оборвано» (нет кода): `timeout` и msys не убивают потомков, native-программы и осиротевшие
     // процессы остаются — закрыть всё дерево по метке (задача 101); при обычном выходе команды ничего не трогаем
@@ -373,4 +380,11 @@ export function watchesOf(session: string): Watch[] {
     if (w && w.session === session && w.status !== "done") out.push(w)
   }
   return out.sort((a, b) => a.created - b.created)
+}
+
+/** Terminal results are intentionally absent from watchesOf; external HOLD
+ * correlation must inspect the requested ID, including done/cancelled results. */
+export function watchById(id: string): Watch | undefined {
+  if (!/^[\w.-]+$/.test(id)) return undefined
+  return readJson<Watch>(file(id, ".json")) ?? readJson<Watch>(file(id, ".req.json"))
 }

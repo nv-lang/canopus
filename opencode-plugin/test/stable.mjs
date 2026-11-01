@@ -6,9 +6,11 @@
 // a loaded machine, which is how the flaky tests of task 085 are made red on purpose without more processes.
 // A red run prints the head of its output. The exit code is 1 if any run was red.
 import { execFileSync, spawn } from "node:child_process"
-import { readFileSync } from "node:fs"
+import { readFileSync, mkdtempSync, rmSync } from "node:fs"
+import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import { pathToFileURL } from "node:url"
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, "..")
@@ -102,17 +104,23 @@ const t0 = Date.now()
 
 const runOne = ({ f }) =>
   new Promise((resolve) => {
-    const child = spawn(process.execPath, [f], { cwd: root, stdio: ["ignore", "pipe", "pipe"] })
+    const begun = Date.now()
+    const state = mkdtempSync(path.join(os.tmpdir(), "crew-test-native-state-"))
+    const isolate = pathToFileURL(path.join(here, "native-isolation.mjs")).href
+    const options = `${process.env.NODE_OPTIONS ?? ""} --import=${isolate}`.trim()
+    const child = spawn(process.execPath, [f], { cwd: root, env: { ...process.env, XDG_STATE_HOME: state, NODE_OPTIONS: options }, stdio: ["ignore", "pipe", "pipe"] })
     let out = ""
     child.stdout.on("data", (d) => (out += d))
     child.stderr.on("data", (d) => (out += d))
     const timer = setTimeout(() => child.kill(), timeoutS * 1000)
     child.on("close", (code) => {
       clearTimeout(timer)
+      rmSync(state, { recursive: true, force: true })
       total.set(f, total.get(f) + 1)
+      console.log(`stable finished ${f}: exit ${code}, ${Math.round((Date.now() - begun) / 1000)} s`)
       if (code !== 0) {
         red.set(f, red.get(f) + 1)
-        reports.push(`--- RED ${f} (exit ${code})\n${out.split("\n").filter((l) => /FAIL|Error|error/.test(l)).slice(0, 6).join("\n") || out.slice(-600)}`)
+        reports.push(`--- RED ${f} (exit ${code})\n${out}`)
       }
       resolve()
     })

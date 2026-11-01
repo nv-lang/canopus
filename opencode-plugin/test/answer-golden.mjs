@@ -99,7 +99,7 @@ const dropNew = (key, text) => {
   return keep.join("\n")
 }
 const result = Object.fromEntries(Object.entries(out).map(([k, v]) => [k, dropNew(k, mask(v))]))
-H.close()
+await H.close()
 
 if (mode === "write") {
   const text = JSON.stringify(result, null, 1) + "\n"
@@ -109,6 +109,8 @@ if (mode === "write") {
   process.exit(0)
 }
 const snap = JSON.parse(readFileSync(SNAPSHOT, "utf8"))
+const { expectedHelp279 } = await import("./answer-help-279.mjs")
+snap.help = expectedHelp279(snap.help)
 for (const k of Object.keys(snap)) snap[k] = dropNew(k, snap[k])
 const bad = [...new Set([...Object.keys(snap), ...Object.keys(result)])].filter((k) => snap[k] !== result[k])
 if (!bad.length) {

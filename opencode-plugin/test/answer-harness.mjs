@@ -45,12 +45,16 @@ export async function harness(prefix, opts = {}) {
   db.exec("create table session_message (id text primary key, session_id text, type text, seq integer, time_created integer, time_updated integer, data text)")
   for (const s of sids) db.prepare("insert into session_v2 values (?, ?, ?, null, null, null, null, null)").run(s, proj, s)
   let seq = 0
-  const msg = (session, type, data, at = Date.now()) => db.prepare("insert into session_message values (?, ?, ?, ?, ?, ?, ?)").run(`m${++seq}`, session, type, seq, at, at, JSON.stringify(data))
+  const msg = (session, type, data, at = Date.now()) => {
+    const result = db.prepare("insert into session_message values (?, ?, ?, ?, ?, ?, ?)").run(`m${++seq}`, session, type, seq, at, at, JSON.stringify(data))
+    if (type === "idle") mod.fixtureNativeActive.delete(session)
+    return result
+  }
 
   const core = await load("core.ts")
   const status = await load("status.ts")
   const tasks = await load("tasks.ts")
-  const mod = await load("index.ts")
+  const mod = await load("test/fixture-plugin.mjs")
   const hooks = {}
   const tools = {}
   const events = {}
@@ -95,13 +99,20 @@ export async function harness(prefix, opts = {}) {
     call: async (name, sid, input = {}) => (await tools[name].execute(input, { sessionID: sid })).content,
     cfg: () => core.loadConfig(proj),
     /** the card of a session with a tab: the request that opened the turn, as OpenCode does it */
-    open: (sid) => hooks.context?.({ sessionID: sid, system: [], model: { id: "opus", providerID: "claude-code" } }),
+    open: (sid) => {
+      mod.fixtureNativeActive.add(sid) // explicit native ownership until the fixture's idle row
+      return hooks.context?.({ sessionID: sid, system: [], model: { id: "opus", providerID: "claude-code" } })
+    },
     /**
      * a turn of a session as OpenCode records it: the request (busy card), the user row, the assistant text, the idle row and the
      * idle event. user: the text of the first row (a letter mark makes it a letter of the plugin, not the owner's word)
      */
     turn: async (sid, text, { user = "сделай", tool = false, at = Date.now(), event = true, afterRows } = {}) => {
       await H.open(sid)
+      // The fixture's historical generation starts at `at`, not when this
+      // registration-only hook happens to run on the test machine.
+      const card = core.readJson(core.cardFile(sid))
+      if (card) core.saveCard({ ...card, busySince: at - 3, turnStart: at - 3 })
       if (user) msg(sid, "user", { text: user }, at - 2)
       msg(sid, "assistant", { content: [...(tool ? [{ type: "tool", name: "bash" }] : []), { type: "text", text }] }, at - 1)
       msg(sid, "idle", { outcome: "succeeded" }, at)
@@ -119,9 +130,9 @@ export async function harness(prefix, opts = {}) {
     },
     notices: () => readDir(path.join(core.NOTICES, String(WPID))),
     letters: (to) => ["inbox", "read", "delivering"].flatMap((d) => (d === "delivering" ? [] : readDir(path.join(core.BASE, d, to)))),
-    close: () => {
+    close: async () => {
       if (heart) clearInterval(heart)
-      stop?.()
+      await stop?.()
       try {
         db.close()
       } catch {}
@@ -142,8 +153,8 @@ export function reporter(name) {
       if (!ok) fail++
     },
     skip: (title, why) => console.log(`skip ${title}: ${why}`),
-    done: (H) => {
-      H?.close()
+    done: async (H) => {
+      await H?.close()
       console.log(fail ? `${name}: FAIL ${fail}` : `${name} ok`)
       process.exit(fail ? 1 : 0)
     },

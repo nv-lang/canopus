@@ -17,7 +17,7 @@ const dirA = path.join(tmp, "alpha")
 mkdirSync(path.join(dirA, ".opencode"), { recursive: true })
 writeFileSync(path.join(dirA, ".opencode", "crew-harness.json"), JSON.stringify({}))
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const core = await import("../core.ts")
 const tasks = await import("../tasks.ts")
 const hooks = {}
@@ -145,7 +145,7 @@ cell("reassign creates a new program-owned executor", next?.executor !== "sesUSE
 cell("the original user card keeps its provenance and title", !core.readJson(core.cardFile("sesUSER"))?.spawned && core.readJson(core.cardFile("sesUSER"))?.title === "sesUSER", JSON.stringify(core.readJson(core.cardFile("sesUSER"))))
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? "crew-user-tab-guard.test: FAIL " + fail : "crew-user-tab-guard.test ok")
 process.exit(fail ? 1 : 0)

@@ -49,7 +49,7 @@ async function startTask(t: Task): Promise<{ session?: string; error?: string }>
   return { error: "плагин OpenCode не подхватил задачу за 20 с (он загружен? crew_doctor)" }
 }
 
-const tools = makeTools({
+export const tools = makeTools({
   projects,
   defaultDir: process.cwd(),
   touch,
@@ -65,6 +65,9 @@ const tools = makeTools({
   activity: (s) => activityEvidence(s),
   questionIO: productionQuestionIO,
   questionInspectText: r => inspectQuestionText(getQuestionJson, r.session, r.source.at),
+  // No trusted native execution reader in this subprocess: tiered work queues
+  // for the service plugin's fresh available/card selection, never cached busy.
+  available: async () => false,
 })
 
 const INSTRUCTIONS =
@@ -109,6 +112,7 @@ async function handle(m: Msg): Promise<object | undefined> {
   }
 }
 
+if (import.meta.main) {
 createInterface({ input: process.stdin }).on("line", async (line) => {
   if (!line.trim()) return
   let m: Msg
@@ -126,3 +130,4 @@ createInterface({ input: process.stdin }).on("line", async (line) => {
   }
 })
 log(`mcp setup pid=${process.pid} session=${SESSION || "?"}`)
+}

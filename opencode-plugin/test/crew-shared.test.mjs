@@ -14,7 +14,7 @@ const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true })
 writeFileSync(path.join(proj, ".opencode", "crew-harness.json"), JSON.stringify({ exclusive_roles: ["integrator"] }))
 process.env.CREW_HARNESS_DB = path.join(tmp, "absent.db") // no database: models come from the event
-const mod = await import(process.env.CREW_MODULE ?? "../index.ts")
+const mod = await import(process.env.CREW_MODULE ?? "./fixture-plugin.mjs")
 
 const hooks = {}
 const tools = {}
@@ -102,7 +102,7 @@ cell("crew_list still shows neighbours with their models", /sesBBBBBB[^\n]*kimi\
 const help = (await call("crew_help", "sesAAAAAA")).content
 cell("help tells about shared roles and the model", /разделяемая/.test(help) && /модель/.test(help), "missing")
 
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-shared.test: FAIL ${fail}` : "crew-shared.test ok")
 process.exit(fail ? 1 : 0)

@@ -457,7 +457,7 @@ longer than the term of the step, **whether or not the window is busy**. The fil
   and `crew_doctor` (a problem line). (4) The owner decides in words; the AUTHOR writes it down: `crew_step_note {n, decide: "wait"|"narrow"|
   "reassign"|"cancel", who: "<the owner's word with the date and the source>"}`. The question closes, the new term runs (for «wait» —
   `minutes`; for the others `step_extend_minutes` to do the action), and no new letter or question comes inside it.
-- **No alarm** while: a turn of the window on THIS task goes (the executor or the reviewer of the task is working; a busy window of the author
+- **Обычный срок шага не тревожит** (это не отключение health/аварий) while: a turn of the window on THIS task goes (the executor or the reviewer of the task is working; a busy window of the author
   with other things is not an exception); a question to the owner is open at the holder, the executor or the reviewer; the task is on
   **HOLD/STOP by the owner's word** (the author records it: `crew_step_note {n, hold: "HOLD"|"STOP", who}`; `release` with `who` removes it;
   the mark is in the record of the task and shows in `/crew` and `crew_doctor`); an open `crew_watch` of the holder whose ceiling (`minutes`) is
@@ -477,6 +477,26 @@ longer than the term of the step, **whether or not the window is busy**. The fil
 - **A deliberate wait needs HOLD.** The option «wait more» gives only a new term (`minutes`, default `step_extend_minutes`); when it is over the ladder begins
   again (about `step_extend_minutes + step_answer_minutes` later). To wait on purpose, the author records HOLD with the owner's word; the text of the question and
   the answer to `decide: "wait"` say so.
+- **Смыслы HOLD разделены.** `crew_step_note {n, hold: "HOLD", hold_scope, who}`:
+  `execution` — не начинать исполнение/новые команды, но уже работающий процесс не прерывать;
+  `external` — ждать конкретный `wait_id` до проверки через `minutes` (по умолчанию 30), разрешённая диагностика не запрещена;
+  `gate` — не принимать и не сливать, исполнение/диагностика в прежних границах разрешены. `hold_gate: true` сочетает внешний
+  wait с запретом приёмки/слияния. `STOP` — execution или безопасный legacy, не внешний wait.
+  Прежний HOLD без scope, а также неизвестный/повреждённый scope — **legacy/неуточнённый**: исполнение и приёмка запрещены.
+  Он не снимается и не мигрирует автоматически. Уточнение смысла, смена gate и `release` требуют явного слова владельца
+  с датой/источником от автора. Изменение прототипа не означает, что оно уже применено к живым HOLD или настройкам владельца.
+- **Health не равен сроку шага.** Native failed и terminal внешнего ожидания (`failed/cancelled/timeout`) либо пропуск
+  контрольного срока уведомляют ответственного автора даже под HOLD, CI/очередью, открытым вопросом и `step_term_minutes: 0`.
+  `wait_result` с текущим `wait_id` и `reason` фиксирует внешний факт; старый ID не принимается. Для `crew_watch` terminal
+  читается по точному ID, включая завершённые наблюдения. Это не разрешает CI rerun, увеличение timeout или merge.
+  Без реакции через 15 минут — ограниченная эскалация. `health_blocker` сохраняет причину, ответственного и next-check
+  (до 30 минут); та же причина его не переносит, более двух разных блокеров приводят к немедленной эскалации.
+  После просрочки blocker остаётся видимым, а не навсегда выключает мониторинг.
+- **Диагностика привязана к эпизоду.** Общий автор задач A/B не снимает A чтением B или AGENTS/status. Нужны exact native
+  input уведомления данного fingerprint/эпизода и завершённый диагностический инструмент по собственному артефакту этой
+  задачи до следующего user/idle. Если схема/привязка недоступны — подтверждения нет. Такой ответ подтверждает **реакцию**,
+  не устранение причины; health закрывается лишь после связанной диагностики и нового успешного native terminal именно
+  исполнителя этой задачи либо проверенного успешного внешнего результата. HOLD и gate сохраняются во всех этих случаях.
 - **One letter per step to the author.** When the author holds the step (a task between sessions, a task without an executor, an order whose addressee has
   no window) the letter of the watch asks for an answer; the old «Ты простаиваешь» (the rule of the tab, tasks 063, 070) does not name such a task any more
   while `step_term_minutes` is on (the mark ◷ stays). The old letter stays for what the watch does not cover: an executor with no live session, a silent
@@ -635,17 +655,38 @@ to the tab; (3) a service letter of a kind that already stands in the queue (`se
 about cleanup and idle time are not lost - they are postponed. The plugin log says `nudge skipped …: <reason>` and `N service letter(s) of
 <session> wait`.
 
-### A hung turn is interrupted and resumed by the plugin (tasks 036, 048)
+### Native занятость и подтверждённое пробуждение (279)
 
-A tab whose window says the turn runs, while the model has been silent for 15 minutes (`CREW_HARNESS_HUNG_MS`) with no
-`idle` row after its last answer, is hung. A running tool, a running `crew_watch` and an open question to the owner are not a hang.
-The plugin interrupts such a turn itself — `session.interrupt` of the plugin context with `resume: true`, the same call the window
-makes on Esc — and wakes the tab with a service letter «Ход завис и прерван плагином в ЧЧ:ММ; продолжай с того места, где
-остановился»; the task of the tab gets a line in its history, the plugin log a `hung turn resumed` line, and you have nothing to do.
-One try per hang, at most 2 tries per session in an hour. When the plugin cannot (OpenCode has no `session.interrupt` — the log line
-`hung turn self-recovery: off` at start and `crew_doctor` say so; the interrupt found nothing to stop; the turn is still hung
-5 minutes after the try; the limit), the tab is shown as waiting for you with «ход завис с ЧЧ:ММ: нажмите Esc в окне и напишите
-«продолжай»» and the log says why (`hung turn not resumed`).
+`card.busy`, старый PID, сохранённый `tool.status=running`, прежние `outcome/time.idle` и возраст флага не доказывают
+текущую занятость. Доставка проверяет read-only API OpenCode V2: `/api/info` подтверждает процесс, полный валидный
+`/api/session/active` читается до и после session info. Новый локальный context должен быть не новее terminal/idle.
+Активный native drain сохраняет занятость foreground. Отдельная команда/очередь `crew_watch` держит место для нового
+назначения, но не блокирует рабочий вопрос/ответ при достоверно idle foreground: письмо не отменяет и не перезапускает
+наблюдение. Execution/legacy HOLD по-прежнему запрещает такой запуск. Ошибка API, неизвестная схема,
+другой процесс и устаревший снимок означают **unknown**, не «свободна». Отсутствующий старый wrapper PID не позволяет
+закончить или убить живых потомков команды. Статус и provenance сохраняются в `native-state/<session>.json`.
+
+Тишина в transcript остаётся сигналом диагностики, но автоматический `interrupt` + «продолжай» задач 036/048 отменён:
+native active/unknown и живой процесс по этому сигналу не прерываются. Это не изменение ответа владельца на конкретную
+форму: штатный form reply остаётся отдельным контрактом.
+
+`push` сообщает **письмо поставлено**, а не «разбужен». `wake-delivery/<session>.json` различает `queued`, `sending`
+(исход POST может быть неизвестен), `accepted`, `started`, `error`, `timeout`. HTTP 200, promotion, прежний active и
+обновление metadata не доказывают новый ход. Доказательство — точный projected input с постоянным native message ID
+и новое поколение assistant после него, **до другого user/idle**. Только тогда снимается соответствующий push-stuck.
+Окно доказательства — последние 100 projected messages; если вход не виден на этой странице, требуется диагностика,
+а не догадка. SDK V2 2.0.26 не даёт отдельного `resume`: повторяется тот же `prompt.id` и payload, идемпотентно через
+`SessionInbox.reconcile`, максимум 3 раза с интервалом 5 секунд. Через 120 секунд без связанного старта — эскалация;
+новый prompt ID не создаётся, письма не теряются, ручной push не обходит неразрешённую terminal-попытку.
+Архив `wake-delivery/receipts/<id>.json` и указатели `wake-delivery/letters/` записываются **до POST**: восстановленный
+старый claim сохраняет исходные ID, timestamp и payload даже после замены latest receipt. Accepted/started не отправляются
+как новая пачка. Legacy recovered claim без проверяемого receipt остаётся в Crew-mailbox с диагностикой, а не объявляется
+доставленным и не повторяет неоднозначный POST. Архив пока не удаляется автоматически: сначала безопасная диагностика.
+
+GET coalescing объединяет только одновременно идущие **не-active** чтения: active observation после info должна начинаться
+заново, не присоединяться к старому in-flight snapshot. Idle по TTL не переиспользуется. Пределы: 2 GET одновременно,
+40 стартов GET/с, очередь до 64, freshness idle-снимка 10 секунд, outage backoff до 30 секунд. Unknown с ждущими письмами
+эскалирует через 120 секунд. Диагностика — `crew_task show`, `crew_doctor`; service registry/credentials не журналируются.
 
 ### A hidden wait of a tab is named (task 263)
 
@@ -959,8 +1000,8 @@ one, a turn without one is empty.
   more reminders, the asker gets a call (a letter and a notice in its window; when the asker's tab is closed, the notice goes
   to the live windows of the project, or to all live windows when the project has none), the task's history
   records it, and `/crew` (`⚠ stuck 9h` on the row of the tab) and the side panel (`⚠ застряла с ЧЧ:ММ`) show it until the mark is cleared; the reason is in the letter and in `stuck[].what` of `status/<session>.json`;
-  `crew_task {action: "push", n, to?}` wakes it again (the executor, or the reviewer with `to: "reviewer"`; the call about a
-  stuck review names `to: "reviewer"`) and clears "stuck"; the answer or the submit settles the obligation;
+  `crew_task {action: "push", n, to?}` ставит письмо исполнителю или приёмщику (`to: "reviewer"`); stuck снимается только
+  после связанного нового assistant generation, не от постановки или HTTP admission; answer/submit закрывают обязательство;
 - "stuck" also goes by itself (task 052), for all obligations of the tab and with a log line `unstuck <session> for <qid>:
   <reason>`: a working turn of the tab (before any early exit of the reminder: answer modes, an open question, a watch), a
   turn where the owner wrote, the owner's word in the tab (on the nearest pass, not at the end of the turn) and the owner's

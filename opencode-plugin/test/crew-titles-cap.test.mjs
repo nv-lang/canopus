@@ -42,7 +42,7 @@ for (let n = 7; n <= 12; n++) {
   writeFileSync(f, JSON.stringify(j))
 }
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const updates = []
 const ctx = {
   location: { directory: proj },
@@ -74,7 +74,7 @@ cell("old closed task sessions are not renamed", !updates.some((u) => /^sesEX(7|
 const times = updates.filter((u) => /^sesEX[1-6]$/.test(u.sessionID)).map((u) => u.at)
 cell("the renames are spread over several passes", new Set(times.map((t) => Math.floor(t / 80))).size >= 2, JSON.stringify(times.map((t) => t - times[0])))
 
-stop?.()
+await stop?.()
 try {
   rmSync(tmp, { recursive: true, force: true })
 } catch {}

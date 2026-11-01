@@ -54,7 +54,7 @@ mkdirSync(path.join(process.env.XDG_CONFIG_HOME, "opencode"), { recursive: true 
 const globalCfg = path.join(process.env.XDG_CONFIG_HOME, "opencode", "opencode.jsonc")
 writeFileSync(globalCfg, `{ // hand-written, machine-wide\n  "compaction": { "reserved": 20000 },\n  "provider": { "kimi-code-plan-global": { "models": { "k3-256k": { "limit": { "context": 262144, "output": 131072 } } } } } }\n`)
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const core = await import("../core.ts")
 const L = await import("../profile-layer.ts")
 const { writeSettings } = await import("../settings.ts")
@@ -426,7 +426,7 @@ const codes = allReplies.filter((t) => /\b(REQ|AC|DNC)-\d+/.test(t))
 cell("the answers to the owner have no bare codes of the requirements", codes.length === 0, codes.slice(0, 2).join("|"))
 cell("no answer is a turn of the model: the host got no prompt", prompts.length === 0, String(prompts.length))
 
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-profiles-cmd.test: FAIL ${fail}` : "crew-profiles-cmd.test ok")
 process.exit(fail ? 1 : 0)

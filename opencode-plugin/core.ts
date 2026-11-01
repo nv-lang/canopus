@@ -5,7 +5,9 @@
 
 import { judge as judgeGlued } from "./glued-guard.ts"
 import { type Deps as BranchDeps, branchNotes, branchProblems, noteBranch } from "./branch-guard.ts"
-import { noteStep, readRecord, stepNotes, stepProblems } from "./idle-watch.ts"
+import { executionHeld, gateHeld, holdScope, HOLD_SCOPE_RU, noteStep, readRecord as readStepRecord, stepNotes, stepProblems, taskHold } from "./idle-watch.ts"
+import { readWake } from "./wake-delivery.ts"
+import { nativeProblems } from "./native-state.ts"
 import { execFileSync } from "node:child_process"
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync, appendFileSync } from "node:fs"
 import os from "node:os"
@@ -180,8 +182,8 @@ for (const d of [CARDS, INBOX, READ, QUEUE]) mkdirSync(d, { recursive: true }) /
 export type Spawned = { by: string; task: string; tier: string; status: "running" | "done" | "closed"; at: number; qid: string }
 // busySince — время последнего запроса модели (ставится на каждом шаге хода); turnStart — первого запроса хода: по нему lastTurn
 // видит весь ход (задача 052: вызов инструмента в раннем шаге, а последний шаг — только текст, и ход читался пустым)
-export type Card = { session: string; role: string; auto: boolean; spawned?: Spawned; task?: { project: string; n: number }; review?: { project: string; n: number }; titleShown?: string; title: string; directory: string; repo: string; project?: string; lock_wait?: { project: string; n: number; at: number }; model?: string; modelAt?: number; modelFrom?: "request" | "db"; modelCheckedAt?: number; tasksDir?: string; busy?: boolean; busySince?: number; turnStart?: number; wokeAt?: number; pid: number; updated: number }
-export type Letter = { id: string; from_role: string; from_session: string; to: string; text: string; time: number; tier?: Tier; wake?: boolean; qid?: string; reply_to?: string }
+export type Card = { session: string; role: string; auto: boolean; spawned?: Spawned; task?: { project: string; n: number }; review?: { project: string; n: number }; titleShown?: string; title: string; directory: string; repo: string; project?: string; lock_wait?: { project: string; n: number; at: number }; model?: string; modelAt?: number; modelFrom?: "request" | "db"; modelCheckedAt?: number; tasksDir?: string; busy?: boolean; busySince?: number; reservedAt?: number; turnStart?: number; wokeAt?: number; pid: number; updated: number }
+export type Letter = { id: string; from_role: string; from_session: string; to: string; text: string; time: number; tier?: Tier; wake?: boolean; qid?: string; reply_to?: string; wake_qid?: string; delivery_recovered?: true; purpose?: "diagnostic" }
 
 // НАСТРОЙКИ ПРОЕКТА — settings.ts: файл `.opencode/crew-harness.json` из репозитория настроек (закоммиченный),
 // для прежней формы опций — тот же файл вверх от каталога окна. Плагин абстрактен: ни ролей, ни проектного текста в
@@ -480,12 +482,12 @@ export function tierOf(model: string | undefined, cfg: CrewConfig): Tier | undef
   return undefined
 }
 
-// Окно СВОБОДНО, если не занято ходом. busy ставится в хуке запроса и снимается событием простоя; занятость
-// старше BUSY_MAX_MS считается потерянным событием — окно свободно (иначе одно пропущенное событие вешало бы его навсегда).
+// Возраст флага не доказывает idle: stale busy снимает только native reconciliation.
+// Резерв письма — не native active и не время последнего запроса модели.
 export const BUSY_MAX_MS = 30 * 60_000
 // Давность последней активности (`updated`) отбора НЕ делает — только показ в crew_list: простаивающее окно и есть
 // лучший исполнитель. Кандидат = процесс визитки жив И сессия существует и не архивирована (candidates()) И не занят.
-export const isFree = (c: Card, now = Date.now()) => !c.busy || now - (c.busySince ?? 0) > BUSY_MAX_MS
+export const isFree = (c: Card, now = Date.now()) => !c.busy && !c.reservedAt
 
 // Кандидаты письма с ступенью: СВОБОДНЫЕ живые держатели роли с моделью той же ступени; если таких нет — со
 // ступенью выше (ближайшей, затем дальше), ниже — никогда. Окно с моделью вне ступеней не кандидат.
@@ -949,6 +951,46 @@ export async function workedAfter(sessionID: string, at: number): Promise<boolea
   }
 }
 
+/** Health recovery: a NEW actual diagnostic tool action, not a status letter,
+ * a question, crew_step_note, or a historical orphaned running tool. */
+export async function diagnosticWorkAfter(sessionID: string, at: number, correlation: { task: Task; fingerprint: string; healthId: string; nativeMessage: string; text: string }): Promise<string | undefined> {
+  if (!sessionID || !correlation || !existsSync(dbFile())) return undefined
+  const { task, fingerprint, healthId, nativeMessage, text } = correlation
+  const health = readStepRecord(task.project, task.n)?.health
+  if (!health || health.fingerprint !== fingerprint || health.letter !== healthId || health.responsible !== sessionID || !text.includes(healthId)) return undefined
+  // A common author's action must touch THIS task's own artifacts. Shared
+  // project roots and generic instruction reads are not task diagnosis evidence.
+  const roots = [task.worktree && !sameFs(task.worktree, task.directory) ? task.worktree : undefined, task.folder ? path.resolve(task.directory, task.folder) : undefined].filter((s): s is string => !!s)
+  if (!roots.length) return undefined
+  let db: any
+  try {
+    db = await openDb()
+    const input = db.prepare("select seq, data, time_created from session_message where session_id = ? and id = ? and type = 'user'").get(sessionID, nativeMessage)
+    if (!input || input.time_created < at || JSON.parse(input.data)?.text !== text) return undefined
+    const directory = db.prepare("select directory from session_v2 where id = ?").get(sessionID)?.directory
+    if (!directory) return undefined
+    const rows = db.prepare("select id, type, data, time_created from session_message where session_id = ? and seq > ? order by seq limit 100").all(sessionID, input.seq) as any[]
+    for (const row of rows) {
+      if (["user", "idle"].includes(row.type)) break // another request cannot lend its tools
+      if (row.type !== "assistant") continue
+      const parts = JSON.parse(row.data)?.content
+      if (!Array.isArray(parts)) continue
+      for (const p of parts) {
+        const started = Number(p?.time?.created ?? row.time_created)
+        if (started <= at || p?.type !== "tool" || !/(^|[._])(?:read|grep|glob)$/.test(String(p.name ?? "")) || p.state?.status !== "completed") continue
+        const resource = p.state?.input?.filePath ?? p.state?.input?.path
+        if (typeof resource !== "string" || !resource) continue
+        const target = path.resolve(directory, resource)
+        if (/^(?:AGENTS|README)(?:\.[^.]*)?$/i.test(path.basename(target))) continue
+        if (!roots.some(root => insideDir(target, root))) continue
+        return `эпизод ${healthId}, задача ${task.project}/${task.n}, input ${nativeMessage}, assistant ${row.id}, tool ${p.id ?? p.callID ?? p.name}, ресурс ${target}`
+      }
+    }
+  } catch { /* unknown schema/DB is not recovery */ }
+  finally { try { db?.close() } catch {} }
+  return undefined
+}
+
 /** Задача 078: в сессии между моментами since и until был рабочий ход - ответ модели с вызовом инструмента, КРОМЕ question (вопрос владельцу
  *  работой не считается: так вкладка в цикле «вопрос - ответ - тот же вопрос» не отличается от стоящей). */
 export async function workedBeyondQuestion(sessionID: string, since: number, until = Number.MAX_SAFE_INTEGER): Promise<boolean> {
@@ -1350,12 +1392,18 @@ export function recoverClaims(maxAgeMs = CLAIM_MAX_MS, now = Date.now()): number
       for (const f of readdirSync(dir).filter((f) => f.endsWith(".json"))) {
         mkdirSync(path.join(INBOX, key), { recursive: true })
         try {
-          renameSync(path.join(dir, f), path.join(INBOX, key, f))
+          const src = path.join(dir, f)
+          const letter = readJson<Letter>(src)
+          if (!letter) continue // unknown bytes are preserved, never silently deleted
+          writeFileSync(`${src}.recover.tmp`, JSON.stringify({ ...letter, delivery_recovered: true }, null, 1))
+          renameSync(`${src}.recover.tmp`, src)
+          renameSync(src, path.join(INBOX, key, f))
           n++
         } catch {}
       }
+      if (!readdirSync(dir).length) rmSync(dir, { recursive: true, force: true })
     }
-    rmSync(claimRoot, { recursive: true, force: true })
+    if (!readdirSync(claimRoot).length) rmSync(claimRoot, { recursive: true, force: true })
   }
   if (n) log(`recovered ${n} letter(s) from stale delivery claims`)
   return n
@@ -1589,7 +1637,10 @@ export const HELP = `crew-harness — письма между вкладками
                                 дописывает стандартный шаблон моделей: claude/codex/kimi, набор codex, потолок light; ключи проекта не трогает).
                                 Проект без моделей (нет profile_set, spawn_models, allow_default_models) отказывает crew_spawn без явного model.
   crew_doctor                 — самопроверка: что сломано и что делать.
-  crew_step_note {n?, reason?, minutes?, done?, decide?, who?, hold?, release?} — срок шага задачи (задача 161): письмо «Шаг стоит N мин, срок вышел» требует ответа этим инструментом: reason (что сделано, чего ждёшь) и minutes (продление до step_extend_minutes, один раз на письмо) или done: true; без ответа за step_answer_minutes или с той же причиной второй раз плагин поднимает вопрос владельцу. Автор после слова владельца пишет решение: decide wait|narrow|reassign|cancel и who; hold HOLD|STOP и who снимают тревогу по слову владельца, release снимает метку.
+  crew_step_note {n?, reason?, minutes?, done?, decide?, who?, hold?, hold_scope?, hold_gate?, wait_id?, wait_result?, health_blocker?, release?} — срок шага и явный смысл HOLD. Ответ держателя: reason + minutes либо done; повтор причины/молчание поднимает вопрос. Решение владельца пишет автор: decide wait|narrow|reassign|cancel и who.
+                                hold_scope execution — пауза исполнения; external — ожидание результата (wait_id и minutes как срок проверки); gate — запрет приёмки/слияния. hold_gate: true сохраняет gate вместе с external. Без scope — legacy/неуточнённый HOLD: исполнение запрещено, автоматической миграции нет. Новую метку, уточнение и release записывает только автор с who (слово владельца, дата, источник).
+                                Аварии не скрываются HOLD, внешним ожиданием или отключённым сроком шага. wait_result failed|cancelled|timeout|succeeded + wait_id + reason фиксирует текущий внешний результат, не снимая HOLD/gate и не разрешая rerun. health_blocker фиксирует ответственного и следующую проверку (minutes, не больше 30, по умолчанию 15); тот же блокер срок не переносит. Реакция на конкретный эпизод не равна устранению его причины.
+                                push/crew_send подтверждают только Crew-mailbox. Native admission и связанный новый assistant проверяются отдельно; только после связанного старта push снимает stuck. Состояние/ID/срок — crew_task show, ошибки — crew_doctor. Неизвестная native занятость не считается свободной.
   crew_branch_note {what, why, who, directory?, branch?} — причина смены каталога или ветки окна (задача 157): без неё команды, меняющие ветку или историю в основной копии, в дереве чужой задачи или не на своей ветке, отклоняются. Штатные места: интегратор — основная копия на целевой ветке; исполнитель — дерево и ветка своей задачи; приёмщик — основная копия на целевой ветке или любое дерево репозитория.
   /crew (команда окна)       — владельцу: кто чего ждёт, без хода модели; кто ждёт его — уведомление в окне.
   /ask (команда окна)        — владельцу: вопросы, которые ждут его ответа (проект, вкладка, сколько ждёт, текст и варианты).
@@ -1928,6 +1979,8 @@ export type CrewHost = {
   questionIO?: QuestionFormIO
   questionCanReply?(project: string, n: number): string | undefined
   questionInspectText?(request: QuestionRequest): Promise<QuestionObservation>
+  /** New role work requires free native foreground AND no background reservation. */
+  available?(card: Card): Promise<boolean>
 }
 
 /** Same durable router for OpenCode and MCP. Trusted target/roots come from task records, live tabs and role locks. */
@@ -1977,7 +2030,7 @@ export function questionRouterFor(host: Pick<CrewHost, "questionIO" | "questionC
     },
   })
 }
-export const questionExecutionBlock = (host: Pick<CrewHost, "questionCanReply">, project: string, n: number) => host.questionCanReply ? host.questionCanReply(project, n) : readRecord(project, n)?.hold ? "legacy HOLD/STOP: побочный ответ/корректировка не разрешает execution" : undefined
+export const questionExecutionBlock = (host: Pick<CrewHost, "questionCanReply">, project: string, n: number) => executionHeld(taskHold(project, n)) ? "execution/legacy HOLD/STOP: побочный ответ/корректировка не разрешает execution" : host.questionCanReply?.(project, n)
 
 /** Зависимости контроля каталога и ветки окон (branch-guard.ts, задача 157): задачи, настройки и замок вливания плагина. */
 export function branchDeps(projects: Projects): BranchDeps {
@@ -2264,7 +2317,11 @@ export function makeTools(host: CrewHost): CrewTool[] {
         if (addr.kind !== "role") return { content: "tier сочетается только с ролью: ступень выбирает одного исполнителя роли." }
         const key = roleKey(addr.project, addr.role)
         const holders = open.filter((c) => keyOf(c) === key)
-        const freeHolders = holders.filter((c) => !isBusy(c, windows))
+        const freeHolders: Card[] = []
+        // MCP has no process-local execution ownership. Without an authoritative
+        // host callback, queue for the plugin's fresh selection, never guess from
+        // cached card/window flags (in either stale-busy direction).
+        for (const c of holders) if (host.available && await host.available(c).catch(() => false)) freeHolders.push(c)
         const pick = pickHolder(freeHolders.map((c) => ({ ...c, busy: false })), input.tier, cfg, now)
         const letter: Letter = { id: `${now}-${safeKey(sessionID)}-${safeKey(key)}`, ...base, to: pick?.session ?? key, tier: input.tier }
         if (pick) {
@@ -2688,6 +2745,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
       const cfg = configFor(me)
       // task — номер задачи с папкой (задача 058) или прежнее имя goal (строка не из одних цифр)
       const taskNum = /^\d{1,5}$/.test(String(input.task ?? "").trim()) ? Number(String(input.task).trim()) : undefined
+      if (taskNum !== undefined && (executionHeld(taskHold(project, taskNum)) || (/^(С6|прм)$/i.test(String(input.session ?? "")) && gateHeld(taskHold(project, taskNum))))) return { content: `Сессия задачи ${taskNo({ n: taskNum })} не запущена: HOLD/STOP запрещает исполнение или приёмку; нужно явное решение владельца.` }
       if (taskNum === undefined && input.task && !input.goal) input.goal = input.task
       const sessionCode = String(input.session ?? "").trim()
       const partOf = /^\d{1,5}$/.test(String(input.part_of ?? "").trim()) ? Number(String(input.part_of).trim()) : undefined
@@ -2812,7 +2870,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
         "show - anyone - n - details and history of a task, with its steps, side branches and worktrees.",
         "assign - integrator - session - refused: user conversations have no trusted owner receipt for session+assignment. owner_words, crew_role, idle and allow_self_assign cannot authorize capture. Use crew_spawn for a new executor, reassign for safe handoff to a new session. Existing assign records remain supported.",
         "order - integrator - to \"project.integrator\", goal, criteria, ... - order work from another project: its integrator does it with its own tasks; when its task is accepted the order is done (a quiet summary to you), when cancelled you get a call.",
-        "push - integrator - n, text?, to? - nudge a stalled tab now (the reminder counter starts over): to \"executor\" (default) wakes the executor, to \"reviewer\" wakes the reviewer of the task.",
+        "push - integrator - n, text?, to? - queue a nudge; counters/stuck reset only after its correlated new assistant generation. to executor (default) or reviewer; admission is not execution.",
         "deliver - integrator - n, text - a task led by method sessions (status idle: the last session submitted to you) goes to the plugin's review once: text is the report for the reviewer (what is ready to land). A task with a single executor session goes to review on its submit, as before.",
         "reassign - integrator - n, text? - hand the task to a new session under the same number with a summary of what was done (a task session: the same code, the next ordinal and a new launch number; the old one is marked handed). text = a refinement of the goal: it goes into the new session's first letter as a block before the old goal, wins where they differ and stays in the task history (show). Refine the goal with this same call, never with a second letter after the handover: the new session would start on the old goal and report twice.",
         "cancel - integrator - n, text? - cancel the task; text goes to the executor. Releases the merge lock if the task held it.",
@@ -2932,6 +2990,9 @@ export function makeTools(host: CrewHost): CrewTool[] {
       }
       const t = findTask(me, input.n)
       if (!t) return { content: `Задачи ${taskNo({ project, n: input.n })} в проекте ${project} нет.` }
+      const hold = taskHold(t.project, t.n)
+      if (hold && ((executionHeld(hold) && ["push", "reassign", "assign", "session", "resume", "rework"].includes(action)) || (gateHeld(hold) && ["review", "check", "precheck", "merge", "accept", "cleanup", "deliver", "plan_decide"].includes(action))))
+        return { content: `Действие ${action} задачи ${taskRef(t)} запрещено: ${hold.kind} — ${HOLD_SCOPE_RU[holdScope(hold)]}. Диагностика и отчёт разрешены; снять или уточнить метку может автор только по явному слову владельца (crew_step_note).` }
       if (action === "backlog") {
         if (!isIntegrator(me)) return notIntegrator(me)
         if (!String(input.text ?? "").trim()) return { content: `Нужна причина в text: crew_task {action: "backlog", n: ${t.n}, text: "почему пауза"}.` }
@@ -3112,6 +3173,8 @@ export function makeTools(host: CrewHost): CrewTool[] {
           t.precheck && t.precheck.state !== "stale" ? neighbourHints(t, "running").trim() : "",
           t.executors.length ? `прежние исполнители: ${t.executors.join(", ")}` : "",
           t.reviewer ? `приёмщик: ${t.reviewer}${t.review_kind ? ` (${t.review_kind === "tab" ? "открытая вкладка" : t.review_kind === "spawn" ? "сессия под приёмку" : "интегратор"})` : ""}${t.rework ? `, кругов доработки: ${t.rework}` : ""}` : "",
+          ...[t.executor, t.reviewer].filter(Boolean).flatMap(s => { const a = readWake(s!); return a ? [`пробуждение ${s}: ${a.phase}, native ID ${a.id}, попыток ${a.tries}, срок ${hhmm(a.deadline)}${a.proof ? `; доказательство: ${a.proof}` : ""}${a.why ? `; ${a.why}` : ""}`] : [] }),
+          hold ? `${hold.kind}: ${HOLD_SCOPE_RU[holdScope(hold)]}${hold.gate ? "; запрет приёмки/слияния" : ""}; ${hold.who}` : "",
           t.report ? `отчёт исполнителя: ${t.report.slice(0, 500)}` : "",
           t.checks ? `шаги приёмки: ${Object.entries(t.checks).map(([k, v]) => `${k}: ${v}`).join("; ")}` : "",
           `история:\n${t.history.map((h) => `  ${hhmm(h.at)} ${h.status ? statusRu(h.status) : ""}${h.note ? ` — ${h.note}` : ""}`).join("\n")}`,
@@ -3522,25 +3585,17 @@ ${lockStillYours(stillHeld.n)}` : "") }
         const target = whom === "reviewer" ? t.reviewer : t.executor
         const targetQid = whom === "reviewer" ? t.review_qid : t.qid
         if (!target) return { content: whom === "reviewer" ? `У задачи ${taskRef(t)} нет приёмщика (приёмка ещё не назначена).` : `У задачи ${taskRef(t)} нет исполнителя.` }
+        const previousWake = readWake(target)
+        if (previousWake && ["error", "timeout"].includes(previousWake.phase)) return { content: `Задача ${taskRef(t)}: прежнее пробуждение ${target} — ${previousWake.phase}, ID ${previousWake.id}, ${previousWake.why}. Новое письмо не добавлено: сначала диагностика native inbox/projected input и решение о прежнем запросе. Stuck и HOLD сохранены; новый prompt или бесконечный resume не создаётся.` }
         const text = String(input.text ?? "").trim() || (whom === "reviewer" ? "продолжай приёмку." : "продолжай работу по задаче.")
         const how =
           whom === "reviewer"
             ? `Продолжай приёмку: crew_task {action: "review" | "rework" | "merge" | "accept" | "cleanup", n: ${t.n}} (что дальше — в письме с приёмкой).`
             : `Закончил — сдай: crew_task {action: "submit", n: ${t.n}, text: "..."}; упёрся — в том же отчёте напиши, что мешает.`
-        postLetter(target, { id: `push-${safeKey(project)}-${t.n}-${Date.now()}`, from_role: keyOf(me), from_session: me.session, to: target, time: Date.now(), text: `Подталкивание по задаче ${taskNo(t)} «${t.title}»: ${text}\n${how}` })
-        const obl = obligationsOf(target)
-        for (const o of obl)
-          if (o.qid === targetQid) {
-            o.nudges = 0
-            o.empty = 0
-            o.stuck = false
-            delete o.stuckAt
-            delete o.stuckWhat
-          }
-        saveObligations(target, obl)
+        postLetter(target, { id: `push-${safeKey(project)}-${t.n}-${Date.now()}`, from_role: keyOf(me), from_session: me.session, to: target, time: Date.now(), wake_qid: targetQid, text: `Подталкивание по задаче ${taskNo(t)} «${t.title}»: ${text}\n${how}` })
         taskEvent(t, me.session, undefined, whom === "reviewer" ? "подталкивание приёмщика" : "подталкивание")
         host.posted([target])
-        return { content: `Задача ${taskRef(t)}: ${whom === "reviewer" ? "приёмщик" : "исполнитель"} ${target} разбужен.` }
+        return { content: `Задача ${taskRef(t)}: ${whom === "reviewer" ? "приёмщик" : "исполнитель"} ${target} — письмо поставлено в Crew-mailbox. Native acceptance и начало нового хода ещё не подтверждены; stuck сохранён до связанного старта. Диагностика — crew_task show и crew_doctor; предел подтверждения после native отправки — 120 секунд.` }
       }
       // ПРИЁМКА ЗАДАЧИ С СЕССИЯМИ МЕТОДИКИ (задача 058, REQ-09): одна на задачу, по действию интегратора
       if (action === "deliver") {
@@ -3784,7 +3839,7 @@ ${lockStillYours(stillHeld.n)}` : "") }
   const crewStepNote: CrewTool = {
     name: "crew_step_note",
     description:
-      "Answer the plugin's letter about the term of a task step (\"Шаг стоит N мин, срок вышел\"), or write down the owner's decision. The holder of the step answers with reason (what is done, what you wait for, why the step stands) and minutes (how long to extend, at most step_extend_minutes, default 30) - the term is extended once per letter - or with done: true when the step is done. The same reason twice, or no answer for step_answer_minutes (default 15), makes the plugin raise a question to the owner with options (wait more, narrow the task, change the executor, give up). After the owner's word the AUTHOR of the task writes the decision: decide wait|narrow|reassign|cancel with who (the owner's word with the date and the source) and minutes (the new term for wait). The author also records a stop by the owner's word: hold HOLD|STOP with who (the plugin stops watching the term of this task) and release with who. Without n the call answers the step that waits for this window.",
+      "Ответ на письмо о сроке шага: reason + minutes (одно продление до step_extend_minutes) либо done. Повтор причины или молчание поднимает вопрос. Решение владельца пишет автор: decide wait|narrow|reassign|cancel + who. HOLD/STOP с who: hold_scope execution (пауза), external (wait_id, minutes как срок проверки результата) или gate (запрет приёмки/слияния); hold_gate сочетает внешний wait с gate. Без scope — legacy/неуточнённый, исполнение запрещено, автоматической миграции нет. Release/уточнение — только по явному слову владельца. Health работает независимо от срока/HOLD: wait_result + wait_id + reason фиксирует внешний terminal; health_blocker сохраняет ответственного и next-check, повтор не переносит срок, просрочка эскалирует. Ни terminal, ни диагностика не снимают gate/HOLD и не разрешают rerun. Без n — ответ на шаг этого окна.",
     input: {
       type: "object",
       properties: {
@@ -3796,6 +3851,11 @@ ${lockStillYours(stillHeld.n)}` : "") }
         decide: { type: "string", enum: ["wait", "narrow", "reassign", "cancel"], description: "The owner's decision on the open question (author only, needs who)" },
         who: str("The owner's word with the date and the source, e.g. 'owner, 2026-10-24, chat, ...' (needed for decide, hold and release)"),
         hold: { type: "string", enum: ["HOLD", "STOP"], description: "Mark the task as held or stopped by the owner's word (author only, needs who)" },
+        hold_scope: { type: "string", enum: ["execution", "external", "gate"], description: "Explicit meaning: execution pause, external-result wait, or acceptance/merge prohibition. Omitted means legacy/unclassified, execution blocked. Changing a legacy meaning requires the owner's explicit decision (who). Health monitoring stays on." },
+        hold_gate: { type: "boolean", description: "Also prohibit acceptance/merge (combines with external wait); author only, explicit owner's decision in who. Events never clear it." },
+        wait_id: { type: "string", description: "Correlation ID of external run/watch. Required for a new external HOLD; minutes sets its result-check deadline." },
+        wait_result: { type: "string", enum: ["failed", "cancelled", "timeout", "succeeded"], description: "Record the current wait_id terminal result with reason/source; author or holder. Does not release HOLD/gate or authorize rerun." },
+        health_blocker: { type: "string", description: "Explicit blocker of already requested emergency diagnostics; author or holder. Not a claim of resumed progress; HOLD/gate stay unchanged." },
         release: { type: "boolean", description: "Remove the HOLD/STOP mark (author only, needs who)" },
       },
       additionalProperties: false,
@@ -3868,6 +3928,7 @@ ${lockStillYours(stillHeld.n)}` : "") }
       // запреты проекта (план 002.7, п.6): команду запустит сервер мимо прав окна — сверка здесь, до постановки
       const refused = watchRefusal(command, cwd)
       if (refused) return { content: refused }
+      if ([me.task, me.review].some(r => r && executionHeld(taskHold(r.project, r.n)))) return { content: "HOLD/STOP запрещает запуск новой команды. Уже работающий процесс не прерывается; метку снимает автор только по явному слову владельца." }
       const w = requestWatch({ session: me.session, command, cwd, note: String(input.note ?? "").trim() || undefined, minutes: input.minutes, machine, project, env: watchEnv(me, project) })
       const ahead = machine ? machineQueue(project).filter((x) => x.id !== w.id).length : 0
       const queueText = machine ? `${heavyBy && input.machine !== true ? ` Команда — тяжёлый прогон (heavy_commands: «${heavyBy}»), поэтому в очереди машины.` : ""} Команда грузит машину: стоит в очереди машины проекта${ahead ? `, перед ней ${ahead}` : ""} — запустится, когда освободится место (machine_slots).` : ""
@@ -4147,5 +4208,11 @@ export function commonDoctor(sessionID?: string): string[] {
   else if (sessionID && !process.env.CREW_HARNESS_PRESENCE && !tabOf(sessionID, windows) && !readJson<Card>(cardFile(sessionID))?.spawned) out.push("эта вкладка не видна ни одному окну: она открыта в окне, запущенном до подключения плагина окна? Открой окно заново")
   out.push(...branchProblems(BASE)) // окна не на своей ветке или не в своём каталоге (задача 157)
   out.push(...stepProblems(Date.now())) // срок шага вышел, вопрос владельцу открыт (задача 161)
+  out.push(...nativeProblems(Date.now()))
+  for (const c of allCards()) {
+    if (c.spawned?.status === "closed") continue
+    const a = readWake(c.session)
+    if (a && ["error", "timeout"].includes(a.phase)) out.push(`пробуждение ${c.session}: ${a.phase}, ID ${a.id}, попыток ${a.tries}; ${a.why}; stuck не снимается без связанного старта`)
+  }
   return out
 }

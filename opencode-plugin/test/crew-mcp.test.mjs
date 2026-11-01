@@ -29,7 +29,7 @@ db.exec("create table session_v2 (id text primary key, directory text, title tex
 for (const [id, dir] of Object.entries({ ...dirOf, sesDDDDDD: dirs.D })) db.prepare("insert into session_v2 values (?, ?, ?, null, null)").run(id, dir, id)
 db.close()
 
-const mod = await import(process.env.CREW_MODULE ?? "../index.ts")
+const mod = await import(process.env.CREW_MODULE ?? "./fixture-plugin.mjs")
 const hooks = {}
 const tools = {}
 const delivered = []
@@ -213,7 +213,7 @@ try {
   integ.child.kill()
 }
 
-stop?.()
+await stop?.()
 await wait(100)
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-mcp.test: FAIL ${fail}` : "crew-mcp.test ok")
