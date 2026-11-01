@@ -1,6 +1,7 @@
 // A fake ACP agent for the tests of src/acp (task 095): JSON-RPC 2.0 over stdio, one message per line.
 //   node fake_agent.mjs [--no-initialize] [--no-session] [--auth-error] [--live] [--ask]
 // `--ask`: the agent says in its capabilities that it takes an HTTP MCP server (mcpCapabilities.http) and keeps the servers of session/new.
+// `--user-echo`: default echo strips leading crew reminders; without it raw prompt echo is preserved.
 // Answers `initialize` and `session/new`; what a `session/prompt` does depends on the first word of the prompt text:
 //   (anything else)  an echo in three chunks, then end_turn
 //   pwd              a chunk with the working folder of the process (the folder the agent was started in)
@@ -347,7 +348,7 @@ async function prompt(id, params) {
     }
     case "env": {
       // the values of the named environment variables of this process (task 192m: the variables of the project of a session)
-      const names = text.split(" ").slice(1).filter((n) => n.length > 0);
+      const names = plain.split(" ").slice(1).filter((n) => n.length > 0);
       chunk("env " + names.map((n) => n + "=" + (process.env[n] === undefined ? "<unset>" : "[" + process.env[n] + "]")).join("; "));
       return respond(id, { stopReason: "end_turn" });
     }
@@ -376,7 +377,7 @@ async function prompt(id, params) {
       }
     }
     default: {
-      const words = ("Echo: " + text).split(" ");
+      const words = ("Echo: " + (args.includes("--user-echo") ? plain : text)).split(" ");
       for (let i = 0; i < words.length; i++) {
         chunk((i === 0 ? "" : " ") + words[i]);
         await sleep(5);
