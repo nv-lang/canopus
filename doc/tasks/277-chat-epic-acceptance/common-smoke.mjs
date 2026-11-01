@@ -33,6 +33,7 @@ const hash = file => createHash('sha256').update(fs.readFileSync(file)).digest('
 const built = JSON.parse(fs.readFileSync(path.join(artifacts, 'build-attestation.json'), 'utf8').replace(/^\uFEFF/, ''));
 if (built.candidate !== candidate || built.source_tree !== command('git', ['rev-parse', 'HEAD:src'])) throw Error('Build attestation does not bind this source');
 if (built.hub_sha256 !== hash(path.join(root, 'target/crew-hub.exe')) || built.front_sha256 !== hash(path.join(root, 'target/crew-harness.exe'))) throw Error('Built binary changed');
+if (built.preparation_sha256 !== hash(path.join(root, 'src/server/preparation-agent.mjs'))) throw Error('Restricted runtime asset changed');
 const dir = path.join(artifacts, 'common-smoke');
 if (fs.existsSync(dir)) throw Error('Use new artifacts; never overwrite old evidence');
 if (!await portIsFree(port)) throw Error('New isolated port is occupied; never adopt its server');
@@ -97,6 +98,9 @@ async function connect() {
     events.push(...batch); allEvents.push(...batch);
   };
   await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
+  const replayDeadline = Date.now() + 15000;
+  while (!events.some(event => event.kind === 'sessions_ready') && Date.now() < replayDeadline) await pause(30);
+  if (!events.some(event => event.kind === 'sessions_ready')) { ws.close(); throw Error('Initial session replay did not complete'); }
   return {
     events, close: () => ws.close(),
     send(kind, trace, input) { ws.send(JSON.stringify({ id: `common277-${++serial}`, trace, kind, input, step: 0, time: Date.now() })); },
@@ -173,11 +177,15 @@ try {
   await page.wait('common-plain', 'agent_chunk', afterSlow);
   page.send('cancel', 'common-plain', {});
   check('streaming cancellation traverses actual front/hub', Boolean(await page.wait('common-plain', 'cancel', afterSlow)));
+  const expectedMessages = page.of('common-plain').filter(event => event.kind === 'user_message').map(event => event.input.text).sort();
   page.close(); await stop(); await start(); page = await connect();
   const replay = await page.wait('common-plain', 'session_created');
   await page.wait('common-plain', 'question_resolved');
   check('restart preserves projectless identity and real history', replay && !replay.input.project_id && !replay.input.folder
     && page.of('common-plain').some(event => event.kind === 'user_message') && page.of('common-plain').some(event => event.kind === 'question_resolved'));
+  const replayedMessages = page.of('common-plain').filter(event => event.kind === 'user_message').map(event => event.input.text).sort();
+  check('restart replays every distinct original message with exact multiplicity', new Set(expectedMessages).size >= 2
+    && JSON.stringify(replayedMessages) === JSON.stringify(expectedMessages), JSON.stringify({expectedMessages,replayedMessages}));
   check('restart replays the same per-turn confirmed actual snapshots', dispatched.length === 2 && dispatched.every(actual =>
     page.of('common-plain').some(event => event.kind === 'agent_actual' && event.input.turn === actual.turn
       && event.input.dispatch_id === actual.dispatch_id && event.input.family === actual.family

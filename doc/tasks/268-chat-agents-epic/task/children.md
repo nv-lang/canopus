@@ -4,7 +4,7 @@
 |---|---|---|---|---|---|---|---|
 | 269 | дочерняя | Пресеты и пулы моделей: настройки и выбор исполнителя | doc/tasks/269-agent-pools | task/269-agent-pools | прежний исполнитель | идёт | src/config/presets.nv; src/config; src/server |
 | 270 | дочерняя | Компактный выбор агента, поиск и шкала усилия | doc/tasks/270-agent-picker | task/270-agent-picker | прежний исполнитель | идёт | src/web/view.js; src/web/app.css; src/web/test/agent-choice.test.mjs |
-| 271 | дочерняя | Подготовка задачи и интерактивная работа без смешения маршрутов | doc/tasks/271-chat-work-modes | task/271-chat-work-modes | прежний исполнитель | идёт | src/web/routes.js; src/web/crew-task-ui.js; src/server; doc/routes |
+| 271 | дочерняя | Подготовка задачи и интерактивная работа без смешения маршрутов | doc/tasks/271-chat-work-modes | task/271-chat-work-modes | прежний исполнитель | готово | src/web/routes.js; src/web/crew-task-ui.js; src/server; doc/routes |
 | 272 | дочерняя | Подтверждения действий по семьям агентов | doc/tasks/272-family-approvals | task/272-family-approvals | прежний исполнитель | идёт | src/server/acp; src/server/turn; src/web/view.js; src/config |
 | 273 | дочерняя | Голосовой ввод в компактном поле сообщения | doc/tasks/273-voice-composer | task/273-voice-composer | прежний исполнитель | идёт | src/web/voice.js; src/web/stt.js; src/web/recorder.js; src/web/view.js |
 | 274 | дочерняя | Новый чат по центру и выбор папки проекта | doc/tasks/274-new-chat-projects | task/274-new-chat-projects | прежний исполнитель | идёт | src/web/projects-ui.js; src/web/projects-api.js; src/web/view.js; src/server/front/projects_api.nv |

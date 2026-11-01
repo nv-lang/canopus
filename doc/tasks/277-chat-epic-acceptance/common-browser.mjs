@@ -94,8 +94,13 @@ try {
     await until(`document.querySelector('.agent-picker-anchor > .menu')?.hidden===false`);
     const boxes = await evaluate(`(() => { const button=document.querySelector('.agent-picker-button').getBoundingClientRect(), menu=document.querySelector('.agent-picker-anchor > .menu').getBoundingClientRect();
       return {button:{x:button.x,right:button.right},menu:{x:menu.x,right:menu.right,y:menu.y,bottom:menu.bottom},width:innerWidth,models:document.querySelectorAll('.agent-picker-anchor .agent-model-row').length}; })()`);
-    check(`${width}: picker fits and remains attached to its trigger`, boxes.models > 0 && boxes.menu.x >= 0 && boxes.menu.right <= width + 1
+    check(`${width}: draft picker fits and remains attached to its trigger`, boxes.menu.x >= 0 && boxes.menu.right <= width + 1
       && boxes.menu.y >= 0 && boxes.menu.x <= boxes.button.right && boxes.menu.right >= boxes.button.x, JSON.stringify(boxes));
+    const unavailable = await evaluate(`(() => { const menu=document.querySelector('.agent-picker-anchor > .menu');return {
+      text:menu.textContent,models:menu.querySelectorAll('.agent-model-row').length,
+      families:[...menu.querySelectorAll('.menu-item')].map(row=>({text:row.textContent,disabled:row.disabled}))}; })()`);
+    check(`${width}: stock unavailable cannot invent cold models and retains configured families`, unavailable.models === 0 && unavailable.families.every(row => row.disabled)
+      && ['codex', 'second'].every(family => unavailable.families.some(row => row.text.includes(family) && row.disabled)), JSON.stringify(unavailable));
     await screenshot(`picker-${width}`);
     await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
     await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
@@ -103,17 +108,44 @@ try {
     check(`${width}: draft survives menu actions`, await evaluate(`document.querySelector('#composer-input').value==='common UI draft'`));
   }
   await call('Emulation.setDeviceMetricsOverride', { width: 1024, height: 768, deviceScaleFactor: 1, mobile: false });
+  // A stock unavailable draft has no honest model rows. Slider/anchor checks use
+  // only this fixture session's own saved options, never an invented cold catalog.
+  await click(`[...document.querySelectorAll('.session-item')].find(item=>item.querySelector('.session-name')?.textContent==='Common isolated')`);
+  await until(`!document.querySelector('.chat').hasAttribute('data-draft') || document.querySelector('.chat').dataset.draft!=='true'`);
+  for (const width of [1024, 360]) {
+    await call('Emulation.setDeviceMetricsOverride', { width, height: width === 360 ? 800 : 768, deviceScaleFactor: 1, mobile: false });
+    await click(`document.querySelector('.agent-picker-button')`);
+    await until(`document.querySelector('.agent-picker-anchor > .menu')?.hidden===false`);
+    const box = await evaluate(`(() => { const menu=document.querySelector('.agent-picker-anchor > .menu'),rect=menu.getBoundingClientRect(),button=document.querySelector('.agent-picker-button').getBoundingClientRect();return {
+      x:rect.x,right:rect.right,y:rect.y,buttonX:button.x,buttonRight:button.right,
+      models:[...menu.querySelectorAll('.agent-model-row')].map(row=>row.textContent)}; })()`);
+    check(`${width}: own-session models and anchor remain viewport safe`, box.models.length > 0 && box.models.every(text => text.includes('codex'))
+      && box.x >= 0 && box.right <= width + 1 && box.y >= 0 && box.x <= box.buttonRight && box.right >= box.buttonX, JSON.stringify(box));
+    await screenshot(`own-session-picker-${width}`);
+    await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
+    await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
+    check(`${width}: own-session Escape restores trigger focus`, await evaluate(`document.querySelector('.agent-picker-anchor > .menu').hidden && document.activeElement===document.querySelector('.agent-picker-button')`));
+  }
+  await call('Emulation.setDeviceMetricsOverride', { width: 1024, height: 768, deviceScaleFactor: 1, mobile: false });
   await click(`document.querySelector('.agent-picker-button')`);
   await click(`document.querySelector('.agent-model-row')`);
   const effort = [];
   for (const value of ['0', '1', '2']) effort.push(await evaluate(`(() => { const slider=document.querySelector('.effort-slider');slider.value=${JSON.stringify(value)};
     slider.dispatchEvent(new Event('input',{bubbles:true}));const parent=slider.parentElement;return {fill:slider.style.getPropertyValue('--effort-fill'),
-      animations:parent.getAnimations({subtree:true}).map(item=>item.animationName),track:getComputedStyle(slider,'::-webkit-slider-runnable-track').backgroundImage}; })()`));
+      animations:parent.getAnimations({subtree:true}).map(item=>item.animationName),track:getComputedStyle(slider,'::-webkit-slider-runnable-track').backgroundImage,
+      endpoint:getComputedStyle(slider).getPropertyValue('--effort-end').trim()}; })()`));
   check('effort fill follows only selected 0/50/100 percent', effort.map(item => item.fill).join(',') === '0%,50%,100%');
   check('stars animate at 50 percent and above', effort[1].animations.length > 0 && effort[2].animations.length > 0);
-  const colors = [...effort[2].track.matchAll(/rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/g)].map(match => match.slice(1, 4).map(Number));
-  const endpoint = colors.at(-1);
-  check('effort gradient ends in purple rather than theme blue', colors.length >= 2 && endpoint[0] > endpoint[1] && endpoint[2] > endpoint[1], JSON.stringify(effort));
+  // Chromium may report `none` for range pseudo computed background. Do not
+  // mistake that API limitation for a measured rendered-color verdict. Resolve
+  // the inherited endpoint and inspect the actual loaded rule; keep PNG evidence.
+  const paint = await evaluate(`(() => { const slider=document.querySelector('.effort-slider'),ctx=document.createElement('canvas').getContext('2d');
+    ctx.fillStyle=getComputedStyle(slider).getPropertyValue('--effort-end').trim();ctx.fillRect(0,0,1,1);
+    const rules=[...document.styleSheets].flatMap(sheet=>[...sheet.cssRules]);
+    const track=rules.find(rule=>rule.selectorText==='.effort-slider::-webkit-slider-runnable-track');
+    return {endpoint:[...ctx.getImageData(0,0,1,1).data],background:track?.style.background}; })()`);
+  check('loaded slider rule uses the resolved purple endpoint (style evidence, not pixel measurement)', paint.background?.includes('var(--effort-end)')
+    && paint.endpoint[0] > paint.endpoint[1] && paint.endpoint[2] > paint.endpoint[1], JSON.stringify({paint,effort}));
   await screenshot('effort-100');
   check('real product page has no runtime exceptions', exceptions.length === 0, JSON.stringify(exceptions));
   check('UI inspection did not send another user prompt', !frames.some(frame => frame.kind === 'user_message'));

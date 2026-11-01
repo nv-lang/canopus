@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{40}$')][string]$Candidate,
     [Parameter(Mandatory = $true)][string]$NovaHome,
     [Parameter(Mandatory = $true)][string]$Artifacts,
-    [ValidateSet('build', 'web', 'unit', 'live', 'acp', 'harness', 'migration', 'package', 'guards')][string]$Lane = 'unit'
+    [ValidateSet('build', 'web', 'union', 'unit', 'live', 'acp', 'harness', 'migration', 'package', 'guards')][string]$Lane = 'unit'
 )
 # Run only through crew_watch(machine:true). Never reuse the old audit runner's
 # fixed 73c97b5f result for this new assembly. No service or real agent is started.
@@ -60,6 +60,16 @@ $nova = Join-Path $NovaHome 'nova.exe'
 $env:TEMP = Join-Path $env:SystemDrive 'work/crew-harness-temp-277-common'
 $null = New-Item -ItemType Directory -Force -Path $env:TEMP
 $env:TMP = $env:TEMP
+if ($Lane -eq 'union' -or $Lane -eq 'live') {
+    # The helper side-effect oracle must use only a synthetic OpenCode config.
+    # Absence during Preparation plus presence after ordinary ACP is the paired
+    # control; KEEP_PLUGIN must not make both branches silently skip the helper.
+    $env:CREW_OPENCODE_KEEP_PLUGIN = ''
+    $env:XDG_CONFIG_HOME = Join-Path $artifactRoot ('fixture-xdg-' + $Lane)
+    $fixtureConfig = Join-Path $env:XDG_CONFIG_HOME 'opencode'
+    $null = New-Item -ItemType Directory -Force -Path $fixtureConfig
+    [System.IO.File]::WriteAllText((Join-Path $fixtureConfig 'opencode.json'), '{"model":"fixture/isolated-env"}')
+}
 if ($Lane -eq 'build') {
     if (Test-Path -LiteralPath (Join-Path $artifactRoot 'build-attestation.json')) { throw 'Use new build artifacts; prior attestation must stay immutable.' }
     $null = New-Item -ItemType Directory -Force -Path 'target'
@@ -74,18 +84,21 @@ if ($Lane -eq 'build') {
         source_tree = ((& git rev-parse HEAD:src) -join '').Trim()
         hub_sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath 'target/crew-hub.exe').Hash.ToLowerInvariant()
         front_sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath 'target/crew-harness.exe').Hash.ToLowerInvariant()
+        preparation_sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath 'src/server/preparation-agent.mjs').Hash.ToLowerInvariant()
     }
     $built = Join-Path $artifactRoot 'built'
     $null = New-Item -ItemType Directory -Path $built -ErrorAction Stop
     foreach ($program in @('crew-hub.exe', 'crew-harness.exe')) {
         [System.IO.File]::Copy((Join-Path $root ('target/' + $program)), (Join-Path $built $program), $false)
     }
+    [System.IO.File]::Copy((Join-Path $root 'src/server/preparation-agent.mjs'), (Join-Path $built 'preparation-agent.mjs'), $false)
     $attestation | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $artifactRoot 'build-attestation.json') -Encoding UTF8
     exit 0
 }
 [string[]]$paths = switch ($Lane) {
-    'unit' { @('src/config', 'src/acp', 'src/server', 'src/projects', 'src/agent_pool_tests', 'src/family_approval_tests', 'src/model_metadata_tests', 'src/product_machines') }
-    'live' { @('src/server_live', 'src/agent_pool_live_tests', 'src/server_preparation_live', 'src/server_projectless_live', 'src/server_workspace_live', 'src/server_delivery_live', 'src/server_hidden_wait') }
+    'union' { @('src/server', 'src/server_preparation_backend_live') }
+    'unit' { @('src/config', 'src/acp', 'src/server', 'src/server/front', 'src/projects', 'src/agent_pool_tests', 'src/family_approval_tests', 'src/model_metadata_tests', 'src/product_machines') }
+    'live' { @('src/server_live', 'src/agent_pool_live_tests', 'src/server_preparation_live', 'src/server_preparation_backend_live', 'src/server_projectless_live', 'src/server_workspace_live', 'src/server_delivery_live', 'src/server_hidden_wait') }
     'acp' { @('src/acp_live') }
 }
 if ($paths.Count -eq 0) { throw 'No paths for the selected full lane.' }
