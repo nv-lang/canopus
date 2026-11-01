@@ -22,7 +22,8 @@ import crew_harness.product_machines.{find_machines_dir, load_product_machines}
 import alula.machine_run.{AlulaMachine, AlulaState}
 import crew_harness.acp.{AcpConfig, AcpClient, AcpImage, AcpPreset, AskSetup, no_ask, open_client_full, acp_link, page_event, TRACE_LIMIT}
 import crew_harness.config.{pick_prompt, ConfigLayout, load_presets, preset_named, preset_family, DEFAULT_PRESET, presets_reply}
-import crew_harness.config.{PoolEntry, ModelPool, parse_agent_source, preset_pick, resolve_pool_pinned}
+import crew_harness.config.{PoolEntry, ModelPool, parse_agent_source, preset_pick_weight, pick_source_json, pool_level_ok, resolve_pool_pinned}
+import crew_harness.config.{load_roles, role_of}
 import crew_harness.projects.{EnvEntry, projects_get, parse_dotenv, normalize_folder_path, project_has_folder, valid_project_id}
 import crew_harness.storage.{remove_session_dir, open_data_dir, file_journal, file_store, list_sessions, valid_session_name, session_file_made, migrate_flat_sessions, image_ext, decode_image, save_image, find_image, replace_file}
 import crew_harness.pgstore.{PgWorld, pg_journal, pg_store}
@@ -1023,7 +1024,7 @@ fn Hub mut @create(conn int, trace str, input JsonObject) Proc Detach Time -> ()
             @add_session(s)
             ro at = @sessions.len() - 1
             @drain(at)
-            if jtext(input, "preset").byte_len() > 0 { @set_preset(trace, jtext(input, "preset")) }
+            if jtext(input, "preset").byte_len() > 0 { @set_preset(trace, jtext(input, "preset"), input) }
             match jchild(input, "source") {
                 Some(source) => @set_source(trace, source)
                 None => ()
@@ -1468,10 +1469,56 @@ fn Hub @preset_family_of(s Dialog, role str) -> str {
     }
 }
 
+fn Hub @assignment_weight(s Dialog) -> str {
+    mut weight = ""
+    mut snapshot = Dialog { ...s }
+    for e in history_in(@settings.store == "pg", @settings.data_dir, snapshot) {
+        if e.kind == EventKind.Input && e.name == "session_preset" { weight = jtext(jobject(e.input) ?? JsonObject.new(), "weight") }
+    }
+    weight
+}
+
+fn Hub @available_sources(exclude str) -> []PoolEntry {
+    mut available = []PoolEntry.new()
+    for (family, record) in @catalog {
+        if family == exclude || @settings.agent(family).is_none() { continue }
+        match record.object() {
+            Some(o) => for model in jlist(o, "models") {
+                match model.object() {
+                    Some(m) => available.push(PoolEntry { family, model: jtext(m, "id"), effort: "", active: true })
+                    None => ()
+                }
+            }
+            None => ()
+        }
+    }
+    available
+}
+
 // The owner chose the preset of the session (a name of a preset that exists; "" - the preset of the settings): the same session and journal, every page is told by the event `session_preset`.
-fn Hub mut @set_preset(trace str, name str) Proc Detach Time -> () {
+fn Hub mut @set_preset(trace str, name str, assignment JsonObject) Proc Detach Time -> () {
     ro at = @find(trace)
     if at < 0 { return }
+    if !@takes_message_at(at) { @tell_error(0, trace, @sessions[at].engine.step_number(), "", "Нельзя менять назначение во время хода"); return }
+    for key in ["role", "weight"] {
+        match assignment.get(key) {
+            Some(v) => if v.str().is_none() { @tell_error(0, trace, @sessions[at].engine.step_number(), "", "Поле ${key} должно быть строкой"); return }
+            None => ()
+        }
+    }
+    ro role = jtext(assignment, "role")
+    ro weight = jtext(assignment, "weight")
+    if weight.byte_len() > 0 && !pool_level_ok(weight) { @tell_error(0, trace, @sessions[at].engine.step_number(), "", "Неизвестный вес задачи: ${weight}"); return }
+    if role.byte_len() > 0 {
+        ro roles = match with Fs = real_fs() { load_roles(@settings.layout) } {
+            Ok(list) => list
+            Err(e) => { @tell_error(0, trace, @sessions[at].engine.step_number(), "", e); return }
+        }
+        match role_of(roles, role) {
+            Some(r) => if r.independent { @tell_error(0, trace, @sessions[at].engine.step_number(), "", "Независимую роль запускает только серверная операция проверки"); return }
+            None => { @tell_error(0, trace, @sessions[at].engine.step_number(), "", "Неизвестная роль: ${role}"); return }
+        }
+    }
     if name.byte_len() > 0 {
         ro known = match with Fs = real_fs() { load_presets(@settings.layout, @settings.route_reviewer_order) } {
             Ok(list) => preset_named(list, name).is_some()
@@ -1484,7 +1531,10 @@ fn Hub mut @set_preset(trace str, name str) Proc Detach Time -> () {
     }
     mut s = @sessions[at]
     s.preset = name
-    accept_in(@settings.store == "pg", @settings.data_dir, s, Incoming.signal("session_preset", preset_text(name)))
+    mut selected = jobject(preset_text(name)).unwrap()
+    jput(selected, "role", JsonValue.str(if role.byte_len() > 0 { role } else { "dev" }))
+    jput(selected, "weight", JsonValue.str(weight))
+    accept_in(@settings.store == "pg", @settings.data_dir, s, Incoming.signal("session_preset", JsonValue.object(selected).to_str()))
     @sessions[at] = s
     @drain(at)
 }
@@ -1717,17 +1767,27 @@ fn Hub mut @source_for_turn(trace str) Proc Detach Time -> bool {
     mut s = @sessions[at]
     mut source Option[JsonObject] = None
     mut pinned Option[JsonObject] = None
+    mut role = "dev"
+    mut weight = ""
     for e in history_in(@settings.store == "pg", @settings.data_dir, s) {
+        if e.kind == EventKind.Input && e.name == "session_preset" {
+            ro assignment = jobject(e.input) ?? JsonObject.new()
+            role = jtext(assignment, "role")
+            if role.byte_len() == 0 { role = "dev" }
+            weight = jtext(assignment, "weight")
+            source = None
+            pinned = None
+        }
         if e.kind == EventKind.Input && e.name == "session_source" {
             source = jobject(e.input)
             pinned = None
         }
         if e.kind == EventKind.Input && e.name == "agent_selected" { pinned = jobject(e.input) }
     }
-    if source.is_none() && @preset_name_of(s) != DEFAULT_PRESET {
+    if source.is_none() {
         match with Fs = real_fs() { load_presets(@settings.layout, @settings.route_reviewer_order) } {
             Ok(list) => match preset_named(list, @preset_name_of(s)) {
-                Some(p) => match preset_pick(p, "dev") {
+                Some(p) => match preset_pick_weight(p, role, weight) {
                     Some(k) => {
                         mut o = JsonObject.new()
                         if k.pool.byte_len() > 0 {
@@ -1738,7 +1798,7 @@ fn Hub mut @source_for_turn(trace str) Proc Detach Time -> bool {
                             jput(o, "model", JsonValue.str(k.model))
                             jput(o, "effort", JsonValue.str(k.effort))
                         }
-                        source = Some(o)
+                        if p.origin != "built-in" { source = Some(o) }
                     }
                     None => ()
                 }
@@ -1755,19 +1815,7 @@ fn Hub mut @source_for_turn(trace str) Proc Detach Time -> bool {
     }
     mut actual = PoolEntry { family: if pick.family.byte_len() > 0 { pick.family } else { s.agent }, model: pick.model, effort: pick.effort, active: true }
     if pick.pool.byte_len() > 0 {
-        mut available = []PoolEntry.new()
-        for (family, record) in @catalog {
-            if @settings.agent(family).is_none() { continue }
-            match record.object() {
-                Some(o) => for model in jlist(o, "models") {
-                    match model.object() {
-                        Some(m) => available.push(PoolEntry { family, model: jtext(m, "id"), effort: "", active: true })
-                        None => ()
-                    }
-                }
-                None => ()
-            }
-        }
+        ro available = @available_sources("")
         ro bytes = with Random = real_random() { Random.bytes(4) }
         mut ticket = 0
         for b in bytes { ticket = ticket * 256 + b as int }
@@ -1832,6 +1880,8 @@ fn Hub mut @source_for_turn(trace str) Proc Detach Time -> bool {
     jput(selected, "model", JsonValue.str(actual.model))
     jput(selected, "effort", JsonValue.str(actual.effort))
     jput(selected, "source_effort", JsonValue.str(actual.effort))
+    jput(selected, "role", JsonValue.str(role))
+    jput(selected, "weight", JsonValue.str(weight))
     jput(selected, "pool", JsonValue.str(pick.pool))
     jput(selected, "level", JsonValue.str(pick.level))
     accept_in(@settings.store == "pg", @settings.data_dir, s, Incoming.signal("agent_selection", JsonValue.object(selected).to_str()))
@@ -1997,7 +2047,7 @@ export fn Hub mut @handle(conn int, text str) Proc Detach Time -> () {
     } else if kind == "session_rename" {
         @rename(trace, jtext(input, "name"))
     } else if kind == "session_preset" {
-        @set_preset(trace, jtext(input, "preset"))
+        @set_preset(trace, jtext(input, "preset"), input)
     } else if kind == "session_setting" {
         @choose(trace, jtext(input, "setting"), jtext(input, "value"))
     } else if kind == "machine_state_get" {

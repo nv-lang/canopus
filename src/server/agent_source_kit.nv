@@ -2,6 +2,19 @@
 module crew_harness.server
 
 import crew_harness.config.{layout_with_data_dir}
+import alula.engine.{EventKind}
+import std.encoding.json.{JsonObject}
+
+// The shared kit_ask gathers chunks by turn id across every session. This scenario
+// restarts a multi-session hub, so scope evidence to the actual session as well.
+fn source_ask(mut rig Rig, trace str, text str) Proc Detach Time Net Fs Os -> str {
+    ro ignored = kit_ask(rig, trace, text)
+    mut own = []str.new()
+    for line in rig.lines_for(1) {
+        if line_field(line, "trace") == trace { own.push(line) }
+    }
+    answer_of(own, line_input(kit_last_of(own, "user_message"), "turn"))
+}
 
 export fn scenario_agent_source(settings ServerSettings) Proc Detach Time Net Fs Os -> str {
     mut c = kit_check()
@@ -49,6 +62,79 @@ export fn scenario_agent_source(settings ServerSettings) Proc Detach Time Net Fs
     again.page(1, "user_message", "s-source", "{\"text\":\"must not use a fallback\"}")
     c.expect(again.until("agent source not offered", 10000), "unavailable direct model is refused instead of replaced")
     c.expect(kit_with(again.lines_for(1), "Echo: must not use a fallback") == 0, "no fallback prompt reaches the agent")
+    ro weighted = write_file("${settings.data_dir}/inst/config/presets/weighted269.json", "{\"roles\":{\"dev\":{\"default\":{\"family\":\"opencode\",\"model\":\"fake-model\",\"effort\":\"medium\"},\"by_weight\":{\"heavy\":{\"family\":\"opencode\",\"model\":\"fake-model-b\",\"effort\":\"high\"}}},\"dev_accept\":{\"family\":\"second\",\"model\":\"fake-model-b\",\"effort\":\"high\"}}}")
+    again.page(1, "session_created", "s-weight", "{\"name\":\"Вес\",\"agent\":\"opencode\",\"preset\":\"weighted269\"}")
+    ro default_answer = source_ask(again, "s-weight", "mode")
+    c.expect(default_answer == "mode: default model: fake-model effort: medium", "missing weight uses role default (actual: ${default_answer})")
+    again.page(1, "session_preset", "s-weight", "{\"preset\":\"weighted269\",\"weight\":\"heavy\"}")
+    c.expect(source_ask(again, "s-weight", "mode") == "mode: default model: fake-model-b effort: high", "explicit weight override reaches confirmed ACP dispatch")
+    again.forget()
+    again.page(1, "session_preset", "s-weight", "{\"preset\":\"weighted269\",\"weight\":\"unknown\"}")
+    c.expect(again.until("Неизвестный вес", 5000), "unknown task weight is refused")
+    again.forget()
+    again.page(1, "session_preset", "s-weight", "{\"preset\":\"weighted269\",\"role\":\"unknown\"}")
+    c.expect(again.until("Неизвестная роль", 5000), "unknown role is refused")
+    again.forget()
+    again.page(1, "session_preset", "s-weight", "{\"preset\":\"weighted269\",\"role\":\"dev_accept\"}")
+    c.expect(again.until("Независимую роль", 5000), "user assignment cannot launch an independent reviewer")
+    c.expect(source_ask(again, "s-weight", "mode") == "mode: default model: fake-model-b effort: high", "invalid assignments do not change pinned executor")
+    ro review_at = again.hub.find("s-weight")
+    again.hub.route_start_review(review_at, 0, RouteStep { id: "check", kind: "independent", title: "Проверка", required: true, prompt: "review" })
+    again.run(3000)
+    mut reviewed = again.hub.sessions[review_at]
+    mut confirmed_review = false
+    mut review_details = "no review_selected"
+    for event in history_in(configured.store == "pg", configured.data_dir, reviewed) {
+        if event.kind == EventKind.Input && event.name == "review_selected" {
+            ro choice = jobject(event.input) ?? JsonObject.new()
+            review_details = event.input
+            confirmed_review = jtext(choice, "family") == "second" && jtext(choice, "model") == "fake-model-b" && jtext(choice, "effort") == "high"
+        }
+    }
+    c.expect(confirmed_review, "independent reviewer confirms its own exact model and effort before dispatch (${review_details})")
+    ro pool_review = write_file("${settings.data_dir}/inst/config/presets/reviewpool269.json", "{\"roles\":{\"dev_accept\":{\"pool\":\"review\",\"level\":\"light\"}},\"pools\":{\"review\":{\"light\":[{\"family\":\"opencode\",\"model\":\"fake-model-b\",\"effort\":\"high\"},{\"family\":\"second\",\"model\":\"fake-model\",\"effort\":\"medium\"}]}}}")
+    again.page(1, "session_preset", "s-weight", "{\"preset\":\"reviewpool269\",\"weight\":\"heavy\"}")
+    again.hub.route_start_review(review_at, 0, RouteStep { id: "check", kind: "independent", title: "Проверка", required: true, prompt: "review" })
+    again.run(3000)
+    reviewed = again.hub.sessions[review_at]
+    mut pool_confirmed = false
+    for event in history_in(configured.store == "pg", configured.data_dir, reviewed) {
+        if event.kind == EventKind.Input && event.name == "review_selected" {
+            ro choice = jobject(event.input) ?? JsonObject.new()
+            if jtext(choice, "pool") == "review" { pool_confirmed = jtext(choice, "family") == "second" && jtext(choice, "model") == "fake-model" && jtext(choice, "effort") == "medium" && jtext(choice, "level") == "light" }
+        }
+    }
+    c.expect(pool_confirmed, "review pool excludes actual author family and does not translate heavy task weight to pool level")
+    ro same_family = write_file("${settings.data_dir}/inst/config/presets/same269.json", "{\"roles\":{\"dev_accept\":{\"family\":\"opencode\",\"model\":\"fake-model-b\",\"effort\":\"high\"}}}")
+    again.page(1, "session_preset", "s-weight", "{\"preset\":\"same269\"}")
+    again.forget()
+    again.hub.route_start_review(review_at, 0, RouteStep { id: "check", kind: "independent", title: "Проверка", required: true, prompt: "must not dispatch" })
+    c.expect(again.until("не независим", 3000), "reviewer matching the actual executor family is refused before dispatch")
+    c.expect(again.hub.reviews.len() == 0, "same-family review has no running ACP dispatch")
+    ro empty_review = write_file("${settings.data_dir}/inst/config/presets/emptyreview269.json", "{\"roles\":{\"dev_accept\":{\"pool\":\"only-author\",\"level\":\"heavy\"}},\"pools\":{\"only-author\":{\"heavy\":[{\"family\":\"opencode\",\"model\":\"fake-model\",\"effort\":\"medium\"}]}}}")
+    again.page(1, "session_preset", "s-weight", "{\"preset\":\"emptyreview269\"}")
+    again.forget()
+    again.hub.route_start_review(review_at, 0, RouteStep { id: "check", kind: "independent", title: "Проверка", required: true, prompt: "must not dispatch" })
+    c.expect(again.until("no active available models", 3000), "review pool without an available independent family refuses without fallback")
+    c.expect(again.hub.reviews.len() == 0, "empty independent pool has no ACP dispatch")
     again.shut()
+    mut rejecting_settings = ServerSettings { ...configured }
+    mut rejecting_agents = []AgentSpec.new()
+    for spec in configured.agents {
+        if spec.id == "second" {
+            mut rejecting = kit_agent("second", "--reject-effort-set", "")
+            rejecting.args.push("--prompt-marker=${settings.data_dir}/forbidden-review-prompt")
+            rejecting_agents.push(rejecting)
+        } else { rejecting_agents.push(spec) }
+    }
+    rejecting_settings.agents = rejecting_agents
+    mut rejected = rig_open(rejecting_settings)
+    rejected.attach(1)
+    rejected.page(1, "session_preset", "s-weight", "{\"preset\":\"weighted269\",\"weight\":\"heavy\"}")
+    rejected.forget()
+    rejected.hub.route_start_review(rejected.hub.find("s-weight"), 0, RouteStep { id: "check", kind: "independent", title: "Проверка", required: true, prompt: "must not dispatch after partial set" })
+    c.expect(rejected.until("проверяющий не запустился", 8000), "one rejected ACP set fails the independent review")
+    c.expect(read_file("${settings.data_dir}/forbidden-review-prompt").is_none(), "partial model confirmation followed by effort refusal dispatches no reviewer prompt")
+    rejected.shut()
     c.report()
 }

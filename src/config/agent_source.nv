@@ -118,6 +118,9 @@ export fn model_pools_json(pools []ModelPool) -> JsonValue {
 
 /// Reuse the preset parser for API sources so storage and wire validation cannot drift.
 export fn parse_agent_source(source JsonObject, pools []ModelPool) -> Result[Pick, str] {
+    for (key, value) in source {
+        if key != "family" && key != "model" && key != "effort" && key != "pool" && key != "level" { return Err("unknown session source key: ${key}") }
+    }
     mut roles = JsonObject.new()
     ign(roles.insert("dev", JsonValue.object(source)))
     mut root = JsonObject.new()

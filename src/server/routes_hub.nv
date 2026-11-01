@@ -6,9 +6,11 @@
 // Every change that must survive a restart is a signal of the journal (`route_set`, `route_task`, `route_step`, `route_note`, `route_review`); `RouteSession.apply` reads them again.
 module crew_harness.server
 
-import crew_harness.config.{modes_dirs}
+import crew_harness.config.{modes_dirs, PoolEntry, load_presets, preset_named, preset_pick_weight, pick_source_json, resolve_pool_pinned}
 import alula.engine.{Incoming, EventKind, Link}
-import crew_harness.acp.{AcpClient, AcpConfig, open_client_traced, acp_link}
+import crew_harness.acp.{AcpClient, AcpConfig, AcpPreset, open_client_traced, acp_link}
+import std.fs.{Fs, real_fs}
+import std.prelude.effects.{real_random}
 import crew_harness.projects.{projects_get, result_repo_validate}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 
@@ -18,7 +20,7 @@ const UNMERGED_MS = 10000
 
 // An independent review in flight: a hidden agent of another family, its answer is collected here.
 // `purpose` is "review" (a step of the mode) or "tests" (the button "Прогнать тесты": the hidden agent runs the tests in the tree and says the verdict).
-type Review { session str, step int, family str, title str, clients []AcpClient, sent bool, text str, failed str, started_at int, prompt str, purpose str }
+type Review { session str, step int, family str, title str, clients []AcpClient, sent bool, text str, failed str, started_at int, prompt str, purpose str, selection str }
 
 fn jint(o JsonObject, key str) -> int {
     match o.get(key) {
@@ -887,8 +889,51 @@ fn Hub mut @route_drop_review(session str) Time -> () {
 
 fn Hub mut @route_start_review(at int, index int, step RouteStep) Proc Detach Time -> () {
     if !@work_require(at, "execute") { return }
-    ro s = @sessions[at]
-    ro family = pick_reviewer_for(@preset_family_of(s, "dev_accept"), @settings.route_reviewer_order, @agent_ids(), s.agent)
+    mut s = @sessions[at]
+    mut actual = PoolEntry { family: "", model: "", effort: "", active: true }
+    mut selection = JsonObject.new()
+    ro presets = match with Fs = real_fs() { load_presets(@settings.layout, @settings.route_reviewer_order) } {
+        Ok(list) => list
+        Err(e) => { @tell_error(0, s.id, s.engine.step_number(), "", e); @route_stop(at); return }
+    }
+    match preset_named(presets, @preset_name_of(s)) {
+        Some(p) => match preset_pick_weight(p, "dev_accept", @assignment_weight(s)) {
+            Some(pick) => {
+                selection = pick_source_json(pick).object().unwrap()
+                if p.origin == "built-in" {
+                    actual.family = pick_reviewer_for(pick.family, @settings.route_reviewer_order, @agent_ids(), s.agent)
+                } else if pick.pool.byte_len() > 0 {
+                    mut pinned Option[PoolEntry] = None
+                    for e in history_in(@settings.store == "pg", @settings.data_dir, s) {
+                        if e.kind == EventKind.Input && e.name == "session_preset" { pinned = None }
+                        if e.kind == EventKind.Input && e.name == "review_selected" {
+                            ro previous = jobject(e.input) ?? JsonObject.new()
+                            if jtext(previous, "pool") == pick.pool && jtext(previous, "level") == pick.level {
+                                pinned = Some(PoolEntry { family: jtext(previous, "family"), model: jtext(previous, "model"), effort: jtext(previous, "effort"), active: true })
+                            }
+                        }
+                    }
+                    ro bytes = with Random = real_random() { Random.bytes(4) }
+                    mut ticket = 0
+                    for b in bytes { ticket = ticket * 256 + b as int }
+                    actual = match resolve_pool_pinned(p.pools, pick.pool, pick.level, @available_sources(s.agent), pinned, ticket) {
+                        Ok(selected) => selected
+                        Err(e) => { @tell_error(0, s.id, s.engine.step_number(), "", e); @route_stop(at); return }
+                    }
+                } else {
+                    actual = PoolEntry { family: pick.family, model: pick.model, effort: pick.effort, active: true }
+                }
+            }
+            None => { actual.family = pick_reviewer_for("", @settings.route_reviewer_order, @agent_ids(), s.agent) }
+        }
+        None => { @tell_error(0, s.id, s.engine.step_number(), "", "Пресет проверки не найден"); @route_stop(at); return }
+    }
+    ro family = actual.family
+    if family == s.agent || @settings.agent(family).is_none() {
+        @tell_error(0, s.id, s.engine.step_number(), "", "Источник проверки недоступен или не независим от исполнителя")
+        @route_stop(at)
+        return
+    }
     if family.byte_len() == 0 {
         @tell_error(0, s.id, s.engine.step_number(), "", "нет независимого проверяющего другой семьи: настройте agents и route_reviewer_order")
         @route_stop(at)
@@ -908,6 +953,17 @@ fn Hub mut @route_start_review(at int, index int, step RouteStep) Proc Detach Ti
             @route_stop(at)
         }
         Ok(client) => {
+            mut configured = AcpClient { ...client }
+            mut required = []AcpPreset.new()
+            if actual.model.byte_len() > 0 { required.push(AcpPreset { setting: "model", value: actual.model }) }
+            if actual.effort.byte_len() > 0 { required.push(AcpPreset { setting: "effort", value: actual.effort }) }
+            configured.set_source(required)
+            jput(selection, "family", JsonValue.str(actual.family))
+            jput(selection, "model", JsonValue.str(actual.model))
+            jput(selection, "effort", JsonValue.str(actual.effort))
+            jput(selection, "role", JsonValue.str("dev_accept"))
+            jput(selection, "weight", JsonValue.str(@assignment_weight(s)))
+            accept_in(@settings.store == "pg", @settings.data_dir, s, Incoming.signal("review_selection", JsonValue.object(selection).to_str()))
             ro n = s.rt.last_sub()
             ro message = read_file("${s.rt.task_dir}/${s.rt.msg_file(n)}") ?? "(файл постановки не найден)"
             ro status = git_run(cwd, ["status", "--short"])
@@ -915,8 +971,8 @@ fn Hub mut @route_start_review(at int, index int, step RouteStep) Proc Detach Ti
             ro answer = answer_of(s.lines, s.turn)
             ro prompt = review_prompt(route_fill(step.prompt, n, s.rt.task_shown), message, cut_text(if status.ok { status.text } else { "(папка не репозиторий git)" }, 4000), cut_text(if diff.ok { diff.text } else { "" }, 60000), cut_text(answer, 20000))
             mut clients = []AcpClient.new()
-            clients.push(client)
-            @reviews.push(Review { session: s.id, step: index, family, title: step.title, clients, sent: false, text: "", failed: "", started_at: now_millis(), prompt, purpose: "review" })
+            clients.push(configured)
+            @reviews.push(Review { session: s.id, step: index, family, title: step.title, clients, sent: false, text: "", failed: "", started_at: now_millis(), prompt, purpose: "review", selection: JsonValue.object(selection).to_str() })
             @rt_step(at, index + 1, "running")
             mut me = @sessions[at]
             me.rt.reviewing = true
@@ -939,7 +995,21 @@ fn Hub mut @route_review_poll(i int) Proc Detach Time -> bool {
     mut r = @reviews[i]
     r.clients[0].poll()
     ro phase = r.clients[0].phase()
-    if phase == "ready" && !r.sent {
+    if phase == "ready" && r.clients[0].sets_pending() == 0 && !r.sent {
+        if r.purpose == "review" {
+            mut selected = jobject(r.selection) ?? JsonObject.new()
+            ro options = jobject(r.clients[0].options()) ?? JsonObject.new()
+            jput(selected, "model", JsonValue.str(jtext(options, "model_id")))
+            jput(selected, "effort", JsonValue.str(jtext(options, "effort")))
+            ro at = @find(r.session)
+            if at < 0 { return true }
+            if @sessions[at].agent == r.family {
+                r.failed = "Семья проверяющего совпала с фактическим исполнителем; проверка не отправлена"
+                @reviews[i] = r
+                return true
+            }
+            accept_in(@settings.store == "pg", @settings.data_dir, @sessions[at], Incoming.signal("review_selected", JsonValue.object(selected).to_str()))
+        }
         r.sent = true
         @serial += 1
         with Link = acp_link(r.clients[0]) {
@@ -1554,7 +1624,7 @@ fn Hub mut @route_tests_run(trace str) Proc Detach Time -> () {
                 Ok(client) => {
                     mut clients = []AcpClient.new()
                     clients.push(client)
-                    @reviews.push(Review { session: s.id, step: -1, family: s.agent, title: "tests", clients, sent: false, text: "", failed: "", started_at: now_millis(), prompt: @route_tests_prompt(s), purpose: "tests" })
+                    @reviews.push(Review { session: s.id, step: -1, family: s.agent, title: "tests", clients, sent: false, text: "", failed: "", started_at: now_millis(), prompt: @route_tests_prompt(s), purpose: "tests", selection: "" })
                     mut me = @sessions[at]
                     me.rt.testing = true
                     @sessions[at] = me

@@ -5,6 +5,23 @@ import std.os.{Os, real_os, temp_dir, pid}
 import std.fs.{Fs, real_fs, write_text, create_dir_all, remove_dir_all, Path}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 
+test "269: role defaults and explicit weight overrides remain independent" {
+    ro text = "{\"roles\":{\"dev\":{\"default\":{\"family\":\"codex\",\"model\":\"base\",\"effort\":\"low\"},\"by_weight\":{\"heavy\":{\"pool\":\"mix\",\"level\":\"light\"}}},\"dev_accept\":{\"family\":\"claude\",\"model\":\"review\",\"effort\":\"max\"}},\"pools\":{\"mix\":{\"light\":[{\"family\":\"codex\",\"model\":\"pool-model\",\"effort\":\"native\"}]}}}"
+    ro p = parse_preset("weighted", "user", "weighted.json", text).unwrap()
+    assert(preset_pick_weight(p, "dev", "").unwrap().model == "base")
+    assert(preset_pick_weight(p, "dev", "medium").unwrap().effort == "low")
+    assert(preset_pick_weight(p, "dev", "heavy").unwrap().level == "light")
+    assert(preset_pick_weight(p, "dev_accept", "heavy").unwrap().model == "review")
+    ro wire = presets_json([p], "weighted", builtin_roles())
+    ro root = Json.parse(wire).unwrap().object().unwrap()
+    ro items = root.get("presets").unwrap().array().unwrap()
+    ro serialized = items[0].to_str()
+    ro again = parse_preset("weighted", "user", "roundtrip.json", serialized).unwrap()
+    assert(preset_pick_weight(again, "dev", "heavy").unwrap().pool == "mix")
+    assert(preset_pick_weight(again, "dev_accept", "light").unwrap().effort == "max")
+    assert(parse_preset("bad", "user", "bad.json", "{\"roles\":{\"dev\":{\"by_weight\":{}}}}").is_err())
+}
+
 fn tmp_root2(name str) -> str {
     ro base = with Os = real_os() { temp_dir() }
     ro id = with Os = real_os() { pid() }

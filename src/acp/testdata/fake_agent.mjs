@@ -47,6 +47,8 @@ const authError = args.includes("--auth-error");
 const askFlag = args.includes("--ask");
 // `--no-yolo`: the list of modes has no "yolo" (an agent that changed its list)
 const noYolo = args.includes("--no-yolo");
+const rejectEffortSet = args.includes("--reject-effort-set");
+const promptMarker = args.find((arg) => arg.startsWith("--prompt-marker="))?.slice("--prompt-marker=".length);
 // the choices of the owner live in the process only, as with a real agent
 const choice = { mode: "default", model: "fake-model", effort: "medium" };
 function modeList() {
@@ -433,10 +435,12 @@ function handle(line) {
     case "session/set_config_option": {
       const id = msg.params && msg.params.configId;
       if (id !== "model" && id !== "effort") return write({ jsonrpc: "2.0", id: msg.id, error: { code: -32602, message: "unknown option" } });
+      if (id === "effort" && rejectEffortSet) return write({ jsonrpc: "2.0", id: msg.id, error: { code: -32602, message: "fixture rejected effort" } });
       choice[id] = msg.params.value;
       return respond(msg.id, { configOptions: configOptions() });
     }
     case "session/prompt":
+      if (promptMarker) fs.writeFileSync(promptMarker, "prompt dispatched");
       if (!msg.params || msg.params.sessionId !== SESSION) {
         return write({ jsonrpc: "2.0", id: msg.id, error: { code: -32602, message: "unknown session" } });
       }

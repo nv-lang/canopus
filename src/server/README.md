@@ -8,6 +8,13 @@ Levels `light`, `medium`, `heavy` are independent of native model effort and tas
 Existing preset role records remain readable; a role can instead use `{"pool":"mix","level":"heavy"}`.
 
 The `session_source` page signal takes either `{family,model,effort}` or `{pool,level}` as its input.
+Preset role assignments also accept `{default: source, by_weight: {light?: source, medium?: source, heavy?: source}}`.
+The optional `role` and `weight` of `session_preset` are journaled; old events mean `dev` and no weight.
+No weight means the role default, never an inferred medium level or effort. Unknown values are refused.
+Independent roles cannot be launched through this user input. The server review operation resolves `dev_accept`
+with the explicit task weight and excludes the actual executor family. Explicit invalid or empty review sources
+fail closed. ACP model/effort requests must all settle before its prompt; `review_selection` and `review_selected`
+record the requested and confirmed independent choice separately from the executor's pinned source.
 `session_created.input.source` accepts the same source. The source is persisted in the session journal.
 `agent_selection` records a requested choice; `agent_selected` records the confirmed model and native effort.
 The selection stays pinned across turns and restarts while that exact pool entry remains active and available.

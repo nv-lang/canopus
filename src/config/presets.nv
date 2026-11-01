@@ -13,7 +13,7 @@ import std.encoding.json.{Json, JsonValue, JsonObject}
 import std.fs.{Fs, Path, read_dir}
 
 /// Pick: what a role is given in a preset: the family ("" - not said), the model and the effort ("" - the agent's own).
-export type Pick { role str, family str, model str, effort str, pool str, level str }
+export type Pick { role str, family str, model str, effort str, pool str, level str, weight str }
 
 /// Preset: the name, a line about it, where it comes from (`built-in`, `user`, `project`) and the picks of its roles.
 export type Preset { name str, description str, origin str, picks []Pick, pools []ModelPool }
@@ -27,8 +27,8 @@ export fn preset_name_ok(name str) -> bool => role_id_ok(name)
 /// The built-in preset `default`: `dev` is the first family of `order`, `dev_accept` the next one (a family that is not the author).
 export fn builtin_preset(order []str) -> Preset {
     mut picks = []Pick.new()
-    if order.len() > 0 { picks.push(Pick { role: "dev", family: order[0], model: "", effort: "", pool: "", level: "" }) }
-    if order.len() > 1 { picks.push(Pick { role: "dev_accept", family: order[1], model: "", effort: "", pool: "", level: "" }) }
+    if order.len() > 0 { picks.push(Pick { role: "dev", family: order[0], model: "", effort: "", pool: "", level: "", weight: "" }) }
+    if order.len() > 1 { picks.push(Pick { role: "dev_accept", family: order[1], model: "", effort: "", pool: "", level: "", weight: "" }) }
     { name: DEFAULT_PRESET, description: "Исполнитель и приёмщик из разных семей по порядку route_reviewer_order", origin: "built-in", picks, pools: []ModelPool.new() }
 }
 
@@ -37,6 +37,20 @@ fn str_of(o JsonObject, key str) -> str {
         Some(v) => v.str() ?? ""
         None => ""
     }
+}
+
+fn parse_role_source(role str, weight str, pick JsonObject) -> Result[Pick, str] {
+    for (key, value) in pick {
+        if key != "family" && key != "model" && key != "effort" && key != "pool" && key != "level" { return Err("unknown source key ${key} for role ${role}") }
+        if value.str() == None { return Err("source ${key} for role ${role} must be a string") }
+    }
+    ro pool = str_of(pick, "pool")
+    ro level = str_of(pick, "level")
+    if pool.byte_len() > 0 {
+        if !pool_level_ok(level) { return Err("pool source needs level light, medium or heavy") }
+        if str_of(pick, "family").byte_len() > 0 || str_of(pick, "model").byte_len() > 0 || str_of(pick, "effort").byte_len() > 0 { return Err("pool and direct source are mutually exclusive") }
+    } else if level.byte_len() > 0 { return Err("level needs a pool") }
+    Ok(Pick { role, weight, family: str_of(pick, "family"), model: str_of(pick, "model"), effort: str_of(pick, "effort"), pool, level })
 }
 
 /// A preset from the text of its file; `name` is the name of the file without `.json`. Err("file:line: reason").
@@ -63,17 +77,32 @@ export fn parse_preset(name str, origin str, file str, text str) -> Result[Prese
                     Some(x) => x
                     None => return Err("${file}:${key_line(text, role)}: the role ${role} must be an object {family, model, effort}")
                 }
-                for (k, field) in pick {
-                    if k != "family" && k != "model" && k != "effort" && k != "pool" && k != "level" { return Err("${file}:${key_line(text, k)}: unknown key ${k} in the role ${role} (family, model, effort, pool, level)") }
-                    if field.str() == None { return Err("${file}:${key_line(text, k)}: ${k} of the role ${role} must be a string") }
+                if pick.get("default").is_some() || pick.get("by_weight").is_some() {
+                    for (key, value) in pick {
+                        if key != "default" && key != "by_weight" { return Err("${file}:1: unknown role assignment key ${key}") }
+                    }
+                    ro base = match pick.get("default") {
+                        Some(v) => match v.object() { Some(x) => x, None => return Err("${file}:1: role default must be an object") }
+                        None => return Err("${file}:1: role assignment needs default")
+                    }
+                    picks.push(match parse_role_source(role, "", base) { Ok(p) => p, Err(e) => return Err("${file}:1: ${e}") })
+                    match pick.get("by_weight") {
+                        Some(v) => {
+                            ro weights = match v.object() { Some(x) => x, None => return Err("${file}:1: by_weight must be an object") }
+                            for (weight, raw) in weights {
+                                if !pool_level_ok(weight) { return Err("${file}:1: unknown task weight ${weight}") }
+                                ro source = match raw.object() { Some(x) => x, None => return Err("${file}:1: weight source must be an object") }
+                                picks.push(match parse_role_source(role, weight, source) { Ok(p) => p, Err(e) => return Err("${file}:1: ${e}") })
+                            }
+                        }
+                        None => ()
+                    }
+                } else {
+                    for (key, value) in pick {
+                        if key != "family" && key != "model" && key != "effort" && key != "pool" && key != "level" { return Err("${file}:${key_line(text, key)}: unknown source key ${key}") }
+                    }
+                    picks.push(match parse_role_source(role, "", pick) { Ok(p) => p, Err(e) => return Err("${file}:1: ${e}") })
                 }
-                ro pool = str_of(pick, "pool")
-                ro level = str_of(pick, "level")
-                if pool.byte_len() > 0 {
-                    if !pool_level_ok(level) { return Err("${file}:1: pool source needs level light, medium or heavy") }
-                    if str_of(pick, "family").byte_len() > 0 || str_of(pick, "model").byte_len() > 0 || str_of(pick, "effort").byte_len() > 0 { return Err("${file}:1: pool and direct source are mutually exclusive") }
-                } else if level.byte_len() > 0 { return Err("${file}:1: level needs a pool") }
-                picks.push(Pick { role, family: str_of(pick, "family"), model: str_of(pick, "model"), effort: str_of(pick, "effort"), pool, level })
             }
         }
     }
@@ -144,8 +173,18 @@ export fn preset_named(list []Preset, name str) -> Option[Preset] {
 
 /// The pick of a role in a preset.
 export fn preset_pick(p Preset, role str) -> Option[Pick] {
+    preset_pick_weight(p, role, "")
+}
+
+/// Weight selects only an explicit override; it never becomes a pool level or effort.
+export fn preset_pick_weight(p Preset, role str, weight str) -> Option[Pick] {
+    if weight.byte_len() > 0 {
+        for k in p.picks {
+            if k.role == role && k.weight == weight { return Some(k) }
+        }
+    }
     for k in p.picks {
-        if k.role == role { return Some(k) }
+        if k.role == role && k.weight.byte_len() == 0 { return Some(k) }
     }
     None
 }
@@ -172,6 +211,7 @@ export fn presets_json(list []Preset, active str, roles []Role) -> str {
     for p in list {
         mut table = JsonObject.new()
         for k in p.picks {
+            if k.weight.byte_len() > 0 { continue }
             mut one = JsonObject.new()
             ign(one.insert("family", JsonValue.str(k.family)))
             ign(one.insert("model", JsonValue.str(k.model)))
@@ -180,7 +220,21 @@ export fn presets_json(list []Preset, active str, roles []Role) -> str {
                 ign(one.insert("pool", JsonValue.str(k.pool)))
                 ign(one.insert("level", JsonValue.str(k.level)))
             }
-            ign(table.insert(k.role, JsonValue.object(one)))
+            mut weights = JsonObject.new()
+            mut has_weights = false
+            for override in p.picks {
+                if override.role != k.role || override.weight.byte_len() == 0 { continue }
+                has_weights = true
+                ign(weights.insert(override.weight, pick_source_json(override)))
+            }
+            if has_weights {
+                mut assignment = JsonObject.new()
+                ign(assignment.insert("default", JsonValue.object(one)))
+                ign(assignment.insert("by_weight", JsonValue.object(weights)))
+                ign(table.insert(k.role, JsonValue.object(assignment)))
+            } else {
+                ign(table.insert(k.role, JsonValue.object(one)))
+            }
         }
         mut o = JsonObject.new()
         ign(o.insert("name", JsonValue.str(p.name)))
@@ -195,6 +249,19 @@ export fn presets_json(list []Preset, active str, roles []Role) -> str {
     ign(out.insert("presets", JsonValue.array(items)))
     ign(out.insert("roles", roles_json(roles)))
     JsonValue.object(out).to_str()
+}
+
+export fn pick_source_json(p Pick) -> JsonValue {
+    mut o = JsonObject.new()
+    if p.pool.byte_len() > 0 {
+        ign(o.insert("pool", JsonValue.str(p.pool)))
+        ign(o.insert("level", JsonValue.str(p.level)))
+    } else {
+        ign(o.insert("family", JsonValue.str(p.family)))
+        ign(o.insert("model", JsonValue.str(p.model)))
+        ign(o.insert("effort", JsonValue.str(p.effort)))
+    }
+    JsonValue.object(o)
 }
 
 /// The reply of `GET /api/presets` for a layout: a broken file gives `{"error": "file:line: reason", ...}` with the built-in preset alone, so the page never breaks.
