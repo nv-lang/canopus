@@ -6,7 +6,7 @@ param(
 $ErrorActionPreference = 'Stop'
 if ($Stage -eq 'web') {
     $files = @(Get-ChildItem 'src/web/test/*.test.mjs' | ForEach-Object { $_.FullName })
-    & node --test --test-concurrency=4 @files
+    & node --test --test-concurrency=1 @files
     exit $LASTEXITCODE
 }
 if ($Stage -eq 'guards') {

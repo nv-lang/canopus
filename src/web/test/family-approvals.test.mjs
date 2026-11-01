@@ -28,6 +28,19 @@ test('неподдержанный режим не заменяется перв
   assert.equal(result.label, 'Plan'); // real current value, not claimed application
   assert.equal(result.groups[0].pending, true);
 });
+test('unset означает родное умолчание, а каталог не становится owner intent или подтверждением чата', () => {
+  const current = approvalView(model, { ...session, approvals: {} }, []);
+  assert.equal(current.groups[0].unset, true);
+  assert.equal(current.groups[0].requested, '');
+  assert.equal(current.label, 'Родное умолчание · Plan');
+  const cold = approvalView(model, { ...session, agent: 'codex', optionsAgent: '', approvals: {} }, []);
+  assert.equal(cold.label, 'Родное умолчание');
+  assert.equal(cold.groups[0].actual, '');
+  assert.equal(cold.groups[0].requested, '');
+  const pool = approvalView(model, { ...session, approvals: {} }, [{ id: 'codex' }], { pool: 'p', level: 'heavy' });
+  assert.equal(pool.groups[0].unset, true);
+  assert.equal(pool.groups[0].actual, '');
+});
 test('setting_chosen хранит requested отдельно от фактического agent_model и переживает смену модели', () => {
   let m = initialModel();
   const event = (id, kind, input, step) => ({ id, kind, input, trace: 's', step, time: step + 1 });
@@ -65,6 +78,7 @@ test('кнопка непосредственно перед микрофоно�
   const input = refs.main.querySelector('textarea'); input.value = 'Не потерять черновик';
   refs.main.querySelector('.family-approvals-button').click();
   const items = refs.main.querySelector('.family-approvals-menu').querySelectorAll('.menu-item');
+  assert.ok(items.every(item => item.getAttribute('aria-checked') === 'false'), 'native current without requested is not marked as an owner choice');
   items[0].click();
   assert.deepEqual(picks, [['s', 'opencode', 'build']]);
   view.render(m, ui, { state: 'connected' });
