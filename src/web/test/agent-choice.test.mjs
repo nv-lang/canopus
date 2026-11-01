@@ -18,6 +18,19 @@ for (const agents of [[], [{ id: 'opencode' }]]) {
     const model = reduce(initialModel(), { id: 'create', trace: 's', step: 0, time: 1,
       kind: 'session_created', input: { name: 'Проверка', agent: 'opencode' } });
     view.render(model, { selected: 's', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
+    if (agents.length === 0) {
+      assert.equal(refs.main.querySelector('.agent-picker-button').dataset.noChoices, 'true');
+      assert.match(refs.main.querySelector('.agent-picker-button').title, /нет настроенных|недоступны|агент/i);
+    } else {
+      const familyButton = refs.main.querySelector('.agent-picker-button');
+      familyButton.click();
+      const rows = refs.main.querySelectorAll('.menu-item');
+      assert.equal(rows.length, 1, 'configured unavailable family is represented without an invented model');
+      assert.equal(rows[0].disabled, true);
+      assert.equal(rows[0].getAttribute('aria-disabled'), 'true');
+      assert.match(rows[0].textContent, /недоступ|не подтверждён|unavailable/i);
+      assert.equal(notices.length, 0, 'opening unavailable family does not report zero choices');
+    }
     const buttons = refs.main.querySelectorAll('.status-btn').filter((b) => b.getAttribute('aria-disabled') === 'true');
     assert.ok(buttons.length >= 1);
     for (const button of buttons) {
