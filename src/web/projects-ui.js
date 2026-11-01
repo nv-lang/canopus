@@ -155,8 +155,11 @@ export function createProjectsUi(doc, deps) {
           icon(doc, atRoots ? 'i-laptop' : 'i-folder'), h(doc, 'span', { text: e.name.replace(/\/$/, '') || e.name }));
         item.addEventListener('click', () => {
           state = { ...state, selectedPath: target };
-          paint();
-          [...list.querySelectorAll('.picker-item')].find((n) => n.dataset.path === target)?.focus();
+          for (const row of list.querySelectorAll('.picker-item[data-path]')) {
+            const isSelected = row.dataset.path === target;
+            row.classList.toggle('is-selected', isSelected);
+            row.setAttribute('aria-selected', String(isSelected));
+          }
         });
         return h(doc, 'li', {}, item);
       }));

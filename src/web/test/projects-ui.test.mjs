@@ -25,7 +25,7 @@ function setup(wrap = (api) => api) {
   const type = async (el, value) => { el.value = value; el.dispatchEvent(inputEvent()); await settle(); };
   const submit = async (form) => { form.dispatchEvent(event('submit')); await settle(); };
   const pickItem = (path) => q(`.picker-item[data-path="${path}"]`);
-  const enterItem = async (path) => { await click(pickItem(path)); pickItem(path)?.dispatchEvent(dbl()); await settle(); };
+  const enterItem = async (path) => { const item = pickItem(path); item?.click(); item?.dispatchEvent(dbl()); await settle(); };
   return { doc, api, ui, log, stored, layers, top, q, textOf, click, type, submit, pickItem, enterItem };
 }
 
@@ -186,6 +186,7 @@ test('выбор папки: одиночный выбор не входит, En
   const selected = s.pickItem('C:/work/crew-harness');
   await s.click(selected);
   assert.equal(s.q('#picker-path').value, 'C:/work', 'один клик только выделяет каталог');
+  assert.equal(s.q('.picker-list').contains(selected), true, 'выделение не удаляет target до dblclick');
   assert.equal(s.pickItem('C:/work/crew-harness').getAttribute('aria-selected'), 'true');
   s.pickItem('C:/work/crew-harness').focus();
   s.pickItem('C:/work/crew-harness').dispatchEvent(key('Enter'));
