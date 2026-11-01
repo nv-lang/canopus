@@ -1,5 +1,5 @@
 // Isolated tests: importing config does not execute unrelated tests of that module.
-module crew_harness.agent_pool_tests
+module agent_pool_tests.source_test
 
 import std.text
 
