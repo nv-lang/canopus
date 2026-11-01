@@ -49,5 +49,9 @@ for lib in "$root"/machines/product/libs/*.alula.md; do
   cp "$lib" "$kit/machines/product/libs/" || { echo "FAIL: $lib не скопирован"; exit 1; }
 done
 
+mkdir -p "$kit/tools/windows" || { echo "FAIL: папка runtime assets не создаётся"; exit 1; }
+cp "$root/scripts/windows-acl-adapter.ps1" "$kit/tools/windows/projectless-acl.ps1" || { echo "FAIL: ACL adapter не скопирован"; exit 1; }
+cp "$root/scripts/windows-acl-adapter.json" "$kit/tools/windows/projectless-acl.json" || { echo "FAIL: ACL manifest не скопирован"; exit 1; }
+
 "$PYTHON" "$here/guards/check-release-kit.py" --root "$root" --kit "$kit" || { echo "FAIL: страж комплекта красный"; exit 1; }
 echo "комплект: $kit"

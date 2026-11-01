@@ -25,6 +25,8 @@ import stlib
 SCRIPT = os.path.join(stlib.SCRIPTS, "package-release.sh")
 LOCK = '[[package]]\nname = "alula"\nsource = "git"\nversion = "0.28.0"\n'
 LIB = "# Библиотека: Отмена\n\n- library: call_cancel\n- alula_version: 0.28\n\n## Общие события\n"
+ACL_ASSET = b"# synthetic fixed runtime fixture\n"
+ACL_META = json.dumps({"v": 1, "policy": "windows-acl-v1", "sha256": hashlib.sha256(ACL_ASSET).hexdigest()})
 
 
 def dhash(text):
@@ -38,6 +40,9 @@ def tree_files(lib_hash=None, hub=True):
     tree = {"kind": "machine", "alula_version": "0.28",
             "includes": [{"hash": lib_hash or dhash(LIB), "file": "libs/call_cancel.alula.md"}]}
     files = {"nova.lock.toml": LOCK,
+             "scripts/windows-acl-adapter.ps1": ACL_ASSET,
+             "scripts/windows-acl-adapter.json": ACL_META,
+             "src/windows_acl/adapter.nv": 'export const ACL_SCRIPT_SHA256 = "%s"' % hashlib.sha256(ACL_ASSET).hexdigest(),
              "machines/product/dialog.alula.json": json.dumps(tree),
              "machines/product/dialog.alula.md": "# Машина: Диалог\n\n- alula_version: 0.28\n",
              "machines/product/work-mode.alula.json": json.dumps({"alula_version": "0.28"}),
@@ -83,7 +88,8 @@ def main():
                           "machines/product/dialog.alula.md", "machines/product/family-approval.alula.json",
                           "machines/product/family-approval.alula.md", "machines/product/journal.md",
                            "machines/product/libs/call_cancel.alula.md", "machines/product/work-mode.alula.json",
-                           "machines/product/work-mode.alula.md"], listed
+                            "machines/product/work-mode.alula.md", "tools/windows/projectless-acl.json",
+                            "tools/windows/projectless-acl.ps1"], listed
         assert stlib.has_line(proc, "ок: осмотрено"), proc.out
 
     def no_hub():

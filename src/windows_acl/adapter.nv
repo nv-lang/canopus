@@ -1,0 +1,182 @@
+// 269: isolated ACL adapter API. NOT wired into Hub launch/cwd/dispatch.
+// Trust is a caller/installer precondition, not learned from client JSON or a
+// hash alone. Only the separately authorised fixture installer supplies evidence
+// at this stage; production bootstrap is explicitly NOT VERIFIED.
+module crew_harness.windows_acl
+
+import std.text
+import std.fs.{Fs, Path, canonicalize, symlink_metadata, metadata, read, read_text}
+import std.crypto.sha256.{Sha256}
+import std.encoding.json.{Json, JsonValue, JsonObject}
+
+export const ACL_PROTOCOL = 1
+export const ACL_POLICY = "windows-acl-v1"
+export const ACL_SCRIPT_SHA256 = "eafb8728e9b33dbe7d7c80f98527c0fb8afae24e60de92e7ef3e3068b36d344e"
+export const ACL_SCRIPT_RELATIVE = "tools/windows/projectless-acl.ps1"
+export const ACL_MANIFEST_RELATIVE = "tools/windows/projectless-acl.json"
+export const ACL_JSON_LIMIT = 32768
+
+/// Material produced by a TRUSTED installer, after direct native owner/DACL and
+/// ancestry read-back, asset copy/read-back and OS executable verification.
+/// No JSON decoder for this type is provided. Never construct it from a model,
+/// a client config, project cwd/PATH/argv[0], or a self-asserted validated flag.
+/// ACL digest is evidence, not an ACL validator or proof of installer origin.
+export type AclSetupEvidence {
+    installation_id str,
+    asset_root str,
+    physical_asset_root str,
+    private_acl_sha256 str,
+    windows_root str,
+    powershell_sha256 str
+}
+
+export type AclTrust priv { setup AclSetupEvidence, timeout_ms int }
+export type AclRequest { request_id str, operation str, root str, session str }
+export type AclReply { request_id str, operation str, path str }
+
+fn put(mut o JsonObject, key str, value JsonValue) -> () {
+    ro replaced = o.insert(key, value)
+}
+
+fn hex_pin(text str, size int) -> bool {
+    if text.byte_len() != size { return false }
+    for b in text.bytes() {
+        if !((b >= 48 && b <= 57) || (b >= 97 && b <= 102)) { return false }
+    }
+    true
+}
+
+fn component(text str, lower bool, limit int) -> bool {
+    if text.byte_len() == 0 || text.byte_len() > limit { return false }
+    for b in text.bytes() {
+        if !((b >= 48 && b <= 57) || (b >= 97 && b <= 122) || (!lower && b >= 65 && b <= 90) || b == 45 || b == 95) { return false }
+    }
+    true
+}
+
+/// Deliberately narrower than all Windows paths. No ambiguous lexical alias.
+export fn acl_absolute(path str) -> Result[str, str] {
+    ro normalized = path.replace("\\", "/")
+    ro bytes = normalized.bytes()
+    if bytes.len() < 4 || bytes.len() > 4096 { return Err("path_format") }
+    if !((bytes[0] >= 65 && bytes[0] <= 90) || (bytes[0] >= 97 && bytes[0] <= 122)) || bytes[1] != 58 || bytes[2] != 47 { return Err("path_format") }
+    for part in normalized[3..].split("/") {
+        if part.byte_len() == 0 || part == "." || part == ".." || part.ends_with(".") || part.ends_with(" ") { return Err("path_alias") }
+        ro chars = part.bytes()
+        mut i = 0
+        while i < chars.len() {
+            ro b = chars[i]
+            if b < 32 || b == 58 || b == 34 || b == 60 || b == 62 || b == 124 || b == 63 || b == 42 { return Err("path_alias") }
+            if b == 126 && i + 1 < chars.len() && chars[i + 1] >= 48 && chars[i + 1] <= 57 { return Err("path_alias") }
+            i += 1
+        }
+    }
+    Ok(normalized)
+}
+
+fn same_path(a str, b str) -> bool => a.replace("\\", "/").to_ascii_lower() == b.replace("\\", "/").to_ascii_lower()
+
+/// Native libuv canonicalization, plus every existing ancestor's lstat. A
+/// different physical path is rejected, not silently selected as a fallback.
+export fn acl_physical(path str) Fs -> Result[str, str] {
+    ro normal = acl_absolute(path)?
+    ro p = Path.from_bytes(normal.bytes())
+    ro actual = match canonicalize(p) { Ok(v) => v.display().replace("\\", "/"), Err(e) => return Err("canonical_unverifiable") }
+    if !same_path(normal, actual) { return Err("physical_alias") }
+    mut at = Path.from_bytes(normal.bytes())
+    while true {
+        ro m = match symlink_metadata(at) { Ok(v) => v, Err(e) => return Err("metadata_unverifiable") }
+        if m.is_symlink() { return Err("path_reparse") }
+        match at.parent() { Some(parent) => { at = parent }, None => break }
+    }
+    Ok(actual)
+}
+
+fn bounded_hash(path str, limit int) Fs -> Result[str, str] {
+    ro m = match metadata(Path.from_bytes(path.bytes())) { Ok(v) => v, Err(e) => return Err("asset_missing") }
+    if !m.is_file() || m.len() == 0 || m.len() > limit { return Err("asset_size") }
+    ro data = match read(Path.from_bytes(path.bytes())) { Ok(v) => v, Err(e) => return Err("asset_unreadable") }
+    if data.len() > limit { return Err("asset_size") }
+    Ok(Sha256.hash_str(data))
+}
+
+fn manifest_ok(path str) Fs -> Result[(), str] {
+    ro m = match metadata(Path.from_bytes(path.bytes())) { Ok(v) => v, Err(e) => return Err("manifest_missing") }
+    if !m.is_file() || m.len() == 0 || m.len() > 4096 { return Err("manifest_size") }
+    ro text = match read_text(Path.from_bytes(path.bytes())) { Ok(v) => v, Err(e) => return Err("manifest_unreadable") }
+    ro value = match Json.parse(text) { Ok(v) => v, Err(e) => return Err("manifest_json") }
+    ro o = value.object().ok_or("manifest_json")?
+    mut count = 0
+    for (key, item) in o {
+        if key != "v" && key != "policy" && key != "sha256" { return Err("manifest_extra") }
+        count += 1
+    }
+    if count != 3 { return Err("manifest_fields") }
+    if match o.get("v") { Some(v) => v.int() ?? 0, None => 0 } != ACL_PROTOCOL { return Err("manifest_version") }
+    if match o.get("policy") { Some(v) => v.str() ?? "", None => "" } != ACL_POLICY { return Err("manifest_policy") }
+    if match o.get("sha256") { Some(v) => v.str() ?? "", None => "" } != ACL_SCRIPT_SHA256 { return Err("manifest_pin") }
+    Ok(())
+}
+
+/// ONLY a trusted native installer caller may supply Some(evidence). The checks
+/// here bind its material to the current paths/pins; they do NOT invent origin
+/// or private ACL proof from a hash. Missing evidence fails before any process.
+export fn acl_trust_from_verified_setup(evidence Option[AclSetupEvidence], timeout_ms int) Fs -> Result[AclTrust, str] {
+    ro setup = evidence.ok_or("trusted_setup_required")?
+    if !hex_pin(setup.installation_id, 32) || !hex_pin(setup.private_acl_sha256, 64) || !hex_pin(setup.powershell_sha256, 64) { return Err("setup_material_missing") }
+    if timeout_ms < 100 || timeout_ms > 10000 { return Err("timeout_range") }
+    ro root = acl_physical(setup.asset_root)?
+    if !same_path(root, setup.physical_asset_root) { return Err("setup_path_mismatch") }
+    ro windows = acl_physical(setup.windows_root)?
+    ro executable = acl_physical("${windows}/System32/WindowsPowerShell/v1.0/powershell.exe")?
+    if bounded_hash(executable, 16777216)? != setup.powershell_sha256 { return Err("executable_pin") }
+    ro asset = acl_physical("${root}/${ACL_SCRIPT_RELATIVE}")?
+    if bounded_hash(asset, 65536)? != ACL_SCRIPT_SHA256 { return Err("asset_pin") }
+    ro manifest = acl_physical("${root}/${ACL_MANIFEST_RELATIVE}")?
+    manifest_ok(manifest)?
+    Ok(AclTrust { setup, timeout_ms })
+}
+
+export fn acl_request_json(request AclRequest) -> Result[str, str] {
+    if !component(request.request_id, false, 64) { return Err("request_id") }
+    if request.operation != "inspect_root" && request.operation != "inspect_session" && request.operation != "create_session" { return Err("operation") }
+    ro root = acl_absolute(request.root)?
+    mut o = JsonObject.new()
+    put(o, "v", JsonValue.int(ACL_PROTOCOL))
+    put(o, "request_id", JsonValue.str(request.request_id))
+    put(o, "op", JsonValue.str(request.operation))
+    put(o, "root", JsonValue.str(root))
+    if request.operation == "inspect_root" {
+        if request.session.byte_len() != 0 { return Err("extra_session") }
+    } else {
+        if !component(request.session, true, 64) || request.session.starts_with("-") || request.session.starts_with("_") { return Err("session_component") }
+        put(o, "session", JsonValue.str(request.session))
+    }
+    ro text = JsonValue.object(o).to_str()
+    if text.byte_len() > ACL_JSON_LIMIT { return Err("input_too_large") }
+    Ok(text)
+}
+
+/// Bind the reply to this request, not to a current session/catalog value.
+export fn acl_reply_json(text str, exit_code int, request AclRequest) -> Result[AclReply, str] {
+    if text.byte_len() == 0 || text.byte_len() > ACL_JSON_LIMIT { return Err("output_size") }
+    ro value = match Json.parse(text) { Ok(v) => v, Err(e) => return Err("output_json") }
+    ro o = value.object().ok_or("output_json")?
+    mut count = 0
+    for (key, item) in o {
+        if key != "v" && key != "policy" && key != "request_id" && key != "op" && key != "ok" && key != "code" && key != "path" { return Err("output_extra") }
+        count += 1
+    }
+    ro version = match o.get("v") { Some(v) => v.int() ?? 0, None => 0 }
+    ro policy = match o.get("policy") { Some(v) => v.str() ?? "", None => "" }
+    ro id = match o.get("request_id") { Some(v) => v.str() ?? "", None => "" }
+    ro operation = match o.get("op") { Some(v) => v.str() ?? "", None => "" }
+    ro ok = match o.get("ok") { Some(v) => v.bool() ?? false, None => false }
+    ro code = match o.get("code") { Some(v) => v.str() ?? "", None => "" }
+    if version != ACL_PROTOCOL || policy != ACL_POLICY || id != request.request_id || operation != request.operation { return Err("output_binding") }
+    if exit_code != 0 || !ok || code != "ok" || count != 7 { return Err("adapter_refused") }
+    ro path = match o.get("path") { Some(v) => v.str() ?? "", None => "" }
+    ro expected = if operation == "inspect_root" { request.root } else { "${request.root}/${request.session}" }
+    if !same_path(acl_absolute(path)?, acl_absolute(expected)?) { return Err("output_path") }
+    Ok(AclReply { request_id: id, operation, path })
+}

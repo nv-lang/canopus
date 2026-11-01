@@ -26,6 +26,8 @@ import stlib
 
 LOCK = '[[package]]\nname = "alula"\nsource = "git"\nversion = "0.28.0"\n'
 LIB = "# Библиотека: Отмена\n\n- library: call_cancel\n- alula_version: 0.28\n\n## Общие события\n\n| Событие | Куда |\n|---|---|\n"
+ACL_ASSET = b"# synthetic fixed runtime fixture\n"
+ACL_META = json.dumps({"v": 1, "policy": "windows-acl-v1", "sha256": hashlib.sha256(ACL_ASSET).hexdigest()})
 
 
 def dhash(text):
@@ -61,7 +63,8 @@ def main():
 
     def fresh(files):
         counter[0] += 1
-        f = {"nova.lock.toml": LOCK}
+        f = {"nova.lock.toml": LOCK, "scripts/windows-acl-adapter.ps1": ACL_ASSET,
+             "src/windows_acl/adapter.nv": 'export const ACL_SCRIPT_SHA256 = "%s"' % hashlib.sha256(ACL_ASSET).hexdigest()}
         f.update(files)
         return stlib.make_repo(base, env, f, name="r%d" % counter[0])
 
@@ -75,7 +78,9 @@ def main():
         return path
 
     def kit_files(extra=None, drop=None):
-        files = {"crew-harness.exe": b"MZ", "crew-hub.exe": b"MZ"}
+        files = {"crew-harness.exe": b"MZ", "crew-hub.exe": b"MZ",
+                 "tools/windows/projectless-acl.ps1": ACL_ASSET,
+                 "tools/windows/projectless-acl.json": ACL_META}
         for k, v in machines().items():
             if "/tests/" not in k:
                 files[k] = v
@@ -127,6 +132,11 @@ def main():
              lambda: stlib.expect(check(fresh(machines(lib="﻿" + LIB.replace("\n", "\r\n")))), 0, "ок: осмотрено"))
     pr.probe("мишень", "нет machines/product — мишень потеряна",
              lambda: stlib.expect(check(fresh({"a.txt": "x\n"})), 1, "FAIL: мишень потеряна"))
+    pr.probe("красная", "нет ACL runtime script", red_kit(kit_files(drop=["tools/windows/projectless-acl.ps1"]), "kit-acl"))
+    pr.probe("красная", "нет ACL runtime manifest", red_kit(kit_files(drop=["tools/windows/projectless-acl.json"]), "kit-acl"))
+    pr.probe("красная", "подмена ACL runtime script", red_kit(kit_files({"tools/windows/projectless-acl.ps1": b"changed"}), "kit-acl"))
+    pr.probe("красная", "неверный ACL protocol", red_kit(kit_files({"tools/windows/projectless-acl.json": ACL_META.replace('"v": 1', '"v": 2')}), "kit-acl"))
+    pr.probe("красная", "duplicate ACL manifest", red_kit(kit_files({"tools/windows/projectless-acl.json": '{"v":1,"v":1}'}), "kit-acl"))
     return pr.done()
 
 

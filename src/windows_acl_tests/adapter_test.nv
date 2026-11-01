@@ -1,0 +1,40 @@
+// Isolated 269 wrapper checks; no process or filesystem mutations.
+module crew_harness.windows_acl_tests
+
+import crew_harness.windows_acl.{AclRequest, acl_absolute, acl_request_json, acl_reply_json, acl_capture_decode}
+
+test "269 primitive capture framing is byte-bounded and closed" {
+    assert(acl_capture_decode("S").unwrap() == "")
+    assert(acl_capture_decode("SПривет").unwrap() == "Привет")
+    assert(acl_capture_decode("").is_err())
+    assert(acl_capture_decode("Xpayload").is_err())
+    assert(acl_capture_decode("Épayload").is_err())
+    assert(acl_capture_decode("E").is_err())
+    assert(acl_capture_decode("Eunknown").is_err())
+    assert(acl_capture_decode("Eoutput_size").is_err())
+    assert(acl_capture_decode("Eoutput_utf8").is_err())
+    assert(acl_capture_decode("Epipe_read").is_err())
+    mut exact = "S"
+    for i in 0..16384 { exact = "${exact}я" }
+    assert(acl_capture_decode(exact).unwrap().byte_len() == 32768)
+    assert(acl_capture_decode("${exact}x").is_err())
+}
+
+test "269 ACL wrapper paths refuse ambiguous aliases" {
+    assert(acl_absolute("C:/work/private").is_ok())
+    assert(acl_absolute("C:relative").is_err())
+    assert(acl_absolute("C:/work/../other").is_err())
+    assert(acl_absolute("C:/work/file:stream").is_err())
+    assert(acl_absolute("C:/work/leaf.").is_err())
+    assert(acl_absolute("//server/share").is_err())
+}
+
+test "269 ACL wrapper binds operation and request" {
+    ro request = AclRequest { request_id: "t1", operation: "inspect_root", root: "C:/work/private", session: "" }
+    assert(acl_request_json(request).is_ok())
+    ro good = "{\"v\":1,\"policy\":\"windows-acl-v1\",\"request_id\":\"t1\",\"op\":\"inspect_root\",\"ok\":true,\"code\":\"ok\",\"path\":\"C:/work/private\"}"
+    assert(acl_reply_json(good, 0, request).is_ok())
+    assert(acl_reply_json(good, 1, request).is_err())
+    assert(acl_reply_json("{}", 0, request).is_err())
+    assert(acl_reply_json("not-json", 0, request).is_err())
+}

@@ -1,0 +1,44 @@
+// 269 isolated capability probe of the shipped std API, authorised 10:19.
+// No adapter import, filesystem, process start, PowerShell or ACL operations.
+// Exactly one probe: concurrent bounded string captures + scalar write/status
+// channels inside supervised/spawn. This does NOT prove actual pipe transport,
+// timeout/kill-tree, EOF, UTF-8 or trusted setup correctness.
+module crew_harness.windows_acl_capability_tests
+
+import std.concurrency.nvchan.{Chan, ChanTx, ChanRx}
+
+test "269 capability: concurrent string captures and scalar status" {
+    ro stdout = Chan[str].new(1)
+    ro stderr = Chan[str].new(1)
+    ro status = Chan[int].new(1)
+    ro written = Chan[bool].new(1)
+    mut complete = false
+    supervised(timeout: 1000.to_millis()) {
+        spawn {
+            ro sent = stdout.tx.send("ok:stdout")
+            stdout.tx.close()
+        }
+        spawn {
+            ro sent = stderr.tx.send("ok:")
+            stderr.tx.close()
+        }
+        spawn {
+            ro sent = written.tx.send(true)
+            written.tx.close()
+        }
+        spawn {
+            ro sent = status.tx.send(0)
+            status.tx.close()
+        }
+        assert(stdout.rx.recv() == Some("ok:stdout"))
+        assert(stderr.rx.recv() == Some("ok:"))
+        assert(written.rx.recv() == Some(true))
+        assert(status.rx.recv() == Some(0))
+        assert(stdout.rx.recv().is_none())
+        assert(stderr.rx.recv().is_none())
+        assert(written.rx.recv().is_none())
+        assert(status.rx.recv().is_none())
+        complete = true
+    }
+    assert(complete)
+}

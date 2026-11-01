@@ -115,6 +115,9 @@ function Test-CHADescriptor($Acl, [string]$ServiceSid, [bool]$Private, [bool]$Os
         $mask = $ace.AccessMask
         if (($flags -band (-bnot 31)) -ne 0) { Stop-CHA 'ace_unsupported' }
         if (@([System.Security.AccessControl.AceQualifier]::AccessAllowed, [System.Security.AccessControl.AceQualifier]::AccessDenied) -notcontains $ace.AceQualifier) { Stop-CHA 'ace_unsupported' }
+        # The approved TI exception is OWNER-only. Even a harmless-looking or
+        # InheritOnly TI Allow must not silently become a new policy exception.
+        if ($ace.AceQualifier -eq [System.Security.AccessControl.AceQualifier]::AccessAllowed -and $ace.SecurityIdentifier.Value -eq $script:CHATrustedInstaller) { Stop-CHA 'ace_ti_unapproved' }
         if (-not $Private -and ($flags -band 8) -ne 0) {
             # Windows OS ancestors contain non-applicable inheritance templates
             # with GENERIC_* masks (the high four bits, signed in .NET). These

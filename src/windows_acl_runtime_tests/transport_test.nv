@@ -1,0 +1,85 @@
+// Test-only trusted installer hand-off. The dedicated runner directly checks
+// the one authorised fixture's ACL/read-back before setting this process env.
+// NOT a production bootstrap or a decoder for arbitrary client trust material.
+module crew_harness.windows_acl_runtime_tests
+
+import std.text
+import std.fs.{Fs, real_fs, Path, read_text}
+import std.os.{Os, real_os, env, Proc, real_proc}
+import std.encoding.json.{Json, JsonObject}
+import crew_harness.windows_acl.{AclSetupEvidence, AclRequest, acl_trust_from_verified_setup, acl_request_json, acl_reply_json}
+
+fn field(o JsonObject, key str) -> str => o.get(key).unwrap().str().unwrap()
+
+fn wrong_setup(setup AclSetupEvidence, mode str) -> AclSetupEvidence => {
+    installation_id: if mode == "proof" { "" } else { setup.installation_id },
+    asset_root: if mode == "path" { "C:relative" } else { setup.asset_root },
+    physical_asset_root: if mode == "physical" { "C:/work/wrong" } else { setup.physical_asset_root },
+    private_acl_sha256: if mode == "acl" { "" } else { setup.private_acl_sha256 },
+    windows_root: setup.windows_root,
+    powershell_sha256: if mode == "pin" { "0000000000000000000000000000000000000000000000000000000000000000" } else { setup.powershell_sha256 }
+}
+
+fn replacement_setup(setup AclSetupEvidence, root str, windows str) -> AclSetupEvidence => {
+    installation_id: setup.installation_id, asset_root: root, physical_asset_root: root,
+    private_acl_sha256: setup.private_acl_sha256, windows_root: windows, powershell_sha256: setup.powershell_sha256
+}
+
+test "269 real trusted fixture native inspect create read-back and refusal" {
+    ro proof_path = with Os = real_os() { env("CREW_ACL_TEST_SETUP").unwrap() }
+    ro session = with Os = real_os() { env("CREW_ACL_TEST_SESSION").unwrap() }
+    with Fs = real_fs() {
+        ro text = read_text(Path.from_bytes(proof_path.bytes())).unwrap()
+        ro o = Json.parse(text).unwrap().object().unwrap()
+        ro setup = AclSetupEvidence {
+            installation_id: field(o, "installation_id"),
+            asset_root: field(o, "asset_root"),
+            physical_asset_root: field(o, "physical_asset_root"),
+            private_acl_sha256: field(o, "private_acl_sha256"),
+            windows_root: field(o, "windows_root"),
+            powershell_sha256: field(o, "powershell_sha256")
+        }
+        assert(acl_trust_from_verified_setup(None, 10000).is_err())
+        for mode in ["proof", "path", "physical", "acl", "pin"] {
+            assert(acl_trust_from_verified_setup(Some(wrong_setup(setup, mode)), 10000).is_err())
+        }
+        assert(acl_trust_from_verified_setup(Some(setup), 0).is_err())
+        ro bad_script = with Os = real_os() { env("CREW_ACL_TEST_BAD_SCRIPT").unwrap() }
+        ro bad_version = with Os = real_os() { env("CREW_ACL_TEST_BAD_VERSION").unwrap() }
+        ro bad_exe = with Os = real_os() { env("CREW_ACL_TEST_BAD_EXE").unwrap() }
+        assert(acl_trust_from_verified_setup(Some(replacement_setup(setup, bad_script, setup.windows_root)), 10000).is_err())
+        assert(acl_trust_from_verified_setup(Some(replacement_setup(setup, bad_version, setup.windows_root)), 10000).is_err())
+        assert(acl_trust_from_verified_setup(Some(replacement_setup(setup, setup.asset_root, bad_exe)), 10000).is_err())
+        ro trust = acl_trust_from_verified_setup(Some(setup), 10000).unwrap()
+        ro root = field(o, "neutral_root")
+        with Proc = real_proc() {
+            ro inspect = trust.invoke(AclRequest { request_id: "native1", operation: "inspect_root", root, session: "" })
+            assert(inspect.is_ok())
+            ro create = trust.invoke(AclRequest { request_id: "native2", operation: "create_session", root, session })
+            assert(create.is_ok())
+            ro leaf = trust.invoke(AclRequest { request_id: "native3", operation: "inspect_session", root, session })
+            assert(leaf.is_ok())
+            ro collision = trust.invoke(AclRequest { request_id: "native4", operation: "create_session", root, session })
+            assert(collision.is_err())
+            ro malformed = trust.exchange("not-json".bytes()).unwrap()
+            assert(malformed.exit_code != 0)
+            ro version = trust.exchange("{\"v\":2,\"request_id\":\"x\",\"op\":\"inspect_root\",\"root\":\"C:/work/private\"}".bytes()).unwrap()
+            assert(version.exit_code != 0)
+            mut invalid_utf8 = []u8.new()
+            invalid_utf8.push(255 as u8)
+            ro invalid = trust.exchange(invalid_utf8).unwrap()
+            assert(invalid.exit_code != 0)
+            mut oversized = []u8.new()
+            oversized.resize(32769, 32 as u8)
+            assert(trust.exchange(oversized).is_err())
+            ro binding = AclRequest { request_id: "binding", operation: "inspect_root", root, session: "" }
+            ro wire = trust.exchange(acl_request_json(binding).unwrap().bytes()).unwrap()
+            assert(acl_reply_json(wire.stdout, wire.exit_code, binding).is_ok())
+            ro wrong_id = AclRequest { request_id: "wrong", operation: "inspect_root", root, session: "" }
+            assert(acl_reply_json(wire.stdout, wire.exit_code, wrong_id).is_err())
+            // Actual wire capture, deliberately corrupted AFTER capture: this
+            // proves reply validator binding, not a hostile-child output test.
+            assert(acl_reply_json(wire.stdout.replace("windows-acl-v1", "windows-acl-v2"), wire.exit_code, binding).is_err())
+        }
+    }
+}

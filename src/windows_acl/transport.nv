@@ -1,0 +1,148 @@
+// Fixed, isolated process transport. No Hub/ACP environment inheritance.
+module crew_harness.windows_acl
+
+import std.text
+import std.fs.{Fs, Path}
+import std.io.{Read, write_all}
+import std.os.{Command, Stdio, Tree}
+import std.concurrency.nvchan.{Chan}
+
+export type AclWireReply { stdout str, exit_code int }
+
+fn capture_acl[R Read](mut reader R) -> str {
+    mut data = []u8.new()
+    mut chunk = []u8.new()
+    chunk.resize(1024, 0 as u8)
+    while true {
+        ro n = match reader.read(chunk) {
+            Ok(v) => v
+            Err(e) => return "Epipe_read"
+        }
+        if n == 0 { break }
+        if data.len() + n > ACL_JSON_LIMIT { return "Eoutput_size" }
+        for b in chunk[..n] { data.push(b) }
+    }
+    ro text = data.to_str_lossy()
+    ro encoded = text.bytes()
+    if encoded.len() != data.len() { return "Eoutput_utf8" }
+    for i in 0..data.len() {
+        if encoded[i] != data[i] { return "Eoutput_utf8" }
+    }
+    "S${text}"
+}
+
+/// Internal byte-framed completion, never a second external wire protocol.
+export fn acl_capture_decode(message str) -> Result[str, str] {
+    if message.byte_len() == 0 || message.byte_len() > ACL_JSON_LIMIT + 1 { return Err("capture_frame") }
+    ro bytes = message.bytes()
+    if bytes[0] == 83 { return Ok(bytes[1..].to_str_lossy()) }
+    if bytes[0] != 69 { return Err("capture_frame") }
+    ro error = bytes[1..].to_str_lossy()
+    if error != "pipe_read" && error != "output_size" && error != "output_utf8" { return Err("capture_frame") }
+    Err(error)
+}
+
+/// The installer precondition remains mandatory. Recheck pins immediately
+/// before execution; path-based checks do not defend against same-user/admin
+/// replacement races and are not a sandbox.
+export fn AclTrust @exchange(input []u8) Fs Proc -> Result[AclWireReply, str] {
+    if input.len() > ACL_JSON_LIMIT { return Err("input_too_large") }
+    ro checked = acl_trust_from_verified_setup(Some(@setup), @timeout_ms)?
+    ro executable = "${checked.setup.windows_root}/System32/WindowsPowerShell/v1.0/powershell.exe"
+    ro asset = "${checked.setup.asset_root}/${ACL_SCRIPT_RELATIVE}"
+    mut command = Command.new(executable)
+    command.args(["-NoLogo", "-NoProfile", "-NonInteractive", "-File", asset])
+    command.env_clear()
+    command.env("SystemRoot", checked.setup.windows_root)
+    command.env("WINDIR", checked.setup.windows_root)
+    command.env("PSModulePath", "${checked.setup.windows_root}/System32/WindowsPowerShell/v1.0/Modules")
+    command.dir(Path.from_bytes(checked.setup.asset_root.bytes()))
+    command.stdin(Stdio.Piped).stdout(Stdio.Piped).stderr(Stdio.Piped).tree(Tree.Group)
+    run_acl_process(command, input, checked.timeout_ms)
+}
+
+// Private: no caller-supplied command capability is exported. Peer tests alone
+// use the same engine with their directly verified, fixed hostile fixture.
+fn run_acl_process(command Command, input []u8, timeout_ms int) Proc -> Result[AclWireReply, str] {
+    if input.len() > ACL_JSON_LIMIT || timeout_ms < 100 || timeout_ms > 10000 { return Err("transport_parameters") }
+    ro outputs = Chan[str].new(1)
+    ro errors = Chan[str].new(1)
+    ro writes = Chan[bool].new(1)
+    mut status_code = -1
+    mut complete = false
+    mut stdout_text = ""
+    mut failure = ""
+    supervised(timeout: timeout_ms.to_millis()) {
+        consume child = match command.start() { Ok(consume v) => v, Err(e) => return Err("process_start") }
+        consume input_pipe = match child.take_stdin() { Some(consume v) => v, None => return Err("stdin_missing") }
+        consume output_pipe = match child.take_stdout() { Some(consume v) => v, None => return Err("stdout_missing") }
+        consume error_pipe = match child.take_stderr() { Some(consume v) => v, None => return Err("stderr_missing") }
+        spawn consume input_pipe {
+            ro written = write_all(input_pipe, input).is_ok()
+            input_pipe.close()
+            ro sent = writes.tx.send(written)
+        }
+        spawn consume output_pipe {
+            ro captured = capture_acl(output_pipe)
+            output_pipe.close()
+            ro sent = outputs.tx.send(captured)
+        }
+        spawn consume error_pipe {
+            ro captured = capture_acl(error_pipe)
+            error_pipe.close()
+            ro sent = errors.tx.send(captured)
+        }
+        ro status = child.wait()
+        ro out = outputs.rx.recv()
+        ro err = errors.rx.recv()
+        ro written = writes.rx.recv() ?? false
+        mut wait_ok = false
+        match status {
+            Ok(exit) => { status_code = exit.code(); wait_ok = true }
+            Err(e) => {
+                // Interrupted covers timeout OR enclosing cancellation. It
+                // does not by itself prove the deadline was the cause.
+                failure = if e.is_interrupted() { "transport_interrupted" } else { "process_wait" }
+            }
+        }
+        mut out_ok = false
+        match out {
+            Some(output) => {
+                match acl_capture_decode(output) {
+                    Ok(text) => { stdout_text = text; out_ok = true }
+                    Err(reason) => { if failure == "" { failure = reason } }
+                }
+            }
+            None => { if failure == "" { failure = "stdout_completion" } }
+        }
+        mut err_ok = false
+        match err {
+            Some(error) => {
+                match acl_capture_decode(error) {
+                    Ok(text) => {
+                        if text.byte_len() == 0 { err_ok = true }
+                        else { if failure == "" { failure = "stderr_output" } }
+                    }
+                    Err(reason) => { if failure == "" { failure = reason } }
+                }
+            }
+            None => { if failure == "" { failure = "stderr_completion" } }
+        }
+        if !written && failure == "" { failure = "pipe_write" }
+        if wait_ok && out_ok && err_ok && written {
+            failure = ""
+            complete = true
+        }
+    }
+    if !complete || failure != "" { return Err(if failure == "" { "transport_incomplete" } else { failure }) }
+    Ok(AclWireReply { stdout: stdout_text, exit_code: status_code })
+}
+
+export fn AclTrust @invoke(request AclRequest) Fs Proc -> Result[AclReply, str] {
+    ro input = acl_request_json(request)?
+    ro physical_root = acl_physical(request.root)?
+    ro wire = @exchange(input.bytes())?
+    ro reply = acl_reply_json(wire.stdout, wire.exit_code, request)?
+    ro verified = acl_physical(reply.path)?
+    Ok(reply)
+}

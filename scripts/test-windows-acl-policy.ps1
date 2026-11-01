@@ -68,6 +68,12 @@ $tiAllow = New-CHAPrivateDescriptor $sid
 $tiAllow.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new([System.Security.Principal.SecurityIdentifier]::new($script:CHATrustedInstaller), [System.Security.AccessControl.FileSystemRights]::FullControl, [System.Security.AccessControl.AccessControlType]::Allow))
 Check-CHAReject 'TI mutation Allow is not approved' { Test-CHADescriptor $tiAllow $sid $false $true }
 Check-CHAReject 'TI Allow never private' { Test-CHADescriptor $tiAllow $sid $true $false }
+$tiRead = New-CHAPrivateDescriptor $sid
+$tiRead.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new([System.Security.Principal.SecurityIdentifier]::new($script:CHATrustedInstaller), [System.Security.AccessControl.FileSystemRights]::ReadAndExecute, [System.Security.AccessControl.AccessControlType]::Allow))
+Check-CHAReject 'TI read Allow is not an owner-only exception' { Test-CHADescriptor $tiRead $sid $false $true }
+$tiTemplate = New-CHAPrivateDescriptor $sid
+$tiTemplate.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new([System.Security.Principal.SecurityIdentifier]::new($script:CHATrustedInstaller), [System.Security.AccessControl.FileSystemRights]::ReadAndExecute, [System.Security.AccessControl.InheritanceFlags]::ContainerInherit, [System.Security.AccessControl.PropagationFlags]::InheritOnly, [System.Security.AccessControl.AccessControlType]::Allow))
+Check-CHAReject 'TI InheritOnly Allow remains unapproved' { Test-CHADescriptor $tiTemplate $sid $false $true }
 
 $creation = New-CHAPrivateDescriptor $sid
 # FileSystemAccessRule adds Synchronize to an Allow. The approved observed
@@ -110,6 +116,51 @@ foreach ($templateMask in @(-1610612736, -536805376)) {
     $rawTemplate.GetBinaryForm($templateBytes, 0)
     $template.SetSecurityDescriptorBinaryForm($templateBytes)
     Check-CHAReject 'applicable GENERIC permissions remain unsupported' { Test-CHADescriptor $template $sid $false $false }
+}
+
+# Raw descriptor facade preserves adversarial layouts that DirectorySecurity
+# may normalize in memory. No descriptor is persisted to a filesystem object.
+function New-CHARawPolicyFixture($Raw, [string]$OwnerSid) {
+    $fixture = [PSCustomObject]@{
+        Raw = $Raw; OwnerSid = $OwnerSid
+        AreAccessRulesProtected = $true; AreAccessRulesCanonical = $true
+    }
+    $fixture | Add-Member ScriptMethod GetOwner {
+        param($TargetType)
+        return [System.Security.Principal.SecurityIdentifier]::new($this.OwnerSid)
+    }
+    $fixture | Add-Member ScriptMethod GetSecurityDescriptorBinaryForm {
+        $bytes = [byte[]]::new($this.Raw.BinaryLength)
+        $this.Raw.GetBinaryForm($bytes, 0)
+        return ,$bytes
+    }
+    return $fixture
+}
+foreach ($layout in @('null', 'empty')) {
+    $rawBad = [System.Security.AccessControl.RawSecurityDescriptor]::new((New-CHAPrivateDescriptor $sid).GetSecurityDescriptorBinaryForm(), 0)
+    if ($layout -eq 'null') { $rawBad.DiscretionaryAcl = $null }
+    else { $rawBad.DiscretionaryAcl = [System.Security.AccessControl.RawAcl]::new(2, 0) }
+    $fixture = New-CHARawPolicyFixture $rawBad $sid
+    Check-CHAReject ($layout + ' raw DACL refuses private') { Test-CHADescriptor $fixture $sid $true $false }
+    Check-CHAReject ($layout + ' raw DACL refuses ancestor') { Test-CHADescriptor $fixture $sid $false $false }
+}
+foreach ($kind in @('callback', 'object', 'unknown', 'unknown_bits', 'unknown_bits_inherit_only', 'inherited_private')) {
+    $rawBad = [System.Security.AccessControl.RawSecurityDescriptor]::new((New-CHAPrivateDescriptor $sid).GetSecurityDescriptorBinaryForm(), 0)
+    $principal = [System.Security.Principal.SecurityIdentifier]::new($sid)
+    $ace = switch ($kind) {
+        'callback' { [System.Security.AccessControl.CommonAce]::new([System.Security.AccessControl.AceFlags]::None, [System.Security.AccessControl.AceQualifier]::AccessAllowed, 1, $principal, $true, [byte[]]@()) }
+        'object' { [System.Security.AccessControl.ObjectAce]::new([System.Security.AccessControl.AceFlags]::None, [System.Security.AccessControl.AceQualifier]::AccessAllowed, 1, $principal, [System.Security.AccessControl.ObjectAceFlags]::None, [Guid]::Empty, [Guid]::Empty, $false, [byte[]]@()) }
+        'unknown' { [System.Security.AccessControl.CustomAce]::new([System.Enum]::ToObject([System.Security.AccessControl.AceType], [byte]127), [System.Security.AccessControl.AceFlags]::None, [byte[]]@()) }
+        'unknown_bits' { [System.Security.AccessControl.CommonAce]::new([System.Security.AccessControl.AceFlags]::None, [System.Security.AccessControl.AceQualifier]::AccessAllowed, 512, $principal, $false, [byte[]]@()) }
+        'unknown_bits_inherit_only' { [System.Security.AccessControl.CommonAce]::new([System.Security.AccessControl.AceFlags]11, [System.Security.AccessControl.AceQualifier]::AccessAllowed, 512, $principal, $false, [byte[]]@()) }
+        'inherited_private' { [System.Security.AccessControl.CommonAce]::new([System.Security.AccessControl.AceFlags]::Inherited, [System.Security.AccessControl.AceQualifier]::AccessAllowed, 1, $principal, $false, [byte[]]@()) }
+    }
+    $rawBad.DiscretionaryAcl.InsertAce($rawBad.DiscretionaryAcl.Count, $ace)
+    $fixture = New-CHARawPolicyFixture $rawBad $sid
+    Check-CHAReject ($kind + ' refuses protected private descriptor') { Test-CHADescriptor $fixture $sid $true $false }
+    if ($kind -ne 'inherited_private') {
+        Check-CHAReject ($kind + ' refuses ancestor descriptor') { Test-CHADescriptor $fixture $sid $false $false }
+    }
 }
 
 Test-CHAChain $env:LOCALAPPDATA $sid $false

@@ -4,7 +4,15 @@
 
 ## Ограниченный этап Windows ACL adapter
 
-Разрешение 08:30, начало 08:33, только adapter/проверки/runtime asset — **не** cwd/env/launch-интеграция F-09. Первый script и in-memory policy harness сохранены как промежуточный WIP. AST parse PASS; после трёх сохранённых RED финальный targeted in-memory/JSON/path/read-only ancestry набор 09:26 дал 64 PASS, код 0. Реальный outer fixture ещё не создан, файловые ACL не менялись; native canonical/trusted transport и kit не проверены. Trusted-path bootstrap-грань вынесена интегратору отдельно, готового deployable boundary нет. Точные решения policy, исходные RED и остаток: [acl-adapter-stage.md](acl-adapter-stage.md).
+Разрешение 08:30, начало 08:33, только adapter/проверки/runtime asset — **не** cwd/env/launch-интеграция F-09. Первый signed WIP `13240da5` сохраняет начальный script/policy результат, не готовность всей границы. После разрешённых compiler capability/control-flow шагов подготовлены отдельный native wrapper, bounded concurrent transport и kit asset/manifest.
+
+Замороженный функциональный снимок: [18 SHA256](acl-functional-snapshot.sha256), script `eafb8728…36d344e` совпадает с native pin/manifest. Последовательный targeted stage `1793519623307-eezg5h` на этом снимке: **код 0; policy 81 PASS; actual native trust/transport PASS; hostile capture/deadline/own parent+child termination PASS; kit guard 24/0 и package selftest 7/0**. Raw stdout SHA256 `73080b1bd291ee0e4628e5e84969e132642b6452f8cbea9921d68fad8a888a6a`. Все 18 functional hashes после прогона перепроверены без drift.
+
+Создан ровно один разрешённый outer под Local. Private установки/neutral/session/helper — только его новые children; старый evidence/asset не перезаписан, существующие ACL не ремонтировались. Explicit fixed OS exe/asset pins, native canonical paths, env_clear, bounded bytes/UTF8, three pipes, deadline/tree cleanup и typed reply binding проверены в перечисленных fixtures. Test helper и evidence в runtime kit не входят. Trusted installer setup подтверждён прямым owner/DACL/ancestry/file read-back до hand-off; hash — только identity, не доказательство происхождения/private ACL сам по себе.
+
+**Не подтверждено:** production bootstrap/caller proof acquisition, explicit external caller cancellation, live service/real packaged hub/front smoke и полная F-09 integration. Kit selftests используют synthetic MZ, не сборку приложений. Physical alias/reparse/Git/broad ACL refusal реализованы; полный набор реальных junction/bare/foreign-owner layouts в этом этапе ещё не исполнялся (raw ACL/path unit controls не подменяют его). Hostile overflow — combined overflow/deadline negative, не изолированный cap-trigger/memory high-water контроль. Общий server_live остаётся историческим RED/UNKNOWN, новый triage не запускался. Это инженерный checkpoint ограниченного adapter-этапа с явным остатком для независимой проверки, не разрешение запуска в production или снятие HOLD.
+
+Точные решения, исходные RED, compiler/raw hashes и пределы: [acl-adapter-stage.md](acl-adapter-stage.md).
 
 ## Follow-up F-09 и triage после аудита 277
 

@@ -34,6 +34,8 @@ import guardlib  # noqa: E402
 
 PREFIX = "machines/product/"
 KIT_PROGRAMS = ("crew-harness.exe", "crew-hub.exe")
+ACL_SCRIPT = "tools/windows/projectless-acl.ps1"
+ACL_MANIFEST = "tools/windows/projectless-acl.json"
 KIT_MACHINES = ("dialog.alula.json", "dialog.alula.md", "work-mode.alula.json", "work-mode.alula.md", "family-approval.alula.json", "family-approval.alula.md", "journal.md")
 LOCK_VERSION = re.compile(r'name\s*=\s*"alula"[^\[]*?\bversion\s*=\s*"(\d+)\.(\d+)', re.S)
 
@@ -179,11 +181,40 @@ def judge_kit(kit, root, rep):
                 needed.add(lib)
     for path in listed:
         inside = path[len(PREFIX):] if path.startswith(PREFIX) else None
-        if path in KIT_PROGRAMS or (inside is not None and inside in needed):
+        if path in KIT_PROGRAMS or path in (ACL_SCRIPT, ACL_MANIFEST) or (inside is not None and inside in needed):
             continue
         rep.add("%s/%s" % (kit, path), None, "kit-extra",
                 "лишний файл в комплекте: в нём только программы и machines/product без tests/ и чата")
     judge_machines(files, version, rep, lambda name: "%s/%s%s" % (kit, PREFIX, name))
+    try:
+        with open(os.path.join(kit, ACL_SCRIPT), "rb") as f:
+            data = f.read(65537)
+        with open(os.path.join(kit, ACL_MANIFEST), "rb") as f:
+            manifest_data = f.read(4097)
+        if not data or len(data) > 65536 or len(manifest_data) > 4096:
+            raise ValueError("runtime asset size")
+        def unique(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError("duplicate manifest key")
+                result[key] = value
+            return result
+        manifest = json.loads(manifest_data.decode("utf-8"), object_pairs_hook=unique)
+        digest = hashlib.sha256(data).hexdigest()
+        if manifest != {"v": 1, "policy": "windows-acl-v1", "sha256": digest} or type(manifest.get("v")) is not int:
+            raise ValueError("runtime manifest binding")
+        with open(os.path.join(root, "scripts/windows-acl-adapter.ps1"), "rb") as f:
+            source = f.read(65537)
+        if data != source:
+            raise ValueError("runtime asset differs from source")
+        with open(os.path.join(root, "src/windows_acl/adapter.nv"), encoding="utf-8") as f:
+            wrapper = f.read()
+        pin = re.search(r'export const ACL_SCRIPT_SHA256 = "([0-9a-f]{64})"', wrapper)
+        if not pin or pin.group(1) != digest:
+            raise ValueError("runtime asset differs from native wrapper pin")
+    except (OSError, ValueError, UnicodeError, AttributeError) as error:
+        rep.add(ACL_MANIFEST, None, "kit-acl", "ACL runtime asset/manifest: %s" % error)
     return len(listed)
 
 

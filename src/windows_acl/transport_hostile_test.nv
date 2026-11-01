@@ -1,0 +1,78 @@
+// Explicit peer test entry only. The private engine is not an exported spawn
+// capability. Trusted runner supplies the exact pinned test fixture, never kit.
+module crew_harness.windows_acl
+
+import std.text
+import std.fs.{Fs, real_fs, Path}
+import std.os.{Os, real_os, env, Proc, real_proc, Command, Stdio, Tree}
+import std.time.duration.{Monotonic}
+
+fn fixture_env(key str) -> str => with Os = real_os() { env(key).unwrap() }
+
+fn expect_capture_refusal(result Result[AclWireReply, str], timeout_allowed bool) -> () {
+    match result {
+        Ok(reply) => assert(false)
+        Err(code) => {
+            if code != "output_size" && code != "output_utf8" && !(timeout_allowed && code == "transport_interrupted") {
+                panic("unexpected transport refusal: ${code}")
+            }
+        }
+    }
+}
+
+fn deadline_hostile(mode str) Fs Proc Time -> () {
+    ro start = Monotonic.now()
+    ro result = hostile(mode)
+    ro elapsed_ns = Monotonic.now().elapsed_since(start).nanos()
+    match result {
+        Ok(reply) => assert(false)
+        Err(code) => assert(code == "transport_interrupted")
+    }
+    // Actual 3s deadline, not merely an error string. The fixed helper sleeps
+    // 30s and records own PID/start/nonce; launcher separately checks exits.
+    assert(elapsed_ns >= 2500000000)
+    assert(elapsed_ns < 15000000000)
+}
+
+fn hostile(mode str) Fs Proc -> Result[AclWireReply, str] {
+    ro helper = acl_physical(fixture_env("CREW_ACL_TEST_HELPER"))?
+    if bounded_hash(helper, 65536)? != fixture_env("CREW_ACL_TEST_HELPER_HASH") { return Err("test_helper_pin") }
+    ro executable = acl_physical(fixture_env("CREW_ACL_TEST_EXE"))?
+    ro pin = fixture_env("CREW_ACL_TEST_EXE_HASH")
+    if bounded_hash(executable, 16777216)? != pin { return Err("test_exe_pin") }
+    ro windows = fixture_env("CREW_ACL_TEST_WINDOWS")
+    mut command = Command.new(executable)
+    command.args(["-NoLogo", "-NoProfile", "-NonInteractive", "-File", helper, "-Mode", mode,
+                  "-Evidence", fixture_env("CREW_ACL_TEST_TREE_EVIDENCE"), "-Nonce", fixture_env("CREW_ACL_TEST_NONCE"), "-ExeHash", pin])
+    command.env_clear()
+    command.env("SystemRoot", windows)
+    command.env("WINDIR", windows)
+    command.env("PSModulePath", "${windows}/System32/WindowsPowerShell/v1.0/Modules")
+    command.dir(Path.from_bytes(fixture_env("CREW_ACL_TEST_HELPER_ROOT").bytes()))
+    command.stdin(Stdio.Piped).stdout(Stdio.Piped).stderr(Stdio.Piped).tree(Tree.Group)
+    run_acl_process(command, []u8.new(), 3000)
+}
+
+test "269 actual hostile pipe captures and refusal preserve fixed engine" {
+    with Fs = real_fs() {
+        with Proc = real_proc() {
+            expect_capture_refusal(hostile("stdout_overflow"), true)
+            expect_capture_refusal(hostile("stderr_overflow"), true)
+            expect_capture_refusal(hostile("invalid_utf8"), false)
+            deadline_hostile("partial_sleep")
+            ro expected = AclRequest { request_id: "expected", operation: "inspect_root", root: "C:/work/private", session: "" }
+            ro malformed = hostile("malformed").unwrap()
+            assert(acl_reply_json(malformed.stdout, malformed.exit_code, expected).is_err())
+            ro wrong_id = hostile("wrong_id").unwrap()
+            assert(acl_reply_json(wrong_id.stdout, wrong_id.exit_code, expected).is_err())
+            ro wrong_protocol = hostile("wrong_protocol").unwrap()
+            assert(acl_reply_json(wrong_protocol.stdout, wrong_protocol.exit_code, expected).is_err())
+            ro nonzero = hostile("nonzero").unwrap()
+            assert(nonzero.exit_code == 7)
+            assert(acl_reply_json(nonzero.stdout, nonzero.exit_code, expected).is_err())
+            // Launcher verifies recorded parent AND descendant process identity
+            // after this returns. is_err alone does not prove tree termination.
+            deadline_hostile("tree")
+        }
+    }
+}
