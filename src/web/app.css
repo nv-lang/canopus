@@ -1262,6 +1262,8 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .project-check { width: 16px; height: 16px; flex: none; display: inline-flex; color: var(--fg); }
 .project-folder { padding: 6px 10px 4px; border-top: 1px solid var(--border); margin-top: 4px; }
 .worktree-chip { gap: 6px; flex: none; white-space: nowrap; }
+.worktree-chip { max-width: min(360px, 48vw); }
+.worktree-chip > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .composer-status .status-btn, .composer-status .status-model { flex: none; white-space: nowrap; }
 .worktree-chip { color: var(--fg-muted); }
 .where-note { margin: 2px 6px 0; color: var(--fg-muted); font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }

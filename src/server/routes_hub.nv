@@ -590,7 +590,7 @@ fn Hub mut @route_worktree(trace str, on bool) Proc Detach Time -> () {
         @tell_error(0, trace, s.engine.step_number(), "", "Сначала выберите проект: чат без проекта не включает Git-worktree")
         return
     }
-    ro problem = workspace_problem(s.project_id, s.folder, s.rt.source_branch, on)
+    ro problem = workspace_problem(s.project_id, s.folder, if on { s.rt.source_branch } else { "" }, on)
     if problem.byte_len() > 0 { @tell_error(0, trace, s.engine.step_number(), "", problem); return }
     if s.rt.wip_prep > 0 {
         @tell_error(0, trace, s.engine.step_number(), "", "рабочая копия уже создаётся: дождитесь завершения")

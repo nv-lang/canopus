@@ -428,8 +428,8 @@ export function createProjectsUi(doc, deps) {
 
   // Both choices are preferences. This dialog only reads Git; it never opens a session.
   async function pickWorkspace({ folder, worktree = true, sourceBranch = '', preparation = false }) {
-    const source = h(doc, 'select', { 'aria-label': 'Исходная ветка', disabled: true });
-    const place = h(doc, 'select', { 'aria-label': 'Рабочая папка', disabled: true },
+    const source = h(doc, 'select', { id: 'workspace-source', 'aria-label': 'Исходная ветка', disabled: true });
+    const place = h(doc, 'select', { id: 'workspace-place', 'aria-label': 'Рабочая папка', disabled: true },
       h(doc, 'option', { value: 'folder', text: 'Папка проекта' }),
       h(doc, 'option', { value: 'tree', text: 'Отдельная папка (Git worktree)' }));
     place.value = worktree ? 'tree' : 'folder';

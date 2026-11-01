@@ -17,6 +17,22 @@ export fn work_mode_allows(machine AlulaMachine, route str, operation str) -> bo
     machine.accepts_signal(state, operation)
 }
 
+// Host supplies observed facts; the Alula table owns whether preferences are still editable.
+export fn workspace_allows(machine AlulaMachine, route str, locked bool, available bool) -> bool {
+    mut environment = StepEnvironment.new()
+    mut state = machine.initial()
+    mut signals = [route]
+    if locked { signals.push("workspace_locked") }
+    if !available { signals.push("workspace_unavailable") }
+    for signal in signals {
+        match machine.step(state, Incoming.signal(signal, ""), environment) {
+            Go(next) => { state = next }
+            Stay => ()
+        }
+    }
+    machine.accepts_signal(state, "workspace")
+}
+
 fn Hub @work_allowed(at int, operation str) -> bool => work_mode_allows(@work_mode, @sessions[at].rt.route, operation)
 
 fn Hub mut @work_require(at int, operation str) Time -> bool {

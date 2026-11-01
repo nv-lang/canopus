@@ -1158,7 +1158,7 @@ fn Hub mut @say(trace str, text str, items []JsonValue) Proc Detach Time -> () {
     }
     // the mode of work (task 192q): the task, its tree and its files first, then the agent in the right folder
     ro pending = @sessions[at]
-    if @work_allowed(at, "tree") && pending.rt.source_branch.byte_len() > 0 && pending.rt.wip_tree.byte_len() == 0 && !pending.rt.task_open {
+    if @work_allowed(at, "tree") && pending.rt.use_tree && pending.rt.source_branch.byte_len() > 0 && pending.rt.wip_tree.byte_len() == 0 && (!pending.rt.task_open || pending.rt.task_id == "draft") {
         ro problem = workspace_problem(pending.project_id, pending.folder, pending.rt.source_branch, pending.rt.use_tree)
         if problem.byte_len() > 0 { @tell_error(0, trace, pending.engine.step_number(), "", problem); return }
     }

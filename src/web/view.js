@@ -1742,15 +1742,15 @@ export function createView(doc, refs, deps) {
     worktreeButton.dataset.draft = String(Boolean(session.draft));
     worktreeButton.setAttribute('aria-pressed', String(treeOn || hasTree));
     // задача 192.6: папка проекта не git-репозиторий — дерево сделать нельзя, переключатель выключен и недоступен
-    const draftFolder0 = session.draft ? draftFolderInfo(session) : null;
+    const draftFolder0 = draftFolderInfo(session);
     const noRepo = !session.projectId || !session.folder || (Boolean(draftFolder0) && draftFolder0.repo === false);
     worktreeButton.setAttribute('aria-pressed', String((treeOn && !noRepo) || hasTree));
     const preparingTree = Boolean(session.routeState && session.routeState.where && session.routeState.where.kind === 'preparing');
     worktreeButton.disabled = hasTree || preparingTree || Boolean(task) || busy || noRepo;
     const sourceBranch = session.draft ? session.sourceBranch : (session.routeState && session.routeState.sourceBranch);
-    const workspaceText = noRepo ? 'Без Git-контекста' : `${sourceBranch ? sourceBranch.replace(/^refs\/(heads|remotes)\//, '') : 'Исходная ветка'} · ${hasTree || treeOn ? 'Отдельная папка' : 'Папка проекта'}`;
+    const workspaceText = noRepo ? 'В папке проекта нет Git' : `${session.project || 'Проект'} · ${sourceBranch ? sourceBranch.replace(/^refs\/(heads|remotes)\//, '') : 'Исходная ветка'} · ${hasTree || treeOn ? 'Отдельная папка' : 'Папка проекта'}`;
     worktreeButton.replaceChildren(icon(doc, 'i-branch'), h(doc, 'span', { text: workspaceText }));
-    worktreeButton.title = hasTree || preparingTree ? t('route.worktree_locked') : 'Исходная ветка и рабочая папка';
+    worktreeButton.title = noRepo ? t('route.worktree_not_repo') : hasTree || preparingTree ? t('route.worktree_locked') : `${workspaceText} — исходная ветка и рабочая папка`;
     worktreeButton.setAttribute('aria-label', workspaceText);
     worktreeButton.setAttribute('aria-haspopup', 'dialog');
     routeButton.title = `${t('route.label')}: ${routeDescription(currentRoute)}`;

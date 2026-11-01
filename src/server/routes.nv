@@ -936,7 +936,7 @@ export fn route_view_text(rt RouteSession, titles []str, progress []Progress, su
     jput(o, "result_repo", JsonValue.str(rt.result_repo))
     jput(o, "result_label", JsonValue.str(if rt.result_label.byte_len() > 0 { rt.result_label } else { rt.result_repo }))
     // task 192.4: where the agent works while there is no task: a tree with no branch or the folder of the project on its branch
-    if !rt.task_open {
+    if !rt.task_open || rt.task_id == "draft" {
         mut w = JsonObject.new()
         ro in_wip = rt.wip_tree.byte_len() > 0
         jput(w, "kind", JsonValue.str(if rt.wip_prep > 0 { "preparing" } else if in_wip { "wip" } else { "folder" }))

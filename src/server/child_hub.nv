@@ -265,7 +265,7 @@ fn Hub mut @cs_spawn(at int, p Proposal, how str, queued bool) Proc Detach Time 
     }
     if pat < 0 { ptype = "" }
     // task 192.4: the first work of a session that has a wip branch is the task of this very session: the branch is renamed, no new session is made
-    if pat < 0 && cur.rt.wip_tree.byte_len() > 0 && cur.rt.kind != "child" && !cur.rt.task_open && p.kids.byte_len() == 0 {
+    if pat < 0 && cur.rt.wip_tree.byte_len() > 0 && cur.rt.kind != "child" && (!cur.rt.task_open || cur.rt.task_id == "draft") && p.kids.byte_len() == 0 {
         if @wip_take(at, p, how, queued) { return }
     }
     // any open task becomes an epic with its first child: the mark and the table of the children
