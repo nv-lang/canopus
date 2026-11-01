@@ -483,6 +483,7 @@ the process of the agent (start, stop, the pump of its events); how an update of
 ### The signals the code gives to the table
 
 The list as data is `signals.nv` (`signals_given_by_code`, `signals_from_agent`); `signals_test.nv` keeps it equal to the table and to the sources.
+The source check discovers production `hub.nv` and `*_hub.nv` modules, including independent-review emitters in `routes_hub.nv`, not only the original hub file.
 
 | signal | who gives it | fields | the table |
 |---|---|---|---|
@@ -494,6 +495,10 @@ The list as data is `signals.nv` (`signals_given_by_code`, `signals_from_agent`)
 | `setting_chosen` (task 192t) | the hub, `Hub.watch_agent`, when the agent took a choice of the owner | `agent`, `setting`, `value`, `at` (JSON text) | **not known** on purpose, no page event. The last word per `(agent, setting)` is read back at the resume of the hub; every agent that is started for the session (first start, after a death or a restart of the hub, after a change of the family to that family) is asked for these choices after `session/new` (`AcpClient.set_presets`), and the first summary of the page waits (at most 5 s) until they are settled |
 | `setting_dropped` (task 192t) | the hub, `Hub.watch_agent`, when the new agent does not offer a saved value | `agent`, `setting`, `value`, `used` (JSON text) | **not known** on purpose; the page gets the event `setting_dropped` (a grey line in the feed); the saved choice is dropped (a later start does not ask for it) |
 | `session_created` | the hub, `Hub.create`, from the page | `name`, `agent`, `folder`, `project`, `project_id` (JSON text) | **not known** on purpose (below) |
+| `session_preset` | the hub, `Hub.set_preset` | `preset`, `role`, `weight` (JSON text; old events omit role/weight) | **not known** on purpose: journaled host assignment, not a scenario transition |
+| `session_source` | the hub, `Hub.set_source` | direct `family, model, effort` OR `pool, level` (JSON text) | **not known** on purpose: journaled requested source |
+| `agent_selection`, `agent_selected` | the hub, `Hub.source_for_turn`, `Hub.watch_agent` | `family, model, effort, source_effort, pool, level, role, weight` (JSON text) | **not known** on purpose: requested versus ACP-confirmed executor choice; neither grants permission to retry a turn |
+| `review_selection`, `review_selected` | `Hub.route_start_review`, `Hub.route_review_poll` in `routes_hub.nv` | `family, model, effort, pool?, level?, role, weight` (JSON text) | **not known** on purpose: requested versus ACP-confirmed independent choice, separate from executor pinning; confirmation precedes dispatch |
 | `agent_chunk` | the client of ACP, `project_update` | `content` (text) | declared: a part of the answer of the party `агент`; the row of `ОЖИДАНИЕ` |
 | `agent_done` | the client of ACP, `stop_event` (`end_turn`) | none | the answer: the row `ответ` of `ОЖИДАНИЕ` |
 | `agent_refused` | the client of ACP, `refused_event` | the code of `FailCode` | the failure: the row `сбой(код)` of `ОЖИДАНИЕ` |

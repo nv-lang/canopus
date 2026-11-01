@@ -16,7 +16,7 @@ export type CodeSignal { name str, kind str, source str, fields str, known bool 
 
 fn cs(name str, kind str, source str, fields str, known bool) -> CodeSignal => { name, kind, source, fields, known }
 
-/// The signals that the hub gives to the machine (from the page).
+/// The signals that the hub gives to the machine (page input and journaled host decisions).
 export fn signals_given_by_code() -> []CodeSignal => [
     cs("user_message", "input", "src/server/hub.nv: Hub.say", "content (text)", true),
     cs("cancel_request", "input", "src/server/hub.nv: Hub.cancel", "-", true),
@@ -25,7 +25,12 @@ export fn signals_given_by_code() -> []CodeSignal => [
     cs("mcp_recovery_read", "input", "src/server/crew_tools_hub.nv: Hub.ctl_take", "stable recovery qid", false),
     cs("session_created", "input", "src/server/hub.nv: Hub.create", "name, agent, folder, project, project_id (JSON text)", false),
     cs("session_renamed", "input", "src/server/hub.nv: Hub.rename", "name (JSON text)", false),
-    cs("session_preset", "input", "src/server/hub.nv: Hub.set_preset (the owner chose the preset: the table role -> family, model, effort)", "preset (JSON text)", false),
+    cs("session_preset", "input", "src/server/hub.nv: Hub.set_preset (the owner chose the preset and role assignment)", "preset, role, weight (JSON text; old events omit role and weight)", false),
+    cs("session_source", "input", "src/server/hub.nv: Hub.set_source", "family, model, effort OR pool, level (JSON text)", false),
+    cs("agent_selection", "input", "src/server/hub.nv: Hub.source_for_turn (requested executor source)", "family, model, effort, source_effort, pool, level, role, weight (JSON text)", false),
+    cs("agent_selected", "input", "src/server/hub.nv: Hub.watch_agent (confirmed executor ACP model and effort)", "family, model, effort, source_effort, pool, level, role, weight (JSON text)", false),
+    cs("review_selection", "input", "src/server/routes_hub.nv: Hub.route_start_review (requested independent source)", "family, model, effort, pool?, level?, role, weight (JSON text)", false),
+    cs("review_selected", "input", "src/server/routes_hub.nv: Hub.route_review_poll (confirmed independent ACP model and effort before dispatch)", "family, model, effort, pool?, level?, role, weight (JSON text)", false),
     cs("session_placed", "input", "src/server/hub.nv: Hub.reorder, Hub.move", "rank, and project_id, project when the session goes to another project (JSON text)", false),
     cs("agent_switched", "input", "src/server/hub.nv: Hub.switch_agent", "from, to, shown, total, cut (JSON text)", false),
     cs("message_images", "input", "src/server/hub.nv: Hub.say (the pictures of the message that follows: n, name, mime, bytes)", "images (JSON text)", false),
