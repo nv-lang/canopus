@@ -1,0 +1,37 @@
+module request_oracle_tests.oracle_test
+
+// ORACLE-WORKAROUND(32): keep fs before text for direct test entry code generation.
+import std.fs.{Path}
+import std.text
+import crew_harness.server.{kit_files_mcp, kit_request_turn_matches, kit_request_range_closed, scenario_request_view}
+
+test "request oracle: only the exact session and integer turn match" {
+    assert(kit_request_turn_matches("{\"trace\":\"s-rq\",\"input\":{\"turn\":1}}", "s-rq", 1))
+    assert(!kit_request_turn_matches("{\"trace\":\"s-rq\",\"input\":{\"turn\":\"1\"}}", "s-rq", 1))
+    assert(!kit_request_turn_matches("{\"trace\":\"s-rq\",\"input\":{\"turn\":2}}", "s-rq", 1))
+    assert(!kit_request_turn_matches("{\"trace\":\"s-rq\",\"input\":{}}", "s-rq", 1))
+    assert(!kit_request_turn_matches("{\"trace\":\"foreign\",\"input\":{\"turn\":1}}", "s-rq", 1))
+    assert(!kit_request_turn_matches("{\"trace\":\"s-rq\",\"input\":{}}", "s-rq", -1))
+    assert(!kit_request_turn_matches("{\"input\":{\"turn\":1}}", "", 1))
+}
+
+test "request oracle: closed raw range requires matching identity and typed bounds" {
+    ro untraced = "{\"trace\":\"s-rq\",\"input\":{\"turn\":1,\"raw_ref\":{\"from_line\":0,\"to_line\":0}}}"
+    assert(kit_request_turn_matches(untraced, "s-rq", 1))
+    assert(!kit_request_range_closed(untraced, "s-rq", 1))
+    assert(kit_request_range_closed("{\"trace\":\"s-rq\",\"input\":{\"turn\":1,\"raw_ref\":{\"from_line\":1,\"to_line\":4}}}", "s-rq", 1))
+    assert(!kit_request_range_closed("{\"trace\":\"foreign\",\"input\":{\"turn\":1,\"raw_ref\":{\"from_line\":1,\"to_line\":4}}}", "s-rq", 1))
+    assert(!kit_request_range_closed("{\"trace\":\"s-rq\",\"input\":{\"turn\":\"1\",\"raw_ref\":{\"from_line\":1,\"to_line\":4}}}", "s-rq", 1))
+    assert(!kit_request_range_closed("{\"trace\":\"s-rq\",\"input\":{\"turn\":2,\"raw_ref\":{\"from_line\":1,\"to_line\":4}}}", "s-rq", 1))
+    assert(!kit_request_range_closed("{\"trace\":\"s-rq\",\"input\":{\"raw_ref\":{\"from_line\":1,\"to_line\":4}}}", "s-rq", 1))
+    assert(!kit_request_range_closed("{\"trace\":\"s-rq\",\"input\":{\"turn\":1,\"raw_ref\":{\"from_line\":1,\"to_line\":0}}}", "s-rq", 1))
+    assert(!kit_request_range_closed("{\"trace\":\"s-rq\",\"input\":{\"turn\":1,\"raw_ref\":{\"from_line\":1,\"to_line\":\"4\"}}}", "s-rq", 1))
+    assert(!kit_request_range_closed("{\"trace\":\"s-rq\",\"input\":{\"turn\":1,\"raw_ref\":{\"from_line\":\"1\",\"to_line\":4}}}", "s-rq", 1))
+    assert(!kit_request_range_closed("{\"trace\":\"s-rq\",\"input\":{\"turn\":1,\"raw_ref\":{\"from_line\":4,\"to_line\":1}}}", "s-rq", 1))
+    assert(!kit_request_range_closed("{\"trace\":\"s-rq\",\"input\":{\"turn\":1}}", "s-rq", 1))
+}
+
+test "files: the request of each turn is told to the pages, kept in memory, never in the journal" {
+    ro report = scenario_request_view(kit_files_mcp("reqview", 30000, 1800000))
+    if report.byte_len() > 0 { panic("NOT AS IT MUST BE: ${report}") }
+}

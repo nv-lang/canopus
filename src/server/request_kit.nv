@@ -2,11 +2,43 @@
 // The helpers are in `testkit.nv`.
 module crew_harness.server
 
+import std.encoding.json.{JsonObject}
+
+// Test-only predicates: request-view turns are integer indexes, not string response IDs.
+// Keep line_input string-only; a malformed or absent number must not match a real turn.
+fn kit_request_int(o JsonObject, key str) -> int {
+    match o.get(key) {
+        Some(value) => value.int() ?? -1
+        None => -1
+    }
+}
+
+export fn kit_request_turn_matches(line str, session str, turn int) -> bool {
+    if session.byte_len() == 0 || turn <= 0 { return false }
+    ro event = match kit_object(line) { Some(value) => value, None => return false }
+    if jtext(event, "trace") != session { return false }
+    ro input = match jchild(event, "input") { Some(value) => value, None => return false }
+    kit_request_int(input, "turn") == turn
+}
+
+export fn kit_request_range_closed(line str, session str, turn int) -> bool {
+    if !kit_request_turn_matches(line, session, turn) { return false }
+    ro event = kit_object(line) ?? JsonObject.new()
+    ro input = jchild(event, "input") ?? JsonObject.new()
+    ro raw = match jchild(input, "raw_ref") { Some(value) => value, None => return false }
+    ro from_line = kit_request_int(raw, "from_line")
+    ro to_line = kit_request_int(raw, "to_line")
+    from_line >= 0 && to_line > 0 && to_line >= from_line
+}
+
 /// What the page "Запрос" is told for each turn: the event `turn_request` with the parts (the message, the picture), the tools of the hub (the MCP server `crew`), the end of the lines of the
 /// raw exchange of the previous turn; it is kept in memory (a page that attaches later gets it again, `request_get` repeats a turn) and is never written to the journal of the session.
 export fn scenario_request_view(settings ServerSettings) Proc Detach Time Net Fs Os -> str {
     mut c = kit_check()
-    mut rig = rig_open(settings)
+    // Raw-range closure is meaningful only with tracing; the general kit stays non-tracing.
+    mut traced = settings
+    traced.acp_trace = true
+    mut rig = rig_open(traced)
     rig.attach(1)
     rig.page(1, "session_created", "s-rq", "{\"name\":\"Запрос\",\"agent\":\"opencode\"}")
     c.expect(rig.until("\"kind\":\"session_created\"", 5000), "the session is shown")
@@ -18,7 +50,7 @@ export fn scenario_request_view(settings ServerSettings) Proc Detach Time Net Fs
     ro asked = rig.request_lines_for(1)
     c.expect(asked.len() >= 2, "a request for each turn: ${asked.len()}")
     ro first = asked[0]
-    c.expect(line_field(first, "trace") == "s-rq" && line_input(first, "turn") == "1", "the first request is the turn 1")
+    c.expect(kit_request_turn_matches(first, "s-rq", 1), "the first request is the turn 1")
     c.expect(first.contains("owner_message") && first.contains("первый вопрос"), "the message of the owner is a part")
     c.expect(first.contains("\"approx_tokens\"") && first.contains("\"chars\""), "a part has its size")
     c.expect(first.contains("ask_user_question") && first.contains("crew_task_list"), "the tools of the hub are named with their schemas")
@@ -29,7 +61,7 @@ export fn scenario_request_view(settings ServerSettings) Proc Detach Time Net Fs
     // the first request is told again with the end of its lines once the second begins
     mut ended = false
     for line in asked {
-        if line_input(line, "turn") == "1" && !line.contains("\"to_line\":0") { ended = true }
+        if kit_request_range_closed(line, "s-rq", 1) { ended = true }
     }
     c.expect(ended, "the end of the lines of the first turn is told when the second begins")
 
