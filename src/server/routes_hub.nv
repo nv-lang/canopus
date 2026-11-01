@@ -176,7 +176,8 @@ fn no_task() -> TaskMade => { ok: false, id: "", number: "", dir: "", shown: "",
 // The repository the tasks of a session live in: the folder of its project (the working folder of the agent without a task), else the working folder of the hub.
 fn Hub @route_repo_dir(session str) -> str {
     ro at = @find(session)
-    if at < 0 { return @workdir }
+    if at < 0 { return "" }
+    if @sessions[at].project_id.byte_len() == 0 { return "" }
     @cwd_of(@sessions[at].folder)
 }
 
@@ -233,6 +234,10 @@ fn Hub mut @route_repo(trace str, repo str) Proc Detach Time -> () {
     if at < 0 { return }
     if !@work_require(at, "repository") { return }
     ro s = @sessions[at]
+    if s.project_id.byte_len() == 0 && repo.byte_len() > 0 {
+        @tell_error(0, trace, s.engine.step_number(), "", "Сначала выберите проект: чат без проекта не использует репозитории")
+        return
+    }
     if s.rt.task_open || s.rt.worktree.byte_len() > 0 || s.rt.wip_tree.byte_len() > 0 || s.rt.wip_prep > 0 {
         @tell_error(0, trace, s.engine.step_number(), "", "у работы уже есть дерево: репозиторий результата не меняется")
         return
@@ -291,6 +296,10 @@ fn Hub mut @route_make_task(session str, route str, text str, use_tree bool) Pro
     if preparation_at >= 0 && !@work_allowed(preparation_at, "execute") {
         ro dir = "${@settings.data_dir}/${session}/tasks/draft/task"
         return { ok: true, id: "draft", number: "", dir, shown: dir, branch: "", worktree: "", base: "", repo_dir: "" }
+    }
+    if preparation_at >= 0 && @sessions[preparation_at].project_id.byte_len() == 0 {
+        @tell_error(0, session, @sessions[preparation_at].engine.step_number(), "", "Для задачи с Git сначала выберите проект; черновик Подготовки хранится в данных сессии")
+        return no_task()
     }
     ro own = @route_repo_dir(session)
     // task 257: the result may go to another known repository (the project of `rt.result_repo`): the number and the folder of the task stay
@@ -523,6 +532,10 @@ fn Hub mut @route_attach_tree(at int) Proc Detach Time -> bool {
     if !@work_require(at, "tree") { return false }
     ro s = @sessions[at]
     if !s.rt.task_open || s.rt.worktree.byte_len() > 0 { return false }
+    if s.project_id.byte_len() == 0 {
+        @tell_error(0, s.id, s.engine.step_number(), "", "Сначала выберите проект: чат без проекта не создаёт Git-деревья")
+        return false
+    }
     ro own = @route_repo_dir(s.id)
     mut base = own
     mut trees = @route_trees(s.id)
@@ -573,6 +586,10 @@ fn Hub mut @route_worktree(trace str, on bool) Proc Detach Time -> () {
     ro at = @find(trace)
     if at < 0 { return }
     ro s = @sessions[at]
+    if on && s.project_id.byte_len() == 0 {
+        @tell_error(0, trace, s.engine.step_number(), "", "Сначала выберите проект: чат без проекта не включает Git-worktree")
+        return
+    }
     if !on && s.rt.result_repo.byte_len() > 0 {
         @tell_error(0, trace, s.engine.step_number(), "", "для выбранного репозитория результата нужно своё дерево")
         return
@@ -1297,6 +1314,10 @@ fn Hub mut @route_new_task(trace str) Proc Detach Time -> () {
     ro at = @find(trace)
     if at < 0 { return }
     ro s = @sessions[at]
+    if s.project_id.byte_len() == 0 && (s.rt.worktree.byte_len() > 0 || s.rt.wip_tree.byte_len() > 0) {
+        @tell_error(0, trace, s.engine.step_number(), "", "Сначала выберите проект, чтобы завершить Git-работу")
+        return
+    }
     if !s.rt.task_open { return }
     if s.rt.running || s.rt.job.byte_len() > 0 {
         @tell_error(0, trace, s.engine.step_number(), "", "идёт прогон: остановите его, потом закройте задачу")
@@ -1332,6 +1353,10 @@ fn Hub mut @route_tree_drop(trace str, force bool) Proc Detach Time -> () {
     ro at = @find(trace)
     if at < 0 { return }
     ro s = @sessions[at]
+    if s.project_id.byte_len() == 0 && (s.rt.worktree.byte_len() > 0 || s.rt.wip_tree.byte_len() > 0) {
+        @tell_error(0, trace, s.engine.step_number(), "", "Git-дерево projectless-сессии не удалено; выберите проект и повторите действие явно")
+        return
+    }
     // task 192.4: the tree of a work that is not a task yet
     if !s.rt.task_open && s.rt.wip_tree.byte_len() > 0 {
         @wip_drop(trace, force)
@@ -1394,6 +1419,10 @@ fn Hub mut @route_diff(trace str) Proc Detach Time -> () {
     ro at = @find(trace)
     if at < 0 { return }
     ro s = @sessions[at]
+    if s.project_id.byte_len() == 0 && (s.rt.worktree.byte_len() > 0 || s.rt.wip_tree.byte_len() > 0) {
+        @tell_error(0, trace, s.engine.step_number(), "", "Для Git-diff сначала выберите проект")
+        return
+    }
     if !s.rt.task_open || s.rt.worktree.byte_len() == 0 { return }
     @rt_note(at, "Изменения задачи ${s.rt.number} относительно ${s.rt.base}:\n\n${tk_diff_text(s.rt.worktree)}")
 }
@@ -1405,6 +1434,10 @@ fn Hub mut @route_merge(trace str) Proc Detach Time -> () {
     ro at = @find(trace)
     if at < 0 { return }
     ro s = @sessions[at]
+    if s.project_id.byte_len() == 0 {
+        @tell_error(0, trace, s.engine.step_number(), "", "Для слияния сначала выберите проект")
+        return
+    }
     if !s.rt.task_open || s.rt.worktree.byte_len() == 0 {
         @tell_error(0, trace, s.engine.step_number(), "", "у задачи нет дерева: сливать нечего")
         return
@@ -1541,6 +1574,10 @@ fn Hub mut @route_tests_run(trace str) Proc Detach Time -> () {
     if at < 0 { return }
     if !@work_require(at, "execute") { return }
     ro s = @sessions[at]
+    if s.project_id.byte_len() == 0 {
+        @tell_error(0, trace, s.engine.step_number(), "", "Для запуска Git-проверок сначала выберите проект")
+        return
+    }
     if !s.rt.task_open || s.rt.worktree.byte_len() == 0 {
         @tell_error(0, trace, s.engine.step_number(), "", "у задачи нет дерева: тесты гонять негде")
         return

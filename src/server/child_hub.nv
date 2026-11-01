@@ -252,6 +252,10 @@ fn Hub @cs_running_all() -> []RunSub {
 fn Hub mut @cs_spawn(at int, p Proposal, how str, queued bool) Proc Detach Time -> () {
     if !@work_require(at, "execute") { return }
     ro cur = @sessions[at]
+    if cur.project_id.byte_len() == 0 {
+        @tell_error(0, cur.id, cur.engine.step_number(), "", "Для Git-задачи сначала выберите проект; переписка без проекта останется в данных сессии")
+        return
+    }
     // where the work belongs
     mut pat = -1
     mut ptype = ""
