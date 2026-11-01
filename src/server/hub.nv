@@ -713,6 +713,13 @@ fn Hub mut @ensure_client(at int) Proc Detach Time -> str {
         @sessions[at] = s
         return "Подготовка задачи недоступна: ограниченный backend не подключён; обычный ACP-агент не запущен"
     }
+    if !@workspace_agent_ready(at) {
+        mut i = 0
+        while i < s.clients.len() { s.clients[i].close(); i += 1 }
+        s.clients = []AcpClient.new()
+        @sessions[at] = s
+        return "Выбранная отдельная рабочая папка ещё не подтверждена: ACP не запускается в основной папке"
+    }
     if s.clients.len() > 0 {
         ro phase = s.clients[0].phase()
         if phase == "ready" || phase == "initializing" || phase == "opening" { return "" }
@@ -1041,6 +1048,7 @@ fn Hub mut @create(conn int, trace str, input JsonObject) Proc Detach Time -> ()
             jput(place, "workspace_explicit", JsonValue.bool(jflag(input, "workspace_explicit") || source.byte_len() > 0))
             @rt_journal(at, "route_set", JsonValue.object(place).to_str())
             @route_broadcast(at, true)
+            if @work_allowed(at, "execute") && !@workspace_agent_ready(at) { return }
             ro reason = @ensure_client(at)
             if reason.byte_len() > 0 {
                 @say_log("the agent of ${trace} cannot be started: ${reason}")
@@ -1169,10 +1177,8 @@ fn Hub mut @say(trace str, text str, items []JsonValue) Proc Detach Time -> () {
         @wip_hold(trace, text, items)
         return
     }
-    ro workspace = @sessions[at]
-    ro required_tree = workspace.rt.use_tree && wip_explicit(workspace.rt) && workspace.rt.worktree.byte_len() == 0 && workspace.rt.result_repo.byte_len() == 0
-    if required_tree && @work_allowed(at, "execute") && !workspace_dispatch_allows(@work_mode, workspace.rt.route, true, workspace.rt.wip_tree.byte_len() > 0, workspace.rt.workspace_failed) {
-        @tell_error(0, trace, workspace.engine.step_number(), "", "Выбранная отдельная папка не готова: сообщение не отправлено агенту. После ошибки снова сохраните выбор папки и явно повторите сообщение из исходящих.")
+    if @work_allowed(at, "execute") && !@workspace_agent_ready(at) {
+        @tell_error(0, trace, @sessions[at].engine.step_number(), "", "Выбранная отдельная папка не готова: сообщение не отправлено агенту. После ошибки снова сохраните выбор папки и явно повторите сообщение из исходящих.")
         return
     }
     @route_sync_cwd(at)

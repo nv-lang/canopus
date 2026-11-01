@@ -3,6 +3,13 @@ module crew_harness.server
 
 import std.encoding.json.{Json, JsonValue, JsonObject}
 
+// Shared by prompt dispatch and every cold/ready client path (including other UI settings).
+fn Hub @workspace_agent_ready(at int) -> bool {
+    ro s = @sessions[at]
+    ro required = s.project_id.byte_len() > 0 && s.rt.use_tree && wip_explicit(s.rt) && s.rt.worktree.byte_len() == 0 && s.rt.result_repo.byte_len() == 0
+    workspace_dispatch_allows(@work_mode, s.rt.route, required, s.rt.wip_tree.byte_len() > 0, s.rt.workspace_failed)
+}
+
 fn workspace_problem(project str, folder str, source str, tree bool) Proc -> str {
     if project.byte_len() == 0 || folder.byte_len() == 0 {
         return if tree || source.byte_len() > 0 { "без проекта нельзя выбрать исходную ветку или отдельную Git-папку" } else { "" }
@@ -39,5 +46,6 @@ fn Hub mut @workspace_set(trace str, input JsonObject) Proc Detach Time -> () {
         retry.rt.wip_prep = 0
         @sessions[at] = retry
     }
+    if !@workspace_agent_ready(at) && @work_allowed(at, "execute") { ro pending = @ensure_client(at) }
     @route_broadcast(at, true)
 }
