@@ -52,6 +52,8 @@ test('workspace: changing project drops only its source preference, not draft co
   assert.equal(m.sessions.d.input, 'draft words');
   assert.deepEqual(m.sessions.d.images, ['attachment']);
   assert.equal(parseRouteState({ source_branch: 'refs/heads/chosen' }).sourceBranch, 'refs/heads/chosen');
-  assert.match(whereText({ draft: true, projectId: '' }), /Без проекта/);
+  const noProjectWhere = whereText({ draft: true, projectId: '' });
+  assert.match(noProjectWhere, /данных сессии/);
+  assert.doesNotMatch(noProjectWhere, /папке проекта/i);
   assert.match(whereText({ draft: true, route: 'planning', worktree: true }), /не создаются/);
 });
