@@ -1,0 +1,45 @@
+// Synthetic pure contract fixtures, NOT a real native-context attestation.
+module model_metadata_tests.hook_test
+
+import std.text
+import std.encoding.json.{Json}
+import std.crypto.sha256.{Sha256}
+import crew_harness.model_metadata.{NativeMetadataBinding, MetadataHook, model_metadata_reply}
+
+fn binding(family str, config str) -> NativeMetadataBinding => {
+    family, config_sha256: config,
+    launch_sha256: "0000000000000000000000000000000000000000000000000000000000000000",
+    location: "C:/work/metadata", contract: "opencode-acp-2.2.5", source: "opencode.api.model", source_version: "2.2.5"
+}
+
+fn hook(text str, expected NativeMetadataBinding, observed NativeMetadataBinding) -> MetadataHook => {
+    expected, observed, snapshot_path: "C:/work/metadata/snapshot.json", snapshot_sha256: Sha256.hash_str(text.bytes())
+}
+
+fn status(text str) -> str => Json.parse(text).unwrap().object().unwrap().get("status").unwrap().str().unwrap()
+
+test "269 F07 binding authority is not decoded from source JSON" {
+    ro snapshot = "{\"v\":1,\"observed_at\":1000,\"expires_at\":2000,\"response\":{\"location\":{\"directory\":\"C:/work/metadata\"},\"data\":[{\"providerID\":\"example\",\"id\":\"native\",\"name\":\"Native\",\"enabled\":true,\"variants\":[{\"id\":\"native-effort\"}]}]}}"
+    ro expected = binding("configured-family", "1111111111111111111111111111111111111111111111111111111111111111")
+    ro configured = hook(snapshot, expected, expected)
+    ro reply = model_metadata_reply(Some(snapshot), Some(configured), 1500)
+    assert(status(reply) == "ready")
+    ro body = Json.parse(reply).unwrap().object().unwrap()
+    assert(body.get("family").unwrap().str().unwrap() == "configured-family")
+    assert(body.get("complete").unwrap().bool().unwrap() == false)
+    assert(body.get("permissions_status").unwrap().str().unwrap() == "blocked")
+    assert(status(model_metadata_reply(Some(snapshot), None, 1500)) == "unavailable")
+    assert(status(model_metadata_reply(Some("{\"verified\":true}"), None, 1500)) == "unavailable")
+    assert(status(model_metadata_reply(None, Some(configured), 1500)) == "unavailable")
+    assert(status(model_metadata_reply(Some(snapshot), Some(configured), 2000)) == "unavailable")
+    assert(status(model_metadata_reply(Some(snapshot), Some(configured), 999)) == "unavailable")
+    ro wrong_family = hook(snapshot, expected, binding("other-family", expected.config_sha256))
+    assert(status(model_metadata_reply(Some(snapshot), Some(wrong_family), 1500)) == "unavailable")
+    ro wrong_config = hook(snapshot, expected, binding(expected.family, "2222222222222222222222222222222222222222222222222222222222222222"))
+    assert(status(model_metadata_reply(Some(snapshot), Some(wrong_config), 1500)) == "unavailable")
+    assert(status(model_metadata_reply(Some(snapshot.replace("native-effort", "changed")), Some(configured), 1500)) == "unavailable")
+    ro wrong_location = snapshot.replace("C:/work/metadata", "C:/work/other")
+    assert(status(model_metadata_reply(Some(wrong_location), Some(hook(wrong_location, expected, expected)), 1500)) == "unavailable")
+    ro legacy = "{\"agents\":{}}"
+    assert(status(model_metadata_reply(Some(legacy), Some(hook(legacy, expected, expected)), 1500)) == "unavailable")
+}

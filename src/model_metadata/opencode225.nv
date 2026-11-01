@@ -1,0 +1,86 @@
+// Metadata-only native shape conversion, NOT evidence of configured-family or
+// runtime-context equivalence. The caller must bind its source separately.
+// Source: OpenCode v2.2.5 cli/acp/catalog.ts and config-option.ts.
+module crew_harness.model_metadata
+
+import std.text
+import std.encoding.json.{Json, JsonValue, JsonObject}
+
+export const MODEL_METADATA_MAX_BYTES = 1048576
+export const MODEL_METADATA_MAX_AGE_MS = 300000
+
+fn mm_put(mut object JsonObject, key str, value JsonValue) -> () {
+    ro previous = object.insert(key, value)
+}
+
+fn mm_string(object JsonObject, key str) -> Result[str, str] {
+    ro value = object.get(key).ok_or("missing_field")?
+    value.str().ok_or("field_type")
+}
+
+fn mm_id(value str) -> bool {
+    if value.byte_len() == 0 || value.byte_len() > 512 { return false }
+    for b in value.bytes() { if b < 32 || b == 127 { return false } }
+    true
+}
+
+/// Only this version's ACP mapping is supported. Never use Model.Info.family
+/// as the product's configured family, or modelID in place of API id.
+export fn opencode225_models(text str, version str) -> Result[[]JsonValue, str] {
+    if version != "2.2.5" { return Err("unsupported_source_version") }
+    if text.byte_len() == 0 || text.byte_len() > MODEL_METADATA_MAX_BYTES { return Err("source_size") }
+    ro root = Json.parse(text).map_err(|_e| "source_json")?.object().ok_or("source_object")?
+    ro data = root.get("data").ok_or("source_data")?.array().ok_or("source_data")?
+    if data.len() > 4096 { return Err("source_count") }
+    mut models = []JsonValue.new()
+    mut seen = []str.new()
+    for item in data {
+        ro source = item.object().ok_or("model_object")?
+        ro enabled = source.get("enabled").ok_or("model_enabled")?.bool().ok_or("model_enabled")?
+        if !enabled { continue }
+        match source.get("type") {
+            Some(kind) => { if kind.str().ok_or("model_type")? != "chat" { continue } }
+            None => () // /api/model defaults to chat in this exact version.
+        }
+        ro provider = mm_string(source, "providerID")?
+        ro id = mm_string(source, "id")?
+        ro name = mm_string(source, "name")?
+        if !mm_id(provider) || provider.contains("/") || !mm_id(id) || !mm_id(name) { return Err("model_id") }
+        ro native_id = "${provider}/${id}"
+        if seen.contains(native_id) { return Err("duplicate_model") }
+        seen.push(native_id)
+        ro variants = source.get("variants").ok_or("model_variants")?.array().ok_or("model_variants")?
+        if variants.len() > 128 { return Err("variant_count") }
+        mut efforts = []JsonValue.new()
+        mut variant_ids = []str.new()
+        for variant in variants {
+            ro native = variant.object().ok_or("variant_object")?
+            ro effort = mm_string(native, "id")?
+            if !mm_id(effort) || variant_ids.contains(effort) { return Err("variant_id") }
+            variant_ids.push(effort)
+            mut option = JsonObject.new()
+            mm_put(option, "id", JsonValue.str(effort))
+            mm_put(option, "name", JsonValue.str(effort))
+            efforts.push(JsonValue.object(option))
+        }
+        // This is a documented native ACP sentinel, not guessed effort. No
+        // effort selector is advertised at all when the model has no variants.
+        if variants.len() > 0 && !variant_ids.contains("default") {
+            mut option = JsonObject.new()
+            mm_put(option, "id", JsonValue.str("default"))
+            mm_put(option, "name", JsonValue.str("default"))
+            efforts.push(JsonValue.object(option))
+        }
+        mut model = JsonObject.new()
+        mm_put(model, "id", JsonValue.str(native_id))
+        mm_put(model, "name", JsonValue.str("${provider}/${name}"))
+        mm_put(model, "efforts", JsonValue.array(efforts))
+        models.push(JsonValue.object(model))
+    }
+    Ok(models)
+}
+
+/// Freshness alone does not authenticate source/family/context binding.
+export fn model_metadata_fresh(observed_at int, expires_at int, now int) -> bool =>
+    observed_at > 0 && observed_at <= now && expires_at > now && expires_at > observed_at &&
+    expires_at - observed_at <= MODEL_METADATA_MAX_AGE_MS && now - observed_at <= MODEL_METADATA_MAX_AGE_MS

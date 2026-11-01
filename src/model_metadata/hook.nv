@@ -1,0 +1,91 @@
+// Optional trusted-host hand-off; there is deliberately NO JSON decoder for a
+// native binding or hook. A client/source JSON `verified:true` is not evidence.
+// The stock front has no same-context native observer and supplies None.
+module crew_harness.model_metadata
+
+import std.encoding.json.{Json, JsonValue, JsonObject}
+import std.crypto.sha256.{Sha256}
+
+/// Produced only after the trusted host checks the configured launch/config
+/// and actual native location/source context. Strings/hashes alone cannot
+/// establish that origin; this module does not perform native discovery.
+export type NativeMetadataBinding {
+    family str, launch_sha256 str, config_sha256 str, location str,
+    contract str, source str, source_version str
+}
+
+/// Optional isolated host configuration. Native observer/installer must bind
+/// these contexts before construction; not a proof reader from arbitrary files.
+export type MetadataHook {
+    expected NativeMetadataBinding, observed NativeMetadataBinding, snapshot_path str, snapshot_sha256 str
+}
+
+fn mm_hash(value str) -> bool {
+    if value.byte_len() != 64 { return false }
+    for b in value.bytes() { if !((b >= 48 && b <= 57) || (b >= 97 && b <= 102)) { return false } }
+    true
+}
+
+fn mm_binding(expected NativeMetadataBinding, observed NativeMetadataBinding) -> bool =>
+    expected.family.byte_len() > 0 && expected.family == observed.family &&
+    mm_hash(expected.launch_sha256) && expected.launch_sha256 == observed.launch_sha256 &&
+    mm_hash(expected.config_sha256) && expected.config_sha256 == observed.config_sha256 &&
+    expected.location.byte_len() > 0 && expected.location == observed.location &&
+    expected.contract == "opencode-acp-2.2.5" && expected.contract == observed.contract &&
+    expected.source == "opencode.api.model" && expected.source == observed.source &&
+    expected.source_version == "2.2.5" && expected.source_version == observed.source_version
+
+fn mm_response(status str, reason str, family str, source str, observed int, expires int, models []JsonValue) -> str {
+    mut out = JsonObject.new()
+    mm_put(out, "v", JsonValue.int(1))
+    mm_put(out, "status", JsonValue.str(status))
+    mm_put(out, "reason", JsonValue.str(reason))
+    mm_put(out, "family", JsonValue.str(family))
+    mm_put(out, "source", JsonValue.str(source))
+    mm_put(out, "source_version", JsonValue.str(if source == "opencode.api.model" { "2.2.5" } else { "" }))
+    mm_put(out, "observed_at", JsonValue.int(observed))
+    mm_put(out, "expires_at", JsonValue.int(expires))
+    mm_put(out, "complete", JsonValue.bool(false))
+    mm_put(out, "permissions_status", JsonValue.str("blocked"))
+    mm_put(out, "models", JsonValue.array(models))
+    JsonValue.object(out).to_str()
+}
+
+/// Snapshot envelope: {v:1, observed_at:<ms>, expires_at:<ms>, response:<the
+/// exact GET /api/model JSON response>}. Origin/binding does NOT come from it.
+/// Freshness is necessary, not a replacement for the host's native authority.
+export fn model_metadata_reply(snapshot Option[str], hook Option[MetadataHook], now int) -> str {
+    ro none = []JsonValue.new()
+    ro bound = match hook {
+        Some(value) => value
+        None => return mm_response("unavailable", "same_context_binding_unverified", "", "", 0, 0, none)
+    }
+    ro family = bound.expected.family
+    if !mm_binding(bound.expected, bound.observed) { return mm_response("unavailable", "binding_mismatch", family, "", 0, 0, none) }
+    ro text = match snapshot {
+        Some(value) => value
+        None => return mm_response("unavailable", "source_missing", family, "opencode.api.model", 0, 0, none)
+    }
+    if text.byte_len() == 0 || text.byte_len() > MODEL_METADATA_MAX_BYTES { return mm_response("unavailable", "source_size", family, "", 0, 0, none) }
+    if !mm_hash(bound.snapshot_sha256) || Sha256.hash_str(text.bytes()) != bound.snapshot_sha256 { return mm_response("unavailable", "source_digest_mismatch", family, "", 0, 0, none) }
+    ro root = match Json.parse(text) {
+        Ok(value) => match value.object() { Some(object) => object, None => return mm_response("unavailable", "source_schema", family, "", 0, 0, none) }
+        Err(e) => return mm_response("unavailable", "source_json", family, "", 0, 0, none)
+    }
+    ro version = match root.get("v") { Some(value) => value.int() ?? 0, None => 0 }
+    ro observed = match root.get("observed_at") { Some(value) => value.int() ?? 0, None => 0 }
+    ro expires = match root.get("expires_at") { Some(value) => value.int() ?? 0, None => 0 }
+    if version != 1 { return mm_response("unavailable", "source_schema", family, "", 0, 0, none) }
+    if !model_metadata_fresh(observed, expires, now) { return mm_response("unavailable", "source_expired_or_future", family, "opencode.api.model", observed, expires, none) }
+    ro response = match root.get("response") { Some(value) => value, None => return mm_response("unavailable", "source_schema", family, "", 0, 0, none) }
+    ro body = match response.object() { Some(value) => value, None => return mm_response("unavailable", "source_schema", family, "", 0, 0, none) }
+    ro location = match body.get("location") { Some(value) => match value.object() { Some(object) => object, None => JsonObject.new() }, None => JsonObject.new() }
+    ro directory = match location.get("directory") { Some(value) => value.str() ?? "", None => "" }
+    if directory != bound.observed.location { return mm_response("unavailable", "source_location_mismatch", family, "", 0, 0, none) }
+    ro models = match opencode225_models(response.to_str(), bound.observed.source_version) {
+        Ok(value) => value
+        Err(reason) => return mm_response("unavailable", reason, family, "opencode.api.model", observed, expires, none)
+    }
+    if models.len() == 0 { return mm_response("unavailable", "source_empty_or_settling", family, "opencode.api.model", observed, expires, none) }
+    mm_response("ready", "bound_native_snapshot", family, "opencode.api.model", observed, expires, models)
+}

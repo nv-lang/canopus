@@ -17,6 +17,7 @@ module server.front
 
 import crew_harness.acp.{AgentLink, connect}
 import crew_harness.config.{ConfigLayout, presets_reply}
+import crew_harness.model_metadata.{MetadataHook, model_metadata_reply, read_metadata_snapshot}
 import polaris.{Router, MethodRouter, ServerRequest, ServerResponse, WebSocketUpgrade, StatusCode, HttpError}
 import polaris.static.{Static, serve_path}
 import polaris.ws.{Frame, OpCode, frame_len_hint}
@@ -361,6 +362,20 @@ fn catalog_route(cache_dir str, port int) -> fn(ServerRequest) -> ServerResponse
     }
 }
 
+// No discovery, HTTP fetch, CLI, session or native start from this GET. The
+// stock host supplies None until it has a real same-context native observer.
+fn model_metadata_route(hook Option[MetadataHook], port int) -> fn(ServerRequest) -> ServerResponse {
+    fn(req ServerRequest) -> ServerResponse {
+        if !origin_allowed(req, port) { return json_reply(403, "{\"error\":\"origin not allowed\"}") }
+        ro configured = match hook {
+            Some(value) => value
+            None => return json_reply(200, model_metadata_reply(None, None, 0))
+        }
+        ro file Option[str] = with Fs = real_fs() { read_metadata_snapshot(configured.snapshot_path) }
+        json_reply(200, model_metadata_reply(file, Some(configured), Time.now().unix_millis()))
+    }
+}
+
 // ----- the voice: POST /api/stt and GET /api/stt/status (task 192f) -----
 
 // A line that cannot be in a WAV file by chance, so the audio never closes the form early.
@@ -523,7 +538,7 @@ fn image_get_route(data_dir str) -> fn(ServerRequest) -> ServerResponse {
     }
 }
 
-fn build_router(web_dir str, port int, hub_tx ChanTx[str], reg_tx ChanTx[Reg], agents []AgentChoice, stt_url str, stt_language str, stt_model str, stt_asks ChanTx[SttAsk], stt_mgr ChanTx[SttMgrAsk], data_dir str, image_limit int, layout ConfigLayout, preset str, reviewer_order []str) -> Result[Router, HttpError] {
+fn build_router(web_dir str, port int, hub_tx ChanTx[str], reg_tx ChanTx[Reg], agents []AgentChoice, stt_url str, stt_language str, stt_model str, stt_asks ChanTx[SttAsk], stt_mgr ChanTx[SttMgrAsk], data_dir str, image_limit int, layout ConfigLayout, preset str, reviewer_order []str, metadata_hook Option[MetadataHook]) -> Result[Router, HttpError] {
     mut router = Router.new()
     ro r1 = router.get("/", files_route(web_dir))?
     ro r2 = router.get("/health", fn(req ServerRequest) -> ServerResponse => ServerResponse.text(StatusCode.OK, "ok"))?
@@ -552,6 +567,7 @@ fn build_router(web_dir str, port int, hub_tx ChanTx[str], reg_tx ChanTx[Reg], a
     ro r4h = router.get("/api/fs/list", fs_list_route(layout.data, layout.state, port))?
     ro r4i = router.get("/api/fs/git", fs_git_route(port))?
     ro r4o = router.get("/api/agent-catalog", catalog_route(layout.cache, port))?
+    ro metadata_added = router.get("/api/model-metadata", model_metadata_route(metadata_hook, port))?
     ro r4r = router.get("/api/presets", presets_route(layout, preset, reviewer_order, port))?
     ro r4t = router.get("/api/session-trace/{id}", trace_route(data_dir, port))?
     ro r5 = router.get("/{*path}", files_route(web_dir))?
@@ -563,7 +579,11 @@ fn build_router(web_dir str, port int, hub_tx ChanTx[str], reg_tx ChanTx[Reg], a
 export fn run_front(settings FrontSettings, config_file str) Proc Net Time Detach Io Os Fs -> () => run_front_with(settings, config_file, []str.new())
 
 /// The same; `passthrough` are the words (`--home <folder>`, `--set key=value`) that the hub gets after the settings file, so that it works in the same root with the same arguments.
-export fn run_front_with(settings FrontSettings, config_file str, passthrough []str) Proc Net Time Detach Io Os Fs -> () {
+export fn run_front_with(settings FrontSettings, config_file str, passthrough []str) Proc Net Time Detach Io Os Fs -> () => run_front_with_metadata(settings, config_file, passthrough, None)
+
+/// Optional trusted-host configuration, not a settings/client JSON proof seam.
+/// No same-context observer is installed by default; cold-ready is unverified.
+export fn run_front_with_metadata(settings FrontSettings, config_file str, passthrough []str, metadata_hook Option[MetadataHook]) Proc Net Time Detach Io Os Fs -> () {
     mut hub_args = []str.new()
     for a in settings.hub_args { hub_args.push(a) }
     if config_file.byte_len() > 0 { hub_args.push(config_file) }
@@ -582,7 +602,7 @@ export fn run_front_with(settings FrontSettings, config_file str, passthrough []
             ro stt_mgr = Chan[SttMgrAsk].new(16)
             ro stt_cfg = SttConfig { managed: settings.stt_managed, dir: settings.stt_dir, model: settings.stt_model, language: settings.stt_language, url: settings.stt_url, pid_file: "${settings.layout.state}/stt.pid" }
             detach { with Net = real_net(), Fs = real_fs() { stt_manage(stt_cfg, stt_mgr.rx) } }
-            match build_router(settings.web_dir, settings.port, link.out, registrations.tx, settings.agents, settings.stt_url, settings.stt_language, settings.stt_model, stt_asks.tx, stt_mgr.tx, settings.data_dir, settings.max_image_bytes, settings.layout, settings.preset, settings.reviewer_order) {
+            match build_router(settings.web_dir, settings.port, link.out, registrations.tx, settings.agents, settings.stt_url, settings.stt_language, settings.stt_model, stt_asks.tx, stt_mgr.tx, settings.data_dir, settings.max_image_bytes, settings.layout, settings.preset, settings.reviewer_order, metadata_hook) {
                 Err(e) => {
                     log_line("the routes cannot be set: ${e}")
                     exit_process(2)
