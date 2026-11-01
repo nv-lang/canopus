@@ -573,6 +573,12 @@ fn Hub mut @route_worktree(trace str, on bool) Proc Detach Time -> () {
     ro at = @find(trace)
     if at < 0 { return }
     ro s = @sessions[at]
+    ro problem = workspace_problem(s.project_id, s.folder, s.rt.source_branch, on)
+    if problem.byte_len() > 0 { @tell_error(0, trace, s.engine.step_number(), "", problem); return }
+    if s.rt.wip_prep > 0 {
+        @tell_error(0, trace, s.engine.step_number(), "", "рабочая копия уже создаётся: дождитесь завершения")
+        return
+    }
     if !on && s.rt.result_repo.byte_len() > 0 {
         @tell_error(0, trace, s.engine.step_number(), "", "для выбранного репозитория результата нужно своё дерево")
         return

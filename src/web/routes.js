@@ -238,6 +238,8 @@ export function parseWhere(raw) {
  */
 export function whereText(session) {
   if (!session) return '';
+  if (session.route === 'planning' || (session.routeState && session.routeState.route === 'planning')) return 'Подготовка задачи: ветки и рабочие копии не создаются';
+  if (session.projectId === '') return 'Без проекта: исходной ветки и рабочей копии нет';
   if (session.draft) return session.worktree === false ? t('where.draft_folder') : t('where.draft_tree');
   const rs = session.routeState;
   if (!rs) return '';
@@ -259,15 +261,16 @@ export function parseRouteState(input) {
   const src = isObject(input) ? input : {};
   const route = normalizeRoute(src.route);
   const useTree = src.use_tree !== false;
+  const sourceBranch = str(src.source_branch);
   const resultRepo = str(src.result_repo);
   const resultLabel = str(src.result_label);
-  if (!routeInfo(route).hasSteps) return { route, stepless: true, steps: [], running: false, useTree, resultRepo, resultLabel, task: parseTask(src.task), where: parseWhere(src.where), crew: parseCrewTask(src), kids: parseKids(src), hints: parseHints(src), context: parseContext(src) };
+  if (!routeInfo(route).hasSteps) return { route, stepless: true, steps: [], running: false, useTree, sourceBranch, resultRepo, resultLabel, task: parseTask(src.task), where: parseWhere(src.where), crew: parseCrewTask(src), kids: parseKids(src), hints: parseHints(src), context: parseContext(src) };
   const steps = (Array.isArray(src.steps) ? src.steps : []).filter(isObject).map((s, i) => ({
     n: Number.isInteger(s.n) ? s.n : i + 1,
     title: str(s.title),
     state: STEP_STATES.includes(s.state) ? s.state : 'pending',
   }));
-  return { route, stepless: false, steps, running: src.running === true, useTree, resultRepo, resultLabel, task: parseTask(src.task), where: parseWhere(src.where), crew: parseCrewTask(src), kids: parseKids(src), hints: parseHints(src), context: parseContext(src) };
+  return { route, stepless: false, steps, running: src.running === true, useTree, sourceBranch, resultRepo, resultLabel, task: parseTask(src.task), where: parseWhere(src.where), crew: parseCrewTask(src), kids: parseKids(src), hints: parseHints(src), context: parseContext(src) };
 }
 
 export const INTERACTIVE_STATE = Object.freeze(parseRouteState({ route: DEFAULT_ROUTE }));

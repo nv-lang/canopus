@@ -1,0 +1,34 @@
+// Workspace preferences never perform Git mutations. Lifecycle authorization is the Alula WorkModePolicy.
+module crew_harness.server
+
+import std.encoding.json.{Json, JsonValue, JsonObject}
+
+fn workspace_problem(project str, folder str, source str, tree bool) Proc -> str {
+    if project.byte_len() == 0 || folder.byte_len() == 0 {
+        return if tree || source.byte_len() > 0 { "без проекта нельзя выбрать исходную ветку или отдельную Git-папку" } else { "" }
+    }
+    if !tk_is_repo(folder) {
+        return if tree || source.byte_len() > 0 { "в папке проекта нет Git: исходная ветка и отдельная Git-папка недоступны" } else { "" }
+    }
+    if source.byte_len() > 0 { return tk_workspace_source(folder, source) }
+    ""
+}
+
+fn Hub mut @workspace_set(trace str, input JsonObject) Proc Detach Time -> () {
+    ro at = @find(trace)
+    if at < 0 || !@work_require(at, "workspace") { return }
+    ro s = @sessions[at]
+    if s.rt.task_open || s.rt.wip_tree.byte_len() > 0 || s.rt.worktree.byte_len() > 0 || s.rt.wip_prep != 0 || wip_had_message(s.lines) || s.rt.result_repo.byte_len() > 0 {
+        @tell_error(0, trace, s.engine.step_number(), "", "исполнение уже началось: исходная ветка и рабочая папка закреплены")
+        return
+    }
+    ro source = jtext(input, "source_branch")
+    ro tree = jflag(input, "worktree")
+    ro problem = workspace_problem(s.project_id, s.folder, source, tree)
+    if problem.byte_len() > 0 { @tell_error(0, trace, s.engine.step_number(), "", problem); return }
+    mut o = JsonObject.new()
+    js(o, "source_branch", source)
+    jput(o, "worktree", JsonValue.bool(tree))
+    @rt_journal(at, "route_set", JsonValue.object(o).to_str())
+    @route_broadcast(at, true)
+}

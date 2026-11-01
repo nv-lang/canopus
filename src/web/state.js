@@ -673,7 +673,8 @@ export function dropDrafts(model, keep = '') {
 export function patchDraft(model, id, patch) {
   const s = model.sessions[id];
   if (!s || !s.draft) return model;
-  return { ...model, sessions: { ...model.sessions, [id]: { ...s, ...patch } } };
+  const changedFolder = ('folder' in patch && patch.folder !== s.folder) || ('projectId' in patch && patch.projectId !== s.projectId);
+  return { ...model, sessions: { ...model.sessions, [id]: { ...s, ...(changedFolder ? { sourceBranch: '' } : {}), ...patch } } };
 }
 
 /** Название по умолчанию: первые слова первого сообщения; пусто — «Без названия» подставляет вызывающий. */

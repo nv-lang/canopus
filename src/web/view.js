@@ -727,10 +727,15 @@ export function createView(doc, refs, deps) {
   // Под полем новой сессии: Worktree · режим · агент · модель · усилие; проект выбирается только списком посреди пустого чата (задача 192.6).
   const worktreeButton = h(doc, 'button', { type: 'button', class: 'status-btn worktree-chip', hidden: true, 'aria-pressed': 'true', title: t('route.worktree_on') },
     icon(doc, 'i-branch'), h(doc, 'span', { text: t('route.worktree') }));
-  worktreeButton.addEventListener('click', () => {
+  worktreeButton.addEventListener('click', async () => {
     if (worktreeButton.disabled || !currentTrace) return;
-    const on = worktreeButton.getAttribute('aria-pressed') !== 'true';
-    if (worktreeButton.dataset.draft === 'true') handlers.onDraftWorktree(currentTrace, on); else handlers.onWorktree(currentTrace, on);
+    const s = current.session;
+    if (!s || s.id !== currentTrace) return;
+    const rs = s.routeState;
+    const choice = await projectsUi.pickWorkspace({ folder: s.projectId ? s.folder : '',
+      worktree: s.draft ? s.worktree !== false : rs && rs.useTree !== false,
+      sourceBranch: s.draft ? (s.sourceBranch || '') : (rs && rs.sourceBranch || '') });
+    if (choice) handlers.onWorkspace(s.id, s.folder, choice);
   });
   // Задача 192.12: набор «роль → семья, модель, усилие» — выбор под полем новой сессии и у открытой сессии
   // Задача 265: чип «Результат» — кнопка с общим меню, а не select (его ширина была по самой длинной строке):
@@ -1738,10 +1743,16 @@ export function createView(doc, refs, deps) {
     worktreeButton.setAttribute('aria-pressed', String(treeOn || hasTree));
     // задача 192.6: папка проекта не git-репозиторий — дерево сделать нельзя, переключатель выключен и недоступен
     const draftFolder0 = session.draft ? draftFolderInfo(session) : null;
-    const noRepo = Boolean(draftFolder0) && draftFolder0.repo === false;
+    const noRepo = !session.projectId || !session.folder || (Boolean(draftFolder0) && draftFolder0.repo === false);
     worktreeButton.setAttribute('aria-pressed', String((treeOn && !noRepo) || hasTree));
-    worktreeButton.disabled = hasTree || noRepo;
-    worktreeButton.title = noRepo ? t('route.worktree_not_repo') : hasTree ? t('route.worktree_locked') : (treeOn ? t('route.worktree_on') : t('route.worktree_off'));
+    const preparingTree = Boolean(session.routeState && session.routeState.where && session.routeState.where.kind === 'preparing');
+    worktreeButton.disabled = hasTree || preparingTree || Boolean(task) || busy || noRepo;
+    const sourceBranch = session.draft ? session.sourceBranch : (session.routeState && session.routeState.sourceBranch);
+    const workspaceText = noRepo ? 'Без Git-контекста' : `${sourceBranch ? sourceBranch.replace(/^refs\/(heads|remotes)\//, '') : 'Исходная ветка'} · ${hasTree || treeOn ? 'Отдельная папка' : 'Папка проекта'}`;
+    worktreeButton.replaceChildren(icon(doc, 'i-branch'), h(doc, 'span', { text: workspaceText }));
+    worktreeButton.title = hasTree || preparingTree ? t('route.worktree_locked') : 'Исходная ветка и рабочая папка';
+    worktreeButton.setAttribute('aria-label', workspaceText);
+    worktreeButton.setAttribute('aria-haspopup', 'dialog');
     routeButton.title = `${t('route.label')}: ${routeDescription(currentRoute)}`;
     // набор: показываем, когда сервер отдал больше одного
     const presetInfo = presets();

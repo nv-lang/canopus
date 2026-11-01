@@ -1,7 +1,7 @@
 # Машина: Политика режима работы
 
 - machine: WorkModePolicy
-- revision: 1
+- revision: 2
 - alula_version: 0.28
 
 Сервер спрашивает таблицу перед побочным действием маршрута. `planning` — сохранённое протокольное имя Подготовки задачи. Это политика жизненного цикла хаба, а не изоляция native-инструментов внешнего агента.
@@ -10,7 +10,7 @@
 
 | имя | идентификатор | вид | настройка | разбор | профиль | сигналы | части | счётчик |
 |---|---|---|---|---|---|---|---|---|
-| хаб | hub | свободный_ввод | — | — | — | interactive, fast, full, draft, recognize, execute, tree, repository, close | — | — |
+| хаб | hub | свободный_ввод | — | — | — | interactive, fast, full, draft, recognize, execute, tree, repository, workspace, close | — | — |
 
 ## Состояния
 
@@ -26,6 +26,7 @@
 | сигнал(full) | | | Interactive |
 | сигнал(draft) | | | то_же |
 | сигнал(recognize) | | | то_же |
+| сигнал(workspace) | | | то_же |
 | сигнал(close) | | | Closed |
 
 ### Interactive — обращение
@@ -38,6 +39,7 @@
 | сигнал(execute) | | | то_же |
 | сигнал(tree) | | | то_же |
 | сигнал(repository) | | | то_же |
+| сигнал(workspace) | | | то_же |
 | сигнал(close) | | | Closed |
 
 ### Closed — конец
