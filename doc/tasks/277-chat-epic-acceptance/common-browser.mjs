@@ -85,6 +85,8 @@ try {
   await screenshot('actual-authors');
   await click(`[...document.querySelectorAll('.group-actions button')].find(item=>item.getAttribute('aria-label')?.includes('Без проекта'))`);
   await until(`!!document.querySelector('.chat[data-draft="true"] #composer-input')`);
+  const draftWhere = await evaluate(`document.querySelector('.where-note')?.textContent || ''`);
+  check('projectless draft identifies session data rather than a project folder', draftWhere.includes('данных сессии') && !draftWhere.includes('папке проекта'), draftWhere);
   await evaluate(`(() => { const input=document.querySelector('#composer-input');input.value='common UI draft';input.dispatchEvent(new Event('input',{bubbles:true})); })()`);
   for (const width of [1024, 360]) {
     await call('Emulation.setDeviceMetricsOverride', { width, height: width === 360 ? 800 : 768, deviceScaleFactor: 1, mobile: false });

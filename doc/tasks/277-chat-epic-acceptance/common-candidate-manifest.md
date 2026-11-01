@@ -37,7 +37,7 @@ Frozen ACL `b765a7011adda82b5e30940ccf7bd38a6402b5c0` не включается:
 - 269/270: F-02 frontend/backend уже совмещены на `49cf058ba854b1b414bce953797373eb17b6dec1`; общие smoke/replay и реальные captions ещё не проверены. Позднее O-23 о лимитах/смене семьи имеет источник и учитывается отдельно: минимальный converter не доказывает quota/dispatch runtime, а полная hot migration/OS sandbox не добавляются автоматически.
 - 270: F-05 Escape/focus и F-06 anchor имеют готовый включённый delta, F-01 violet endpoint также включён; их фактическая браузерная проверка ещё нужна. F-07 cold metadata source разрабатывается отдельно 269/270.
 - 271: работающая беседа Подготовки пока не сдана. Mock stateless generate не доказывает реальный endpoint/auth/model нового OpenCode. Нельзя разблокировать обычный ACP под видом restricted backend; доступы к реализации/Git/native tools не разрешаются. Готовый runtime asset должен входить в kit.
-- 276: F-09 минимальные session-owned cwd/контекст/история без наследования репозитория, F-08 подпись размещения черновика. Сообщённый wrapper WIP не переносится.
+- 276: готовый F-09/F-08 delta включён как `4ae5b811a8bb77d6742049ffb53eb5cfd5dfe23f`; обычный cwd/context/reopen — `data_dir/<session-id>`, stale runtime worktree не используется, проектная папка не меняется. Реальный общий smoke ещё нужен; ранний несданный wrapper WIP не переносился.
 - 272/273/274/275: готовые части не означают общий GREEN. Реальные провайдеры, настоящий микрофон/browser SpeechRecognition/все устройства и браузерный pin/restart E2E не становятся проверенными от unit/fixture PASS.
 - 277: миграция настроек требует честной карты сохранённого и unresolved; личные файлы не меняются. Полный source/build/web/server/live/guards выполняется только на новом общем кандидате через очередь, не повтор широкого аудита старого SHA.
 
@@ -50,6 +50,21 @@ F-07 остаётся предметным отсутствием metadata-only 
 Квитанция 269 от 2026-11-01 19:22 уточняет конкретный предел: native mapping по версии 2.2.5 доказан отдельно, но ACP Standalone/XDG context не связан доказанно с personal `/api/model`. Интегратор подтвердил optional exact-bound hook; same-context endpoint/cache неизвестен. Stock `unavailable/same_context_binding_unverified` и pure mapper/freshness PASS не закрывают REQ-05. Personal fetch/новый program start ради маскировки не выполняются; готовый частичный hook рассматривается отдельно от факта готовности cold provider.
 
 Дополнительно включены только готовые signed delta: F-01 `f6d4934406964cb4d7606ff4d927b2ecae1e39a4` → `f10f3a1d38fa398a1c807438bbfa98d3230b3a9d`, F-02 backend `257a9836dde112a7cf3eb1dda9ba4d0374e3df0f` → `49cf058ba854b1b414bce953797373eb17b6dec1`. Backend code применился без конфликтов; в двух документах сохранены только новая F-02 section/три journal записи, ACL/triage ancestors не включены. Watch `1793548879810-zq1ei5`: CSS/theme target **15/15 PASS**, штатные guards **10/10**, signed continue. Это не новый общий server/live/browser GREEN.
+
+Ready source 276 `6f4795d9ca540e15efa26ac7a9d6650118a720fd` включён как `4ae5b811a8bb77d6742049ffb53eb5cfd5dfe23f`, девять explicit server/web/test файлов, без конфликтов кода. Сохранены одновременно F-02 dispatch_family/role setters и новый `@agent_cwd`. Авторский isolated live watch `1793550947601-2kf44i` — **1/1 PASS**, два distinct pre/post-move payload replay после restart; target web `1793549032545-q92sp2` — **59/59**, commit guards **10/10**. Ранний history RED `1793549219077` был неверным oracle по клиентским turn labels, не потерей продуктовой истории; замена проверяет два distinct message texts. Эти результаты не объявляются повторной общей проверкой.
+
+Signed PARTIAL F-07 `f5109236ecf4582a1ae38acab324647801cf29b4` включён как `c761e132d54be5e3201b4cc76ce55b9033c64f2b`, девять файлов, без ACL ancestors. Stock front передаёт None и сообщает unavailable; conditional host hook не является JSON authority или реализацией native observer. Авторский targeted `1793550463482-25235i` — **PASS 3/0**, guards **10/10**; прежний Option-inference CC-FAIL сохранён и устранён обычным typed bounded reader, не toolchain workaround. REQ-05/real cold-ready по-прежнему **не закрыт**. См. [точный контракт](../269-agent-pools/followup-f07-metadata.md).
+
+## Первая интеграционная сборка нового source
+
+До включения 276/PARTIAL F-07 frozen `b9694ddae7c9cf7e344978ceae28cb472ac2ad11` собран собственным runner: watch `1793551183223-r77ndi`, **exit 0, hub/front build PASS**, около четырёх минут. Ни live server, ни provider/native probe не запускались. Artifact attestation и обе конкретные программы сохранены во внешнем приватном каталоге до следующего build; повторная hash-проверка перед архивацией совпала:
+
+```text
+65de5a67fc72cb6b986c495bbae51e8bc0db003cc22d50ab8a1a9e483fd5255b  crew-hub.exe
+4525b7d3e1ffeaf6b265d7deccdda54b252579498716b1c1eb7dbff0938bdb25  crew-harness.exe
+```
+
+Это результат только b9694dda, не будущего общего source freeze с 271/276/F-07. Окончательный build/full/smoke выполняется отдельно на одном новом immutable SHA. Runner не перезаписывает существующий build attestation и сохраняет новые binaries в artifact `built/`.
 
 ## Учёт доказательств
 

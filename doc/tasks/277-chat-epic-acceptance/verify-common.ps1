@@ -61,6 +61,7 @@ $env:TEMP = Join-Path $env:SystemDrive 'work/crew-harness-temp-277-common'
 $null = New-Item -ItemType Directory -Force -Path $env:TEMP
 $env:TMP = $env:TEMP
 if ($Lane -eq 'build') {
+    if (Test-Path -LiteralPath (Join-Path $artifactRoot 'build-attestation.json')) { throw 'Use new build artifacts; prior attestation must stay immutable.' }
     $null = New-Item -ItemType Directory -Force -Path 'target'
     & $nova build src/crew_hub.nv -o target/crew-hub.exe
     $hub = $LASTEXITCODE
@@ -74,11 +75,16 @@ if ($Lane -eq 'build') {
         hub_sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath 'target/crew-hub.exe').Hash.ToLowerInvariant()
         front_sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath 'target/crew-harness.exe').Hash.ToLowerInvariant()
     }
+    $built = Join-Path $artifactRoot 'built'
+    $null = New-Item -ItemType Directory -Path $built -ErrorAction Stop
+    foreach ($program in @('crew-hub.exe', 'crew-harness.exe')) {
+        [System.IO.File]::Copy((Join-Path $root ('target/' + $program)), (Join-Path $built $program), $false)
+    }
     $attestation | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $artifactRoot 'build-attestation.json') -Encoding UTF8
     exit 0
 }
 [string[]]$paths = switch ($Lane) {
-    'unit' { @('src/config', 'src/acp', 'src/server', 'src/projects', 'src/agent_pool_tests', 'src/family_approval_tests', 'src/product_machines') }
+    'unit' { @('src/config', 'src/acp', 'src/server', 'src/projects', 'src/agent_pool_tests', 'src/family_approval_tests', 'src/model_metadata_tests', 'src/product_machines') }
     'live' { @('src/server_live', 'src/agent_pool_live_tests', 'src/server_preparation_live', 'src/server_projectless_live', 'src/server_workspace_live', 'src/server_delivery_live', 'src/server_hidden_wait') }
     'acp' { @('src/acp_live') }
 }

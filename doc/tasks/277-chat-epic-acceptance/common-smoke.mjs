@@ -116,7 +116,18 @@ const source = { family: 'codex', model: 'fake-model-b', effort: 'high' };
 const normalized = value => String(value).replaceAll('\\', '/').toLowerCase();
 const realFolder = value => { try { return normalized(fs.realpathSync.native(value)); } catch { return ''; } };
 try {
-  await start(); page = await connect();
+  await start();
+  const metadataResponse = await fetch(`http://127.0.0.1:${port}/api/model-metadata`, { signal: AbortSignal.timeout(2000) });
+  const metadata = await metadataResponse.json();
+  check('stock model metadata honestly refuses an unverified native context', metadataResponse.status === 200
+    && metadata.status === 'unavailable' && metadata.reason === 'same_context_binding_unverified'
+    && metadata.complete === false && metadata.permissions_status === 'blocked'
+    && Array.isArray(metadata.models) && metadata.models.length === 0);
+  const foreignMetadata = await fetch(`http://127.0.0.1:${port}/api/model-metadata`, {
+    headers: { Origin: 'http://foreign.example' }, signal: AbortSignal.timeout(2000),
+  });
+  check('model metadata refuses a foreign origin', foreignMetadata.status === 403);
+  page = await connect();
   page.send('session_created', 'common-plain', { agent: 'codex', name: 'Common isolated', folder: repo,
     branch: 'chosen', worktree: true, workspace_explicit: true, source, approvals: { codex: 'plan' } });
   await page.wait('common-plain', 'session_created');
