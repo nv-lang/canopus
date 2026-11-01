@@ -1,0 +1,42 @@
+module chat_delivery_fixture_tests.delivery_test
+
+// ORACLE-WORKAROUND(32): keep fs before text for direct test entry code generation.
+import std.fs.{Path}
+import std.text
+import crew_harness.server.{kit_files, kit_chat_files, scenario_chat, scenario_prompt}
+
+test "chat fixture: user echo is explicit and leaves raw defaults and agent identity intact" {
+    ro raw = kit_files("chat-fixture-argv", 30000)
+    ro opted = kit_chat_files("chat-fixture-argv", 30000)
+    assert(raw.agents.len() == opted.agents.len())
+    assert(!raw.acp_trace && !opted.acp_trace)
+    assert(raw.route_tool == opted.route_tool)
+    mut at = 0
+    while at < raw.agents.len() {
+        assert(raw.agents[at].id == opted.agents[at].id)
+        assert(raw.agents[at].label == opted.agents[at].label)
+        assert(raw.agents[at].program == opted.agents[at].program)
+        assert(raw.agents[at].ask == opted.agents[at].ask)
+        assert(raw.agents[at].args.len() + 1 == opted.agents[at].args.len())
+        mut word_at = 0
+        while word_at < raw.agents[at].args.len() {
+            assert(raw.agents[at].args[word_at] == opted.agents[at].args[word_at])
+            word_at += 1
+        }
+        for word in raw.agents[at].args { assert(word != "--user-echo") }
+        mut flags = 0
+        for word in opted.agents[at].args { if word == "--user-echo" { flags += 1 } }
+        assert(flags == 1)
+        at += 1
+    }
+}
+
+test "files: two turns of a chat with explicit user echo" {
+    ro report = scenario_chat(kit_chat_files("chat", 30000))
+    if report.byte_len() > 0 { panic("NOT AS IT MUST BE: ${report}") }
+}
+
+test "raw default: layered reminder changes and empty override still reach the fake agent" {
+    ro report = scenario_prompt(kit_files("prompt", 30000))
+    if report.byte_len() > 0 { panic("NOT AS IT MUST BE: ${report}") }
+}

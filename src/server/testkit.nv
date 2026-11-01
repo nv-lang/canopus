@@ -88,6 +88,21 @@ fn kit_no_pg() -> PgConfig => { host: "127.0.0.1", port: 5432, database: "crew",
 /// The settings of a hub over files in a folder of its own, with the fake agent and the idle term of a turn.
 export fn kit_files(name str, idle_ms int) -> ServerSettings => kit_settings("files", name, idle_ms, kit_no_pg())
 
+/// Explicit user-payload echo for owner-message delivery tests only. The general kit,
+/// prompt-layer tests and work-mode fixtures retain the fake agent's raw default.
+export fn kit_chat_files(name str, idle_ms int) -> ServerSettings {
+    mut settings = kit_files(name, idle_ms)
+    mut agents = []AgentSpec.new()
+    for agent in settings.agents {
+        mut args = []str.new()
+        for word in agent.args { args.push(word) }
+        args.push("--user-echo")
+        agents.push(AgentSpec { id: agent.id, label: agent.label, program: agent.program, args, ask: agent.ask })
+    }
+    settings.agents = agents
+    settings
+}
+
 /// The settings of a hub over files whose agent `opencode` takes the MCP tool of the questions (`ask: mcp`) and says it can use an HTTP server (`--ask` of the fake agent).
 export fn kit_files_mcp(name str, idle_ms int, ask_timeout_ms int) -> ServerSettings {
     mut settings = kit_files(name, idle_ms)
