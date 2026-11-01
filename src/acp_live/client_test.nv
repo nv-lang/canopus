@@ -5,6 +5,7 @@ module crew_harness.acp_live
 
 import crew_harness.acp.{AcpConfig, AcpClient, AcpImage, AskSetup, open_client, open_client_asking, acp_link}
 import alula.engine.{Link, Incoming, EventKind, PartyRequest, FailCode}
+import std.encoding.json.{Json, JsonObject}
 import std.fs.{Fs, real_fs, Path, try_exists, write, create_dir_all}
 import std.os.{Os, real_os, cwd, temp_dir, pid}
 
@@ -152,6 +153,65 @@ fn wait_phase(mut client AcpClient, phase str, limit_ms int) Time -> bool {
     client.phase() == phase
 }
 
+// A confirmed dispatch audit precedes the agent's response, even for a silent
+// prompt. Validate it explicitly; never filter it out of the event stream.
+fn dispatch_text(o JsonObject, key str) -> Option[str] {
+    match o.get(key) { Some(value) => value.str(), None => None }
+}
+
+fn dispatch_matches(event Incoming, request str) -> bool {
+    if request.byte_len() == 0 || event.kind != EventKind.Progress || event.name != "agent_actual" || event.request != Some(request) { return false }
+    ro value = match Json.parse(event.input) { Ok(v) => v, Err(e) => return false }
+    ro actual = match value.object() { Some(o) => o, None => return false }
+    dispatch_text(actual, "dispatch_id") == Some(request) &&
+        dispatch_text(actual, "family") == Some("") &&
+        dispatch_text(actual, "model") == Some("fake-model") &&
+        dispatch_text(actual, "effort") == Some("medium") &&
+        dispatch_text(actual, "role") == Some("dev")
+}
+
+fn dispatch_first(events []Incoming, request str) -> bool {
+    if events.len() == 0 || !dispatch_matches(events[0], request) { return false }
+    mut snapshots = 0
+    for event in events { if event.name == "agent_actual" { snapshots += 1 } }
+    snapshots == 1
+}
+
+fn dispatch_fixture(request str, body str) -> Incoming => Incoming.incoming(EventKind.Progress, "agent_actual", Some(request), body)
+
+test "dispatch oracle: exact typed request snapshot is required" {
+    ro body = "{\"dispatch_id\":\"agent-1\",\"family\":\"\",\"model\":\"fake-model\",\"effort\":\"medium\",\"role\":\"dev\"}"
+    assert(dispatch_matches(dispatch_fixture("agent-1", body), "agent-1"))
+    assert(!dispatch_matches(dispatch_fixture("foreign", body), "agent-1"))
+    assert(!dispatch_matches(dispatch_fixture("agent-1", body.replace("agent-1", "foreign")), "agent-1"))
+    assert(!dispatch_matches(dispatch_fixture("agent-1", body.replace("fake-model", "other-model")), "agent-1"))
+    assert(!dispatch_matches(dispatch_fixture("agent-1", body.replace("medium", "high")), "agent-1"))
+    assert(!dispatch_matches(dispatch_fixture("agent-1", body.replace("dev", "other-role")), "agent-1"))
+    assert(!dispatch_matches(dispatch_fixture("agent-1", body.replace("\"family\":\"\"", "\"family\":\"foreign\"")), "agent-1"))
+    assert(!dispatch_matches(dispatch_fixture("agent-1", body.replace("\"family\":\"\",", "")), "agent-1"))
+    assert(!dispatch_matches(dispatch_fixture("agent-1", body.replace("\"fake-model\"", "1")), "agent-1"))
+    assert(!dispatch_matches(Incoming.incoming(EventKind.Progress, "agent_actual", None, body), "agent-1"))
+    assert(!dispatch_matches(Incoming.incoming(EventKind.Answered, "agent_actual", Some("agent-1"), body), "agent-1"))
+}
+
+test "dispatch oracle: missing duplicate foreign or late snapshot is rejected" {
+    ro body = "{\"dispatch_id\":\"agent-1\",\"family\":\"\",\"model\":\"fake-model\",\"effort\":\"medium\",\"role\":\"dev\"}"
+    mut events = []Incoming.new()
+    assert(!dispatch_first(events, "agent-1"))
+    events.push(dispatch_fixture("agent-1", body))
+    assert(dispatch_first(events, "agent-1"))
+    events.push(dispatch_fixture("agent-1", body))
+    assert(!dispatch_first(events, "agent-1"))
+    mut late = []Incoming.new()
+    late.push(Incoming.incoming(EventKind.Progress, "agent_chunk", Some("agent-1"), "chunk"))
+    assert(!dispatch_first(late, "agent-1"))
+    late.push(dispatch_fixture("agent-1", body))
+    assert(!dispatch_first(late, "agent-1"))
+    mut foreign = []Incoming.new()
+    foreign.push(dispatch_fixture("agent-2", body.replace("agent-1", "agent-2")))
+    assert(!dispatch_first(foreign, "agent-1"))
+}
+
 // ----- an ordinary answer -----
 
 test "agent: ordinary turn, chunks, end" {
@@ -159,14 +219,16 @@ test "agent: ordinary turn, chunks, end" {
     with Link = acp_link(client) {
         Link.send(req("agent-1", "hello мир"))
         ro events = collect_turn(10000)
-        assert(events.len() >= 4)
+        assert(events.len() >= 5)
+        assert(dispatch_first(events, "agent-1"))
         assert(text_of(events) == "Echo: hello мир")
         for e in events { assert(request_of(e) == "agent-1") }
         ro last = last_of(events)
         assert(last.kind == EventKind.Answered)
         assert(last.name == "agent_done")
         assert(events[0].kind == EventKind.Progress)
-        assert(events[0].name == "agent_chunk")
+        assert(events[1].kind == EventKind.Progress)
+        assert(events[1].name == "agent_chunk")
     }
     assert(client.phase() == "ready")
     assert(client.session_id() == "sess_fake_1")
@@ -316,19 +378,22 @@ test "agent: tools, plan, usage, thought, unknown" {
         Link.send(req("agent-1", "tools"))
         ro events = collect_turn(10000)
         ro names = names_of(events)
-        assert(names.len() == 9)
-        assert(names[0] == "acp_skipped")       // available_commands_update
-        assert(names[1] == "tool_call")
-        assert(names[2] == "tool_call_update")
-        assert(names[3] == "plan")
-        assert(names[4] == "usage_update")
-        assert(names[5] == "agent_thought")
-        assert(names[6] == "acp_skipped")       // hologram_chunk: unknown
-        assert(names[7] == "agent_chunk")
-        assert(names[8] == "agent_done")
-        assert(events[6].input.contains("hologram_chunk"))
-        assert(events[1].input.contains("call_001"))
-        assert(events[4].input.contains("53000"))
+        assert(dispatch_first(events, "agent-1"))
+        for event in events { assert(request_of(event) == "agent-1") }
+        assert(names.len() == 10)
+        assert(names[0] == "agent_actual")
+        assert(names[1] == "acp_skipped")       // available_commands_update
+        assert(names[2] == "tool_call")
+        assert(names[3] == "tool_call_update")
+        assert(names[4] == "plan")
+        assert(names[5] == "usage_update")
+        assert(names[6] == "agent_thought")
+        assert(names[7] == "acp_skipped")       // hologram_chunk: unknown
+        assert(names[8] == "agent_chunk")
+        assert(names[9] == "agent_done")
+        assert(events[7].input.contains("hologram_chunk"))
+        assert(events[2].input.contains("call_001"))
+        assert(events[5].input.contains("53000"))
         assert(text_of(events) == "Готово")
     }
     client.close()
@@ -707,7 +772,8 @@ test "agent: silent agent gives nothing" {
     with Link = acp_link(client) {
         Link.send(req("agent-1", "silent"))
         ro quiet = collect_quiet(500)
-        assert(quiet.len() == 0)
+        assert(quiet.len() == 1)
+        assert(dispatch_first(quiet, "agent-1"))
         Link.cancel("agent-1")
         ro after = collect_quiet(300)
         assert(after.len() == 0)
@@ -783,7 +849,8 @@ test "client: close ends the process, no refusal" {
     with Link = acp_link(client) {
         Link.send(req("agent-1", "silent"))
         ro quiet = collect_quiet(300)
-        assert(quiet.len() == 0)
+        assert(quiet.len() == 1)
+        assert(dispatch_first(quiet, "agent-1"))
         client.close()
         assert(client.phase() == "closed")
         ro after = collect_quiet(300)
