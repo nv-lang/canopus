@@ -110,29 +110,54 @@ ok(legacyRec?.workScope?.digest !== legacyDigest && (legacyRec?.why ?? "").inclu
 await router().tick()
 ok(letters(WORKER).filter((f) => f.includes("question-answer")).length === 2, "the legacy answer is delivered once (no duplicate POST)")
 
-// ---------------------------------------------------------------- the ACTUAL current record shape (089/WC-2):
-// channel text, unknown, NO workScope and NO stored answer — the original resolve was refused BEFORE the verified
-// verdict was saved. Supported path: the previous outcome is re-checked (observe), the question returns to routing,
-// the responsible integrator resolves with freshly verified sources. No scope auto-adopt (there is no stored
-// boundary evidence), no invented answer, no repeated POST.
+// ---------------------------------------------------------------- the ACTUAL current record shapes (089/WC-2, read-only
+// status of 2026-11-01 23:34): BOTH records are blocked, without answer/sources/attempted/recovery — the resolve was
+// refused BEFORE the verified verdict was saved. Record 2 shape: channel text, NO workScope, blocker «deadline without
+// an admissible default», observed pending. Supported path: the previous outcome is re-checked (observe), the
+// responsible integrator resolves the SAME id/qid/epoch with freshly verified sources; the blocker is lifted by the
+// resolve itself. No scope auto-adopt (no stored boundary evidence), no invented answer, no repeated POST.
 const lateQid = "qlate281"
 const lateId = questionId({ project: "proj", session: WORKER, channel: "text", qid: lateQid })
 writeFileSync(path.join(legacyDir, `${lateId}.json`), JSON.stringify({
-  v: 1, id: lateId, revision: 0, epoch: 1, status: "unknown", created: Date.now(), updated: Date.now(), deadline: Date.now() + 600_000,
+  v: 1, id: lateId, revision: 0, epoch: 1, status: "blocked", created: Date.now(), updated: Date.now(), deadline: Date.now() + 600_000,
   project: "proj", task: task.n, session: WORKER, channel: "text", qid: lateQid, text: "Актуальный вопрос, чей resolve отказал до сохранения ответа", context: "контекст",
-  source: { kind: "text", id: lateQid, at: Date.now() }, target: INTEG, receivedAt: Date.now(),
-  why: "исход исходного вопроса неизвестен; только сверка, без повторной постановки",
+  source: { kind: "text", id: lateQid, at: Date.now() }, target: INTEG, receivedAt: Date.now(), observed: { state: "pending" },
+  blocker: { to: INTEG, at: Date.now(), deadline: Date.now() + 600_000, why: "срок вышел без заранее записанного допустимого умолчания" },
 }, null, 2))
 await router().tick()
 const lateRec = router().get(lateId)
-ok(lateRec?.status === "routing" && lateRec.observed?.state === "pending", "the actual text/unknown record: previous outcome re-checked, back to routing")
+ok(lateRec?.status === "blocked" && lateRec.observed?.state === "pending", "the actual blocked/text record: previous outcome re-checked (pending), still the responsible's resolve")
 ok(lateRec?.workScope === undefined, "no auto-adopt of a scope without stored boundary evidence")
 const lateResolve = await qtool.execute({ action: "resolve", id: lateId, epoch: lateRec.epoch, text: "Проверенный вердикт восстановлен заново по тому же id/qid.", sources: [source] }, INTEG)
-ok(/answer_queued|ready/.test(lateResolve.content) && !/\[scope\]/.test(lateResolve.content), `the SAME question resolves through the supported path (got: ${lateResolve.content.slice(0, 80)})`)
+ok(/answer_queued|ready/.test(lateResolve.content) && !/\[scope\]/.test(lateResolve.content), `the SAME blocked question resolves through the supported path (got: ${lateResolve.content.slice(0, 80)})`)
+ok(router().get(lateId)?.blocker?.resolvedAt !== undefined, "the resolve lifts the blocker by record, not by hand")
 await router().tick()
 ok(letters(WORKER).filter((f) => f.includes(`question-answer-${lateId}`)).length === 1, "the recovered verdict is delivered once")
 await router().tick()
 ok(letters(WORKER).filter((f) => f.includes(`question-answer-${lateId}`)).length === 1, "no duplicate delivery of the recovered verdict")
+
+// ---------------------------------------------------------------- record 1 shape: channel mail, BLOCKED («native user
+// input unverified»), legacy lifecycle-full workScope digest, NO answer/sources. The same fresh verified resolve: the
+// legacy digest is proven by re-computation (only lifecycle fields vary), the stored scope is refreshed with the
+// evidence recorded, the verdict is delivered once.
+const mailQid = "qmail281"
+const mailId = questionId({ project: "proj", session: WORKER, channel: "mail", qid: mailQid })
+writeFileSync(path.join(legacyDir, `${mailId}.json`), JSON.stringify({
+  v: 1, id: mailId, revision: 0, epoch: 1, status: "blocked", created: Date.now(), updated: Date.now(), deadline: Date.now() + 600_000,
+  project: "proj", task: task.n, session: WORKER, channel: "mail", qid: mailQid, text: "Вопрос по почте, заблокированный до ответа", context: "контекст",
+  source: { kind: "mail", id: mailQid, at: Date.now() }, target: INTEG, receivedAt: Date.now(), observed: { state: "pending" },
+  workScope: { assignment: "q_life_task", digest: legacyDigest },
+  blocker: { to: INTEG, at: Date.now(), deadline: Date.now() + 600_000, why: "native пользовательский ввод не проверен; поздний ответ не применяется" },
+}, null, 2))
+await router().tick()
+const mailRec = router().get(mailId)
+ok(mailRec?.status === "blocked" && mailRec.workScope?.digest !== legacyDigest && (mailRec.why ?? "").includes("281"), "the blocked mail record: legacy digest proven and refreshed at the tick, still awaiting the resolve")
+const mailResolve = await qtool.execute({ action: "resolve", id: mailId, epoch: mailRec.epoch, text: "Тот же проверенный вердикт по тому же источнику.", sources: [source] }, INTEG)
+ok(/answer_queued|ready/.test(mailResolve.content) && !/\[scope\]/.test(mailResolve.content), `the blocked mail question resolves after the supported refresh (got: ${mailResolve.content.slice(0, 80)})`)
+await router().tick()
+ok(letters(WORKER).filter((f) => f.includes(`question-answer-${mailId}`)).length === 1, "the mail-record verdict is delivered once")
+await router().tick()
+ok(letters(WORKER).filter((f) => f.includes(`question-answer-${mailId}`)).length === 1, "no duplicate delivery for the mail record")
 
 // ---------------------------------------------------------------- negative controls
 // a genuinely different assignment: the refresh must not attach it
