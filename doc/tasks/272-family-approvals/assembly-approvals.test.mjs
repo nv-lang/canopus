@@ -31,7 +31,9 @@ function fixture() {
     efforts: [{ id: 'low', name: 'Low' }, { id: 'high', name: 'High' }], mode: 'plan', modes: native }, 'agents');
   feed('agent_catalog', { agent: 'codex', updated: 1, model_id: 'c1', models: [{ id: 'c1', name: 'Codex fixture' }],
     efforts: [{ id: 'high', name: 'High' }], mode: 'read-only', modes: [{ id: 'full-access', name: 'Full fixture' }, { id: 'read-only', name: 'Read fixture' }] }, 'agents');
-  feed('session_model', { agent: 'opencode', model_id: 'm1', mode: 'plan', modes: native });
+  // aa1 accepts direct source models from this chat's ACP summary, not another chat's catalog.
+  feed('session_model', { agent: 'opencode', model_id: 'm1', models: [{ id: 'm1', name: 'One' }, { id: 'm2', name: 'Two' }],
+    efforts: [{ id: 'low', name: 'Low' }, { id: 'high', name: 'High' }], mode: 'plan', modes: native });
   feed('setting_chosen', { agent: 'opencode', setting: 'mode', value: 'plan' });
   feed('setting_chosen', { agent: 'codex', setting: 'mode', value: 'read-only' });
   const draw = () => view.render(model, { selected: 's', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
