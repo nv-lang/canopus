@@ -161,3 +161,52 @@ Signed manifest checkpoint `61c3dd3193dcb805baeb106e15316b98c7e3972c` прошё
 Будущие полные lanes: build; все Node tests продукта; unit всех затронутых Nova модулей; общий server_live и целевые live модули; весь fixture ACP; converter migration tests; release-kit checks; все guards. Каждый запуск только через очередь, `jobs=1`/`test-concurrency=1`. На неизменённом source базы эти lanes заново не запускались.
 
 `log_line` не принял абсолютный путь зарегистрированного helper: «файл вне папки проекта окна». Отказ передан интегратору; по его разрешению 17:48 existing parent log дополнен через patch ручной документальной записью, с датой слова/источником и без поддельного machine wall-clock. Успех `log_line` не заявляется, `session_move` не повторяется. Этот локальный API-предел не блокирует дальнейшую сборку.
+
+## Explicit corrective freeze, 2026-11-02
+
+Следующий состав **не является общим acceptance**. Signed source freeze — `26098a9fa8d80a8d8f8df947d48c9555ddd78023`, `src` tree `a83821e3f263db765596b6a37bf9b31df7c2384a`. Исходные аудит/ACL memo/контур 18177 и все исторические raw неизменны. Main, службы, 8099/8100 и owner settings не изменялись.
+
+После `1e1e190f8a671fbbe7b5f657a36a7825de23db8a` включены ровно шесть signed correctives:
+
+| Исходный delta | В общем кандидате | Scope |
+|---|---|---|
+| `71fb07652a21ed46210d07e921462e751e51ca65` | `0fabda35d5a271700f24bb2bfbd30968d8381045` | Удаление unused `picker.recent` |
+| `fe75731895227bb3ff23ba9147726c139a61924a` | `b185c7b732fc09733e4e690f88b82fd3e616894b` | Manual semantic union unavailable-family test oracle, native/group/disabled/no-sideeffects сохранены |
+| `9f5326c62134daa8abf936618af0a589e2ba285d` | `9e3c0a2a6d18bbaf2898ed7854c3d78169434ade` | Fixture env→plain и explicit `--user-echo`; default raw прежний |
+| Собственный corrective 277 | `42048fedfedd79b30af145be3164865b874e63e1` | Test-only numeric int/trace/closed-range oracle и local tracing request fixture |
+| Собственный corrective 277 | `e16f62a65571c82a8471071cf447826541841ae3` | Chat-only opt-in factory, десять delivery constructors, защищённый raw consumer |
+| Собственный corrective 277 | `26098a9fa8d80a8d8f8df947d48c9555ddd78023` | Только scenario_prompt fixture layout assignment после copy и explicit write/config preconditions |
+
+Точный cumulative whitelist source/test inputs между `1e1e190f` и `26098a9f`:
+
+```text
+79bc38b3627f283342eabb41cc796fdfc2785adad05d981484afb35e8d572cdb  src/web/strings.js
+b0483498e8fa46c588d1accbdd2af011384aba35e82eb2edb8b0e058e29195c3  src/web/test/agent-choice.test.mjs
+4aebb3550b769293c13f25c33309337fb620437580436fc8d5fdd6c8fd4e5732  src/acp/fake-agent-echo.test.mjs
+230bd4fa03c1047a747ab7a5506d8af3de9d74d58a89adb6a7746a05b5e43ded  src/acp/testdata/fake_agent.mjs
+627b744263ecad34a15e04d487393d08e26a29153f26875475b55eab777bafc5  src/server/request_kit.nv
+9f6c08149cfbafffcff2ed4ca51af9aa17ea062adb5cf48a137228870a314016  src/request_oracle_tests/oracle_test.nv
+e31808048c924261e57868d167b564e180f765fa67a1fece3524a863aafda6b3  src/server/testkit.nv
+5923a253ed16514ab52d9dd125de14d16f861d5f0c23b35d72dd5aa8a02e9289  src/server_live/hub_test.nv
+e59640754b2f8d7c06fd0cdf3a8424b2f32311431ef113666ab161db66c8e833  src/chat_delivery_fixture_tests/delivery_test.nv
+0c1e5093e44b2233c25ebebe04b169f72e941d1cfc1b1eb8a0f36764bd3a9b7a  spikes/env/workarounds.md
+```
+
+Общий внешний manifest первого corrective union: SHA256 `bb230f5d0460e87c9a1c69a9434cbb7adfee5fd7ec9220b473757c9467d2eea6`. Он связывает source `e16f62a6`, numeric `42048fed`, fixture `9e3c0a2a`, точные raw и прежний состав. Последующий внешний `common-freeze-manifest.json` SHA256 `a4ffcf6d6ac398dc7975278a2b897f467259ed117e85b1926ff1e7a16d2c4619` добавляет единственный delta `26098a9f`, все десять актуальных hashes и отсутствие автоматического reuse. Интегратор сверил первый manifest/checkpoint, письмо 2026-11-02 00:24; второй передан 00:37. Локальные абсолютные пути артефактов в публичный файл не включены.
+
+### Фактические targeted результаты, не полный GREEN
+
+| Exact source | Watch | Исход | SHA256 raw |
+|---|---|---|---|
+| `b185c7b7` | `1793565503128-30o6gd` | agent-choice/strings 17/17 PASS | `ba933736bd097e659c745c31bb209b8ffb028f20ba306be4b6187acd14b1f956` |
+| `42048fed` | `1793566598218-9w2ql1` | numeric negatives + original request 3/3 PASS | `b45e2bf482364d906640de0f3b5d44e2541d9164b0da189982181968eafe8c10` |
+| `e16f62a6` | `1793567671893-u5d6lq` | Factory/chat PASS, raw layer FAIL: 2/3 | `48519369acdecbc9c35ae9398a18f7c229142c3445f25bd79f8e44319efb646c` |
+| `26098a9f` | `1793568582826-khpydl` | Factory/chat/raw replacement/changed/empty 3/3 PASS | `70f6d0ea762c49583c1b63da52ee1b528acd1084869d5883656d741b20c5f4bf` |
+
+Причина отдельного raw-layer RED доказана на сохранённом generated C: `layout=...` выполняется **до** полного copy `...settings`, так что legacy `config=""` перезаписывает fixture layer. Файл действительно записывался; hub с пустым config не читал его и не создавал empty-file note. Corrective меняет только тестовый layout/preconditions, четыре исходных consumer expectations сохранены. Это не объявление дефекта product default или компилятора; соседний `scenario_preset` не изменён. Signed однопутевый diff `+8/-1`, runtime 3/3, commit guards 10/10 подтверждены интегратором письмом 2026-11-02 00:37. Старый RED/manifest не переписывался.
+
+Full Node/web на `1e1` остаётся historical **574/576 RED**; server_live **24/38 RED**, 14 failed; карта имён raw **14 PASS/11 FAIL/13 UNKNOWN**, три недостающих FAIL не восстановлены. Шесть дополнительных live modules дали 13/13 на старом source. Diagnostic capture `1793564611622-5fyes4` — runtime **0/2**, полный payload в stderr, archive 518 файлов и его hashes сохранены. Ни один из этих исходов не переименован поздними targeted PASS.
+
+**Reuse rationale: runtime не переносится автоматически.** Общие testkit/request_kit/fake_agent изменены; прежние 460 unit, 13 live, targeted numeric/chat/web относятся к своим exact inputs. Старые обе программы реально собраны на `1e1`, но archive runner упал из-за `$root` clobber; origin hashes сохранены отдельно и не названы новым build. Следующий verification-only checkpoint сохраняет source tree `a83821e3`, исправляет root binding и полноту lane inventory, затем каждая согласованная lane выполняется на его exact signed SHA.
+
+Полный [affected plan](full-affected-plan.md) включает все file-store live consumers (15 каталогов вместе с server-live), новые oracles, Node/web/ACP, unit, restricted paired control, migration/package/guards, новый build/attestation и owned smoke/browser. PG prerequisites и прежние независимые audit probes явно выделены как решения, а не молча исключены. REQ-05 same-context/multi-family, quota/O-23, token-window equivalence и real device/provider E2E остаются OPEN. План подготовлен, full пока **не запускался**; нужен явный ответ интегратора о новом freeze/наборе.
