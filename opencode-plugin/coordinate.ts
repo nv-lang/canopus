@@ -133,6 +133,26 @@ export const knownPolicies = () => [...REGISTRY.keys()].sort()
 const accepted = (t: Task) => (t.status === "accepted" || t.status === "done") && t.history.some((h) => h.status === "accepted")
 const evidenceOf = (t: Task) => `status ${t.status}, history ${t.history.length} entries${t.report ? `, report sha256 ${sha(t.report).slice(0, 16)}` : ""}`
 
+/** The acceptance tail of a driven task (281): completion ONLY by the record's own acceptance evidence (the real
+ *  accept act), else the real owner gate; a verified decision is delivered to the acceptor as a durable step with a
+ *  receipt — never an automatic acceptance. Every policy uses this one core rule; the workflow chooses only WHEN
+ *  acceptance is due and what the gate question says. */
+function acceptanceOutcome(t: Task, drive: Drive, phase: string, evidence: string, gateQuestion: string): PolicyOutcome {
+  if (accepted(t)) return { kind: "complete", evidence }
+  if (t.reviewer) return { kind: "wait", why: "a reviewer holds the acceptance" }
+  if (drive.gate) return { kind: "wait", why: "the acceptance gate waits for the owner's decision" }
+  if (drive.decisions.length) {
+    // The verified decision is NOT an auto-acceptance: the next allowed adapter step delivers it to the acceptor
+    // with a receipt; the drive completes only on the task record's own evidence (accepted/done).
+    const dec = drive.decisions[drive.decisions.length - 1]
+    const sent = drive.steps.some((s) => s.id === `s:${phase}:decision-${dec.qid}` && s.state === "done")
+    if (!sent)
+      return { kind: "step", phase, step: { key: `decision-${dec.qid}`, action: "letter", to: "author", text: `По воротам приёмки задачи ${taskRef(t)} решение владельца зафиксировано проверенным question-путём (qid ${dec.qid}, sha256 ${dec.hash.slice(0, 16)}): «${dec.decision.slice(0, 300)}» (слово: «${dec.quote.slice(0, 150)}»). Прими задачу штатно: crew_task {action: "accept", n: ${t.n}}. Автоматического принятия нет: приёмка — акт приёмщика, ведение ждёт записи самой задачи. [drive decision]` } }
+    return { kind: "wait", why: "the verified decision is delivered with a receipt; the acceptance itself is the acceptor's act" }
+  }
+  return { kind: "gate", phase, gate: "accept", question: gateQuestion }
+}
+
 /** crew-normal-task@1: one allowed task driven to an evidence-backed completion or the real acceptance gate. */
 const normalTaskPolicy: Policy = {
   id: "crew-normal-task",
@@ -141,6 +161,10 @@ const normalTaskPolicy: Policy = {
   decide({ task: t, drive }) {
     if (t.status === "cancelled") return { kind: "terminal", reason: "the task was cancelled from outside: an external terminal end is not an acceptance" }
     if (!isOpen(t) && !accepted(t)) return { kind: "terminal", reason: `the task is ${t.status} from outside: not an evidence-backed completion` }
+    // The record's own acceptance evidence completes the drive at ANY phase — including the registration entry:
+    // a task finished OUTSIDE the drive through the real runtime needs no work step (281: the initial
+    // external/done registration entry), and a bare external status without the act never reaches this line.
+    if (accepted(t)) return { kind: "complete", evidence: `accepted by the task record: ${evidenceOf(t)}` }
     if (drive.phase === "start")
       return { kind: "step", phase: "work", step: { key: "start", action: "letter", to: "executor", text: `Задача ${taskRef(t)} ведётся автоматически (policy crew-normal-task@1). Работай по заданию; сдача — crew_task submit, вопросы владельцу — через question, приёмка остаётся за владельцем/интегратором.` } }
     if (drive.phase === "work") {
@@ -149,19 +173,7 @@ const normalTaskPolicy: Policy = {
       return { kind: "wait", why: "the executor works: no report yet" }
     }
     // phase "acceptance"
-    if (accepted(t)) return { kind: "complete", evidence: `accepted by the task record: ${evidenceOf(t)}` }
-    if (t.reviewer) return { kind: "wait", why: "a reviewer holds the acceptance" }
-    if (drive.gate) return { kind: "wait", why: "the acceptance gate waits for the owner's decision" }
-    if (drive.decisions.length) {
-      // The verified decision is NOT an auto-acceptance: the next allowed adapter step delivers it to the acceptor
-      // with a receipt; the drive completes only on the task record's own evidence (accepted/done).
-      const dec = drive.decisions[drive.decisions.length - 1]
-      const sent = drive.steps.some((s) => s.id === `s:acceptance:decision-${dec.qid}` && s.state === "done")
-      if (!sent)
-        return { kind: "step", phase: "acceptance", step: { key: `decision-${dec.qid}`, action: "letter", to: "author", text: `По воротам приёмки задачи ${taskRef(t)} решение владельца зафиксировано проверенным question-путём (qid ${dec.qid}, sha256 ${dec.hash.slice(0, 16)}): «${dec.decision.slice(0, 300)}» (слово: «${dec.quote.slice(0, 150)}»). Прими задачу штатно: crew_task {action: "accept", n: ${t.n}}. Автоматического принятия нет: приёмка — акт приёмщика, ведение ждёт записи самой задачи. [drive decision]` } }
-      return { kind: "wait", why: "the verified decision is delivered with a receipt; the acceptance itself is the acceptor's act" }
-    }
-    return { kind: "gate", phase: "acceptance", gate: "accept", question: `Задача ${taskRef(t)} сдана и без приёмщика: принять её — решение владельца. Вопрос открыт проверенным question-путём с qid ворот (письмо ниже): решение фиксируется ТОЛЬКО терминальной записью исходного qid (owner gate через question), затем crew_task {action: "drive-decide", n: ${t.n}, qid: "<qid>", text: "<решение>", quote: "<слово владельца с датой>"}. Рекомендация, текст модели и таймаут полномочием не являются.` }
+    return acceptanceOutcome(t, drive, "acceptance", `accepted by the task record: ${evidenceOf(t)}`, `Задача ${taskRef(t)} сдана и без приёмщика: принять её — решение владельца. Вопрос открыт проверенным question-путём с qid ворот (письмо ниже): решение фиксируется ТОЛЬКО терминальной записью исходного qid (owner gate через question), затем crew_task {action: "drive-decide", n: ${t.n}, qid: "<qid>", text: "<решение>", quote: "<слово владельца с датой>"}. Рекомендация, текст модели и таймаут полномочием не являются.`)
   },
 }
 
@@ -175,8 +187,13 @@ const dependencyEpicPolicy: Policy = {
   decide({ task: t, drive, branches }) {
     if (t.status === "cancelled") return { kind: "terminal", reason: "the epic was cancelled from outside" }
     const bs = branches ?? []
+    const evidence = `branches: ${bs.map((b) => `${b.n} ${b.status}`).join(", ") || "none"}; parent ${evidenceOf(t)}`
+    // The PARENT's own acceptance evidence completes the epic at any point — the registration entry included
+    // (281, integrator 2026-11-02: parent epic acceptance evidence); the branches alone never complete it.
+    if (accepted(t)) return { kind: "complete", evidence }
     if (!bs.length) return { kind: "blocked", reason: "the epic has no branches (parts/needs)" }
-    if (bs.every((b) => b.success)) return { kind: "complete", evidence: `branches: ${bs.map((b) => `${b.n} ${b.status}`).join(", ")}` }
+    if (bs.every((b) => b.success))
+      return acceptanceOutcome(t, drive, "closure", evidence, `Все ветки эпика ${taskRef(t)} завершены с доказательством (${evidence}). Принять РОДИТЕЛЬСКИЙ эпик — решение владельца: ветки сами по себе приёмкой эпика не являются. Вопрос открыт проверенным question-путём с qid ворот (письмо ниже): решение фиксируется ТОЛЬКО терминальной записью исходного qid (owner gate через question), затем crew_task {action: "drive-decide", n: ${t.n}, qid: "<qid>", text: "<решение>", quote: "<слово владельца с датой>"}. Рекомендация, текст модели и таймаут полномочием не являются.`)
     const cancelled = bs.filter((b) => b.status === "cancelled")
     if (cancelled.length && bs.every((b) => b.terminal)) return { kind: "terminal", reason: `branches cancelled from outside: ${cancelled.map((b) => b.n).join(", ")}` }
     // Dependencies are checked BEFORE any action: a branch is eligible only when every need succeeded.
@@ -205,7 +222,7 @@ export function startDrive(t: Task, policyRef: string, by: string, needs?: Recor
   if (!m) return { ok: false, why: `policy в форме «<id>@<version>», получено «${policyRef}»` }
   const [, id, version] = m
   if (!policyOf(id, version)) return { ok: false, why: `policy «${policyRef}» не в доверенном реестре (${knownPolicies().join(", ")}): недоверенная policy не исполняется` }
-  if (!isOpen(t)) return { ok: false, why: `задача ${taskRef(t)} закрыта: ведение ставится на открытую` }
+  if (!isOpen(t) && !accepted(t)) return { ok: false, why: `задача ${taskRef(t)} закрыта без записанного акта приёмки: ведение ставится на открытую или доказуемо принятую (initial external/done registration entry — внешний конец без акта не ведётся)` }
   if (t.drive) return { ok: false, why: `задача ${taskRef(t)} уже ведётся policy ${t.drive.policy}@${t.drive.version}: второй drive не ставится` }
   const now = Date.now()
   const policy = policyOf(id, version)!
@@ -367,7 +384,15 @@ export async function coordinateTick(deps: CoordDeps, now = Date.now(), limits =
               }
             }
           }
-          continue // an open gate: the decision comes by crew_task drive-decide; the tick does not re-ask
+          // The accept gate is answered by the RECORD ITSELF when the real accept act lands (the owner's word in the
+          // task history is the same decision the gate waits for, 281): the gate clears and the pass proceeds to the
+          // evidence-backed completion — no drive-decide is owed for what the record already proves.
+          if (d.gate.id === "accept" && accepted(t)) {
+            d.gate = undefined
+            saveDrive(d)
+          } else {
+            continue // an open gate: the decision comes by crew_task drive-decide; the tick does not re-ask
+          }
         }
         const outcome = policy.decide({ task: t, drive: d, now, branches: policy.collect?.(d, deps) })
         if (outcome.kind === "wait") continue
@@ -463,9 +488,12 @@ export async function coordinateTick(deps: CoordDeps, now = Date.now(), limits =
           return spec.to === "executor" ? base.executor : base.author
         })()
         if (spec.action === "letter" && !to) {
-          d.blockers.push({ id: `no-${spec.to}`, at: now, reason: `шаг ${stepId}: адресат (${spec.to}) не назначен` })
-          saveDrive(d)
-          res.blockers.push(`${d.project}/${d.n}: no ${spec.to}`)
+          const id = `no-${spec.to}`
+          if (!d.blockers.some((b) => b.id === id && !b.cleared)) {
+            d.blockers.push({ id, at: now, reason: `шаг ${stepId}: адресат (${spec.to}) не назначен` })
+            res.blockers.push(`${d.project}/${d.n}: no ${spec.to}`)
+          }
+          saveDrive(d) // one observable addressed blocker — a later pass never accumulates a twin
           continue
         }
         const step: DriveStep = { id: stepId, at: now, phase: outcome.phase, action: spec.action, ...(to ? { to } : {}), text: spec.text, state: "unknown", rechecks: 0 }

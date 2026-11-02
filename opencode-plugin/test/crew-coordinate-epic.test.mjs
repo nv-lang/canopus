@@ -1,8 +1,10 @@
 // Self-test of the dependency-epic workflow, task 281 (node >= 24):  node test/crew-coordinate-epic.test.mjs
 // An epic drive (policy crew-dependency-epic@1, a different id than crew-normal-task@1) drives its branches: the
 // dependencies are checked BEFORE any action, an addressed blocker of one branch never stops the independent ones,
-// and the completion is evidence-backed by the branch records. Real adapters (mailbox/history) over an isolated
-// fixture; no real transport. Red probe: run once with coordinate.ts moved away — every cell red.
+// the branches done open the owner gate of the PARENT (never a completion by the branches alone), and the
+// completion is evidence-backed by the branch records AND the parent's own acceptance. Real adapters
+// (mailbox/history) over an isolated fixture; no real transport. Red probe: run once with coordinate.ts moved
+// away — every cell red.
 import assert from "node:assert/strict"
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs"
 import os from "node:os"
@@ -63,6 +65,7 @@ const deps = () => ({
     if (fresh) tasks.taskEvent(fresh, core.PLUGIN_SENDER, undefined, text)
   },
   known: (to, receipt) => core.letterExistsFor(to, receipt),
+  openGate: () => {}, // the gate record is durable; this tick-level fixture does not route the question
   save: (t) => tasks.saveTask(t),
   say: () => {},
 })
@@ -113,8 +116,12 @@ if (!coord) {
   setStatus(b4, "accepted")
   setStatus(b3, "done")
   await tick()
+  const dg = coord.loadDrive("proj", epic.n)
+  ok(!dg.done && dg.gate?.id === "accept", "the branches done do NOT complete the epic: the owner gate of the PARENT opens (parent acceptance evidence)")
+  setStatus(epic, "accepted") // the parent's own acceptance act (tick-level fixture; the real-lifecycle proof is crew-coordinate-lifecycle)
+  await tick()
   const df = coord.loadDrive("proj", epic.n)
-  ok(!!df.done && df.done.evidence.includes(`${b2.n} done`) && df.done.evidence.includes(`${b3.n} done`) && df.done.evidence.includes(`${b4.n} accepted`), "evidence-backed completion of the epic by the branch records")
+  ok(!!df.done && df.done.evidence.includes(`${b2.n} done`) && df.done.evidence.includes(`${b3.n} done`) && df.done.evidence.includes(`${b4.n} accepted`) && df.done.evidence.includes("parent status accepted"), "evidence-backed completion of the epic: the branch records AND the parent's own acceptance")
   const doneLetters = letters(AUTH).filter((f) => f.includes("done"))
   await tick()
   ok(doneLetters.length === 1 && letters(AUTH).filter((f) => f.includes("done")).length === 1, "the completion letter once, nothing accumulates")

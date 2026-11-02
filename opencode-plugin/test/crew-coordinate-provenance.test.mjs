@@ -2,11 +2,14 @@
 //   node test/crew-coordinate-provenance.test.mjs
 // A task in a drive's registration lifecycle that ends EXTERNALLY (a bare status "done"/"accepted" written from
 // outside, without the acceptance ACT — the accepted history event that both accept paths of core.ts write) is NOT
-// an acceptance: the drive must end as a visible terminal failure (normal task) or keep waiting (epic branch),
-// never as an evidence-backed completion. A done WITH the recorded act completes. Real adapters (mailbox/history)
-// over an isolated fixture; no real transport. Red probes: run once with coordinate.ts moved away — every cell
-// red; with the pre-fix accepted() (bare status, no provenance) cells ext-done/ext-accepted/branch are red
-// (captured 2026-11-02).
+// an acceptance: the drive ends as a visible terminal failure (normal task), an unprovenanced bare "accepted" opens
+// the owner gate instead of a silent completion, and an external-done epic branch unlocks no dependency. The
+// POSITIVE side — a task/epic finished through the REAL runtime acceptance lifecycle completes by evidence,
+// including a drive registered after the finish — is proven by crew-coordinate-lifecycle.test.mjs through the real
+// plugin tools and a real git project; no hand-written accepted events stand in for the act here. Real adapters
+// (mailbox/history) over an isolated fixture; no real transport. Red probes: run once with coordinate.ts moved
+// away — every cell red; with the pre-fix accepted() (bare status, no provenance) the ext-done/ext-accepted/branch
+// cells are red (captured 2026-11-02).
 import assert from "node:assert/strict"
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import os from "node:os"
@@ -62,16 +65,6 @@ const externalStatus = (t, status) => {
   f.status = status
   tasks.saveTask(f)
 }
-/** The real acceptance act, as the accept paths of core.ts record it (status + accepted history event). */
-const acceptAct = (t, final = "accepted") => {
-  const f = tasks.loadTask("proj", t.n)
-  tasks.taskEvent(f, AUTH, "accepted", "принята словом владельца: «принимаю» (владелец, 2026-11-02, fixture)")
-  if (final !== "accepted") {
-    const g = tasks.loadTask("proj", t.n)
-    g.status = final // cleanup доводит принятую задачу до done; accepted-событие остаётся в истории
-    tasks.saveTask(g)
-  }
-}
 const deps = () => ({
   task: (p, n) => tasks.loadTask(p, n),
   letter: (to, id, text) => {
@@ -121,27 +114,6 @@ if (!coord) {
   ok(!d2.done && !letters(AUTH).some((f) => f.includes(`-${t2.n}-done`)), "ext-accepted: a bare accepted status without the act completes nothing")
   ok(!!d2.gate || d2.blockers.length > 0, "ext-accepted: the unprovenanced end stays visible (owner gate/blocker), not a silent completion")
 
-  // ------------------------------------------------------------------ the recorded acceptance act completes (accepted and done alike)
-  const t3 = mkTask("ACTACC")
-  coord.startDrive(t3, "crew-normal-task@1", AUTH)
-  tasks.saveTask(t3)
-  await tick()
-  acceptAct(t3, "accepted")
-  await tick() // the report-evidence note step
-  await tick() // the completion
-  const d3 = coord.loadDrive("proj", t3.n)
-  ok(!!d3.done && d3.done.evidence.includes("status accepted"), "act-accepted: the recorded acceptance act is an evidence-backed completion")
-
-  const t4 = mkTask("ACTDONE")
-  coord.startDrive(t4, "crew-normal-task@1", AUTH)
-  tasks.saveTask(t4)
-  await tick()
-  acceptAct(t4, "done") // accepted by the act, then cleaned up to done: the provenance stays in the history
-  await tick() // the report-evidence note step
-  await tick() // the completion
-  const d4 = coord.loadDrive("proj", t4.n)
-  ok(!!d4.done && d4.done.evidence.includes("status done"), "act-done: a done WITH the recorded acceptance act completes")
-
   // ------------------------------------------------------------------ epic: an external done branch unlocks no dependency
   const b1 = mkTask("BRANCH1")
   const b2 = mkTask("BRANCH2")
@@ -154,9 +126,6 @@ if (!coord) {
   await tick()
   ok(!letters(b2.executor).length, "branch: an external done branch does NOT unlock its dependent")
   ok(!coord.loadDrive("proj", epic.n).done, "branch: the epic is not completed by an external done")
-  acceptAct(b1, "done") // the real acceptance act arrives
-  await tick()
-  ok(letters(b2.executor).length === 1, "branch: the provenance-backed done unlocks the dependent branch")
 }
 
 console.log(failures ? `FAILURES: ${failures}` : "crew-coordinate-provenance.test ok")
