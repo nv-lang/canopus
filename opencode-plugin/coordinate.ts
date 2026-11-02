@@ -131,6 +131,11 @@ export const knownPolicies = () => [...REGISTRY.keys()].sort()
  *  external end without it (a direct status write, the legacy cleaned→done read) is a terminal end, not a completion
  *  (281: external/done не acceptance). */
 const accepted = (t: Task) => (t.status === "accepted" || t.status === "done") && t.history.some((h) => h.status === "accepted")
+/** The registration line of the standard number script (task 058, scripts/task-number.mjs): an agent OUTSIDE
+ *  OpenCode takes a number — kind external, status done, author "external", and NO acceptance act. The
+ *  registration is a fact to KEEP, not an acceptance to complete by: attaching a drive preserves the record as it
+ *  is and continues observably, and the policy itself never completes on it (281, integrator 2026-11-02). */
+const isExternalRegistration = (t: Task) => t.kind === "external" && t.status === "done" && !t.history.some((h) => h.status === "accepted")
 const evidenceOf = (t: Task) => `status ${t.status}, history ${t.history.length} entries${t.report ? `, report sha256 ${sha(t.report).slice(0, 16)}` : ""}`
 
 /** The acceptance tail of a driven task (281): completion ONLY by the record's own acceptance evidence (the real
@@ -216,16 +221,30 @@ registerPolicy(dependencyEpicPolicy)
 // ---------------------------------------------------------------------------------------------------------------------
 // Attaching and decisions — the explicit entry points (crew_task drive / drive-decide in core.ts call these).
 
-/** Attach a versioned policy to an open task: the drive record and the mark on the task, one first write each. */
-export function startDrive(t: Task, policyRef: string, by: string, needs?: Record<string, number[]>): { ok: true; drive: Drive } | { ok: false; why: string } {
+/** Attach a versioned policy to an open task: the drive record and the mark on the task, one first write each.
+ *  The initial external/done registration entry (kind external, status done, author "external", no acceptance act —
+ *  the record of the standard number script) is NOT refused: the registration is preserved as it is, the drive
+ *  attaches with an observable registration step (a letter with a receipt to the author), and the policy then
+ *  classifies the record itself — an external done without the act is never an evidence-backed completion. */
+export function startDrive(t: Task, policyRef: string, by: string, needs?: Record<string, number[]>, letter?: (to: string, id: string, text: string) => boolean): { ok: true; drive: Drive; external?: boolean } | { ok: false; why: string } {
   const m = /^([a-z0-9-]+)@([0-9]+)$/.exec(policyRef.trim())
   if (!m) return { ok: false, why: `policy в форме «<id>@<version>», получено «${policyRef}»` }
   const [, id, version] = m
   if (!policyOf(id, version)) return { ok: false, why: `policy «${policyRef}» не в доверенном реестре (${knownPolicies().join(", ")}): недоверенная policy не исполняется` }
-  if (!isOpen(t) && !accepted(t)) return { ok: false, why: `задача ${taskRef(t)} закрыта без записанного акта приёмки: ведение ставится на открытую или доказуемо принятую (initial external/done registration entry — внешний конец без акта не ведётся)` }
   if (t.drive) return { ok: false, why: `задача ${taskRef(t)} уже ведётся policy ${t.drive.policy}@${t.drive.version}: второй drive не ставится` }
   const now = Date.now()
   const policy = policyOf(id, version)!
+  if (isExternalRegistration(t)) {
+    const drive: Drive = { project: t.project, n: t.n, policy: { id, version }, by, started: now, updated: now, phase: policy.phases[0], steps: [], decisions: [], blockers: [], ...(needs && Object.keys(needs).length ? { needs } : {}) }
+    const lid = `drive-${safeKey(t.project)}-${t.n}-registration-${now}`
+    const text = `Задача ${taskRef(t)} — внешняя регистрация номера агентом вне OpenCode (kind external, статус done, акта приёмки нет): регистрация сохранена как есть и поставлена на ведение policy ${id}@${version}. Внешний done без записанного акта приёмкой не является: дальше — только доказуемые шаги, блокеры и ворота владельца.`
+    const posted = letter ? letter(t.author, lid, text) : false
+    drive.steps.push({ id: "s:registration:external", at: now, phase: "registration", action: "letter", to: t.author, text, state: posted ? "done" : "unknown", receipt: lid })
+    saveDrive(drive)
+    t.drive = { policy: id, version, at: now, by }
+    return { ok: true, drive, external: true }
+  }
+  if (!isOpen(t) && !accepted(t)) return { ok: false, why: `задача ${taskRef(t)} закрыта без записанного акта приёмки: ведение ставится на открытую или доказуемо принятую (внешний конец без акта приёмкой не является)` }
   const drive: Drive = { project: t.project, n: t.n, policy: { id, version }, by, started: now, updated: now, phase: policy.phases[0], steps: [], decisions: [], blockers: [], ...(needs && Object.keys(needs).length ? { needs } : {}) }
   saveDrive(drive)
   t.drive = { policy: id, version, at: now, by }

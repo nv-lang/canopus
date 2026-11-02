@@ -3095,11 +3095,15 @@ export function makeTools(host: CrewHost): CrewTool[] {
             needs[em[1]] = em[2].split(",").map((s) => Number(s.trim())).filter((x) => Number.isInteger(x) && x > 0)
           }
         }
-        const res = startDrive(t, policyRef, me.session, needs)
+        const res = startDrive(t, policyRef, me.session, needs, (to, id, text) => {
+          if (letterExistsFor(to, id)) return false
+          postLetter(to, { id, from_role: PLUGIN_SENDER, from_session: PLUGIN_SENDER, to, text, time: Date.now() })
+          return true
+        })
         if (!res.ok) return { content: `Ведение не поставлено: ${res.why}.` }
         saveTask(t)
-        taskEvent(t, me.session, undefined, `подключено автоматическое ведение policy ${policyRef} (задача 281)${needs ? `, зависимости веток: ${JSON.stringify(needs)}` : ""}`)
-        return { content: `Задача ${taskRef(t)} поставлена на автоматическое ведение policy ${policyRef}. Тик координации ведёт её до завершения с доказательством или до настоящих ворот владельца; ворота owner-порядка (push/merge/restart/live/деньги/потолок/HOLD) ведением не исполняются.` }
+        taskEvent(t, me.session, undefined, `подключено автоматическое ведение policy ${policyRef} (задача 281)${needs ? `, зависимости веток: ${JSON.stringify(needs)}` : ""}${res.external ? "; внешняя регистрация сохранена как есть (внешний done без акта приёмкой не является)" : ""}`)
+        return { content: `Задача ${taskRef(t)} поставлена на автоматическое ведение policy ${policyRef}.${res.external ? " Внешняя регистрация номера (kind external, статус done, без акта приёмки) сохранена как есть: внешний done приёмкой не является — дальше только доказуемые шаги, блокеры и ворота владельца; автору ушло письмо о регистрации с квитанцией." : ""} Тик координации ведёт её до завершения с доказательством или до настоящих ворот владельца; ворота owner-порядка (push/merge/restart/live/деньги/потолок/HOLD) ведением не исполняются.` }
       }
       if (action === "drive-decide") {
         if (!isIntegrator(me)) return notIntegrator(me)

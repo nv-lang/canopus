@@ -12,14 +12,18 @@
 //   the real owner gate opens for the PARENT; the epic completes only after the parent's own real acceptance,
 //   the evidence names the branches AND the parent record.
 // E  (the original registration AC): a number taken by an agent OUTSIDE OpenCode is registered by the REAL
-//   scripts/task-number.mjs (kind external / status done / author external — no acceptance act) in a fully isolated
-//   linked git worktree and env: the real workflow attachment (crew_task drive) to it is REFUSED at the entry (an
-//   external done is not an acceptance), nothing is executed; and as an epic dependency such a branch unlocks no
-//   dependent — the kick to the executor-less external branch is ONE observable addressed blocker, never an
-//   accumulation, and the unfinished epic never completes falsely.
+//   scripts/task-number.mjs (kind external / status done / author external — the registration line, no acceptance
+//   act) in a fully isolated linked git worktree and env: the real workflow attachment (crew_task drive) PRESERVES
+//   the registration as it is and continues observably (a registration letter with a receipt to the author; the
+//   drive's own steps/receipts). For the normal policy an external done without the act ends as a VISIBLE terminal
+//   outcome with a letter — never a silent evidence completion, never a vanished registration; the owner's word
+//   without the question path applies nothing (drive-decide is refused). As an epic dependency the external/done
+//   branch unlocks no dependent, the kick to the executor-less branch is ONE observable addressed blocker (never
+//   an accumulation), and the unfinished epic never completes falsely.
 // Red probes: run once with coordinate.ts moved away — every cell red; on the pre-fix source the L1 cells (the
-// registration is refused / a start letter goes to the finished task), the B gate/evidence cells and the E
-// no-accumulation cell are red (captured 2026-11-02).
+// registration is refused / a start letter goes to the finished task), the B gate/evidence cells and the E cells
+// (the registration refused at the entry, no observable continuation, the blocker accumulates) are red
+// (captured 2026-11-02).
 import "./native-isolation.mjs"
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
@@ -226,10 +230,17 @@ try {
     const xt = tasks.loadTask("proj", extOut.n)
     ok(!!xt && xt.kind === "external" && xt.status === "done" && xt.author === "external" && !xt.history.some((h) => h.status === "accepted"), "E: the real task-number.mjs registers the external number as done WITHOUT any acceptance act")
     const regX = await call("crew_task", INTEG, { action: "drive", n: xt.n, policy: "crew-normal-task@1" })
-    ok(!/поставлена на автоматическое ведение/.test(regX) && /закрыта|акт|не ведётся/.test(regX), "E: the workflow attachment to the external/done registration is refused at the entry — an external done is not an acceptance")
-    ok(!coord.loadDrive("proj", xt.n), "E: no drive record is created for the external/done task")
-    const rX = await tick()
-    ok(rX.actions === 0 && !letters(INTEG).some((f) => f.includes(`-${xt.n}-`)), "E: the refused registration executes nothing, ever (no action, no letter)")
+    ok(/поставлена на автоматическое ведение/.test(regX) && /регистрация[^\n]*сохранена как есть/.test(regX), "E: the workflow attachment accepts the external registration entry and PRESERVES the registration as it is")
+    const xt2 = tasks.loadTask("proj", xt.n)
+    ok(xt2.kind === "external" && xt2.status === "done" && xt2.author === "external" && !xt2.history.some((h) => h.status === "accepted"), "E: the registration line is kept (kind external / status done / author external, still no acceptance act)")
+    const regLetter = letters("external").find((f) => f.startsWith(`drive-proj-${xt.n}-registration-`))
+    ok(!!regLetter, "E: the observable continuation of the existing actions — the registration letter with a receipt lands in the author's real mailbox")
+    await tick()
+    const dX = coord.loadDrive("proj", xt.n)
+    ok(!!dX?.failed && !dX.done, "E: the external done without the act ends as a VISIBLE terminal outcome — never a silent evidence completion")
+    ok(letters("external").filter((f) => f.startsWith(`drive-proj-${xt.n}-terminal`)).length === 1, "E: exactly one terminal letter to the author")
+    const dNo = await call("crew_task", INTEG, { action: "drive-decide", n: xt.n, qid: "q-any", text: "принять", quote: "«принимаю» (владелец, 2026-11-02)" })
+    ok(/не применено|не найден/i.test(dNo), "E: the owner's word outside the verified question path applies nothing (no gate, no drive-decide)")
 
     // the external/done registration as an epic dependency: no false unlock, no false completion, one addressed blocker
     const b3 = (await spawnSmall("Зависимая ветка")).t
