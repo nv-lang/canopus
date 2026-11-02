@@ -810,7 +810,12 @@ export function createView(doc, refs, deps) {
   const agentAnchor = h(doc, 'div', { class: 'agent-picker-anchor' }, familyButton, menu);
   // The picker owns its anchor; family approvals stay before the microphone.
   const statusGroup = h(doc, 'div', { class: 'status-group' }, agentAnchor);
-  const status = h(doc, 'div', { class: 'composer-status', 'data-empty': 'true' }, worktreeButton, routeButton, resultRepoButton, h(doc, 'span', { class: 'grow' }), statusGroup, ringBox, spinner, presetSelect);
+  // Композиция нижней панели по макету 268 (task/design/new-chat.png): режим, семья, модель и усилие —
+  // пилюли одной строкой ВНУТРИ карточки композера, а не отдельной строкой под ней.
+  const boxBar = h(doc, 'div', { class: 'box-bar', 'data-empty': 'true' },
+    routeButton, modeButton, h(doc, 'span', { class: 'grow' }), statusGroup, modelButton, effortButton);
+  box.append(boxBar);
+  const status = h(doc, 'div', { class: 'composer-status', 'data-empty': 'true' }, worktreeButton, resultRepoButton, h(doc, 'span', { class: 'grow' }), ringBox, spinner, presetSelect);
 
   // Меню выбора режима, модели и усилия (задача 192): показывает только то, что агент отдал по ACP.
   // Задача 265: сюда же меню репозитория результата ('result').
@@ -1115,7 +1120,15 @@ export function createView(doc, refs, deps) {
       if (at >= 0) { e.preventDefault(); rows[at].closest('.menu-item').click(); }
     }
   });
-  doc.addEventListener('click', (e) => { if (menuKind && !e.composedPath().includes(status)) closeMenu(); });
+  // Клик вне меню закрывает его. Меню живёт в двух местах (agentAnchor в нижней панели box-bar,
+  // остальные — в строке статуса), а триггер всегда рядом со своим меню: закрытие — только когда
+  // клик пришёсь мимо меню, мимо триггера и мимо обоих контейнеров.
+  doc.addEventListener('click', (e) => {
+    if (!menuKind) return;
+    const path = e.composedPath();
+    if (path.includes(status) || path.includes(agentAnchor) || (menuTrigger && path.includes(menuTrigger))) return;
+    closeMenu();
+  });
 
   // Полоса шагов режима (задача 192p): абсолютно над полем ввода, макет не сдвигает.
   const routeStrip = h(doc, 'section', { class: 'route-strip', hidden: true, 'aria-label': t('route.label') });
@@ -1959,6 +1972,7 @@ export function createView(doc, refs, deps) {
     statusModel.title = hasModels ? '' : paramWhy(t('status.model_unsupported'));
     spinner.hidden = !busy;
     status.dataset.empty = String(routeButton.hidden && worktreeButton.hidden && resultRepoButton.hidden && familyButton.hidden && !busy && !session.usage);
+    boxBar.dataset.empty = String(routeButton.hidden && modeButton.hidden && familyButton.hidden && modelButton.hidden && effortButton.hidden);
     if (menuKind === 'agent') renderMenu();
     else if (menuKind === 'route') {
       if (menuSig !== currentRoute) renderMenu();

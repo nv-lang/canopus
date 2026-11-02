@@ -615,6 +615,14 @@ pre code { font: inherit; }
   overflow-y: auto;
 }
 .box-row { display: flex; align-items: center; gap: 6px; }
+/* Нижняя панель карточки композера (макет 268, new-chat.png): режим слева, семья·модель·усилие справа,
+   пилюли с шевроном; строка целиком скрывается, когда в ней ничего нет. */
+.box-bar { flex-basis: 100%; display: flex; align-items: center; gap: 8px; padding: 6px 2px 2px; border-top: 1px solid var(--border); }
+.box-bar[data-empty="true"] { display: none; }
+.box-bar .status-btn { min-height: 28px; padding: 0 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); white-space: nowrap; }
+.box-bar .status-btn:hover, .box-bar .status-btn[aria-expanded="true"] { background: var(--hover); }
+.box-bar .status-btn::after { content: ''; flex: none; width: 8px; height: 8px; margin-left: 6px; background: currentColor; opacity: .55; clip-path: polygon(0 15%, 100% 15%, 50% 100%); }
+@media (max-width: 760px) { .box-bar { flex-wrap: wrap; row-gap: 4px; } }
 .send-btn, .cancel-btn {
   display: inline-flex;
   align-items: center;

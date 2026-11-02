@@ -6,7 +6,7 @@ import fs from 'node:fs';
 const view = fs.readFileSync(new URL('../view.js', import.meta.url), 'utf8');
 const css = fs.readFileSync(new URL('../app.css', import.meta.url), 'utf8');
 
-test('группа status-group: семья, модель·усилие; родные подтверждения отдельно перед микрофоном', () => {
+test('группа status-group: семья отдельно, модель·усилие рядом; родные подтверждения отдельно перед микрофоном', () => {
   const group = view.match(/const statusGroup = h\(doc, 'div', \{ class: 'status-group' \}, ([^)]*)\);/);
   assert.ok(group, 'группа есть');
   const names = group[1].split(',').map((x) => x.trim());
@@ -15,7 +15,15 @@ test('группа status-group: семья, модель·усилие; род�
   assert.match(view, /familyApprovals\.root, micWrap/);
   assert.match(view, /const agentAnchor = h\(doc, 'div', \{ class: 'agent-picker-anchor' \}, familyButton, menu\)/);
   const row = view.match(/const status = h\(doc, 'div', \{ class: 'composer-status', [^}]*\}, ([^;]*)\);/);
-  assert.match(row[1], /statusGroup, ringBox, spinner/);
+  assert.match(row[1], /ringBox, spinner, presetSelect/);
+  assert.doesNotMatch(row[1], /\b(?:routeButton|modeButton|statusGroup|modelButton|effortButton)\b/);
+  // Макет 268 (new-chat.png): режим, семья, модель и усилие — одной строкой внутри карточки композера.
+  const bar = view.match(/const boxBar = h\(doc, 'div', \{ class: 'box-bar', 'data-empty': 'true' \},\s*([^;]*?)\);/);
+  assert.ok(bar, 'нижняя панель композера есть');
+  assert.match(bar[1], /^routeButton, modeButton, h\(doc, 'span', \{ class: 'grow' \}\), statusGroup, modelButton, effortButton$/);
+  assert.match(view, /const box = h\(doc, 'div', \{ class: 'box' \}, attach\.row, plusButton, input,\s*recPanel, h\(doc, 'div', \{ class: 'box-row' \}, cancelButton, sendButton, familyApprovals\.root, micWrap\)\)/);
+  assert.match(view, /box\.append\(boxBar\);/);
+  assert.match(view, /boxBar\.dataset\.empty = /);
 });
 
 test('у каждого чипа title и aria-label; группа прижата вправо, на узком экране переносится влево', () => {

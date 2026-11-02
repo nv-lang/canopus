@@ -131,16 +131,19 @@ test('новая сессия: режим по умолчанию — Интер
   assert.equal(real.sessions.d1.draft, undefined);
 });
 
-test('новая сессия: проект выбирается списком (значок папки, галочка у выбранного); под полем Worktree · режим · агент · модель · усилие', () => {
+test('новая сессия: проект выбирается списком (значок папки, галочка у выбранного); в карточке композера режим · агент · модель · усилие, Worktree в строке статуса', () => {
   assert.match(view, /class: 'project-picker', role: 'listbox'/);
   assert.match(view, /icon\(doc, 'i-folder', 'project-icon'\)/);
   assert.match(view, /class: 'project-check' \}, checked \? icon\(doc, 'i-check'\)/);
   assert.match(view, /'aria-selected': checked \? 'true' : 'false'/);
   assert.ok(!/draft-project|draftBar/.test(view), 'прежнего выпадающего списка проекта нет');
   assert.ok(!/Choose environment/.test(view + read('strings.js')), 'выбора окружения нет');
+  const bar = view.match(/const boxBar = h\(doc, 'div', \{ class: 'box-bar', 'data-empty': 'true' \},\s*([^;]*)\);/)[1];
+  const order = ['routeButton', 'statusGroup', 'modelButton', 'effortButton'].map((n) => bar.indexOf(n));
+  assert.ok(order.every((x) => x >= 0) && order.every((x, i) => i === 0 || order[i - 1] < x), 'порядок в карточке: режим слева, агент · модель · усилие справа');
   const row = view.match(/const status = h\(doc, 'div', \{ class: 'composer-status', [^}]*\}, ([^;]*)\);/)[1];
-  const order = ['worktreeButton', 'routeButton', 'statusGroup'].map((n) => row.indexOf(n));
-  assert.ok(order.every((x) => x >= 0) && order.every((x, i) => i === 0 || order[i - 1] < x), 'порядок: Worktree, режим, остальное справа');
+  assert.ok(row.includes('worktreeButton'), 'Worktree остаётся в строке статуса');
+  assert.match(view, /boxBar\.dataset\.empty = String\(routeButton\.hidden && modeButton\.hidden && familyButton\.hidden && modelButton\.hidden && effortButton\.hidden\)/);
   assert.match(view, /worktreeButton\.setAttribute\('aria-pressed', String\(treeOn \|\| hasTree\)\)/);
   assert.match(view, /worktreeButton\.disabled = hasTree/);
   assert.match(view, /icon\(doc, 'i-branch'\), h\(doc, 'span', \{ text: t\('route\.worktree'\) \}\)/);
