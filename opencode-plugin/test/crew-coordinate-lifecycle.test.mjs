@@ -20,6 +20,13 @@
 //   without the question path applies nothing (drive-decide is refused). As an epic dependency the external/done
 //   branch unlocks no dependent, the kick to the executor-less branch is ONE observable addressed blocker (never
 //   an accumulation), and the unfinished epic never completes falsely.
+// E3 (the remaining AC, duty letter 2026-11-02 05:46): the registered unfinished PARENT epic ITSELF — the real
+//   scripts/task-number.mjs record (external/done, no acceptance act) with EXISTING branches: the drive attaches
+//   preserving the registration, the existing independent branch is really continued (kick with a receipt), the
+//   really finished branch unlocks the dependent, and the branches done open the PARENT's own acceptance gate —
+//   the external parent is never completed by the branches alone and never terminally ended while it can continue.
+//   (E2's spawned parent + external dependency and the normal drive's terminal letter are other scenarios, not a
+//   replacement for this one.)
 // Red probes: run once with coordinate.ts moved away — every cell red; on the pre-fix source the L1 cells (the
 // registration is refused / a start letter goes to the finished task), the B gate/evidence cells and the E cells
 // (the registration refused at the entry, no observable continuation, the blocker accumulates) are red
@@ -255,6 +262,37 @@ try {
     const noExec = dE2?.blockers.filter((b) => b.id === "no-executor") ?? []
     ok(noExec.length === 1 && /адресат/.test(noExec[0]?.reason ?? ""), "E: the kick to the executor-less external branch is ONE observable addressed blocker, never an accumulation")
     ok([...rE1.blockers, ...rE2.blockers].some((l) => l.includes("no executor")), "E: the addressed blocker is observable in the tick result")
+
+    // ------------------------------------------------------------------ E3: the registered unfinished PARENT epic itself (external/done) with existing branches
+    // The REAL scripts/task-number.mjs registers the parent epic number in a fully isolated linked worktree/env;
+    // the branches are existing real spawned tasks. The drive must continue them and require the parent's own
+    // acceptance — a terminal letter of a normal drive is NOT the continuation of such an epic.
+    const wtExt2 = path.join(tmp, "wt-ext-epic")
+    git(proj, "worktree", "add", "--detach", wtExt2, "HEAD")
+    const extEpicOut = JSON.parse(execFileSync(process.execPath, [script, "--dir", wtExt2, "--title", "Внешний родительский эпик", "--project", "proj"], { encoding: "utf8", env: process.env, stdio: ["ignore", "pipe", "pipe"] }).trim())
+    const xe = tasks.loadTask("proj", extEpicOut.n)
+    ok(!!xe && xe.kind === "external" && xe.status === "done" && xe.author === "external" && !xe.history.some((h) => h.status === "accepted"), "E3: the real task-number.mjs registers the PARENT epic itself as external/done without the acceptance act")
+    const b4 = (await spawnSmall("Ветка внешнего эпика 1")).t
+    const b5 = (await spawnSmall("Ветка внешнего эпика 2")).t
+    const regE3 = await call("crew_task", INTEG, { action: "drive", n: xe.n, policy: "crew-dependency-epic@1", text: `needs: ${b5.n}<=${b4.n}` })
+    ok(/поставлена на автоматическое ведение/.test(regE3) && /регистрация[^\n]*сохранена как есть/.test(regE3), "E3: the epic drive attaches to the external parent registration and PRESERVES it as it is")
+    const xe2 = tasks.loadTask("proj", xe.n)
+    ok(xe2.kind === "external" && xe2.status === "done" && xe2.author === "external" && !xe2.history.some((h) => h.status === "accepted"), "E3: the parent record is unchanged by the attachment (kind/status/author kept, still no acceptance act)")
+    ok(letters("external").some((f) => f.startsWith(`drive-proj-${xe.n}-registration-`)), "E3: the registration letter with a receipt lands in the external author's real mailbox")
+    await tick()
+    ok(driveLetters(b4.executor).some((f) => f.includes(`kick-${b4.n}`)) && driveLetters(b5.executor).length === 0, "E3: real continuation — the existing independent branch is kicked with a receipt, the dependent waits")
+    const dE3a = coord.loadDrive("proj", xe.n)
+    ok(!!dE3a && !dE3a.done && !dE3a.failed, "E3: the external parent is neither completed nor terminally ended while its branches run")
+    await reallyFinish(b4)
+    await tickUntil(() => driveLetters(b5.executor).some((f) => f.includes(`kick-${b5.n}`)))
+    ok(driveLetters(b5.executor).filter((f) => f.includes(`kick-${b5.n}`)).length === 1, "E3: the really finished branch unlocks the dependent — the drive continues the existing branches")
+    await reallyFinish(b5)
+    await tick()
+    await tick()
+    const dE3 = coord.loadDrive("proj", xe.n)
+    ok(!!dE3 && !dE3.done && !dE3.failed && dE3.gate?.id === "accept", "E3: the branches done open the PARENT's own acceptance gate — the external parent is not completed by the branches and not terminally ended")
+    ok(letters("external").filter((f) => f.includes(`-${xe.n}-gate`)).length === 1, "E3: exactly one gate letter to the external author")
+    ok(gateRouter.list().some((r) => r.qid === dE3?.gate?.qid), "E3: the parent's gate is a durable record of the real QuestionRouter under the gate qid")
   }
 } finally {
   await stop()
