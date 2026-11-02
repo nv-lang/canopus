@@ -9,9 +9,11 @@
 // Build both programs: nova build src/crew_hub.nv -o target/crew-hub.exe; nova build src/crew_harness.nv -o target/crew-harness.exe
 module crew_harness.crew_harness
 
-import crew_harness.server.front.{run_front_with, front_settings_in}
+import crew_harness.server.front.{run_front_with_metadata, front_settings_in, FrontSettings}
+import crew_harness.model_metadata.{MetadataInput, default_opencode_program}
 import crew_harness.config.{split_cli_args, crew_home, layout_in, find_project_dir, work_dir_now, config_list, config_get, config_set, doctor, command_layers, effective_entries, plan_migration, plan_text, run_migration, ConfigLayout, CliArgs}
-import std.os.{args, exit_process, env}
+import std.os.{args, exit_process, env, real_os}
+import std.fs.{real_fs}
 import std.io.{stderr}
 import std.time.{Time}
 
@@ -62,6 +64,23 @@ fn take_flag(words []str, name str) -> FlagTaken {
     FlagTaken { found, rest }
 }
 
+// The catalog observer input of this instance: the OpenCode agent among the configured ones (its
+// program, or the platform default), its id as the family, the working directory of this process
+// and the state folder for the snapshot. No OpenCode agent configured - no observer (None).
+fn metadata_input_of(settings FrontSettings) Os Fs -> Option[MetadataInput] {
+    mut program = ""
+    mut family = ""
+    for a in settings.agents {
+        if a.id == "opencode" {
+            if a.program.byte_len() > 0 { program = a.program }
+            family = a.id
+        }
+    }
+    if family.byte_len() == 0 { return None }
+    if program.byte_len() == 0 { program = default_opencode_program() }
+    Some(MetadataInput { program, family, cwd: work_dir_now(), state_dir: settings.layout.state })
+}
+
 fn cmd_serve(cli CliArgs) Proc Net Time Detach Io Os Fs -> () {
     ro file = if cli.rest.len() > 2 { cli.rest[2] } else { "" }
     ro home = crew_home(cli.home)
@@ -76,7 +95,10 @@ fn cmd_serve(cli CliArgs) Proc Net Time Detach Io Os Fs -> () {
     }
     match front_settings_in(file, home, cli.sets) {
         Err(reason) => fail(reason)
-        Ok(settings) => run_front_with(settings, file, pass)
+        Ok(settings) => {
+            ro input = with Os = real_os(), Fs = real_fs() { metadata_input_of(settings) }
+            run_front_with_metadata(settings, file, pass, input)
+        }
     }
 }
 

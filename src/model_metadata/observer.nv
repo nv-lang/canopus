@@ -1,0 +1,537 @@
+// observer.nv - the trusted-host native observer of the model catalog (the completion of F-07, task 268/269).
+//
+// The stock front has no same-context native observer and passes None, so `/api/model-metadata`
+// answers `unavailable/same_context_binding_unverified` and the new-chat picker has no models.
+// This module is the missing trusted host: it launches the very same native OpenCode server that
+// the sessions run (the same program, the same prepared configuration copy `XDG_CONFIG_HOME`
+// without the plugin, a working directory of the instance), reads `GET /api/model` from it once
+// with the printed one-time password, pins the read bytes into a snapshot file and builds the
+// `MetadataHook` for the front from actually observed values. Nothing here is constructed from
+// client/source JSON; every mismatch is a fail-closed `unavailable`, and `complete=false` stays:
+// one snapshot never proves provider discovery completeness.
+//
+// A short-lived `opencode serve` child of this module is not the owner's live OpenCode service and
+// is never left running: it is stopped in every outcome. The refresh fiber re-observes in place of
+// the expired snapshot (the freshness cap of the hook is 300 s), so the catalog stays alive.
+
+module crew_harness.model_metadata
+
+import std.concurrency.nvchan.{Chan, ChanTx, ChanRx}
+import std.crypto.sha256.{Sha256}
+import std.encoding.base64.{Base64}
+import std.encoding.json.{Json, JsonValue, JsonObject}
+import std.fs.{Fs, real_fs, Path, read_text, create_dir_all}
+import std.net.{Net, real_net, TcpListener, TcpStream}
+import std.os.{Os, real_os, vars, has_env, Command, Child, ChildStdout, Stdio, Tree}
+import std.time.{Time}
+import crew_harness.agent_config.{opencode_config_source, opencode_home_prepare}
+import crew_harness.projects.{EnvEntry}
+import crew_harness.storage.{replace_file}
+
+/// How often the refresher re-observes; the snapshot itself lives `METADATA_SNAPSHOT_TTL_MS`
+/// (under the 300 s freshness cap of the hook, so a reply is never built from a stale file).
+export const METADATA_REFRESH_MS = 200000
+export const METADATA_SNAPSHOT_TTL_MS = 240000
+const OBSERVE_START_TIMEOUT_MS = 20000
+const OBSERVE_HTTP_TIMEOUT_MS = 10000
+
+/// One question to the refresher. The end is in a record (Oracle 0.1.0 does not compile a channel
+/// of channel ends, see SttAsk) and the payload is a `str`: channels of records or arrays hit the
+/// nested generic codegen bug, so the hook travels over the in-process wire `hook_wire`/`hook_of_wire`
+/// below - an encoding between the two fibers of the same trusted host, not a JSON decoder and not a
+/// client/source claim (the parsed hook is checked by `model_metadata_reply` exactly as before).
+export type MetadataAsk { reply ChanTx[str] }
+
+/// The field separator of the in-process hook wire.
+const WIRE_SEP = "\u{1f}"
+
+/// The hook over the in-process wire: "" - there is none (the first observation is running or the
+/// last one failed); else the sixteen fields joined by the separator.
+export fn hook_wire(hook MetadataHook) -> str {
+    ro parts = [hook.expected.family, hook.expected.launch_sha256, hook.expected.config_sha256, hook.expected.location,
+        hook.expected.contract, hook.expected.source, hook.expected.source_version,
+        hook.observed.family, hook.observed.launch_sha256, hook.observed.config_sha256, hook.observed.location,
+        hook.observed.contract, hook.observed.source, hook.observed.source_version,
+        hook.snapshot_path, hook.snapshot_sha256]
+    parts.join(WIRE_SEP)
+}
+
+/// The hook back from the wire (None - wrong shape; the reply then stays fail-closed unavailable).
+export fn hook_of_wire(text str) -> Option[MetadataHook] {
+    mut got = []str.new()
+    for p in text.split(WIRE_SEP) { got.push(p) }
+    if got.len() != 16 { return None }
+    ro expected = NativeMetadataBinding { family: got[0], launch_sha256: got[1], config_sha256: got[2], location: got[3], contract: got[4], source: got[5], source_version: got[6] }
+    ro observed = NativeMetadataBinding { family: got[7], launch_sha256: got[8], config_sha256: got[9], location: got[10], contract: got[11], source: got[12], source_version: got[13] }
+    Some(MetadataHook { expected, observed, snapshot_path: got[14], snapshot_sha256: got[15] })
+}
+
+/// What the observer needs to run the same native server the sessions run. `program` is the
+/// configured OpenCode program of the agent (a settings override or the platform default),
+/// `family` is the configured family of the product (the id of that agent), `cwd` is the working
+/// directory the native server runs in, `state_dir` is the state folder of the instance for the
+/// snapshot file.
+export type MetadataInput { program str, family str, cwd str, state_dir str }
+
+// ----- pure helpers (unit-tested; no effects) -----
+
+/// The exact folder comparison of the binding: the response reports Windows separators, the binding
+/// keeps forward ones. Both sides of the check go through this one normalization.
+export fn normalize_dir(p str) -> str => p.replace("\\", "/")
+
+/// The launch identity the binding pins: the program and its words, joined by a separator that
+/// cannot appear in a path. This pins the observed launch of the native server, not a JSON claim.
+export fn launch_identity(program str, args []str) -> str {
+    mut out = program
+    for a in args { out = "${out}\u{1f}${a}" }
+    out
+}
+
+export fn launch_sha256(program str, args []str) -> str => Sha256.hash_str(launch_identity(program, args).bytes())
+
+/// The value of the `Authorization` header for the native server: basic auth with the fixed user
+/// name `opencode` and the one-time password the server prints at its start.
+export fn basic_auth_header(password str) -> str => "Basic ${Base64.encode("opencode:${password}".bytes())}"
+
+/// The one-time password from the line `server password <token>` of the native server ("" - the line is not one).
+export fn server_password_of(line str) -> str {
+    ro mark = "server password "
+    ro at = line.find(mark) ?? -1
+    if at < 0 { return "" }
+    ro rest = line[at + mark.byte_len()..].trim_ascii()
+    rest
+}
+
+/// The body of a `GET /api/model` answer: status line must be 200, a chunked body is unchunked,
+/// a `Content-Length` shorter than the rest cuts it. The header block ends at the first empty line.
+export fn http_body_of(raw []u8) -> Result[str, str] {
+    ro end = raw_blank_line(raw, 0)
+    if end < 0 { return Err("no answer head") }
+    ro head = raw[..end].to_str_lossy()
+    ro lines = head.lines()
+    if lines.len() == 0 { return Err("no status line") }
+    ro status_words = lines[0].split(" ")
+    mut parts = []str.new()
+    for w in status_words {
+        if w.byte_len() > 0 { parts.push(w) }
+    }
+    if parts.len() < 2 { return Err("broken status line") }
+    ro status = match parts[1].to_int() {
+        Ok(n) => n
+        Err(e) => return Err("broken status line")
+    }
+    if status != 200 { return Err("the server answered ${status}") }
+    mut chunked = false
+    mut length = -1
+    mut i = 1
+    while i < lines.len() {
+        ro line = lines[i]
+        ro colon = line.find(":") ?? -1
+        if colon > 0 {
+            ro name = line[..colon].trim_ascii().to_ascii_lower()
+            ro value = line[colon + 1..].trim_ascii().to_ascii_lower()
+            if name == "transfer-encoding" && value == "chunked" { chunked = true }
+            if name == "content-length" {
+                match value.to_int() {
+                    Ok(n) => { length = n }
+                    Err(e) => ()
+                }
+            }
+        }
+        i += 1
+    }
+    ro rest = raw[end + 4..raw.len()]
+    if chunked {
+        return body_unchunk(rest)
+    }
+    if length >= 0 && length < rest.len() { return Ok(rest[..length].to_str_lossy()) }
+    Ok(rest.to_str_lossy())
+}
+
+// The index of the first `\r\n\r\n` from `from` (-1 - none).
+fn raw_blank_line(raw []u8, from int) -> int {
+    mut i = from
+    while i + 3 < raw.len() {
+        if raw[i] == (13 as u8) && raw[i + 1] == (10 as u8) && raw[i + 2] == (13 as u8) && raw[i + 3] == (10 as u8) { return i }
+        i += 1
+    }
+    -1
+}
+
+fn body_unchunk(raw []u8) -> Result[str, str] {
+    mut out = []u8.new()
+    mut at = 0
+    while at < raw.len() {
+        // the size line ends with `\r\n`; find that pair first
+        mut eol = at
+        while eol + 1 < raw.len() && !(raw[eol] == (13 as u8) && raw[eol + 1] == (10 as u8)) { eol += 1 }
+        if eol + 1 >= raw.len() { return Err("broken chunked body") }
+        ro size_text = raw[at..eol].to_str_lossy()
+        ro semi = size_text.find(";") ?? size_text.byte_len()
+        ro size = match size_text[..semi].trim_ascii().to_int() {
+            Ok(n) => n
+            Err(e) => return Err("broken chunk size")
+        }
+        if size == 0 { return Ok(out.to_str_lossy()) }
+        ro body_from = eol + 2
+        if body_from + size > raw.len() { return Err("truncated chunk") }
+        out.append(raw[body_from..body_from + size])
+        at = body_from + size + 2
+    }
+    Ok(out.to_str_lossy())
+}
+
+/// The binding of one observed launch: expected and observed are built equal in-process, the hook
+/// then verifies them and the snapshot bytes. `config_sha256` pins the configuration bytes the
+/// native server read, `location` pins the working directory it ran in.
+export fn binding_of(family str, launch str, config_sha256 str, location str) -> NativeMetadataBinding =>
+    { family, launch_sha256: launch, config_sha256, location, contract: "opencode-acp-2.2.5", source: "opencode.api.model", source_version: "2.2.5" }
+
+/// The snapshot envelope around the exact `/api/model` response: the freshness window is shorter
+/// than the cap of the hook, so the refresher always has time to replace the file.
+export fn envelope_text(response JsonValue, observed int) -> str {
+    mut out = JsonObject.new()
+    mm_put(out, "v", JsonValue.int(1))
+    mm_put(out, "observed_at", JsonValue.int(observed))
+    mm_put(out, "expires_at", JsonValue.int(observed + METADATA_SNAPSHOT_TTL_MS))
+    mm_put(out, "response", response)
+    JsonValue.object(out).to_str()
+}
+
+// The platform default of the OpenCode program: on Windows OpenCode is an npm shim, a .cmd file,
+// and a process cannot be started from the bare name (the same default as src/server/settings.nv).
+#cfg(target_os = "windows")
+fn om_opencode_program() -> str => "opencode.cmd"
+
+#cfg(!target_os = "windows")
+fn om_opencode_program() -> str => "opencode"
+
+/// The program of the catalog observer when the settings do not name one.
+export fn default_opencode_program() -> str => om_opencode_program()
+
+// ----- the environment of the child (the block is whole: the runtime does not merge) -----
+
+fn observer_env(xdg str) Os -> []EnvEntry {
+    ro extra = [EnvEntry { key: "XDG_CONFIG_HOME", value: xdg }]
+    ro mine = with Os = real_os() { vars() }
+    ro windows = with Os = real_os() { has_env("SystemRoot") || has_env("SYSTEMROOT") }
+    mut out = []EnvEntry.new()
+    for v in mine {
+        ro name = v.key()
+        if name.byte_len() > 0 && !name.starts_with("=") {
+            mut replaced = false
+            for e in extra {
+                if e.key == name || (windows && e.key.to_ascii_lower() == name.to_ascii_lower()) { replaced = true }
+            }
+            if !replaced { out.push(EnvEntry { key: name, value: v.value() }) }
+        }
+    }
+    for e in extra { out.push(e) }
+    out
+}
+
+// The sha256 of the configuration the native server reads: the first of the two files of the copy,
+// or the hash of nothing when the copy has no file (the server then runs on its defaults).
+fn config_sha256_of(xdg str) Fs -> Result[str, str] {
+    for name in ["opencode.jsonc", "opencode.json"] {
+        match read_text_lossy("${xdg}/opencode/${name}") {
+            Some(text) => return Ok(Sha256.hash_str(text.bytes()))
+            None => ()
+        }
+    }
+    Ok(Sha256.hash_str("".bytes()))
+}
+
+fn read_text_lossy(path str) Fs -> Option[str] {
+    ro file = Path.from_bytes(path.bytes())
+    match read_text(file) {
+        Ok(text) => Some(text)
+        Err(e) => None
+    }
+}
+
+fn free_port() Net -> Result[int, str] {
+    consume listener = match TcpListener.bind("127.0.0.1:0") {
+        Ok(consume l) => l
+        Err(e) => return Err("no free port")
+    }
+    ro port = listener.local_port()
+    listener.close()
+    Ok(port)
+}
+
+// ----- one bounded observation -----
+
+// The stdout of the child: find the one-time password and tell it once (have=false - the stdout
+// ended without one). The byte-to-text conversion is fine here: this fiber owns its own buffer.
+fn read_password(consume rx ChildStdout, out ChanTx[str]) Proc -> () {
+    mut buf []u8 = []u8.new()
+    buf.resize(4096, 0 as u8)
+    mut text = ""
+    mut found = ""
+    mut reading = true
+    while reading {
+        match rx.read(buf) {
+            Ok(0) => { reading = false }
+            Ok(n) => {
+                text = "${text}${buf[..n].to_str_lossy()}"
+                ro pass = server_password_of(text)
+                if pass.byte_len() > 0 {
+                    found = pass
+                    reading = false
+                }
+            }
+            Err(e) => { reading = false }
+        }
+    }
+    ro told = out.send(found)
+    rx.close()
+}
+
+// `GET /api/model` over one connection; the server closes it (`Connection: close`), so reading to
+// the end of the stream is the whole answer. The raw bytes go back to the caller: the conversion to
+// text is not proven M:N-safe inside a fiber body, so it happens outside. The caller bounds the
+// wait and stops the child.
+fn http_get_model(port int, auth str) Net -> Result[[]u8, str] {
+    ro head = "GET /api/model HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nAuthorization: ${auth}\r\nConnection: close\r\n\r\n"
+    consume stream = match TcpStream.connect("127.0.0.1:${port}") {
+        Ok(consume s) => s
+        Err(e) => return Err("the native server does not take the connection")
+    }
+    match stream.write_all(head.bytes()) {
+        Ok(done) => ()
+        Err(e) => return Err("the request cannot be written")
+    }
+    mut raw = []u8.new()
+    mut chunk []u8 = []u8.new()
+    chunk.resize(65536, 0 as u8)
+    mut reading = true
+    while reading {
+        match stream.read(chunk) {
+            Ok(0) => { reading = false }
+            Ok(n) => {
+                raw.append(chunk[..n])
+                if raw.len() > MODEL_METADATA_MAX_BYTES { reading = false }
+            }
+            Err(e) => { reading = false }
+        }
+    }
+    stream.close()
+    Ok(raw)
+}
+
+// The body of the catalog answer, from the fiber of the GET.
+fn wait_body(rx ChanRx[str], deadline int) Time -> str {
+    mut got = ""
+    mut waiting = true
+    while waiting {
+        match rx.try_recv() {
+            Some(text) => {
+                got = text
+                waiting = false
+            }
+            None => {
+                if Time.now().unix_millis() >= deadline {
+                    waiting = false
+                } else {
+                    20.to_millis().sleep()
+                }
+            }
+        }
+    }
+    got
+}
+
+// The password of the child, from the fiber of the stdout.
+fn wait_password(rx ChanRx[str], deadline int) Time -> str {
+    mut found = ""
+    mut waiting = true
+    while waiting {
+        match rx.try_recv() {
+            Some(text) => {
+                found = text
+                waiting = false
+            }
+            None => {
+                if Time.now().unix_millis() >= deadline {
+                    waiting = false
+                } else {
+                    20.to_millis().sleep()
+                }
+            }
+        }
+    }
+    found
+}
+
+/// One full observation: launch the native server in the configured context, read the catalog once,
+/// pin it, stop the child. Every failure is an `Err` with a word; the child never survives.
+export fn observe_native(input MetadataInput) Proc Net Time Fs Os Detach -> Result[MetadataHook, str] {
+    if input.program.byte_len() == 0 { return Err("no program") }
+    if input.family.byte_len() == 0 { return Err("no family") }
+    // the same prepared configuration copy the agents of the hub get (without the plugin)
+    ro xdg = match opencode_home_prepare(input.state_dir, opencode_config_source()) {
+        Ok(x) => x
+        Err(why) => return Err("config_copy: ${why}")
+    }
+    ro config_sha = match config_sha256_of(xdg) {
+        Ok(s) => s
+        Err(why) => return Err(why)
+    }
+    mut last = "not tried"
+    mut attempt = 0
+    while attempt < 3 {
+        attempt += 1
+        ro port = match free_port() {
+            Ok(p) => p
+            Err(why) => return Err(why)
+        }
+        ro args = ["serve", "--hostname", "127.0.0.1", "--port", "${port}"]
+        mut command = Command.new(input.program)
+        for a in args { command.arg(a) }
+        command.stdout(Stdio.Piped)
+        command.tree(Tree.Group)
+        for pair in observer_env(xdg) { command.env(pair.key, pair.value) }
+        if input.cwd.byte_len() > 0 { command.dir(Path.from_bytes(input.cwd.bytes())) }
+        consume spawned = match command.start() {
+            Ok(consume c) => c
+            Err(e) => return Err("cannot start ${input.program} serve")
+        }
+        consume child = spawned
+        consume stdout_pipe = match child.take_stdout() {
+            Some(consume p) => p
+            None => {
+                ro stopped = child.stop(2.to_seconds())
+                return Err("no stdout of the native server")
+            }
+        }
+        ro words = Chan[str].new(1)
+        ro bodies = Chan[str].new(1)
+        detach consume stdout_pipe { read_password(stdout_pipe, words.tx) }
+        ro now = Time.now().unix_millis()
+        ro password = wait_password(words.rx, now + OBSERVE_START_TIMEOUT_MS)
+        if password.byte_len() == 0 {
+            ro stopped = child.stop(2.to_seconds())
+            last = "the native server did not report its password"
+            continue
+        }
+        ro got_at = Time.now().unix_millis()
+        detach {
+            with Net = real_net() {
+                match http_get_model(port, basic_auth_header(password)) {
+                    Ok(raw) => {
+                        ro told = bodies.tx.send(Base64.encode(raw))
+                    }
+                    Err(why) => {
+                        ro told = bodies.tx.send("!${why}")
+                    }
+                }
+            }
+        }
+        ro answer = wait_body(bodies.rx, got_at + OBSERVE_HTTP_TIMEOUT_MS)
+        // the child is told to stop in every path below
+        ro stopped = child.stop(2.to_seconds())
+        if answer.byte_len() == 0 {
+            last = "the catalog did not answer in time"
+            continue
+        }
+        ro text = match Base64.decode(answer) {
+            Ok(raw) => match http_body_of(raw) {
+                Ok(t) => t
+                Err(why) => {
+                    last = why
+                    continue
+                }
+            }
+            Err(e) => {
+                if answer.starts_with("!") { last = answer[1..] } else { last = "the answer is not readable" }
+                continue
+            }
+        }
+        ro value = match Json.parse(text) {
+            Ok(v) => v
+            Err(e) => {
+                last = "the catalog is not JSON"
+                continue
+            }
+        }
+        ro root = match value.object() {
+            Some(o) => o
+            None => {
+                last = "the catalog is not an object"
+                continue
+            }
+        }
+        ro location = match root.get("location") {
+            Some(l) => l
+            None => {
+                last = "the catalog has no location"
+                continue
+            }
+        }
+        ro directory = match location.object() {
+            Some(lo) => match lo.get("directory") {
+                Some(d) => d.str() ?? ""
+                None => ""
+            }
+            None => ""
+        }
+        if normalize_dir(directory) != normalize_dir(input.cwd) {
+            last = "the catalog reports another working directory"
+            continue
+        }
+        // the pinned snapshot: the exact bytes of the envelope, written where the hook reads them
+        ro observed = Time.now().unix_millis()
+        ro snapshot = envelope_text(value, observed)
+        ro state = input.state_dir.replace("\\", "/")
+        ro snapshot_path = "${state}/metadata/model-metadata-snapshot.json"
+        match create_dir_all(Path.from_bytes("${state}/metadata".bytes())) {
+            Ok(made) => ()
+            Err(e) => return Err("cannot make the metadata folder")
+        }
+        if !replace_file(Path.from_bytes(snapshot_path.bytes()), snapshot) { return Err("cannot write the snapshot") }
+        ro launch = launch_sha256(input.program, args)
+        ro binding = binding_of(input.family, launch, config_sha, normalize_dir(input.cwd))
+        return Ok(MetadataHook { expected: binding, observed: binding, snapshot_path, snapshot_sha256: Sha256.hash_str(snapshot.bytes()) })
+    }
+    Err(last)
+}
+
+// ----- the refresh fiber of the front -----
+
+/// The refresher: observes right away (the front serves while the first observation runs - the page
+/// says the catalog is loading), then again before every expiry, and answers the asks of the route
+/// with the current hook. A failed observation keeps the previous hook when it is still alive, else
+/// the route answers the stock `unavailable`.
+export fn metadata_source_loop(input MetadataInput, asks ChanRx[MetadataAsk]) Proc Net Time Fs Os Detach -> () {
+    mut current Option[MetadataHook] = None
+    mut due = 0
+    mut running = true
+    while running {
+        mut serving = true
+        while serving {
+            match asks.try_recv() {
+                Some(ask) => {
+                    match current {
+                        Some(hook) => {
+                            ro told = ask.reply.send(hook_wire(hook))
+                        }
+                        None => {
+                            ro told = ask.reply.send("")
+                        }
+                    }
+                }
+                None => { serving = false }
+            }
+        }
+        ro now = Time.now().unix_millis()
+        if now >= due {
+            current = match observe_native(input) {
+                Ok(hook) => Some(hook)
+                Err(why) => None
+            }
+            due = Time.now().unix_millis() + METADATA_REFRESH_MS
+        }
+        250.to_millis().sleep()
+    }
+}

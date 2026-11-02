@@ -21,6 +21,7 @@ import alula.engine.{Engine, Incoming, EventKind, Journal, Store, Link, PartyReq
 import crew_harness.product_machines.{find_machines_dir, load_product_machines}
 import alula.machine_run.{AlulaMachine, AlulaState}
 import crew_harness.acp.{AcpConfig, AcpClient, AcpImage, AcpPreset, AskSetup, no_ask, open_client_full, acp_link, page_event, TRACE_LIMIT}
+import crew_harness.agent_config.{opencode_env}
 import crew_harness.config.{pick_prompt, ConfigLayout, load_presets, preset_named, preset_family, DEFAULT_PRESET, presets_reply}
 import crew_harness.config.{PoolEntry, ModelPool, parse_agent_source, preset_pick_weight, pick_source_json, pool_level_ok, resolve_pool_pinned}
 import crew_harness.config.{load_roles, role_of}

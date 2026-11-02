@@ -7,7 +7,7 @@
 // never read apart from being copied and never logged. `CREW_OPENCODE_KEEP_PLUGIN=1` in the environment of the hub keeps the plugin (the copy is then not made).
 //
 // The part below is pure: it cuts the plugin out of the text of the configuration (JSONC with comments, or JSON) and does not parse it, so the comments and the layout stay.
-module crew_harness.server
+module crew_harness.agent_config
 
 import crew_harness.projects.{EnvEntry}
 import std.fs.{Fs, real_fs, Path, read_text, create_dir_all}

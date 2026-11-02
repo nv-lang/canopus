@@ -1,5 +1,5 @@
 // agent_config_test.nv - task 192.9: the configuration of OpenCode for the agents of the hub: the plugin crew-harness is cut out, everything else stays.
-module crew_harness.server
+module crew_harness.agent_config
 
 import std.encoding.json.{Json, JsonValue}
 

@@ -1,0 +1,66 @@
+// Pure contract fixtures of the trusted-host observer: parsing, the envelope and the binding are
+// checked as functions. The launch of a real native server is not a unit test; the deployment of
+// the contour verifies it live.
+module model_metadata_tests.observer_test
+
+import std.encoding.json.{Json}
+import crew_harness.model_metadata.{normalize_dir, launch_identity, launch_sha256, basic_auth_header, server_password_of, http_body_of, binding_of, envelope_text, default_opencode_program}
+
+test "the location of the binding compares with forward slashes on both sides" {
+    assert(normalize_dir("C:\\work\\crew") == "C:/work/crew")
+    assert(normalize_dir("C:/work/crew") == "C:/work/crew")
+}
+
+test "the launch identity joins the program and its words and pins them by hash" {
+    assert(launch_identity("opencode.cmd", ["serve", "--port", "1"]) == "opencode.cmd\u{1f}serve\u{1f}--port\u{1f}1")
+    assert(launch_sha256("a", []).byte_len() == 64)
+    assert(launch_sha256("a", []) != launch_sha256("a", ["serve"]), "different launches differ")
+}
+
+test "the authorization header is basic auth with the fixed user" {
+    assert(basic_auth_header("secret") == "Basic b3BlbmNvZGU6c2VjcmV0")
+}
+
+test "the one-time password is taken only from its own line" {
+    assert(server_password_of("server listening on http://127.0.0.1:4096") == "")
+    assert(server_password_of("server password l0UJBqF40Ce7gs8E9USTZp0Qtv1UqPUiYIziE5ulnx0") == "l0UJBqF40Ce7gs8E9USTZp0Qtv1UqPUiYIziE5ulnx0")
+}
+
+test "the body of the catalog answer: status 200, chunked and content-length are handled" {
+    ro simple = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"data\":[]}"
+    assert(http_body_of(simple.bytes()).unwrap() == "{\"data\":[]}")
+    ro refused = http_body_of("HTTP/1.1 401 Unauthorized\r\n\r\n{}".bytes())
+    assert(refused.is_err())
+    ro chunked = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n3\r\n wo\r\n0\r\n\r\n"
+    assert(http_body_of(chunked.bytes()).unwrap() == "hello wo")
+    ro cut = "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello world"
+    assert(http_body_of(cut.bytes()).unwrap() == "hello")
+    assert(http_body_of("garbage".bytes()).is_err())
+}
+
+test "the binding keeps the exact contract of the version" {
+    ro launch = launch_sha256("opencode.cmd", ["serve"])
+    ro binding = binding_of("opencode", launch, "aabb", "C:/work/crew")
+    assert(binding.family == "opencode")
+    assert(binding.launch_sha256 == launch)
+    assert(binding.config_sha256 == "aabb")
+    assert(binding.location == "C:/work/crew")
+    assert(binding.contract == "opencode-acp-2.2.5")
+    assert(binding.source == "opencode.api.model")
+    assert(binding.source_version == "2.2.5")
+}
+
+test "the envelope wraps the whole response with a ttl under the cap" {
+    ro value = Json.parse("{\"data\":[],\"location\":{\"directory\":\"C:/work\"}}").unwrap()
+    ro text = envelope_text(value, 1000)
+    ro o = Json.parse(text).unwrap().object().unwrap()
+    assert(o.get("v").unwrap().int().unwrap() == 1)
+    assert(o.get("observed_at").unwrap().int().unwrap() == 1000)
+    assert(o.get("expires_at").unwrap().int().unwrap() == 1000 + 240000)
+    assert(o.get("response").unwrap().object().unwrap().get("v").is_none(), "the response is the raw catalog value")
+    assert(o.get("response").unwrap().object().unwrap().get("location").is_some())
+}
+
+test "the default program of the observer is a word" {
+    assert(default_opencode_program().byte_len() > 0)
+}

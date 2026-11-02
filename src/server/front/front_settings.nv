@@ -18,7 +18,8 @@ import std.os.{Os, env}
 import crew_harness.config.{ConfigLayout, legacy_layout, layout_in, layout_with_data_dir, crew_home, work_dir_now, find_project_dir, file_layers, env_layer, arg_layer, merge_layers, normalize_layer, file_text as cfg_file_text, tools_dir_now}
 
 /// FrontSettings: where to listen, where the page is, how to start the hub, where the recognizer of the voice listens (`stt_url`, a local http address) and its default language.
-export type AgentChoice { id str, label str }
+/// `program` of an agent is its configured program (the catalog observer starts the same native server); "" - the platform default.
+export type AgentChoice { id str, label str, program str }
 /// The recognizer is a part of the control panel (task 192l): `stt_managed` - the front starts and ends it itself, `stt_dir` - the folder of the tool (bin/, models/),
 /// `stt_model` - the model (models/ggml-<model>.bin), `data_dir` - where the pid file `stt.pid` is written.
 export type FrontSettings { port int, web_dir str, hub_program str, hub_args []str, agents []AgentChoice, stt_url str, stt_language str, stt_managed bool, stt_dir str, stt_model str, data_dir str, max_image_bytes int, layout ConfigLayout, preset str, reviewer_order []str }
@@ -64,10 +65,10 @@ fn fs_strings(v JsonValue) -> []str {
     out
 }
 
-fn fs_default_agents() -> []AgentChoice => [AgentChoice { id: "opencode", label: "OpenCode" }]
+fn fs_default_agents() -> []AgentChoice => [AgentChoice { id: "opencode", label: "OpenCode", program: "" }]
 fn fs_agents(base []AgentChoice) Os -> []AgentChoice {
     match fs_env("CREW_SERVER_AGENT") {
-        Some(_) => [AgentChoice { id: "opencode", label: "OpenCode" }]
+        Some(_) => [AgentChoice { id: "opencode", label: "OpenCode", program: "" }]
         None => base
     }
 }
@@ -129,7 +130,8 @@ fn fs_from_file(text str) -> FrontSettings {
                         Some(agent) => {
                             ro id = match agent.get("id") { Some(x) => x.str() ?? "", None => "" }
                             ro label = match agent.get("label") { Some(x) => x.str() ?? id, None => id }
-                            if id.byte_len() > 0 { choices.push(AgentChoice { id, label }) }
+                            ro program = match agent.get("program") { Some(x) => x.str() ?? "", None => "" }
+                            if id.byte_len() > 0 { choices.push(AgentChoice { id, label, program }) }
                         }
                         None => ()
                     }
