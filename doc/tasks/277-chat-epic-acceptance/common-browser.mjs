@@ -43,8 +43,8 @@ async function until(expression) {
 }
 async function click(expression, count = 1) {
   const point = await evaluate(`(() => { const element=${expression}; if(!element) throw Error('Missing UI target');
-    element.scrollIntoView({block:'nearest'}); const rect=element.getBoundingClientRect(), x=rect.x+rect.width/2,y=rect.y+rect.height/2;
-    const hit=document.elementFromPoint(x,y); if(element.disabled || !(element===hit || element.contains(hit))) throw Error('UI target not hit-testable'); return {x,y}; })()`);
+    element.scrollIntoView({block:'center'}); const rect=element.getBoundingClientRect(), x=rect.x+rect.width/2,y=rect.y+rect.height/2;
+    const hit=document.elementFromPoint(x,y); if(element.disabled || !(element===hit || element.contains(hit))) throw Error('UI target not hit-testable: covered by '+(hit?hit.outerHTML.slice(0,200):'nothing')); return {x,y}; })()`);
   for (let clickCount = 1; clickCount <= count; clickCount++) {
     await call('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount });
     await call('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount });

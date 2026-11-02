@@ -44,8 +44,12 @@ export async function stopOwnedFront(child, port, {
       const onError = error => { cleanup(); reject(error); };
       child.once('exit', onExit);
       child.once('error', onError);
-      timer = setTimeout(() => onError(Error('Owned child exit timeout')), Math.max(1, deadline - performance.now()));
-      try { terminate(child); } catch (error) { onError(error); }
+      timer = setTimeout(() => {
+        // гонка: дерево уже завершилось, а событие exit ещё не доставлено — это не отказ остановки
+        cleanup();
+        if (exited(child)) resolve(); else onError(Error('Owned child exit timeout'));
+      }, Math.max(1, deadline - performance.now()));
+      try { terminate(child); } catch (error) { cleanup(); if (exited(child)) resolve(); else onError(error); }
     });
   }
   if (!exited(child)) throw Error('Owned child exit was not confirmed');
