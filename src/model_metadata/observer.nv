@@ -381,3 +381,30 @@ fn observe_read(port int, auth str, launch str, config_sha str, cwd str, state_d
     if !replace_file(Path.from_bytes(snapshot_path.bytes()), snapshot) { return Err("cannot write the snapshot") }
     Ok(hook_wire(state_dir, launch, config_sha, normalize_dir(cwd), snapshot_path, Sha256.hash_str(snapshot.bytes())))
 }
+
+/// The static hook for the entry point: the trusted front itself pins the launch (the program and
+/// the serve words), the configuration bytes and the working directory - all read synchronously
+/// here, no fiber at all. The snapshot file is refreshed by the deployment watcher that runs the
+/// native server and writes the exact GET /api/model bytes; the route checks the freshness and the
+/// digest of the file on every request, so a stale watcher can never fake a ready answer.
+export fn static_hook(input MetadataInput) Fs -> Option[MetadataHook] {
+    if input.program.byte_len() == 0 || input.family.byte_len() == 0 { return None }
+    ro xdg = match opencode_home_prepare(input.state_dir, opencode_config_source()) {
+        Ok(x) => x
+        Err(why) => return None
+    }
+    ro config_sha = match config_sha256_of(xdg) {
+        Ok(s) => s
+        Err(why) => return None
+    }
+    ro launch = launch_sha256(input.program, ["serve", "--hostname", "127.0.0.1"])
+    // the location keeps the native form: model_metadata_reply compares it slash-insensitively
+    ro binding = binding_of(input.family, launch, config_sha, input.cwd)
+    ro state_dir = normalize_dir(input.state_dir)
+    ro snapshot_path = "${state_dir}/metadata/model-metadata-snapshot.json"
+    match create_dir_all(Path.from_bytes("${state_dir}/metadata".bytes())) {
+        Ok(made) => ()
+        Err(e) => return None
+    }
+    Some(MetadataHook { expected: binding, observed: binding, snapshot_path, snapshot_sha256: "" })
+}
