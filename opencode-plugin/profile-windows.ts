@@ -8,11 +8,11 @@
 // в info/exclude общего каталога git. Реестр записанных файлов — ящик плагина (profiles/<проект>.windows.json): по нему
 // плагин находит, что снимать, когда набора нет. Порог сжатия (compaction.*) файл не задаёт никогда (DNC-02).
 
-import { execFileSync } from "node:child_process"
 import { createHash } from "node:crypto"
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, rmdirSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { BASE } from "./paths.ts"
+import { readHead } from "./branch-head.ts"
 import { type Task, taskNo } from "./tasks.ts"
 import * as P from "./profiles.ts"
 import { LIMIT_RU, fmtTokens } from "./core.ts" // единственное форматирование чисел ответов; вызывается при показе
@@ -92,7 +92,10 @@ export function removeWindowFile(worktree: string): boolean {
 const excluded = new Set<string>()
 /** Строка в info/exclude общего каталога git репозитория worktree (один раз). */
 export function ensureExclude(worktree: string) {
-  const common = path.resolve(worktree, execFileSync("git", ["-C", worktree, "rev-parse", "--git-common-dir"], { encoding: "utf8", windowsHide: true, stdio: ["ignore", "pipe", "ignore"] }).trim())
+  // This path runs in every background profile pass: never block the service on a Git process.
+  const head = readHead(worktree)
+  if (!head || !(head.branch || head.detached || head.ref) || !existsSync(path.join(head.common, "objects"))) throw new Error("Profile window worktree has no readable Git metadata")
+  const common = head.common
   if (excluded.has(common)) return
   const file = path.join(common, "info", "exclude")
   const text = readText(file) ?? ""

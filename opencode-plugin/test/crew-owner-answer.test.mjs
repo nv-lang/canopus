@@ -10,6 +10,7 @@ import { createServer } from "node:http"
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
+import { allowNativeEndpoint, allowNativeRegistry } from "./native-isolation.mjs"
 import { DatabaseSync } from "node:sqlite"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "crew-owner-answer-"))
@@ -65,6 +66,8 @@ const srv = createServer((req, res) => {
 await new Promise((r) => srv.listen(0, "127.0.0.1", r))
 mkdirSync(path.join(tmp, "opencode"), { recursive: true })
 writeFileSync(path.join(tmp, "opencode", "service.json"), JSON.stringify({ url: `http://127.0.0.1:${srv.address().port}`, password: "pw" }))
+allowNativeRegistry(path.join(tmp, "opencode", "service.json"))
+allowNativeEndpoint(`http://127.0.0.1:${srv.address().port}`)
 
 const core = await import("../core.ts")
 const tasks = await import("../tasks.ts")
@@ -137,7 +140,7 @@ cell("resolve: option by label, (Recommended) ignored", oa.resolveAnswer({ id: "
 cell("resolve: no quote is refused", /quote/.test(oa.resolveAnswer({ id: "x", at: 1, form: "f1", option: "1", quote: "" }, forms, []).why ?? ""), "")
 cell("resolve: unknown option is refused with the options", /no option "3".*1\. Да/.test(oa.resolveAnswer({ id: "x", at: 1, form: "f1", option: "3", quote: "q" }, forms, []).why ?? ""), "")
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const stop = await mod.default.setup(ctx)
 put("a1", { form: "frm_A", session: A, option: "1", quote: "да, вливай" })
 put("bad", { form: "frm_NOPE", option: "1", quote: "да" })
@@ -183,7 +186,7 @@ cell("unknown outcome: no automatic retry or new command", replies.filter((r) =>
 
 clearInterval(heart)
 srv.close()
-stop?.()
+await stop?.()
 db.close()
 try {
   rmSync(tmp, { recursive: true, force: true })

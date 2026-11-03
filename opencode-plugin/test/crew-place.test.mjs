@@ -27,7 +27,7 @@ git(proj, "commit", "-q", "-m", "init")
 const wtRoot = path.join(tmp, "worktrees") // root ".." from the settings folder + "worktrees"
 const real = (p) => realpathSync.native(p).toLowerCase()
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const core = await import("../core.ts")
 const tasks = await import("../tasks.ts")
 const tools = {}
@@ -134,7 +134,7 @@ const shortOf = (p) => { try { return execFileSync("powershell", ["-NoProfile", 
 const tmpShort = shortOf(tmp)
 cell("insideDir: the short 8.3 form and the long form of one folder match", core.insideDir(path.join(tmpShort, "worktrees", "proj-9-x"), path.join(tmp, "worktrees")) && core.insideDir(path.join(tmp, "worktrees", "proj-9-x"), path.join(tmpShort, "worktrees")), `${tmpShort} <-> ${tmp}`)
 
-stop?.()
+await stop?.()
 process.chdir(cwd0)
 try {
   rmSync(tmp, { recursive: true, force: true })

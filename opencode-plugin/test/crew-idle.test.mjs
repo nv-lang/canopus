@@ -18,7 +18,7 @@ card("sesIDLE01", "carina", process.pid) // this process, plugin reloaded since
 card("sesDEAD01", "tester", 999999) // a process that no longer exists (server restart)
 card("sesFORGN1", "foreign", process.ppid) // a live foreign process: not ours to deliver
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const hooks = {}
 const tools = {}
 const delivered = []
@@ -49,7 +49,7 @@ cell("window of a dead process gets its letter", got("sesDEAD01", "probe-tester"
 cell("window of a live foreign process is left alone", !delivered.some((d) => d.sessionID === "sesFORGN1"), JSON.stringify(delivered.map((d) => d.sessionID)))
 cell("each letter delivered once", delivered.filter((d) => d.text.includes("probe-carina")).length === 1, String(delivered.length))
 
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-idle.test: FAIL ${fail}` : "crew-idle.test ok")
 process.exit(fail ? 1 : 0)

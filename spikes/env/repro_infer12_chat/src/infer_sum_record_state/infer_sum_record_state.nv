@@ -1,0 +1,69 @@
+module repro_infer12_chat.infer_sum_record_state
+
+// Live 0.1.1 regression D1 (items 12/13 incomplete): with the explicit turbofish removed from
+// `decode_snapshot`/`encode_snapshot` (crew-harness src/chat/chat_engine_test.nv, src/pgstore/engine_test.nv)
+// clang reports `unknown type name 'Nova_ChatState_p'` and `passing 'Nova_ChatState *' to parameter
+// of incompatible type 'Nova_ChatState'`.
+// The WORKING alula shape (`AlulaState` is a plain record) and the working spike
+// `generic_protocol_one_param` (no `Option[S]`-returning protocol method) both infer fine; the CHAT
+// shape needs S from a protocol-bound M where the only carrier is `@decode_state(text) -> Option[S]`
+// and S is a sum whose variants carry RECORD payloads (`Awaiting { user str, reply str }`).
+// Root: `resolve_mono_type_args` Source 2e strips `NovaOpt_` and binds the SANITIZED payload id
+// `Nova_ChatState_p` (not a C type) as S.
+// Expected: PASS. Actual on released 0.1.1: CC-FAIL `unknown type name 'Nova_ChatState_p'`.
+
+type EngineState[S] { trace str, step int, state S }
+type Snapshot { step int, data str }
+
+type Machine[S] protocol {
+    @name() -> str
+    @initial() -> S
+    @encode_state(state S) -> str
+    @decode_state(text str) -> Option[S]
+}
+
+// The CHAT shape: a sum whose variants carry record payloads.
+type ChatState enum
+    | Idle
+    | Awaiting { user str, reply str }
+    | Done { reply str }
+
+type ChatSession { party str }
+
+fn chat_session() -> ChatSession => { party: "agent" }
+
+fn ChatSession @name() -> str => "ChatSession"
+fn ChatSession @initial() -> ChatState => Idle
+fn ChatSession @encode_state(state ChatState) -> str => match state {
+    Idle => "idle"
+    Awaiting => "awaiting"
+    Done => "done"
+}
+fn ChatSession @decode_state(text str) -> Option[ChatState] => Some(Idle)
+
+// Mirrors alula.codec's `engine_state_of[S]`: a bare `S` parameter is where the
+// poisoned sanitized slot (`Nova_ChatState_p`) surfaces as a C parameter type.
+fn state_of[S](text str, step int, state S) -> Option[EngineState[S]] {
+    ro r EngineState[S] = { trace: text, step, state }
+    Some(r)
+}
+
+fn encode_snapshot[S, M Machine[S]](machine M, state EngineState[S]) -> Snapshot =>
+    { step: state.step, data: machine.encode_state(state.state) }
+
+fn decode_snapshot[S, M Machine[S]](machine M, snapshot Snapshot) -> Option[EngineState[S]] {
+    match machine.decode_state(snapshot.data) {
+        Some(state) => state_of[S](snapshot.data, snapshot.step, state)
+        None => None
+    }
+}
+
+test "infer S from a protocol-bound M where the carrier is Option[S] over a sum with record payloads" {
+    ro state EngineState[ChatState] = { trace: "t", step: 3, state: Awaiting { user: "u", reply: "r" } }
+    ro snap = encode_snapshot(chat_session(), state)
+    // The turbofish-less call that breaks: S must come from ChatSession's conformance.
+    match decode_snapshot(chat_session(), snap) {
+        Some(back) => assert(back.step == 3)
+        None => assert(false)
+    }
+}

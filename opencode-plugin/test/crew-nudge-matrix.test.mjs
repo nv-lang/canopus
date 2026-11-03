@@ -211,7 +211,7 @@ reviewerCard("sesRV40", T.t10)
 spawnedCard("sesEX40", T.t10)
 
 // ---------- the plugin ----------
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const hooks = {}
 const tools = {}
 const events = {}
@@ -455,10 +455,11 @@ cell("M07", "running, kind assign, the owner's tab is closed: reconcile records 
 {
   const t11re = new RegExp(`${String(T.t11.n).padStart(3, "0")}\\b.*пропала`)
   await until(() => lettersRe(AUTH.pw, t11re).length > 0)
-  await until(() => promptFails >= 5)
+  await until(() => promptFails >= 3)
+  await wait(800)
   const told = lettersRe(AUTH.pw, t11re)
   const hist = tasks.loadTask("pw", T.t11.n).history.filter((h) => /пропала/.test(h.note ?? ""))
-  cell("T11", "running, the executor's session was deleted in OpenCode: after 3 failed deliveries in a row ONE letter to the author (reassign) and ONE entry in the task history, not repeated", promptFails >= 5 && told.length === 1 && /NotFound/.test(told[0].text) && /crew_task \{action: "reassign", n: \d+\}/.test(told[0].text) && hist.length === 1, JSON.stringify({ promptFails, told: told.map((l) => l.text.slice(0, 200)), hist: hist.length }))
+  cell("T11", "running, the deleted session has at most 3 idempotent attempts and ONE escalation/history entry, not unlimited prompts", promptFails === 3 && told.length === 1 && /NotFound/.test(told[0].text) && /crew_task \{action: "reassign", n: \d+\}/.test(told[0].text) && hist.length === 1, JSON.stringify({ promptFails, told: told.map((l) => l.text.slice(0, 200)), hist: hist.length }))
 }
 // M18a the reminder repeats every accepted_reminder_min (0.6 s here), at most 5 times per acceptance; then a line in /crew
 {
@@ -580,7 +581,7 @@ hole("T9", "a turn ended while the service was down (card of a dead process, obl
 
 clearInterval(heart)
 clearInterval(collect)
-stop?.()
+await stop?.()
 db.close()
 try {
   rmSync(tmp, { recursive: true, force: true })

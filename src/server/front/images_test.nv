@@ -1,6 +1,5 @@
 // images_test.nv - the pictures at the front: the check of an upload, the answer, the read, the names that cannot leave the folder.
-// ORACLE-WORKAROUND(25): the module is declared `module server.front` (without the package prefix): a module two folders under the source root cannot be declared with the full path; declare it with the prefix when item 25 is fixed
-module server.front
+module crew_harness.server.front
 
 import std.os.{Os, real_os, temp_dir, pid}
 import std.fs.{Fs, real_fs, remove_dir_all, create_dir_all, write_text, Path}

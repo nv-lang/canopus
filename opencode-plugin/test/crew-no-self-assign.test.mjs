@@ -16,7 +16,7 @@ mkdirSync(path.join(dirA, ".opencode"), { recursive: true })
 const settings = (v) => writeFileSync(path.join(dirA, ".opencode", "crew-harness.json"), JSON.stringify(v))
 settings({})
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const core = await import("../core.ts")
 const tasks = await import("../tasks.ts")
 const hooks = {}
@@ -84,7 +84,7 @@ const off = await call("crew_task", "sesAINT", { action: "assign", session: "ses
 cell("allow_self_assign: false refuses", /assign запрещён/.test(off), off)
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? "crew-no-self-assign.test: FAIL " + fail : "crew-no-self-assign.test ok")
 process.exit(fail ? 1 : 0)

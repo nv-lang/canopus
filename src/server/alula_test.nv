@@ -66,16 +66,15 @@ test "hm a term below zero is refused naming the parameter" {
 
 // ----- an engine over the hub machine in memory -----
 
-// ORACLE-WORKAROUND(12, 13, 26): the type arguments of `start_engine`, `resume_engine` and `decode_snapshot` are written out here and below; infer them when items 12 and 13 are fixed
 fn hm_begin(m AlulaMachine, mut world MemoryWorld) -> Engine[AlulaMachine, AlulaState] {
     with Journal = memory_journal(world), Store = memory_store(world), Link = memory_link(world), Time = memory_time(world) {
-        start_engine[AlulaState, AlulaMachine](m, "hub-1")
+        start_engine(m, "hub-1")
     }
 }
 
 fn hm_resumed(m AlulaMachine, mut world MemoryWorld) -> Option[Engine[AlulaMachine, AlulaState]] {
     with Journal = memory_journal(world), Store = memory_store(world), Link = memory_link(world), Time = memory_time(world) {
-        resume_engine[AlulaState, AlulaMachine](m, "hub-1")
+        resume_engine(m, "hub-1")
     }
 }
 
@@ -121,7 +120,7 @@ test "hm the snapshot is the state of the Alula machine" {
             assert(snapshot.data.contains("\"started\":true"))
             assert(snapshot.data.contains("\"data\":"))
             assert(snapshot.data.contains("привет"))
-            match decode_snapshot[AlulaState, AlulaMachine](m, snapshot) {
+            match decode_snapshot(m, snapshot) {
                 Some(es) => assert(es.state.name == "Awaiting")
                 None => assert(false)
             }

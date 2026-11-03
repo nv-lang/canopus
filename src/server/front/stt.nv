@@ -3,8 +3,7 @@
 //
 // The audio goes to the address in the settings (`stt.url`, always a local http one: see src/server/settings.nv) and nowhere else.
 // This file holds the parts that need no routes: the address, the request, the answer, the one exchange over a socket.
-// ORACLE-WORKAROUND(25): the module is declared `module server.front` (without the package prefix) and imported as `crew_harness.server.front`: a module two folders under the source root cannot be declared with the full path; declare it with the prefix when item 25 is fixed
-module server.front
+module crew_harness.server.front
 
 import std.text
 import std.encoding.json.{Json, JsonValue, JsonObject}

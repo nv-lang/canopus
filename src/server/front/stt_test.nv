@@ -1,6 +1,5 @@
 // stt_test.nv - the voice to the text (task 192f): the address, the request to the recognizer, its answer, the JSON of the front.
-// ORACLE-WORKAROUND(25): the module is declared `module server.front` (without the package prefix): a module two folders under the source root cannot be declared with the full path; declare it with the prefix when item 25 is fixed
-module server.front
+module crew_harness.server.front
 
 import std.text
 import std.encoding.json.{Json}

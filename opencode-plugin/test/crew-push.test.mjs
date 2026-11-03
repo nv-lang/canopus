@@ -49,7 +49,7 @@ core.addObligation("ses_retry1", { qid: "rqOLD", from_session: "sesINTEG1", from
 msg("ses_retry1", "user", { text: "[opencode-peers] ПРИЁМКА задачи 007" }, Date.now() - 60_000)
 msg("ses_retry1", "idle", { outcome: "failed" }, Date.now() - 60_000)
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const hooks = {}
 const tools = {}
 const events = {}
@@ -229,22 +229,28 @@ await turn()
 cell("after the report no reminders", reminders() === before && !obl(), `${reminders()} ${JSON.stringify(obl())}`)
 
 // 7. a turn that fails BEFORE any model request (the model is unavailable): no request hook, only a failed idle row.
-// The waking delivery marks the tab busy, so the end of such a turn is seen: a reminder; failing turns in a row ->
-// stuck, and the call says the turns fail with an error (found live in Ph.7: a reviewer on a model the server lacks).
+// Admission is not a model turn: no invented wokeAt/normal-progress reminder.
+// A bounded unconfirmed-wake escalation replaces the old count of phantom turns.
+mod.fixtureAdmissionOnly.add("ses_fail01")
 const failReminders = () => got("ses_fail01", "Не завершено").length
 await call("crew_send", "sesINTEG1", { to: "ses_fail01", text: "проверь сборку", expect_reply: true })
 await until(() => got("ses_fail01", "проверь сборку").length >= 1)
 cell("the question reached the tab", got("ses_fail01", "проверь сборку").length === 1, JSON.stringify(delivered.map((d) => d.sessionID)))
-async function failedTurn(seen) {
+async function failedTurn() {
   msg("ses_fail01", "user", { text: "[opencode-peers] Письмо соседней вкладки" })
   msg("ses_fail01", "idle", { outcome: "failed" })
-  await until(seen) // no idle event: the database fallback of the plugin's pass finds the idle row
+  await wait(200) // let the authoritative native observation see the failed terminal
 }
-await failedTurn(() => failReminders() >= 1)
-cell("a turn failed before the model: a reminder", failReminders() === 1, failReminders())
-await failedTurn(() => failReminders() >= 2)
-await failedTurn(() => got("sesINTEG1", "ход падает с ошибкой").length >= 1)
-cell("three failed turns: stuck, the call says the turns fail", got("sesINTEG1", "ход падает с ошибкой").length === 1, JSON.stringify(delivered.filter((d) => d.sessionID === "sesINTEG1").map((d) => d.text.slice(0, 200))))
+await failedTurn()
+cell("failure before the model is not a proved wake or a normal progress reminder", failReminders() === 0 && !core.readJson(core.cardFile("ses_fail01")).wokeAt, failReminders())
+const wakeDelivery = await import("../wake-delivery.ts")
+const failedAttempt = wakeDelivery.readWake("ses_fail01")
+cell("failed-before-model retains durable accepted admission, not started", failedAttempt?.phase === "accepted" && !failedAttempt.startedAt, JSON.stringify(failedAttempt))
+failedAttempt.deadline = Date.now() - 1 // deterministic expiry of the existing 120 s bound, not a new prompt ID
+wakeDelivery.saveWake(failedAttempt)
+await until(() => wakeDelivery.readWake("ses_fail01")?.phase === "timeout")
+await until(() => got("sesINTEG1", "Пробуждение ses_fail01 не подтверждено").length >= 1)
+cell("unconfirmed failed wake escalates once instead of inventing failed assistant turns", got("sesINTEG1", "Пробуждение ses_fail01 не подтверждено").length === 1 && wakeDelivery.readWake("ses_fail01")?.phase === "timeout", JSON.stringify(delivered.filter(d => d.sessionID === "sesINTEG1").map(d => d.text.slice(0, 120))))
 
 // 9. a long provider turn OpenCode itself resumed after a restart (014 nova, 2026-10-06): the assistant row is written
 // at the start and updated only at the end, the card is not busy (the plugin did not start the turn). It is running:
@@ -282,7 +288,7 @@ cell("three failed turns: stuck, the call says the turns fail", got("sesINTEG1",
   const readSt = () => { try { return JSON.parse(readFileSync(stFile, "utf8")) } catch { return {} } }
   for (let i = 0; i < 40 && readSt().state !== "owner"; i++) await wait(100)
   const st = readSt()
-  cell("the owner is told to press Esc and resend", st.state === "owner" && /нажмите Esc/.test(st.detail), JSON.stringify({ state: st.state, detail: st.detail }))
+  cell("reconciliation reports evidence without asking to interrupt/resend", st.state === "owner" && /занятость согласована/.test(st.detail) && !/нажмите Esc/.test(st.detail), JSON.stringify({ state: st.state, detail: st.detail }))
   tabs.pop()
 }
 
@@ -302,10 +308,10 @@ const resumes = ["inbox", "read"].flatMap((d) => {
   }
 })
 cell("a second plugin instance does not call a running turn interrupted", resumes.length === 0, JSON.stringify(resumes))
-stop2?.()
+await stop2?.()
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 db.close()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-push.test: FAIL ${fail}` : "crew-push.test ok")

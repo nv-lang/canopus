@@ -39,7 +39,7 @@ const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.s
 beat()
 const heart = setInterval(beat, 300)
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const ctx = {
   location: { directory: proj },
   options: { projects: { proj } },
@@ -92,7 +92,7 @@ await wait(500)
 cell("the end of the state is logged once", fresh().split("\n").filter((l) => /stale busy cleared:/.test(l)).length === 1, fresh().split("\n").filter((l) => /stale busy/.test(l)).join(" | "))
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 db.close()
 try {
   rmSync(tmp, { recursive: true, force: true })

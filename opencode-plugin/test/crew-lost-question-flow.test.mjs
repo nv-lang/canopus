@@ -33,7 +33,7 @@ db.prepare("insert into session_v2 values (?, ?, ?, null, null, null, null, null
 const core = await import("../core.ts")
 const fw = await import("../form-wait.ts")
 const status = await import("../status.ts")
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const hooks = {}
 const prompts = []
 const ctx = {
@@ -110,7 +110,7 @@ cell("form.replied: the record and the waiting are gone", fw.pendingForms(SES).l
 
 clearInterval(heart)
 clearInterval(collect)
-stop?.()
+await stop?.()
 db.close()
 try {
   rmSync(tmp, { recursive: true, force: true })

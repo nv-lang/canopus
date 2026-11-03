@@ -67,21 +67,7 @@ fn dir_of(name str) -> str {
     kept.join("/")
 }
 
-// Every folder above the file is there.
-// ORACLE-WORKAROUND(55): the memory file system makes only the LAST folder of `create_dir_all`, so every folder above the file is made one by one; make the path in one call when item 55 is fixed
-fn make_parents(path str) Fs -> () {
-    mut names = []str.new()
-    for part in path.split("/") { names.push(part) }
-    mut acc = ""
-    mut i = 0
-    while i + 1 < names.len() {
-        if names[i] != "" {
-            acc = "${acc}/${names[i]}"
-            ro made = create_dir_all(Path.posix(acc))
-        }
-        i += 1
-    }
-}
+fn make_parents(path str) Fs -> () => create_dir_all(Path.posix(dir_of(path)))
 
 fn one(name str, text str) -> []NamedText => [NamedText { name, text }]
 

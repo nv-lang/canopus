@@ -51,7 +51,7 @@ const hash = (f) => createHash("sha256").update(readFileSync(f)).digest("hex")
 const hash13 = hash(path.join(store, "13.json"))
 const hash14 = hash(path.join(store, "14.json"))
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const core = await import("../core.ts")
 const tasks = await import("../tasks.ts")
 const tools = {}
@@ -233,7 +233,7 @@ cell("REQ-10: reassign gives С1-2 with launch №2, С1-1 is handed", JSON.stri
 const l13 = lettersTo(r13?.executor ?? "-").find((l) => l.text.startsWith("ЗАДАЧА"))?.text ?? ""
 cell("REQ-10: the new session's letter carries the refinement (task 057) and its session ident", l13.includes("СЕССИЯ С1-2 (запуск №2)") && l13.includes("УТОЧНЕНИЕ ПРИ ПЕРЕДАЧЕ") && l13.includes("только разбор"), l13)
 
-stop?.()
+await stop?.()
 try {
   rmSync(tmp, { recursive: true, force: true })
 } catch {}

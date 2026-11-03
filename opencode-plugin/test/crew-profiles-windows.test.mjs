@@ -57,7 +57,7 @@ writeFileSync(rootJsonc, '{ "provider": { "claude-code": { "models": { "opus": {
 const handHashes = () => [sha(globalCfg), sha(rootJsonc)].join()
 const hand0 = handHashes()
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const core = await import("../core.ts")
 const tasks = await import("../tasks.ts")
 const L = await import("../profile-layer.ts")
@@ -364,7 +364,7 @@ cell("DNC-03 the hand-written files are the same at the end; nothing is written 
 cell("DNC-03 the only lines added to info/exclude are the plugin's (comment and path)", readFileSync(path.join(proj, ".git", "info", "exclude"), "utf8").split(/\r?\n/).filter((l) => l && !l.startsWith("#") && l !== "/.opencode/opencode.json").length === 0, readFileSync(path.join(proj, ".git", "info", "exclude"), "utf8"))
 cell("DNC-10 the plugin did not touch OpenCode / provider files in the config dir", sha(globalCfg) === hand0.split(",")[0], "changed")
 
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-profiles-windows.test: FAIL ${fail}` : "crew-profiles-windows.test ok")
 process.exit(fail ? 1 : 0)

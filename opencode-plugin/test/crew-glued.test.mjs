@@ -8,7 +8,7 @@ const tmp = mkdtempSync(path.join(os.tmpdir(), "crew-glued-"))
 process.env.XDG_DATA_HOME = tmp
 process.env.CREW_HARNESS_PRESENCE ??= "all"
 const { gluedText } = await import("../glued.ts")
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 
 let fail = 0
 const cell = (name, ok, detail) => {
@@ -56,7 +56,7 @@ cell("no letter file is created", inboxCount() === before, `${before} -> ${inbox
 const r2 = (await tools.crew_send.execute({ to: "worker", text: good[0] }, { sessionID: "sesGLUE01" })).content
 cell("crew_send does not refuse a normal letter as glued", !/слиплись/.test(r2), r2)
 
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-glued.test: FAIL ${fail}` : "crew-glued.test ok")
 process.exit(fail ? 1 : 0)

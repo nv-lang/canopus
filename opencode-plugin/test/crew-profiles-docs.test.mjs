@@ -5,6 +5,7 @@
 import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
+import { fileURLToPath } from "node:url"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "crew-profiles-docs-"))
 process.env.XDG_DATA_HOME = tmp
@@ -13,7 +14,7 @@ process.env.CREW_HARNESS_PRESENCE ??= "all"
 const P = await import("../profiles.ts")
 const schema = await import("../config-schema.ts")
 const core = await import("../core.ts")
-const here = new URL(".", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")
+const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, "..")
 const readme = readFileSync(path.join(root, "README.md"), "utf8")
 

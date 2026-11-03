@@ -1,0 +1,20 @@
+module repro_infer12_chat.cross_file_nested_a
+
+// (D2 side A, test file) The turbofish-less protocol-bound call, as in the edited
+// crew-harness src/chat/chat_engine_test.nv (helpers begin/resumed). Compiled into every unit
+// that imports this module -- the poison channel of regression D2.
+
+import repro_infer12_chat.cross_file_nested_a.{chat_session, ChatState, EngineState, Snapshot, encode_snapshot, decode_snapshot}
+
+export fn begin() -> Option[EngineState[ChatState]] {
+    ro state EngineState[ChatState] = { trace: "t", step: 3, state: Awaiting { user: "u", reply: "r" } }
+    ro snap = encode_snapshot(chat_session(), state)
+    decode_snapshot(chat_session(), snap)
+}
+
+test "the turbofish-less call of this unit" {
+    match begin() {
+        Some(back) => assert(back.step == 3)
+        None => assert(false)
+    }
+}

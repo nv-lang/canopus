@@ -23,7 +23,7 @@ git(proj, "init", "-q", "-b", "main")
 git(proj, "add", "-A")
 git(proj, "commit", "-q", "-m", "init")
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const tasks = await import("../tasks.ts")
 const core = await import("../core.ts")
 const approvals = await import("../approvals.ts")
@@ -236,7 +236,7 @@ await until(() => got("sesINTEG1", "все шаги закрыты").length > 0)
 cell("all steps closed: the author is asked to close the plan", got("sesINTEG1", "План 8").some((d) => /все шаги закрыты \(3\)/.test(d.text)), JSON.stringify(got("sesINTEG1", "План 8").map((d) => d.text.slice(0, 160))))
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 try {
   rmSync(tmp, { recursive: true, force: true })
 } catch {}

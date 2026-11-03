@@ -62,7 +62,7 @@ git("add", "-A")
 git("commit", "-q", "-m", "init")
 
 const url = (f) => pathToFileURL(path.join(PLUGIN, f)).href
-const mod = await import(url("index.ts"))
+const mod = await import(url("test/fixture-plugin.mjs"))
 const core = await import(url("core.ts"))
 const tasks = await import(url("tasks.ts"))
 const review = await import(url("review.ts"))
@@ -146,7 +146,7 @@ out["reminder to the reviewer"] = stale("sesREV03", /не очищена/)[0]?.t
 out["reminder to the author"] = stale("sesINTEG1", /003 .*не очищена/)[0]?.text ?? "(no letter)"
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 
 // markers: the temp folder (any spelling), the clock, the minutes since the acceptance
 const spellings = new Set()

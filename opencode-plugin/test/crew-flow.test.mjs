@@ -22,7 +22,7 @@ const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true })
 writeFileSync(path.join(proj, ".opencode", "crew-harness.json"), JSON.stringify({ spawn_limits: { worker: 1 }, spawn_models: { light: "kimi/k3" } }))
 
-const mod = await import(process.env.CREW_MODULE ?? "../index.ts")
+const mod = await import(process.env.CREW_MODULE ?? "./fixture-plugin.mjs")
 const core = await import(process.env.CREW_CORE ?? "../core.ts")
 const hooks = {}
 const tools = {}
@@ -192,7 +192,7 @@ await wait()
 cell("after the turn it is not delivered again", got("sesOTHER1", "письмо-в-ящике").length === 0, JSON.stringify(got("sesOTHER1", "письмо")))
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `crew-flow.test: FAIL ${fail}` : "crew-flow.test ok")
 process.exit(fail ? 1 : 0)

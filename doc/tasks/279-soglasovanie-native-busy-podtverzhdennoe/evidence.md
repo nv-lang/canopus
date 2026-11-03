@@ -1,0 +1,171 @@
+# Проверки и границы 279
+
+## Окончательный результат
+
+**GREEN** на tested signed SHA `d01263fa064471bec3831ee2ac64c4c4242c0b0e`:
+
+- `node opencode-plugin/test/stable.mjs --all --runs 1 --jobs 3` — **161/161 GREEN**, exit 0, **943 с**.
+- Manifest из стандартного npm lifecycle: **12 pretest + 149 test = 161 уникальный файл**, каждый своим `node`,
+  без дубликатов; максимум три тестовых файла одновременно, через очередь машины.
+- Перед этим SHA commit hook выполнил весь `scripts/guards/run-all.sh`: **10/10 GREEN**; secrets проверил
+  четыре изменённых файла, commit-message guard — одно сообщение. Обходов хуков/стражей нет.
+- Whole-tree privacy на runtime-identical `cc9a11f9`: **2798 файлов GREEN**; финальные документы дополнительно
+  проверяются перед evidence-only commit. Production после cc9a11f9 не менялся, только один settings fixture.
+- Новые regressions стандартного pretest: **12 файлов / 127 проверок GREEN**. Исходные RED, отдельные повторы,
+  lifecycle RED и fixture race сохранены ниже; неудачные полные прогоны не переименованы в GREEN.
+
+После tested SHA изменяются только документы/журнал задачи. Перед сдачей проверяется пустой
+`git diff d01263fa064471bec3831ee2ac64c4c4242c0b0e..HEAD -- opencode-plugin`.
+Остальной текст — хронологические этапы проверки, в том числе прежние состояния «ожидается».
+
+## Исходное состояние и RED
+
+Исходный код: `a234806c873b0dd9b8926427f36a46f3433dc7b1`.
+
+`node test/crew-native-recovery.test.mjs` до реализации: **4 нарушения, exit 1**:
+stale spawned busy не согласуется с native failed/idle без idle message; push ложно сообщает «разбужен»;
+push снимает stuck до начала хода; legacy HOLD не показывает неуточнённый смысл.
+Проект fixture исправлен **до** записи RED; отдельная проверка подтверждает, что push дошёл до своей задачи.
+Положительные ожидания ограничены условием, не фиксированной задержкой.
+
+Дополнительный независимо найденный RED оптимизации, повторённый исполнителем:
+
+```text
+node test/crew-native-bracket.test.mjs
+{"actualActive":true,"observedState":"idle","activeApiCalls":2}
+AssertionError: old in-flight snapshot must not produce false idle
+exit 1
+```
+
+После запрета coalescing active GET тот же oracle:
+
+```text
+{"actualActive":true,"observedState":"active","activeApiCalls":3}
+crew-native-bracket: 2 checks
+exit 0
+```
+
+## Целевая проверка
+
+Первый целевой `npm run pretest`: **8 файлов, 87 проверок, exit 0** (до crash/background/lifecycle дополнений).
+До lifetime-исправления `npm --prefix opencode-plugin run pretest`: **11 файлов, 116 проверок, exit 0**.
+Последний усиленный targeted: **12 файлов / 127 проверок pretest GREEN**, затем `crew-stuck` и `crew-loop-handover`
+по одному — **2/2 GREEN**; вся команда exit 0, 22 с.
+Это целевой checkpoint, не полный набор. Стандартный `npm test` запускает lifecycle автоматически;
+`stable.mjs --all` явно собирает `pretest` и `test`, без дубликатов.
+
+| Файл | Проверок | Что доказывает |
+|---|---:|---|
+| `crew-native-state.test.mjs` | 18 | active/idle/unknown, ownership, новое поколение после старого idle, недоступность, лимиты GET/backoff, три состояния legacy fixture |
+| `crew-native-bracket.test.mjs` | 2 | старый in-flight snapshot не заменяет новый post-info active read |
+| `crew-wake-receipt.test.mjs` | 17 | admission не start; promoted+active не proof; ID/assistant correlation; три same-ID retry; timeout/error/late proof; quiet admission не wake |
+| `crew-native-recovery.test.mjs` | 18 | stale orphaned tool без idle row; queued/accepted/started push; stuck только после связанного assistant; active/unknown не прерываются; рабочий qid/ответ при background reservation, сохранный watch/HOLD |
+| `crew-hold-semantics.test.mjs` | 17 | три смысла, legacy, внешний terminal/deadline и gate; независимый health, сохранность HOLD, восстановление по проверенному источнику |
+| `crew-recovery-watch.test.mjs` | 3 | отсутствующий старый PID при живых потомках; unknown scan fail-closed; execution pause не запускает очередь |
+| `crew-health-correlation.test.mjs` | 12 | общий автор A/B, generic AGENTS/status и чужой fingerprint не подтверждают A; реакция не устранение причины; bounded blocker/escalation |
+| `crew-native-isolation.test.mjs` | 3 | unexpected registry/network/missing DI остаются RED даже при caught error и `process.exit(0)` |
+| `crew-wake-recovery.test.mjs` | 15 | restart/latest не меняют ID/at/payload; accepted-before-confirm и previously started не POSTятся заново; exact-ID lookup не передаёт provenance чужой сессии |
+| `crew-native-dispose.test.mjs` | 3 | disposer отменяет принадлежащее экземпляру GET-ожидание и drain собственных продолжений; поздний raw ответ после cleanup не POSTит и не воссоздаёт fixture |
+| `crew-native-dispose-late.test.mjs` | 11 | pending create не вешает dispose; поздний SDK result после cleanup не делает I/O/create/prompt; native очередь/fetch реально abort; late rejection не становится unhandled |
+| `crew-native-mcp.test.mjs` | 8 | настоящий MCP tools entry ставит tier-письмо в очередь, plugin пропускает native-active/stale-free, выбирает native-idle/stale-busy; unknown не выбирается, без subprocess/watch |
+
+## Полный набор
+
+Первый диагностический `node opencode-plugin/test/stable.mjs --all --runs 1 --jobs 3`: **35 RED / 157 уникальных файлов**,
+exit 1, 2068 с. Каждый отдельным `node`, не больше трёх test files одновременно. Это не кандидат и не load-only RED.
+Матрица всех 35, корни и отдельные повторы — [repeats.md](repeats.md). После общих исправлений поставлен последовательный
+повтор всех 35 и новых crash/background tests; под окончательные байты нужен повтор всего набора и стражей.
+
+Дополнительный crash RED: `crew-wake-recovery.test.mjs`, exit 1, `posts=1` вместо 0 после замены latest receipt.
+После per-attempt archive исходная проверка GREEN в отдельном jobs 1 прогоне. Дополнительные отрицательные проверки
+ID/at/payload, accepted-before-confirm, MCP и lifecycle drain GREEN в последнем pretest.
+
+Последующие изменения после этого целевого прогона — только legacy fixtures/await cleanup и ожидаемый help-контракт;
+все они требуют своих отдельных повторов и окончательного полного прогона. Пять ошибочных сокращённых аргументов runner
+создали `*.test.test.mjs`: это NOT RUN, не продуктовый RED и не GREEN. Точный остаток поставлен правильными именами.
+
+Изменения ожидаемых контрактов, не скрытые обходы oracle:
+
+- T11 требует ровно 3 same-ID attempts вместо прежнего ожидания ≥5; ONE escalation/history сохраняется.
+- Missing watch wrapper не позволяет убить живых потомков: тест теперь требует их сохранения до explicit cancel,
+  проверки полноты cancel/timeout/drop и невредимости соседа сохранены.
+- H/K queue-gate проверяют доставку после настоящего native idle; удаление UI-формы само по себе execution не завершает.
+  Дополнительно human mail при native-active остаётся в Crew-mailbox без POST.
+- Expected help task 279 заменяет ровно одну прежнюю строку HOLD явным новым контрактом. Actual help не нормализуется;
+  весь остальной snapshot и spoiled negative control продолжают сравниваться побайтно (`answer-help-279.mjs`).
+- Failed-before-model fixture явно моделирует admission без assistant. Это не начавшийся ход: нет ложного wokeAt,
+  обычных progress nudges или подсчёта «трёх assistant turns». Проверяется одна bounded timeout-эскалация с сохранённым
+  receipt; фиктивный срок в тесте истекает детерминированно, настоящий предел 120 с отдельно проверен в receipt unit.
+
+Последние отдельные повторы: 6/10 GREEN и 4 RED (269 с), затем все четыре исправленных GREEN (83 с, jobs 1).
+Tier с явной native ownership fixture GREEN (6 с). Все 35 исходных RED повторены по одному и закрыты GREEN;
+окончательный полный набор — следующий шаг на зафиксированном коде, а не подмена отдельными повторами.
+
+## Дополнительный RED полного прогона и lifetime
+
+На signed `3287ed54b8432ec1f34fd213341730cc428c2c1d` полный набор завершился: **159 GREEN / 160**, exit 1,
+816 с, jobs 3. Единственный RED — `crew-stuck`, exit 13: три функциональные проверки прошли, но `await stop()`
+бесконечно ждал внешнего `session.create`. Отдельный повтор подтвердил тот же exit 13 за 5 с. Это настоящий lifecycle
+дефект, не нагрузка и не общий GREEN.
+
+Новая `crew-native-dispose-late` до исправления: exit 1, `dispose waits forever for an externally pending session.create`.
+После scoped lifetime cancellation/epoch: первый targeted stuck/dispose/dispose-late/bracket/handover **5/5 GREEN**,
+exit 0, 12 с. Окончательный усиленный targeted: pretest **12 файлов / 127 проверок GREEN**, stuck/handover **2/2 GREEN**,
+общий exit 0, 22 с. Late test проверяет abort очереди и HTTP, отсутствие повторного create/prompt и поздней unhandled
+rejection. Oracle не подавляет exit и не убирает `await stop()`.
+
+Контракт: отменяется локальное ожидание, не неизвестный remote create. Native queue/HTTP действительно получают abort;
+SDK, не предоставляющий отмену операции, ограждён epoch до применения ответа. Собственные продолжения остаются в drain.
+После завершения этого исправления нужен новый signed freeze и полный набор, а не перенос 159 GREEN на новые байты.
+Новый manifest: **12 pretest + 149 test = 161 уникальный файл**, без дубликатов; окончательный full ещё не объявлен GREEN.
+
+## Полный cc9a11f9 и стабильность settings fixture
+
+На signed `cc9a11f927003ef055088c765cba4c3b9a7529df`: **160 GREEN / 161**, exit 1, 991 с, jobs 3.
+Lifetime/stuck и все новые regressions GREEN. Единственный parallel RED — `crew-project-settings-key`:
+doctor честно показал расхождение `inflight_limit/profile_set`, изменённые самим тестом перед следующим boot;
+rename-oracle ожидал только примечание о ключах. Отдельный повтор на тех же байтах — **GREEN**, exit 0, 18 с.
+Это fixture cache/state race, но общий exit 1 не переименовывается в GREEN.
+
+Изменение только fixture: проверить реальное предупреждение о собственных незакоммиченных set/use изменениях,
+завершить их коммитом одного временного settings файла перед новым случаем, читать divergence свежим (TTL 0 только
+в этом тесте, который не проверяет кеширование). Production не меняется. Исходный строгий rename-oracle — текст,
+число и расположение строк — сохранён; скрытого фильтра предупреждения или sleep нет. Три последовательных отдельных
+повтора **3/3 GREEN**, exit 0, 65 с. Требуется полный прогон на новом frozen test SHA.
+
+## Семантика и источник
+
+Проверены официальные V2 docs/API и source **v2.0.26**:
+
+- <https://opencode.ai/v2/docs/api> и <https://opencode.ai/v2/docs/build/plugins>;
+- `anomalyco/opencode`, `packages/core/src/session/execution.ts`: active — process-local ownership, включая cleanup;
+- `packages/core/src/session/session.ts`: `prompt` сначала admission, затем `execution.wake`, не подтверждение модели;
+- `packages/core/src/session/inbox.ts`: same-ID reconciliation сохраняется после promotion;
+- `packages/plugin/src/promise/session.ts`: SDK не экспортирует `active`/`inbox`, отдельного resume API нет;
+- текущая read-only схема сервиса 2.0.26: `/api/info`, `/openapi.json`, PRAGMA только имён/типов столбцов.
+
+Никаких live prompt/interrupt/form/model/move, запусков OpenCode, production-контуров или оживлений контрольных сессий.
+Факты runtime/requisites не публикуются; интеграция использует synthetic IDs и временные каталоги.
+
+## Совместимость и ограничения
+
+- Unknown не становится free. Native active, отдельный watch/process и новое поколение после старого idle сохраняются.
+  Background reservation не блокирует рабочий qid при доказанном foreground idle и не делает слот свободным для назначения.
+  Старые transcript/PID/outcome сами по себе не разрешают delivery или interrupt. Idle-снимок ограничен 10 секундами.
+- GET: два одновременно, 40 стартов/с, очередь 64, backoff до 30 секунд. Active GET не объединяются.
+  Регистрация/auth ленивые и не журналируются; незнакомая схема/ownership закрывают delivery.
+- Начало wake доказывает exact input + новый assistant до другого user/idle, не HTTP 200/promoted/active/metadata.
+  Просматриваются последние 100 projected messages; отсутствие доказательства требует диагностики, не догадки.
+  При timeout нет нового prompt ID/бесконечного resume; позднее связанное proof может завершить попытку без POST.
+  Per-attempt archive переживает замену latest; legacy recovered без provenance не объявляется delivered.
+  Автоматической очистки receipt archive пока нет (явное ограничение); потеря proof не разрешает повтор новым ID.
+- Legacy HOLD не мигрируется, неизвестный scope тоже fail-closed. Старые настройки/HOLD владельца не менялись.
+  External wait и gate совмещаются; terminal не снимает gate и не разрешает rerun/смену timeout/merge.
+- Диагностика требует fingerprint/эпизод, receipt конкретного уведомления, completed tool по собственному артефакту задачи
+  до следующего входа. Без проверяемой схемы/привязки нет автоматического acknowledgement. Общий read автора не лечение.
+  Реакция и устранение причины — разные поля; blocker видим, ответственен и ограничен next-check.
+- Строгая изоляция тестов: отдельный STATE_HOME; production native transport заменяется явным DI. Неожиданные registry/fetch
+  запрещены до чтения credentials/сети, даже если код проглотил исключение. Разрешён только явно зарегистрированный
+  loopback fixture формы; main/служба/настройки владельца не меняются.
+- Кандидат не обновляет живой plugin. Small submit не назначает автоматического приёмщика; короткая проверка exact SHA
+  остаётся за интегратором. Задача 280 и её маршрутизация не копировались в эту ветку.

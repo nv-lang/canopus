@@ -41,7 +41,7 @@ const qcall = (session, at, status = "running") =>
   row(session, "assistant", { content: [{ type: "tool", id: `call_${seq}`, name: "question", state: { status, input: { questions: [{ question: QUESTION, header: "Слияние", options: [{ label: "Влить (Recommended)" }, { label: "Подождать" }] }] } }, time: { created: at } }] }, at)
 const otherTool = (session, at) => row(session, "assistant", { content: [{ type: "tool", id: `call_${seq}`, name: "shell", state: { status: "running", input: { command: "npm test" } }, time: { created: at } }] }, at)
 
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const core = await import("../core.ts")
 const fw = await import("../form-wait.ts")
 const tasks = await import("../tasks.ts")
@@ -165,7 +165,7 @@ await wait(7000)
 }
 
 clearInterval(heart)
-stop?.()
+await stop?.()
 // No watcher is running now: fixture metadata cannot start any command.
 mkdirSync(watch.WATCHES, {recursive:true})
 writeFileSync(path.join(watch.WATCHES,"diag263.json"),JSON.stringify({id:"diag263",session:"sesWORK",command:"fixture only",cwd:proj,created:T0,minutes:10,machine:true,status:"requested"}))

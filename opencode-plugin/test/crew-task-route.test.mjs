@@ -159,7 +159,7 @@ cell("T92-11 the schema lets a value under the minimum be written (it is refused
 cell("T92-11 the field names of the input are reserved against the extra fields of a project", ["route", "route_basis", "route_source", "route_proposal", "route_word", "route_word_date", "route_word_at", "clean_runs", "ceiling", "probes", "delivery_compressed", "sources_list"].every((f) => schema.RESERVED_FIELD_IDS.includes(f)), JSON.stringify(schema.RESERVED_FIELD_IDS))
 
 // ---- the tools ----
-const mod = await import("../index.ts")
+const mod = await import("./fixture-plugin.mjs")
 const tasks = await import("../tasks.ts")
 const core = await import("../core.ts")
 const { briefFaults, exactMessageHash, legacyTaskLetterFaults } = await import("../route.ts")
@@ -635,7 +635,7 @@ git(proj, "branch", "task/882-stuck")
 const rA882b = await call("crew_task", "sesINTEG1", { action: "accept", n: 882, text: "«принимаю» (владелец, 2026-10-30, чат)" })
 cell("T264-6 after the landing the recovered record is accepted by the owner's word", /принята словом владельца/.test(rA882b) && tasks.loadTask("proj", 882).status === "accepted", rA882b)
 
-stop?.()
+await stop?.()
 try {
   rmSync(tmp, { recursive: true, force: true })
 } catch {}

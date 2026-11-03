@@ -27,11 +27,8 @@ fn dialog_def() -> MachineDef {
     }
 }
 
-// ORACLE-WORKAROUND(51): the table of the project is built by a function, not by a literal inside the `match` that loads the machine (a record literal in the scrutinee is a syntax error); write it in place when item 51 is fixed
-fn term_value(ms int) -> []ProjectValue => [ProjectValue { key: "проект.срок_бездействия", value: Int(ms) }]
-
 fn dialog_with(ms int) -> AlulaMachine {
-    match load_alula_machine_with(dialog_machine_text(), product_registry(), term_value(ms)) {
+    match load_alula_machine_with(dialog_machine_text(), product_registry(), [ProjectValue { key: "проект.срок_бездействия", value: Int(ms) }]) {
         Ok(m) => m
         Err(e) => panic("the dialog machine is not made: ${e}")
     }
@@ -154,8 +151,7 @@ test "dl idle term refused" {
         Ok(m) => assert(false)
         Err(e) => assert(e.contains("СРОК_БЕЗДЕЙСТВИЯ"))
     }
-    ro negative = term_value(-1)
-    match load_alula_machine_with(dialog_machine_text(), product_registry(), negative) {
+    match load_alula_machine_with(dialog_machine_text(), product_registry(), [ProjectValue { key: "проект.срок_бездействия", value: Int(-1) }]) {
         Ok(m) => assert(false)
         Err(e) => assert(e.contains("СРОК_БЕЗДЕЙСТВИЯ"))
     }
