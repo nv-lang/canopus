@@ -1,0 +1,50 @@
+module repro_infer12_chat.infer_record_state
+
+// Control for D1: the ALULA shape (`AlulaState` is a plain record) infers fine on 0.1.1 after
+// items 12/13 (commit 13f86464c). Expected: PASS (and it must stay PASS after the D1 fix).
+
+type EngineState[S] { trace str, step int, state S }
+type Snapshot { step int, data str }
+
+type Machine[S] protocol {
+    @name() -> str
+    @initial() -> S
+    @encode_state(state S) -> str
+    @decode_state(text str) -> Option[S]
+}
+
+// The ALULA shape: a plain record state.
+type AlulaState { name str, taken []str }
+
+type AlulaMachine { party str }
+
+fn AlulaMachine @name() -> str => "AlulaMachine"
+fn AlulaMachine @initial() -> AlulaState => { name: "idle", taken: []str.new() }
+fn AlulaMachine @encode_state(state AlulaState) -> str => state.name
+fn AlulaMachine @decode_state(text str) -> Option[AlulaState] => Some({ name: "idle", taken: []str.new() })
+
+// Mirrors alula.codec's `engine_state_of[S]`: a bare `S` parameter is where the
+// poisoned sanitized slot (`Nova_ChatState_p`) surfaces as a C parameter type.
+fn state_of[S](text str, step int, state S) -> Option[EngineState[S]] {
+    ro r EngineState[S] = { trace: text, step, state }
+    Some(r)
+}
+
+fn encode_snapshot[S, M Machine[S]](machine M, state EngineState[S]) -> Snapshot =>
+    { step: state.step, data: machine.encode_state(state.state) }
+
+fn decode_snapshot[S, M Machine[S]](machine M, snapshot Snapshot) -> Option[EngineState[S]] {
+    match machine.decode_state(snapshot.data) {
+        Some(state) => state_of[S](snapshot.data, snapshot.step, state)
+        None => None
+    }
+}
+
+test "infer S from a protocol-bound M where S is a record" {
+    ro state EngineState[AlulaState] = { trace: "t", step: 3, state: { name: "busy", taken: []str.new() } }
+    ro snap = encode_snapshot(AlulaMachine { party: "agent" }, state)
+    match decode_snapshot(AlulaMachine { party: "agent" }, snap) {
+        Some(back) => assert(back.step == 3)
+        None => assert(false)
+    }
+}

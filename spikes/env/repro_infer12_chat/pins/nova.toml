@@ -1,0 +1,3 @@
+[package]
+name = "repro_infer12_chat_pins"
+version = "0.1.0"
