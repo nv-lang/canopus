@@ -4,15 +4,20 @@
 // answers `unavailable/same_context_binding_unverified` and the new-chat picker has no models.
 // This module is the missing trusted host: it launches the very same native OpenCode server that
 // the sessions run (the same program, the same prepared configuration copy `XDG_CONFIG_HOME`
-// without the plugin, a working directory of the instance), reads `GET /api/model` from it once
-// with the printed one-time password, pins the read bytes into a snapshot file and builds the
-// `MetadataHook` for the front from actually observed values. Nothing here is constructed from
-// client/source JSON; every mismatch is a fail-closed `unavailable`, and `complete=false` stays:
-// one snapshot never proves provider discovery completeness.
+// without the plugin, a working directory of the instance), reads `GET /api/model` from it with
+// the printed one-time password, pins the read bytes into a snapshot file and answers the front's
+// route with the in-process hook wire built from actually observed values. Nothing here is
+// constructed from client/source JSON; every mismatch is a fail-closed `unavailable`, and
+// `complete=false` stays: one snapshot never proves provider discovery completeness.
 //
-// A short-lived `opencode serve` child of this module is not the owner's live OpenCode service and
-// is never left running: it is stopped in every outcome. The refresh fiber re-observes in place of
-// the expired snapshot (the freshness cap of the hook is 300 s), so the catalog stays alive.
+// The native server is a long-lived child of the front (one per front, not one per refresh): a
+// refresh is a plain `GET /api/model` over a new connection. Spawning and killing a child per
+// refresh parked fibers and stopped the world at the big allocations right after the kill (the
+// item 19 runtime defect family; the release notes say production workarounds stay until the
+// scheduler workstream). A leftover server of a previous front is ended by the pid file
+// `metadata/observe.pid` - the same pattern as the recognizer's `stt.pid`. All waits are bounded
+// polls or reads of our own files and sockets; no pipe of the child is ever read (its stdout goes
+// to a file under `cmd /c`), so no fiber can park on a pipe of the child.
 
 module crew_harness.model_metadata
 
@@ -20,39 +25,39 @@ import std.concurrency.nvchan.{Chan, ChanTx, ChanRx}
 import std.crypto.sha256.{Sha256}
 import std.encoding.base64.{Base64}
 import std.encoding.json.{Json, JsonValue, JsonObject}
-import std.fs.{Fs, real_fs, Path, read_text, create_dir_all}
+import std.fs.{Fs, real_fs, Path, read_text, create_dir_all, metadata}
 import std.net.{Net, real_net, TcpListener, TcpStream}
 import std.os.{Os, real_os, vars, has_env, Command, Child, ChildStdout, Stdio, Tree}
+import std.io.{stderr}
 import std.time.{Time}
 import crew_harness.agent_config.{opencode_config_source, opencode_home_prepare}
 import crew_harness.projects.{EnvEntry}
 import crew_harness.storage.{replace_file}
 
-/// How often the refresher re-observes; the snapshot itself lives `METADATA_SNAPSHOT_TTL_MS`
-/// (under the 300 s freshness cap of the hook, so a reply is never built from a stale file).
+/// How often the refresher re-reads the catalog of the running native server; the snapshot itself
+/// lives `METADATA_SNAPSHOT_TTL_MS` (under the 300 s freshness cap of the hook, so a reply is never
+/// built from a stale file).
 export const METADATA_REFRESH_MS = 200000
 export const METADATA_SNAPSHOT_TTL_MS = 240000
 const OBSERVE_START_TIMEOUT_MS = 20000
-const OBSERVE_HTTP_TIMEOUT_MS = 10000
 
-/// One question to the refresher. The end is in a record (Oracle 0.1.0 does not compile a channel
-/// of channel ends, see SttAsk) and the payload is a `str`: channels of records or arrays hit the
-/// nested generic codegen bug, so the hook travels over the in-process wire `hook_wire`/`hook_of_wire`
-/// below - an encoding between the two fibers of the same trusted host, not a JSON decoder and not a
+/// One question to the refresher. The end is in a record (Oracle does not compile a channel of
+/// channel ends, see SttAsk) and the payload is a `str`: channels of records or arrays hit the
+/// nested generic codegen bug, so the hook travels over the in-process wire `hook_of_wire` below -
+/// an encoding between the fibers of the same trusted host, not a JSON decoder and not a
 /// client/source claim (the parsed hook is checked by `model_metadata_reply` exactly as before).
 export type MetadataAsk { reply ChanTx[str] }
 
-/// The field separator of the in-process hook wire.
-const WIRE_SEP = "\u{1f}"
+/// The field separator of the in-process hook wire: a tab cannot appear in a family name, a hash,
+/// a contract word or an instance path.
+const WIRE_SEP = "\t"
 
 /// The hook over the in-process wire: "" - there is none (the first observation is running or the
 /// last one failed); else the sixteen fields joined by the separator.
-export fn hook_wire(hook MetadataHook) -> str {
-    ro parts = [hook.expected.family, hook.expected.launch_sha256, hook.expected.config_sha256, hook.expected.location,
-        hook.expected.contract, hook.expected.source, hook.expected.source_version,
-        hook.observed.family, hook.observed.launch_sha256, hook.observed.config_sha256, hook.observed.location,
-        hook.observed.contract, hook.observed.source, hook.observed.source_version,
-        hook.snapshot_path, hook.snapshot_sha256]
+export fn hook_wire(family str, launch str, config_sha256 str, location str, snapshot_path str, snapshot_sha256 str) -> str {
+    ro parts = [family, launch, config_sha256, location, "opencode-acp-2.2.5", "opencode.api.model", "2.2.5",
+        family, launch, config_sha256, location, "opencode-acp-2.2.5", "opencode.api.model", "2.2.5",
+        snapshot_path, snapshot_sha256]
     parts.join(WIRE_SEP)
 }
 
@@ -70,7 +75,7 @@ export fn hook_of_wire(text str) -> Option[MetadataHook] {
 /// configured OpenCode program of the agent (a settings override or the platform default),
 /// `family` is the configured family of the product (the id of that agent), `cwd` is the working
 /// directory the native server runs in, `state_dir` is the state folder of the instance for the
-/// snapshot file.
+/// snapshot, the pid file and the stdout file.
 export type MetadataInput { program str, family str, cwd str, state_dir str }
 
 // ----- pure helpers (unit-tested; no effects) -----
@@ -209,10 +214,65 @@ fn om_opencode_program() -> str => "opencode"
 /// The program of the catalog observer when the settings do not name one.
 export fn default_opencode_program() -> str => om_opencode_program()
 
-// ----- the environment of the child (the block is whole: the runtime does not merge) -----
+// ----- the small machinery of the refresher -----
 
-fn observer_env(xdg str) Os -> []EnvEntry {
-    ro extra = [EnvEntry { key: "XDG_CONFIG_HOME", value: xdg }]
+// The journal of the refresher: the stderr of the front and the file beside the snapshot (the
+// deployment and the tests read it; stderr of a killed test is not always visible).
+fn ref_log(path str, text str) Fs Io -> () {
+    mut err = stderr()
+    ro written = err.write("metadata: ${text}\n".bytes())
+    ro previous = match read_text_lossy(path) {
+        Some(old_text) => old_text
+        None => ""
+    }
+    ro stamp = Time.now().unix_millis()
+    ro kept = replace_file(Path.from_bytes(path.bytes()), "${previous}${stamp} ${text}\n")
+}
+
+fn read_text_lossy(path str) Fs -> Option[str] {
+    ro file = Path.from_bytes(path.bytes())
+    match read_text(file) {
+        Ok(text) => Some(text)
+        Err(e) => None
+    }
+}
+
+// The sha256 of the configuration the native server reads: the first of the two files of the copy,
+// or the hash of nothing when the copy has no file (the server then runs on its defaults).
+fn config_sha256_of(xdg str) Fs -> Result[str, str] {
+    for name in ["opencode.jsonc", "opencode.json"] {
+        match read_text_lossy("${xdg}/opencode/${name}") {
+            Some(text) => return Ok(Sha256.hash_str(text.bytes()))
+            None => ()
+        }
+    }
+    Ok(Sha256.hash_str("".bytes()))
+}
+
+fn free_port() Net -> Result[int, str] {
+    consume listener = match TcpListener.bind("127.0.0.1:0") {
+        Ok(consume l) => l
+        Err(e) => return Err("no free port")
+    }
+    ro port = listener.local_port()
+    listener.close()
+    Ok(port)
+}
+
+// The real executable behind the npm shim: on Windows the configured program is usually
+// opencode.cmd, which a process cannot start directly; the sibling opencode.exe of the package is
+// the same native server without any shell. Falls back to the program as configured.
+fn resolve_program(program str) -> str {
+    if !program.ends_with(".cmd") { return program }
+    // cut the whole "opencode.cmd" tail, not just ".cmd": the package lives beside the shim
+    ro cut = "/opencode.cmd"
+    if !program.ends_with(cut) { return program }
+    ro base = program[..program.byte_len() - cut.byte_len()]
+    "${base}/node_modules/@opencode/cli/bin/opencode.exe"
+}
+
+fn observer_env(xdg str, token str) Os -> []EnvEntry {
+    ro extra = [EnvEntry { key: "XDG_CONFIG_HOME", value: xdg }, EnvEntry { key: "OPENCODE_SERVER_PASSWORD", value: token }]
     ro mine = with Os = real_os() { vars() }
     ro windows = with Os = real_os() { has_env("SystemRoot") || has_env("SYSTEMROOT") }
     mut out = []EnvEntry.new()
@@ -230,68 +290,27 @@ fn observer_env(xdg str) Os -> []EnvEntry {
     out
 }
 
-// The sha256 of the configuration the native server reads: the first of the two files of the copy,
-// or the hash of nothing when the copy has no file (the server then runs on its defaults).
-fn config_sha256_of(xdg str) Fs -> Result[str, str] {
-    for name in ["opencode.jsonc", "opencode.json"] {
-        match read_text_lossy("${xdg}/opencode/${name}") {
-            Some(text) => return Ok(Sha256.hash_str(text.bytes()))
-            None => ()
-        }
-    }
-    Ok(Sha256.hash_str("".bytes()))
-}
 
-fn read_text_lossy(path str) Fs -> Option[str] {
-    ro file = Path.from_bytes(path.bytes())
-    match read_text(file) {
-        Ok(text) => Some(text)
-        Err(e) => None
-    }
-}
 
-fn free_port() Net -> Result[int, str] {
-    consume listener = match TcpListener.bind("127.0.0.1:0") {
-        Ok(consume l) => l
-        Err(e) => return Err("no free port")
-    }
-    ro port = listener.local_port()
-    listener.close()
-    Ok(port)
-}
-
-// ----- one bounded observation -----
-
-// The stdout of the child: find the one-time password and tell it once (have=false - the stdout
-// ended without one). The byte-to-text conversion is fine here: this fiber owns its own buffer.
-fn read_password(consume rx ChildStdout, out ChanTx[str]) Proc -> () {
+// `GET /api/model` over one connection; the server closes it (`Connection: close`), so reading to
+// the end of the stream is the whole answer. Never call this in the refresher fiber itself: a
+// connect to a port that is not listening yet parks the calling fiber forever (item 19 family).
+// The stdout of the child is drained to its end and discarded: the npm shim needs a living
+// reader on its stdout pipe (the password is ours by the token, nothing is parsed from here).
+fn drain_stdout(consume rx ChildStdout) Proc -> () {
     mut buf []u8 = []u8.new()
     buf.resize(4096, 0 as u8)
-    mut text = ""
-    mut found = ""
     mut reading = true
     while reading {
         match rx.read(buf) {
             Ok(0) => { reading = false }
-            Ok(n) => {
-                text = "${text}${buf[..n].to_str_lossy()}"
-                ro pass = server_password_of(text)
-                if pass.byte_len() > 0 {
-                    found = pass
-                    reading = false
-                }
-            }
+            Ok(n) => ()
             Err(e) => { reading = false }
         }
     }
-    ro told = out.send(found)
     rx.close()
 }
 
-// `GET /api/model` over one connection; the server closes it (`Connection: close`), so reading to
-// the end of the stream is the whole answer. The raw bytes go back to the caller: the conversion to
-// text is not proven M:N-safe inside a fiber body, so it happens outside. The caller bounds the
-// wait and stops the child.
 fn http_get_model(port int, auth str) Net -> Result[[]u8, str] {
     ro head = "GET /api/model HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nAuthorization: ${auth}\r\nConnection: close\r\n\r\n"
     consume stream = match TcpStream.connect("127.0.0.1:${port}") {
@@ -320,218 +339,45 @@ fn http_get_model(port int, auth str) Net -> Result[[]u8, str] {
     Ok(raw)
 }
 
-// The body of the catalog answer, from the fiber of the GET.
-fn wait_body(rx ChanRx[str], deadline int) Time -> str {
-    mut got = ""
-    mut waiting = true
-    while waiting {
-        match rx.try_recv() {
-            Some(text) => {
-                got = text
-                waiting = false
-            }
-            None => {
-                if Time.now().unix_millis() >= deadline {
-                    waiting = false
-                } else {
-                    20.to_millis().sleep()
-                }
-            }
-        }
-    }
-    got
-}
-
-// The password of the child, from the fiber of the stdout.
-fn wait_password(rx ChanRx[str], deadline int) Time -> str {
-    mut found = ""
-    mut waiting = true
-    while waiting {
-        match rx.try_recv() {
-            Some(text) => {
-                found = text
-                waiting = false
-            }
-            None => {
-                if Time.now().unix_millis() >= deadline {
-                    waiting = false
-                } else {
-                    20.to_millis().sleep()
-                }
-            }
-        }
-    }
-    found
-}
-
-/// One full observation: launch the native server in the configured context, read the catalog once,
-/// pin it, stop the child. Every failure is an `Err` with a word; the child never survives.
-export fn observe_native(input MetadataInput) Proc Net Time Fs Os Detach -> Result[MetadataHook, str] {
-    if input.program.byte_len() == 0 { return Err("no program") }
-    if input.family.byte_len() == 0 { return Err("no family") }
-    // the same prepared configuration copy the agents of the hub get (without the plugin)
-    ro xdg = match opencode_home_prepare(input.state_dir, opencode_config_source()) {
-        Ok(x) => x
-        Err(why) => return Err("config_copy: ${why}")
-    }
-    ro config_sha = match config_sha256_of(xdg) {
-        Ok(s) => s
-        Err(why) => return Err(why)
-    }
-    mut last = "not tried"
-    mut attempt = 0
-    while attempt < 3 {
-        attempt += 1
-        ro port = match free_port() {
-            Ok(p) => p
+// One read of the running server: GET, verify the location, pin the snapshot, return the wire.
+fn observe_read(port int, auth str, launch str, config_sha str, cwd str, state_dir str) Net Fs Time -> Result[str, str] {
+    ro answer = http_get_model(port, auth)
+    ro text = match answer {
+        Ok(raw) => match http_body_of(raw) {
+            Ok(t) => t
             Err(why) => return Err(why)
         }
-        ro args = ["serve", "--hostname", "127.0.0.1", "--port", "${port}"]
-        mut command = Command.new(input.program)
-        for a in args { command.arg(a) }
-        command.stdout(Stdio.Piped)
-        command.tree(Tree.Group)
-        for pair in observer_env(xdg) { command.env(pair.key, pair.value) }
-        if input.cwd.byte_len() > 0 { command.dir(Path.from_bytes(input.cwd.bytes())) }
-        consume spawned = match command.start() {
-            Ok(consume c) => c
-            Err(e) => return Err("cannot start ${input.program} serve")
-        }
-        consume child = spawned
-        consume stdout_pipe = match child.take_stdout() {
-            Some(consume p) => p
-            None => {
-                ro stopped = child.stop(2.to_seconds())
-                return Err("no stdout of the native server")
-            }
-        }
-        ro words = Chan[str].new(1)
-        ro bodies = Chan[str].new(1)
-        detach consume stdout_pipe { read_password(stdout_pipe, words.tx) }
-        ro now = Time.now().unix_millis()
-        ro password = wait_password(words.rx, now + OBSERVE_START_TIMEOUT_MS)
-        if password.byte_len() == 0 {
-            ro stopped = child.stop(2.to_seconds())
-            last = "the native server did not report its password"
-            continue
-        }
-        ro got_at = Time.now().unix_millis()
-        detach {
-            with Net = real_net() {
-                match http_get_model(port, basic_auth_header(password)) {
-                    Ok(raw) => {
-                        ro told = bodies.tx.send(Base64.encode(raw))
-                    }
-                    Err(why) => {
-                        ro told = bodies.tx.send("!${why}")
-                    }
-                }
-            }
-        }
-        ro answer = wait_body(bodies.rx, got_at + OBSERVE_HTTP_TIMEOUT_MS)
-        // the child is told to stop in every path below
-        ro stopped = child.stop(2.to_seconds())
-        if answer.byte_len() == 0 {
-            last = "the catalog did not answer in time"
-            continue
-        }
-        ro text = match Base64.decode(answer) {
-            Ok(raw) => match http_body_of(raw) {
-                Ok(t) => t
-                Err(why) => {
-                    last = why
-                    continue
-                }
-            }
-            Err(e) => {
-                if answer.starts_with("!") { last = answer[1..] } else { last = "the answer is not readable" }
-                continue
-            }
-        }
-        ro value = match Json.parse(text) {
-            Ok(v) => v
-            Err(e) => {
-                last = "the catalog is not JSON"
-                continue
-            }
-        }
-        ro root = match value.object() {
-            Some(o) => o
-            None => {
-                last = "the catalog is not an object"
-                continue
-            }
-        }
-        ro location = match root.get("location") {
-            Some(l) => l
-            None => {
-                last = "the catalog has no location"
-                continue
-            }
-        }
-        ro directory = match location.object() {
-            Some(lo) => match lo.get("directory") {
-                Some(d) => d.str() ?? ""
-                None => ""
-            }
+        Err(why) => return Err(why)
+    }
+    ro value = match Json.parse(text) {
+        Ok(v) => v
+        Err(e) => return Err("the catalog is not JSON")
+    }
+    ro root = match value.object() {
+        Some(o) => o
+        None => return Err("the catalog is not an object")
+    }
+    ro location_value = match root.get("location") {
+        Some(l) => l
+        None => return Err("the catalog has no location")
+    }
+    ro directory = match location_value.object() {
+        Some(lo) => match lo.get("directory") {
+            Some(d) => d.str() ?? ""
             None => ""
         }
-        if normalize_dir(directory) != normalize_dir(input.cwd) {
-            last = "the catalog reports another working directory"
-            continue
-        }
-        // the pinned snapshot: the exact bytes of the envelope, written where the hook reads them
-        ro observed = Time.now().unix_millis()
-        ro snapshot = envelope_text(value, observed)
-        ro state = input.state_dir.replace("\\", "/")
-        ro snapshot_path = "${state}/metadata/model-metadata-snapshot.json"
-        match create_dir_all(Path.from_bytes("${state}/metadata".bytes())) {
-            Ok(made) => ()
-            Err(e) => return Err("cannot make the metadata folder")
-        }
-        if !replace_file(Path.from_bytes(snapshot_path.bytes()), snapshot) { return Err("cannot write the snapshot") }
-        ro launch = launch_sha256(input.program, args)
-        ro binding = binding_of(input.family, launch, config_sha, normalize_dir(input.cwd))
-        return Ok(MetadataHook { expected: binding, observed: binding, snapshot_path, snapshot_sha256: Sha256.hash_str(snapshot.bytes()) })
+        None => ""
     }
-    Err(last)
-}
-
-// ----- the refresh fiber of the front -----
-
-/// The refresher: observes right away (the front serves while the first observation runs - the page
-/// says the catalog is loading), then again before every expiry, and answers the asks of the route
-/// with the current hook. A failed observation keeps the previous hook when it is still alive, else
-/// the route answers the stock `unavailable`.
-export fn metadata_source_loop(input MetadataInput, asks ChanRx[MetadataAsk]) Proc Net Time Fs Os Detach -> () {
-    mut current Option[MetadataHook] = None
-    mut due = 0
-    mut running = true
-    while running {
-        mut serving = true
-        while serving {
-            match asks.try_recv() {
-                Some(ask) => {
-                    match current {
-                        Some(hook) => {
-                            ro told = ask.reply.send(hook_wire(hook))
-                        }
-                        None => {
-                            ro told = ask.reply.send("")
-                        }
-                    }
-                }
-                None => { serving = false }
-            }
-        }
-        ro now = Time.now().unix_millis()
-        if now >= due {
-            current = match observe_native(input) {
-                Ok(hook) => Some(hook)
-                Err(why) => None
-            }
-            due = Time.now().unix_millis() + METADATA_REFRESH_MS
-        }
-        250.to_millis().sleep()
+    if normalize_dir(directory) != normalize_dir(cwd) {
+        return Err("the catalog reports another working directory")
     }
+    ro observed = Time.now().unix_millis()
+    ro snapshot = envelope_text(value, observed)
+    ro snapshot_path = "${state_dir}/metadata/model-metadata-snapshot.json"
+    match create_dir_all(Path.from_bytes("${state_dir}/metadata".bytes())) {
+        Ok(made) => ()
+        Err(e) => return Err("cannot make the metadata folder")
+    }
+    if !replace_file(Path.from_bytes(snapshot_path.bytes()), snapshot) { return Err("cannot write the snapshot") }
+    Ok(hook_wire(state_dir, launch, config_sha, normalize_dir(cwd), snapshot_path, Sha256.hash_str(snapshot.bytes())))
 }

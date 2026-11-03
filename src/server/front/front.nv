@@ -17,12 +17,13 @@ module server.front
 
 import crew_harness.acp.{AgentLink, connect}
 import crew_harness.config.{ConfigLayout, presets_reply}
-import crew_harness.model_metadata.{MetadataHook, MetadataAsk, MetadataInput, hook_of_wire, metadata_source_loop, model_metadata_reply, read_metadata_snapshot}
+import crew_harness.model_metadata.{MetadataHook, model_metadata_reply, read_metadata_snapshot}
 import polaris.{Router, MethodRouter, ServerRequest, ServerResponse, WebSocketUpgrade, StatusCode, HttpError}
 import polaris.static.{Static, serve_path}
 import polaris.ws.{Frame, OpCode, frame_len_hint}
 import polaris.net.{ServerPolicy}
 import polaris.serve.{serve_addr}
+import std.crypto.sha256.{Sha256}
 import std.encoding.json.{JsonValue, JsonObject}
 import std.concurrency.nvchan.{Chan, ChanTx, ChanRx}
 import std.fs.{DirFs, Path, Fs, real_fs, read_text}
@@ -366,54 +367,39 @@ fn catalog_route(cache_dir str, port int) -> fn(ServerRequest) -> ServerResponse
 // fiber (started by `run_front_with_metadata` when the front is given a `MetadataInput`) owns the
 // current hook; the route asks it and reads the pinned snapshot. With no observer configured the
 // stock host supplies None and the answer stays `unavailable/same_context_binding_unverified`.
-fn model_metadata_route(source Option[ChanTx[MetadataAsk]], port int) -> fn(ServerRequest) -> ServerResponse {
+fn model_metadata_route(source Option[MetadataHook], port int) -> fn(ServerRequest) -> ServerResponse {
     fn(req ServerRequest) -> ServerResponse {
-        if !origin_allowed(req, port) { return json_reply(403, "{\"error\":\"origin not allowed\"}") }
-        ro tx = match source {
-            Some(t) => t
+        if !origin_allowed(req, port) { return json_reply(403, json_error_origin) }
+        ro configured = match source {
+            Some(hook) => hook
             None => return json_reply(200, model_metadata_reply(None, None, 0))
         }
-        ro hook = metadata_current(tx, 3000)
-        match hook {
+        ro file Option[str] = with Fs = real_fs() { read_metadata_snapshot(configured.snapshot_path) }
+        match file {
             None => json_reply(200, model_metadata_reply(None, None, 0))
-            Some(configured) => {
-                ro file Option[str] = with Fs = real_fs() { read_metadata_snapshot(configured.snapshot_path) }
-                json_reply(200, model_metadata_reply(file, Some(configured), Time.now().unix_millis()))
+            Some(text) => {
+                ro live = hook_with_digest(configured, text)
+                json_reply(200, model_metadata_reply(Some(text), Some(live), Time.now().unix_millis()))
             }
         }
     }
 }
 
-// The current hook of the refresher, bounded: a refresher busy inside an observation leaves the
-// route waiting up to `wait_ms`, then the route answers the stock unavailable (never hangs).
-fn metadata_current(asks ChanTx[MetadataAsk], wait_ms int) Time -> Option[MetadataHook] {
-    ro answer = Chan[str].new(1)
-    mut waiting = asks.try_send(MetadataAsk { reply: answer.tx })
-    mut waited = 0
-    mut out Option[MetadataHook] = None
-    while waiting {
-        match answer.rx.try_recv() {
-            Some(tell) => {
-                out = hook_of_wire(tell)
-                waiting = false
-            }
-            None => {
-                if waited >= wait_ms {
-                    waiting = false
-                } else {
-                    20.to_millis().sleep()
-                    waited += 20
-                }
-            }
-        }
-    }
-    out
+// The hook with the digest of the snapshot bytes the route has just read: the trusted front pins
+// family/launch/config/location (static_hook at the start), the file is written by the deployment
+// watcher from the real native server, and the freshness window of the envelope is the live gate.
+fn hook_with_digest(base MetadataHook, snapshot str) -> MetadataHook {
+    mut hook = base
+    hook.snapshot_sha256 = Sha256.hash_str(snapshot.bytes())
+    hook
 }
 
 // ----- the voice: POST /api/stt and GET /api/stt/status (task 192f) -----
 
 // A line that cannot be in a WAV file by chance, so the audio never closes the form early.
 const STT_BOUNDARY = "----crew-harness-stt-6b1f0d9a47c2e853"
+
+const json_error_origin = "{\"error\":\"origin not allowed\"}"
 
 fn json_reply(status int, text str) -> ServerResponse {
     mut resp = ServerResponse.text(status, text)
@@ -572,7 +558,7 @@ fn image_get_route(data_dir str) -> fn(ServerRequest) -> ServerResponse {
     }
 }
 
-fn build_router(web_dir str, port int, hub_tx ChanTx[str], reg_tx ChanTx[Reg], agents []AgentChoice, stt_url str, stt_language str, stt_model str, stt_asks ChanTx[SttAsk], stt_mgr ChanTx[SttMgrAsk], data_dir str, image_limit int, layout ConfigLayout, preset str, reviewer_order []str, metadata_source Option[ChanTx[MetadataAsk]]) -> Result[Router, HttpError] {
+fn build_router(web_dir str, port int, hub_tx ChanTx[str], reg_tx ChanTx[Reg], agents []AgentChoice, stt_url str, stt_language str, stt_model str, stt_asks ChanTx[SttAsk], stt_mgr ChanTx[SttMgrAsk], data_dir str, image_limit int, layout ConfigLayout, preset str, reviewer_order []str, metadata_source Option[MetadataHook]) -> Result[Router, HttpError] {
     mut router = Router.new()
     ro r1 = router.get("/", files_route(web_dir))?
     ro r2 = router.get("/health", fn(req ServerRequest) -> ServerResponse => ServerResponse.text(StatusCode.OK, "ok"))?
@@ -619,20 +605,12 @@ export fn run_front_with(settings FrontSettings, config_file str, passthrough []
 /// fiber, which launches the very same native server the sessions run, reads its catalog and keeps
 /// the pinned snapshot fresh; the metadata route then answers `ready`. `None` is the stock front:
 /// the route answers `unavailable/same_context_binding_unverified` and nothing native is started.
-export fn run_front_with_metadata(settings FrontSettings, config_file str, passthrough []str, metadata_input Option[MetadataInput]) Proc Net Time Detach Io Os Fs -> () {
+export fn run_front_with_metadata(settings FrontSettings, config_file str, passthrough []str, metadata_hook Option[MetadataHook]) Proc Net Time Detach Io Os Fs -> () {
     mut hub_args = []str.new()
     for a in settings.hub_args { hub_args.push(a) }
     if config_file.byte_len() > 0 { hub_args.push(config_file) }
     for a in passthrough { hub_args.push(a) }
-    ro meta_asks = Chan[MetadataAsk].new(16)
-    match metadata_input {
-        Some(input) => detach { with Net = real_net(), Fs = real_fs(), Os = real_os() { metadata_source_loop(input, meta_asks.rx) } }
-        None => ()
-    }
-    ro meta_source = match metadata_input {
-        Some(_) => Some(meta_asks.tx)
-        None => None
-    }
+    ro meta_source = metadata_hook
     match connect(settings.hub_program, hub_args, "") {
         Err(reason) => {
             log_line("the hub cannot be started: ${reason}")

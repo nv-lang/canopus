@@ -81,7 +81,8 @@ export fn model_metadata_reply(snapshot Option[str], hook Option[MetadataHook], 
     ro body = match response.object() { Some(value) => value, None => return mm_response("unavailable", "source_schema", family, "", 0, 0, none) }
     ro location = match body.get("location") { Some(value) => match value.object() { Some(object) => object, None => JsonObject.new() }, None => JsonObject.new() }
     ro directory = match location.get("directory") { Some(value) => value.str() ?? "", None => "" }
-    if directory != bound.observed.location { return mm_response("unavailable", "source_location_mismatch", family, "", 0, 0, none) }
+    // the same folder may be reported with either slash direction; compare both normalized
+    if directory.replace("\\", "/") != bound.observed.location.replace("\\", "/") { return mm_response("unavailable", "source_location_mismatch", family, "", 0, 0, none) }
     ro models = match opencode225_models(response.to_str(), bound.observed.source_version) {
         Ok(value) => value
         Err(reason) => return mm_response("unavailable", reason, family, "opencode.api.model", observed, expires, none)
