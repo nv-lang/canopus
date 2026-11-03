@@ -11,15 +11,14 @@ import crew_harness.chat.{ChatSession, ChatState, chat_session, encode_chat_stat
 
 // ----- helpers: one `with` over the four handlers; use_pg picks the database or the memory -----
 
-// ORACLE-WORKAROUND(12, 13, 26): Nova 0.1.1 still generates broken C when the type arguments are inferred here (unknown type name `Nova_ChatState_p` in the generated C); the arguments are written out until inference covers this shape (items 12 and 13)
 fn begin(use_pg bool, mut mem MemoryWorld, mut pg PgWorld) -> Engine[ChatSession, ChatState] {
     if use_pg {
         with Journal = pg_journal(pg), Store = pg_store(pg), Link = memory_link(mem), Time = memory_time(mem) {
-            start_engine[ChatState, ChatSession](chat_session(), "chat-1")
+            start_engine(chat_session(), "chat-1")
         }
     } else {
         with Journal = memory_journal(mem), Store = memory_store(mem), Link = memory_link(mem), Time = memory_time(mem) {
-            start_engine[ChatState, ChatSession](chat_session(), "chat-1")
+            start_engine(chat_session(), "chat-1")
         }
     }
 }
@@ -27,14 +26,14 @@ fn begin(use_pg bool, mut mem MemoryWorld, mut pg PgWorld) -> Engine[ChatSession
 fn resumed(use_pg bool, mut mem MemoryWorld, mut pg PgWorld) -> Engine[ChatSession, ChatState] {
     if use_pg {
         with Journal = pg_journal(pg), Store = pg_store(pg), Link = memory_link(mem), Time = memory_time(mem) {
-            match resume_engine[ChatState, ChatSession](chat_session(), "chat-1") {
+            match resume_engine(chat_session(), "chat-1") {
                 Some(e) => e
                 None => panic("no snapshot to resume from")
             }
         }
     } else {
         with Journal = memory_journal(mem), Store = memory_store(mem), Link = memory_link(mem), Time = memory_time(mem) {
-            match resume_engine[ChatState, ChatSession](chat_session(), "chat-1") {
+            match resume_engine(chat_session(), "chat-1") {
                 Some(e) => e
                 None => panic("no snapshot to resume from")
             }
@@ -142,8 +141,8 @@ fn same_entries(a []JournalEntry, b []JournalEntry) -> bool {
 // The snapshot as the engine sees it: decoded and encoded again, so the spelling of the JSON text does not matter.
 fn snapshot_data(s Option[Snapshot]) -> str {
     match s {
-        Some(snapshot) => match decode_snapshot[ChatState, ChatSession](chat_session(), snapshot) {
-            Some(state) => encode_snapshot[ChatState, ChatSession](chat_session(), state).data
+        Some(snapshot) => match decode_snapshot(chat_session(), snapshot) {
+            Some(state) => encode_snapshot(chat_session(), state).data
             None => "<damaged>"
         }
         None => "<none>"

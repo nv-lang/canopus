@@ -209,7 +209,6 @@ fn events_of(sc Test) -> []Incoming {
     out
 }
 
-// ORACLE-WORKAROUND(12, 13, 26): Nova 0.1.1 still generates broken C when the type arguments are inferred here (unknown type name `Nova_ChatState_p` in the generated C); the arguments are written out until inference covers this shape (items 12 and 13)
 fn first_run_diff(sc Test) -> str {
     ro table = table_chat()
     ro nova = drive_test[ChatState, ChatSession](chat_session(), sc)

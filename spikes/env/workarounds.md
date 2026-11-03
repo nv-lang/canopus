@@ -4,7 +4,7 @@
 
 Every place of the product that goes round a defect or a limit of Oracle carries a comment `// ORACLE-WORKAROUND(N): what is gone round; how to simplify when item N is fixed`, where N is an item of [README.md](README.md) ("Known problems"). `git grep ORACLE-WORKAROUND` finds them, `python scripts/oracle-workarounds.py --list` prints them by item with the line. When Nova fixes an item, open its places below, simplify the code as the mark says and remove the mark; then rerun `python scripts/oracle-workarounds.py --index`.
 
-Marks: 35 in 27 files. Items with marks: 22. Items without marks: 39 (no workaround in the code).
+Marks: 28 in 21 files. Items with marks: 19. Items without marks: 42 (no workaround in the code).
 
 | Item | What | Places (files; marks in a file if more than one) | Marks |
 |---|---|---|---|
@@ -19,8 +19,8 @@ Marks: 35 in 27 files. Items with marks: 22. Items without marks: 39 (no workaro
 | 9 | `prelude_outcome` (with the helper module `prelude_outcome_def`): a user type named like a prelude type (`Outcome`, | no workaround in the code | 0 |
 | 10 | `nested_generic_pattern`: the nested pattern `Some(Answer(reply))` over a generic payload binds `reply` to a NULL | no workaround in the code | 0 |
 | 11 | `protocol_typed_field`: a record field whose type is a protocol cannot be called through (`e.machine.initial()`): the | no workaround in the code | 0 |
-| 12 | `generic_protocol_inference`: a generic function bounded by a protocol with two type parameters (`M Machine[S, B]`), | `src/acp_live/e2e_test.nv`, `src/chat/chat_engine_test.nv`, `src/machine_chat/equal_test.nv`, `src/pgstore/engine_test.nv`, `src/server/alula_test.nv`, `src/server/hub.nv`, `src/storage/files_engine_test.nv` | 7 |
-| 13 | `generic_protocol_one_param`: the same with one type parameter (`M Machine[S]`, `S` a sum type). The engine therefore | `src/acp_live/e2e_test.nv`, `src/chat/chat_engine_test.nv`, `src/machine_chat/equal_test.nv`, `src/pgstore/engine_test.nv`, `src/server/alula_test.nv`, `src/server/hub.nv`, `src/storage/files_engine_test.nv` | 7 |
+| 12 | `generic_protocol_inference`: a generic function bounded by a protocol with two type parameters (`M Machine[S, B]`), | no workaround in the code | 0 |
+| 13 | `generic_protocol_one_param`: the same with one type parameter (`M Machine[S]`, `S` a sum type). The engine therefore | no workaround in the code | 0 |
 | 14 | `user_output_vs_std_os`: a user type named `Output` (the engine had one) breaks the C (`field has incomplete type | `src/pgconf/settings.nv`, `src/pgdb/config.nv`, `src/pgdb/testkit.nv` | 3 |
 | 15 | `char_param_str_literal`: `trim_end_matches` takes a `char`. A one-character string literal (`"\r"`) is refused by the checker... | no workaround in the code | 0 |
 | 16 | `fluent_assign_back`: the setters of `Command` change it in place and return it (`-> @`); `command = command.arg(a)` | `src/acp/link.nv` | 1 |
@@ -33,7 +33,7 @@ Marks: 35 in 27 files. Items with marks: 22. Items without marks: 39 (no workaro
 | 23 | `handler_op_panic`: the body of an operation of an effect handler that is only `panic(...)`, for an operation that returns | no workaround in the code | 0 |
 | 24 | `handler_op_vec_new`: `return []int.new()` as a statement in the body of a handler operation: the generated C writes | no workaround in the code | 0 |
 | 25 | `nested_module`: a module in a folder two levels under the source root (`src/nested_module/inner/inner.nv`, no `.nv` in the | `src/acp/README.md`, `src/pg/README.md` | 2 |
-| 26 | `typed_state_explicit` (a working sample, PASS): the defects of items 12 and 13 are in the INFERENCE of the type arguments. With... | `src/acp_live/e2e_test.nv`, `src/chat/chat_engine_test.nv`, `src/machine_chat/equal_test.nv`, `src/pgstore/engine_test.nv`, `src/server/alula_test.nv`, `src/server/hub.nv`, `src/storage/files_engine_test.nv` | 7 |
+| 26 | `typed_state_explicit` (a working sample, PASS): the defects of items 12 and 13 are in the INFERENCE of the type arguments. With... | no workaround in the code | 0 |
 | 27 | `option_try_generic_enum`: the operator `?` on an `Option` whose payload is a sum type, in a generic function instantiated with... | no workaround in the code | 0 |
 | 28 | `import_missing_name` (the test PASSES, and it must not): `import m.{Name}` of a name that `m` does not export is accepted. After... | no workaround in the code | 0 |
 | 29 | `user_request_vs_http`, `user_session_vs_postgres`: the table of type names is one for the whole program, dependencies included.... | `src/server/hub.nv` | 1 |

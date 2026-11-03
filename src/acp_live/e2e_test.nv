@@ -24,16 +24,15 @@ fn e2e_config(root str) -> AcpConfig {
     { program: base.program, args: base.args, cwd: base.cwd, inbox_path: "${root}/chat-1.inbox" }
 }
 
-// ORACLE-WORKAROUND(12, 13, 26): Nova 0.1.1 still generates broken C when the type arguments are inferred here (unknown type name `Nova_ChatState_p` in the generated C); the arguments are written out until inference covers this shape (items 12 and 13)
 fn e2e_begin(root str, mut world MemoryWorld, mut client AcpClient) -> Engine[ChatSession, ChatState] {
     with Journal = file_journal(root, "chat-1"), Store = file_store(root), Link = acp_link(client), Time = memory_time(world) {
-        start_engine[ChatState, ChatSession](chat_session(), "chat-1")
+        start_engine(chat_session(), "chat-1")
     }
 }
 
 fn e2e_resume(root str, mut world MemoryWorld, mut client AcpClient) -> Engine[ChatSession, ChatState] {
     with Journal = file_journal(root, "chat-1"), Store = file_store(root), Link = acp_link(client), Time = memory_time(world) {
-        match resume_engine[ChatState, ChatSession](chat_session(), "chat-1") {
+        match resume_engine(chat_session(), "chat-1") {
             Some(e) => e
             None => panic("no snapshot")
         }
