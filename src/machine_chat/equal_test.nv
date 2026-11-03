@@ -3,10 +3,7 @@
 // the engine (journal lines with the envelope, sent and cancelled requests, the outcome, the acknowledgements).
 module crew_harness.machine_chat
 
-// ORACLE-WORKAROUND(32): `std.fs` is imported first in the first file of the unit (its machines are read from the disk, task 248), or `.join` on a `[]str` is E_RECV_METHOD_MISMATCH (spikes/env/README.md, task 116 (e)); drop when item 32 is fixed
 import std.fs.{Path}
-// ORACLE-WORKAROUND(32): `import std.text` is needed in `nova build` for `[]str.join` (a `nova test` build has it already); drop the import when item 32 is fixed
-import std.text
 import std.encoding.json.{Json, JsonObject}
 import crew_harness.product_machines.{test_files, product_registry, chat_machine_text}
 import alula.engine.{Incoming, Order, StepEnvironment, FailCode, journal_line, fail_code_word}
@@ -212,7 +209,7 @@ fn events_of(sc Test) -> []Incoming {
     out
 }
 
-// ORACLE-WORKAROUND(12, 13, 26): the type arguments of `drive_test` are written out here and in the tests below; infer them when items 12 and 13 are fixed
+// ORACLE-WORKAROUND(12, 13, 26): Nova 0.1.1 still generates broken C when the type arguments are inferred here (unknown type name `Nova_ChatState_p` in the generated C); the arguments are written out until inference covers this shape (items 12 and 13)
 fn first_run_diff(sc Test) -> str {
     ro table = table_chat()
     ro nova = drive_test[ChatState, ChatSession](chat_session(), sc)

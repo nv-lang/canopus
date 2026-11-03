@@ -228,20 +228,20 @@ fn jnumber(o JsonObject, key str) -> int {
 
 // ----- the store, by the settings: the same engine over files or over PostgreSQL -----
 
-// ORACLE-WORKAROUND(49, 12, 13, 26): `begin_engine` of the interpreter (private, generic) captured the name, so this is `begin_session_engine`; the type arguments of `start_engine` are written out (the same in `resume_stored` and `decode_snapshot` below); rename it to `begin_engine` when item 49 is fixed and drop the arguments when items 12 and 13 are fixed
+// ORACLE-WORKAROUND(49): `begin_engine` of the interpreter (private, generic) captured the name, so this is `begin_session_engine`; rename it to `begin_engine` when item 49 is fixed
 fn begin_session_engine(pg bool, root str, mut world PgWorld, machine AlulaMachine, id str) Time -> Engine[AlulaMachine, AlulaState] {
     if pg {
         with Journal = pg_journal(world), Store = pg_store(world) {
-            start_engine[AlulaState, AlulaMachine](machine, id)
+            start_engine(machine, id)
         }
     } else {
         with Journal = file_journal(root, id), Store = file_store(root) {
-            start_engine[AlulaState, AlulaMachine](machine, id)
+            start_engine(machine, id)
         }
     }
 }
 
-// ORACLE-WORKAROUND(26): the type arguments of `decode_snapshot` and `resume_engine` are written out; infer them when items 12 and 13 are fixed
+// ORACLE-WORKAROUND(12, 13, 26): Nova 0.1.1 still generates broken C when the type arguments are inferred here (unknown type name `Nova_ChatState_p` in the generated C); the arguments are written out until inference covers this shape (items 12 and 13)
 fn resume_stored(pg bool, root str, mut world PgWorld, machine AlulaMachine, id str) Time -> Option[Engine[AlulaMachine, AlulaState]] {
     if pg {
         with Journal = pg_journal(world), Store = pg_store(world) {
@@ -250,7 +250,7 @@ fn resume_stored(pg bool, root str, mut world PgWorld, machine AlulaMachine, id 
                 None => None
                 Some(snapshot) => match decode_snapshot[AlulaState, AlulaMachine](machine, snapshot) {
                     None => None
-                    Some(state) => resume_engine[AlulaState, AlulaMachine](machine, id)
+                    Some(state) => resume_engine(machine, id)
                 }
             }
         }
@@ -260,7 +260,7 @@ fn resume_stored(pg bool, root str, mut world PgWorld, machine AlulaMachine, id 
                 None => None
                 Some(snapshot) => match decode_snapshot[AlulaState, AlulaMachine](machine, snapshot) {
                     None => None
-                    Some(state) => resume_engine[AlulaState, AlulaMachine](machine, id)
+                    Some(state) => resume_engine(machine, id)
                 }
             }
         }

@@ -117,9 +117,7 @@ test "state text" {
     ro m = chat()
     ro r1 = run1(m, m.initial(), said("вопрос"))
     ro r2 = run1(m, r1.state, chunk("отве"))
-    // ORACLE-WORKAROUND(36): the list of records made by calls is bound before the loop: `for s in [make(1), make(2)]` over an array literal of calls does not compile; loop over the literal when item 36 is fixed
-    ro states = [m.initial(), r1.state, r2.state, run1(m, r2.state, done()).state]
-    for s in states {
+    for s in [m.initial(), r1.state, r2.state, run1(m, r2.state, done()).state] {
         ro text = m.encode_state(s)
         assert(!text.contains("\n"))
         match m.decode_state(text) {

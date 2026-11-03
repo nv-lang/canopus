@@ -9,7 +9,7 @@ import alula.engine.{Engine, MemoryWorld, Incoming, EventKind, FailCode, PartyRe
 
 // ----- helpers: one `with` over the four handlers of a world -----
 
-// ORACLE-WORKAROUND(12, 13, 26): the type arguments of `start_engine` and `resume_engine` are written out here and in the helpers below; infer them when items 12 and 13 are fixed
+// ORACLE-WORKAROUND(12, 13, 26): Nova 0.1.1 still generates broken C when the type arguments are inferred here (unknown type name `Nova_ChatState_p` in the generated C); the arguments are written out until inference covers this shape (items 12 and 13)
 fn begin(mut world MemoryWorld) -> Engine[ChatSession, ChatState] {
     with Journal = memory_journal(world), Store = memory_store(world), Link = memory_link(world), Time = memory_time(world) {
         start_engine[ChatState, ChatSession](chat_session(), "chat-1")
@@ -61,7 +61,6 @@ fn pump(mut e Engine[ChatSession, ChatState], mut world MemoryWorld) -> int {
 fn state_name(e Engine[ChatSession, ChatState]) -> str => chat_session().state_name(e.state())
 
 // The reply of the final answer, None when the session has no answer.
-// ORACLE-WORKAROUND(10): the answer is read with two nested `match`es, one level each, not `Some(Answer(reply))`: a nested pattern over a generic payload binds a NULL pointer in the C; write the nested pattern when item 10 is fixed
 fn reply_of(e Engine[ChatSession, ChatState]) -> Option[Reply[str]] {
     match e.outcome() {
         Some(response) => match response {
@@ -73,7 +72,6 @@ fn reply_of(e Engine[ChatSession, ChatState]) -> Option[Reply[str]] {
 }
 
 // The rejection of the final refusal, None when the session has no refusal.
-// ORACLE-WORKAROUND(10): the answer is read with two nested `match`es, one level each, not `Some(Answer(reply))`: a nested pattern over a generic payload binds a NULL pointer in the C; write the nested pattern when item 10 is fixed
 fn rejection_of(e Engine[ChatSession, ChatState]) -> Option[Rejection] {
     match e.outcome() {
         Some(response) => match response {

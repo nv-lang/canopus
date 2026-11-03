@@ -8,8 +8,7 @@
 // the recognizer as a part of the panel (task 192l): stt {managed, dir, model} / CREW_SERVER_STT_MANAGED, CREW_SERVER_STT_DIR, CREW_SERVER_STT_MODEL, data_dir / CREW_SERVER_DATA_DIR (the pid file).
 // pictures (task 192): max_image_bytes / CREW_SERVER_MAX_IMAGE_BYTES (`/api/session-image`).
 // ORACLE-WORKAROUND(30): the front reads its own part of the settings, because the module of the settings holds the hub, which holds the PostgreSQL driver, and the driver and Polaris cannot be in one program; use `ServerSettings` when item 30 is fixed
-// ORACLE-WORKAROUND(25): the module is declared `module server.front` (without the package prefix) and imported as `crew_harness.server.front`: a module two folders under the source root cannot be declared with the full path; declare it with the prefix when item 25 is fixed
-module server.front
+module crew_harness.server.front
 
 import std.text
 import std.encoding.json.{Json, JsonValue, JsonObject}

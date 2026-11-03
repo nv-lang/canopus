@@ -9,8 +9,7 @@
 // whatever the end of the front is (Ctrl+C, a kill, a crash); the pid file is the second line of defence (a front that is gone and a
 // recognizer that was somehow left): the next start ends it. The manager answers the status route; the state words are
 // `ready` `starting` `failed` `not_installed` `probe` (a foreign recognizer or an unmanaged one: the route probes the address itself).
-// ORACLE-WORKAROUND(25): the module is declared `module server.front` (without the package prefix) and imported as `crew_harness.server.front`: a module two folders under the source root cannot be declared with the full path; declare it with the prefix when item 25 is fixed
-module server.front
+module crew_harness.server.front
 
 import std.text
 import std.concurrency.nvchan.{Chan, ChanTx, ChanRx}
