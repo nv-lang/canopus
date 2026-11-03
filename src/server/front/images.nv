@@ -5,8 +5,7 @@
 // so a screenshot of a megabyte in a line would stop the hub for 40 seconds. The page puts the file by HTTP (raw bytes, no base64, no line), then the
 // message names the picture by its number (`images: [{n, name}]`) and the hub, which shares the data folder, finds the file.
 // This file holds what needs no routes: the check of an upload, the answer, the read of a file. The files and the numbers are `crew_harness.storage` (images.nv there).
-// ORACLE-WORKAROUND(25): the module is declared `module server.front` (without the package prefix) and imported as `crew_harness.server.front`: a module two folders under the source root cannot be declared with the full path; declare it with the prefix when item 25 is fixed
-module server.front
+module crew_harness.server.front
 
 import crew_harness.storage.{image_ext, image_number, save_image, find_image, read_image, valid_session_name}
 import std.encoding.json.{JsonValue, JsonObject}

@@ -9,8 +9,7 @@
 //   GET    /api/fs/git?path=      {"is_repo", "branch"}
 // Every route answers a foreign `Origin` with 403, as `/api/stt` does. The projects are in `<data_dir>/projects.json` (src/projects/store.nv);
 // the front writes the file, the hub reads it when a session of a project is made. An error is `{"error":"<reason>"}`.
-// ORACLE-WORKAROUND(25): the module is declared `module server.front` (without the package prefix) and imported as `crew_harness.server.front`: a module two folders under the source root cannot be declared with the full path; declare it with the prefix when item 25 is fixed
-module server.front
+module crew_harness.server.front
 
 import crew_harness.projects.{Project, StoreFail, Listing, GitState, projects_load, projects_get, projects_create, projects_replace, projects_reorder, projects_delete, projects_list_json, project_json, recent_folders, normalize_folder_path, list_folders, list_roots, git_state, last_dir_load, last_dir_save, last_dir_of_body, existing_ancestor}
 import polaris.{ServerRequest, ServerResponse}

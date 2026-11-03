@@ -3,7 +3,6 @@
 // of the product. The machines of the methodology left the product with task 249 (it closes task 159, their move): they live in the set of the methodology (its repository, `alula-machines/`).
 module crew_harness.machines
 
-// ORACLE-WORKAROUND(32): `std.fs` is imported first in the first file of the unit (the machines are read from the disk, task 248), or `.join` on a `[]str` is E_RECV_METHOD_MISMATCH (spikes/env/README.md, task 116 (e)); drop when item 32 is fixed
 import std.fs.{Path}
 import alula.machine.{NamedText, Registry, text_of_file, load_host}
 import crew_harness.product_machines.{tree_text, tree_paths}

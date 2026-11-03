@@ -1,6 +1,5 @@
 // trace_api_test.nv - the lines of the raw exchange for the page "Запрос" (task 192.11).
-// ORACLE-WORKAROUND(25): the module is declared `module server.front` (without the package prefix): a module two folders under the source root cannot be declared with the full path; declare it with the prefix when item 25 is fixed
-module server.front
+module crew_harness.server.front
 
 fn tr_file() -> str {
     ro word = "tok123"

@@ -1,6 +1,5 @@
 // agent_catalog_test.nv - `GET /api/agent-catalog` (task 192o): the answer for the file of the catalog.
-// ORACLE-WORKAROUND(25): the module is declared `module server.front` (without the package prefix): a module two folders under the source root cannot be declared with the full path; declare it with the prefix when item 25 is fixed
-module server.front
+module crew_harness.server.front
 
 fn file_text() -> str => "{\"agents\":{\"claude\":{\"updated\":5000,\"model_id\":\"sonnet\",\"models\":[{\"id\":\"sonnet\",\"name\":\"Sonnet\"}]},\"kimi\":{\"updated\":6000}}}"
 

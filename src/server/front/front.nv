@@ -12,8 +12,7 @@
 // One fiber, the router, owns the list of the pages (a page = a number, its peer port, and the channel to its writer); the conn
 // fibers register with it through a channel. Nothing is shared.
 // ORACLE-WORKAROUND(30): the front is a program of its own (and the hub another, `src/crew_hub.nv`), because the PostgreSQL driver and Polaris cannot be in one program; one program would do when item 30 is fixed
-// ORACLE-WORKAROUND(25): the module is declared `module server.front` (without the package prefix) and imported as `crew_harness.server.front`: a module two folders under the source root cannot be declared with the full path; declare it with the prefix when item 25 is fixed
-module server.front
+module crew_harness.server.front
 
 import crew_harness.acp.{AgentLink, connect}
 import crew_harness.config.{ConfigLayout, presets_reply}

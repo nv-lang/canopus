@@ -66,16 +66,16 @@ test "hm a term below zero is refused naming the parameter" {
 
 // ----- an engine over the hub machine in memory -----
 
-// ORACLE-WORKAROUND(12, 13, 26): the type arguments of `start_engine`, `resume_engine` and `decode_snapshot` are written out here and below; infer them when items 12 and 13 are fixed
 fn hm_begin(m AlulaMachine, mut world MemoryWorld) -> Engine[AlulaMachine, AlulaState] {
     with Journal = memory_journal(world), Store = memory_store(world), Link = memory_link(world), Time = memory_time(world) {
-        start_engine[AlulaState, AlulaMachine](m, "hub-1")
+// ORACLE-WORKAROUND(12, 13, 26): Nova 0.1.1 still generates broken C when the type arguments are inferred here (unknown type name `Nova_ChatState_p` in the generated C); the arguments are written out until inference covers this shape (items 12 and 13)
+        start_engine(m, "hub-1")
     }
 }
 
 fn hm_resumed(m AlulaMachine, mut world MemoryWorld) -> Option[Engine[AlulaMachine, AlulaState]] {
     with Journal = memory_journal(world), Store = memory_store(world), Link = memory_link(world), Time = memory_time(world) {
-        resume_engine[AlulaState, AlulaMachine](m, "hub-1")
+        resume_engine(m, "hub-1")
     }
 }
 
