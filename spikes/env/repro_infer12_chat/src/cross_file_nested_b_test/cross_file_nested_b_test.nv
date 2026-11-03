@@ -1,0 +1,19 @@
+module repro_infer12_chat.cross_file_nested_b_test
+
+// Live 0.1.1 regression D2 (task 282): editing ONLY the files of ANOTHER unit of the package
+// (cross_file_nested_a -- the role of crew-harness src/chat, whose test file holds the
+// turbofish-less protocol-bound call) breaks the C compilation of THIS unit, which does not
+// contain the call at all: the importing unit inlines the edited module's test file and the
+// specialization of `state_of`/`decode_snapshot` emits `Nova_ChatState_p state` -- CC-FAIL
+// `unknown type name 'Nova_ChatState_p'`. The item-10 nested pattern is NOT involved; the root
+// is shared with D1 (Source 2e binds the SANITIZED Option payload id `Nova_ChatState_p`).
+// Expected: PASS (alone and with the partner unit present).
+
+import repro_infer12_chat.cross_file_nested_a.{ChatState, chat_session, EngineState, state_of, begin}
+
+test "a unit that only imports the edited module" {
+    match state_of[ChatState]("t", 7, chat_session().initial()) {
+        Some(es) => assert(es.step == 7)
+        None => assert(false)
+    }
+}

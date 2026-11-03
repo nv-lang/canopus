@@ -1,0 +1,6 @@
+[package]
+name = "repro_infer12_chat"
+version = "0.1.0"
+
+[lib]
+src = "src"
