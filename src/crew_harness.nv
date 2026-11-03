@@ -12,8 +12,7 @@ module crew_harness.crew_harness
 import crew_harness.server.front.{run_front_with_metadata, front_settings_in, FrontSettings}
 import crew_harness.model_metadata.{MetadataInput, MetadataHook, static_hook, default_opencode_program}
 import crew_harness.config.{split_cli_args, crew_home, layout_in, find_project_dir, work_dir_now, config_list, config_get, config_set, doctor, command_layers, effective_entries, plan_migration, plan_text, run_migration, ConfigLayout, CliArgs}
-import std.os.{args, exit_process, env, real_os}
-import std.fs.{real_fs}
+import std.os.{args, exit_process, env}
 import std.io.{stderr}
 import std.time.{Time}
 
@@ -99,7 +98,9 @@ fn cmd_serve(cli CliArgs) Proc Net Time Detach Io Os Fs -> () {
             // the effects of metadata_input_of are already in this signature; the handler comes
             // from the caller (one with at the entry, the module-conventions rule)
             ro input = metadata_input_of(settings)
-            ro hook = with Fs = real_fs() { match input { Some(i) => static_hook(i), None => None } }
+            // the effect is in this signature already; the handler comes from the caller
+            // (one with at the entry - the module-conventions rule), no per-call wrapper
+            ro hook = match input { Some(i) => static_hook(i), None => None }
             run_front_with_metadata(settings, file, pass, hook)
         }
     }
