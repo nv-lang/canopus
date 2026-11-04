@@ -24,7 +24,9 @@ export fn tk_same_repo(a str, b str) Proc -> bool {
     left.byte_len() > 0 && left == right
 }
 
+// D454: boundary override inside non-test code, see module-conventions
 export fn tk_common_dir(dir str) Proc -> str => with Os = real_os(), Fs = real_fs() { tw_common_dir(dir).to_ascii_lower() }
+// D454: boundary override inside non-test code, see module-conventions
 export fn tk_canon(dir str) -> str => with Fs = real_fs() { tw_canon(dir) }
 
 /// The names of the task branches (`task/007-x` as `007-x`, also those of `origin`), for the number of the next task.
@@ -114,6 +116,7 @@ fn tk_failed(text str) -> TkTree => { ok: false, branch: "", worktree: "", base:
 
 /// A tree for the task `number` `slug`: branch `task/<number>-<slug>`, the folder in the folder of the trees of the project (`trees`, see `worktrees_dir`; empty - next to the repository).
 export fn tk_task_tree(main_copy str, number str, slug str, trees str) Proc -> TkTree {
+    // D454: boundary override inside non-test code, see module-conventions
     ro made = with Os = real_os(), Fs = real_fs() { task_tree_create(main_copy, number, slug, trees) }
     match made {
         Ok(t) => { ok: true, branch: t.branch, worktree: t.path, base: t.base, text: t.note }
@@ -123,6 +126,7 @@ export fn tk_task_tree(main_copy str, number str, slug str, trees str) Proc -> T
 
 /// A tree for a work that is not a task yet (task 192.4): NO branch (a detached head), the folder `<repo>-<name>` next to the others, cut from a fresh `origin/main`.
 export fn tk_wip_tree(main_copy str, name str, trees str) Proc -> TkTree {
+    // D454: boundary override inside non-test code, see module-conventions
     ro made = with Os = real_os(), Fs = real_fs() { wip_tree_create(main_copy, name, trees) }
     match made {
         Ok(t) => { ok: true, branch: t.branch, worktree: t.path, base: t.base, text: t.note }
@@ -132,6 +136,7 @@ export fn tk_wip_tree(main_copy str, name str, trees str) Proc -> TkTree {
 
 /// Make the branch of the task in a wip tree (`git switch -c task/NNN-slug` on the detached head); the tree stays.
 export fn tk_branch_create(tree str, to str) Proc -> ShellOut {
+    // D454: boundary override inside non-test code, see module-conventions
     match with Os = real_os(), Fs = real_fs() { branch_create(tree, to) } {
         Ok(done) => { ok: true, text: "" }
         Err(e) => { ok: false, text: e }
@@ -140,6 +145,7 @@ export fn tk_branch_create(tree str, to str) Proc -> ShellOut {
 
 /// A tree for the subtask `n`: branch `<task branch>-s<n>` from the head of the task, the folder `<tree of the task>-s<n>`.
 export fn tk_subtask_tree(task_tree str, number str, slug str, n int) Proc -> TkTree {
+    // D454: boundary override inside non-test code, see module-conventions
     ro made = with Os = real_os(), Fs = real_fs() { subtask_tree_create(task_tree, number, slug, n) }
     match made {
         Ok(t) => { ok: true, branch: t.branch, worktree: t.path, base: t.base, text: "" }
@@ -158,16 +164,19 @@ fn tk_merge_of(r MergeResult) -> TkMerge {
 
 /// Merge the branch of a subtask into the tree of the task (`--no-ff`); a conflict is left in progress for the agent.
 export fn tk_merge(task_tree str, sub_branch str, message str) Proc -> TkMerge {
+    // D454: boundary override inside non-test code, see module-conventions
     tk_merge_of(with Os = real_os(), Fs = real_fs() { subtask_merge(task_tree, sub_branch, message) })
 }
 
 /// Finish a merge whose conflicts were resolved.
 export fn tk_merge_finish(task_tree str) Proc -> TkMerge {
+    // D454: boundary override inside non-test code, see module-conventions
     tk_merge_of(with Os = real_os(), Fs = real_fs() { subtask_merge_finish(task_tree) })
 }
 
 /// Abandon a merge in the tree of the task.
 export fn tk_merge_abort(task_tree str) Proc -> ShellOut {
+    // D454: boundary override inside non-test code, see module-conventions
     match with Os = real_os(), Fs = real_fs() { subtask_merge_abort(task_tree) } {
         Ok(done) => { ok: true, text: "" }
         Err(e) => { ok: false, text: e }
@@ -176,6 +185,7 @@ export fn tk_merge_abort(task_tree str) Proc -> ShellOut {
 
 /// Remove the tree and the branch of a merged subtask.
 export fn tk_subtree_remove(task_tree str, sub_tree str, sub_branch str) Proc -> ShellOut {
+    // D454: boundary override inside non-test code, see module-conventions
     match with Os = real_os(), Fs = real_fs() { subtask_tree_remove(task_tree, sub_tree, sub_branch) } {
         Ok(done) => { ok: true, text: "" }
         Err(e) => { ok: false, text: e }
@@ -184,12 +194,14 @@ export fn tk_subtree_remove(task_tree str, sub_tree str, sub_branch str) Proc ->
 
 /// The number of the commits of the tree that are not in `origin/main`; 0 when git cannot tell.
 export fn tk_unmerged(tree str) Proc -> int {
+    // D454: boundary override inside non-test code, see module-conventions
     ro n = with Os = real_os(), Fs = real_fs() { unmerged_count(tree) }
     if n < 0 { 0 } else { n }
 }
 
 /// The changed files of the tree with the lines added and removed.
 export fn tk_diff(tree str) Proc -> []DiffRec {
+    // D454: boundary override inside non-test code, see module-conventions
     ro stats = with Os = real_os(), Fs = real_fs() { diff_stat(tree) }
     mut out = []DiffRec.new()
     for d in stats { out.push(DiffRec { path: d.path, added: d.added, removed: d.removed }) }
@@ -204,6 +216,7 @@ export fn tk_diff_text(tree str) Proc -> str {
 }
 
 /// No change and no new file in the tree.
+// D454: boundary override inside non-test code, see module-conventions
 export fn tk_clean(tree str) Proc -> bool => with Os = real_os(), Fs = real_fs() { is_clean(tree) }
 
 /// The files a subtask says it touches (the section `Затрагивает:` of its progress file).
@@ -232,14 +245,18 @@ fn tk_published_of(r PublishResult) -> TkPublish {
 /// were resolved, stops at "tests" again), "final" (the tests are green: the push, the main copy, the clean-up).
 export fn tk_publish(task_tree str, main_copy str, mode str) Proc -> TkPublish {
     if mode == "merge" {
+        // D454: boundary override inside non-test code, see module-conventions
         return tk_published_of(with Os = real_os(), Fs = real_fs() { publish(task_tree, main_copy, tk_tests_green) })
     }
     if mode == "start" {
+        // D454: boundary override inside non-test code, see module-conventions
         return tk_published_of(with Os = real_os(), Fs = real_fs() { publish(task_tree, main_copy, tk_tests_pending) })
     }
     if mode == "continue" {
+        // D454: boundary override inside non-test code, see module-conventions
         return tk_published_of(with Os = real_os(), Fs = real_fs() { publish_continue(task_tree, main_copy, tk_tests_pending) })
     }
+    // D454: boundary override inside non-test code, see module-conventions
     tk_published_of(with Os = real_os(), Fs = real_fs() { publish_continue(task_tree, main_copy, tk_tests_green) })
 }
 
@@ -264,6 +281,7 @@ export type TkAuto { status str, files int, text str }
 
 /// Commit all the agent changed and did not commit, in one commit (`git commit -s`, the files named in a list, never `add -A`); `number` and `slug` make the subject in English.
 export fn tk_autocommit(tree str, number str, slug str) Proc -> TkAuto {
+    // D454: boundary override inside non-test code, see module-conventions
     ro r = with Os = real_os(), Fs = real_fs() { autocommit(tree, commit_subject(number, slug)) }
     { status: r.status, files: r.files, text: r.text }
 }
@@ -286,6 +304,7 @@ export fn tk_head_time(tree str) Proc -> int {
 
 /// The last run of CI of main as a record of the tests (`has` false - no data).
 export fn tk_main_ci(main_copy str) Proc -> TestsRec {
+    // D454: boundary override inside non-test code, see module-conventions
     ro run = with Os = real_os(), Fs = real_fs() { ci_latest(main_copy) }
     if !run.found { return tests_rec_none() }
     if run.conclusion == "success" { return TestsRec { has: true, commit: run.sha, at: run.at, result: "green", command: "CI" } }
@@ -302,6 +321,7 @@ export fn tk_wip_plan(main_copy str, name str, trees str) Proc -> TkPlan {
 }
 
 export fn tk_wip_plan_from(main_copy str, name str, trees str, source str) Proc -> TkPlan {
+    // D454: boundary override inside non-test code, see module-conventions
     match with Os = real_os(), Fs = real_fs() { wip_tree_plan_from(main_copy, name, trees, source) } {
         Ok(p) => { ok: true, plan: p, text: "" }
         Err(e) => { ok: false, plan: WipPlan { dir: "", path: "", base: "", reuse: false, origin: false }, text: e }
@@ -309,6 +329,7 @@ export fn tk_wip_plan_from(main_copy str, name str, trees str, source str) Proc 
 }
 
 fn tk_workspace_source(dir str, source str) Proc -> str {
+    // D454: boundary override inside non-test code, see module-conventions
     match with Os = real_os(), Fs = real_fs() { workspace_source(dir, source) } {
         Ok(commit) => ""
         Err(reason) => reason

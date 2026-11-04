@@ -72,6 +72,7 @@ export fn trace_slice(root str, session str, from int, to int) -> str {
         Some(p) => p
         None => return trace_failure("the session id is not a safe name")
     }
+    // D454: boundary override inside non-test code, see module-conventions (Fs would leak to the polaris Handler route closure)
     ro text = with Fs = real_fs() {
         match read_text(path) {
             Ok(t) => Some(t)

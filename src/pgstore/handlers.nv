@@ -109,6 +109,7 @@ fn stop_text(what str, world PgWorld, f PgFault) -> str =>
 export fn pg_journal(mut world PgWorld) -> Effect[Journal] {
     effect Journal {
         write(entry) -> () {
+            // D454: boundary override inside non-test code, see module-conventions (the op body of a handler literal cannot declare the effect in its signature)
             with Net = real_net() {
                 match pg_write(world, entry) {
                     Ok(done) => ()
@@ -117,6 +118,7 @@ export fn pg_journal(mut world PgWorld) -> Effect[Journal] {
             }
         }
         read_all() -> []JournalEntry {
+            // D454: boundary override inside non-test code, see module-conventions (the op body of a handler literal cannot declare the effect in its signature)
             with Net = real_net() {
                 match pg_read_all(world) {
                     Ok(entries) => entries
@@ -132,6 +134,7 @@ export fn pg_journal(mut world PgWorld) -> Effect[Journal] {
 export fn pg_store(mut world PgWorld) -> Effect[Store] {
     effect Store {
         save(id, snapshot) -> () {
+            // D454: boundary override inside non-test code, see module-conventions (the op body of a handler literal cannot declare the effect in its signature)
             with Net = real_net() {
                 match pg_commit(world, id, snapshot) {
                     Ok(done) => ()
@@ -140,6 +143,7 @@ export fn pg_store(mut world PgWorld) -> Effect[Store] {
             }
         }
         load(id) -> Option[Snapshot] {
+            // D454: boundary override inside non-test code, see module-conventions (the op body of a handler literal cannot declare the effect in its signature)
             with Net = real_net() {
                 match pg_load_snapshot(world, id) {
                     Ok(found) => found

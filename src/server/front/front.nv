@@ -277,7 +277,7 @@ fn ws_route(hub_tx ChanTx[str], reg_tx ChanTx[Reg], port int) -> fn(ServerReques
             Ok(up) => {
                 mut resp = up.accept_response(None)
                 resp.upgrade(fn(stream TcpStream) Net -> () {
-                    with Net = real_net() { serve_page(stream, hub_tx, reg_tx) }
+                    serve_page(stream, hub_tx, reg_tx)
                 })
                 resp
             }
@@ -342,6 +342,7 @@ fn trace_route(data_dir str, port int) -> fn(ServerRequest) -> ServerResponse {
 fn presets_route(layout ConfigLayout, active str, order []str, port int) -> fn(ServerRequest) -> ServerResponse {
     fn(req ServerRequest) -> ServerResponse {
         if !origin_allowed(req, port) { return json_reply(403, "{\"error\":\"origin not allowed\"}") }
+        // D454: boundary override inside non-test code, see module-conventions (polaris Handler is effect-free)
         json_reply(200, with Fs = real_fs() { presets_reply(layout, order, active) })
     }
 }
@@ -352,6 +353,7 @@ fn presets_route(layout ConfigLayout, active str, order []str, port int) -> fn(S
 fn catalog_route(cache_dir str, port int) -> fn(ServerRequest) -> ServerResponse {
     fn(req ServerRequest) -> ServerResponse {
         if !origin_allowed(req, port) { return json_reply(403, "{\"error\":\"origin not allowed\"}") }
+        // D454: boundary override inside non-test code, see module-conventions (polaris Handler is effect-free)
         ro file = with Fs = real_fs() {
             match read_text(Path.from_bytes("${cache_dir}/agents.json".bytes())) {
                 Ok(text) => Some(text)
@@ -373,6 +375,7 @@ fn model_metadata_route(source Option[MetadataHook], port int) -> fn(ServerReque
             Some(hook) => hook
             None => return json_reply(200, model_metadata_reply(None, None, 0))
         }
+        // D454: boundary override inside non-test code, see module-conventions (polaris Handler is effect-free)
         ro file Option[str] = with Fs = real_fs() { read_metadata_snapshot(configured.snapshot_path) }
         match file {
             None => json_reply(200, model_metadata_reply(None, None, 0))
@@ -388,9 +391,13 @@ fn model_metadata_route(source Option[MetadataHook], port int) -> fn(ServerReque
 // family/launch/config/location (static_hook at the start), the file is written by the deployment
 // watcher from the real native server, and the freshness window of the envelope is the live gate.
 fn hook_with_digest(base MetadataHook, snapshot str) -> MetadataHook {
-    mut hook = base
-    hook.snapshot_sha256 = Sha256.hash_str(snapshot.bytes())
-    hook
+    // a fresh record, not a mutation of the ro parameter (D246: no ro-launder via mut-binding)
+    MetadataHook {
+        expected: base.expected,
+        observed: base.observed,
+        snapshot_path: base.snapshot_path,
+        snapshot_sha256: Sha256.hash_str(snapshot.bytes()),
+    }
 }
 
 // ----- the voice: POST /api/stt and GET /api/stt/status (task 192f) -----
@@ -415,6 +422,7 @@ fn stt_recognize(target SttTarget, audio []u8, language str) -> ServerResponse {
     if audio.len() > STT_MAX_AUDIO { return stt_failure(413, "the audio is too long") }
     if !stt_is_wav(audio) { return stt_failure(400, "the body must be a WAV file (16 kHz, mono, 16 bit)") }
     if !stt_language_ok(language) { return stt_failure(400, "the language must be 2 to 8 letters, as ru, en or auto") }
+    // D454: boundary override inside non-test code, see module-conventions (Net would leak to the polaris Handler route closure)
     ro exchanged = with Net = real_net() { stt_exchange(target, stt_request(target, STT_BOUNDARY, audio, language)) }
     match exchanged {
         Err(reason) => stt_failure(503, reason)
@@ -619,11 +627,11 @@ export fn run_front_with_metadata(settings FrontSettings, config_file str, passt
             ro registrations = Chan[Reg].new(256)
             detach { route_loop(link, registrations.rx) }
             ro stt_asks = Chan[SttAsk].new(16)
-            detach { with Net = real_net() { stt_prober(settings.stt_url, stt_asks.rx) } }
+            detach { stt_prober(settings.stt_url, stt_asks.rx) }
             // the recognizer is a part of the panel (task 192l): started here, ended with the front (sttproc.nv)
             ro stt_mgr = Chan[SttMgrAsk].new(16)
             ro stt_cfg = SttConfig { managed: settings.stt_managed, dir: settings.stt_dir, model: settings.stt_model, language: settings.stt_language, url: settings.stt_url, pid_file: "${settings.layout.state}/stt.pid" }
-            detach { with Net = real_net(), Fs = real_fs() { stt_manage(stt_cfg, stt_mgr.rx) } }
+            detach { stt_manage(stt_cfg, stt_mgr.rx) }
             match build_router(settings.web_dir, settings.port, link.out, registrations.tx, settings.agents, settings.stt_url, settings.stt_language, settings.stt_model, stt_asks.tx, stt_mgr.tx, settings.data_dir, settings.max_image_bytes, settings.layout, settings.preset, settings.reviewer_order, meta_source) {
                 Err(e) => {
                     log_line("the routes cannot be set: ${e}")

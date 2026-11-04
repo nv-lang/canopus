@@ -338,6 +338,7 @@ export fn scenario_route_nosteps(settings ServerSettings) Proc Detach Time Net F
 // ----- a temporary repository -----
 
 fn rk_root(name str) -> str {
+    // D454: boundary override inside non-test code, see module-conventions (Os/Fs would leak through kit_routes_git into named fn kit_routes_children in child_kit.nv)
     ro base = with Os = real_os() { temp_dir() }
     ro id = with Os = real_os() { pid() }
     ro dir = base.join("crew-routes-git-${id}-${name}")

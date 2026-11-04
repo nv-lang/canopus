@@ -13,6 +13,7 @@ fn rr_str(o JsonObject, key str) -> str => match o.get(key) { Some(v) => v.str()
 fn rr_put(mut o JsonObject, key str, text str) -> () { ro old = o.insert(key, JsonValue.str(text)) }
 
 fn rr_git(dir str, args []str) Proc -> Result[str, str] {
+    // D454: boundary override inside non-test code, see module-conventions (Os would leak to external named callers of result_repo_inspect)
     with Os = real_os() {
         mut command = Command.new("git")
         command.arg("-C")
@@ -35,6 +36,7 @@ fn rr_git(dir str, args []str) Proc -> Result[str, str] {
 }
 
 fn rr_canon(path str) -> Result[str, str] {
+    // D454: boundary override inside non-test code, see module-conventions (Fs would leak to external named callers of result_repo_inspect)
     with Fs = real_fs() {
         match canonicalize(Path.from_bytes(path.bytes())) {
             Ok(p) => {
@@ -80,6 +82,7 @@ fn rr_file(root str, id str) -> Path => Path.from_bytes(root.bytes()).join("resu
 
 export fn result_repo_get(root str, id str) -> Result[ResultRepo, str] {
     if !valid_project_id(id) { return Err("unknown result repository id") }
+    // D454: boundary override inside non-test code, see module-conventions (Fs would leak to result_repo_validate whose callers are outside this file set)
     with Fs = real_fs() {
         ro text = match read_text(rr_file(root, id)) { Ok(t) => t, Err(e) => return Err("the result repository is not registered") }
         ro value = match Json.parse(text) { Ok(v) => v, Err(e) => return Err("the result registry is invalid") }
@@ -110,6 +113,7 @@ export fn result_repo_register(root str, input JsonObject) Proc Time -> Result[R
     rr_put(o, "word", "подтверждаю")
     rr_put(o, "source", "owner-page-local-trust")
     ro old = o.insert("at", JsonValue.int(Time.now().unix_millis()))
+    // D454: boundary override inside non-test code, see module-conventions (Fs would leak to external named callers of result_repo_register)
     with Fs = real_fs() {
         ro parent = Path.from_bytes(root.bytes()).join("result-repositories")
         match create_dir_all(parent) { Ok(done) => (), Err(e) => return Err("cannot create the result registry") }
@@ -121,15 +125,13 @@ export fn result_repo_register(root str, input JsonObject) Proc Time -> Result[R
     Ok(r)
 }
 
-export fn result_repos_list(root str) -> []ResultRepo {
+export fn result_repos_list(root str) Fs -> []ResultRepo {
     mut rows = []ResultRepo.new()
-    with Fs = real_fs() {
-        ro entries = match read_dir(Path.from_bytes(root.bytes()).join("result-repositories")) { Ok(e) => e, Err(e) => return rows }
-        for entry in entries {
-            ro name = entry.name_str() ?? ""
-            if name.ends_with(".json") {
-                match result_repo_get(root, name[..name.byte_len() - 5]) { Ok(r) => rows.push(r), Err(e) => () }
-            }
+    ro entries = match read_dir(Path.from_bytes(root.bytes()).join("result-repositories")) { Ok(e) => e, Err(e) => return rows }
+    for entry in entries {
+        ro name = entry.name_str() ?? ""
+        if name.ends_with(".json") {
+            match result_repo_get(root, name[..name.byte_len() - 5]) { Ok(r) => rows.push(r), Err(e) => () }
         }
     }
     rows

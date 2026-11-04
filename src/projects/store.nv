@@ -50,6 +50,7 @@ fn hex_digit(v int) -> str {
 
 /// A new id: 12 hex digits of the system randomness.
 export fn new_project_id() -> str {
+    // D454: boundary override inside non-test code, see module-conventions (Random would leak to external named callers of result_repo_register)
     ro bytes = with Random = real_random() { Random.bytes(6) }
     consume sb = StringBuilder.new()
     for b in bytes {
@@ -241,6 +242,7 @@ fn file_path(root str) -> Path => Path.from_bytes(root.bytes()).join("projects.j
 
 /// The projects of the file; a file that is not there is an empty list; a file that is broken is `Err` with the reason.
 export fn projects_load(root str) -> Result[[]Project, StoreFail] {
+    // D454: boundary override inside non-test code, see module-conventions (Fs would leak to named callers in hub.nv and front/projects_api.nv)
     mut list = []Project.new()
     with Fs = real_fs() {
         ro there = match try_exists(file_path(root)) {
@@ -317,6 +319,7 @@ export fn projects_save(root str, list []Project) -> Result[(), StoreFail] {
     for p in list { order.push(JsonValue.str(p.id)) }
     jput(o, "order", JsonValue.array(order))
     ro text = JsonValue.object(o).to_str()
+    // D454: boundary override inside non-test code, see module-conventions (Fs would leak through projects_create/replace/delete to named callers outside this file set)
     with Fs = real_fs() {
         match create_dir_all(Path.from_bytes(root.bytes())) {
             Ok(done) => ()
@@ -424,22 +427,21 @@ export fn project_has_folder(p Project, path str) -> bool {
 fn last_dir_file(root str) -> Path => Path.from_bytes(root.bytes()).join("last_dir.txt")
 
 /// The remembered folder, "" when nothing was chosen yet.
-export fn last_dir_load(root str) -> str {
-    with Fs = real_fs() {
-        ro there = match try_exists(last_dir_file(root)) {
-            Ok(b) => b
-            Err(e) => false
-        }
-        if !there { return "" }
-        match read_text(last_dir_file(root)) {
-            Ok(t) => t.trim_ascii()
-            Err(e) => ""
-        }
+export fn last_dir_load(root str) Fs -> str {
+    ro there = match try_exists(last_dir_file(root)) {
+        Ok(b) => b
+        Err(e) => false
+    }
+    if !there { return "" }
+    match read_text(last_dir_file(root)) {
+        Ok(t) => t.trim_ascii()
+        Err(e) => ""
     }
 }
 
 /// Remember the folder (best effort: a failure to write loses only the convenience).
 export fn last_dir_save(root str, dir str) -> () {
+    // D454: boundary override inside non-test code, see module-conventions (Fs would leak to named fn remember_dir in front/projects_api.nv)
     with Fs = real_fs() {
         match create_dir_all(Path.from_bytes(root.bytes())) {
             Ok(done) => ()
