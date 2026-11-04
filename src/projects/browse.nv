@@ -56,37 +56,35 @@ export fn parent_of(path str) -> Option[str] {
 }
 
 /// The folders of `path` (absolute, `/` or `\` between the names): `Err` says why it cannot be shown.
-export fn list_folders(path str) -> Result[Listing, str] {
+export fn list_folders(path str) Fs -> Result[Listing, str] {
     ro normal = normalize_folder_path(path)?
     mut names = []str.new()
     mut cut = false
-    with Fs = real_fs() {
-        ro dir = Path.from_bytes(normal.bytes())
-        match metadata(dir) {
-            Ok(meta) => { if !meta.is_dir() { return Err("это не папка") } }
-            Err(e) => return Err("папки нет или нет доступа")
-        }
-        match read_dir(dir) {
-            Err(e) => return Err("папка не читается")
-            Ok(entries) => {
-                for entry in entries {
-                    match entry.name_str() {
-                        Some(name) => {
-                            // a link to a folder is a folder; a file, or a link to a file, is not shown
-                            ro folder = if entry.is_dir() {
-                                true
-                            } else if entry.is_symlink() {
-                                match metadata(dir.join(name)) {
-                                    Ok(meta) => meta.is_dir()
-                                    Err(e) => false
-                                }
-                            } else {
-                                false
+    ro dir = Path.from_bytes(normal.bytes())
+    match metadata(dir) {
+        Ok(meta) => { if !meta.is_dir() { return Err("это не папка") } }
+        Err(e) => return Err("папки нет или нет доступа")
+    }
+    match read_dir(dir) {
+        Err(e) => return Err("папка не читается")
+        Ok(entries) => {
+            for entry in entries {
+                match entry.name_str() {
+                    Some(name) => {
+                        // a link to a folder is a folder; a file, or a link to a file, is not shown
+                        ro folder = if entry.is_dir() {
+                            true
+                        } else if entry.is_symlink() {
+                            match metadata(dir.join(name)) {
+                                Ok(meta) => meta.is_dir()
+                                Err(e) => false
                             }
-                            if folder { names.push(name) }
+                        } else {
+                            false
                         }
-                        None => ()
+                        if folder { names.push(name) }
                     }
+                    None => ()
                 }
             }
         }
@@ -108,6 +106,7 @@ export fn list_folders(path str) -> Result[Listing, str] {
 
 /// The roots: the drives that exist (`C:/`, `C:/` ...); on a system without drives, `/`.
 export fn list_roots() -> []str {
+    // D454: boundary override inside non-test code, see module-conventions (Fs would leak to named fn fs_roots_json in front/projects_api.nv)
     mut roots = []str.new()
     with Fs = real_fs() {
         ro letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -167,6 +166,7 @@ fn head_file(dir Path, dot_git Path) Fs -> Option[Path] {
 
 /// Is `path` in a git repository, and on which branch? The folders above it are looked at too, as git does.
 export fn git_state(path str) -> GitState {
+    // D454: boundary override inside non-test code, see module-conventions (Fs would leak through project_json/projects_save to named callers outside this file set)
     ro normal = match normalize_folder_path(path) {
         Ok(p) => p
         Err(e) => return GitState { is_repo: false, branch: "" }
@@ -200,7 +200,7 @@ export fn git_state(path str) -> GitState {
 }
 
 /// The nearest folder that is there: `path` itself, else its nearest existing parent; "" when none (the caller shows the roots).
-export fn existing_ancestor(path str) -> str {
+export fn existing_ancestor(path str) Fs -> str {
     mut cur = path
     while cur.byte_len() > 0 {
         match list_folders(cur) {

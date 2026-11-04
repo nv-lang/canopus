@@ -9,7 +9,7 @@
 // left where it is and is told in `kept`: nothing is overwritten. A second run finds nothing to move and changes nothing.
 module crew_harness.storage
 
-import std.fs.{Fs, real_fs, Path, read_dir, rename, try_exists}
+import std.fs.{Fs, Path, read_dir, rename, try_exists}
 
 /// Migration: the result of one run. `sessions` - how many sessions had at least one thing moved, `moved` - how many things in all,
 /// `kept` - one line for every flat file that was left in place.
@@ -89,44 +89,42 @@ fn item_ids(items []FlatItem) -> []str {
 
 /// Move the flat files of the older form into the folders of their sessions. A data folder that does not exist has nothing to move.
 /// Only names of the exact old form are touched (`<safe id>` + one of the suffixes, a folder only for `.images`); every other file stays.
-export fn migrate_flat_sessions(root str) -> Migration {
+export fn migrate_flat_sessions(root str) Fs -> Migration {
     mut sessions = 0
     mut moved = 0
     mut kept = []str.new()
-    with Fs = real_fs() {
-        ro items = flat_items(root)
-        ro kind_count = flat_kinds().len()
-        for id in item_ids(items) {
-            if !ensure_session_dir(root, id) {
-                kept.push("the folder of the session ${id} cannot be made: its flat files stay where they are")
-            } else {
-                mut rank = 0
-                mut session_moved = 0
-                // in the order of the kinds: the snapshot is the last
-                while rank < kind_count {
-                    for item in items {
-                        if item.id == id && item.rank == rank {
-                            ro from = Path.from_bytes(root.bytes()).join(item.flat)
-                            match session_file(root, id, item.name) {
-                                None => ()
-                                Some(to) => {
-                                    if is_there(to) {
-                                        kept.push("${item.flat} stays in place: ${id}/${item.name} is there already")
-                                    } else {
-                                        match rename(from, to) {
-                                            Ok(done) => { session_moved += 1 }
-                                            Err(e) => { kept.push("${item.flat} stays in place: it cannot be moved to ${id}/${item.name}") }
-                                        }
+    ro items = flat_items(root)
+    ro kind_count = flat_kinds().len()
+    for id in item_ids(items) {
+        if !ensure_session_dir(root, id) {
+            kept.push("the folder of the session ${id} cannot be made: its flat files stay where they are")
+        } else {
+            mut rank = 0
+            mut session_moved = 0
+            // in the order of the kinds: the snapshot is the last
+            while rank < kind_count {
+                for item in items {
+                    if item.id == id && item.rank == rank {
+                        ro from = Path.from_bytes(root.bytes()).join(item.flat)
+                        match session_file(root, id, item.name) {
+                            None => ()
+                            Some(to) => {
+                                if is_there(to) {
+                                    kept.push("${item.flat} stays in place: ${id}/${item.name} is there already")
+                                } else {
+                                    match rename(from, to) {
+                                        Ok(done) => { session_moved += 1 }
+                                        Err(e) => { kept.push("${item.flat} stays in place: it cannot be moved to ${id}/${item.name}") }
                                     }
                                 }
                             }
                         }
                     }
-                    rank += 1
                 }
-                if session_moved > 0 { sessions += 1 }
-                moved += session_moved
+                rank += 1
             }
+            if session_moved > 0 { sessions += 1 }
+            moved += session_moved
         }
     }
     Migration { sessions, moved, kept }

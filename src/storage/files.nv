@@ -20,15 +20,13 @@ import std.fs.{Fs, real_fs, File, Path, read, read_dir, create_dir_all, rename, 
 import std.io.{write_all}
 
 /// The data folder: created with its parents; false when it cannot be (a file is in the way, no rights).
-export fn open_data_dir(root str) -> bool {
+export fn open_data_dir(root str) Fs -> bool {
     ro path = Path.from_bytes(root.bytes())
-    with Fs = real_fs() {
-        match create_dir_all(path) {
+    match create_dir_all(path) {
+        Err(e) => false
+        Ok(done) => match metadata(path) {
+            Ok(meta) => meta.is_dir()
             Err(e) => false
-            Ok(done) => match metadata(path) {
-                Ok(meta) => meta.is_dir()
-                Err(e) => false
-            }
         }
     }
 }
@@ -184,6 +182,7 @@ export fn file_journal(root str, session str) -> Effect[Journal] {
     ro path = path_or_stop(root, session, "journal")
     effect Journal {
         write(entry) -> () {
+            // D454: boundary override inside non-test code, see module-conventions (the op body of a handler literal cannot declare the effect in its signature)
             with Fs = real_fs() {
                 if !append_in_session(root, session, path, journal_line(entry)) {
                     panic("the journal cannot be written: ${path.display()}")
@@ -192,6 +191,7 @@ export fn file_journal(root str, session str) -> Effect[Journal] {
         }
         read_all() -> []JournalEntry {
             mut out = []JournalEntry.new()
+            // D454: boundary override inside non-test code, see module-conventions (the op body of a handler literal cannot declare the effect in its signature)
             with Fs = real_fs() {
                 for line in read_lines(path) {
                     match parse_journal_line(line) {
@@ -213,6 +213,7 @@ export fn file_store(root str) -> Effect[Store] {
     effect Store {
         save(id, snapshot) -> () {
             ro path = path_or_stop(root, id, "snapshot")
+            // D454: boundary override inside non-test code, see module-conventions (the op body of a handler literal cannot declare the effect in its signature)
             with Fs = real_fs() {
                 if !ensure_session_dir(root, id) || !replace_file(path, snapshot_text(snapshot)) {
                     panic("the snapshot cannot be saved: ${path.display()}")
@@ -223,6 +224,7 @@ export fn file_store(root str) -> Effect[Store] {
             match session_file(root, id, "snapshot") {
                 None => None
                 Some(path) => {
+                    // D454: boundary override inside non-test code, see module-conventions (the op body of a handler literal cannot declare the effect in its signature)
                     with Fs = real_fs() {
                         match read(path) {
                             Err(e) => None
@@ -240,25 +242,23 @@ export fn file_store(root str) -> Effect[Store] {
 
 /// The ids of the sessions in the data folder: the folders that hold a `snapshot` file, in the order of the names. A folder
 /// that does not exist has none. A name that is not a safe session name is not a session.
-export fn list_sessions(root str) -> []str {
+export fn list_sessions(root str) Fs -> []str {
     mut names = []str.new()
-    with Fs = real_fs() {
-        match read_dir(Path.from_bytes(root.bytes())) {
-            Err(e) => ()
-            Ok(entries) => {
-                for entry in entries {
-                    match entry.name_str() {
-                        Some(id) => if entry.is_dir() && valid_session_name(id) {
-                            match session_file(root, id, "snapshot") {
-                                Some(snapshot) => match try_exists(snapshot) {
-                                    Ok(there) => { if there { names.push(id) } }
-                                    Err(e) => ()
-                                }
-                                None => ()
+    match read_dir(Path.from_bytes(root.bytes())) {
+        Err(e) => ()
+        Ok(entries) => {
+            for entry in entries {
+                match entry.name_str() {
+                    Some(id) => if entry.is_dir() && valid_session_name(id) {
+                        match session_file(root, id, "snapshot") {
+                            Some(snapshot) => match try_exists(snapshot) {
+                                Ok(there) => { if there { names.push(id) } }
+                                Err(e) => ()
                             }
+                            None => ()
                         }
-                        None => ()
                     }
+                    None => ()
                 }
             }
         }

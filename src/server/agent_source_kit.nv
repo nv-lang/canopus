@@ -1,8 +1,11 @@
 // Integration scenario using the existing real ACP process fixture (task 269).
 module crew_harness.server
 
+// ORACLE-WORKAROUND(32): std.fs imported first in the first file of the unit, or .join on []str resolves into Path (last-wins) — the item-32 family returned on the 0.1.2 toolchain
+import std.fs
 import crew_harness.config.{layout_with_data_dir}
 import alula.engine.{EventKind}
+import std.fs
 import std.encoding.json.{JsonObject}
 
 // The shared kit_ask gathers chunks by turn id across every session. This scenario

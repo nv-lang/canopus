@@ -47,6 +47,7 @@ export fn ProductMachines @registry() -> Result[Registry, str] {
 // ----- reading a folder -----
 
 fn pm_read(path str) -> Result[str, str] {
+    // D454: boundary override inside non-test code, see module-conventions (Fs would leak through load_product_machines/tree_text into named fns of machines/data.nv)
     with Fs = real_fs() {
         ro there = match try_exists(Path.from_bytes(path.bytes())) {
             Ok(b) => b
@@ -241,6 +242,7 @@ export fn machines_dir_candidates(program str) -> []str {
 }
 
 fn pm_has_machines(dir str) -> bool {
+    // D454: boundary override inside non-test code, see module-conventions (Fs would leak through find_machines_dir into hub.nv chains with pure signatures)
     with Fs = real_fs() {
         match try_exists(Path.from_bytes("${dir}/dialog.alula.json".bytes())) {
             Ok(b) => b
@@ -264,6 +266,7 @@ export fn find_machines_dir(setting str, program str) -> Result[str, str] {
 
 /// The root of the tree of the repository: the nearest folder with `nova.toml` upward from the working directory (the tests run in the tree).
 export fn tree_root() -> str {
+    // D454: boundary override inside non-test code, see module-conventions (Os/Fs would leak through tree_text/tree_paths into named fns of machines/data.nv)
     mut dir = with Os = real_os() {
         match cwd() {
             Ok(p) => p.display().replace("\\", "/")
@@ -309,6 +312,7 @@ export fn tree_paths(path str) -> []str {
 
 fn pm_walk(dir str, prefix str) -> []str {
     mut out = []str.new()
+    // D454: boundary override inside non-test code, see module-conventions (Fs would leak through tree_paths into named fns of machines/data.nv)
     with Fs = real_fs() {
         match read_dir(Path.from_bytes(dir.bytes())) {
             Err(e) => ()

@@ -268,6 +268,7 @@ export fn start_mcp_server(token str, timeout_ms int) Net Detach Time -> Result[
 fn tool_descriptions(layout ConfigLayout) -> []str {
     mut out = []str.new()
     for name in tool_names() {
+        // D454: boundary override inside non-test code, see module-conventions (Fs would leak through serve_connection -> start_mcp_server_in to hub.nv)
         ro p = with Fs = real_fs() { pick_prompt(layout, "tool_${name}", "") }
         if p.text.byte_len() > 0 { out.push(name); out.push(p.text) }
     }

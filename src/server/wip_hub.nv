@@ -126,6 +126,7 @@ fn Hub mut @wip_start(at int) Proc Detach Time -> () {
 
 // The background job: the tree is made off the thread of the hub, the answer goes to the channel the pump reads.
 fn wip_job(tx ChanTx[TreeDone], trace str, generation int, plan WipPlan) Proc Time -> () {
+    // D454: boundary override inside non-test code, see module-conventions (Os would leak through @wip_start/@route_on_message into named fns of hub.nv and preparation_hub.nv)
     ro run = with Os = real_os() { wip_add_run(plan) }
     ro told = tx.send(TreeDone { trace, generation, code: run.code, err: run.err, note: run.note, path: plan.path, base: plan.base })
 }

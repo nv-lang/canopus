@@ -273,8 +273,8 @@ fn resolve_program(program str) -> str {
 
 fn observer_env(xdg str, token str) Os -> []EnvEntry {
     ro extra = [EnvEntry { key: "XDG_CONFIG_HOME", value: xdg }, EnvEntry { key: "OPENCODE_SERVER_PASSWORD", value: token }]
-    ro mine = with Os = real_os() { vars() }
-    ro windows = with Os = real_os() { has_env("SystemRoot") || has_env("SYSTEMROOT") }
+    ro mine = vars()
+    ro windows = has_env("SystemRoot") || has_env("SYSTEMROOT")
     mut out = []EnvEntry.new()
     for v in mine {
         ro name = v.key()
