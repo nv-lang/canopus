@@ -236,6 +236,7 @@ export fn connect(program str, args []str, dir str) Proc Detach Time -> Result[A
 // same in any case. Without `extra` nothing is built: the process then inherits the environment as it is.
 fn merged_env(extra []EnvEntry) -> []EnvEntry {
     if extra.len() == 0 { return []EnvEntry.new() }
+    // D454: boundary override inside non-test code, see module-conventions (Os would leak through connect_env/open_client_full to hub.nv)
     ro mine = with Os = real_os() { vars() }
     ro windows = with Os = real_os() { has_env("SystemRoot") || has_env("SYSTEMROOT") }
     mut out = []EnvEntry.new()

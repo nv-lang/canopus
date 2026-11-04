@@ -231,7 +231,7 @@ fn stt_poll_ready(url str, ready ChanTx[bool]) Net Time -> () {
 // Keep the child, answer the questions, watch the end. The child is a member of a job: it ends with the front.
 fn stt_keep(cfg SttConfig, consume child Child, asks ChanRx[SttMgrAsk]) Proc Net Fs Time Io Detach -> () {
     ro ready = Chan[bool].new(1)
-    detach { with Net = real_net() { stt_poll_ready(cfg.url, ready.tx) } }
+    detach { stt_poll_ready(cfg.url, ready.tx) }
     ro began = stt_now_ms()
     mut state = "starting"
     mut watching = true

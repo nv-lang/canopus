@@ -36,8 +36,8 @@ export fn kit_request_range_closed(line str, session str, turn int) -> bool {
 export fn scenario_request_view(settings ServerSettings) Proc Detach Time Net Fs Os -> str {
     mut c = kit_check()
     // Raw-range closure is meaningful only with tracing; the general kit stays non-tracing.
-    mut traced = settings
-    traced.acp_trace = true
+    // a fresh record with the one field flipped (spread, not a ro-launder mutation; D246)
+    mut traced = ServerSettings { ...settings, acp_trace: true }
     mut rig = rig_open(traced)
     rig.attach(1)
     rig.page(1, "session_created", "s-rq", "{\"name\":\"Запрос\",\"agent\":\"opencode\"}")

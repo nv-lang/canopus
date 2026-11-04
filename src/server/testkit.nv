@@ -1003,8 +1003,7 @@ export fn scenario_prompt(settings ServerSettings) Proc Detach Time Net Fs Os ->
     c.expect(made, "the initial reminder fixture file is written")
     // Copy first, then override: a trailing ...settings replaced the fixture layout
     // with the legacy kit layout (config=""), so the hub never read this file.
-    mut with_layout = settings
-    with_layout.layout = layout_with_data_dir("${settings.data_dir}/inst", settings.data_dir, "")
+    mut with_layout = ServerSettings { ...settings, layout: layout_with_data_dir("${settings.data_dir}/inst", settings.data_dir, "") }
     c.expect(with_layout.layout.config == "${settings.data_dir}/inst/config".replace("\\", "/"), "the fixture config layer is enabled")
     mut rig = rig_open(with_layout)
     rig.attach(1)
@@ -1670,7 +1669,10 @@ export fn scenario_machine_state(settings ServerSettings) Proc Detach Time Net F
         parts.push("xxxxxxxxxx")
         i += 1
     }
-    ro big = parts.join("")
+    // []str.join resolves into Path's layout on 0.1.2 in this unit (the item-32 family returned);
+    // assemble by hand — the parts are ASCII test data
+    mut big = ""
+    for part in parts { big = "${big}${part}" }
     rig.forget()
     rig.page(1, "user_message", "s-mach", "{\"turn\":\"t2\",\"text\":\"${big}\"}")
     ro cut_seen = rig.until("\"truncated\":true", 15000)

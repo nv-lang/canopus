@@ -4,7 +4,7 @@ module crew_harness.server
 
 import crew_harness.projects.{projects_create}
 import std.encoding.json.{Json, JsonValue, JsonObject}
-import std.fs.{Fs, real_fs, Path, create_dir_all}
+import std.fs.{Fs, Path, create_dir_all}
 
 /// The settings of the scenarios of the wip branch: a repository with a bare origin, the sessions make a wip tree at the first message, "В работу" makes the children.
 export fn kit_routes_wip(name str) Proc -> ServerSettings {
@@ -205,7 +205,7 @@ export fn scenario_projectless_git_guard(settings ServerSettings) Proc Detach Ti
     c.expect(wk_trees(repo) == baseline_trees, "projectless creation, direct signals and a message do not create Git worktrees")
 
     ro folder = kit_slashes("${settings.data_dir}-project-folder")
-    with Fs = real_fs() { ro made = create_dir_all(Path.from_bytes(folder.bytes())) }
+    ro made = create_dir_all(Path.from_bytes(folder.bytes()))
     ro body = "{\"name\":\"Move source\",\"folders\":[{\"path\":\"${folder}\"}]}"
     ro project_id = match projects_create(settings.data_dir, kit_json_object(body)) {
         Ok(id) => id

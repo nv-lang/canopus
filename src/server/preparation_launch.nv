@@ -52,6 +52,7 @@ fn Hub @preparation_config(s Dialog) -> Result[AcpConfig, str] {
             return @preparation_config_at(s, fixture.registration, fixture.model, fixture.variant, fixture.adapter)
         }
     }
+    // D454: boundary override inside non-test code, see module-conventions
     ro registration = with Os = real_os() { env("CREW_PREPARATION_SERVICE_REGISTRATION") ?? "" }
     mut model = ""
     mut variant = ""
@@ -60,6 +61,7 @@ fn Hub @preparation_config(s Dialog) -> Result[AcpConfig, str] {
         if pick.setting == "effort" { variant = pick.value }
     }
     if model.byte_len() == 0 {
+        // D454: boundary override inside non-test code, see module-conventions
         match with Fs = real_fs() { load_presets(@settings.layout, @settings.route_reviewer_order) } {
             Ok(list) => match preset_named(list, @preset_name_of(s)) {
                 Some(preset) => match preset_pick(preset, "dev") {
@@ -75,10 +77,14 @@ fn Hub @preparation_config(s Dialog) -> Result[AcpConfig, str] {
     }
     // Explicit fixture registration permits DI without reading the owner's registry or changing a session model.
     if model.byte_len() == 0 && registration.byte_len() > 0 {
+        // D454: boundary override inside non-test code, see module-conventions
         model = with Os = real_os() { env("CREW_PREPARATION_MODEL") ?? "" }
+        // D454: boundary override inside non-test code, see module-conventions
         variant = with Os = real_os() { env("CREW_PREPARATION_VARIANT") ?? "" }
     }
+    // D454: boundary override inside non-test code, see module-conventions
     ro explicit = with Os = real_os() { env("CREW_PREPARATION_ADAPTER") ?? "" }
+    // D454: boundary override inside non-test code, see module-conventions
     ro argv = with Os = real_os() { args() }
     ro local = "${@settings.routes_dir}/../../src/server/preparation-agent.mjs"
     ro packaged = if argv.len() > 0 { "${tw_parent(argv[0])}/preparation-agent.mjs" } else { "" }
@@ -89,6 +95,7 @@ fn Hub @preparation_config(s Dialog) -> Result[AcpConfig, str] {
 
 fn Hub @preparation_config_at(s Dialog, registration str, model str, variant str, adapter str) -> Result[AcpConfig, str] {
     mut config = preparation_launch(registration, model, variant, tk_canon(adapter), tk_canon(@settings.data_dir), s.id)?
+    // D454: boundary override inside non-test code, see module-conventions
     ro made = with Fs = real_fs() { ensure_session_dir(@settings.data_dir, s.id) }
     if !made {
         return Err("Подготовка: session-owned каталог недоступен")

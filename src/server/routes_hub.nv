@@ -919,6 +919,7 @@ fn Hub mut @route_drop_review(session str) Time -> () {
 }
 
 fn Hub mut @route_start_review(at int, index int, step RouteStep) Proc Detach Time -> () {
+    // D454: boundary override inside non-test code, see module-conventions (Fs/Random would leak through @route_tick/@route_pump into a named fn of hub.nv)
     if !@work_require(at, "execute") { return }
     mut s = @sessions[at]
     mut actual = PoolEntry { family: "", model: "", effort: "", active: true }

@@ -33,7 +33,6 @@ import std.concurrency.nvchan.{Chan, ChanTx, ChanRx}
 import std.encoding.hex.{Hex}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 import std.fs.{Fs, real_fs}
-import std.net.{real_net}
 import std.prelude.effects.{real_random}
 import std.os.{Os, real_os, cwd, args}
 import std.fs.{Fs, real_fs, Path, read_text, try_exists, create_dir_all}
@@ -379,6 +378,7 @@ fn decision_text(request str, decision str) -> str {
 // A text the hub says to the agents (task 192.12): the file `prompts/<name>.md` of a layer, else the built-in text. Read at every use. An empty or unreadable file gives the built-in text
 // and a line for the log (told at the next pump, because the callers are not always able to write the log).
 fn Hub @prompt(name str, builtin str) -> str {
+    // D454: boundary override inside non-test code, see module-conventions
     ro p = with Fs = real_fs() { pick_prompt(@settings.layout, name, builtin) }
     if p.note.byte_len() > 0 { ro sent = @notes_tx.send(p.note) }
     p.text
@@ -464,6 +464,7 @@ fn Hub mut @catalog_save(force bool) Time -> () {
     if !catalog_save_due(@catalog_dirty, now, @catalog_saved_at, force) { return }
     @catalog_saved_at = now
     ro path = @catalog_path()
+    // D454: boundary override inside non-test code, see module-conventions
     ro written = with Fs = real_fs() { replace_file(path, catalog_file_text(@catalog)) }
     if written {
         @catalog_dirty = false
@@ -473,20 +474,17 @@ fn Hub mut @catalog_save(force bool) Time -> () {
 }
 
 // The file of the catalog is read at the start; a missing file is an empty catalog, a damaged one is ignored (and said so in the log).
-fn Hub mut @catalog_load() -> () {
+fn Hub mut @catalog_load() Fs -> () {
     ro path = @catalog_path()
-    ro there = with Fs = real_fs() {
-        match try_exists(path) {
-            Ok(b) => b
-            Err(e) => false
-        }
+    // the effect is in this signature; the handler comes from the caller (one with at the entry)
+    ro there = match try_exists(path) {
+        Ok(b) => b
+        Err(e) => false
     }
     if !there { return }
-    ro text = with Fs = real_fs() {
-        match read_text(path) {
-            Ok(t) => t
-            Err(e) => ""
-        }
+    ro text = match read_text(path) {
+        Ok(t) => t
+        Err(e) => ""
     }
     match catalog_parse(text) {
         Ok(agents) => { @catalog = agents }
@@ -604,6 +602,7 @@ fn Hub @wants_mcp() -> bool {
 /// Start the MCP server of the questions (only when an agent of the settings asks by `mcp`; the tests call it too). The port is the system's choice, the token is random.
 export fn Hub mut @start_mcp() Proc Detach Time Net -> bool {
     if @mcps.len() > 0 { return true }
+    // D454: boundary override inside non-test code, see module-conventions
     ro token = with Random = real_random() { Hex.encode(Random.bytes(24)) }
     match start_mcp_server_in(token, @settings.ask_timeout_ms, @settings.layout) {
         Ok(server) => {
@@ -698,6 +697,7 @@ fn Hub mut @agent_env(agent str, base []EnvEntry) -> []EnvEntry {
         Some(spec) => {
             ro word = "${spec.id} ${spec.program}".to_ascii_lower()
             if !word.contains("opencode") { return out }
+            // D454: boundary override inside non-test code, see module-conventions
             ro extra = with Fs = real_fs(), Os = real_os() { opencode_env(@settings.layout.cache) }
             if extra.len() == 0 {
                 @say_log("the agent ${agent} starts with the configuration of the owner as it is (no clean copy of it)")
@@ -786,7 +786,8 @@ export fn start_hub(settings ServerSettings) Proc Detach Time Net Fs Os -> Resul
 /// copy of the table: a state with another name).
 export fn start_hub_from(settings ServerSettings, table_text str) Proc Detach Time Net Fs Os -> Result[Hub, str] {
     settings.check()?
-    ro argv = with Os = real_os() { args() }
+    // the effects are in this signature; the handler comes from the caller (one with at the entry)
+    ro argv = args()
     ro machines_dir = find_machines_dir(settings.machines_dir, if argv.len() > 0 { argv[0] } else { "" })?
     ro machines = match load_product_machines(machines_dir) {
         Ok(m) => m
@@ -798,7 +799,7 @@ export fn start_hub_from(settings ServerSettings, table_text str) Proc Detach Ti
     ro workdir = if settings.workdir.byte_len() > 0 {
         settings.workdir
     } else {
-        match with Os = real_os() { cwd() } {
+        match cwd() {
             Ok(p) => p.display()
             Err(e) => return Err("the working folder is unknown")
         }
@@ -820,16 +821,14 @@ export fn start_hub_from(settings ServerSettings, table_text str) Proc Detach Ti
     for line in migration.kept { hub.say_log(line) }
     // the folders of the layout that the hub writes to are made (state and cache hold the pid file, the catalog and the copy of the configuration of the agent)
     if !settings.layout.legacy {
-        with Fs = real_fs() {
-            ro made_state = create_dir_all(Path.from_bytes(settings.layout.state.bytes()))
-            ro made_cache = create_dir_all(Path.from_bytes(settings.layout.cache.bytes()))
-        }
+        ro made_state = create_dir_all(Path.from_bytes(settings.layout.state.bytes()))
+        ro made_cache = create_dir_all(Path.from_bytes(settings.layout.cache.bytes()))
     } else if settings.layout.home.byte_len() > 0 || settings.data_dir != "crew-data" {
         hub.say_log("the old layout: data_dir ${settings.data_dir} holds sessions, projects, state and cache together; `crew-harness migrate --from ${settings.data_dir}` moves them into the new folders")
     }
     hub.catalog_load()
     ro ids = if pg {
-        match with Net = real_net() { pg_list(settings.pg) } {
+        match pg_list(settings.pg) {
             Ok(list) => list
             Err(f) => return Err("the sessions cannot be listed: ${f.message}")
         }
@@ -1166,6 +1165,7 @@ fn Hub @prepare_images_in(trace str, items []JsonValue) Fs -> Prepared {
 }
 
 fn Hub @prepare_images(trace str, items []JsonValue) -> Prepared {
+    // D454: boundary override inside non-test code, see module-conventions
     with Fs = real_fs() {
         @prepare_images_in(trace, items)
     }
@@ -1508,8 +1508,9 @@ fn Hub @preset_name_of(s Dialog) -> str {
 }
 
 // The family of the role in the preset of the session ("" - the preset does not say, or a file of a preset is broken: the line goes to the log, the reserve order of the settings acts).
-fn Hub @preset_family_of(s Dialog, role str) -> str {
-    match with Fs = real_fs() { load_presets(@settings.layout, @settings.route_reviewer_order) } {
+fn Hub @preset_family_of(s Dialog, role str) Fs -> str {
+    // the effect is in this signature; the handler comes from the caller (one with at the entry)
+    match load_presets(@settings.layout, @settings.route_reviewer_order) {
         Ok(list) => match preset_named(list, @preset_name_of(s)) {
             Some(p) => preset_family(p, role)
             None => ""
@@ -1562,6 +1563,7 @@ fn Hub mut @set_preset(trace str, name str, assignment JsonObject) Proc Detach T
     ro weight = jtext(assignment, "weight")
     if weight.byte_len() > 0 && !pool_level_ok(weight) { @tell_error(0, trace, @sessions[at].engine.step_number(), "", "Неизвестный вес задачи: ${weight}"); return }
     if role.byte_len() > 0 {
+        // D454: boundary override inside non-test code, see module-conventions
         ro roles = match with Fs = real_fs() { load_roles(@settings.layout) } {
             Ok(list) => list
             Err(e) => { @tell_error(0, trace, @sessions[at].engine.step_number(), "", e); return }
@@ -1572,6 +1574,7 @@ fn Hub mut @set_preset(trace str, name str, assignment JsonObject) Proc Detach T
         }
     }
     if name.byte_len() > 0 {
+        // D454: boundary override inside non-test code, see module-conventions
         ro known = match with Fs = real_fs() { load_presets(@settings.layout, @settings.route_reviewer_order) } {
             Ok(list) => preset_named(list, name).is_some()
             Err(reason) => false
@@ -1731,6 +1734,7 @@ fn Hub mut @delete(conn int, trace str, branch str) Proc Detach Time -> () {
     }
     // task 192.4: the tree (no branch) of a work that was not a task (a session with a task of its own tree has none: the wip fields are cleared)
     if s.rt.wip_tree.byte_len() > 0 { @wip_delete(at, branch) }
+    // D454: boundary override inside non-test code, see module-conventions
     ro removed = with Fs = real_fs() { delete_files(@settings.data_dir, trace) }
     if !removed {
         @tell_error(conn, trace, s.engine.step_number(), "", "the folder of the session cannot be removed")
@@ -1813,6 +1817,7 @@ fn Hub mut @switch_agent(trace str, agent str) Proc Detach Time -> () {
 
 // Sources are journal metadata: old sessions need no rewrite, and restart restores the last source.
 fn Hub @source_pools(s Dialog) -> []ModelPool {
+    // D454: boundary override inside non-test code, see module-conventions
     match with Fs = real_fs() { load_presets(@settings.layout, @settings.route_reviewer_order) } {
         Ok(list) => match preset_named(list, @preset_name_of(s)) {
             Some(p) => p.pools
@@ -1866,6 +1871,7 @@ fn Hub mut @source_for_turn(trace str) Proc Detach Time -> bool {
         if e.kind == EventKind.Input && e.name == "agent_selected" { pinned = jobject(e.input) }
     }
     if source.is_none() {
+        // D454: boundary override inside non-test code, see module-conventions
         match with Fs = real_fs() { load_presets(@settings.layout, @settings.route_reviewer_order) } {
             Ok(list) => match preset_named(list, @preset_name_of(s)) {
                 Some(p) => match preset_pick_weight(p, role, weight) {
@@ -1897,6 +1903,7 @@ fn Hub mut @source_for_turn(trace str) Proc Detach Time -> bool {
     mut actual = PoolEntry { family: if pick.family.byte_len() > 0 { pick.family } else { s.agent }, model: pick.model, effort: pick.effort, active: true }
     if pick.pool.byte_len() > 0 {
         ro available = @available_sources("")
+        // D454: boundary override inside non-test code, see module-conventions
         ro bytes = with Random = real_random() { Random.bytes(4) }
         mut ticket = 0
         for b in bytes { ticket = ticket * 256 + b as int }

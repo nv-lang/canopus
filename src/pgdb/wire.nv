@@ -17,6 +17,7 @@ import postgres.{Session, SessionPhase, PgEvent, ParamValue, PostgresError, Read
 // The client nonce of SCRAM: 18 bytes of the secure randomness of the system (the default handler of `Random`, named here
 // so that the callers need no `Random` in their signatures).
 fn nonce_bytes() -> []u8 {
+    // D454: intentional override inside non-test code, see module-conventions (named so that the callers need no Random in their signatures)
     with Random = real_random() { Random.bytes(18) }
 }
 

@@ -33,6 +33,7 @@ fn trace_size(path Path) Fs -> int {
 /// The record into `path`, rotating at `limit` bytes; the size of a file that is already there is taken into account.
 export fn trace_open(path str, limit int) -> AcpTrace {
     if path.byte_len() == 0 { return trace_off() }
+    // D454: boundary override inside non-test code, see module-conventions (Fs would leak to open_client_full -> hub.nv, routes_hub.nv)
     ro size = with Fs = real_fs() { trace_size(Path.from_bytes(path.bytes())) }
     ro lines = if size > 0 { with Fs = real_fs() { trace_count_lines(Path.from_bytes(path.bytes())) } } else { 0 }
     { path, size, limit, on: true, lines }
@@ -152,6 +153,7 @@ export fn AcpTrace mut @record(dir str, line str) Time -> () {
     ro at = Time.now().unix_millis()
     ro text = "${trace_record(at, dir, trace_redact_images(line))}\n"
     ro n = text.byte_len()
+    // D454: boundary override inside non-test code, see module-conventions (Fs would leak through @say/@take/@poll to the Link effect in hub.nv)
     with Fs = real_fs() {
         if @size > 0 && @size + n > @limit {
             trace_rotate(@path)

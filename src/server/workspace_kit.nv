@@ -1,7 +1,7 @@
 module crew_harness.server
 
 import crew_harness.projects.{projects_create}
-import std.fs.{Fs, real_fs, create_dir_all, Path}
+import std.fs.{Fs, create_dir_all, Path}
 import std.os.{Os, real_os}
 import std.encoding.json.{JsonValue}
 
@@ -37,7 +37,7 @@ export fn scenario_workspace(settings ServerSettings) Proc Detach Time Net Fs Os
     c.expect(wk_pwd(rig, "s-folder", "ordinary-folder").contains(repo), "explicit folder mode does not wait for a WIP copy")
     c.expect(wk_branch(repo) == "main", "inactive source preference never switches the project folder")
     ro notes = kit_slashes("${settings.data_dir}-notes")
-    with Fs = real_fs() { ro made = create_dir_all(Path.from_bytes(notes.bytes())) }
+    ro made = create_dir_all(Path.from_bytes(notes.bytes()))
     ro notes_id = match projects_create(settings.data_dir, kit_json_object("{\"name\":\"Notes\",\"folders\":[{\"path\":\"${notes}\"}]}")) {
         Ok(id) => id
         Err(f) => panic(f.message)
@@ -160,7 +160,7 @@ export fn scenario_workspace_failures(settings ServerSettings) Proc Detach Time 
     ro plan = tk_wip_plan(repo, "late275", "worktrees")
     c.expect(plan.ok, "a late copy can still physically complete")
     if plan.ok {
-        ro made = with Os = real_os() { wip_add_run(plan.plan) }
+        ro made = wip_add_run(plan.plan)
         c.expect(made.code == 0, "the late copy is a real Git worktree")
         ro dirty = write_file("${plan.plan.path}/late.txt", "keep late work\n")
         rig.hub.wip_done(TreeDone { trace: "s-timeout", generation, code: 0, err: []u8.new(), note: "", path: plan.plan.path, base: plan.plan.base })

@@ -341,6 +341,7 @@ export fn open_client_full(config AcpConfig, trace_path str, trace_limit int, as
             mut ready = []AcpInboxItem.new()
             mut next = 1
             if config.inbox_path.byte_len() > 0 {
+                // D454: boundary override inside non-test code, see module-conventions (Fs would leak to open_client_full callers in hub.nv, routes_hub.nv)
                 with Fs = real_fs() {
                     ro recovered = recover_inbox(config.inbox_path)
                     compact_inbox(config.inbox_path, recovered)
@@ -380,6 +381,7 @@ fn AcpClient mut @push(event Incoming) -> () {
     @next_seq = seq + 1
     ro stamped = Incoming.from_source(key_of(seq), event)
     if @config.inbox_path.byte_len() > 0 {
+        // D454: boundary override inside non-test code, see module-conventions (Fs would leak through @push/@poll to the Link effect in hub.nv)
         with Fs = real_fs() {
             ro written = append_line(Path.from_bytes(@config.inbox_path.bytes()), event_line(seq, stamped))
             if !written { panic("the inbox cannot be written: ${@config.inbox_path}") }
@@ -915,6 +917,7 @@ fn AcpClient mut @drive() -> () {
         if @images_ok {
             mut unreadable = 0
             for image in next.images {
+                // D454: boundary override inside non-test code, see module-conventions (Fs would leak through @drive/@poll to the Link effect in hub.nv)
                 match with Fs = real_fs() { read_picture(image.path) } {
                     Some(data) => pictures.push(image_block(image.mime, data))
                     None => { unreadable += 1 }
@@ -1039,6 +1042,7 @@ fn AcpClient mut @acknowledge(source str) -> () {
     }
     @ready = kept_ready
     if found < 0 || @config.inbox_path.byte_len() == 0 { return }
+    // D454: boundary override inside non-test code, see module-conventions (Fs would leak through the ack handler of the Link effect to hub.nv)
     with Fs = real_fs() {
         ro written = append_line(Path.from_bytes(@config.inbox_path.bytes()), ack_line(found))
         if !written { panic("the inbox cannot be written: ${@config.inbox_path}") }

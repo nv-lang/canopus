@@ -66,6 +66,7 @@ export fn ensure_session_dir(root str, session str) Fs -> bool {
 /// safe or the folder cannot be made.
 export fn session_file_made(root str, session str, name str) -> Option[Path] {
     ro path = session_file(root, session, name)?
+    // D454: boundary override inside non-test code, see module-conventions (Fs would leak to named Hub methods in hub.nv)
     ro made = with Fs = real_fs() { ensure_session_dir(root, session) }
     if made { Some(path) } else { None }
 }

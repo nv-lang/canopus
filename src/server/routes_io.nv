@@ -9,6 +9,7 @@ fn rio_path(p str) -> Path => Path.from_bytes(p.bytes())
 
 /// Does the file or folder exist?
 export fn path_there(p str) -> bool {
+    // D454: boundary override inside non-test code, see module-conventions
     with Fs = real_fs() {
         match try_exists(rio_path(p)) {
             Ok(b) => b
@@ -19,6 +20,7 @@ export fn path_there(p str) -> bool {
 
 /// Is it a folder?
 export fn dir_there(p str) -> bool {
+    // D454: boundary override inside non-test code, see module-conventions
     with Fs = real_fs() {
         match metadata(rio_path(p)) {
             Ok(m) => m.is_dir()
@@ -29,6 +31,7 @@ export fn dir_there(p str) -> bool {
 
 /// The text of a file, None - it cannot be read.
 export fn read_file(p str) -> Option[str] {
+    // D454: boundary override inside non-test code, see module-conventions
     with Fs = real_fs() {
         match read_text(rio_path(p)) {
             Ok(t) => Some(t)
@@ -39,6 +42,7 @@ export fn read_file(p str) -> Option[str] {
 
 /// Write a file (the folders above it are made); false - it could not be written.
 export fn write_file(p str, text str) -> bool {
+    // D454: boundary override inside non-test code, see module-conventions
     with Fs = real_fs() {
         match rio_path(p).parent() {
             Some(parent) => {
@@ -65,6 +69,7 @@ export fn append_file(p str, text str) -> bool {
 /// The names in a folder (files and folders), [] when it cannot be read.
 export fn dir_names(p str) -> []str {
     mut out = []str.new()
+    // D454: boundary override inside non-test code, see module-conventions
     with Fs = real_fs() {
         match read_dir(rio_path(p)) {
             Ok(entries) => {
@@ -83,6 +88,7 @@ export fn dir_names(p str) -> []str {
 
 /// Copy a file as it is (bytes), the folders above the new one are made; false - it could not be copied.
 export fn io_copy_file(src str, dst str) -> bool {
+    // D454: boundary override inside non-test code, see module-conventions
     with Fs = real_fs() {
         match rio_path(dst).parent() {
             Some(parent) => {
@@ -118,6 +124,7 @@ export fn io_copy_dir(src str, dst str) -> int {
 
 /// Remove a file; false - it could not be.
 export fn io_remove_file(p str) -> bool {
+    // D454: boundary override inside non-test code, see module-conventions
     with Fs = real_fs() {
         match remove_file(rio_path(p)) {
             Ok(done) => true

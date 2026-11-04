@@ -74,6 +74,7 @@ export fn img_put(root str, session str, content_type str, bytes []u8, limit int
     ro mime = img_mime_of(content_type)
     ro refused = img_refusal(mime, bytes, limit)
     if refused.status != 0 { return refused }
+    // D454: boundary override inside non-test code, see module-conventions (Fs would leak to the polaris Handler route closure)
     with Fs = real_fs() { img_put_in(root, session, mime, bytes) }
 }
 
@@ -93,6 +94,7 @@ export fn img_get(root str, session str, number str) -> ImageReply {
     if !valid_session_name(session) { return img_failure(400, "the session id is not a safe name") }
     match image_number(number) {
         None => img_failure(400, "the number of a picture is digits")
+        // D454: boundary override inside non-test code, see module-conventions (Fs would leak to the polaris Handler route closure)
         Some(n) => with Fs = real_fs() { img_get_in(root, session, n) }
     }
 }
