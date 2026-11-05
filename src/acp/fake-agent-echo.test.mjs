@@ -4,7 +4,7 @@ import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
-async function fixture(t, flags = []) {
+async function fixture(t, flags = [], onChunk = () => {}) {
   const child = spawn(process.execPath, [fileURLToPath(new URL('./testdata/fake_agent.mjs', import.meta.url)), ...flags], {
     stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, CREW_ECHO_FIXTURE: 'two words' },
   });
@@ -15,7 +15,7 @@ async function fixture(t, flags = []) {
   lines.on('line', (line) => {
     const message = JSON.parse(line);
     const update = message.params?.update;
-    if (update?.sessionUpdate === 'agent_message_chunk') current.text += update.content.text;
+    if (update?.sessionUpdate === 'agent_message_chunk') { current.text += update.content.text; onChunk(update.content.text); }
     if (message.id === current?.id) {
       const done = current;
       current = undefined;
@@ -52,4 +52,13 @@ test('env arguments exclude reminders and retain exact requested names', { timeo
   const ask = await fixture(t);
   assert.equal(await ask('[crew] never an env argument\n\nenv CREW_ECHO_FIXTURE CREW_ECHO_ABSENT_271'),
     'env CREW_ECHO_FIXTURE=[two words]; CREW_ECHO_ABSENT_271=<unset>');
+});
+
+
+test('opt-in fast raw echo preserves long context in one chunk', { timeout: 10000 }, async (t) => {
+  let chunks = 0;
+  const ask = await fixture(t, ['--fast-echo'], () => chunks++);
+  const prompt = '[crew] ' + 'long reminder '.repeat(1500) + '\n\nexact user payload';
+  assert.equal(await ask(prompt), 'Echo: ' + prompt);
+  assert.equal(chunks, 1);
 });

@@ -181,7 +181,7 @@ export fn scenario_route_children(settings ServerSettings) Proc Detach Time Net 
     mut c = kit_check()
     mut rig = rig_open(settings)
     rig.attach(1)
-    rig.page(1, "session_created", "s-c1", "{\"name\":\"Беседа\",\"agent\":\"opencode\"}")
+    rk_project_page(rig, 1, "s-c1", "{\"name\":\"Беседа\",\"agent\":\"opencode\"}")
     c.expect(rig.until("\"kind\":\"session_created\"", 5000), "the session of the talk is shown")
 
     // 1. two works "в работу": two sessions of their own, no parent, no table; the talk itself has no task
@@ -309,7 +309,7 @@ export fn scenario_route_children(settings ServerSettings) Proc Detach Time Net 
         Ok(v) => v
         Err(e) => 0
     }
-    c.expect(ck_list(rig, "s-c1", "t8", [ck_item("child", "Дочерняя от main", nb_int, 0, ["h.txt"])], "Дочерняя от main"), "a child of the epic with no branch is listed")
+    c.expect(rk_offer_tasks(rig, "s-c1", [ck_item("child", "Дочерняя от main", nb_int, 0, ["h.txt"])], "Дочерняя от main"), "a child of the epic with no branch is listed")
     ck_apply(rig, "s-c1", [["Дочерняя от main", "work", "child", "${nb_int}"]])
     rig.run(4000)
     ro nbc = ck_find(rig, 1, "Дочерняя от main")

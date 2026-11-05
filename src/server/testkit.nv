@@ -90,8 +90,7 @@ export fn kit_files(name str, idle_ms int) -> ServerSettings => kit_settings("fi
 
 /// Explicit user-payload echo for owner-message delivery tests only. The general kit,
 /// prompt-layer tests and work-mode fixtures retain the fake agent's raw default.
-export fn kit_chat_files(name str, idle_ms int) -> ServerSettings {
-    mut settings = kit_files(name, idle_ms)
+fn kit_user_echo(settings ServerSettings) -> ServerSettings {
     mut agents = []AgentSpec.new()
     for agent in settings.agents {
         mut args = []str.new()
@@ -99,9 +98,13 @@ export fn kit_chat_files(name str, idle_ms int) -> ServerSettings {
         args.push("--user-echo")
         agents.push(AgentSpec { id: agent.id, label: agent.label, program: agent.program, args, ask: agent.ask })
     }
-    settings.agents = agents
-    settings
+    ServerSettings { ...settings, agents }
 }
+
+export fn kit_chat_files(name str, idle_ms int) -> ServerSettings => kit_user_echo(kit_files(name, idle_ms))
+
+/// The same owner-payload echo contract over the PostgreSQL store.
+export fn kit_chat_pg(name str, idle_ms int, pg PgConfig) -> ServerSettings => kit_user_echo(kit_pg(name, idle_ms, pg))
 
 /// The settings of a hub over files whose agent `opencode` takes the MCP tool of the questions (`ask: mcp`) and says it can use an HTTP server (`--ask` of the fake agent).
 export fn kit_files_mcp(name str, idle_ms int, ask_timeout_ms int) -> ServerSettings {
@@ -505,7 +508,9 @@ export fn scenario_stream_burst(settings ServerSettings) Proc Detach Time Net Fs
     mut fair_done_before_burst = false
     mut attached_during_stream = false
     mut producer_active_at_flush = false
-    ro deadline = Time.now().unix_millis() + 15000
+    // The PostgreSQL fixture deliberately delays every snapshot write. Keep the
+    // completion budget separate from the assertions about visible streaming.
+    ro deadline = Time.now().unix_millis() + 60000
     while (!burst_done || !fair_done) && Time.now().unix_millis() < deadline {
         ro made = rig.hub.pump()
         rig.collect()
@@ -1032,7 +1037,7 @@ export fn scenario_prompt(settings ServerSettings) Proc Detach Time Net Fs Os ->
 export fn scenario_preset(settings ServerSettings) Proc Detach Time Net Fs Os -> str {
     mut c = kit_check()
     ro written = write_file("${settings.data_dir}/inst/config/presets/mix.json", "{\"roles\":{\"dev\":{\"family\":\"opencode\"},\"dev_accept\":{\"family\":\"second\"}}}")
-    ro with_layout = ServerSettings { layout: layout_with_data_dir("${settings.data_dir}/inst", settings.data_dir, ""), ...settings }
+    ro with_layout = ServerSettings { ...settings, layout: layout_with_data_dir("${settings.data_dir}/inst", settings.data_dir, "") }
     mut rig = rig_open(with_layout)
     rig.attach(1)
     rig.page(1, "session_created", "s-pre", "{\"name\":\"Набор\",\"agent\":\"opencode\",\"preset\":\"mix\"}")
@@ -1287,8 +1292,9 @@ export fn scenario_images(settings ServerSettings) Proc Detach Time Net Fs Os ->
     c.expect(put.n == 1 && put.reason == "", "the upload gets the number 1")
     rig.page(1, "session_created", "s-ref", "{\"name\":\"По номеру\",\"agent\":\"pictures\"}")
     rig.page(1, "user_message", "s-ref", kit_picture_input("t1", "", "[{\"name\":\"a.png\",\"n\":1}]"))
-    c.expect(rig.until("[blocks:image; image/png:12:iVBORw0K]", 15000), "a picture alone goes as an image block without a text block")
+    c.expect(rig.until("[blocks:text,image; image/png:12:iVBORw0K]", 15000), "an image-only owner message carries the required nonempty harness context")
     c.expect(rig.until(KIT_DONE, 15000), "the turn of a picture alone ends")
+    c.expect(kit_first_answer(rig.lines_for(1), "s-ref") == "Echo:  [blocks:text,image; image/png:12:iVBORw0K]", "the image-only owner payload has no synthetic user text")
 
     // refused as a whole: nothing of the message is kept in the journal
     rig.forget()
@@ -1513,11 +1519,12 @@ export fn scenario_restart_open(settings ServerSettings) Proc Detach Time Net Fs
     again.attach(3)
     c.expect(again.until("\"reason\":\"Timeout\"", 15000), "the request ends with Timeout")
     c.expect(again.hub.takes_message("s-open"), "the session is open after the timeout")
+    ro next_from = again.lines_for(3).len()
     again.page(3, "user_message", "s-open", "{\"turn\":\"t2\",\"text\":\"still here\"}")
     c.expect(again.until(KIT_DONE, 15000), "the next turn ends")
     ro lines = again.lines_for(3)
     c.expect(kit_with(lines, "\"kind\":\"agent_refused\"") == 1, "one refusal")
-    c.expect(answer_of(lines, line_input(first_of(lines, "user_message", 2), "turn")) == "Echo: still here", "the next turn is answered")
+    c.expect(answer_of(lines, line_input(first_of(lines, "user_message", next_from), "turn")) == "Echo: still here", "the next turn is answered")
     again.shut()
     c.report()
 }

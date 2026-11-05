@@ -7,7 +7,7 @@ import std.encoding.json.{Json, JsonValue, JsonObject}
 // An item of `crew_task` / `crew_task_list` with the confidence the agent states.
 fn ek_item(kind str, title str, extends int, confidence str) -> JsonValue {
     mut o = rk_item(kind, title, extends, []str.new()).object() ?? JsonObject.new()
-    jput(o, "confidence", JsonValue.str(confidence))
+    if confidence.byte_len() > 0 { jput(o, "confidence", JsonValue.str(confidence)) }
     JsonValue.object(o)
 }
 
@@ -45,7 +45,7 @@ export fn scenario_route_auto_extend(settings ServerSettings) Proc Detach Time N
     mut c = kit_check()
     mut rig = rig_open(settings)
     rig.attach(1)
-    rig.page(1, "session_created", "s-e1", "{\"name\":\"Беседа\",\"agent\":\"opencode\"}")
+    rk_project_page(rig, 1, "s-e1", "{\"name\":\"Беседа\",\"agent\":\"opencode\"}")
     c.expect(rig.until("\"kind\":\"session_created\"", 5000), "the session of the talk is shown")
     c.expect(ck_list(rig, "s-e1", "t1", [ck_item("new", "Исходная работа", 0, 0, ["a.txt"])], "Исходная работа"), "the list is shown")
     ck_apply(rig, "s-e1", [["Исходная работа", "work", "new", "0"]])
@@ -122,8 +122,8 @@ export fn scenario_route_scope(settings ServerSettings) Proc Detach Time Net Fs 
     mut c = kit_check()
     mut rig = rig_open(settings)
     rig.attach(1)
-    rig.page(1, "session_created", "s-a", "{\"name\":\"Беседа А\",\"agent\":\"opencode\"}")
-    rig.page(1, "session_created", "s-b", "{\"name\":\"Беседа Б\",\"agent\":\"opencode\"}")
+    rk_project_page(rig, 1, "s-a", "{\"name\":\"Беседа А\",\"agent\":\"opencode\"}")
+    rk_project_page(rig, 1, "s-b", "{\"name\":\"Беседа Б\",\"agent\":\"opencode\"}")
     c.expect(rig.until("\"kind\":\"session_created\"", 5000), "the two sessions are shown")
     c.expect(ck_list(rig, "s-a", "t1", [ck_item("new", "Работа первой беседы", 0, 0, ["a.txt"])], "Работа первой беседы"), "the list of the first talk is shown")
     ck_apply(rig, "s-a", [["Работа первой беседы", "work", "new", "0"]])

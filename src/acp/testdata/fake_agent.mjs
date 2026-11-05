@@ -377,7 +377,8 @@ async function prompt(id, params) {
       }
     }
     default: {
-      const words = ("Echo: " + (args.includes("--user-echo") ? plain : text)).split(" ");
+      const echo = "Echo: " + (args.includes("--user-echo") ? plain : text);
+      const words = args.includes("--fast-echo") ? [echo] : echo.split(" ");
       for (let i = 0; i < words.length; i++) {
         chunk((i === 0 ? "" : " ") + words[i]);
         await sleep(5);

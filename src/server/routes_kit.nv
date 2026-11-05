@@ -3,24 +3,70 @@
 module crew_harness.server
 
 import std.encoding.json.{Json, JsonValue, JsonObject}
+import crew_harness.projects.{projects_load, projects_create}
+import std.concurrency.nvchan.{Chan}
 import std.fs.{Fs, real_fs, remove_dir_all}
 import std.os.{Os, real_os, temp_dir, pid}
 
 // The settings of a hub that works in `workdir` (the folder of the session) and reads the modes from `doc/routes` of this repository; the reviewer is the second fake agent.
+
+// Repository scenarios explicitly choose their fixture project. Missing project_id
+// now means an ordinary projectless chat, not inheritance of the hub repository.
+fn rk_project_page(mut rig Rig, conn int, trace str, input str) Proc Detach Time -> () {
+    ro root = rig.hub.settings.data_dir
+    ro folder = kit_slashes(rig.hub.settings.workdir)
+    mut project_id = ""
+    match projects_load(root) {
+        Ok(list) => {
+            for project in list {
+                for entry in project.folders {
+                    if kit_slashes(entry.path) == folder { project_id = project.id }
+                }
+            }
+        }
+        Err(f) => panic(f.message)
+    }
+    if project_id == "" {
+        mut body = JsonObject.new()
+        jput(body, "name", JsonValue.str("Fixture project"))
+        mut entry = JsonObject.new()
+        jput(entry, "path", JsonValue.str(folder))
+        jput(body, "folders", JsonValue.array([JsonValue.object(entry)]))
+        project_id = match projects_create(root, body) {
+            Ok(id) => id
+            Err(f) => panic(f.message)
+        }
+    }
+    mut body = kit_json_object(input)
+    jput(body, "project_id", JsonValue.str(project_id))
+    jput(body, "folder", JsonValue.str(folder))
+    rig.page(conn, "session_created", trace, JsonValue.object(body).to_str())
+}
+
 // The agents of the kit; `opencode` takes an HTTP MCP server (`--ask` of the fake agent), so that it can call the tools of the recognition of the tasks (task 192.2).
 fn rk_agents(agents []AgentSpec) -> []AgentSpec {
     mut out = []AgentSpec.new()
     for a in agents {
-        if a.id == "opencode" {
-            mut args = []str.new()
-            for word in a.args { args.push(word) }
-            args.push("--ask")
-            out.push(AgentSpec { id: a.id, label: a.label, program: a.program, args, ask: a.ask })
-        } else {
-            out.push(a)
-        }
+        mut args = []str.new()
+        for word in a.args { args.push(word) }
+        // Preserve the complete raw prompt echo without delaying every harness word.
+        // Dedicated ACP/burst fixtures still test streaming with the original pacing.
+        args.push("--fast-echo")
+        if a.id == "opencode" { args.push("--ask") }
+        out.push(AgentSpec { id: a.id, label: a.label, program: a.program, args, ask: a.ask })
     }
     out
+}
+
+// These lifecycle probes supply the proposal at the MCP boundary. A normal
+// ACP prompt is deliberately forbidden while an explicitly chosen copy is pending.
+fn rk_offer_tasks(mut rig Rig, session str, items []JsonValue, title str) Proc Detach Time -> bool {
+    mut body = JsonObject.new()
+    jput(body, "tasks", JsonValue.array(items))
+    ro reply = Chan[str].new(1)
+    rig.hub.ct_list_call(McpMsg { kind: "crew_task_list", call: 1, session, text: JsonValue.object(body).to_str(), reply: reply.tx })
+    rig.collect()
+    rk_card_id(ck_state(rig, 1, session), title) > 0
 }
 
 fn rk_settings(name str, workdir str) -> ServerSettings {
@@ -199,7 +245,7 @@ export fn scenario_route_fast(settings ServerSettings) Proc Detach Time Net Fs O
     rig.attach(1)
     ro first = rk_last(rig.all_lines_for(1), "route_state")
     c.expect(jtext(first, "route") == "" || jtext(first, "route") == "interactive", "a session starts in the mode interactive")
-    rig.page(1, "session_created", "s-r1", "{\"name\":\"Режим\",\"agent\":\"opencode\"}")
+    rk_project_page(rig, 1, "s-r1", "{\"name\":\"Режим\",\"agent\":\"opencode\"}")
     c.expect(rig.until("\"kind\":\"session_created\"", 5000), "the session is shown")
     // interactive: no task in a plain folder, nothing is put before the message
     rig.page(1, "user_message", "s-r1", "{\"turn\":\"t0\",\"text\":\"привет\"}")
@@ -318,7 +364,7 @@ export fn scenario_route_nosteps(settings ServerSettings) Proc Detach Time Net F
     ro made = write_file("${work}/.keep", "")
     mut rig = rig_open(settings)
     rig.attach(1)
-    rig.page(1, "session_created", "s-r2", "{\"name\":\"Без шагов\",\"agent\":\"opencode\"}")
+    rk_project_page(rig, 1, "s-r2", "{\"name\":\"Без шагов\",\"agent\":\"opencode\"}")
     c.expect(rig.until("\"kind\":\"session_created\"", 5000), "the session is shown")
     rig.page(1, "route_run", "s-r2", "{}")
     c.expect(rig.until("в этом режиме нет шагов", 5000), "no run in the mode interactive")
@@ -378,7 +424,7 @@ export fn scenario_route_tree(settings ServerSettings) Proc Detach Time Net Fs O
     mut c = kit_check()
     mut rig = rig_open(settings)
     rig.attach(1)
-    rig.page(1, "session_created", "s-r3", "{\"name\":\"Дерево\",\"agent\":\"opencode\"}")
+    rk_project_page(rig, 1, "s-r3", "{\"name\":\"Дерево\",\"agent\":\"opencode\"}")
     c.expect(rig.until("\"kind\":\"session_created\"", 5000), "the session is shown")
     rig.page(1, "user_message", "s-r3", "{\"turn\":\"t0\",\"text\":\"привет\"}")
     c.expect(rig.until(KIT_DONE, 20000), "a talk is answered")
@@ -527,7 +573,7 @@ export fn scenario_route_publish(settings ServerSettings) Proc Detach Time Net F
     ro initial = rk_head(origin, "main")
     mut rig = rig_open(settings)
     rig.attach(1)
-    rig.page(1, "session_created", "s-r4", "{\"name\":\"Публикация\",\"agent\":\"opencode\"}")
+    rk_project_page(rig, 1, "s-r4", "{\"name\":\"Публикация\",\"agent\":\"opencode\"}")
     c.expect(rig.until("\"kind\":\"session_created\"", 5000), "the session is shown")
     c.expect(rig.seed_task("s-r4", "t1", "Общая работа", ["a.txt"]), "the first work is started")
     // the second work touches other files: no overlap, so it goes on in a tree of its own at once (task 192.2)
@@ -593,7 +639,7 @@ export fn scenario_route_planning(settings ServerSettings) Proc Detach Time Net 
     ro head_before = git_run(repo, ["symbolic-ref", "HEAD"]).text
     mut rig = rig_open(settings)
     rig.attach(1)
-    rig.page(1, "session_created", "s-r5", "{\"name\":\"План\",\"agent\":\"opencode\",\"route\":\"planning\",\"worktree\":true}")
+    rk_project_page(rig, 1, "s-r5", "{\"name\":\"План\",\"agent\":\"opencode\",\"route\":\"planning\",\"worktree\":true}")
     c.expect(rig.until("\"kind\":\"session_created\"", 5000), "the session is shown")
     rig.run(300)
     ro st0 = rk_last(rig.all_lines_for(1), "route_state")
@@ -713,7 +759,7 @@ export fn scenario_route_notree(settings ServerSettings) Proc Detach Time Net Fs
     ro repo = settings.workdir
     mut rig = rig_open(settings)
     rig.attach(1)
-    rig.page(1, "session_created", "s-r6", "{\"name\":\"Без дерева\",\"agent\":\"opencode\",\"worktree\":false}")
+    rk_project_page(rig, 1, "s-r6", "{\"name\":\"Без дерева\",\"agent\":\"opencode\",\"worktree\":false}")
     c.expect(rig.until("\"kind\":\"session_created\"", 5000), "the session is shown")
     rig.run(300)
     c.expect(!((rk_last(rig.all_lines_for(1), "route_state").get("use_tree") ?? JsonValue.null()).bool() ?? true), "the page is told: no tree")
@@ -729,7 +775,10 @@ export fn scenario_route_notree(settings ServerSettings) Proc Detach Time Net Fs
     rig.page(1, "session_worktree", "s-r6", "{\"on\":true}")
     rig.run(300)
     c.expect((rk_last(rig.all_lines_for(1), "route_state").get("use_tree") ?? JsonValue.null()).bool() ?? false, "the switch is on")
-    c.expect(rig.seed_task("s-r6", "t2", "С деревом", ["a.txt"]), "the owner starts a work: the task is there")
+    c.expect(rk_offer_tasks(rig, "s-r6", [rk_item("new", "С деревом", 0, ["a.txt"])], "С деревом"), "the MCP proposal is shown while prompt dispatch waits for the copy")
+    rig.press("s-r6", "С деревом", "start")
+    rig.run(3000)
+    c.expect(!rk_task_is_null(ck_state(rig, 1, "s-r6")), "the owner starts a work: the task is there")
     ro st = rk_last(rig.all_lines_for(1), "route_state")
     c.expect(jtext(rk_task(st), "worktree").byte_len() > 0, "the task has a tree now")
     // with a tree the switch cannot be turned off

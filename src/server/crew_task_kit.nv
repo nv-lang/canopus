@@ -42,7 +42,7 @@ export fn scenario_route_recognize(settings ServerSettings) Proc Detach Time Net
     mut c = kit_check()
     mut rig = rig_open(settings)
     rig.attach(1)
-    rig.page(1, "session_created", "s-r7", "{\"name\":\"Распознавание\",\"agent\":\"opencode\"}")
+    rk_project_page(rig, 1, "s-r7", "{\"name\":\"Распознавание\",\"agent\":\"opencode\"}")
     c.expect(rig.until("\"kind\":\"session_created\"", 5000), "the session is shown")
     // a question and a talk: no task, no card, no file
     rig.page(1, "user_message", "s-r7", "{\"turn\":\"t0\",\"text\":\"что такое хаб?\"}")
@@ -146,7 +146,7 @@ export fn scenario_context_compaction(settings ServerSettings) Proc Detach Time 
     mut c = kit_check()
     mut rig = rig_open(settings)
     rig.attach(1)
-    rig.page(1, "session_created", "s-cx", "{\"name\":\"Контекст\",\"agent\":\"opencode\"}")
+    rk_project_page(rig, 1, "s-cx", "{\"name\":\"Контекст\",\"agent\":\"opencode\"}")
     c.expect(rig.until("\"kind\":\"session_created\"", 5000), "the session is shown")
     rig.hub.kit_usage("s-cx", 100000, 200000)
     rig.run(2500)

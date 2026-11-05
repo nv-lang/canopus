@@ -27,7 +27,7 @@ export fn scenario_preparation_backend(settings ServerSettings) Proc Detach Time
     mut rig = rig_open(settings)
     rig.hub.preparation_fixtures.push(PreparationFixture { session: "s-safe", registration, model: "fixture/selected", variant: "", adapter })
     rig.attach(1)
-    rig.page(1, "session_created", "s-safe", "{\"name\":\"Подготовка\",\"agent\":\"opencode\",\"route\":\"planning\",\"worktree\":true}")
+    rk_project_page(rig, 1, "s-safe", "{\"name\":\"Подготовка\",\"agent\":\"opencode\",\"route\":\"planning\",\"worktree\":true}")
     c.expect(rig.until("\"kind\":\"session_created\"", 5000), "the session is created")
     ro dir = "${settings.data_dir}/s-safe/tasks/draft/task"
     ro source = "${settings.workdir}/source.nv"

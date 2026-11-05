@@ -11,6 +11,7 @@ import crew_harness.product_machines.{tree_text, tree_paths}
 export fn machine_files() -> []NamedText => [
     NamedText { name: "chat.alula.json", text: tree_text("machines/product/chat.alula.json") },
     NamedText { name: "dialog.alula.json", text: tree_text("machines/product/dialog.alula.json") },
+    NamedText { name: "family-approval.alula.json", text: tree_text("machines/product/family-approval.alula.json") },
     NamedText { name: "work-mode.alula.json", text: tree_text("machines/product/work-mode.alula.json") }
 ]
 
@@ -18,6 +19,7 @@ export fn machine_files() -> []NamedText => [
 export fn table_files() -> []NamedText => [
     NamedText { name: "chat.alula.md", text: tree_text("machines/product/chat.alula.md") },
     NamedText { name: "dialog.alula.md", text: tree_text("machines/product/dialog.alula.md") },
+    NamedText { name: "family-approval.alula.md", text: tree_text("machines/product/family-approval.alula.md") },
     NamedText { name: "work-mode.alula.md", text: tree_text("machines/product/work-mode.alula.md") }
 ]
 
@@ -104,7 +106,9 @@ export fn test_files() -> []NamedText => [
     NamedText { name: "free-input-dialog-close.alula.test.json", text: tree_text("machines/product/tests/free-input-dialog-close.alula.test.json") },
     NamedText { name: "free-input-no-gate-record.alula.test.json", text: tree_text("machines/product/tests/free-input-no-gate-record.alula.test.json") },
     NamedText { name: "free-input-signal-without-row.alula.test.json", text: tree_text("machines/product/tests/free-input-signal-without-row.alula.test.json") },
-    NamedText { name: "work-mode-preparation.alula.test.json", text: tree_text("machines/product/tests/work-mode-preparation.alula.test.json") }
+    NamedText { name: "work-mode-preparation.alula.test.json", text: tree_text("machines/product/tests/work-mode-preparation.alula.test.json") },
+    NamedText { name: "workspace-dispatch.alula.test.json", text: tree_text("machines/product/tests/workspace-dispatch.alula.test.json") },
+    NamedText { name: "workspace-preference.alula.test.json", text: tree_text("machines/product/tests/workspace-preference.alula.test.json") }
 ]
 
 /// The names of the files that the folder of the product holds (read from the disk of the tree, `tree_paths`): `product_machines`, `product_tables` (the files of the folder itself), `product_libraries`

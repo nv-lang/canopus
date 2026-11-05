@@ -233,6 +233,9 @@ SKELETON = {
     "README.md": "# Test\n\nSee [the spec](doc/tasks/001-x/spec.md).\n",
     "doc/tasks/001-x/spec.md": "Статус: черновик\n\nREQ-01 a\n",
     "opencode-plugin/test/a.test.mjs": "cell('x', true)\n",
+    # A real guard target, with the engine version matched to its lock.
+    "nova.lock.toml": '[[package]]\nname = "alula"\nversion = "0.28.0"\n',
+    "machines/product/dialog.alula.json": '{"kind":"machine","machine":"Fixture","alula_version":"0.28","includes":[]}\n',
 }
 EXPECTED_EMAIL = "author@example.test"
 

@@ -49,7 +49,7 @@ fn one_step(step str) -> str => `{"kind":"test","machine":"ChatSession","name":"
 
 test "every scenario" {
     ro files = test_files()
-    assert(files.len() == 82)
+    assert(files.len() == 84)
     for f in files {
         ro sc = scenario_of(f.name)
         ro run = run_test(machine_named(sc.machine), sc)

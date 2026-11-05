@@ -69,7 +69,7 @@ export fn scenario_wip_flow(settings ServerSettings) Proc Detach Time Net Fs Os 
     c.expect(rk_git(other, ["add", "fresh.txt"]) && rk_git(other, ["commit", "-m", "fresh work"]) && rk_git(other, ["push", "origin", "main"]), "origin has a commit that the local main has not")
     mut rig = rig_open(settings)
     rig.attach(1)
-    rig.page(1, "session_created", "s-w1", "{\"name\":\"Работа\",\"agent\":\"opencode\"}")
+    rk_project_page(rig, 1, "s-w1", "{\"name\":\"Работа\",\"agent\":\"opencode\",\"worktree\":true}")
     c.expect(rig.until("\"kind\":\"session_created\"", 5000), "the session is shown")
     rig.run(300)
     c.expect(jtext(wk_where(rig, 1, "s-w1"), "kind") != "wip", "before the first message there is no wip tree")
@@ -165,7 +165,7 @@ export fn scenario_wip_flow(settings ServerSettings) Proc Detach Time Net Fs Os 
     c.expect(git_run(origin, ["show", "main:c.txt"]).text.contains("work of c.txt"), "and its work is in the bare origin now")
 
     // 6. a restart: a session that has a wip tree comes back with the same tree and branch
-    rig.page(1, "session_created", "s-w2", "{\"name\":\"После перезапуска\",\"agent\":\"opencode\"}")
+    rk_project_page(rig, 1, "s-w2", "{\"name\":\"После перезапуска\",\"agent\":\"opencode\",\"worktree\":true}")
     c.expect(rig.until("После перезапуска", 5000), "the second talk is shown")
     rig.page(1, "user_message", "s-w2", "{\"turn\":\"u0\",\"text\":\"привет\"}")
     c.expect(rig.until(KIT_DONE, 20000), "the talk is answered")
@@ -285,7 +285,7 @@ export fn scenario_wip_folder_and_delete(settings ServerSettings) Proc Detach Ti
     rig.attach(1)
 
     // 1. the switch is off: the main folder, the branch of the folder is told, no tree
-    rig.page(1, "session_created", "s-f1", "{\"name\":\"Без дерева\",\"agent\":\"opencode\",\"worktree\":false}")
+    rk_project_page(rig, 1, "s-f1", "{\"name\":\"Без дерева\",\"agent\":\"opencode\",\"worktree\":false}")
     c.expect(rig.until("\"kind\":\"session_created\"", 5000), "the session without a tree is shown")
     rig.page(1, "user_message", "s-f1", "{\"turn\":\"f0\",\"text\":\"привет\"}")
     c.expect(rig.until(KIT_DONE, 20000), "it is answered")
@@ -302,7 +302,7 @@ export fn scenario_wip_folder_and_delete(settings ServerSettings) Proc Detach Ti
     c.expect(rk_git(repo, ["switch", "main"]), "back to main")
 
     // 2. an empty wip tree goes silently with the deleted session
-    rig.page(1, "session_created", "s-f2", "{\"name\":\"Пустая\",\"agent\":\"opencode\"}")
+    rk_project_page(rig, 1, "s-f2", "{\"name\":\"Пустая\",\"agent\":\"opencode\",\"worktree\":true}")
     c.expect(rig.until("Пустая", 5000), "the empty one is shown")
     rig.page(1, "user_message", "s-f2", "{\"turn\":\"g0\",\"text\":\"привет\"}")
     c.expect(rig.until(KIT_DONE, 20000), "it is answered")
@@ -315,7 +315,7 @@ export fn scenario_wip_folder_and_delete(settings ServerSettings) Proc Detach Ti
     c.expect(!dir_there(tree2), "the empty tree and the branch are removed without a question")
 
     // 3. a wip tree with work: the page is told (the question is the owner's), the delete without a word keeps the tree, "drop" removes it
-    rig.page(1, "session_created", "s-f3", "{\"name\":\"С правкой\",\"agent\":\"opencode\"}")
+    rk_project_page(rig, 1, "s-f3", "{\"name\":\"С правкой\",\"agent\":\"opencode\",\"worktree\":true}")
     c.expect(rig.until("С правкой", 5000), "the one with work is shown")
     rig.page(1, "user_message", "s-f3", "{\"turn\":\"h0\",\"text\":\"привет\"}")
     c.expect(rig.until(KIT_DONE, 20000), "it is answered")
@@ -337,7 +337,7 @@ export fn scenario_wip_folder_and_delete(settings ServerSettings) Proc Detach Ti
     c.expect(dir_there(tree3), "a deleted session with work leaves the tree and the branch (the owner chose neither)")
 
     // 4. the drop of a wip tree with the work by the card: the agent goes back to the folder of the project
-    rig.page(1, "session_created", "s-f4", "{\"name\":\"Сбросить\",\"agent\":\"opencode\"}")
+    rk_project_page(rig, 1, "s-f4", "{\"name\":\"Сбросить\",\"agent\":\"opencode\",\"worktree\":true}")
     c.expect(rig.until("Сбросить", 5000), "the one to drop is shown")
     rig.page(1, "user_message", "s-f4", "{\"turn\":\"k0\",\"text\":\"привет\"}")
     c.expect(rig.until(KIT_DONE, 20000), "it is answered")
@@ -365,14 +365,14 @@ export fn scenario_wip_slow_tree(settings ServerSettings) Proc Detach Time Net F
     ro hook = write_file("${repo}/.git/hooks/post-checkout", "#!/bin/sh\nsleep 6\nexit 0\n")
     mut rig = rig_open(settings)
     rig.attach(1)
-    rig.page(1, "session_created", "s-sl", "{\"name\":\"Медленная\",\"agent\":\"opencode\"}")
+    rk_project_page(rig, 1, "s-sl", "{\"name\":\"Медленная\",\"agent\":\"opencode\",\"worktree\":true}")
     c.expect(rig.until("Медленная", 5000), "the session is confirmed at once")
     rig.page(1, "user_message", "s-sl", "{\"turn\":\"t0\",\"text\":\"привет\"}")
     rig.run(1500)
     c.expect(jtext(wk_where(rig, 1, "s-sl"), "kind") == "preparing", "the page is told: the copy is being prepared: ${jtext(wk_where(rig, 1, "s-sl"), "kind")}")
     c.expect(wk_trees(repo) <= 2, "the tree is on its way")
     // the hub answers another session while the tree is made
-    rig.page(1, "session_created", "s-sl2", "{\"name\":\"Другая\",\"agent\":\"opencode\",\"worktree\":false}")
+    rk_project_page(rig, 1, "s-sl2", "{\"name\":\"Другая\",\"agent\":\"opencode\",\"worktree\":false}")
     c.expect(rig.until("Другая", 3000), "another session is shown while the tree is made")
     rig.page(1, "user_message", "s-sl2", "{\"turn\":\"u0\",\"text\":\"привет\"}")
     c.expect(rig.until(KIT_DONE, 4000), "another session is answered while the tree is made")
@@ -383,5 +383,6 @@ export fn scenario_wip_slow_tree(settings ServerSettings) Proc Detach Time Net F
     ro w = wk_where(rig, 1, "s-sl")
     c.expect(jtext(w, "kind") == "wip" && jtext(w, "worktree").contains("/repo-s-sl"), "the session works in the tree: ${jtext(w, "kind")} ${jtext(w, "worktree")}")
     c.expect(wk_pwd(rig, "s-sl", "t1p").contains("/repo-s-sl"), "the agent works in the tree")
+    rig.shut()
     c.report()
 }

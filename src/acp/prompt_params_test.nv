@@ -1,0 +1,18 @@
+module crew_harness.acp
+
+test "image-only ACP prompt omits an empty text block without a harness note" {
+    ro params = prompt_params("session", "", [image_block("image/png", "iVBORw0KGgo=")]).object().unwrap()
+    ro blocks = params.get("prompt").unwrap().array().unwrap()
+    assert(blocks.len() == 1)
+    assert(blocks[0].object().unwrap().get("type").unwrap().str().unwrap() == "image")
+    assert(blocks[0].object().unwrap().get("data").unwrap().str().unwrap() == "iVBORw0KGgo=")
+}
+
+test "ACP prompt keeps nonempty user text before its image" {
+    ro params = prompt_params("session", "look", [image_block("image/png", "iVBORw0KGgo=")]).object().unwrap()
+    ro blocks = params.get("prompt").unwrap().array().unwrap()
+    assert(blocks.len() == 2)
+    assert(blocks[0].object().unwrap().get("type").unwrap().str().unwrap() == "text")
+    assert(blocks[0].object().unwrap().get("text").unwrap().str().unwrap() == "look")
+    assert(blocks[1].object().unwrap().get("type").unwrap().str().unwrap() == "image")
+}

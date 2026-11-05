@@ -93,7 +93,7 @@ export fn scenario_crew_tools(settings ServerSettings) Proc Detach Time Net Fs O
     mut c = kit_check()
     mut rig = rig_open(settings)
     rig.attach(1)
-    rig.page(1, "session_created", "s-t1", "{\"name\":\"Беседа\",\"agent\":\"opencode\"}")
+    rk_project_page(rig, 1, "s-t1", "{\"name\":\"Беседа\",\"agent\":\"opencode\"}")
     c.expect(rig.until("\"kind\":\"session_created\"", 5000), "the session of the talk is shown")
     c.expect(ck_list(rig, "s-t1", "t1", [ck_item("new", "Главная работа", 0, 0, ["a.txt"])], "Главная работа"), "the work is listed")
     ck_apply(rig, "s-t1", [["Главная работа", "work", "new", "0"]])
