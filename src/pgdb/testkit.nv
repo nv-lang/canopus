@@ -1,7 +1,7 @@
 // testkit.nv - support of the PostgreSQL tests (here and in src/pg/store): a database of its own for every test, made
 // with the real migration (src/pg/schema.sql), and a login role that has only the rights of the application role.
 //
-// It is ordinary code of the module and not a `_test.nv` file because the tests of `crew_harness.pgstore` use it
+// It is ordinary code of the module and not a `_test.nv` file because the tests of `canopus.pgstore` use it
 // too, and a test file cannot be imported. Nothing in the product calls it.
 //
 // The server is a temporary container started by `src/pg/testdb.ps1` (see README.md). The script makes two random
@@ -10,7 +10,7 @@
 // `nova test` runs.
 // ORACLE-WORKAROUND(21, 14): there is no environment variable here on purpose, the port is read from a file: `std.os` cannot be in the same program as a user type `Output` (the engine had one, it is gone since task 102); the split was not tried again, use `env` when items 14 and 21 are fixed
 // No file, no server: a red test with a message, not a silent skip - a green run must mean that the real PostgreSQL was used.
-module crew_harness.pgdb
+module canopus.pgdb
 
 import std.encoding.json.{Json, JsonValue, JsonObject}
 import std.fs.{Fs, real_fs, read_text, Path}
@@ -102,11 +102,11 @@ export fn test_migrate(cfg PgConfig) -> Result[(), PgFault] {
     with Net = real_net() { pg_migrate(cfg, sql) }
 }
 
-/// A new database `crew_t_<name>` (an old one of the same name is dropped), migrated, with the login role
-/// `crew_u_<name>` that is a member of `crew_app` and nothing more.
+/// A new database `canopus_t_<name>` (an old one of the same name is dropped), migrated, with the login role
+/// `canopus_u_<name>` that is a member of `canopus_app` and nothing more.
 export fn new_test_db(name str) -> TestDb {
-    ro db = "crew_t_${name}"
-    ro role = "crew_u_${name}"
+    ro db = "canopus_t_${name}"
+    ro role = "canopus_u_${name}"
     ro root = test_admin_on("postgres")
     ro dropped = test_must_sql(root, "drop database if exists ${db} with (force)")
     ro created = test_must_sql(root, "create database ${db}")
@@ -116,7 +116,7 @@ export fn new_test_db(name str) -> TestDb {
         Err(f) => panic("test setup: the migration failed: ${f.message} [${f.sqlstate}]")
     }
     ro gone = test_must_sql(root, "drop role if exists ${role}")
-    ro made = test_must_sql(root, "create role ${role} login password '${test_app_password()}' in role crew_app")
+    ro made = test_must_sql(root, "create role ${role} login password '${test_app_password()}' in role canopus_app")
     {
         name: db, admin, role,
         app: { host: "127.0.0.1", port: test_port(), database: db, user: role, password: test_app_password() }

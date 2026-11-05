@@ -3,7 +3,7 @@
 
 Зачем: установщик пишет общую конфигурацию всех рабочих деревьев репозитория; тихая подмена чужой
     настройки или повторный запуск, который что-то меняет, - вред, который заметят не сразу.
-Проверяет: в свежем клоне: core.hooksPath = scripts/githooks и crewharness.expectedEmail = user.email;
+Проверяет: в свежем клоне: core.hooksPath = scripts/githooks и canopus.expectedEmail = user.email;
     повтор ничего не меняет и говорит об этом; без user.email - громкий отказ; иной core.hooksPath или иной
     адрес - отказ без изменений, с флагом --reset - замена; предупреждение о действующих хуках в .git/hooks;
     дерево без хуков, нет интерпретатора, не репозиторий - отказ; запуск из подкаталога и связанного дерева.
@@ -41,11 +41,11 @@ def main():
 
     def fresh_clone():
         r = clone()
-        assert cfg(r, "core.hooksPath") == "" and cfg(r, "crewharness.expectedEmail") == ""
+        assert cfg(r, "core.hooksPath") == "" and cfg(r, "canopus.expectedEmail") == ""
         proc = install(r)
         assert proc.returncode == 0, proc.out + proc.err
         assert cfg(r, "core.hooksPath") == "scripts/githooks", cfg(r, "core.hooksPath")
-        assert cfg(r, "crewharness.expectedEmail") == "author@example.test"
+        assert cfg(r, "canopus.expectedEmail") == "author@example.test"
         assert "общая для всех рабочих деревьев" in proc.out, proc.out
 
     def repeat_changes_nothing():
@@ -71,18 +71,18 @@ def main():
         stlib.git(r, env, "config", "core.hooksPath", "my/own/hooks")
         proc = install(r)
         assert proc.returncode == 1 and "--reset" in proc.out, proc.out
-        assert cfg(r, "core.hooksPath") == "my/own/hooks" and cfg(r, "crewharness.expectedEmail") == ""
+        assert cfg(r, "core.hooksPath") == "my/own/hooks" and cfg(r, "canopus.expectedEmail") == ""
         proc = install(r, "--reset")
         assert proc.returncode == 0 and cfg(r, "core.hooksPath") == "scripts/githooks", proc.out
 
     def other_expected_email():
         r = clone()
-        stlib.git(r, env, "config", "crewharness.expectedEmail", "old@example.test")
+        stlib.git(r, env, "config", "canopus.expectedEmail", "old@example.test")
         proc = install(r)
         assert proc.returncode == 1 and "--reset" in proc.out, proc.out
-        assert cfg(r, "crewharness.expectedEmail") == "old@example.test"
+        assert cfg(r, "canopus.expectedEmail") == "old@example.test"
         proc = install(r, "--reset")
-        assert proc.returncode == 0 and cfg(r, "crewharness.expectedEmail") == "author@example.test"
+        assert proc.returncode == 0 and cfg(r, "canopus.expectedEmail") == "author@example.test"
 
     def live_hooks_warning():
         r = clone()

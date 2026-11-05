@@ -1,10 +1,10 @@
 // v213_test.nv - task 149: Alula 2.13 in the interpreter and the scenario runner: the signal of a party is an event `signal` (the step `word` of a scenario is gone, the step `signal` may name the party
 // that declared the signal), the question `accepts_signal` of the hub is answered from the signals of the table, an optional field of the input that the input does not have is none (AL-48).
-module crew_harness.machine_run_machines
+module canopus.machine_run_machines
 
 import std.text
 import alula.machine.{text_of_file}
-import crew_harness.machines.{machine_files, test_files}
+import canopus.machines.{machine_files, test_files}
 import alula.machine_run.{report_text, run_ok}
 
 fn signal_step(name str, party str, input str) -> str {

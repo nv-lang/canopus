@@ -7,7 +7,7 @@ import { execFileSync } from "node:child_process"
 import { gitAsync } from "./async-git.ts"
 import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs"
 import path from "node:path"
-import { type Card, type CrewConfig, PLUGIN_SENDER, ROLES, allCards, cardFile, extraBlock, mayWakeCard, postLetter, readJson, safeKey, saveCard } from "./core.ts"
+import { type Card, type CanopusConfig, PLUGIN_SENDER, ROLES, allCards, cardFile, extraBlock, mayWakeCard, postLetter, readJson, safeKey, saveCard } from "./core.ts"
 import { type SideItem, type Task, saveTask, isOpen, listTasks, loadTask, taskFile, taskNo, waitingCleanup } from "./tasks.ts"
 import { roundRules } from "./plans.ts"
 
@@ -165,7 +165,7 @@ export function lockWaiters(project: string): { session: string; n: number; at: 
     .map((c) => ({ session: c.session, n: c.lock_wait!.n, at: c.lock_wait!.at }))
     .sort((a, b) => a.at - b.at)
 }
-/** Строка «ждут замок: NNN (мин)» для /crew и панели; нет ждущих — undefined. */
+/** Строка «ждут замок: NNN (мин)» для /canopus и панели; нет ждущих — undefined. */
 export function lockWaitLine(project: string, now = Date.now()): string | undefined {
   const w = lockWaiters(project)
   return w.length ? `ждут замок: ${w.map((x) => `${taskNo({ project, n: x.n })} (${Math.max(0, Math.round((now - x.at) / 60_000))} мин)`).join(", ")}` : undefined
@@ -176,7 +176,7 @@ export function wakeLockWaiters(project: string, abandoned = false): number {
   const waiters = lockWaiters(project)
   const at = Date.now()
   for (const w of waiters) {
-    postLetter(w.session, { id: `lock-free-${safeKey(project)}-${at}-${safeKey(w.session)}`, from_role: PLUGIN_SENDER, from_session: PLUGIN_SENDER, to: w.session, time: at, text: `Замок вливания проекта ${project} свободен. Ты ждал его для задачи ${taskNo({ project, n: w.n })}: вызови crew_task {action: "merge", n: ${w.n}} (замок выдаётся тому, кто успел первым; проиграешь — снова встанешь в ждущие).` })
+    postLetter(w.session, { id: `lock-free-${safeKey(project)}-${at}-${safeKey(w.session)}`, from_role: PLUGIN_SENDER, from_session: PLUGIN_SENDER, to: w.session, time: at, text: `Замок вливания проекта ${project} свободен. Ты ждал его для задачи ${taskNo({ project, n: w.n })}: вызови canopus_task {action: "merge", n: ${w.n}} (замок выдаётся тому, кто успел первым; проиграешь — снова встанешь в ждущие).` })
     setLockWait(w.session, undefined)
   }
   return waiters.length
@@ -236,7 +236,7 @@ export async function fileAtAsync(dir: string, ref: string, file: string): Promi
 }
 
 /** Шаги очистки по настройке проекта — текстом для приёмщика. */
-export function cleanupSteps(t: Task, cfg: CrewConfig): string[] {
+export function cleanupSteps(t: Task, cfg: CanopusConfig): string[] {
   if (cfg.cleanup === "none") return []
   const out: string[] = []
   if (t.worktree) out.push(`git worktree remove "${t.worktree}"`)
@@ -246,7 +246,7 @@ export function cleanupSteps(t: Task, cfg: CrewConfig): string[] {
 }
 
 /** Очистка сделана: ни одного артефакта задачи (ownership) — локально, а при local+remote и на origin (если доступен). */
-export function cleanupDone(t: Task, cfg: CrewConfig, extraKept: string[] = []): { ok: boolean; left: string[] } {
+export function cleanupDone(t: Task, cfg: CanopusConfig, extraKept: string[] = []): { ok: boolean; left: string[] } {
   const left: string[] = []
   if (cfg.cleanup === "none") return { ok: true, left }
   // деревья, сохранённые приёмщиком как улики (cleanup {keep}), уборка не проверяет; ветка задачи проверяется по-прежнему
@@ -304,7 +304,7 @@ export const keptPaths = (t: Task, extra: string[] = []): string[] => [...(t.kep
  * существующая папка внутри папки деревьев проекта; основное дерево, ветка, несуществующий путь — отказ с причиной.
  * Относительный путь считается от корня репозитория. Возвращает нормализованные пути (через /) без повторов.
  */
-export function resolveKeep(t: Task, cfg: CrewConfig, keep: unknown): { ok: true; paths: string[] } | { ok: false; why: string } {
+export function resolveKeep(t: Task, cfg: CanopusConfig, keep: unknown): { ok: true; paths: string[] } | { ok: false; why: string } {
   if (!Array.isArray(keep) || !keep.length) return { ok: false, why: "keep — непустой массив путей деревьев (до 8)" }
   if (keep.length > 8) return { ok: false, why: `в keep не больше 8 путей (передано ${keep.length})` }
   if (keep.some((k) => typeof k !== "string" || !k.trim())) return { ok: false, why: "каждый путь в keep — непустая строка" }
@@ -343,18 +343,18 @@ export function resolveKeep(t: Task, cfg: CrewConfig, keep: unknown): { ok: true
   return { ok: true, paths: out }
 }
 
-/** Жизнь замка слияния в письмах приёмщика при merge_precheck: required (решение владельца 2026-10-09; то же в crew_help и README). */
+/** Жизнь замка слияния в письмах приёмщика при merge_precheck: required (решение владельца 2026-10-09; то же в canopus_help и README). */
 export const LOCK_LIFECYCLE =
-  "ЗАМОК СЛИЯНИЯ: его отпускает accept (а также rework и cancel); после слияния и пуша сразу accept, уборка идёт без замка; слияние прервано до accept — crew_task {action: \"unlock\", n}; cleanup замок не отпускает (замка к нему уже нет). Если проверенный кандидат уже в главной ветке на origin, служба сама отпустит замок («замок отпущен: слияние на вершине»), и тогда accept замка не требует."
+  "ЗАМОК СЛИЯНИЯ: его отпускает accept (а также rework и cancel); после слияния и пуша сразу accept, уборка идёт без замка; слияние прервано до accept — canopus_task {action: \"unlock\", n}; cleanup замок не отпускает (замка к нему уже нет). Если проверенный кандидат уже в главной ветке на origin, служба сама отпустит замок («замок отпущен: слияние на вершине»), и тогда accept замка не требует."
 
 /** Фраза для письма приёмщику при accepted_slot: free (по умолчанию) — принятая задача ждёт уборки и место в inflight_limit не занимает. */
-function slotSentence(t: Task, cfg: CrewConfig): string {
+function slotSentence(t: Task, cfg: CanopusConfig): string {
   const waiting = waitingCleanup(listTasks(t.project)).length
   return `ПОСЛЕ ПРИНЯТИЯ (accepted_slot: free): принятая задача ждёт уборки и место в inflight_limit не занимает; ждущих уборки ${cfg.cleanupLimit > 0 ? `${waiting} из ${cfg.cleanupLimit}` : `${waiting}, предела нет`}. Всё равно доведи до cleanup: пока уборки ждут, новая работа может не ставиться.`
 }
 
 /** Письмо приёмщику. */
-export function reviewLetter(t: Task, cfg: CrewConfig): string {
+export function reviewLetter(t: Task, cfg: CanopusConfig): string {
   if (t.plan?.approval && t.plan.approval.decision !== "no") return planMergeLetter(t, cfg)
   if (t.plan) return planReviewLetter(t, cfg)
   const steps = cfg.acceptance.length
@@ -373,23 +373,23 @@ export function reviewLetter(t: Task, cfg: CrewConfig): string {
     t.report ? `ОТЧЁТ ИСПОЛНИТЕЛЯ:\n${t.report.slice(0, 3000)}` : "",
     `ШАГИ ПРИЁМКИ:\n${steps}`,
     `ПОРЯДОК:`,
-    `  1) crew_task {action: "review", n: ${t.n}} — начал приёмку (исполнитель узнает без пробуждения);`,
+    `  1) canopus_task {action: "review", n: ${t.n}} — начал приёмку (исполнитель узнает без пробуждения);`,
     cfg.acceptance.length
-      ? `  2) КАЖДЫЙ ШАГ — по очереди, владелец видит ход в окне: crew_task {action: "check", n: ${t.n}, step: "<шаг>"} перед проверкой шага, после — {action: "check", n: ${t.n}, step: "<шаг>", result: "чем подтверждено"};`
+      ? `  2) КАЖДЫЙ ШАГ — по очереди, владелец видит ход в окне: canopus_task {action: "check", n: ${t.n}, step: "<шаг>"} перед проверкой шага, после — {action: "check", n: ${t.n}, step: "<шаг>", result: "чем подтверждено"};`
       : "",
     pre
-      ? `  ${cfg.acceptance.length ? "3" : "2"}) ПРЕДПРОВЕРКА (merge_precheck: required; замок до CI не брать и merge не вызывать): crew_task {action: "precheck", n: ${t.n}} назовёт вершину ${cfg.targetBranch}; влей её вместе с веткой задачи в интеграционный candidate (например, integrate/t${t.n}), прогони полный CI проекта на этом кандидате и заверши: crew_task {action: "precheck", n: ${t.n}, candidate: "<точная ветка или хеш проверенного кандидата>", result: "<зелёный полный CI>"}. Запиши точный проверенный commit кандидата; если основа сдвинулась — собери и проверь новый кандидат заново, старый не вливай;`
+      ? `  ${cfg.acceptance.length ? "3" : "2"}) ПРЕДПРОВЕРКА (merge_precheck: required; замок до CI не брать и merge не вызывать): canopus_task {action: "precheck", n: ${t.n}} назовёт вершину ${cfg.targetBranch}; влей её вместе с веткой задачи в интеграционный candidate (например, integrate/t${t.n}), прогони полный CI проекта на этом кандидате и заверши: canopus_task {action: "precheck", n: ${t.n}, candidate: "<точная ветка или хеш проверенного кандидата>", result: "<зелёный полный CI>"}. Запиши точный проверенный commit кандидата; если основа сдвинулась — собери и проверь новый кандидат заново, старый не вливай;`
       : "",
-    `  ${(cfg.acceptance.length ? 3 : 2) + pre}) нашёл ошибки — crew_task {action: "rework", n: ${t.n}, text: "что исправить"} (вернётся тебе на повторную приёмку);`,
+    `  ${(cfg.acceptance.length ? 3 : 2) + pre}) нашёл ошибки — canopus_task {action: "rework", n: ${t.n}, text: "что исправить"} (вернётся тебе на повторную приёмку);`,
     pre
-      ? `  ${(cfg.acceptance.length ? 4 : 3) + pre}) только после зелёного precheck — crew_task {action: "merge", n: ${t.n}} (теперь берётся замок); fast-forward влей в ${cfg.targetBranch} ИМЕННО сохранённый проверенный candidate, не пересобирай и не подменяй его веткой задачи, затем запушь;`
-      : `  ${(cfg.acceptance.length ? 4 : 3) + pre}) всё зелёное — crew_task {action: "merge", n: ${t.n}} (замок вливания проекта), влей в ${cfg.targetBranch} и запушь, затем`,
+      ? `  ${(cfg.acceptance.length ? 4 : 3) + pre}) только после зелёного precheck — canopus_task {action: "merge", n: ${t.n}} (теперь берётся замок); fast-forward влей в ${cfg.targetBranch} ИМЕННО сохранённый проверенный candidate, не пересобирай и не подменяй его веткой задачи, затем запушь;`
+      : `  ${(cfg.acceptance.length ? 4 : 3) + pre}) всё зелёное — canopus_task {action: "merge", n: ${t.n}} (замок вливания проекта), влей в ${cfg.targetBranch} и запушь, затем`,
     pre
-      ? `     crew_task {action: "accept", n: ${t.n}${cfg.acceptance.length ? "" : ", checks: {\"<критерий>\": \"чем подтверждено\"}"}, commit: "<хэш в ${cfg.targetBranch}, если squash>"};`
-      : `     crew_task {action: "accept", n: ${t.n}${cfg.acceptance.length ? "" : ", checks: {\"<критерий>\": \"чем подтверждено\"}"}, commit: "<хэш в ${cfg.targetBranch}, если squash>"} (отмеченные шаги засчитаны);`,
+      ? `     canopus_task {action: "accept", n: ${t.n}${cfg.acceptance.length ? "" : ", checks: {\"<критерий>\": \"чем подтверждено\"}"}, commit: "<хэш в ${cfg.targetBranch}, если squash>"};`
+      : `     canopus_task {action: "accept", n: ${t.n}${cfg.acceptance.length ? "" : ", checks: {\"<критерий>\": \"чем подтверждено\"}"}, commit: "<хэш в ${cfg.targetBranch}, если squash>"} (отмеченные шаги засчитаны);`,
     pre
-      ? `  ${(cfg.acceptance.length ? 5 : 4) + pre}) отдельно выполни выданные шаги очистки, затем crew_task {action: "cleanup", n: ${t.n}}.${cfg.acceptedSlot === "free" ? " При accepted_slot: free accept освобождает inflight/worker slot; до cleanup задача учитывается отдельно в cleanup_limit." : ""} Улики сохранить — cleanup {n, keep:[путь]}; удалять их не нужно.`
-      : `  ${(cfg.acceptance.length ? 5 : 4) + pre}) плагин сам проверит, что влито, и выдаст шаги очистки; сделал — crew_task {action: "cleanup", n: ${t.n}}.${cfg.acceptedSlot === "free" ? " При accepted_slot: free accept освобождает inflight/worker slot; до cleanup задача учитывается отдельно в cleanup_limit." : ""}`,
+      ? `  ${(cfg.acceptance.length ? 5 : 4) + pre}) отдельно выполни выданные шаги очистки, затем canopus_task {action: "cleanup", n: ${t.n}}.${cfg.acceptedSlot === "free" ? " При accepted_slot: free accept освобождает inflight/worker slot; до cleanup задача учитывается отдельно в cleanup_limit." : ""} Улики сохранить — cleanup {n, keep:[путь]}; удалять их не нужно.`
+      : `  ${(cfg.acceptance.length ? 5 : 4) + pre}) плагин сам проверит, что влито, и выдаст шаги очистки; сделал — canopus_task {action: "cleanup", n: ${t.n}}.${cfg.acceptedSlot === "free" ? " При accepted_slot: free accept освобождает inflight/worker slot; до cleanup задача учитывается отдельно в cleanup_limit." : ""}`,
     pre ? LOCK_LIFECYCLE : "",
     cfg.acceptedSlot === "free" ? slotSentence(t, cfg) : "",
   ]
@@ -398,7 +398,7 @@ export function reviewLetter(t: Task, cfg: CrewConfig): string {
 }
 
 /** Письмо проверяющему раунда перепроверки плана (план 004). */
-export function planReviewLetter(t: Task, cfg: CrewConfig): string {
+export function planReviewLetter(t: Task, cfg: CanopusConfig): string {
   const p = t.plan!
   const no = p.rounds.length + 1
   const f = cfg.planForm
@@ -412,9 +412,9 @@ export function planReviewLetter(t: Task, cfg: CrewConfig): string {
     `ЧТО ПРОВЕРИТЬ — по каждому шагу check:\n${cfg.planAcceptance.map((a) => `  ${a.id}: ${a.text}`).join("\n")}`,
     roundRules(f.grades),
     "ПОРЯДОК:",
-    `  1) crew_task {action: "review", n: ${t.n}};`,
-    `  2) по каждому шагу: crew_task {action: "check", n: ${t.n}, step} перед проверкой, {action: "check", n: ${t.n}, step, result: "что нашёл"} после (у a2-coverage в result — таблица «требование → шаг → критерий»);`,
-    `  3) вердикт: crew_task {action: "round", n: ${t.n}, grades: {${f.grades.map((g) => `${g.id}: <число>`).join(", ")}}, text: "замечания: [градация] что не так → что исправить"}.`,
+    `  1) canopus_task {action: "review", n: ${t.n}};`,
+    `  2) по каждому шагу: canopus_task {action: "check", n: ${t.n}, step} перед проверкой, {action: "check", n: ${t.n}, step, result: "что нашёл"} после (у a2-coverage в result — таблица «требование → шаг → критерий»);`,
+    `  3) вердикт: canopus_task {action: "round", n: ${t.n}, grades: {${f.grades.map((g) => `${g.id}: <число>`).join(", ")}}, text: "замечания: [градация] что не так → что исправить"}.`,
     `Готов — ${cfg.planCleanRounds} раунда подряд только с косметическими; тогда план уйдёт владельцу. merge и accept в раунде не нужны: план вливается после согласования.`,
   ]
     .filter(Boolean)
@@ -422,7 +422,7 @@ export function planReviewLetter(t: Task, cfg: CrewConfig): string {
 }
 
 /** Письмо приёмщику согласованного плана: записать решение владельца и влить (план 004, шаг 3). */
-export function planMergeLetter(t: Task, cfg: CrewConfig): string {
+export function planMergeLetter(t: Task, cfg: CanopusConfig): string {
   const p = t.plan!
   const a = p.approval!
   const yes = a.decision === "ok"
@@ -435,17 +435,17 @@ export function planMergeLetter(t: Task, cfg: CrewConfig): string {
     `  — в «${cfg.planForm.sections.decisions}»: строку «план согласован${yes ? " без упрощений" : ", упрощения — как в плане"} | ${day}»;`,
     `  — в шапке: «**Статус:** ${cfg.planForm.marks.plan_work}».`,
     "ПОРЯДОК:",
-    `  1) crew_task {action: "review", n: ${t.n}}; шаги approval-written и form — check по каждому;`,
+    `  1) canopus_task {action: "review", n: ${t.n}}; шаги approval-written и form — check по каждому;`,
     cfg.mergePrecheck === "required"
-      ? `  2) ПРЕДПРОВЕРКА (merge_precheck: required; замок до CI не брать и merge не вызывать): crew_task {action: "precheck", n: ${t.n}} назовёт вершину ${cfg.targetBranch}; влей её вместе с веткой плана в интеграционный candidate, прогони полный CI проекта на нём и заверши: crew_task {action: "precheck", n: ${t.n}, candidate: "<точная ветка или хеш проверенного кандидата>", result: "<зелёный полный CI>"}. Запиши точный commit кандидата; если основа сдвинулась — собери и проверь новый кандидат заново, старый не вливай;`
+      ? `  2) ПРЕДПРОВЕРКА (merge_precheck: required; замок до CI не брать и merge не вызывать): canopus_task {action: "precheck", n: ${t.n}} назовёт вершину ${cfg.targetBranch}; влей её вместе с веткой плана в интеграционный candidate, прогони полный CI проекта на нём и заверши: canopus_task {action: "precheck", n: ${t.n}, candidate: "<точная ветка или хеш проверенного кандидата>", result: "<зелёный полный CI>"}. Запиши точный commit кандидата; если основа сдвинулась — собери и проверь новый кандидат заново, старый не вливай;`
       : "",
     cfg.mergePrecheck === "required"
-      ? `  3) только после зелёного precheck вызови crew_task {action: "merge", n: ${t.n}} (теперь берётся замок); fast-forward влей в ${cfg.targetBranch} именно сохранённый проверенный candidate, не пересобирай и не подменяй его веткой плана, затем push;`
-      : `  2) crew_task {action: "merge", n: ${t.n}} (замок вливания), влей ветку в ${cfg.targetBranch} и запушь;`,
+      ? `  3) только после зелёного precheck вызови canopus_task {action: "merge", n: ${t.n}} (теперь берётся замок); fast-forward влей в ${cfg.targetBranch} именно сохранённый проверенный candidate, не пересобирай и не подменяй его веткой плана, затем push;`
+      : `  2) canopus_task {action: "merge", n: ${t.n}} (замок вливания), влей ветку в ${cfg.targetBranch} и запушь;`,
     cfg.mergePrecheck === "required"
-      ? `  4) crew_task {action: "accept", n: ${t.n}} — плагин прочтёт план в ${cfg.targetBranch}: форма${cfg.planForm.modeQuestion ? ` и ответ «${cfg.planForm.modeLabel}»` : ""} должны сойтись с решением владельца;`
-      : `  3) crew_task {action: "accept", n: ${t.n}} — плагин прочтёт план в ${cfg.targetBranch}: форма${cfg.planForm.modeQuestion ? ` и ответ «${cfg.planForm.modeLabel}»` : ""} должны сойтись с решением владельца; затем очистка и cleanup.`,
-    ...(cfg.mergePrecheck === "required" ? [`  5) отдельно выполни выданные шаги очистки и вызови crew_task {action: "cleanup", n: ${t.n}}.${cfg.acceptedSlot === "free" ? " При accepted_slot: free accept освобождает inflight/worker slot; cleanup учитывается отдельно до cleanup." : ""} Улики сохранить — cleanup {n, keep:[путь]}; удалять их не нужно.`] : []),
+      ? `  4) canopus_task {action: "accept", n: ${t.n}} — плагин прочтёт план в ${cfg.targetBranch}: форма${cfg.planForm.modeQuestion ? ` и ответ «${cfg.planForm.modeLabel}»` : ""} должны сойтись с решением владельца;`
+      : `  3) canopus_task {action: "accept", n: ${t.n}} — плагин прочтёт план в ${cfg.targetBranch}: форма${cfg.planForm.modeQuestion ? ` и ответ «${cfg.planForm.modeLabel}»` : ""} должны сойтись с решением владельца; затем очистка и cleanup.`,
+    ...(cfg.mergePrecheck === "required" ? [`  5) отдельно выполни выданные шаги очистки и вызови canopus_task {action: "cleanup", n: ${t.n}}.${cfg.acceptedSlot === "free" ? " При accepted_slot: free accept освобождает inflight/worker slot; cleanup учитывается отдельно до cleanup." : ""} Улики сохранить — cleanup {n, keep:[путь]}; удалять их не нужно.`] : []),
     ...(cfg.mergePrecheck === "required" ? [LOCK_LIFECYCLE] : []),
     cfg.planSteps === "auto" ? "После cleanup плагин сам поставит задачи по шагам плана." : "После cleanup автор получит список шагов: задачи по ним ставит он сам (plan_steps: manual).",
   ]
@@ -459,7 +459,7 @@ export function reworkLetter(t: Task, text: string, by: string): string {
     t.plan ? `ЗАМЕЧАНИЯ ПЕРЕПРОВЕРКИ ПЛАНА ${t.plan.n} (задача ${taskNo(t)}) от ${by}:` : t.rework_sync ? `СИНХРОНИЗАЦИЯ задачи ${taskNo(t)} «${t.title}» с целевой веткой (не доработка) от приёмщика ${by}:` : `ДОРАБОТКА задачи ${taskNo(t)} «${t.title}» (круг ${t.rework ?? 1}) от приёмщика ${by}:`,
     text,
     ...(t.precheck?.candidate && !t.rework_sync && !t.plan ? [`Проверенный приёмщиком кандидат устареет с твоими новыми коммитами: приёмщик пересоберёт его от новой вершины ветки.`] : []),
-    `Исправь в том же worktree${t.branch ? ` (ветка ${t.branch})` : ""} и сдай снова: crew_task {action: "submit", n: ${t.n}, text: "что исправлено, как проверено"}.`,
+    `Исправь в том же worktree${t.branch ? ` (ветка ${t.branch})` : ""} и сдай снова: canopus_task {action: "submit", n: ${t.n}, text: "что исправлено, как проверено"}.`,
   ].join("\n")
 }
 
@@ -473,7 +473,7 @@ export function reworkLetter(t: Task, text: string, by: string): string {
 // БАЗА — ОПУБЛИКОВАННАЯ ВЕТКА (задача 022, 2026-10-11): до создания ветки плагин делает `git fetch origin <база>` (асинхронно,
 // с пределом времени) и строит ветку от origin/<база>; нет remote или fetch не вышел — прежняя локальная база и warn.
 // Локальная ветка отличается от опубликованной — note с числами (чужие коммиты и локальную ветку плагин не двигает).
-// ДЕРЕВО, КОТОРОЕ УЖЕ СТОИТ НА ВЕТКЕ (задача 079, 2026-10-17). Дерево, подготовленное вручную (интегратор записал его crew_task track,
+// ДЕРЕВО, КОТОРОЕ УЖЕ СТОИТ НА ВЕТКЕ (задача 079, 2026-10-17). Дерево, подготовленное вручную (интегратор записал его canopus_task track,
 // сессию перевели в него), плагин не видел: по настройкам путь свободен, и он делал `git worktree add` на ветке, уже выбранной в
 // другом дереве, — git отказывал, запуск сессии откладывался и повторялся каждые две минуты (задача 061).
 // Теперь дерево на ветке берётся как есть: возвращается его путь (запись задачи или сессии выравнивается по нему), второе не создаётся.
@@ -581,7 +581,7 @@ function worktreesOf(porcelain: string): { path: string; branch?: string }[] {
   }
   return out
 }
-export function ownership(t: Task, cfg: CrewConfig, repo: string) {
+export function ownership(t: Task, cfg: CanopusConfig, repo: string) {
   // {n} задачи с папкой — три цифры (задача 058): task/045-…, ветки сессий task/045-s4-3 — тоже её
   const v = { repo, n: t.folder ? String(t.n).padStart(3, "0") : t.n, project: t.project }
   const branchRe = templateRe(cfg.branchName, v)
@@ -605,7 +605,7 @@ export function ownership(t: Task, cfg: CrewConfig, repo: string) {
 // асинхронно: проверка идёт в цикле сервера раз в несколько минут, синхронный git (тем более ls-remote по сети)
 // держал бы главный поток сервера
 const gitA = (cwd: string, args: string[], timeout = 20_000) => gitAsync(cwd, args, timeout)
-export async function leftoversOf(t: Task, cfg: CrewConfig, remote: boolean): Promise<string[]> {
+export async function leftoversOf(t: Task, cfg: CanopusConfig, remote: boolean): Promise<string[]> {
   const dir = existsSync(t.directory) ? t.directory : undefined
   if (!dir) return []
   const left = new Set<string>()
@@ -664,7 +664,7 @@ export function addSide(t: Task, items: { branch?: string; worktree?: string }[]
   return added
 }
 /** Автозапись: ветки integrate/t<N>(-*) задачи и деревья на них, которых ещё нет в записи. */
-export function autoTrack(t: Task, cfg: CrewConfig, by: string): SideItem[] {
+export function autoTrack(t: Task, cfg: CanopusConfig, by: string): SideItem[] {
   const dir = existsSync(t.directory) ? t.directory : undefined
   if (!dir) return []
   try {

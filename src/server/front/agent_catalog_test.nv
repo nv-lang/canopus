@@ -1,5 +1,5 @@
 // agent_catalog_test.nv - `GET /api/agent-catalog` (task 192o): the answer for the file of the catalog.
-module crew_harness.server.front
+module canopus.server.front
 
 fn file_text() -> str => "{\"agents\":{\"claude\":{\"updated\":5000,\"model_id\":\"sonnet\",\"models\":[{\"id\":\"sonnet\",\"name\":\"Sonnet\"}]},\"kimi\":{\"updated\":6000}}}"
 

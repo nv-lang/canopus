@@ -8,7 +8,7 @@
 // storage/images.nv; a trace that held them would grow by megabytes per message). The file is only appended
 // to; at more than the limit (50 MB) the file becomes `acp.1.jsonl` beside it (an older one is replaced) and a new file is begun.
 // A failed write never stops the session: one line to the log of the hub (the stderr) and the trace of this session is off.
-module crew_harness.acp
+module canopus.acp
 
 import std.encoding.json.{JsonValue, JsonObject}
 import std.fs.{Fs, real_fs, File, Path, rename, metadata, remove_file, read}
@@ -116,7 +116,7 @@ fn trace_record(at int, dir str, line str) -> str {
 
 fn trace_warn(text str) -> () {
     mut err = stderr()
-    ro written = err.write("crew-hub: ${text}\n".bytes())
+    ro written = err.write("canopus-hub: ${text}\n".bytes())
 }
 
 fn trace_rotate(path str) Fs -> () {

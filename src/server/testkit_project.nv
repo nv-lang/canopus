@@ -1,9 +1,9 @@
 // testkit_project.nv - the scenario of the projects of the control panel (task 192m): a session made with `project_id` and `folder` works in the
 // folder of the project and its agent gets the variables of the project; the journal keeps only the id; a wrong project is refused;
 // the project goes on after a restart of the hub. Like the other scenarios it returns "" when everything was as it must be.
-module crew_harness.server
+module canopus.server
 
-import crew_harness.projects.{projects_create}
+import canopus.projects.{projects_create}
 import std.encoding.json.{Json, JsonObject}
 import std.fs.{Fs, real_fs, Path, read_text, create_dir_all, try_exists}
 import std.os.{Os, real_os, env}
@@ -47,10 +47,10 @@ export fn scenario_project(settings ServerSettings) Proc Detach Time Net Fs Os -
     }
     // two variables of the hub: one that the project overrides, one that it leaves alone
     with Os = real_os() {
-        ro set1 = env("CREW_192M_BASE", "from-hub")
-        ro set2 = env("CREW_192M_KEEP", "kept-from-hub")
+        ro set1 = env("CANOPUS_192M_BASE", "from-hub")
+        ro set2 = env("CANOPUS_192M_KEEP", "kept-from-hub")
     }
-    ro body = "{\"name\":\"P\",\"folders\":[{\"path\":\"${folder}\"}],\"env\":\"FOO=bar baz\\nCREW_192M_BASE=from-project\\nexport QUOTED=\\\"a \\\\\\\"b\\\\\\\" # c\\\"\\nSECRET_TOKEN=zq-top-secret-9\\n\"}"
+    ro body = "{\"name\":\"P\",\"folders\":[{\"path\":\"${folder}\"}],\"env\":\"FOO=bar baz\\nCANOPUS_192M_BASE=from-project\\nexport QUOTED=\\\"a \\\\\\\"b\\\\\\\" # c\\\"\\nSECRET_TOKEN=zq-top-secret-9\\n\"}"
     ro id = match projects_create(settings.data_dir, kit_json_object(body)) {
         Ok(i) => i
         Err(f) => panic("the project cannot be made: ${f.message}")
@@ -58,10 +58,10 @@ export fn scenario_project(settings ServerSettings) Proc Detach Time Net Fs Os -
     mut rig = rig_open(settings)
     rig.attach(1)
     rig.page(1, "session_created", "s-proj", "{\"name\":\"В проекте\",\"agent\":\"opencode\",\"project_id\":\"${id}\",\"folder\":\"${folder}\"}")
-    rig.page(1, "user_message", "s-proj", "{\"turn\":\"t1\",\"text\":\"env FOO CREW_192M_BASE CREW_192M_KEEP QUOTED NOPE_192M\"}")
+    rig.page(1, "user_message", "s-proj", "{\"turn\":\"t1\",\"text\":\"env FOO CANOPUS_192M_BASE CANOPUS_192M_KEEP QUOTED NOPE_192M\"}")
     c.expect(rig.until(KIT_DONE, 20000), "the first turn ends")
     ro told = kit_last_answer(rig.lines_for(1), "s-proj")
-    c.expect(told == "env FOO=[bar baz]; CREW_192M_BASE=[from-project]; CREW_192M_KEEP=[kept-from-hub]; QUOTED=[a \"b\" # c]; NOPE_192M=<unset>", "the agent sees the variables of the project over the ones of the hub: ${told}")
+    c.expect(told == "env FOO=[bar baz]; CANOPUS_192M_BASE=[from-project]; CANOPUS_192M_KEEP=[kept-from-hub]; QUOTED=[a \"b\" # c]; NOPE_192M=<unset>", "the agent sees the variables of the project over the ones of the hub: ${told}")
     rig.forget()
     rig.page(1, "user_message", "s-proj", "{\"turn\":\"t2\",\"text\":\"cwd\"}")
     c.expect(rig.until(KIT_DONE, 20000), "the second turn ends")
@@ -100,10 +100,10 @@ export fn scenario_project(settings ServerSettings) Proc Detach Time Net Fs Os -
     // a session without a project is as it was: the working folder of the hub, nobody's variables
     rig.forget()
     rig.page(1, "session_created", "s-plain", "{\"name\":\"N\",\"agent\":\"opencode\"}")
-    rig.page(1, "user_message", "s-plain", "{\"turn\":\"tp\",\"text\":\"env FOO CREW_192M_BASE\"}")
+    rig.page(1, "user_message", "s-plain", "{\"turn\":\"tp\",\"text\":\"env FOO CANOPUS_192M_BASE\"}")
     c.expect(rig.until(KIT_DONE, 20000), "a session without a project is answered")
     ro plain = kit_last_answer(rig.lines_for(1), "s-plain")
-    c.expect(plain == "env FOO=<unset>; CREW_192M_BASE=[from-hub]", "a session without a project gets the variables of the hub only: ${plain}")
+    c.expect(plain == "env FOO=<unset>; CANOPUS_192M_BASE=[from-hub]", "a session without a project gets the variables of the hub only: ${plain}")
     rig.shut()
 
     // the hub starts again: the session goes on in its folder with its variables

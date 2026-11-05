@@ -1,6 +1,6 @@
 // redact_test.nv - the secrets taken out of a text (task 192.11).
 // The samples are put together from pieces so that the guards of the repository do not take the test itself for a leak.
-module crew_harness.storage
+module canopus.storage
 
 fn drive_users() -> str {
     ro piece = "Us"
@@ -23,7 +23,7 @@ test "redact: a Bearer token and a field of JSON with a secret name" {
 }
 
 test "redact: an assignment, a known key, an address with a password" {
-    ro a = secret_redact("run CREW_TOKEN=abcdef and PASSWORD=zzz here")
+    ro a = secret_redact("run CANOPUS_TOKEN=abcdef and PASSWORD=zzz here")
     assert(!a.contains("abcdef") && !a.contains("zzz") && a.contains("here"))
     ro b = secret_redact("key ${gh_prefix()}abcdefghijklmnopqrstuvwxyz0123 end, sk-short and skip")
     assert(!b.contains("abcdefghijklmnopqrstuvwxyz0123") && b.contains("sk-short") && b.contains("skip"))

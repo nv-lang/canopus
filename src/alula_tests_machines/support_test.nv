@@ -1,6 +1,6 @@
 // support_test.nv - helpers of the proofs of `alula run` and `alula test` (task 116) on the folder `src/machine/`: the program is run over the memory file system with the arguments, the standard output and the
 // standard error captured.
-module crew_harness.alula_tests_machines
+module canopus.alula_tests_machines
 
 import std.fs.{Path, MemFs, mock_fs, write_text, read_text, create_dir_all}
 import std.text
@@ -8,8 +8,8 @@ import std.io.{IoCapture, mock_io}
 import std.os.{MockOs, mock_os}
 import alula.machine.{NamedText, text_of_file}
 import alula.alula_cli.{execute}
-import crew_harness.machines.{product_journal_text, library_files_in}
-import crew_harness.machines.{machine_files, test_files, table_files}
+import canopus.machines.{product_journal_text, library_files_in}
+import canopus.machines.{machine_files, test_files, table_files}
 
 /// Ran: what a run of the program left.
 type Ran { code int, out str, err str }

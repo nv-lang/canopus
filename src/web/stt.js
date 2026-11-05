@@ -17,7 +17,7 @@ export const LANGS = Object.freeze([
 export const PROVIDERS = Object.freeze(['browser', 'local']);
 export const MAX_RECORD_SECONDS = 60;
 export const MIN_RECORD_SECONDS = 0.3;
-const KEYS = Object.freeze({ provider: 'crew.voice.provider', lang: 'crew.voice.lang', mic: 'crew.voice.mic' });
+const KEYS = Object.freeze({ provider: 'canopus.voice.provider', lang: 'canopus.voice.lang', mic: 'canopus.voice.mic' });
 
 /** Язык страницы в виде BCP-47 для браузерного распознавания: html lang="ru" → ru-RU, неизвестный → ru-RU. */
 export function pageLang(doc) {

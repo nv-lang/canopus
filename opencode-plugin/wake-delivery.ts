@@ -5,7 +5,7 @@ import { createHash, randomUUID } from "node:crypto"
 import { mkdirSync, renameSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { readJson, safeKey, type Letter } from "./core.ts"
-import { BASE } from "./paths.ts"
+import { BASE } from "./base.ts"
 import { nativeGet, type NativeGet, type NativeState } from "./native-state.ts"
 import { archiveWake, receiptById, receiptForLetter } from "./wake-receipts.ts"
 
@@ -38,7 +38,7 @@ export function saveWake(a: WakeAttempt, dir = WAKE_DIR) {
 }
 export function newWake(session: string, letters: Letter[], text: string, now: number): WakeAttempt {
   const hash = createHash("sha256").update(JSON.stringify([session, letters.map(l => l.id).sort()])).digest("hex")
-  return { session, id: `msg_crew${hash}`, text, letters, phase: "queued", at: now, deadline: now + WAKE_DEADLINE_MS, tries: 0 }
+  return { session, id: `msg_canopus${hash}`, text, letters, phase: "queued", at: now, deadline: now + WAKE_DEADLINE_MS, tries: 0 }
 }
 
 /** Exact projected input followed by a NEW assistant generation in that input's
@@ -88,7 +88,7 @@ export async function advanceWake(a: WakeAttempt, d: WakeDeps): Promise<WakeAtte
   a.phase = "sending"; a.tries++; a.triedAt = d.now
   d.save(a)
   try {
-    const response = await d.prompt({ sessionID: a.session, id: a.id, text: a.text, delivery: "queue", metadata: { crewWake: a.id } })
+    const response = await d.prompt({ sessionID: a.session, id: a.id, text: a.text, delivery: "queue", metadata: { canopusWake: a.id } })
     const item = response?.data ?? response
     if (item?.id === a.id && item?.sessionID === a.session && item?.type === (a.mode === "quiet-synthetic" ? "synthetic" : "user") && item?.payload?.text === a.text && item?.delivery === "queue" && Number.isFinite(item?.time?.created) && item.time.created >= a.at) {
       a.phase = "accepted"; a.acceptedAt ??= d.now; a.why = a.mode?.startsWith("quiet-") ? "тихое native admission подтверждено; пробуждение не запрашивалось" : "native input принят; начало хода ещё не подтверждено"

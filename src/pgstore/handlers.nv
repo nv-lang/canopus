@@ -1,7 +1,7 @@
 // handlers.nv - the handlers of the effects `Journal` and `Store` of the engine on PostgreSQL (task 098).
 //
 // The engine commits a step as the journal lines first and the snapshot after them (rule 13). Here the lines of a step
-// wait in the memory of the world, and the snapshot carries them to the database: `Store.save` calls `crew.save_step`
+// wait in the memory of the world, and the snapshot carries them to the database: `Store.save` calls `canopus.save_step`
 // ONCE, and the snapshot and all the lines of the step are in one transaction - either both or none. A process that dies
 // between the lines and the snapshot leaves nothing in the database; the next process makes the step again.
 // A line of the step that is already committed (the marks "sent" and "cancel_sent" of `dispatch`) goes to the database
@@ -13,10 +13,10 @@
 //
 // One `PgWorld` is one session: the engine of a session gets its own. Its handlers are made from it as the memory handlers
 // are made from `MemoryWorld`: `with Journal = pg_journal(world), Store = pg_store(world) { ... }`.
-module crew_harness.pgstore
+module canopus.pgstore
 
 import alula.engine.{Journal, Store, JournalEntry, Snapshot, journal_line, parse_journal_line}
-import crew_harness.pgdb.{PgConfig, PgFault, pg_save_step, pg_load}
+import canopus.pgdb.{PgConfig, PgFault, pg_save_step, pg_load}
 import std.net.{real_net}
 
 /// PgWorld: the PostgreSQL side of one session. `pending` are the lines of the step being committed that wait for the

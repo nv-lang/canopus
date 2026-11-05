@@ -1,10 +1,10 @@
 // journal_test.nv - the table of the journal codes of the product as data (`machines/product/journal.md`, task 158; it was `journal_product.md` of the package until 0.3.2, AL-31): the codes, the faults
 // against the table of the language, the union that the registry of the host holds. The table of the methodology went to the methodology with its machines (task 249).
-module crew_harness.machine_registry
+module canopus.machine_registry
 
 import std.fs.{Path}
 import alula.machine.{JournalCode, parse_journal, language_journal, journal_find, journal_table_issues}
-import crew_harness.machines.{product_registry, product_journal_text}
+import canopus.machines.{product_registry, product_journal_text}
 
 fn product_rows() -> []JournalCode => parse_journal(product_journal_text())
 

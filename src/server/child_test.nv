@@ -1,6 +1,6 @@
 // child_test.nv - task 192.3: the pure part of the child sessions (`child.nv`): the slug of a child, `message.md`, the table `children.md` and its parser, the words of the states,
 // the view for the page, and the rules of the proposals that name an epic.
-module crew_harness.server
+module canopus.server
 
 import std.encoding.json.{Json, JsonValue, JsonObject}
 

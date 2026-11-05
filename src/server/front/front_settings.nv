@@ -1,20 +1,20 @@
 // front_settings.nv - the part of the settings that the front needs: the port, the folder of the page, the command of the hub.
 //
 // The front reads only these; the hub reads and checks all the settings (the same file, the same environment) and says so on its
-// stderr when they are wrong. The front cannot use `crew_harness.server.ServerSettings`: that module holds the hub, which holds the
+// stderr when they are wrong. The front cannot use `canopus.server.ServerSettings`: that module holds the hub, which holds the
 // PostgreSQL driver (see the mark 30 below).
-// The keys and the variables are those of src/server/settings.nv: port / CREW_SERVER_PORT, web_dir / CREW_SERVER_WEB_DIR,
-// hub {program, args} / CREW_SERVER_HUB, stt {url, language} / CREW_SERVER_STT_URL, CREW_SERVER_STT_LANGUAGE, the file by the argument or CREW_SERVER_CONFIG;
-// the recognizer as a part of the panel (task 192l): stt {managed, dir, model} / CREW_SERVER_STT_MANAGED, CREW_SERVER_STT_DIR, CREW_SERVER_STT_MODEL, data_dir / CREW_SERVER_DATA_DIR (the pid file).
-// pictures (task 192): max_image_bytes / CREW_SERVER_MAX_IMAGE_BYTES (`/api/session-image`).
+// The keys and the variables are those of src/server/settings.nv: port / CANOPUS_SERVER_PORT, web_dir / CANOPUS_SERVER_WEB_DIR,
+// hub {program, args} / CANOPUS_SERVER_HUB, stt {url, language} / CANOPUS_SERVER_STT_URL, CANOPUS_SERVER_STT_LANGUAGE, the file by the argument or CANOPUS_SERVER_CONFIG;
+// the recognizer as a part of the panel (task 192l): stt {managed, dir, model} / CANOPUS_SERVER_STT_MANAGED, CANOPUS_SERVER_STT_DIR, CANOPUS_SERVER_STT_MODEL, data_dir / CANOPUS_SERVER_DATA_DIR (the pid file).
+// pictures (task 192): max_image_bytes / CANOPUS_SERVER_MAX_IMAGE_BYTES (`/api/session-image`).
 // ORACLE-WORKAROUND(30): the front reads its own part of the settings, because the module of the settings holds the hub, which holds the PostgreSQL driver, and the driver and Polaris cannot be in one program; use `ServerSettings` when item 30 is fixed
-module crew_harness.server.front
+module canopus.server.front
 
 import std.text
 import std.encoding.json.{Json, JsonValue, JsonObject}
 import std.fs.{Fs, read_text, Path}
 import std.os.{Os, env}
-import crew_harness.config.{ConfigLayout, legacy_layout, layout_in, layout_with_data_dir, crew_home, work_dir_now, find_project_dir, file_layers, env_layer, arg_layer, merge_layers, normalize_layer, file_text as cfg_file_text, tools_dir_now}
+import canopus.config.{ConfigLayout, legacy_layout, layout_in, layout_with_data_dir, canopus_home, work_dir_now, find_project_dir, file_layers, env_layer, arg_layer, merge_layers, normalize_layer, file_text as cfg_file_text, tools_dir_now}
 
 /// FrontSettings: where to listen, where the page is, how to start the hub, where the recognizer of the voice listens (`stt_url`, a local http address) and its default language.
 /// `program` of an agent is its configured program (the catalog observer starts the same native server); "" - the platform default.
@@ -66,12 +66,12 @@ fn fs_strings(v JsonValue) -> []str {
 
 fn fs_default_agents() -> []AgentChoice => [AgentChoice { id: "opencode", label: "OpenCode", program: "" }]
 fn fs_agents(base []AgentChoice) Os -> []AgentChoice {
-    match fs_env("CREW_SERVER_AGENT") {
+    match fs_env("CANOPUS_SERVER_AGENT") {
         Some(_) => [AgentChoice { id: "opencode", label: "OpenCode", program: "" }]
         None => base
     }
 }
-fn fs_defaults() -> FrontSettings => { port: 8099, web_dir: "src/web", hub_program: "target/crew-hub.exe", hub_args: []str.new(), agents: fs_default_agents(), stt_url: "http://127.0.0.1:8178/inference", stt_language: "auto", stt_managed: true, stt_dir: "", stt_model: "small", data_dir: "crew-data", max_image_bytes: 10485760, layout: legacy_layout("crew-data"), preset: "default", reviewer_order: ["codex", "claude", "kimi", "opencode"] }
+fn fs_defaults() -> FrontSettings => { port: 8099, web_dir: "src/web", hub_program: "target/canopus-hub.exe", hub_args: []str.new(), agents: fs_default_agents(), stt_url: "http://127.0.0.1:8178/inference", stt_language: "auto", stt_managed: true, stt_dir: "", stt_model: "small", data_dir: "canopus-data", max_image_bytes: 10485760, layout: legacy_layout("canopus-data"), preset: "default", reviewer_order: ["codex", "claude", "kimi", "opencode"] }
 
 // The voice never leaves this machine: a recognizer address that is not a local http one is the default (the hub says what is wrong).
 fn fs_stt_url(url str, fallback str) -> str {
@@ -215,16 +215,16 @@ fn fs_from_file(text str) -> FrontSettings {
     { port, web_dir, hub_program, hub_args, agents, stt_url, stt_language, stt_managed, stt_dir, stt_model, data_dir, max_image_bytes, layout: base.layout, preset, reviewer_order }
 }
 
-// The folder of the recognizer when no setting names it (task 192.12): an install of the older place (`%LOCALAPPDATA%/crew-harness/stt`) that is still there is used;
-// else `CREW_TOOLS_DIR/whisper` or `<home>/tools/whisper`; with no root at all, the older place.
+// The folder of the recognizer when no setting names it (task 192.12): an install of the older place (`%LOCALAPPDATA%/canopus/stt`) that is still there is used;
+// else `CANOPUS_TOOLS_DIR/whisper` or `<home>/tools/whisper`; with no root at all, the older place.
 fn fs_default_stt_dir(layout ConfigLayout) Os Fs -> str {
-    // CREW_STT_DIR is the default of the installer: under the setting `voice.dir`, over the guesses below
-    match fs_env("CREW_STT_DIR") {
+    // CANOPUS_STT_DIR is the default of the installer: under the setting `voice.dir`, over the guesses below
+    match fs_env("CANOPUS_STT_DIR") {
         Some(dir) => return dir
         None => ()
     }
     ro old = match fs_env("LOCALAPPDATA") {
-        Some(local) => "${local.replace("\\", "/")}/crew-harness/stt"
+        Some(local) => "${local.replace("\\", "/")}/canopus/stt"
         None => ""
     }
     if old.byte_len() > 0 {
@@ -238,13 +238,13 @@ fn fs_default_stt_dir(layout ConfigLayout) Os Fs -> str {
     old
 }
 
-/// The settings of the front in the root of the instance named by CREW_HOME (or the folder of the user): see `front_settings_in`.
-export fn front_settings(file str) Os Fs -> Result[FrontSettings, str] => front_settings_in(file, crew_home(""), []str.new())
+/// The settings of the front in the root of the instance named by CANOPUS_HOME (or the folder of the user): see `front_settings_in`.
+export fn front_settings(file str) Os Fs -> Result[FrontSettings, str] => front_settings_in(file, canopus_home(""), []str.new())
 
 /// The settings of the front by the same layers as the hub (task 192.12, `server_settings_in` of src/server/settings.nv): the defaults, `<home>/config/config.json`, the server file `file`
-/// (or CREW_SERVER_CONFIG), `.crew-harness/config.json` and `local.json` of the project, secrets.json, the variables CREW_*, the words `key=value` of `sets` (the arguments `--set`).
+/// (or CANOPUS_SERVER_CONFIG), `.canopus/config.json` and `local.json` of the project, secrets.json, the variables CANOPUS_*, the words `key=value` of `sets` (the arguments `--set`).
 export fn front_settings_in(file str, home str, sets []str) Os Fs -> Result[FrontSettings, str] {
-    ro name = if file.byte_len() > 0 { file } else { fs_env("CREW_SERVER_CONFIG") ?? "" }
+    ro name = if file.byte_len() > 0 { file } else { fs_env("CANOPUS_SERVER_CONFIG") ?? "" }
     if name.byte_len() > 0 && cfg_file_text(name).is_none() { return Err("the settings file ${name} cannot be read") }
     ro project = find_project_dir(work_dir_now(), home)
     ro at = layout_in(home, project)
@@ -259,15 +259,15 @@ export fn front_settings_in(file str, home str, sets []str) Os Fs -> Result[Fron
     }
     ro layout = if data_set { layout_with_data_dir(home, base.data_dir, project) } else if home.byte_len() > 0 { at } else { legacy_layout(base.data_dir) }
     // a variable with a wrong number is named, as the hub does
-    match fs_env("CREW_SERVER_PORT") {
+    match fs_env("CANOPUS_SERVER_PORT") {
         Some(text) => match text.to_int() {
             Ok(n) => ()
-            Err(e) => return Err("CREW_SERVER_PORT must be a whole number")
+            Err(e) => return Err("CANOPUS_SERVER_PORT must be a whole number")
         }
         None => ()
     }
     if base.port < 1 || base.port > 65535 { return Err("the port must be 1 to 65535") }
-    ro hub_words = match fs_env("CREW_SERVER_HUB") {
+    ro hub_words = match fs_env("CANOPUS_SERVER_HUB") {
         Some(command) => fs_words(command)
         None => []str.new()
     }

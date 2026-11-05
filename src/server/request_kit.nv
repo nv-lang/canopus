@@ -1,6 +1,6 @@
 // request_kit.nv - task 192.11: the scenario of the view of the request to the agent over a hub with the fake ACP agent.
 // The helpers are in `testkit.nv`.
-module crew_harness.server
+module canopus.server
 
 import std.encoding.json.{JsonObject}
 
@@ -53,7 +53,7 @@ export fn scenario_request_view(settings ServerSettings) Proc Detach Time Net Fs
     c.expect(kit_request_turn_matches(first, "s-rq", 1), "the first request is the turn 1")
     c.expect(first.contains("owner_message") && first.contains("первый вопрос"), "the message of the owner is a part")
     c.expect(first.contains("\"approx_tokens\"") && first.contains("\"chars\""), "a part has its size")
-    c.expect(first.contains("ask_user_question") && first.contains("crew_task_list"), "the tools of the hub are named with their schemas")
+    c.expect(first.contains("ask_user_question") && first.contains("canopus_task_list"), "the tools of the hub are named with their schemas")
     c.expect(first.contains("\"inputSchema\"") || first.contains("\\\"properties\\\""), "a schema of a tool is there")
     c.expect(!first.contains(rig.hub.mcp_token()), "the token of the MCP server is nowhere")
     c.expect(!first.contains("127.0.0.1:"), "the address of the MCP server is not shown")

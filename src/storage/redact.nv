@@ -4,7 +4,7 @@
 // also inside an escaped line of `acp.jsonl`, the value after `NAME_TOKEN=` / `PASSWORD=` / ... , the keys of well-known kinds (`sk-...`, `ghp_...`, `github_pat_...`,
 // `xoxb-...`), the user and the password of an address (the part before the at-sign of an address), the name of the user of the machine in a path (`C:/Users/<user>/...`, `/home/<user>/...`).
 // Nothing is guessed beyond that list: it is a net for the usual leaks, not a proof that a text has no secret.
-module crew_harness.storage
+module canopus.storage
 
 const RED_BS = "\\"
 const RED_DQ = "\""

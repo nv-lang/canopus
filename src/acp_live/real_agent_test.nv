@@ -1,10 +1,10 @@
 // real_agent_test.nv - the real `opencode acp` through the client: initialize and session/new, NO prompt, so no model
-// is called and no key or login is used. It runs only when the environment variable CREW_REAL_ACP is 1 (a machine
+// is called and no key or login is used. It runs only when the environment variable CANOPUS_REAL_ACP is 1 (a machine
 // without OpenCode must not fail the suite):
-//     $env:CREW_REAL_ACP = "1"; nova test src/acp
-module crew_harness.acp_live
+//     $env:CANOPUS_REAL_ACP = "1"; nova test src/acp
+module canopus.acp_live
 
-import crew_harness.acp.{AcpConfig, AcpClient, open_client, acp_link}
+import canopus.acp.{AcpConfig, AcpClient, open_client, acp_link}
 import std.fs.{Fs, real_fs, Path, create_dir_all, remove_dir_all}
 import std.os.{Os, real_os, env, temp_dir, pid}
 
@@ -18,7 +18,7 @@ fn opencode_program() -> str => "opencode"
 fn empty_project_dir() -> str {
     ro base = with Os = real_os() { temp_dir() }
     ro id = with Os = real_os() { pid() }
-    ro dir = base.join("crew-real-acp-${id}")
+    ro dir = base.join("canopus-real-acp-${id}")
     with Fs = real_fs() {
         ro removed = remove_dir_all(dir)
         ro made = create_dir_all(dir)
@@ -27,12 +27,12 @@ fn empty_project_dir() -> str {
 }
 
 test "real agent: opencode acp initialize and session/new" {
-    ro asked = with Os = real_os() { env("CREW_REAL_ACP") }
+    ro asked = with Os = real_os() { env("CANOPUS_REAL_ACP") }
     match asked {
-        None => println("skipped: CREW_REAL_ACP is not set")
+        None => println("skipped: CANOPUS_REAL_ACP is not set")
         Some(value) => {
             if value != "1" {
-                println("skipped: CREW_REAL_ACP is not 1")
+                println("skipped: CANOPUS_REAL_ACP is not 1")
             } else {
                 ro config AcpConfig = { program: opencode_program(), args: ["acp"], cwd: empty_project_dir(), inbox_path: "" }
                 mut client = start_with(config)

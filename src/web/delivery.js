@@ -1,7 +1,7 @@
 // Durable local safety net, scoped by browser origin (server) and session id.
 // No automatic retry: a successful socket.send is NOT server acceptance.
 import { t } from './strings.js';
-export const DELIVERY_KEY = 'crew-console-delivery-v1';
+export const DELIVERY_KEY = 'canopus-console-delivery-v1';
 export const restoreText = (text, current) => current.trim() === '' ? text : `${text}\n\n${current}`;
 export const afterSendText = (original, current) => original === current ? '' : current;
 const LIMIT = 100;
@@ -97,7 +97,7 @@ export function createDelivery(storage) {
 
 /** Composer drafts survive reload; failed writes never prevent editing the in-memory draft. */
 export function createDraftStore(storage) {
-  const key = 'crew-console-composer-v1';
+  const key = 'canopus-console-composer-v1';
   let entries;
   try { entries = JSON.parse(storage?.getItem(key) || '[]'); } catch { entries = []; }
   const map = new Map(Array.isArray(entries) ? entries.filter(e => Array.isArray(e) && typeof e[0] === 'string' && typeof e[1] === 'string') : []);

@@ -1,5 +1,5 @@
 // prompts_test.nv - the texts of the hub by layers: a file in a layer replaces the built-in text (task 192.12).
-module crew_harness.config
+module canopus.config
 
 import std.os.{Os, real_os, temp_dir, pid}
 import std.fs.{Fs, real_fs, write_text, write, create_dir_all, remove_dir_all, Path}
@@ -7,7 +7,7 @@ import std.fs.{Fs, real_fs, write_text, write, create_dir_all, remove_dir_all, P
 fn tmp5(name str) -> str {
     ro base = with Os = real_os() { temp_dir() }
     ro id = with Os = real_os() { pid() }
-    ro dir = base.join("crew-prompts-${name}-${id}")
+    ro dir = base.join("canopus-prompts-${name}-${id}")
     with Fs = real_fs() {
         ro gone = remove_dir_all(dir)
         ro made = create_dir_all(dir)
@@ -42,16 +42,16 @@ test "render: names are replaced, unknown names and lone braces stay as written"
 
 test "prompt: no file is the built-in text, a file of the user replaces it, a file of the project is stronger" {
     ro root = tmp5("layers")
-    ro layout = layout_in("${root}/inst", "${root}/repo/.crew-harness")
+    ro layout = layout_in("${root}/inst", "${root}/repo/.canopus")
     ro none = with Fs = real_fs() { pick_prompt(layout, "reminder", "built-in text") }
     assert(none.text == "built-in text" && none.source == "built-in" && none.note == "")
     put5(root, "inst/config/prompts/reminder.md", "user text {x}\n")
     ro user = with Fs = real_fs() { pick_prompt(layout, "reminder", "built-in text") }
     assert(user.text == "user text {x}" && user.source == "${root}/inst/config/prompts/reminder.md")
-    put5(root, "repo/.crew-harness/prompts/reminder.md", "project text")
+    put5(root, "repo/.canopus/prompts/reminder.md", "project text")
     ro project = with Fs = real_fs() { pick_prompt(layout, "reminder", "built-in text") }
     assert(project.text == "project text")
-    put5(root, "repo/.crew-harness/prompts/reminder.md", "changed at once")
+    put5(root, "repo/.canopus/prompts/reminder.md", "changed at once")
     assert(with Fs = real_fs() { pick_prompt(layout, "reminder", "built-in text") }.text == "changed at once")
     drop5(root)
 }

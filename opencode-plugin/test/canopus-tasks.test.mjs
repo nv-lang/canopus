@@ -1,0 +1,305 @@
+// Self-test of the task journal (plan 002, Ph.1; node >= 24):  node test/canopus-tasks.test.mjs
+// - numbers #N are unique when two processes create tasks at once (atomic file creation);
+// - the session id is written to the journal before session.create, so a start cut off after create is retried
+//   with the same id: no second session, no second task letter;
+// - a task without the project's required fields is not started;
+// - canopus_task: push wakes the executor and resets its reminders, reassign keeps the number and hands over a
+//   summary (with text: a refinement of the goal in the first letter, before the old goal, task 057), assign gives a task to an owner's tab (woken while the task is open, even when closed), cancel,
+//   priority, list by priority, show; only the integrator manages;
+// - session titles come from the journal: #N title, #N ↷ for a replaced session, #N ✗ for a cancelled one.
+import { execFileSync } from "node:child_process"
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import os from "node:os"
+import path from "node:path"
+
+const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-tasks-"))
+process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_POLL_MS = "100"
+process.env.CANOPUS_DB = path.join(tmp, "absent.db")
+delete process.env.CANOPUS_PRESENCE
+const proj = path.join(tmp, "proj")
+mkdirSync(path.join(proj, ".opencode"), { recursive: true })
+writeFileSync(path.join(proj, ".opencode", "canopus.json"), JSON.stringify({ task_fields: ["goal", "criteria", "boundaries"], spawn_limits: { worker: 5 }, worktrees: "wt", branch_name: "p{n}-{slug}", allow_default_models: true }))
+// a git repository: the plugin creates the task's worktree in it (a session is never opened in the main copy, plan 002.6)
+const g = (...args) => execFileSync("git", ["-C", proj, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { stdio: "ignore" })
+g("init", "-q", "-b", "main")
+g("add", "-A")
+g("commit", "-q", "-m", "init")
+
+const mod = await import("./fixture-plugin.mjs")
+const core = await import("../core.ts")
+const tasks = await import("../tasks.ts")
+const hooks = {}
+const tools = {}
+const events = {}
+const delivered = []
+const sessions = new Map() // like OpenCode: create with an existing id returns that session
+const updates = []
+let crashAfterCreate = false
+const ctx = {
+  location: { directory: proj },
+  options: { projects: { proj } },
+  session: {
+    get: async ({ sessionID }) => ({ id: sessionID, title: sessionID, location: { directory: proj }, time: {} }),
+    prompt: async ({ sessionID, text, resume }) => delivered.push({ sessionID, text, resume }),
+    synthetic: async ({ sessionID, text, resume }) => delivered.push({ sessionID, text, resume, synthetic: true }),
+    create: async (req) => {
+      if (!sessions.has(req.id)) sessions.set(req.id, req)
+      if (crashAfterCreate) {
+        crashAfterCreate = false
+        throw new Error("process died right after create")
+      }
+      return { id: req.id }
+    },
+    update: async (req) => updates.push(req),
+    hook: async (name, cb) => (hooks[name] = cb),
+  },
+  tool: { transform: async (fn) => fn({ add: (t) => (tools[t.name] = t) }) },
+  events: { on: async (name, cb) => (events[name] = cb) },
+}
+const stop = await mod.default.setup(ctx)
+let fail = 0
+const cell = (name, ok, detail) => {
+  console.log(`${ok ? "ok  " : "FAIL"} ${name}${ok ? "" : " :: " + detail}`)
+  if (!ok) fail++
+}
+const wait = (ms = 500) => new Promise((r) => setTimeout(r, ms))
+const got = (s, t) => delivered.filter((d) => d.sessionID === s && d.text.includes(t))
+const call = async (name, sid, input = {}) => (await tools[name].execute(input, { sessionID: sid })).content
+const sidOf = (text) => text.match(/сесси[яи] (ses_[A-Za-z0-9]+)/)?.[1]
+const turnEnds = async (sid) => {
+  await hooks.context({ sessionID: sid, system: [], model: { id: "x", providerID: "y" } })
+  await events["session.idle"]({ properties: { sessionID: sid } })
+}
+const FIELDS = { criteria: "тест зелёный", boundaries: "ничего лишнего" }
+
+// one live window: the integrator and the owner's tab
+const WPID = 616161
+const tabs = ["sesINTEG1", "sesOWNER1", "sesWORKR2"].map((sessionID, i) => ({ sessionID, active: i === 0, busy: false }))
+mkdirSync(core.WINDOWS, { recursive: true })
+const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs }))
+beat()
+const heart = setInterval(beat, 300)
+for (const t of tabs) await turnEnds(t.sessionID)
+await call("canopus_role", "sesINTEG1", { role: "integrator" })
+
+// 1. numbers from two processes at once
+const childSrc = `const t = await import(${JSON.stringify(new URL("../tasks.ts", import.meta.url).href)}); for (let i = 0; i < 15; i++) t.createTask({ project: "race", title: "r" + i, goal: "g", priority: "P2", tier: "light", role: "worker", author: "x", author_role: "race.integrator", qid: "q", status: "closed", kind: "spawn", directory: "." })`
+const runChild = () => new Promise((resolve) => { const p = require_spawn(process.execPath, ["--input-type=module", "-e", childSrc], { env: { ...process.env } }); p.on("exit", resolve) })
+import { spawn as require_spawn } from "node:child_process"
+await Promise.all([runChild(), runChild()])
+const nums = readdirSync(path.join(tasks.TASKS, "race")).map((f) => Number(f.replace(".json", ""))).sort((a, b) => a - b)
+cell("two processes at once: 30 tasks, numbers 1..30 without gaps or repeats", nums.length === 30 && nums.every((n, i) => n === i + 1), JSON.stringify(nums))
+
+// 2. required fields of the project
+const missing = await call("canopus_spawn", "sesINTEG1", { goal: "g", criteria: "c" })
+cell("a task without the project's required field is not started", /нет полей границы \(boundaries\)/.test(missing) && sessions.size === 0, missing)
+
+// 3. a start cut off right after session.create is retried with the same id
+crashAfterCreate = true
+const cut = await call("canopus_spawn", "sesINTEG1", { title: "первая", goal: "сделать раз", ...FIELDS, tier: "light", priority: "P3" })
+cell("the cut-off start says the task is recorded and will be retried", /записана, но сессия не запущена/.test(cut), cut)
+const t1 = tasks.loadTask("proj", 1)
+cell("the journal keeps the planned session id", t1?.status === "starting" && t1.executor?.startsWith("ses_") && sessions.has(t1.executor), JSON.stringify(t1))
+for (let i = 0; i < 80 && tasks.loadTask("proj", 1)?.status !== "running"; i++) await wait(100)
+const t1b = tasks.loadTask("proj", 1)
+cell("the next pass finishes the start", t1b?.status === "running", t1b?.status)
+cell("still one session", sessions.size === 1, JSON.stringify([...sessions.keys()]))
+cell("one task letter", got(t1.executor, "ЗАДАЧА 001").length === 1, JSON.stringify(delivered.map((d) => d.sessionID)))
+cell("the letter names the worktree and the branch from the settings", got(t1.executor, `wt`)[0]?.text.includes("p1-pervaya"), got(t1.executor, "ЗАДАЧА 001")[0]?.text)
+// cut off again after the letter: status back to starting -> no second letter, no second session
+const again = tasks.loadTask("proj", 1)
+again.status = "starting"
+tasks.saveTask(again)
+for (let i = 0; i < 80 && tasks.loadTask("proj", 1).status !== "running"; i++) await wait(100) // async worktree check: give it time
+cell("a repeated start after the letter: still one session, one letter", sessions.size === 1 && got(t1.executor, "ЗАДАЧА 001").length === 1 && tasks.loadTask("proj", 1).status === "running", `${sessions.size} ${got(t1.executor, "ЗАДАЧА 001").length}`)
+cell("the session title is #N title", updates.some((u) => u.sessionID === t1.executor && u.title === "001 исп первая") || sessions.get(t1.executor)?.title === "001 исп первая", JSON.stringify(updates))
+
+// 4. a second task with priority P1; list goes by priority
+const sp2 = await call("canopus_spawn", "sesINTEG1", { title: "вторая", goal: "сделать два", ...FIELDS, priority: "P1" })
+const s2 = sidOf(sp2)
+const list = await call("canopus_task", "sesINTEG1", { action: "list" })
+cell("list: P1 before P3", list.indexOf("002 P1") >= 0 && list.indexOf("002 P1") < list.indexOf("001 P3"), list)
+await call("canopus_task", "sesINTEG1", { action: "priority", n: 1, priority: "P0" })
+const list2 = await call("canopus_task", "sesINTEG1", { action: "list" })
+cell("priority changes the order", list2.indexOf("001 P0") >= 0 && list2.indexOf("001 P0") < list2.indexOf("002 P1"), list2)
+const show = await call("canopus_task", "sesOWNER1", { action: "show", n: 2 })
+cell("show: goal, criteria, boundaries, history (anyone may look)", /цель: сделать два/.test(show) && /критерии: тест зелёный/.test(show) && /границы: ничего лишнего/.test(show) && /поставлена/.test(show), show)
+
+// 5. push: wakes the executor, resets its reminders; only the integrator
+const obl = core.obligationsOf(s2)
+for (const o of obl) o.nudges = 2
+core.saveObligations(s2, obl)
+const denied = await call("canopus_task", "sesOWNER1", { action: "push", n: 2 })
+cell("a worker may not push", /только интегратор/.test(denied), denied)
+await turnEnds(s2)
+for (let i = 0; i < 40 && !core.obligationsOf(s2).some((o) => o.nudges === 3); i++) await wait(50) // the reminder of the turn end is made asynchronously (task 080: it also reads the queue): let it finish before the push
+await call("canopus_task", "sesINTEG1", { action: "push", n: 2, text: "доделай тесты" })
+await wait()
+cell("push wakes the executor", got(s2, "Подталкивание по задаче 002").length === 1 && got(s2, "доделай тесты").length === 1, JSON.stringify(got(s2, "Подталк")))
+cell("push resets the reminders", core.obligationsOf(s2).every((o) => o.nudges === 0), JSON.stringify(core.obligationsOf(s2)))
+
+// 6. reassign: same number, new session, summary of what was done
+await call("canopus_send", s2, { to: "sesINTEG1", text: "сделал половину: парсер готов" })
+const re = await call("canopus_task", "sesINTEG1", { action: "reassign", n: 2 })
+const s2b = sidOf(re)
+const t2 = tasks.loadTask("proj", 2)
+cell("reassign keeps the number with a new session", s2b && s2b !== s2 && t2.executor === s2b && t2.executors.includes(s2) && t2.status === "running", JSON.stringify({ re, s2, s2b, ex: t2.executor, exs: t2.executors, st: t2.status }))
+await wait()
+const handed = got(s2b, "ЗАДАЧА 002")
+cell("the new session gets the summary of the old one", handed.length === 1 && handed[0].text.includes("СДЕЛАНО ПРЕЖНИМ") && handed[0].text.includes("парсер готов"), handed[0]?.text)
+cell("the old session is closed and titled #N ↷", core.allCards().find((c) => c.session === s2)?.spawned?.status === "closed" && updates.some((u) => u.sessionID === s2 && u.title === "002 исп ↷ передана вторая"), JSON.stringify(updates.filter((u) => u.sessionID === s2)))
+const oldReport = await call("canopus_send", s2, { to: "sesINTEG1", text: "отчёт старого", reply_to: t2.qid })
+await wait()
+cell("the old session's report does not close the task", tasks.loadTask("proj", 2).status === "running", tasks.loadTask("proj", 2).status + " " + oldReport)
+cell("reassign without text: the letter is as before (no refinement block, the goal as ЦЕЛЬ)", handed.length === 1 && !handed[0].text.includes("УТОЧНЕНИЕ ПРИ ПЕРЕДАЧЕ") && handed[0].text.includes("ЦЕЛЬ: сделать два"), handed[0]?.text)
+
+// 6a. reassign with text (task 057): the refinement is in the FIRST letter of the new session, before the old goal;
+//     the old goal stays (history); the text is in the task history and in view
+const re2 = await call("canopus_task", "sesINTEG1", { action: "reassign", n: 2, text: "делай только парсер, вывод не трогай" })
+const s2c = sidOf(re2)
+await wait()
+const handed2 = got(s2c, "ЗАДАЧА 002")
+const L = handed2[0]?.text ?? ""
+cell("reassign with text: one letter to the new session", s2c && s2c !== s2b && handed2.length === 1 && delivered.filter((d) => d.sessionID === s2c).length === 1, JSON.stringify(delivered.filter((d) => d.sessionID === s2c)))
+cell("reassign with text: the refinement block is in the first letter, before the old goal", L.includes("УТОЧНЕНИЕ ПРИ ПЕРЕДАЧЕ") && L.includes("делай только парсер, вывод не трогай") && L.indexOf("УТОЧНЕНИЕ ПРИ ПЕРЕДАЧЕ") < L.indexOf("сделать два"), L)
+cell("reassign with text: the old goal stays and is marked as the original one", L.includes("сделать два") && !L.includes("ЦЕЛЬ: сделать два") && /действует уточнение/.test(L), L)
+const t2c = tasks.loadTask("proj", 2)
+cell("reassign with text: the text is in the task history", t2c.history.some((h) => h.note?.includes("делай только парсер, вывод не трогай")), JSON.stringify(t2c.history))
+const show2 = await call("canopus_task", "sesOWNER1", { action: "show", n: 2 })
+cell("reassign with text: view shows the refinement", /уточнение при передаче: делай только парсер/.test(show2), show2)
+cell("reassign with text: the answer names the refinement", /с уточнением цели/.test(re2), re2)
+
+// 7. New assignments are refused. A historical assignment still delivers, wakes, and cancels.
+const as = await call("canopus_task", "sesINTEG1", { action: "assign", session: "sesOWNER1", title: "вкладке владельца", goal: "посмотреть", owner_words: "«вкладку sesOWNER1 бери под задачу» (владелец, 2026-10-29, чат)", ...FIELDS })
+cell("assign cannot capture a user's tab even with forged words", /assign запрещён/.test(as) && !tasks.loadTask("proj", 3), as)
+await (await import("./legacy-assignment.mjs")).legacyAssignment({ project: "proj", session: "sesOWNER1", author: "sesINTEG1", directory: proj, title: "вкладке владельца", goal: "посмотреть" })
+await wait()
+cell("legacy assignment: the tab gets the task letter", got("sesOWNER1", "ЗАДАЧА 003").length === 1, as)
+const pl = await call("canopus_list", "sesINTEG1")
+cell("canopus_list shows the tab's task", /задача 003 «[^»]*» \(в работе\)[^\n]*sesOWNER1/.test(pl), pl)
+tabs.splice(tabs.findIndex((t) => t.sessionID === "sesOWNER1"), 1)
+beat()
+await wait()
+await call("canopus_task", "sesINTEG1", { action: "push", n: 3, text: "ты закрыта, но задача открыта" })
+await wait()
+cell("a closed tab with an open task is woken (decision 9)", got("sesOWNER1", "ты закрыта, но задача открыта").length === 1, JSON.stringify(got("sesOWNER1", "Подталк")))
+
+// 8. cancel
+await call("canopus_task", "sesINTEG1", { action: "cancel", n: 3, text: "не нужно" })
+await wait()
+const c3 = tasks.loadTask("proj", 3)
+cell("cancel: the task is cancelled", c3.status === "cancelled", c3.status)
+cell("cancel: the executor gets a quiet letter", got("sesOWNER1", "отменена: не нужно").some((d) => d.synthetic && d.resume === false), JSON.stringify(got("sesOWNER1", "отменена")))
+const after = await call("canopus_task", "sesINTEG1", { action: "push", n: 3 })
+cell("a cancelled task cannot be pushed", /уже отменена/.test(after), after)
+await call("canopus_send", "sesINTEG1", { to: "sesOWNER1", text: "после отмены" })
+await wait()
+cell("after cancel the closed tab is not woken any more", got("sesOWNER1", "после отмены").length === 0, "woken")
+await call("canopus_task", "sesINTEG1", { action: "cancel", n: 1 })
+await wait()
+cell("a cancelled task session is titled #N ✗", updates.some((u) => u.sessionID === t1.executor && u.title === "001 исп ✗ отменена первая"), JSON.stringify(updates.filter((u) => u.sessionID === t1.executor)))
+
+// 9. backlog is a reversible non-open state, with no task/number/resource replacement.
+const b0 = await call("canopus_spawn", "sesINTEG1", { title: "в бэклоге", goal: "сохранить", ...FIELDS, tier: "light", priority: "P2" })
+const bn = Number(b0.match(/Задача (\d+)/)?.[1])
+let bt = tasks.loadTask("proj", bn)
+const branchBefore = bt?.branch
+const worktreeBefore = bt?.worktree
+const historyBefore = bt?.history.length
+cell("backlog: action exists", /бэклог/i.test(await call("canopus_task", "sesINTEG1", { action: "backlog", n: bn, text: "пауза по решению" })), "action missing")
+bt = tasks.loadTask("proj", bn)
+cell("backlog: status is explicit", bt?.status === "backlog", bt?.status)
+cell("backlog: reason is in history", bt?.history.some((h) => h.status === "backlog" && h.note === "пауза по решению"), JSON.stringify(bt?.history))
+cell("backlog: actor and timestamp are recorded", bt?.history.at(-1)?.by === "sesINTEG1" && bt.history.at(-1)?.at > 0, JSON.stringify(bt?.history.at(-1)))
+cell("backlog: record identity and number unchanged", bt?.n === bn && bt.project === "proj" && bt.title === "в бэклоге", JSON.stringify(bt))
+cell("backlog: branch and worktree preserved", bt?.branch === branchBefore && bt?.worktree === worktreeBefore, JSON.stringify({ branchBefore, worktreeBefore, branch: bt?.branch, worktree: bt?.worktree }))
+cell("backlog: previous history retained", bt?.history.length === historyBefore + 1, `${historyBefore} -> ${bt?.history.length}`)
+cell("backlog: not open", !tasks.isOpen(bt), bt?.status)
+cell("backlog: does not consume counted open slot", !tasks.countedOpen(tasks.listTasks("proj").filter(tasks.isOpen), "hold").includes(bt), bt?.status)
+cell("backlog: spawned executor is not woken from its running card", !core.mayWakeCard(core.readJson(core.cardFile(bt.executor)), []), bt?.executor)
+cell("backlog: normal list hides it", !(await call("canopus_task", "sesINTEG1", { action: "list" })).includes(`Задачи проекта proj:\n${bn}`), "visible")
+cell("backlog: list all exposes a separate group", /Бэклог:/i.test(await call("canopus_task", "sesINTEG1", { action: "list", all: true })), "group absent")
+cell("backlog: show remains available", (await call("canopus_task", "sesOWNER1", { action: "show", n: bn })).includes("в бэклоге"), "show status absent")
+cell("backlog: non-integrator refused", /только интегратор/.test(await call("canopus_task", "sesWORKR2", { action: "backlog", n: bn, text: "не моя задача" })), "not refused")
+cell("backlog: repeated entry refused without duplicate history", /уже в бэклоге/.test(await call("canopus_task", "sesINTEG1", { action: "backlog", n: bn, text: "повтор" })) && tasks.loadTask("proj", bn).history.length === historyBefore + 1, "mutated or accepted")
+cell("backlog: late executor submit does not revive", /в бэклоге/.test(await call("canopus_task", bt.executor, { action: "submit", n: bn, text: "поздний отчёт" })) && tasks.loadTask("proj", bn).status === "backlog", tasks.loadTask("proj", bn).status)
+const folder = path.join(proj, "doc", "tasks", `${String(bn).padStart(3, "0")}-same-number`)
+mkdirSync(path.join(folder, "task"), { recursive: true })
+writeFileSync(path.join(folder, "task", "message.md"), "# Задача\n")
+writeFileSync(path.join(folder, "log.md"), "старт\n")
+g("add", "doc/tasks")
+g("commit", "-q", "-m", "Add same-number task folder")
+const beforeSpawn = JSON.stringify(tasks.loadTask("proj", bn))
+const sameNumberSpawn = await call("canopus_spawn", "sesINTEG1", { task: bn, goal: "другая работа" })
+cell("spawn: backlog same-number folder attempt is explicitly rejected", /номер .*занят.*бэклоге/i.test(sameNumberSpawn), sameNumberSpawn)
+cell("spawn: no second record is created or legacy record moved", JSON.stringify(tasks.loadTask("proj", bn)) === beforeSpawn && !tasks.listLegacy("proj").some((x) => x.n === bn), `${tasks.listLegacy("proj").map((x) => x.n)}`)
+cell("resume: action restores a safe state", /возвращена/i.test(await call("canopus_task", "sesINTEG1", { action: "resume", n: bn })), "action missing")
+bt = tasks.loadTask("proj", bn)
+cell("resume: backlog cleared", bt?.status !== "backlog" && tasks.isOpen(bt), bt?.status)
+cell("resume: missing executor resumes to idle without replay", bt?.status === "idle", bt?.status)
+cell("resume: history is append-only", bt?.history.length === historyBefore + 2 && bt.history[historyBefore]?.status === "backlog" && bt.history[historyBefore + 1]?.status === bt.status, JSON.stringify(bt?.history))
+cell("resume: resources and task identity remain", bt?.n === bn && bt.branch === branchBefore && bt.worktree === worktreeBefore && bt.executors.includes(t1.executor) === false, JSON.stringify(bt))
+cell("resume: absent executor pointer is archived, not kept live", bt?.executor === undefined && bt.executors.includes(b0 && JSON.parse(beforeSpawn).executor), JSON.stringify({ executor: bt?.executor, executors: bt?.executors }))
+cell("resume: old spawned card is not woken after safe idle", !core.mayWakeCard(core.readJson(core.cardFile(JSON.parse(beforeSpawn).executor)), []), JSON.stringify(bt))
+cell("resume: repeated transition does not duplicate events", /не в бэклоге/i.test(await call("canopus_task", "sesINTEG1", { action: "resume", n: bn })) && tasks.loadTask("proj", bn).history.length === historyBefore + 2, "mutated or accepted")
+cell("backlog/resume: no new executor session was created", sessions.size === 5 && tasks.loadTask("proj", bn).executor === undefined, `${sessions.size}`)
+
+const doneBacklog = tasks.createTask({ project: "proj", title: "готовая", goal: "x", priority: "P2", tier: "light", role: "worker", author: "sesINTEG1", author_role: "proj.integrator", qid: "qdone", status: "done", kind: "external", directory: proj })
+const cancelBacklog = tasks.createTask({ project: "proj", title: "отменённая", goal: "x", priority: "P2", tier: "light", role: "worker", author: "sesINTEG1", author_role: "proj.integrator", qid: "qcancel", status: "cancelled", kind: "external", directory: proj })
+const doneHistory = tasks.loadTask("proj", doneBacklog.n).history.length
+const cancelHistory = tasks.loadTask("proj", cancelBacklog.n).history.length
+cell("backlog: done cannot enter backlog", /готова/.test(await call("canopus_task", "sesINTEG1", { action: "backlog", n: doneBacklog.n, text: "x" })) && tasks.loadTask("proj", doneBacklog.n).history.length === doneHistory, "accepted or mutated")
+cell("backlog: cancelled cannot enter backlog", /отменена/.test(await call("canopus_task", "sesINTEG1", { action: "backlog", n: cancelBacklog.n, text: "x" })) && tasks.loadTask("proj", cancelBacklog.n).history.length === cancelHistory, "accepted or mutated")
+const locked = tasks.createTask({ project: "proj", title: "замок", goal: "не трогать", priority: "P2", tier: "light", role: "worker", author: "sesINTEG1", author_role: "proj.integrator", qid: "qlock", status: "reviewing", kind: "external", directory: proj, reviewer: "sesWORKR2" })
+const mergeLock = path.join(core.ROLES, "proj_merge.json")
+writeFileSync(mergeLock, JSON.stringify({ session: "sesWORKR2", n: locked.n, at: Date.now() }))
+const lockHistory = tasks.loadTask("proj", locked.n).history.length
+cell("backlog: active merge lock blocks pause before mutation", /замок вливания/.test(await call("canopus_task", "sesINTEG1", { action: "backlog", n: locked.n, text: "пауза" })) && tasks.loadTask("proj", locked.n).status === "reviewing" && tasks.loadTask("proj", locked.n).history.length === lockHistory, JSON.stringify(tasks.loadTask("proj", locked.n)))
+const lockedBacklog = tasks.createTask({ project: "proj", title: "бэклог с замком", goal: "не будить", priority: "P2", tier: "light", role: "worker", author: "sesINTEG1", author_role: "proj.integrator", qid: "qbacklock", status: "backlog", kind: "external", directory: proj })
+lockedBacklog.backlog = { status: "reviewing", at: Date.now(), by: "sesINTEG1" }
+tasks.saveTask(lockedBacklog)
+writeFileSync(mergeLock, JSON.stringify({ session: "sesWORKR2", n: lockedBacklog.n, at: Date.now() }))
+const lockedBacklogHistory = lockedBacklog.history.length
+cell("resume: unknown merge lock blocks resume without state mutation", /замок вливания/.test(await call("canopus_task", "sesINTEG1", { action: "resume", n: lockedBacklog.n })) && tasks.loadTask("proj", lockedBacklog.n).status === "backlog" && tasks.loadTask("proj", lockedBacklog.n).history.length === lockedBacklogHistory, JSON.stringify(tasks.loadTask("proj", lockedBacklog.n)))
+rmSync(mergeLock, { force: true })
+
+// 10. accepted -> backlog -> resume preserves cleanup state and evidence, without replay.
+const acceptedFolder = `doc/tasks/accepted-resume-${Date.now()}`
+const acceptedTask = tasks.createTask({
+  project: "proj", title: "принятая на уборке", goal: "сохранить принятое", priority: "P2", tier: "light", role: "worker",
+  author: "sesINTEG1", author_role: "proj.integrator", qid: "qaccepted", status: "accepted", kind: "spawn", directory: proj,
+  folder: acceptedFolder, executor: "ses_GHOST_EXECUTOR", reviewer: "ses_GHOST_REVIEWER", review_kind: "spawn", review_qid: "rqaccepted",
+  branch: "accepted-branch", worktree: path.join(proj, "accepted-worktree"), commit: "c".repeat(40),
+  precheck: { state: "stale", base: "b".repeat(40), at: Date.now(), by: "ses_GHOST_REVIEWER", round: 1, stale: { reason: "prior evidence", at: Date.now() } },
+  checks: { required: "verified" }, steps: [{ id: "required", text: "acceptance" }], side: [{ branch: "accepted-side", at: Date.now(), by: "sesINTEG1" }],
+}, undefined, { fill: () => ({ sessions: [] }) })
+const acceptedAtBefore = tasks.acceptedAt(acceptedTask)
+const acceptedHistoryBefore = acceptedTask.history.length
+const acceptedSessionsBefore = sessions.size
+const acceptedLettersBefore = delivered.length
+const acceptedBacklog = await call("canopus_task", "sesINTEG1", { action: "backlog", n: acceptedTask.n, text: "пауза после приёмки" })
+cell("accepted backlog: pause is allowed and explicit", /переведена в бэклог/.test(acceptedBacklog) && tasks.loadTask("proj", acceptedTask.n).status === "backlog", acceptedBacklog)
+const acceptedResume = await call("canopus_task", "sesINTEG1", { action: "resume", n: acceptedTask.n })
+const resumedAccepted = tasks.loadTask("proj", acceptedTask.n)
+cell("accepted resume: status remains accepted, not idle", /состояние «принята»/.test(acceptedResume) && resumedAccepted.status === "accepted", JSON.stringify({ acceptedResume, status: resumedAccepted.status }))
+cell("accepted resume: cleanup queue and accepted time restored", tasks.waitingCleanup(tasks.listTasks("proj")).some((x) => x.n === acceptedTask.n) && tasks.acceptedAt(resumedAccepted) === acceptedAtBefore, JSON.stringify({ acceptedAtBefore, acceptedAt: tasks.acceptedAt(resumedAccepted) }))
+cell("accepted resume: history is append-only without resetting accepted-at", resumedAccepted.history.length === acceptedHistoryBefore + 2 && resumedAccepted.history.at(-2)?.status === "backlog" && !resumedAccepted.history.at(-1)?.status && /восстановлен статус: принята/.test(resumedAccepted.history.at(-1)?.note ?? ""), JSON.stringify(resumedAccepted.history))
+cell("accepted resume: evidence and resources survive unchanged", resumedAccepted.checks.required === "verified" && resumedAccepted.precheck.stale.reason === "prior evidence" && resumedAccepted.commit === acceptedTask.commit && resumedAccepted.branch === acceptedTask.branch && resumedAccepted.worktree === acceptedTask.worktree && JSON.stringify(resumedAccepted.steps) === JSON.stringify(acceptedTask.steps) && JSON.stringify(resumedAccepted.side) === JSON.stringify(acceptedTask.side), JSON.stringify(resumedAccepted))
+cell("accepted resume: no new executor, reviewer or wakeup", sessions.size === acceptedSessionsBefore && delivered.length === acceptedLettersBefore && resumedAccepted.executor === acceptedTask.executor && resumedAccepted.reviewer === acceptedTask.reviewer, `${sessions.size}/${acceptedSessionsBefore}, ${delivered.length}/${acceptedLettersBefore}`)
+const acceptedPath = path.join(proj, "doc", "tasks", `${String(acceptedTask.n).padStart(3, "0")}-accepted-resume`)
+mkdirSync(path.join(acceptedPath, "task"), { recursive: true })
+writeFileSync(path.join(acceptedPath, "task", "message.md"), "# Принятая задача\n")
+writeFileSync(path.join(acceptedPath, "log.md"), "старт\n")
+g("add", "doc/tasks")
+g("commit", "-q", "-m", "Add accepted same-number folder")
+const acceptedBeforeSpawn = JSON.stringify(tasks.loadTask("proj", acceptedTask.n))
+const acceptedSpawn = await call("canopus_spawn", "sesINTEG1", { task: acceptedTask.n, goal: "новая сессия не должна подменить задачу" })
+cell("accepted resume: same-number spawn cannot replace the accepted record", /сессия не запущена.*принята/i.test(acceptedSpawn) && JSON.stringify(tasks.loadTask("proj", acceptedTask.n)) === acceptedBeforeSpawn && !tasks.listLegacy("proj").some((x) => x.n === acceptedTask.n), acceptedSpawn)
+cell("accepted resume: accepted cleanup slot is in waitingCleanup", tasks.waitingCleanup(tasks.listTasks("proj")).filter((x) => x.n === acceptedTask.n).length === 1, JSON.stringify(tasks.waitingCleanup(tasks.listTasks("proj")).map((x) => x.n)))
+
+clearInterval(heart)
+await stop?.()
+rmSync(tmp, { recursive: true, force: true })
+console.log(fail ? `canopus-tasks.test: FAIL ${fail}` : "canopus-tasks.test ok")
+process.exit(fail ? 1 : 0)

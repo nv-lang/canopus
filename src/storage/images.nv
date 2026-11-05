@@ -7,7 +7,7 @@
 // The folder is `session_images_dir`: ONE function names it, so a change of the layout of the data folder (a folder per session) is one line.
 // Both programs use this file: the front writes an upload (`POST /api/session-image/<id>`) and serves a picture (`GET /api/session-image/<id>/<n>`),
 // the hub numbers and reads a picture for the agent. Nothing here leaves the images folder: the session id and the number are checked by a mask.
-module crew_harness.storage
+module canopus.storage
 
 import std.encoding.base64.{Base64}
 import std.fs.{Fs, real_fs, File, Path, read, read_dir, create_dir_all, metadata}

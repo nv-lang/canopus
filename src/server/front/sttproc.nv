@@ -9,7 +9,7 @@
 // whatever the end of the front is (Ctrl+C, a kill, a crash); the pid file is the second line of defence (a front that is gone and a
 // recognizer that was somehow left): the next start ends it. The manager answers the status route; the state words are
 // `ready` `starting` `failed` `not_installed` `probe` (a foreign recognizer or an unmanaged one: the route probes the address itself).
-module crew_harness.server.front
+module canopus.server.front
 
 import std.text
 import std.concurrency.nvchan.{Chan, ChanTx, ChanRx}

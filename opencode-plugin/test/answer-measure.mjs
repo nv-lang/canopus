@@ -5,13 +5,13 @@
 //   node test/answer-measure.mjs --control  the same, plus the control: one gate stem put into a block that passed -- X drops by one
 // A block is "suitable" (by meaning, set apart from the words, by the criterion recorded in test/answer-t10.json) and the net lets
 // it pass when no stem of the list is in its text by the rules of REQ-13. ANSWER_T10_FILE points to another snapshot (fresh blocks
-// are added there with the same label and the revision they were taken from). CREW_PLUGIN_DIR points to another copy of the code.
+// are added there with the same label and the revision they were taken from). CANOPUS_PLUGIN_DIR points to another copy of the code.
 import { readFileSync } from "node:fs"
 import path from "node:path"
 import { pathToFileURL } from "node:url"
 
 const here = import.meta.dirname
-const plugin = process.env.CREW_PLUGIN_DIR ? path.resolve(process.env.CREW_PLUGIN_DIR) : path.join(here, "..")
+const plugin = process.env.CANOPUS_PLUGIN_DIR ? path.resolve(process.env.CANOPUS_PLUGIN_DIR) : path.join(here, "..")
 const P = await import(pathToFileURL(path.join(plugin, "answer-parse.ts")).href)
 const file = process.env.ANSWER_T10_FILE || path.join(here, "answer-t10.json")
 const data = JSON.parse(readFileSync(file, "utf8"))

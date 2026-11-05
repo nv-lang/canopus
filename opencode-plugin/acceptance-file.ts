@@ -36,7 +36,7 @@ export function parseAcceptanceTable(text: string): { steps: FileStep[]; warning
 const git = (cwd: string, args: string[]) => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", windowsHide: true, timeout: 5000, stdio: ["ignore", "pipe", "ignore"] })
 const cache = new Map<string, { at: number; value: { steps: FileStep[]; warnings: string[]; ref?: string } | undefined }>()
 const refreshing = new Set<string>()
-const ttl = () => (process.env.CREW_HARNESS_ACCEPTANCE_TTL_MS !== undefined ? Number(process.env.CREW_HARNESS_ACCEPTANCE_TTL_MS) : 15_000)
+const ttl = () => (process.env.CANOPUS_ACCEPTANCE_TTL_MS !== undefined ? Number(process.env.CANOPUS_ACCEPTANCE_TTL_MS) : 15_000)
 
 /** Шаги из файла целевой ветки или undefined (нет файла, нет шагов). Результат кешируется на проход. */
 export function acceptanceFromFile(dir: string, targetBranch: string, file: string): { steps: FileStep[]; warnings: string[]; ref?: string } | undefined {

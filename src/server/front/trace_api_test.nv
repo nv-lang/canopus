@@ -1,5 +1,5 @@
 // trace_api_test.nv - the lines of the raw exchange for the page "Запрос" (task 192.11).
-module crew_harness.server.front
+module canopus.server.front
 
 fn tr_file() -> str {
     ro word = "tok123"

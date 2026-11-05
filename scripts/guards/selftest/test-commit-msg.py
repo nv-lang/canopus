@@ -39,7 +39,7 @@ def main():
     base = pr.mkdtemp()
     env0 = stlib.isolated_env(base)
     names = stlib.names_file(base, [P1])
-    env = dict(env0, CREW_PRIVATE_NAMES_FILE=names)
+    env = dict(env0, CANOPUS_PRIVATE_NAMES_FILE=names)
     editor_path = os.path.join(base, "editor.py")
     with open(editor_path, "w", encoding="utf-8", newline="\n") as handle:
         handle.write(EDITOR)
@@ -178,13 +178,13 @@ def main():
     def email_mismatch_red():
         r = repo()
         stage_new(r)
-        stlib.git(r, env, "config", "crewharness.expectedEmail", "somebody@example.test")
+        stlib.git(r, env, "config", "canopus.expectedEmail", "somebody@example.test")
         attempt(r, ("-s", "-m", "Subject"), expect="expected-email")
 
     def no_setting_red():
         r = repo()
         stage_new(r)
-        stlib.git(r, env, "config", "--unset", "crewharness.expectedEmail")
+        stlib.git(r, env, "config", "--unset", "canopus.expectedEmail")
         out = attempt(r, ("-s", "-m", "Subject"), e=dict(env, GITHUB_ACTIONS="true"), expect="установщик")
         assert "scripts/install-hooks.sh" in out
 
@@ -219,8 +219,8 @@ def main():
     def no_names_list():
         r = repo()
         stage_new(r)
-        e = dict(env0, CREW_PRIVATE_NAMES_FILE=os.path.join(base, "absent.txt"))
-        attempt(r, ("-s", "-m", "Subject"), e=e, expect="CREW_PRIVATE_NAMES")
+        e = dict(env0, CANOPUS_PRIVATE_NAMES_FILE=os.path.join(base, "absent.txt"))
+        attempt(r, ("-s", "-m", "Subject"), e=e, expect="CANOPUS_PRIVATE_NAMES")
 
     pr.probe("законное", "-m и -F с подписью проходят", legit_m_and_f)
     pr.probe("законное", "редактор: комментарий с кириллицей и именем не судится", legit_editor_comments_with_cyrillic)

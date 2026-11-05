@@ -1,4 +1,4 @@
-// Historical pre-256 fixture only. Never use crew_task assign to construct it:
+// Historical pre-256 fixture only. Never use canopus_task assign to construct it:
 // the public operation must refuse a user's conversation now. These records
 // still exist on disk and their delivery, cancellation and handoff need coverage.
 export async function legacyAssignment({ project, session, author, directory, title, goal, criteria = "готово" }) {

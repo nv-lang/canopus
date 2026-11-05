@@ -1,5 +1,5 @@
 // ОТВЕТ ВЛАДЕЛЬЦА НА ВОПРОСНИК СНАРУЖИ ОКНА (задача 059; владелец, 2026-10-15: «заводи 059», путь 2 — «по рекомендации»).
-// Вход — файл в папке ANSWERS (кладёт scripts/crew-answer.mjs по слову владельца в чате оркестратора).
+// Вход — файл в папке ANSWERS (кладёт scripts/canopus-answer.mjs по слову владельца в чате оркестратора).
 //
 // ЗАДАЧА 263 (инцидент 258, 2026-10-30): ответ владельца завершает ожидающий вызов `question` ШТАТНЫМ ответом —
 // POST /api/session/{sid}/form/{fid}/reply службы OpenCode (form-reply.ts), модель получает ответ как результат
@@ -18,7 +18,7 @@ import { type ReplyResult } from "./form-reply.ts"
 import { DEAD_WHY, FORMS, type PendingForm, addForm, allForms, removeForm, replacedForms, settleDuplicates } from "./form-wait.ts"
 import { closeDeadMark, deadDialogOf } from "./form-restore.ts"
 import { HELD_WHY, autoLetter, autoNote, guardAnswer } from "./form-auto.ts"
-import { BASE } from "./paths.ts"
+import { BASE } from "./base.ts"
 
 export const ANSWERS = path.join(BASE, "answers")
 
@@ -57,7 +57,7 @@ export type OwnerAnswer = {
 
 const clean = (s: string) => s.replace(/\(recommended\)|\(рекомендуется\)/gi, "").replace(/\s+/g, " ").trim().toLowerCase()
 
-/** Какая форма и какой ответ. Чистая функция: её проверяет test/crew-owner-answer.test.mjs. `replaced` — записи, которые вкладка заменила
+/** Какая форма и какой ответ. Чистая функция: её проверяет test/canopus-owner-answer.test.mjs. `replaced` — записи, которые вкладка заменила
  *  новой формой того же вопроса (задача 071): ответ на такую форму отказывается с id новой. */
 export function resolveAnswer(a: OwnerAnswer, forms: { session: string; form: PendingForm }[], done: OwnerAnswer[], replaced: { session: string; form: PendingForm }[] = []): { ok: true; session: string; form: PendingForm; answer: string } | { ok: false; why: string; dead?: { session: string; id: string } } {
   if (!a || typeof a.quote !== "string" || !a.quote.trim()) return { ok: false, why: "no quote of the owner's word" }

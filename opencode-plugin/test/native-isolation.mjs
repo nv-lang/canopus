@@ -5,14 +5,14 @@ import os from "node:os"
 import path from "node:path"
 import { syncBuiltinESMExports } from "node:module"
 
-if (!globalThis.__crewNativeIsolation) {
-  const state = fs.mkdtempSync(path.join(os.tmpdir(), "crew-native-isolated-"))
+if (!globalThis.__canopusNativeIsolation) {
+  const state = fs.mkdtempSync(path.join(os.tmpdir(), "canopus-native-isolated-"))
   process.env.XDG_STATE_HOME = state
   const allowed = new Set()
   const endpoints = new Set()
   const violations = []
   const guard = { allowed, endpoints, violations, state }
-  globalThis.__crewNativeIsolation = guard
+  globalThis.__canopusNativeIsolation = guard
   const read = fs.readFileSync
   fs.readFileSync = function (file, ...args) {
     const name = String(file)
@@ -35,9 +35,9 @@ if (!globalThis.__crewNativeIsolation) {
   })
 }
 
-export function allowNativeRegistry(file) { globalThis.__crewNativeIsolation.allowed.add(path.resolve(file).toLowerCase()) }
+export function allowNativeRegistry(file) { globalThis.__canopusNativeIsolation.allowed.add(path.resolve(file).toLowerCase()) }
 export function allowNativeEndpoint(url) {
   const target = new URL(url)
   if (!["127.0.0.1", "localhost", "[::1]"].includes(target.hostname) || ["8099", "8100"].includes(target.port)) throw new Error("only an explicit isolated loopback fixture endpoint is allowed")
-  globalThis.__crewNativeIsolation.endpoints.add(target.origin)
+  globalThis.__canopusNativeIsolation.endpoints.add(target.origin)
 }

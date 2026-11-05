@@ -75,7 +75,7 @@ def main():
         return path
 
     def kit_files(extra=None, drop=None):
-        files = {"crew-harness.exe": b"MZ", "crew-hub.exe": b"MZ", "preparation-agent.mjs": "// fixture adapter\n"}
+        files = {"canopus.exe": b"MZ", "canopus-hub.exe": b"MZ", "preparation-agent.mjs": "// fixture adapter\n"}
         for k, v in machines().items():
             if "/tests/" not in k:
                 files[k] = v
@@ -114,7 +114,7 @@ def main():
     pr.probe("красная", "библиотека изменена после сборки машины",
              red_tree(machines(lib=LIB + "Лишняя строка.\n"), "library-hash"))
     pr.probe("красная", "подключённой библиотеки нет", red_tree(machines(with_lib=False), "library-missing"))
-    pr.probe("красная", "в комплекте нет crew-hub.exe", red_kit(kit_files(drop=["crew-hub.exe"]), "kit-program"))
+    pr.probe("красная", "в комплекте нет canopus-hub.exe", red_kit(kit_files(drop=["canopus-hub.exe"]), "kit-program"))
     pr.probe("красная", "в комплекте нет journal.md", red_kit(kit_files(drop=["machines/product/journal.md"]), "kit-machine"))
     for name in ("family-approval.alula.json", "family-approval.alula.md"):
         pr.probe("красная", "в комплекте нет " + name, red_kit(kit_files(drop=["machines/product/" + name]), "kit-machine"))

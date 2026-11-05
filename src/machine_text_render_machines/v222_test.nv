@@ -1,7 +1,7 @@
 // v222_test.nv - task 152: the reverse generator writes Alula 2.22: ranges, methods of the macros, insertions, the literal of a map, `in […]`, `выбор` with commas, blocks, `для x из xs`, the declarations of types and of
 // functions, the words of the types in both languages. The circles "tree -> file -> tree" are equal for the machines of the product in both languages. The proofs of the declarations of types and
 // functions were on the agent step: they left the product with the methodology (task 249); the machines of the product declare no enumeration and no function.
-module crew_harness.machine_text_render_machines
+module canopus.machine_text_render_machines
 
 import std.text
 import alula.machine_text.{render, render_type_in, render_expression_in, render_actions_in}

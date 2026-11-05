@@ -8,18 +8,18 @@
 // `updated` не годится: его двигает любая запись плагина.
 //
 // ЛЕСТНИЦА (записи — файл idle-watch/<проект>/<номер>.json в ящике: срок и письма переживают перезапуск службы, повторов нет):
-//   срок вышел → письмо держателю, которое ТРЕБУЕТ ответа инструментом crew_step_note {reason, minutes} или {done}: ответ продлевает срок на
+//   срок вышел → письмо держателю, которое ТРЕБУЕТ ответа инструментом canopus_step_note {reason, minutes} или {done}: ответ продлевает срок на
 //   step_extend_minutes (30) один раз на письмо; нет ответа step_answer_minutes (15) или та же причина второй раз → ВОПРОС ВЛАДЕЛЬЦУ: запись с
 //   вариантами (ждать ещё, сузить задачу, сменить исполнителя, отказаться), рекомендацией и доводом из записей; автору — письмо с текстом для
-//   инструмента question, окнам — уведомление, в /crew, панели, /crew-progress и crew_doctor — «срок вышел, вопрос открыт». Писем держателю
-//   не больше двух. Решение владельца пишет автор: crew_step_note {decide, who}; после решения новый срок и повторов нет.
+//   инструмента question, окнам — уведомление, в /canopus, панели, /canopus-progress и canopus_doctor — «срок вышел, вопрос открыт». Писем держателю
+//   не больше двух. Решение владельца пишет автор: canopus_step_note {decide, who}; после решения новый срок и повторов нет.
 // БЕЗ ТРЕВОГИ: ход окна по этой задаче идёт, открыт вопрос владельцу, HOLD/STOP по слову владельца (метка в записи), внешний прогон с потолком.
 // Модуль без обращений к окнам и службе: всё внешнее (письма, уведомления, факты окон) приходит в Deps — его проверяют без плагина.
 import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { randomUUID } from "node:crypto"
 import { PLUGIN_SENDER, readJson, safeKey } from "./core.ts"
-import { BASE } from "./paths.ts"
+import { BASE } from "./base.ts"
 import { type Task, type TaskStatus, isOpen, loadTask, statusRu, taskNo, taskRef } from "./tasks.ts"
 
 export const WATCH_DIR = path.join(BASE, "idle-watch")
@@ -157,8 +157,8 @@ const mins = (from: number, now: number) => Math.max(0, Math.round((now - from) 
 const OPTIONS = (extendMin: number): Option[] => [
   { id: "wait", label: "Ждать ещё", desc: `ещё срок (по умолчанию ${extendMin} мин); для сознательного ожидания нужен HOLD, иначе лестница повторится` },
   { id: "narrow", label: "Сузить задачу", desc: "убрать из задачи то, что не вмещается в срок" },
-  { id: "reassign", label: "Сменить исполнителя", desc: "crew_task reassign: новая сессия, прежняя сводка" },
-  { id: "cancel", label: "Отказаться от задачи", desc: "crew_task cancel" },
+  { id: "reassign", label: "Сменить исполнителя", desc: "canopus_task reassign: новая сессия, прежняя сводка" },
+  { id: "cancel", label: "Отказаться от задачи", desc: "canopus_task cancel" },
 ]
 
 // ---- лестница
@@ -176,7 +176,7 @@ export type Deps = {
   ownerHolds?(t: Task): boolean
   /** у держателя есть живая карточка и окно: письмо дойдёт (нет — задача идёт в сводный вопрос, письма нет) */
   holderAlive?(session: string): boolean
-  /** открыто наблюдение (crew_watch) держателя, у которого потолок ещё не вышел */
+  /** открыто наблюдение (canopus_watch) держателя, у которого потолок ещё не вышел */
   externalRun(t: Task, now: number): boolean
   letter(to: string, id: string, text: string, kind: "ask" | "question" | "summary"): void
   notice(title: string, message: string): void
@@ -197,8 +197,8 @@ function askText(t: Task, ep: Episode, c: StepConfig, now: number, k: number): s
   return (
     `Шаг стоит ${mins(ep.since, now)} мин, срок вышел: задача ${taskRef(t)} — ${STEP_WORDS[ep.role]} (${statusRu(t.status)}; шаг держишь ты как ${ep.label}). Шаг не менялся с ${hm(ep.since)}, срок ${term} мин. ` +
     `${k >= LETTERS_MAX ? "Это второе и последнее письмо. " : ""}` +
-    `Письмо ТРЕБУЕТ ответа инструментом: crew_step_note {n: ${t.n}, reason: "<что сделано, чего ждёшь, почему стоит>", minutes: <на сколько продлить, не больше ${c.extendMin}>} — срок продлится один раз на ${c.extendMin} мин; ` +
-    `если шаг сделан — crew_step_note {n: ${t.n}, done: true} и сдай его штатным действием. Текстом или ходом без инструмента ответ не засчитывается. ` +
+    `Письмо ТРЕБУЕТ ответа инструментом: canopus_step_note {n: ${t.n}, reason: "<что сделано, чего ждёшь, почему стоит>", minutes: <на сколько продлить, не больше ${c.extendMin}>} — срок продлится один раз на ${c.extendMin} мин; ` +
+    `если шаг сделан — canopus_step_note {n: ${t.n}, done: true} и сдай его штатным действием. Текстом или ходом без инструмента ответ не засчитывается. ` +
     `Без ответа за ${c.answerMin} мин, а также при той же причине второй раз плагин поднимет вопрос владельцу о задаче ${no}.`
   )
 }
@@ -227,8 +227,8 @@ function buildQuestion(t: Task, ep: Episode, c: StepConfig, now: number, why: "s
     `Шаг стоит ${standing} мин, срок вышел: вопрос владельцу по задаче ${taskRef(t)}. Задай его инструментом question (один вопрос, варианты ниже, рекомендация первым вариантом с пометкой (Recommended)). ` +
     `Вопрос: шаг «${STEP_WORDS[ep.role]}» задачи ${taskNo(t)} стоит ${standing} мин при сроке ${term} мин, держатель — ${ep.label}. Что делать? ` +
     `Варианты: ${list}. Рекомендация: ${rec.label}. Довод: ${line}. ` +
-    `Если ждать сознательно, поставь HOLD (crew_step_note {n: ${t.n}, hold: "HOLD", who}): без него после «ждать ещё» лестница начнётся заново через ${c.extendMin + c.answerMin} мин. ` +
-    `Слово владельца запиши: crew_step_note {n: ${t.n}, decide: "wait"|"narrow"|"reassign"|"cancel", who: "владелец, <дата>, «слово»", minutes?: <новый срок для «ждать ещё»>}. ` +
+    `Если ждать сознательно, поставь HOLD (canopus_step_note {n: ${t.n}, hold: "HOLD", who}): без него после «ждать ещё» лестница начнётся заново через ${c.extendMin + c.answerMin} мин. ` +
+    `Слово владельца запиши: canopus_step_note {n: ${t.n}, decide: "wait"|"narrow"|"reassign"|"cancel", who: "владелец, <дата>, «слово»", minutes?: <новый срок для «ждать ещё»>}. ` +
     `Пока решения нет, задача помечена «срок вышел, вопрос открыт».`
   return { id: letterId(t, ep, "q"), at: now, why: `${line[0].toUpperCase()}${line.slice(1)}.`, recommend, options, text }
 }
@@ -272,10 +272,10 @@ function summaryText(project: string, items: SummaryItem[], oldMin: number, now:
   const text =
     `Шаг стоит давно, срок вышел: ${why}. Отдельных писем им нет. Задай владельцу ОДИН вопрос инструментом question (варианты ниже, рекомендация первым вариантом с пометкой (Recommended)). ` +
     `Стоят: ${list}. ` +
-    `Вопрос: что делать с ними? Варианты: 1. Закрыть то, что мертво (crew_task cancel) (Recommended) — задача не нужна или давно заброшена; 2. HOLD — сознательно не трогать (crew_step_note {n, hold: "HOLD", who}); ` +
-    `3. Ждать ещё (crew_step_note {n, decide: "wait", minutes, who}); 4. Сменить исполнителя (crew_task reassign). ` +
+    `Вопрос: что делать с ними? Варианты: 1. Закрыть то, что мертво (canopus_task cancel) (Recommended) — задача не нужна или давно заброшена; 2. HOLD — сознательно не трогать (canopus_step_note {n, hold: "HOLD", who}); ` +
+    `3. Ждать ещё (canopus_step_note {n, decide: "wait", minutes, who}); 4. Сменить исполнителя (canopus_task reassign). ` +
     `Рекомендация: закрыть мёртвое, остальное — HOLD. Довод: ${why}, значит, ни держатель, ни окно ими не занимаются (на ${hm(now)}). ` +
-    `Решение владельца по каждой задаче: crew_step_note {n, decide | hold, who: "владелец, <дата>, «слово»"}; пока в списке есть задача, она помечена «стоят давно, вопрос открыт».`
+    `Решение владельца по каждой задаче: canopus_step_note {n, decide | hold, who: "владелец, <дата>, «слово»"}; пока в списке есть задача, она помечена «стоят давно, вопрос открыт».`
   return { text, why }
 }
 
@@ -309,7 +309,7 @@ export function watchTick(tasks: Task[], d: Deps, now: number): { letters: numbe
     const terminal = !!wait && (expired || (!!wait.result && wait.result !== "succeeded"))
     const health = terminal ? { failed: true, fingerprint: `external:${wait!.id}:${wait!.result ?? "deadline"}`, source: { waitId: wait!.id }, why: `внешнее ожидание ${wait!.id}: ${wait!.result ?? "срок проверки результата истёк"}${wait!.why ? ` (${wait!.why})` : ""}; старое «жду результат» больше не оправдывает тишину` } : d.health?.(t)
     if (rec.health && !rec.health.escalated && now >= rec.health.deadline) {
-      d.letter(t.author, `task-health-overdue-${safeKey(t.project)}-${t.n}-${rec.health.at}`, `Диагностика аварии задачи ${taskRef(t)} не подтверждена за 15 минут: ${rec.health.why}. Нужен явный блокер: crew_step_note {n: ${t.n}, health_blocker: "<что мешает диагностике>"}, либо проверяемый результат диагностики. Запись «разбужен» прогрессом не считается; HOLD и запрет приёмки/слияния сохранены.`, "question")
+      d.letter(t.author, `task-health-overdue-${safeKey(t.project)}-${t.n}-${rec.health.at}`, `Диагностика аварии задачи ${taskRef(t)} не подтверждена за 15 минут: ${rec.health.why}. Нужен явный блокер: canopus_step_note {n: ${t.n}, health_blocker: "<что мешает диагностике>"}, либо проверяемый результат диагностики. Запись «разбужен» прогрессом не считается; HOLD и запрет приёмки/слияния сохранены.`, "question")
       d.notice(`${taskNo(t)} · диагностика не подтверждена`, rec.health.why)
       rec.health.escalated = true; writeRecord(rec, dir); sum.letters++
     }
@@ -447,7 +447,7 @@ export function watchTick(tasks: Task[], d: Deps, now: number): { letters: numbe
   return sum
 }
 
-// ---- инструмент crew_step_note
+// ---- инструмент canopus_step_note
 
 export type NoteInput = { n?: number; project?: string; reason?: string; minutes?: number; done?: boolean; decide?: string; who?: string; hold?: string; hold_scope?: string; hold_gate?: boolean; wait_id?: string; wait_result?: ExternalResult; health_blocker?: string; release?: boolean }
 export type NoteDeps = { dir?: string; cfg(t: Task): StepConfig; task(project: string, n: number): Task | undefined; tasks(): Task[]; taskNote?(t: Task, text: string): void }
@@ -513,7 +513,7 @@ export function noteStep(input: NoteInput, me: { session: string; project?: stri
     rec.hold = { kind, ...(scope ? { scope } : {}), ...(gate ? { gate: true } : {}), ...(wait ? { wait } : {}), who: input.who.trim(), at: now }
     writeRecord(rec, dir)
     d.taskNote?.(t, `${kind} (${HOLD_SCOPE_RU[holdScope(rec.hold)]}) по слову владельца: ${input.who.trim()}; метка не подавляет мониторинг аварий`)
-    return { ok: true, text: `${kind} записан для задачи ${no}: ${HOLD_SCOPE_RU[holdScope(rec.hold)]}. Мониторинг аварий остаётся включён; метка снимается только по слову владельца (crew_step_note {n: ${t.n}, release: true, who}). Метка видна в /crew и crew_doctor.` }
+    return { ok: true, text: `${kind} записан для задачи ${no}: ${HOLD_SCOPE_RU[holdScope(rec.hold)]}. Мониторинг аварий остаётся включён; метка снимается только по слову владельца (canopus_step_note {n: ${t.n}, release: true, who}). Метка видна в /canopus и canopus_doctor.` }
   }
 
   if (input.decide) {
@@ -539,8 +539,8 @@ export function noteStep(input: NoteInput, me: { session: string; project?: stri
     ep.due = now + (kind === "wait" ? minutes : c.extendMin) * MIN
     writeRecord(rec, dir)
     d.taskNote?.(t, `решение владельца по сроку шага: ${opt.label}${kind === "wait" ? ` (${minutes} мин)` : ""}; ${dec.who}`)
-    const next = { wait: `Срок продлён до ${hm(ep.due)}; повторов вопроса до этого времени нет.`, narrow: `Сузь задачу: напиши держателю, что убрать (crew_send), или поставь меньшую задачу. Срок на это — до ${hm(ep.due)}; если шаг не сдвинется, сторож начнёт лестницу заново.`, reassign: `Смени исполнителя: crew_task {action: "reassign", n: ${t.n}}. Срок на это — до ${hm(ep.due)}.`, cancel: `Отмени задачу: crew_task {action: "cancel", n: ${t.n}}. Срок на это — до ${hm(ep.due)}.` }[kind]
-    return { ok: true, text: `Решение владельца записано: ${opt.label}. ${next}${kind === "wait" ? ` Для сознательного ожидания поставь HOLD (crew_step_note {n: ${t.n}, hold: "HOLD", who}): без него лестница начнётся заново через ${c.extendMin + c.answerMin} мин после срока.` : ""}` }
+    const next = { wait: `Срок продлён до ${hm(ep.due)}; повторов вопроса до этого времени нет.`, narrow: `Сузь задачу: напиши держателю, что убрать (canopus_send), или поставь меньшую задачу. Срок на это — до ${hm(ep.due)}; если шаг не сдвинется, сторож начнёт лестницу заново.`, reassign: `Смени исполнителя: canopus_task {action: "reassign", n: ${t.n}}. Срок на это — до ${hm(ep.due)}.`, cancel: `Отмени задачу: canopus_task {action: "cancel", n: ${t.n}}. Срок на это — до ${hm(ep.due)}.` }[kind]
+    return { ok: true, text: `Решение владельца записано: ${opt.label}. ${next}${kind === "wait" ? ` Для сознательного ожидания поставь HOLD (canopus_step_note {n: ${t.n}, hold: "HOLD", who}): без него лестница начнётся заново через ${c.extendMin + c.answerMin} мин после срока.` : ""}` }
   }
 
   // ответ держателя
@@ -569,10 +569,10 @@ export function noteStep(input: NoteInput, me: { session: string; project?: stri
   ep.due = Math.max(ep.due, now) + add * MIN
   writeRecord(rec, dir)
   d.taskNote?.(t, input.done ? `срок шага: держатель сообщил «сдано»${reason ? ` (${reason})` : ""}; срок продлён до ${hm(ep.due)}` : `срок шага продлён до ${hm(ep.due)}: ${reason} (${me.session})`)
-  return { ok: true, text: `Ответ записан: срок шага ${no} продлён на ${add} мин, до ${hm(ep.due)}. Продление одно на письмо: к тому времени сдвинь шаг (статус, запись, сдача) — иначе будет второе письмо, потом вопрос владельцу.${input.done ? " Сдай шаг штатным действием (crew_task submit или нужное)." : ""}` }
+  return { ok: true, text: `Ответ записан: срок шага ${no} продлён на ${add} мин, до ${hm(ep.due)}. Продление одно на письмо: к тому времени сдвинь шаг (статус, запись, сдача) — иначе будет второе письмо, потом вопрос владельцу.${input.done ? " Сдай шаг штатным действием (canopus_task submit или нужное)." : ""}` }
 }
 
-// ---- показ: /crew, панель, /crew-progress, crew_doctor
+// ---- показ: /canopus, панель, /canopus-progress, canopus_doctor
 
 export type Row = { text: string; tone: "error" | "warn" | "muted" }
 type View = { project?: string; dir?: string; taskOf?: (project: string, n: number) => Task | undefined }
@@ -608,7 +608,7 @@ const summaries = (o: View): { s: Summary; ns: number[] }[] => {
   return out
 }
 
-/** Строки /crew проекта: красная — вопрос владельцу открыт, жёлтая — срок вышел, серая — срок продлён или HOLD/STOP. */
+/** Строки /canopus проекта: красная — вопрос владельцу открыт, жёлтая — срок вышел, серая — срок продлён или HOLD/STOP. */
 export function stepRows(now: number, o: View = {}): Row[] {
   const rows: Row[] = []
   for (const { rec, t, ep } of live(now, o)) {
@@ -649,24 +649,24 @@ export function holdsOf(o: { project?: string; dir?: string; taskOf?: (project: 
   return out
 }
 
-/** Строки /crew-progress: текст без значка, по одной на задачу с вышедшим сроком. */
+/** Строки /canopus-progress: текст без значка, по одной на задачу с вышедшим сроком. */
 export function stepProgressLines(now: number, o: View = {}): string[] {
   return stepRows(now, o).filter((r) => r.tone !== "muted").map((r) => r.text)
 }
 
-/** Проблемы для crew_doctor: открытый вопрос владельцу о сроке шага. */
+/** Проблемы для canopus_doctor: открытый вопрос владельцу о сроке шага. */
 const taskProblems = (now: number, o: View): string[] =>
   live(now, o)
     .filter((x) => openQ(x.ep))
-    .map(({ rec, t, ep }) => `задача ${taskRef(t)} (проект ${rec.project}): срок вышел, вопрос открыт с ${hm(ep!.question!.at)} — шаг «${STEP_WORDS[ep!.role]}» стоит ${mins(ep!.since, now)} мин (${ep!.label}); ${ep!.question!.why} Автор спрашивает владельца (question) и пишет решение: crew_step_note {n: ${t.n}, decide, who}`)
+    .map(({ rec, t, ep }) => `задача ${taskRef(t)} (проект ${rec.project}): срок вышел, вопрос открыт с ${hm(ep!.question!.at)} — шаг «${STEP_WORDS[ep!.role]}» стоит ${mins(ep!.since, now)} мин (${ep!.label}); ${ep!.question!.why} Автор спрашивает владельца (question) и пишет решение: canopus_step_note {n: ${t.n}, decide, who}`)
 
 export function stepProblems(now: number, o: View = {}): string[] {
-  const sums = summaries(o).map(({ s, ns }) => `проект ${s.project}: задачи ${ns.map((n) => taskNo({ n })).join(", ")} стоят давно или без окна держателя, вопрос владельцу открыт с ${hm(s.question!.at)}: ${s.question!.why}; автор спрашивает владельца (question) и пишет решение по каждой: crew_step_note {n, decide | hold, who}`)
+  const sums = summaries(o).map(({ s, ns }) => `проект ${s.project}: задачи ${ns.map((n) => taskNo({ n })).join(", ")} стоят давно или без окна держателя, вопрос владельцу открыт с ${hm(s.question!.at)}: ${s.question!.why}; автор спрашивает владельца (question) и пишет решение по каждой: canopus_step_note {n, decide | hold, who}`)
   const health = live(now, o).filter(x => x.rec.health).map(({ t, rec }) => `задача ${taskRef(t)}: аварийная остановка — ${rec.health!.why}; ${rec.health!.blocker ? `блокер диагностики: ${rec.health!.blocker.reason}` : "диагностика не подтверждена"}; HOLD/gate сохранены`)
   return [...health, ...taskProblems(now, o), ...sums]
 }
 
-/** Справка для crew_doctor: срок вышел, вопрос ещё не поднят; метки HOLD/STOP. Не проблема. */
+/** Справка для canopus_doctor: срок вышел, вопрос ещё не поднят; метки HOLD/STOP. Не проблема. */
 export function stepNotes(now: number, o: View = {}): string[] {
   const out: string[] = []
   for (const { rec, t, ep } of live(now, o)) {

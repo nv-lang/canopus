@@ -19,7 +19,7 @@
 // polls or reads of our own files and sockets; no pipe of the child is ever read (its stdout goes
 // to a file under `cmd /c`), so no fiber can park on a pipe of the child.
 
-module crew_harness.model_metadata
+module canopus.model_metadata
 
 import std.concurrency.nvchan.{Chan, ChanTx, ChanRx}
 import std.crypto.sha256.{Sha256}
@@ -30,9 +30,9 @@ import std.net.{Net, real_net, TcpListener, TcpStream}
 import std.os.{Os, real_os, vars, has_env, Command, Child, ChildStdout, Stdio, Tree}
 import std.io.{stderr}
 import std.time.{Time}
-import crew_harness.agent_config.{opencode_config_source, opencode_home_prepare}
-import crew_harness.projects.{EnvEntry}
-import crew_harness.storage.{replace_file}
+import canopus.agent_config.{opencode_config_source, opencode_home_prepare}
+import canopus.projects.{EnvEntry}
+import canopus.storage.{replace_file}
 
 /// How often the refresher re-reads the catalog of the running native server; the snapshot itself
 /// lives `METADATA_SNAPSHOT_TTL_MS` (under the 300 s freshness cap of the hook, so a reply is never

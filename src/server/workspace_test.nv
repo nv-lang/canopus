@@ -1,4 +1,4 @@
-module crew_harness.server
+module canopus.server
 
 test "workspace: selected preference and detached identity survive journal replay" {
     mut rt = route_session_new()

@@ -8,8 +8,8 @@
 Не проверяет: сами файлы репозитория (это check-private-names.py и guard-commit-message.py).
 Правило: AGENTS.md п.15, ADR-0006.
 
-Источники по приоритету: переменная окружения CREW_PRIVATE_NAMES (в CI — из секрета с тем же
-именем), затем файл CREW_PRIVATE_NAMES_FILE, затем ~/.config/crew-harness/private-names.txt.
+Источники по приоритету: переменная окружения CANOPUS_PRIVATE_NAMES (в CI — из секрета с тем же
+именем), затем файл CANOPUS_PRIVATE_NAMES_FILE, затем ~/.config/canopus/private-names.txt.
 Формат: образец на строку, строка с решёткой первым знаком — комментарий, пустые строки пропускаются.
 Номер образца — порядковый среди образцов (без комментариев и пустых строк), с единицы.
 Значения образцов не попадают ни в вывод, ни в тексты исключений.
@@ -22,10 +22,10 @@ import os
 
 from guardlib import Unavailable
 
-DEFAULT_FILE = os.path.join("~", ".config", "crew-harness", "private-names.txt")
-HINT = ("Заведите список: файл ~/.config/crew-harness/private-names.txt (путь переопределяет "
-        "CREW_PRIVATE_NAMES_FILE), образец на строку, решётка — комментарий; в CI — секрет "
-        "CREW_PRIVATE_NAMES (его заводит scripts/github-setup.sh secret).")
+DEFAULT_FILE = os.path.join("~", ".config", "canopus", "private-names.txt")
+HINT = ("Заведите список: файл ~/.config/canopus/private-names.txt (путь переопределяет "
+        "CANOPUS_PRIVATE_NAMES_FILE), образец на строку, решётка — комментарий; в CI — секрет "
+        "CANOPUS_PRIVATE_NAMES (его заводит scripts/github-setup.sh secret).")
 
 
 def parse(text):
@@ -48,20 +48,20 @@ def _decode(data):
 
 def load_names():
     """Образцы списка запрещённых имён или Unavailable с подсказкой, как завести недостающее."""
-    env = os.environ.get("CREW_PRIVATE_NAMES")
+    env = os.environ.get("CANOPUS_PRIVATE_NAMES")
     env_empty = False
     if env is not None:
         patterns = parse(env.lstrip("\ufeff"))
         if patterns:
             return patterns
         env_empty = True
-    path = os.environ.get("CREW_PRIVATE_NAMES_FILE") or os.path.expanduser(DEFAULT_FILE)
+    path = os.environ.get("CANOPUS_PRIVATE_NAMES_FILE") or os.path.expanduser(DEFAULT_FILE)
     try:
         with open(path, "rb") as handle:
             data = handle.read()
     except OSError:
         if env_empty:
-            raise Unavailable("секрет или переменная CREW_PRIVATE_NAMES пусты. " + HINT)
+            raise Unavailable("секрет или переменная CANOPUS_PRIVATE_NAMES пусты. " + HINT)
         raise Unavailable("нет списка запрещённых имён (файл не найден или не читается). " + HINT)
     patterns = parse(_decode(data))
     if not patterns:

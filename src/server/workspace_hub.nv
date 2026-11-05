@@ -1,5 +1,5 @@
 // Workspace preferences never perform Git mutations. Lifecycle authorization is the Alula WorkModePolicy.
-module crew_harness.server
+module canopus.server
 
 import std.encoding.json.{Json, JsonValue, JsonObject}
 

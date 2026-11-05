@@ -1,21 +1,21 @@
-// agent_config.nv - task 192.9: the configuration of the OpenCode that the hub starts, without the plugin `crew-harness`.
+// agent_config.nv - task 192.9: the configuration of the OpenCode that the hub starts, without the plugin `canopus`.
 //
 // The plugin `opencode-plugin/` is an experiment of the owner for his own OpenCode windows; it is not a part of the product. The agent of the hub gets the tools of the hub (the MCP server `crew`),
 // and the plugin gives it other tools and other habits (letters, tasks of a project): they are mixed up with the tools of the hub. The global configuration of the owner is not touched (the live
 // service uses it): the hub makes its own copy in `<data_dir>/agent-config/xdg/opencode/` without the plugin, and starts the agent with `XDG_CONFIG_HOME` on `<data_dir>/agent-config/xdg`.
 // The copy is made again at every start of such an agent, so it is never older than the original. The providers, the models, the other plugins, the rules and the agents stay. A secret in the files is
-// never read apart from being copied and never logged. `CREW_OPENCODE_KEEP_PLUGIN=1` in the environment of the hub keeps the plugin (the copy is then not made).
+// never read apart from being copied and never logged. `CANOPUS_OPENCODE_KEEP_PLUGIN=1` in the environment of the hub keeps the plugin (the copy is then not made).
 //
 // The part below is pure: it cuts the plugin out of the text of the configuration (JSONC with comments, or JSON) and does not parse it, so the comments and the layout stay.
-module crew_harness.agent_config
+module canopus.agent_config
 
-import crew_harness.projects.{EnvEntry}
+import canopus.projects.{EnvEntry}
 import std.fs.{Fs, real_fs, Path, read_text, create_dir_all}
 import std.os.{Os, real_os, env}
-import crew_harness.storage.{replace_file}
+import canopus.storage.{replace_file}
 
 /// The mark of the plugin in a path or in a list of plugins: its folder, with the slashes of a path.
-export const CREW_PLUGIN_MARK = "crew-harness/opencode-plugin"
+export const CANOPUS_PLUGIN_MARK = "canopus/opencode-plugin"
 
 // The index after the string that begins at `from` (a quote); the length of the text when it is not closed.
 fn str_end(bytes []u8, from int) -> int {
@@ -117,7 +117,7 @@ fn array_segments(text str, open int) -> Segments {
     Segments { parts, close: -1 }
 }
 
-/// The text of a configuration without the entries of the array `plugins` (or `plugin`) that name the plugin `crew-harness` (a path with `crew-harness/opencode-plugin`, a string or an object with `package`),
+/// The text of a configuration without the entries of the array `plugins` (or `plugin`) that name the plugin `canopus` (a path with `canopus/opencode-plugin`, a string or an object with `package`),
 /// with the comments right before such an entry. The text without the plugin is the same text.
 export fn config_without_plugin(text str) -> str {
     mut out = text
@@ -134,7 +134,7 @@ export fn config_without_plugin(text str) -> str {
             mut kept = []str.new()
             mut dropped = false
             for part in seg.parts {
-                if part.replace("\\", "/").contains(CREW_PLUGIN_MARK) { dropped = true } else { kept.push(part) }
+                if part.replace("\\", "/").contains(CANOPUS_PLUGIN_MARK) { dropped = true } else { kept.push(part) }
             }
             if dropped {
                 out = "${out[..open + 1]}${kept.join(",")}${out[seg.close..]}"
@@ -145,7 +145,7 @@ export fn config_without_plugin(text str) -> str {
     out
 }
 
-/// The text of a configuration without the property `key` whose value is a string and whose name is at the level of any object (used for `crewMcp`, the path of the MCP of the plugin that the claude-code provider is given).
+/// The text of a configuration without the property `key` whose value is a string and whose name is at the level of any object (used for `canopusMcp`, the path of the MCP of the plugin that the claude-code provider is given).
 export fn config_without_string_property(text str, key str) -> str {
     mut out = text
     mut from = 0
@@ -170,8 +170,8 @@ export fn config_without_string_property(text str, key str) -> str {
     out
 }
 
-/// The whole cut: the plugin out of the list, the property `crewMcp` out of the settings of the providers.
-export fn config_for_hub(text str) -> str => config_without_string_property(config_without_plugin(text), "crewMcp")
+/// The whole cut: the plugin out of the list, the property `canopusMcp` out of the settings of the providers.
+export fn config_for_hub(text str) -> str => config_without_string_property(config_without_plugin(text), "canopusMcp")
 
 // ----- the copy on the disk -----
 
@@ -197,10 +197,10 @@ export fn opencode_config_source() Os -> str {
 }
 
 /// Make (again) the configuration of OpenCode for the agents of the hub and give the folder to put into `XDG_CONFIG_HOME`: `<data_dir>/agent-config/xdg`. "" - the copy is not made (no original, the folder cannot be written,
-/// or `CREW_OPENCODE_KEEP_PLUGIN` is set): the agent then starts with the configuration of the owner as it is. `reason` of a failure is a word, never a text of the files.
+/// or `CANOPUS_OPENCODE_KEEP_PLUGIN` is set): the agent then starts with the configuration of the owner as it is. `reason` of a failure is a word, never a text of the files.
 export fn opencode_home_prepare(data_dir str, source str) Fs Os -> Result[str, str] {
-    ro keep = env("CREW_OPENCODE_KEEP_PLUGIN") ?? ""
-    if keep == "1" || keep == "true" { return Err("kept by CREW_OPENCODE_KEEP_PLUGIN") }
+    ro keep = env("CANOPUS_OPENCODE_KEEP_PLUGIN") ?? ""
+    if keep == "1" || keep == "true" { return Err("kept by CANOPUS_OPENCODE_KEEP_PLUGIN") }
     if source.byte_len() == 0 { return Err("no original configuration") }
     ro xdg = "${data_dir.replace("\\", "/")}/agent-config/xdg"
     ro target = "${xdg}/opencode"

@@ -21,7 +21,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 # shellcheck disable=SC1091
 . "$here/guards/lib/find-python.sh"
 
-repo=unitcraft/crew-harness
+repo=unitcraft/canopus
 branch=main
 dry=0
 rest=
@@ -37,8 +37,8 @@ cmd=${1-}
 [ $# -gt 0 ] && shift
 rest=$*
 
-names_file=${CREW_PRIVATE_NAMES_FILE:-${HOME:-}/.config/crew-harness/private-names.txt}
-probe_values=${TMPDIR:-/tmp}/crew-probe-values.txt
+names_file=${CANOPUS_PRIVATE_NAMES_FILE:-${HOME:-}/.config/canopus/private-names.txt}
+probe_values=${TMPDIR:-/tmp}/canopus-probe-values.txt
 
 die() {
   echo "FAIL: $1"
@@ -116,22 +116,22 @@ cmd_status() {
 
 cmd_secret() {
   if [ ! -s "$names_file" ]; then
-    die "предпосылка: нет файла со списком запрещённых имён или он пуст (путь переопределяет CREW_PRIVATE_NAMES_FILE; по умолчанию ~/.config/crew-harness/private-names.txt)"
+    die "предпосылка: нет файла со списком запрещённых имён или он пуст (путь переопределяет CANOPUS_PRIVATE_NAMES_FILE; по умолчанию ~/.config/canopus/private-names.txt)"
   fi
   need_gh
   if [ "$dry" -eq 1 ]; then
-    echo "[dry-run] gh secret set CREW_PRIVATE_NAMES --repo $repo < <файл списка> (значение не печатается)"
+    echo "[dry-run] gh secret set CANOPUS_PRIVATE_NAMES --repo $repo < <файл списка> (значение не печатается)"
     return 0
   fi
-  gh secret set CREW_PRIVATE_NAMES --repo "$repo" < "$names_file" >/dev/null || die "не удалось записать секрет"
-  echo "ок: секрет CREW_PRIVATE_NAMES записан (значение не печатается)"
+  gh secret set CANOPUS_PRIVATE_NAMES --repo "$repo" < "$names_file" >/dev/null || die "не удалось записать секрет"
+  echo "ок: секрет CANOPUS_PRIVATE_NAMES записан (значение не печатается)"
 }
 
 cmd_probe_set() {
   need_gh
   if [ "$dry" -eq 1 ]; then
     echo "[dry-run] создать локальный файл с двумя выдуманными значениями пробы ($probe_values)"
-    echo "[dry-run] gh secret set CREW_PRIVATE_NAMES_PROBE --repo $repo < <файл пробы> (значения не печатаются)"
+    echo "[dry-run] gh secret set CANOPUS_PRIVATE_NAMES_PROBE --repo $repo < <файл пробы> (значения не печатаются)"
     return 0
   fi
   find_python || exit 1
@@ -140,8 +140,8 @@ import secrets, sys
 with open(sys.argv[1], "w", encoding="utf-8", newline="\n") as handle:
     handle.write("probe-" + secrets.token_hex(6) + "\nprobe-" + secrets.token_hex(6) + "\n")
 PYEOF
-  gh secret set CREW_PRIVATE_NAMES_PROBE --repo "$repo" < "$probe_values" >/dev/null || die "не удалось записать секрет пробы"
-  echo "ок: секрет CREW_PRIVATE_NAMES_PROBE записан из двух выдуманных значений (локальный файл значений создан)"
+  gh secret set CANOPUS_PRIVATE_NAMES_PROBE --repo "$repo" < "$probe_values" >/dev/null || die "не удалось записать секрет пробы"
+  echo "ок: секрет CANOPUS_PRIVATE_NAMES_PROBE записан из двух выдуманных значений (локальный файл значений создан)"
 }
 
 cmd_probe_branch() {
@@ -173,11 +173,11 @@ cmd_probe_branch() {
 cmd_probe_clear() {
   need_gh
   if [ "$dry" -eq 1 ]; then
-    echo "[dry-run] gh secret delete CREW_PRIVATE_NAMES_PROBE --repo $repo; удалить локальный файл значений"
+    echo "[dry-run] gh secret delete CANOPUS_PRIVATE_NAMES_PROBE --repo $repo; удалить локальный файл значений"
     case "$branch" in probe/*) echo "[dry-run] снять защиту и удалить удалённую ветку $branch" ;; esac
     return 0
   fi
-  gh secret delete CREW_PRIVATE_NAMES_PROBE --repo "$repo" >/dev/null 2>&1
+  gh secret delete CANOPUS_PRIVATE_NAMES_PROBE --repo "$repo" >/dev/null 2>&1
   rm -f "$probe_values"
   case "$branch" in
     probe/*)

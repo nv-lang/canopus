@@ -3,7 +3,7 @@
 // Every run starts its own server on a free port of 127.0.0.1 with its own XDG_* folders in the OS temp dir and a stub
 // provider; it never touches the real settings or the live service. At the end only the processes started by the probe
 // (the listener of its own port and its own shell) are stopped, by the numbers it saved; nothing is stopped by name.
-// Variables: CREW_HARNESS_OPENCODE (the executable, default `opencode` from PATH), CREW_HARNESS_PROVIDER_SRC (the root of the
+// Variables: CANOPUS_OPENCODE (the executable, default `opencode` from PATH), CANOPUS_PROVIDER_SRC (the root of the
 // sources of the claude-code provider; without it the parts that call the provider functions are NOT VERIFIED).
 import { execFileSync, spawn } from "node:child_process"
 import { createHash } from "node:crypto"
@@ -15,8 +15,8 @@ import path from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 
 const W = await import("../profile-windows.ts")
-const OPENCODE = process.env.CREW_HARNESS_OPENCODE || "opencode"
-const PROVIDER_SRC = process.env.CREW_HARNESS_PROVIDER_SRC
+const OPENCODE = process.env.CANOPUS_OPENCODE || "opencode"
+const PROVIDER_SRC = process.env.CANOPUS_PROVIDER_SRC
 const wanted = process.argv[2] ?? "all"
 const started = [] // numbers of the processes of this probe
 
@@ -171,7 +171,7 @@ const sections = {
       pass("AC-08 (c) the main folder is unchanged (no file there; the window of a reviewer is not claimed as a profile window)", after.root.context === before.root.context && !existsSync(path.join(proj, ".opencode", "opencode.json")), JSON.stringify(after.root))
       pass("AC-08 the file holds context and output together (OpenCode drops a record without output)", JSON.parse(readFileSync(W.windowPath(wt), "utf8")).provider.stub.models.m1.limit.output === 7000, "no output")
       // (b) the provider's function
-      if (!PROVIDER_SRC) report("AC-08 (b) opencodeWindow() of the provider", "NOT VERIFIED", "CREW_HARNESS_PROVIDER_SRC is not set (the sources of the claude-code provider)")
+      if (!PROVIDER_SRC) report("AC-08 (b) opencodeWindow() of the provider", "NOT VERIFIED", "CANOPUS_PROVIDER_SRC is not set (the sources of the claude-code provider)")
       else {
         const mod = await import(pathToFileURL(path.join(PROVIDER_SRC, "src", "opencode-window.js")).href)
         const cfgFile = path.join(s.env.XDG_CONFIG_HOME, "opencode", "opencode.jsonc")
@@ -237,14 +237,14 @@ const sections = {
   },
 
   async "AC-14"() {
-    console.log("== AC-14: a session on a model of another family reaches the crew_* tools of the plugin loaded in a throwaway server")
+    console.log("== AC-14: a session on a model of another family reaches the canopus_* tools of the plugin loaded in a throwaway server")
     const sport = await freePort()
     const pluginDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..").split(path.sep).join("/")
     const script = [
-      "return tools.crew_task({ action: \"review\", n: 999 })",
-      "return tools.crew_send({ to: \"integrator\", text: \"probe letter\", wake: false })",
+      "return tools.canopus_task({ action: \"review\", n: 999 })",
+      "return tools.canopus_send({ to: \"integrator\", text: \"probe letter\", wake: false })",
       "return search({ query: \"watch\" }).items.map((i) => i.path)",
-      "return tools.crew_watch({})",
+      "return tools.canopus_watch({})",
     ]
     const stub = await startStub(sport, (body, i) => {
       if (!body?.tools?.some((t) => t.function?.name === "execute")) return { text: "title" } // a helper request (title), not the agent
@@ -260,20 +260,20 @@ const sections = {
       await wait(3000)
       const ses = await s.api("/api/session", { method: "POST", body: JSON.stringify({ location: { directory: dir }, model: { providerID: "stub", id: "m1" } }) })
       const sid = ses.json?.data?.id
-      await s.api(`/api/session/${sid}/prompt`, { method: "POST", body: JSON.stringify({ text: "use the crew tools" }) })
+      await s.api(`/api/session/${sid}/prompt`, { method: "POST", body: JSON.stringify({ text: "use the canopus tools" }) })
       await s.api(`/api/experimental/session/${sid}/wait`, { method: "POST" })
       const agent = stub.requests.filter((r) => r.body?.tools?.some((t) => t.function?.name === "execute"))
       const system = (agent[0]?.body?.messages ?? []).filter((m) => m.role === "system").map((m) => (typeof m.content === "string" ? m.content : JSON.stringify(m.content))).join("\n")
-      const names = ["crew_config", "crew_doctor", "crew_help", "crew_inbox", "crew_list", "crew_role", "crew_send", "crew_spawn", "crew_task", "crew_timer", "crew_wait", "crew_watch"]
+      const names = ["canopus_config", "canopus_doctor", "canopus_help", "canopus_inbox", "canopus_list", "canopus_role", "canopus_send", "canopus_spawn", "canopus_task", "canopus_timer", "canopus_wait", "canopus_watch"]
       const inCatalog = names.filter((n) => system.includes(`tools.${n}(`))
       console.log(`  (a) the catalog of the request lists: ${inCatalog.join(", ")}; the rest is found by search: ${names.filter((n) => !inCatalog.includes(n)).join(", ") || "-"}`)
-      pass("AC-14 (a) the request of the other family carries the crew_* tools in the catalog (the rest through search)", inCatalog.length >= 11, JSON.stringify(inCatalog))
+      pass("AC-14 (a) the request of the other family carries the canopus_* tools in the catalog (the rest through search)", inCatalog.length >= 11, JSON.stringify(inCatalog))
       const results = agent.slice(1).map((r) => toolResultOf(r.body))
       results.forEach((t, i) => console.log(`  call ${i + 1}: ${script[i]}\n    -> ${t.replace(/\s+/g, " ").slice(0, 200)}`))
       const bad = (t) => !t || /is not a function|ReferenceError|TypeError|not defined/i.test(t)
-      pass("AC-14 (b) crew_task review and crew_send run from such a session (the plugin answers in words)", results.length >= 2 && !bad(results[0]) && !bad(results[1]), JSON.stringify(results.slice(0, 2)))
-      pass("AC-14 (c) search «watch» returns the path of crew_watch", results.length >= 3 && /crew_watch/.test(results[2]), String(results[2]))
-      pass("AC-14 (c) crew_watch without a command (the list of watches) runs", results.length >= 4 && !bad(results[3]) && /аблюден/.test(results[3]), String(results[3]))
+      pass("AC-14 (b) canopus_task review and canopus_send run from such a session (the plugin answers in words)", results.length >= 2 && !bad(results[0]) && !bad(results[1]), JSON.stringify(results.slice(0, 2)))
+      pass("AC-14 (c) search «watch» returns the path of canopus_watch", results.length >= 3 && /canopus_watch/.test(results[2]), String(results[2]))
+      pass("AC-14 (c) canopus_watch without a command (the list of watches) runs", results.length >= 4 && !bad(results[3]) && /аблюден/.test(results[3]), String(results[3]))
     } finally {
       stub.close()
       s.stop()
@@ -337,7 +337,7 @@ const sections = {
 
   async "AC-25"() {
     console.log("== AC-25: an explicit autoCompactWindow of the provider stays; opencodeWindow() and explicitSettingsFor() on throwaway files")
-    if (!PROVIDER_SRC) return report("AC-25 opencodeWindow() / explicitSettingsFor()", "NOT VERIFIED", "CREW_HARNESS_PROVIDER_SRC is not set (the sources of the claude-code provider)")
+    if (!PROVIDER_SRC) return report("AC-25 opencodeWindow() / explicitSettingsFor()", "NOT VERIFIED", "CANOPUS_PROVIDER_SRC is not set (the sources of the claude-code provider)")
     const root = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), "probe-profiles-ac25-")))
     try {
       const win = await import(pathToFileURL(path.join(PROVIDER_SRC, "src", "opencode-window.js")).href)
@@ -357,7 +357,7 @@ const sections = {
       const plugin = W.explicitCompact(wt, "opus")
       console.log(`  opencodeWindow(): ${JSON.stringify(w)}; explicitSettingsFor(): ${JSON.stringify(ex.autoCompactWindow)}; plugin explicitCompact(): ${JSON.stringify(plugin && { value: plugin.value })}`)
       pass("AC-25 the provider takes the explicit value first (explicitSettingsFor), the window threshold of OpenCode is the second", ex.autoCompactWindow?.opus === 500000 && w.threshold === 300000 - 20000, JSON.stringify({ ex: ex.autoCompactWindow, w }))
-      pass("AC-25 the plugin reads the same explicit value (named in use / check / crew_doctor) and does not touch the file", plugin?.value === 500000 && sha(projFile) === h, JSON.stringify(plugin))
+      pass("AC-25 the plugin reads the same explicit value (named in use / check / canopus_doctor) and does not touch the file", plugin?.value === 500000 && sha(projFile) === h, JSON.stringify(plugin))
     } finally {
       rmSync(root, { recursive: true, force: true })
     }

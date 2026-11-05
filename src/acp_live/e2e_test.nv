@@ -1,18 +1,18 @@
 // e2e_test.nv - the engine, the chat machine, the FILE journal and snapshot, and the ACP handler over a fake agent:
 // a whole turn, and the death of the process after an event was taken and before it was committed.
-module crew_harness.acp_live
+module canopus.acp_live
 
-import crew_harness.acp.{AcpConfig, AcpClient, open_client, acp_link}
+import canopus.acp.{AcpConfig, AcpClient, open_client, acp_link}
 import alula.engine.{Engine, Incoming, EventKind, Journal, Store, Link, MemoryWorld, JournalEntry, start_engine, resume_engine, memory_time, FailCode}
-import crew_harness.chat.{ChatSession, ChatState, chat_session, encode_chat_state, user_says, user_cancels}
-import crew_harness.storage.{open_data_dir, file_journal, file_store}
+import canopus.chat.{ChatSession, ChatState, chat_session, encode_chat_state, user_says, user_cancels}
+import canopus.storage.{open_data_dir, file_journal, file_store}
 import std.fs.{Fs, real_fs, remove_dir_all}
 import std.os.{Os, real_os, temp_dir, pid}
 
 fn data_root(name str) -> str {
     ro base = with Os = real_os() { temp_dir() }
     ro id = with Os = real_os() { pid() }
-    ro dir = base.join("crew-acp-e2e-${id}-${name}")
+    ro dir = base.join("canopus-acp-e2e-${id}-${name}")
     with Fs = real_fs() {
         ro removed = remove_dir_all(dir)
     }

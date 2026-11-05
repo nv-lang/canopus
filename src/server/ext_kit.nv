@@ -1,10 +1,10 @@
 // ext_kit.nv - task 192.7: the scenario of the addition to an open task that is applied at once (the owner, 2026-10-27: always on, no setting) over a hub with the fake ACP agent in a repository.
-// The helpers are in `child_kit.nv`, `routes_kit.nv`, `crew_task_kit.nv`.
-module crew_harness.server
+// The helpers are in `child_kit.nv`, `routes_kit.nv`, `canopus_task_kit.nv`.
+module canopus.server
 
 import std.encoding.json.{Json, JsonValue, JsonObject}
 
-// An item of `crew_task` / `crew_task_list` with the confidence the agent states.
+// An item of `canopus_task` / `canopus_task_list` with the confidence the agent states.
 fn ek_item(kind str, title str, extends int, confidence str) -> JsonValue {
     mut o = rk_item(kind, title, extends, []str.new()).object() ?? JsonObject.new()
     if confidence.byte_len() > 0 { jput(o, "confidence", JsonValue.str(confidence)) }
@@ -30,7 +30,7 @@ fn ek_hints(rig Rig, trace str) -> str {
     joined(out, "\n")
 }
 
-// The agent of the talk calls `crew_task` once: the turn of the fake agent ends.
+// The agent of the talk calls `canopus_task` once: the turn of the fake agent ends.
 fn ek_say(mut rig Rig, session str, turn str, item JsonValue) Proc Detach Time -> bool {
     rig.run(1500)
     rig.page(1, "user_message", session, rk_tasktool_page(turn, item))

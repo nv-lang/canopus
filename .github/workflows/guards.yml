@@ -10,7 +10,7 @@
 #     (её настраивает scripts/github-setup.sh).
 # Правило: AGENTS.md п.8, п.15; ADR-0006.
 #
-# Список запрещённых имён приходит секретом CREW_PRIVATE_NAMES; без него страж имён красный с подсказкой.
+# Список запрещённых имён приходит секретом CANOPUS_PRIVATE_NAMES; без него страж имён красный с подсказкой.
 name: guards
 
 on:
@@ -24,7 +24,7 @@ jobs:
   guards:
     runs-on: ubuntu-latest
     env:
-      CREW_PRIVATE_NAMES: ${{ secrets.CREW_PRIVATE_NAMES }}
+      CANOPUS_PRIVATE_NAMES: ${{ secrets.CANOPUS_PRIVATE_NAMES }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -33,7 +33,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Mask the names list in the log
-        run: sh scripts/guards/ci-mask.sh CREW_PRIVATE_NAMES
+        run: sh scripts/guards/ci-mask.sh CANOPUS_PRIVATE_NAMES
       - name: Syntax of shell scripts under dash
         run: |
           for f in $(git ls-files 'scripts/*.sh' 'scripts/guards/*.sh' 'scripts/guards/lib/*.sh' 'scripts/githooks/*'); do

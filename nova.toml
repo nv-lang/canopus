@@ -1,10 +1,10 @@
-# nova.toml - crew_harness: the CrewHarness product on Nova.
+# nova.toml - canopus: the Canopus product on Nova.
 #
 # Layout (the same as claude-limits): ALL `.nv` UNDER `src/`, not one file in the package
 # root. Owner's rule 2026-09-07 ("никаких .nv файлов в корне"), stricter than the spec, which
 # leaves the flat layout legal but not recommended.
 #
-# No `bin/` anywhere: the entry point is plainly `src/crew_harness.nv`, built binaries go to
+# No `bin/` anywhere: the entry point is plainly `src/canopus.nv`, built binaries go to
 # `target/` (or are ignored if `nova build` drops them beside the source, see .gitignore).
 #
 # `src/chat/` is the machine of a chat session with an agent; tests are peer files `*_test.nv` beside the sources. Build: Nova Oracle 0.1.0,
@@ -13,8 +13,8 @@
 #
 # Dependencies (foreign packages, read only): the PostgreSQL driver `postgres` (nova-postgres) for the PostgreSQL handlers of
 # `Journal` and `Store` in `src/pg*` (task 098), and Polaris (`polaris`, with its `http` and `tls`) for the front of the session
-# server, `src/server/front/` (task 099). The two cannot be in one program on Oracle 0.1.0, so the hub (`src/crew_hub.nv`) holds
-# the driver and the front (`src/crew_harness.nv`) holds Polaris; the rest uses `std` and `alula`. `nova.lock.toml` fixes the build.
+# server, `src/server/front/` (task 099). The two cannot be in one program on Oracle 0.1.0, so the hub (`src/canopus_hub.nv`) holds
+# the driver and the front (`src/canopus.nv`) holds Polaris; the rest uses `std` and `alula`. `nova.lock.toml` fixes the build.
 
 [lib]
 src = "src"
@@ -53,19 +53,19 @@ tls = { git = "https://github.com/nv-lang/nova-tls", version = "0.2" }
 alula = { git = "https://github.com/nv-lang/nova-alula", version = "0.28.0" }
 
 [package]
-name = "crew_harness"
+name = "canopus"
 version = "0.1.0"
-description = "CrewHarness product on Nova: state machine engine with self-contained events, chat session with an agent"
+description = "Canopus product on Nova: state machine engine with self-contained events, chat session with an agent"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/unitcraft/crew-harness"
+repository = "https://github.com/unitcraft/canopus"
 
 # [[bin]] is declared by the spec but not read by Oracle 0.1.0 (claude-limits recorded the same);
 # kept as the single record of the entry point. Build it with an explicit path:
-# `nova build src/crew_harness.nv`.
+# `nova build src/canopus.nv`.
 [[bin]]
-name = "crew-harness"
-path = "src/crew_harness.nv"
+name = "canopus"
+path = "src/canopus.nv"
 
 [[bin]]
-name = "crew-hub"
-path = "src/crew_hub.nv"
+name = "canopus-hub"
+path = "src/canopus_hub.nv"

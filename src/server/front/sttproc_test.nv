@@ -1,6 +1,6 @@
 // sttproc_test.nv - the recognizer as a child of the control panel (task 192l): the plan (use a foreign one, start our own, not installed), the pid file,
 // the orphan left by a front that died, the arguments of the server, the JSON of the status.
-module crew_harness.server.front
+module canopus.server.front
 
 import std.os.{Os, real_os, temp_dir, pid}
 import std.os.{Proc, real_proc}
@@ -9,7 +9,7 @@ import std.fs.{Fs, real_fs, write_text, create_dir_all, try_exists, Path}
 fn proc_dir(name str) -> Path {
     ro base = with Os = real_os() { temp_dir() }
     ro id = with Os = real_os() { pid() }
-    ro dir = base.join("crew-sttproc-${id}-${name}")
+    ro dir = base.join("canopus-sttproc-${id}-${name}")
     with Fs = real_fs() {
         ro made = create_dir_all(dir)
     }

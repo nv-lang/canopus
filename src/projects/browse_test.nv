@@ -1,5 +1,5 @@
 // browse_test.nv - the choice of a folder: only folders, sorted, hidden at the end, the parent, the roots, the cut at 500, the branch of git.
-module crew_harness.projects
+module canopus.projects
 
 import std.fs.{Fs, real_fs, Path, write_text, remove_dir_all, create_dir_all}
 import std.encoding.json.{Json, JsonObject}
@@ -9,7 +9,7 @@ import std.text
 fn browse_fresh(name str) -> str {
     ro base = with Os = real_os() { temp_dir() }
     ro id = with Os = real_os() { pid() }
-    ro dir = base.join("crew-browse-test-${id}-${name}")
+    ro dir = base.join("canopus-browse-test-${id}-${name}")
     with Fs = real_fs() {
         ro removed = remove_dir_all(dir)
         ro made = create_dir_all(dir)

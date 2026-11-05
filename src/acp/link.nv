@@ -18,9 +18,9 @@
 // (`Child`, the pipes) cannot be a field of a record, so each of them is given to the fiber that owns it.
 // ORACLE-WORKAROUND(19): the fibers around the pipes live in one `supervised` scope of a detached keeper fiber, the writer in a scope that can be cancelled: pipes of a child process now and then do not come back, and fibers `detach`ed one by one hung about one run in twenty; simplify the scopes when item 19 is fixed
 // ORACLE-WORKAROUND(17): everything crosses by channels (`Inbound`, `AgentLink`): an `AtomicInt` put into a record is a COPY of the variable, so a counter set by a fiber is never seen through the record; a shared counter in a record would do when item 17 is fixed
-module crew_harness.acp
+module canopus.acp
 
-import crew_harness.projects.{EnvEntry}
+import canopus.projects.{EnvEntry}
 import std.concurrency.nvchan.{Chan, ChanTx, ChanRx}
 import std.fs.{Path}
 import std.io.{write_all}

@@ -7,7 +7,7 @@
 //
 // What it speaks (the Streamable HTTP transport of MCP, the part that is needed): one JSON-RPC message in the body of a `POST`, one JSON answer in the
 // body of the reply (no stream); `initialize`, `ping`, `tools/list` and `tools/call` of the tool `ask_user_question`; a notification gets `202`.
-module crew_harness.server
+module canopus.server
 
 import std.encoding.json.{Json, JsonValue, JsonObject}
 
@@ -89,7 +89,7 @@ fn initialize_reply(id JsonValue, params JsonValue) -> str {
     mput(tools, "listChanged", JsonValue.bool(false))
     mput(caps, "tools", JsonValue.object(tools))
     mut info = JsonObject.new()
-    mput(info, "name", JsonValue.str("crew"))
+    mput(info, "name", JsonValue.str("canopus"))
     mput(info, "version", JsonValue.str("0.1.0"))
     mut result = JsonObject.new()
     mput(result, "protocolVersion", JsonValue.str(if known { asked } else { MCP_PROTOCOL }))
@@ -175,16 +175,16 @@ fn questions_of(arguments JsonValue) -> Result[JsonValue, str] {
 /// What the server does with the body of one `POST` (the tool of the questions only: the old form).
 export fn mcp_handle(body str) -> McpOut => mcp_handle_for(body, "ask")
 
-/// The tools of the server for a session: "ask" (the questions), "task" (`crew_task`, task 192.2), "all" (both).
+/// The tools of the server for a session: "ask" (the questions), "task" (`canopus_task`, task 192.2), "all" (both).
 fn tools_of(tools str, descs []str) -> []JsonValue {
     mut out = []JsonValue.new()
     if tools == "ask" || tools == "all" || tools == "asklist" { out.push(described(tool_json(), descs)) }
-    // task 250: the tools of the plugin `crew_*` and `crew_task` with its actions are in every set but the old "ask"
+    // task 250: the tools of the plugin `canopus_*` and `canopus_task` with its actions are in every set but the old "ask"
     if tools != "ask" {
         for t in ctl_tools_json() { out.push(described(t, descs)) }
         for t in journal_tools_json() { out.push(described(t, descs)) }
-        out.push(described(crew_task_unified_json(), descs))
-        out.push(described(crew_task_list_tool_json(), descs))
+        out.push(described(canopus_task_unified_json(), descs))
+        out.push(described(canopus_task_list_tool_json(), descs))
     }
     out
 }
@@ -217,12 +217,12 @@ export fn tool_names() -> []str {
     out.push(tool_name_of(tool_json()))
     for t in ctl_tools_json() { out.push(tool_name_of(t)) }
     for t in journal_tools_json() { out.push(tool_name_of(t)) }
-    out.push(tool_name_of(crew_task_unified_json()))
-    out.push(tool_name_of(crew_task_list_tool_json()))
+    out.push(tool_name_of(canopus_task_unified_json()))
+    out.push(tool_name_of(canopus_task_list_tool_json()))
     out
 }
 
-/// What the server does with the body of one `POST`, for the tools of the session (`tools`: "ask", "task" or "all"). A call of `crew_task` is `task` (the checked arguments in `questions`).
+/// What the server does with the body of one `POST`, for the tools of the session (`tools`: "ask", "task" or "all"). A call of `canopus_task` is `task` (the checked arguments in `questions`).
 export fn mcp_handle_for(body str, tools str) -> McpOut => mcp_handle_with(body, tools, []str.new())
 
 /// The same with the descriptions of the tools from the files of the layers (`descs`: name, text, name, text ...).
@@ -260,27 +260,27 @@ export fn mcp_handle_with(body str, tools str, descs []str) -> McpOut {
             Some(a) => a
             None => JsonValue.null()
         }
-        if mtext_of(params, "name") == CREW_TASK_LIST_TOOL && tools != "ask" {
+        if mtext_of(params, "name") == CANOPUS_TASK_LIST_TOOL && tools != "ask" {
             match proposals_of_list(arguments) {
                 Err(reason) => return mout("reply", mcp_text_reply(id, reason, true))
                 Ok(items) => return { kind: "tasklist", text: "", id: id.to_str(), questions: proposals_list_text(items) }
             }
         }
-        // task 250: a tool of the port `crew_*`, or `crew_task` with an action (the old call without one is below)
+        // task 250: a tool of the port `canopus_*`, or `canopus_task` with an action (the old call without one is below)
         ro called = mtext_of(params, "name")
-        if tools != "ask" && ctl_is_tool(called) && (called != CREW_TASK_TOOL || ctl_task_action(arguments).byte_len() > 0) {
-            ro reason = if called == CREW_TASK_TOOL { "" } else { ctl_validate(called, arguments) }
+        if tools != "ask" && ctl_is_tool(called) && (called != CANOPUS_TASK_TOOL || ctl_task_action(arguments).byte_len() > 0) {
+            ro reason = if called == CANOPUS_TASK_TOOL { "" } else { ctl_validate(called, arguments) }
             if reason.byte_len() > 0 { return mout("reply", mcp_text_reply(id, reason, true)) }
             return { kind: "ctl", text: "", id: id.to_str(), questions: ctl_message_text(called, arguments) }
         }
-        if mtext_of(params, "name") == CREW_TASK_TOOL && (tools == "task" || tools == "all") {
+        if mtext_of(params, "name") == CANOPUS_TASK_TOOL && (tools == "task" || tools == "all") {
             match proposal_of_arguments(arguments) {
                 Err(reason) => return mout("reply", mcp_text_reply(id, reason, true))
                 Ok(p) => return { kind: "task", text: "", id: id.to_str(), questions: proposal_arguments_text(p) }
             }
         }
-        if mtext_of(params, "name") == "crew_config" && tools != "ask" {
-            return mout("reply", mcp_text_reply(id, "crew_config is not available yet: the structure of the configs is being discussed with the owner (2026-10-28). Do not read or write the settings files yourself; ask the owner.", true))
+        if mtext_of(params, "name") == "canopus_config" && tools != "ask" {
+            return mout("reply", mcp_text_reply(id, "canopus_config is not available yet: the structure of the configs is being discussed with the owner (2026-10-28). Do not read or write the settings files yourself; ask the owner.", true))
         }
         if mtext_of(params, "name") != ASK_TOOL || tools == "task" || tools == "list" {
             return mout("reply", mcp_text_reply(id, "unknown tool: ${mtext_of(params, "name")}", true))

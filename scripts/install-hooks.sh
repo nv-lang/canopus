@@ -43,14 +43,14 @@ if [ -z "$email" ]; then
 fi
 
 cur_path=$(git config --get core.hooksPath 2>/dev/null)
-cur_email=$(git config --get crewharness.expectedEmail 2>/dev/null)
+cur_email=$(git config --get canopus.expectedEmail 2>/dev/null)
 
 if [ -n "$cur_path" ] && [ "$cur_path" != "$here" ] && [ "$reset" -eq 0 ]; then
   echo "FAIL: core.hooksPath уже задан другим значением; ничего не изменено. Если это ваша настройка и она не нужна, повторите с --reset"
   exit 1
 fi
 if [ -n "$cur_email" ] && [ "$cur_email" != "$email" ] && [ "$reset" -eq 0 ]; then
-  echo "FAIL: crewharness.expectedEmail уже задан другим адресом; ничего не изменено. Повторите с --reset, чтобы взять текущий user.email"
+  echo "FAIL: canopus.expectedEmail уже задан другим адресом; ничего не изменено. Повторите с --reset, чтобы взять текущий user.email"
   exit 1
 fi
 
@@ -61,8 +61,8 @@ if [ "$cur_path" != "$here" ]; then
   changed=1
 fi
 if [ "$cur_email" != "$email" ]; then
-  git config --local crewharness.expectedEmail "$email" || { echo "FAIL: не удалось записать crewharness.expectedEmail"; exit 1; }
-  echo "записано: crewharness.expectedEmail = адрес из user.email"
+  git config --local canopus.expectedEmail "$email" || { echo "FAIL: не удалось записать canopus.expectedEmail"; exit 1; }
+  echo "записано: canopus.expectedEmail = адрес из user.email"
   changed=1
 fi
 

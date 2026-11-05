@@ -29,7 +29,7 @@ def main():
     base = pr.mkdtemp()
     env0 = stlib.isolated_env(base)
     names = stlib.names_file(base, [P1])
-    env = dict(env0, CREW_PRIVATE_NAMES_FILE=names)
+    env = dict(env0, CANOPUS_PRIVATE_NAMES_FILE=names)
     nohooks = os.path.join(base, "nohooks")
     os.makedirs(nohooks)
     counter = [0]

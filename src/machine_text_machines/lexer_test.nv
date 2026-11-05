@@ -1,11 +1,11 @@
 // lexer_test.nv - the lossless lexer (AL-90 ... AL-92): `lx_reserialize(lx_lex(src)) == src` on every file of the package and on mutations of them, the numbers (D44), the order of the
 // signs, the text literals (the escapes, the insertions), the comments, the broken places.
-module crew_harness.machine_text_machines
+module canopus.machine_text_machines
 
 import std.text
 import alula.machine.{NamedText}
 import alula.machine_text.{lex_round_trips}
-import crew_harness.machines.{table_files}
+import canopus.machines.{table_files}
 
 fn round_trips(src str) -> bool => lex_round_trips(src)
 

@@ -11,9 +11,9 @@
 // The fibers: a detached keeper that owns the listener and a `supervised` scope that can be cancelled (`McpServer.stop`), one detached fiber for each connection.
 // The listener is made by the keeper itself (the standard library's tests do the same: a socket belongs to the loop of the fiber that made it). The code a fiber
 // runs avoids `str.lines` and the like: the checker of the scheduler takes them for unsafe in a fiber, so the head of the request is cut by hand.
-module crew_harness.server
+module canopus.server
 
-import crew_harness.config.{ConfigLayout, legacy_layout, pick_prompt}
+import canopus.config.{ConfigLayout, legacy_layout, pick_prompt}
 import std.fs.{Fs, real_fs}
 import std.concurrency.nvchan.{Chan, ChanTx, ChanRx}
 import std.encoding.json.{Json, JsonValue}
@@ -136,7 +136,7 @@ fn read_request(mut conn TcpStream) Net -> Option[HttpRequest] {
     Some(HttpRequest { method: parsed.method, path: parsed.path, auth: parsed.auth, origin: parsed.origin, length: parsed.length, body })
 }
 
-// The session of a path `/mcp/<session>` ("" - none); None - the path is not ours. A path `/mcp/<session>/task` is the same session with the tool `crew_task` only (task 192.2).
+// The session of a path `/mcp/<session>` ("" - none); None - the path is not ours. A path `/mcp/<session>/task` is the same session with the tool `canopus_task` only (task 192.2).
 fn session_of(raw_path str) -> Option[str] {
     // task 192.9: OpenCode adds a query to the address of an MCP server (`.../list?codemode=false`); it is not a part of the session
     ro path = match raw_path.find("?") {

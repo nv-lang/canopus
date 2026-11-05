@@ -8,7 +8,7 @@
 //
 // What is here (no disk, no sockets): the slug of a child, the text of its `message.md`, the table `children.md` and its parser, the words of the states, the view for the page.
 // The hub side (the sessions, the trees, the merge, the queue) is `child_hub.nv`.
-module crew_harness.server
+module canopus.server
 
 import std.encoding.json.{Json, JsonValue, JsonObject}
 
@@ -183,12 +183,12 @@ export fn children_unmerged(rows []ChildRow) -> []str {
 /// The note to the agent of a child that starts: whose child it is, where the task is, where it merges to.
 export fn child_note(number str, title str, shown str, pkind str, parent_no str, target str) -> str {
     ro whose = if pkind.byte_len() > 0 { " Это дочерняя задача эпика ${parent_no}." } else { "" }
-    "[crew] Владелец взял в работу «${title}»: это твоя задача ${number}, папка ${shown}.${whose} Постановка — ${shown}/message.md (краткое изложение и сообщения владельца, картинки в images/); чеклист — progress.md. Прочитай её и выполни работу в рабочем каталоге (ветка и дерево твои). ${target} В конце коротко скажи, что сделано."
+    "[canopus] Владелец взял в работу «${title}»: это твоя задача ${number}, папка ${shown}.${whose} Постановка — ${shown}/message.md (краткое изложение и сообщения владельца, картинки в images/); чеклист — progress.md. Прочитай её и выполни работу в рабочем каталоге (ветка и дерево твои). ${target} В конце коротко скажи, что сделано."
 }
 
 /// The note to the agent of a child whose task is extended (the owner took "Дополнить").
 export fn child_extend_note(number str, title str, shown str) -> str =>
-    "[crew] Владелец дополнил твою задачу ${number} «${title}»: новое — в конце ${shown}/message.md, раздел «Дополнение». Прочитай его и продолжай в рабочем каталоге."
+    "[canopus] Владелец дополнил твою задачу ${number} «${title}»: новое — в конце ${shown}/message.md, раздел «Дополнение». Прочитай его и продолжай в рабочем каталоге."
 
 fn ch_strings(items []str) -> JsonValue {
     mut out = []JsonValue.new()

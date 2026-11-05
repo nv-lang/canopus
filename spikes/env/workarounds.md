@@ -26,7 +26,7 @@ Marks: 29 in 22 files. Items with marks: 19. Items without marks: 42 (no workaro
 | 16 | `fluent_assign_back`: the setters of `Command` change it in place and return it (`-> @`); `command = command.arg(a)` | `src/acp/link.nv` | 1 |
 | 17 | `atomic_in_record_copy`: an `AtomicInt` put into a record is a copy of the variable; a store through the variable is not seen... | `src/acp/link.nv` | 1 |
 | 18 | `consume_capture_vs_field`: the name of a `consume` binding captured by a fiber body is a C macro; a field with the same name... | `src/acp/link.nv` | 1 |
-| 19 | `repro_child_pipes` (a program, not a test): the pipes of a child process now and then do not come back. A write to the stdin of a | `src/acp/client.nv`, `src/acp/link.nv`, `src/crew_hub.nv` | 3 |
+| 19 | `repro_child_pipes` (a program, not a test): the pipes of a child process now and then do not come back. A write to the stdin of a | `src/acp/client.nv`, `src/acp/link.nv`, `src/canopus_hub.nv` | 3 |
 | 20 | `output_over_4k`: a test binary blocks on its stdout when its lines (`  PASS: <name>` per test) come to more than 4096 bytes and... | `src/acp/README.md` | 1 |
 | 21 | `std_os_output` (with the helper module `std_os_output_def`): a user enum named `Output` (the engine has one) in the same | `src/pg/README.md`, `src/pgconf/settings.nv`, `src/pgdb/config.nv`, `src/pgdb/testkit.nv` | 4 |
 | 22 | `repro_pg_event`: a user record named `Event` (the engine has one) in the same program as `postgres.pgnet` of the driver | `src/pg/README.md`, `src/pgdb/wire.nv` | 2 |

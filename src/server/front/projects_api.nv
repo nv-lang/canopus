@@ -9,14 +9,14 @@
 //   GET    /api/fs/git?path=      {"is_repo", "branch"}
 // Every route answers a foreign `Origin` with 403, as `/api/stt` does. The projects are in `<data_dir>/projects.json` (src/projects/store.nv);
 // the front writes the file, the hub reads it when a session of a project is made. An error is `{"error":"<reason>"}`.
-module crew_harness.server.front
+module canopus.server.front
 
-import crew_harness.projects.{Project, StoreFail, Listing, GitState, projects_load, projects_get, projects_create, projects_replace, projects_reorder, projects_delete, projects_list_json, project_json, recent_folders, normalize_folder_path, list_folders, list_roots, git_state, last_dir_load, last_dir_save, last_dir_of_body, existing_ancestor}
+import canopus.projects.{Project, StoreFail, Listing, GitState, projects_load, projects_get, projects_create, projects_replace, projects_reorder, projects_delete, projects_list_json, project_json, recent_folders, normalize_folder_path, list_folders, list_roots, git_state, last_dir_load, last_dir_save, last_dir_of_body, existing_ancestor}
 import polaris.{ServerRequest, ServerResponse}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 import std.text
-import crew_harness.projects.{git_sources}
-import crew_harness.projects.{result_repo_inspect, result_repo_register, result_repo_json, result_repos_list}
+import canopus.projects.{git_sources}
+import canopus.projects.{result_repo_inspect, result_repo_register, result_repo_json, result_repos_list}
 
 fn result_repos_route(data_dir str, port int) -> fn(ServerRequest) -> ServerResponse {
     fn(req ServerRequest) -> ServerResponse {

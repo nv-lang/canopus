@@ -1,6 +1,6 @@
 // front.nv - the front of the session server on Polaris (task 099): the files of the page, `/ws`, and the hub as a child process.
 //
-// The hub (engines, agents, the store) is a program of its own, `crew-hub` (src/crew_hub.nv); the front starts it with pipes and passes
+// The hub (engines, agents, the store) is a program of its own, `canopus-hub` (src/canopus_hub.nv); the front starts it with pipes and passes
 // the page through, line by line (the lines are described in src/server/stdio.nv):
 //   page --WebSocket--> conn fiber --"msg <conn> <text>"--> stdin of the hub
 //   page <--WebSocket-- conn writer <--channel-- router fiber <--"<conn> <text>"-- stdout of the hub
@@ -11,12 +11,12 @@
 //
 // One fiber, the router, owns the list of the pages (a page = a number, its peer port, and the channel to its writer); the conn
 // fibers register with it through a channel. Nothing is shared.
-// ORACLE-WORKAROUND(30): the front is a program of its own (and the hub another, `src/crew_hub.nv`), because the PostgreSQL driver and Polaris cannot be in one program; one program would do when item 30 is fixed
-module crew_harness.server.front
+// ORACLE-WORKAROUND(30): the front is a program of its own (and the hub another, `src/canopus_hub.nv`), because the PostgreSQL driver and Polaris cannot be in one program; one program would do when item 30 is fixed
+module canopus.server.front
 
-import crew_harness.acp.{AgentLink, connect}
-import crew_harness.config.{ConfigLayout, presets_reply}
-import crew_harness.model_metadata.{MetadataHook, model_metadata_reply, read_metadata_snapshot}
+import canopus.acp.{AgentLink, connect}
+import canopus.config.{ConfigLayout, presets_reply}
+import canopus.model_metadata.{MetadataHook, model_metadata_reply, read_metadata_snapshot}
 import polaris.{Router, MethodRouter, ServerRequest, ServerResponse, WebSocketUpgrade, StatusCode, HttpError}
 import polaris.static.{Static, serve_path}
 import polaris.ws.{Frame, OpCode, frame_len_hint}
@@ -403,7 +403,7 @@ fn hook_with_digest(base MetadataHook, snapshot str) -> MetadataHook {
 // ----- the voice: POST /api/stt and GET /api/stt/status (task 192f) -----
 
 // A line that cannot be in a WAV file by chance, so the audio never closes the form early.
-const STT_BOUNDARY = "----crew-harness-stt-6b1f0d9a47c2e853"
+const STT_BOUNDARY = "----canopus-stt-6b1f0d9a47c2e853"
 
 const json_error_origin = "{\"error\":\"origin not allowed\"}"
 

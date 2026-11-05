@@ -18,7 +18,7 @@ import { uploadImages, messageInput } from './attachments.js';
 import { chooseMode, createTransport, parseAgentRegistry, loadModelMetadata } from './transport.js';
 import { createProjectsApi } from './projects-api.js';
 import { routeSignal, normalizeRoute } from './routes.js';
-import { crewSignal } from './crew-task.js';
+import { canopusSignal } from './canopus-task.js';
 import { createLoading } from './loading.js';
 import { createDelivery, safeError } from './delivery.js';
 
@@ -46,7 +46,7 @@ function saveTheme(value) {
   } catch { /* закрытое хранилище: выбор живёт до перезагрузки */ }
 }
 // Переключатель Worktree новой сессии: по умолчанию выключен, последний выбор помнится на уровне пульта.
-const WORKTREE_KEY = 'crew-console-draft-worktree';
+const WORKTREE_KEY = 'canopus-console-draft-worktree';
 function readWorktreePref() {
   try { return globalThis.localStorage.getItem(WORKTREE_KEY) === '1'; } catch { return false; }
 }
@@ -78,8 +78,8 @@ for (const saved of delivery.sessions()) {
   model = patchDraft(model, saved.id, { route: saved.route, worktree: saved.worktree, sourceBranch: saved.sourceBranch || '', source: saved.source || null, preset: saved.preset || '', approvals: saved.approvals || {} });
 }
 let status = { state: 'connecting' };
-const UNREAD_KEY = 'crew-console-unread';
-const PINS_KEY = 'crew-console-session-pins';
+const UNREAD_KEY = 'canopus-console-unread';
+const PINS_KEY = 'canopus-console-session-pins';
 function readPins() {
   try {
     const v = JSON.parse(globalThis.localStorage.getItem(PINS_KEY) || '{}');
@@ -163,7 +163,7 @@ function draw() {
     if (key !== '' && ui.acked[opened.id] !== key) ui.acked = { ...ui.acked, [opened.id]: key };
   }
   const all = Object.values(model.sessions);
-  for (const x of all) { const m = x.routeState && x.routeState.crew ? x.routeState.crew.silentMinutes : -1; if (m >= 0) { ui.silentMin = m; break; } }
+  for (const x of all) { const m = x.routeState && x.routeState.crew ? x.routeState.canopus.silentMinutes : -1; if (m >= 0) { ui.silentMin = m; break; } }
   const names = {};
   for (const x of all) names[x.id] = x.name;
   notifier.update(waitingKeys(all, ui.acked), names, ui.selected || '');
@@ -515,11 +515,11 @@ const handlers = {
   onRouteTreeDrop(trace, force) { send(...signal(trace, routeSignal.treeDrop(force))); },
   onRouteSubtaskParallel(trace, n, on) { send(...signal(trace, routeSignal.subtaskParallel(n, on))); },
   // Распознавание задач (задача 192.2): кнопка «Распознать задачи», кнопки карточек, быстрый ответ
-  onCrewRecognize(trace) { send(...signal(trace, crewSignal.recognize())); },
-  onExtUndo(trace, id) { send(...signal(trace, crewSignal.extUndo(id))); },
-  onCrewProp(trace, id, action, opts) { send(...signal(trace, crewSignal.prop(id, action, opts))); },
-  onChildrenMerge(trace) { send(...signal(trace, crewSignal.childrenMerge())); },
-  onCrewApply(trace, items) { send(...signal(trace, crewSignal.apply(items))); },
+  onCanopusRecognize(trace) { send(...signal(trace, canopusSignal.recognize())); },
+  onExtUndo(trace, id) { send(...signal(trace, canopusSignal.extUndo(id))); },
+  onCanopusProp(trace, id, action, opts) { send(...signal(trace, canopusSignal.prop(id, action, opts))); },
+  onChildrenMerge(trace) { send(...signal(trace, canopusSignal.childrenMerge())); },
+  onCanopusApply(trace, items) { send(...signal(trace, canopusSignal.apply(items))); },
   onRouteSubtaskChoose(trace, n, tree) { send(...signal(trace, routeSignal.subtaskChoose(n, tree))); },
   // «Закончить задачу»: переключить режим и сразу прогнать шаги окончания — два сигнала подряд, шаг события у каждого свой
   onRouteFinish(trace, route) {
@@ -534,7 +534,7 @@ const handlers = {
 
 // Любая ошибка запуска или обработки события — на экран блоком стража (boot-guard.js), а не молча в консоль.
 function reportError(e) {
-  const report = globalThis.__crewBootError;
+  const report = globalThis.__canopusBootError;
   if (typeof report === 'function') report(e && e.message ? e.message : String(e));
   if (globalThis.console) globalThis.console.error(e);
 }
@@ -619,5 +619,5 @@ async function start() {
 start().then(() => {
   // страж запуска (boot-guard.js) ждёт этот признак: нет его — показывает «Ошибка запуска», а не пустой экран
   document.documentElement.setAttribute('data-booted', '1');
-  try { globalThis.sessionStorage.removeItem('crew-boot-retry'); } catch { /* хранилища нет: счётчик повтора не нужен */ }
+  try { globalThis.sessionStorage.removeItem('canopus-boot-retry'); } catch { /* хранилища нет: счётчик повтора не нужен */ }
 }, reportError);

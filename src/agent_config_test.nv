@@ -1,7 +1,7 @@
-// agent_config_test.nv - task 192.9: the configuration of OpenCode for the agents of the hub: the plugin crew-harness is cut out, everything else stays.
-module crew_harness.agent_config_test
+// agent_config_test.nv - task 192.9: the configuration of OpenCode for the agents of the hub: the plugin canopus is cut out, everything else stays.
+module canopus.agent_config_test
 
-import crew_harness.agent_config.{config_for_hub, config_without_plugin, config_without_string_property}
+import canopus.agent_config.{config_for_hub, config_without_plugin, config_without_string_property}
 
 import std.encoding.json.{Json, JsonValue}
 
@@ -13,23 +13,23 @@ fn ac_sample() -> str => [
     "    \"C:/work/plugins/windows-env\",",
     "    // a comment of the second one",
     "    \"C:/work/plugins/guards\",",
-    "    // the projects of the letters (a comment of the plugin crew-harness)",
+    "    // the projects of the letters (a comment of the plugin canopus)",
     "    {",
-    "      \"package\": \"C:/work/crew-harness/opencode-plugin\",",
+    "      \"package\": \"C:/work/canopus/opencode-plugin\",",
     "      \"options\": { \"projects\": [\"C:/work/x\", \"C:/work/y\"], \"local\": { \"a\": 1 } }",
     "    }",
     "  ],",
     "  \"provider\": {",
-    "    \"cc\": { \"settings\": { \"claudeConfigDir\": \"C:/acc\", \"timeStamp\": true, \"crewMcp\": \"C:/work/crew-harness/opencode-plugin/mcp.ts\" } },",
+    "    \"cc\": { \"settings\": { \"claudeConfigDir\": \"C:/acc\", \"timeStamp\": true, \"canopusMcp\": \"C:/work/canopus/opencode-plugin/mcp.ts\" } },",
     "    \"k\": { \"models\": { \"m1\": {} } }",
     "  }",
     "}"
 ].join("\n")
 
-test "agent config: the plugin crew-harness is cut out of the list, the other plugins, the comments and the providers stay" {
+test "agent config: the plugin canopus is cut out of the list, the other plugins, the comments and the providers stay" {
     ro cut = config_for_hub(ac_sample())
     assert(!cut.contains("opencode-plugin"))
-    assert(!cut.contains("crewMcp"))
+    assert(!cut.contains("canopusMcp"))
     assert(!cut.contains("a comment of the plugin"))
     assert(cut.contains("C:/work/plugins/windows-env"))
     assert(cut.contains("// a comment of the second one"))
@@ -54,12 +54,12 @@ test "agent config: the cut text is JSON without the comments (the list is close
 }
 
 test "agent config: a plugin of the plugins in the middle and a string entry are cut too; no plugin - the same text" {
-    ro middle = "{ \"plugins\": [\"a\", \"D:\\work\\crew-harness\\opencode-plugin\", \"b\"] }"
+    ro middle = "{ \"plugins\": [\"a\", \"D:\\work\\canopus\\opencode-plugin\", \"b\"] }"
     ro cut = config_without_plugin(middle)
     assert(cut == "{ \"plugins\": [\"a\", \"b\"] }")
     ro none = "{ \"plugins\": [\"a\", \"b\"], \"x\": [1] }"
     assert(config_for_hub(none) == none)
-    ro cli = "{\n  \"plugins\": [\"C:/work/crew-harness/opencode-plugin\"],\n  \"debug\": { \"turn_tokens\": true }\n}\n"
+    ro cli = "{\n  \"plugins\": [\"C:/work/canopus/opencode-plugin\"],\n  \"debug\": { \"turn_tokens\": true }\n}\n"
     ro cli_cut = config_for_hub(cli)
     assert(!cli_cut.contains("opencode-plugin"))
     assert(cli_cut.contains("\"debug\": { \"turn_tokens\": true }"))
@@ -69,8 +69,8 @@ test "agent config: a plugin of the plugins in the middle and a string entry are
     }
 }
 
-test "agent config: the property crewMcp is cut when it is first or alone too" {
-    ro first = config_without_string_property("{ \"s\": { \"crewMcp\": \"p\", \"t\": 1 } }", "crewMcp")
+test "agent config: the property canopusMcp is cut when it is first or alone too" {
+    ro first = config_without_string_property("{ \"s\": { \"canopusMcp\": \"p\", \"t\": 1 } }", "canopusMcp")
     assert(first.replace(" ", "") == "{\"s\":{\"t\":1}}")
-    assert(!config_without_string_property("{ \"s\": { \"crewMcp\": \"p\" } }", "crewMcp").contains("crewMcp"))
+    assert(!config_without_string_property("{ \"s\": { \"canopusMcp\": \"p\" } }", "canopusMcp").contains("canopusMcp"))
 }

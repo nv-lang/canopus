@@ -1,5 +1,5 @@
 // paths_test.nv - the paths of a session (task 192k): one folder per session, names that cannot leave the data folder.
-module crew_harness.storage
+module canopus.storage
 
 import std.fs.{Fs, real_fs, Path, write_text, remove_dir_all, try_exists, create_dir_all}
 import std.os.{Os, real_os, temp_dir, pid}
@@ -7,7 +7,7 @@ import std.os.{Os, real_os, temp_dir, pid}
 fn paths_root(name str) -> str {
     ro base = with Os = real_os() { temp_dir() }
     ro id = with Os = real_os() { pid() }
-    ro dir = base.join("crew-paths-test-${id}-${name}")
+    ro dir = base.join("canopus-paths-test-${id}-${name}")
     with Fs = real_fs() {
         ro removed = remove_dir_all(dir)
     }

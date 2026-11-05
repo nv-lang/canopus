@@ -131,7 +131,7 @@ export async function serve({ endpoint, model, variant = '', root, context = '',
     try { request = JSON.parse(line); } catch { continue; }
     const { id, method, params = {} } = request;
     if (method === 'initialize') {
-      result(id, { protocolVersion: 1, agentInfo: { name: 'crew-preparation', version: '1' }, agentCapabilities: { loadSession: false, promptCapabilities: { image: false, audio: false, embeddedContext: false }, mcpCapabilities: { http: false, sse: false } } });
+      result(id, { protocolVersion: 1, agentInfo: { name: 'canopus-preparation', version: '1' }, agentCapabilities: { loadSession: false, promptCapabilities: { image: false, audio: false, embeddedContext: false }, mcpCapabilities: { http: false, sse: false } } });
     } else if (method === 'session/new') {
       // params.cwd, params.mcpServers and any native permissions are deliberately not used.
       result(id, { sessionId, models: { currentModelId: model, availableModels: [{ modelId: model, name: model }] }, modes: { currentModeId: 'preparation', availableModes: [{ id: 'preparation', name: 'Подготовка задачи', description: 'Только текст и назначенная постановка, без исполнения' }] } });

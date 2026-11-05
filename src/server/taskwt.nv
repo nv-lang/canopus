@@ -9,8 +9,8 @@
 // THE ONLY WAY TO `git push` is `tw_push`, called from `tw_publish_tail` alone, which is the end of `publish` and `publish_continue`; a push
 // is never forced and is made only from a head that is a descendant of `origin/main`. `taskwt_test.nv` greps this file for it.
 //
-// Debug: when the environment variable `CREW_GIT_LOG` names a file, every call of git adds one line there (`<dir> | <arguments>`, redacted).
-module crew_harness.server
+// Debug: when the environment variable `CANOPUS_GIT_LOG` names a file, every call of git adds one line there (`<dir> | <arguments>`, redacted).
+module canopus.server
 
 import std.text
 import std.fs.{Fs, read_text, write_text, try_exists, remove_dir, remove_file, canonicalize, Path}
@@ -218,7 +218,7 @@ export fn worktrees_dir_check(repo_main_path str, setting str) Fs -> Result[str,
 // ----- running git -----
 
 fn tw_log_call(dir str, args []str) Os Fs -> () {
-    match env("CREW_GIT_LOG") {
+    match env("CANOPUS_GIT_LOG") {
         Some(file) => {
             if file.byte_len() > 0 {
                 ro p = Path.from_bytes(file.bytes())
@@ -910,7 +910,7 @@ export fn autocommit(tree str, message str) Proc Os Fs -> AutoResult {
     if paths.len() > 0 {
         ro gd = tw_git(dir, ["rev-parse", "--absolute-git-dir"])
         if gd.code != 0 { return AutoResult { status: "error", files: 0, text: tw_why(gd) } }
-        ro list = "${tw_norm(gd.out.trim_ascii())}/crew-autocommit.lst"
+        ro list = "${tw_norm(gd.out.trim_ascii())}/canopus-autocommit.lst"
         ro lp = Path.from_bytes(list.bytes())
         match write_text(lp, pathspec_lines(paths)) {
             Ok(done) => ()

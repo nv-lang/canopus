@@ -1,9 +1,9 @@
 // client_test.nv - the handler of the effect `Link` over a FAKE ACP agent (src/acp/testdata/fake_agent.mjs, Node):
 // an ordinary answer in chunks, tools, a permission and the decision, a cancel of the turn, a dead process,
 // silence, a repeated final answer, a line torn in the middle of a letter, a line without a line break at the end.
-module crew_harness.acp_live
+module canopus.acp_live
 
-import crew_harness.acp.{AcpConfig, AcpClient, AcpImage, AskSetup, open_client, open_client_asking, acp_link}
+import canopus.acp.{AcpConfig, AcpClient, AcpImage, AskSetup, open_client, open_client_asking, acp_link}
 import alula.engine.{Link, Incoming, EventKind, PartyRequest, FailCode}
 import std.encoding.json.{Json, JsonObject}
 import std.fs.{Fs, real_fs, Path, try_exists, write, create_dir_all}
@@ -646,7 +646,7 @@ test "agent: a cancel of the turn cancels the open question and tells the page" 
 }
 
 test "agent: the server of questions goes to session/new only to an agent that takes an HTTP MCP server" {
-    ro setup AskSetup = { form: true, mcp_url: "http://127.0.0.1:1/mcp/t1", mcp_token: "tok", hint: "[crew] use ask_user_question" }
+    ro setup AskSetup = { form: true, mcp_url: "http://127.0.0.1:1/mcp/t1", mcp_token: "tok", hint: "[canopus] use ask_user_question" }
     mut with_http = match open_client_asking(fake_config(["--ask"]), "", 0, setup) {
         Ok(c) => c
         Err(e) => panic("cannot start the fake agent: ${e}")
@@ -826,7 +826,7 @@ test "agent: initialize error: refused, failed" {
 }
 
 test "client: missing program is an Err" {
-    ro config AcpConfig = { program: "crew-harness-no-such-agent-xyz", args: []str.new(), cwd: repo_root().display(), inbox_path: "" }
+    ro config AcpConfig = { program: "canopus-no-such-agent-xyz", args: []str.new(), cwd: repo_root().display(), inbox_path: "" }
     match open_client(config) {
         Ok(c) => assert(false)
         Err(e) => assert(e.byte_len() > 0)
@@ -885,7 +885,7 @@ test "agent: repeated final answer, late chunk are notes" {
 fn picture_file(name str) -> AcpImage {
     ro base = with Os = real_os() { temp_dir() }
     ro id = with Os = real_os() { pid() }
-    ro dir = base.join("crew-acp-pic-${id}")
+    ro dir = base.join("canopus-acp-pic-${id}")
     ro path = dir.join(name)
     with Fs = real_fs() {
         ro made = create_dir_all(dir)

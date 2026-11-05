@@ -1,11 +1,11 @@
 // v212_test.nv - task 125: the program `alula` and the machines of the product on Alula 2.12: every machine file says `format: 2.12`, every JSON is what `compile` makes of its file, a file of 2.11
 // is refused with a message that names 2.12, the circles `compile -> render -> compile` and `convert ru -> en -> ru` give an equal tree with the line of connection of a library (the machines of the
 // methodology and their «Пауза» left the product with task 249; the product connects «Отмена запроса»).
-module crew_harness.alula_eq_machines
+module canopus.alula_eq_machines
 
 import std.text
 import alula.machine.{NamedText, text_of_file}
-import crew_harness.machines.{machine_files, table_files}
+import canopus.machines.{machine_files, table_files}
 
 fn product_tables() -> []str => ["chat.alula.md", "dialog.alula.md"]
 

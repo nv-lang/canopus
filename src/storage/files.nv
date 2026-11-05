@@ -12,7 +12,7 @@
 //
 // Why a module of its own and not `src/engine/`: the engine knows effects and in-memory handlers only; the
 // files bring `std.fs` into the program and the engine must stay free of it.
-module crew_harness.storage
+module canopus.storage
 
 import alula.engine.{Journal, Store, JournalEntry, Snapshot, journal_line, parse_journal_line}
 import std.encoding.json.{Json, JsonValue, JsonObject}

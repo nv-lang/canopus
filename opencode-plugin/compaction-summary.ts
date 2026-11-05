@@ -21,7 +21,7 @@ export const COMPACTION_SECTIONS: { ru: string; template: string }[] = [
 /** Текст для системной части запроса сжатия: неизменный для языка владельца, английский (язык владельца встаёт одним словом). */
 export function compactionSummaryText(ownerLanguage: string): string {
   return (
-    `crew-harness rule for this summary (it refines the template; where they differ, this rule wins). ` +
+    `canopus rule for this summary (it refines the template; where they differ, this rule wins). ` +
     `The next turn of this tab and the owner read it: write it in ${ownerLanguage}; the owner's words stay verbatim, code, paths and commands unchanged. ` +
     `Keep every ## heading of the template in its order and put under them: ` +
     `Requirements = what must not be done: the owner's bans and the limits of the work, each with date and source. ` +

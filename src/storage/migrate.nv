@@ -7,7 +7,7 @@
 // session is made first, then the files are RENAMED into it (not copied), the snapshot last - so a session whose move was cut
 // short is not listed (no snapshot in its folder) and the next start finishes the move. A file that has a namesake in the folder is
 // left where it is and is told in `kept`: nothing is overwritten. A second run finds nothing to move and changes nothing.
-module crew_harness.storage
+module canopus.storage
 
 import std.fs.{Fs, Path, read_dir, rename, try_exists}
 

@@ -44,7 +44,7 @@ test('parseMachineState и machineJson', () => {
   assert.equal(m.table, 'dialog');
   assert.equal(m.since, 5000);
   assert.deepEqual(JSON.parse(machineJson(m)).data, { user: 'привет', reply: '' });
-  assert.equal(machineOpenKey('s1'), 'crew-machine-debug:s1');
+  assert.equal(machineOpenKey('s1'), 'canopus-machine-debug:s1');
 });
 
 test('previewValue и branchLabel: длинные строки режутся, короткие нет', () => {
@@ -125,14 +125,14 @@ test('карточка отладки скрыта по умолчанию; ра
   assert.equal(box.querySelector('.mach-debug-head').getAttribute('aria-expanded'), 'false');
   assert.equal(box.querySelector('.mach-body'), null);
   box.querySelector('.mach-debug-head').click();
-  assert.equal(s.store['crew-machine-debug:s1'], '1');
+  assert.equal(s.store['canopus-machine-debug:s1'], '1');
   assert.deepEqual(s.log.got, ['s1']);
   assert.equal(s.log.renders, 1);
   box = s.paint();
   assert.equal(box.querySelector('.mach-debug-head').getAttribute('aria-expanded'), 'true');
   assert.equal(box.querySelector('.mach-statename').textContent, 'Awaiting');
   box.querySelector('.mach-debug-head').click();
-  assert.equal(s.store['crew-machine-debug:s1'], '0');
+  assert.equal(s.store['canopus-machine-debug:s1'], '0');
 });
 
 test('без localStorage карточка просто закрыта и не падает', () => {
@@ -150,7 +150,7 @@ test('без localStorage карточка просто закрыта и не �
 test('раскрытая карточка: данные деревом, длинное значение — «показать целиком», журнал, копирование JSON', () => {
   const long = 'ж'.repeat(400);
   const session = sessionWith({ state: 'idle', machine: parseMachineState(machine({ data: { user: long, nested: { a: 1 } }, journal: [{ code: 'user_message', at: 1000, note: 'привет' }] })) });
-  const s = setup(session, { stored: { 'crew-machine-debug:s1': '1' } });
+  const s = setup(session, { stored: { 'canopus-machine-debug:s1': '1' } });
   let box = s.paint();
   const leaf = box.querySelector('.mach-leaf[data-path="data/user"]');
   assert.ok(leaf.querySelector('.mach-val').textContent.length < 200);
@@ -169,12 +169,12 @@ test('раскрытая карточка: данные деревом, длин
 
 test('данные, обрезанные сервером, показываются с пометкой', () => {
   const session = sessionWith({ state: 'idle', machine: parseMachineState(machine({ data: { truncated: true, size: 99999, head: '{"user":"..."' } })) });
-  const s = setup(session, { stored: { 'crew-machine-debug:s1': '1' } });
+  const s = setup(session, { stored: { 'canopus-machine-debug:s1': '1' } });
   assert.ok(s.paint().querySelector('.mach-cut').textContent.includes('99999'));
 });
 
 test('нет состояния — подсказка и кнопка запроса', () => {
-  const s = setup(sessionWith({ state: 'idle' }), { stored: { 'crew-machine-debug:s1': '1' } });
+  const s = setup(sessionWith({ state: 'idle' }), { stored: { 'canopus-machine-debug:s1': '1' } });
   s.paint().querySelector('.mach-ask').click();
   assert.deepEqual(s.log.got, ['s1']);
 });

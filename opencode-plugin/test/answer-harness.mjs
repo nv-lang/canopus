@@ -1,7 +1,7 @@
 // Shared set-up of the question-answering tests (task 007; node >= 24): a throwaway project, a real sqlite database of OpenCode with
 // the tables `session_v2` and `session_message` (as much as the plugin reads), a fake OpenCode host over the real plugin modules,
 // one window with the tabs of the sessions, and helpers that write the turns of a session as OpenCode records them.
-// Not a test itself (no `.test.` in the name: `npm test` does not take it). The plugin code comes from CREW_PLUGIN_DIR (a copy with
+// Not a test itself (no `.test.` in the name: `npm test` does not take it). The plugin code comes from CANOPUS_PLUGIN_DIR (a copy with
 // stubs, the proof of red) or from the folder above this one; the modules are loaded by file URL (a bare Windows path is not loadable).
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { DatabaseSync } from "node:sqlite"
@@ -9,13 +9,13 @@ import os from "node:os"
 import path from "node:path"
 import { pathToFileURL } from "node:url"
 
-export const PLUGIN = process.env.CREW_PLUGIN_DIR ? path.resolve(process.env.CREW_PLUGIN_DIR) : path.join(import.meta.dirname, "..")
+export const PLUGIN = process.env.CANOPUS_PLUGIN_DIR ? path.resolve(process.env.CANOPUS_PLUGIN_DIR) : path.join(import.meta.dirname, "..")
 export const load = (f) => import(pathToFileURL(path.join(PLUGIN, f)).href)
 
 /**
  * @param prefix temp folder prefix
  * @param opts {settings, sessions, window, plugin}
- *   settings: the project settings file content (written to proj/.opencode/crew-harness.json; setSettings() rewrites it)
+ *   settings: the project settings file content (written to proj/.opencode/canopus.json; setSettings() rewrites it)
  *   sessions: ids of the sessions that get a row in `session_v2` (the first one is the tab of the owner); default four
  *   window: the sessions with a tab in the window (default: all of them); false -- no window at all
  *   plugin: false -- the plugin is not started (the pure modules only); the host objects are still created
@@ -26,21 +26,21 @@ export async function harness(prefix, opts = {}) {
   const tmp = mkdtempSync(path.join(os.tmpdir(), `${prefix}-`))
   process.env.XDG_DATA_HOME = tmp
   if (opts.ownLog) process.env.TEMP = process.env.TMP = process.env.TMPDIR = tmp
-  process.env.CREW_HARNESS_POLL_MS = "100"
-  process.env.CREW_HARNESS_STATUS_MS = "100"
-  process.env.CREW_HARNESS_FLOW_MS = "200"
-  process.env.CREW_HARNESS_LEFT_MS = "3600000"
-  process.env.CREW_HARNESS_SETTINGS_TTL_MS = "1"
-  process.env.CREW_HARNESS_DB = path.join(tmp, "opencode.db")
-  delete process.env.CREW_HARNESS_PRESENCE
+  process.env.CANOPUS_POLL_MS = "100"
+  process.env.CANOPUS_STATUS_MS = "100"
+  process.env.CANOPUS_FLOW_MS = "200"
+  process.env.CANOPUS_LEFT_MS = "3600000"
+  process.env.CANOPUS_SETTINGS_TTL_MS = "1"
+  process.env.CANOPUS_DB = path.join(tmp, "opencode.db")
+  delete process.env.CANOPUS_PRESENCE
   const proj = path.join(tmp, "proj")
   mkdirSync(path.join(proj, ".opencode"), { recursive: true })
-  const settingsFile = path.join(proj, ".opencode", "crew-harness.json")
+  const settingsFile = path.join(proj, ".opencode", "canopus.json")
   const setSettings = (s) => writeFileSync(settingsFile, JSON.stringify(s))
   setSettings(opts.settings ?? {})
 
   const sids = opts.sessions ?? ["sesOWNER1", "sesTASK01", "sesTASK02", "sesREV001"]
-  const db = new DatabaseSync(process.env.CREW_HARNESS_DB)
+  const db = new DatabaseSync(process.env.CANOPUS_DB)
   db.exec("create table session_v2 (id text primary key, directory text, title text, parent_id text, time_archived integer, time_idle integer, time_viewed integer, time_suspended integer)")
   db.exec("create table session_message (id text primary key, session_id text, type text, seq integer, time_created integer, time_updated integer, data text)")
   for (const s of sids) db.prepare("insert into session_v2 values (?, ?, ?, null, null, null, null, null)").run(s, proj, s)

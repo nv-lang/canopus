@@ -1,9 +1,9 @@
 // run_test.nv - the interpreter: every construction of the rows and of the actions, the start, the chain, the ends, the errors.
-module crew_harness.machine_run_machines
+module canopus.machine_run_machines
 
 import alula.machine.{Value, Int, value_equal}
 import alula.engine.{FailCode, Incoming, EventKind, StepEnvironment, fail_code_word}
-import crew_harness.machines.{product_registry}
+import canopus.machines.{product_registry}
 import alula.machine_run.{load_alula_machine}
 
 test "loads" {

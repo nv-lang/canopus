@@ -1,7 +1,7 @@
 // Task 263: a separate executable entry for MCP wait, correlation and restart scenarios.
-module crew_harness.server_hidden_wait
+module canopus.server_hidden_wait
 
-import crew_harness.server.{kit_files_mcp, scenario_question_mcp, scenario_question_mcp_timeout, scenario_question_mcp_restart}
+import canopus.server.{kit_files_mcp, scenario_question_mcp, scenario_question_mcp_timeout, scenario_question_mcp_restart}
 
 fn clean(report str) -> () {
     if report.byte_len() > 0 { panic("MCP WAIT: ${report}") }

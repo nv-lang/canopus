@@ -1,4 +1,4 @@
-// Страж слипшихся слов на инструментах (задача 127): письмо `crew_send`, вопросник `question`, записи текстовых файлов
+// Страж слипшихся слов на инструментах (задача 127): письмо `canopus_send`, вопросник `question`, записи текстовых файлов
 // (`edit`, `write`, `patch` и их аналоги). Признак — glued.ts. Здесь: какие тексты брать из вызова, как отказывать и как не
 // зациклить вкладку.
 //
@@ -108,7 +108,7 @@ type State = {
 }
 const state = (): State => {
   const g = globalThis as any
-  return (g.__crewGluedGuard ??= { refused: new Map(), verdicts: new Map(), seen: new Set() })
+  return (g.__canopusGluedGuard ??= { refused: new Map(), verdicts: new Map(), seen: new Set() })
 }
 
 /**

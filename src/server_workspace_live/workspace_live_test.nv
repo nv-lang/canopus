@@ -1,6 +1,6 @@
-module crew_harness.server_workspace_live
+module canopus.server_workspace_live
 
-import crew_harness.server.{kit_routes_wip, scenario_workspace, scenario_workspace_failures}
+import canopus.server.{kit_routes_wip, scenario_workspace, scenario_workspace_failures}
 
 test "workspace: preparation, selected detached source, restart and dirty close over the hub" {
     ro report = scenario_workspace(kit_routes_wip("workspace-275"))

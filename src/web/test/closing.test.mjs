@@ -116,7 +116,7 @@ test('Подготовка задачи: прежний идентификато
 });
 
 test('новая сессия: режим по умолчанию — Интерактивный, Worktree выключен по умолчанию; режим и Worktree выбираются до первого сообщения и уходят с ним', () => {
-  let m = addDraft(initialModel(), { id: 'd1', agent: 'codex', projectId: 'p1', project: 'crew', folder: 'C:/work/crew', branch: 'main', now: 5 });
+  let m = addDraft(initialModel(), { id: 'd1', agent: 'codex', projectId: 'p1', project: 'crew', folder: 'C:/work/canopus', branch: 'main', now: 5 });
   assert.equal(m.sessions.d1.route, 'interactive');
   assert.equal(m.sessions.d1.worktree, false);
   m = patchDraft(m, 'd1', { route: 'planning', worktree: true });

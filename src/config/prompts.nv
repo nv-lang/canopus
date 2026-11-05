@@ -1,10 +1,10 @@
 // prompts.nv - the texts the hub says to the agents, as files by layers (task 192.12, ADR-0016).
 //
 // A text (the description of a tool, the note "recognise the tasks", the reminder before a message, a service turn) has a NAME and a built-in value in the code, so the product works
-// with no file. A file `prompts/<name>.md` replaces it: `.crew-harness/prompts/` of the project first, then `<home>/config/prompts/`, then the built-in text. The hub reads the
+// with no file. A file `prompts/<name>.md` replaces it: `.canopus/prompts/` of the project first, then `<home>/config/prompts/`, then the built-in text. The hub reads the
 // file at every use (a changed text acts at once). Inside the text `{name}` is replaced by the value named `name` (a variable that is not known stays as written).
 // A file that is empty or cannot be read as text is not used: the built-in text is, and the pick carries a `note` line for the log of the hub.
-module crew_harness.config
+module canopus.config
 
 import std.text
 import std.fs.{Fs, Path, read_text, try_exists}

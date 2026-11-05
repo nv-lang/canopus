@@ -1,9 +1,9 @@
 // load_test.nv - the decoder: the chat machine, the keys of the schema, the refusals with their places.
-module crew_harness.machine_table_machines
+module canopus.machine_table_machines
 
 import alula.machine.{spec_text}
 import std.text
-import crew_harness.machines.{chat_machine_text}
+import canopus.machines.{chat_machine_text}
 import alula.machine_table.{fail_code_names, find_data, find_party, find_state, party_kind_word, rows_may_write, state_kind_word, write_kind_word}
 
 test "chat loads" {

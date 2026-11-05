@@ -5,7 +5,7 @@
     всплывёт в самый дорогой момент — при показе.
 Проверяет: синтаксис sh принимает test-contour.sh (sh -n); оба скрипта держат опорные свойства контура —
     корень из расположения скрипта, свой data_dir во временной папке по хешу пути дерева, свободный порт
-    с 8100, печать ссылки http://127.0.0.1 и подсказки метки crew_task contour, режим остановки, бинарники
+    с 8100, печать ссылки http://127.0.0.1 и подсказки метки canopus_task contour, режим остановки, бинарники
     основной копии без флага сборки, страницы из src/web дерева; ps1 стартует front отсоединённо
     (Start-Process -WindowStyle Hidden — через трубу агента присоединённый front блокирует вызов до остановки
     контура, замечание приёмки 191); испорченная копия (без каталога данных, без ссылки или с присоединённым
@@ -24,10 +24,10 @@ import stlib
 
 ROOT = os.path.normpath(os.path.join(stlib.HERE, "..", "..", ".."))
 
-SH_TOKENS = ("crew-contour-", "8100", "http://127.0.0.1:", "--stop", "--build", "src/web",
-             "contour.pid", 'crew_task {action: "contour"', "git rev-parse --git-common-dir")
-PS_TOKENS = ("crew-contour-", "8100", "http://127.0.0.1:", "-Stop", "-Build", "src/web",
-             "contour.pid", 'crew_task {action: `"contour`"', "git rev-parse --git-common-dir",
+SH_TOKENS = ("canopus-contour-", "8100", "http://127.0.0.1:", "--stop", "--build", "src/web",
+             "contour.pid", 'canopus_task {action: "contour"', "git rev-parse --git-common-dir")
+PS_TOKENS = ("canopus-contour-", "8100", "http://127.0.0.1:", "-Stop", "-Build", "src/web",
+             "contour.pid", 'canopus_task {action: `"contour`"', "git rev-parse --git-common-dir",
              "-WindowStyle Hidden")
 
 
@@ -51,7 +51,7 @@ def main():
         assert not faults(ps_text, PS_TOKENS), "ps1: " + ", ".join(faults(ps_text, PS_TOKENS))
 
     def red_no_data_dir():
-        bad = sh_text.replace("crew-contour-", "crew-")
+        bad = sh_text.replace("canopus-contour-", "crew-")
         assert faults(bad, SH_TOKENS), "копия sh без своего каталога данных по хешу дерева прошла проверку"
 
     def red_no_link():

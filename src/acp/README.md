@@ -1,6 +1,6 @@
 # acp: the ACP client of the product and the handler of the agent
 
-CrewHarness talks to a coding agent (by default `opencode acp`) through the Agent Client Protocol: JSON-RPC 2.0, one
+Canopus talks to a coding agent (by default `opencode acp`) through the Agent Client Protocol: JSON-RPC 2.0, one
 message per line, over the stdin and stdout of a child process. This directory is the client of that protocol on Nova
 (Oracle 0.1.0, Windows, Clang), the real handler of the effect `Link` of the engine (the module `alula.engine` of the package `alula`, task 144), the projection
 "ACP -> engine event -> page event", and a fake ACP agent for the tests. The file handlers of the effects `Journal` and
@@ -24,7 +24,7 @@ nova test src/acp_live               # the handler over the fake agent, the ackn
 
 The tests of `src/acp_live` start `node` (a fake agent, `testdata/fake_agent.mjs`; Node 22 or newer) and look for the root
 of the repository upward from the working directory (the nearest folder with `nova.toml`). The real `opencode acp` is
-tried only when asked: `$env:CREW_REAL_ACP = "1"; nova test src/acp_live` (initialize and session/new, no prompt, so no model is
+tried only when asked: `$env:CANOPUS_REAL_ACP = "1"; nova test src/acp_live` (initialize and session/new, no prompt, so no model is
 called and no key or login is needed).
 
 **Two units, short test names: on purpose.** A test binary prints one line per test (`  PASS: <name>`). On Windows a binary whose
@@ -46,10 +46,10 @@ have a short name; to measure: start the test binary kept by `--keep-artifacts` 
 | `trace.nv` | the raw record of the exchange (task 192c): `AcpTrace`, `trace_open`, `record`; `open_client_traced(config, path, limit)` writes every JSON-RPC line, both ways, to `<session>/acp.jsonl` (`{"t", "dir": "out"/"in", "line"}`); nothing is cut out, so the file holds the full talk and the output of the tools |
 | `testdata/fake_agent.mjs` | the fake ACP agent (Node): the scenarios are chosen by the first word of the prompt |
 | `*_test.nv` | 53 checks: `jsonrpc_test` (18), `project_test` (35) |
-| `../acp_live/*_test.nv` | 39 checks, the unit `crew_harness.acp_live` (it imports `crew_harness.acp`): `client_test` (28, the handler over the fake agent), `ack_test` (4), `e2e_test` (6, engine + chat + files + ACP), `real_agent_test` (1, runs for real only with `CREW_REAL_ACP=1`) |
+| `../acp_live/*_test.nv` | 39 checks, the unit `canopus.acp_live` (it imports `canopus.acp`): `client_test` (28, the handler over the fake agent), `ack_test` (4), `e2e_test` (6, engine + chat + files + ACP), `real_agent_test` (1, runs for real only with `CANOPUS_REAL_ACP=1`) |
 
-The `.nv` files of this folder are one module `crew_harness.acp` (a folder is a module, the tests are its peers). The engine and the
-storage are imported (`crew_harness.engine`, `crew_harness.storage`); the engine does not know this module.
+The `.nv` files of this folder are one module `canopus.acp` (a folder is a module, the tests are its peers). The engine and the
+storage are imported (`canopus.engine`, `canopus.storage`); the engine does not know this module.
 
 ## How the client lives
 

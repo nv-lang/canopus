@@ -1,11 +1,11 @@
 // settings_test.nv - the settings of the connection from a file and from the environment: the environment is over the file.
-module crew_harness.pgconf
+module canopus.pgconf
 
-import crew_harness.pgdb.{PgConfig, parse_pg_config}
+import canopus.pgdb.{PgConfig, parse_pg_config}
 import std.os.{Os, MockOs, mock_os, real_os, temp_dir, pid}
 import std.fs.{Fs, real_fs, read_text, write_text, create_dir_all, Path}
 
-fn full_text() -> str => "{\"host\":\"localhost\",\"port\":55432,\"database\":\"crew_x\",\"user\":\"crew_login\",\"password\":\"file-test-pw\"}"
+fn full_text() -> str => "{\"host\":\"localhost\",\"port\":55432,\"database\":\"canopus_x\",\"user\":\"canopus_login\",\"password\":\"file-test-pw\"}"
 
 fn must_config(text str) -> PgConfig {
     match parse_pg_config(text) {
@@ -17,7 +17,7 @@ fn must_config(text str) -> PgConfig {
 fn temp_file(name str, text str) -> Path {
     ro base = with Os = real_os() { temp_dir() }
     ro id = with Os = real_os() { pid() }
-    ro dir = base.join("crew-pg-config-${id}")
+    ro dir = base.join("canopus-pg-config-${id}")
     ro path = dir.join(name)
     with Fs = real_fs() {
         ro made = create_dir_all(dir)
@@ -28,9 +28,9 @@ fn temp_file(name str, text str) -> Path {
 
 test "settings: the environment is over the base, key by key" {
     mut state = MockOs.new()
-    state.put_env("CREW_PG_HOST", "127.0.0.1")
-    state.put_env("CREW_PG_PORT", "49999")
-    state.put_env("CREW_PG_PASSWORD", "env-test-pw")
+    state.put_env("CANOPUS_PG_HOST", "127.0.0.1")
+    state.put_env("CANOPUS_PG_PORT", "49999")
+    state.put_env("CANOPUS_PG_PASSWORD", "env-test-pw")
     ro base = must_config(full_text())
     ro merged = with Os = mock_os(state) { pg_config_env(base) }
     match merged {
@@ -38,8 +38,8 @@ test "settings: the environment is over the base, key by key" {
             assert(c.host == "127.0.0.1")
             assert(c.port == 49999)
             assert(c.password == "env-test-pw")
-            assert(c.database == "crew_x")
-            assert(c.user == "crew_login")
+            assert(c.database == "canopus_x")
+            assert(c.user == "canopus_login")
         }
         Err(e) => assert(false)
     }
@@ -47,11 +47,11 @@ test "settings: the environment is over the base, key by key" {
 
 test "settings: all five keys of the environment are read" {
     mut state = MockOs.new()
-    state.put_env("CREW_PG_HOST", "localhost")
-    state.put_env("CREW_PG_PORT", "6543")
-    state.put_env("CREW_PG_DATABASE", "env_db")
-    state.put_env("CREW_PG_USER", "env_user")
-    state.put_env("CREW_PG_PASSWORD", "env-test-pw")
+    state.put_env("CANOPUS_PG_HOST", "localhost")
+    state.put_env("CANOPUS_PG_PORT", "6543")
+    state.put_env("CANOPUS_PG_DATABASE", "env_db")
+    state.put_env("CANOPUS_PG_USER", "env_user")
+    state.put_env("CANOPUS_PG_PASSWORD", "env-test-pw")
     ro base = must_config("{}")
     match with Os = mock_os(state) { pg_config_env(base) } {
         Ok(c) => {
@@ -70,20 +70,20 @@ test "settings: an empty environment changes nothing, a port that is not a numbe
         Err(e) => assert(false)
     }
     mut bad = MockOs.new()
-    bad.put_env("CREW_PG_PORT", "five")
+    bad.put_env("CANOPUS_PG_PORT", "five")
     match with Os = mock_os(bad) { pg_config_env(base) } {
         Ok(c) => assert(false)
-        Err(e) => assert(e.contains("CREW_PG_PORT"))
+        Err(e) => assert(e.contains("CANOPUS_PG_PORT"))
     }
 }
 
 test "settings: a file named by the caller and the environment over it; no file name means the environment alone" {
     ro path = temp_file("pg.json", full_text())
     mut state = MockOs.new()
-    state.put_env("CREW_PG_PASSWORD", "env-wins")
+    state.put_env("CANOPUS_PG_PASSWORD", "env-wins")
     match with Os = mock_os(state), Fs = real_fs() { pg_config(path.display()) } {
         Ok(c) => {
-            assert(c.database == "crew_x")
+            assert(c.database == "canopus_x")
             assert(c.password == "env-wins")
         }
         Err(e) => assert(false)
@@ -96,11 +96,11 @@ test "settings: a file named by the caller and the environment over it; no file 
         }
         Err(e) => assert(false)
     }
-    // the file can also be named by CREW_PG_CONFIG
+    // the file can also be named by CANOPUS_PG_CONFIG
     mut named = MockOs.new()
-    named.put_env("CREW_PG_CONFIG", path.display())
+    named.put_env("CANOPUS_PG_CONFIG", path.display())
     match with Os = mock_os(named), Fs = real_fs() { pg_config("") } {
-        Ok(c) => assert(c.database == "crew_x")
+        Ok(c) => assert(c.database == "canopus_x")
         Err(e) => assert(false)
     }
     // a file that is not there is an error that names the file

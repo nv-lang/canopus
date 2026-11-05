@@ -1,8 +1,8 @@
 // wip_live_test.nv - the work that is not a task yet (the branch `wip/<name>`, task 192.4) over a hub with the fake ACP agent in a repository with a bare origin:
-// the scenarios `scenario_wip_flow` and `scenario_wip_folder_and_delete` of crew_harness.server/wip_kit.nv.
-module crew_harness.server_wip_live
+// the scenarios `scenario_wip_flow` and `scenario_wip_folder_and_delete` of canopus.server/wip_kit.nv.
+module canopus.server_wip_live
 
-import crew_harness.server.{kit_routes_wip, scenario_wip_flow, scenario_wip_folder_and_delete, scenario_wip_trees_dir}
+import canopus.server.{kit_routes_wip, scenario_wip_flow, scenario_wip_folder_and_delete, scenario_wip_trees_dir}
 
 fn wip_clean(report str) -> () {
     if report.byte_len() > 0 { panic("NOT AS IT MUST BE: ${report}") }

@@ -15,20 +15,20 @@
 //     other: the journal alone tells the whole story again after a restart (`Engine.history`).
 // What is not an event of the engine and has no place in the journal (the agent could not be started, a wrong session name) is
 // told to the page as a synthetic `error` event, with an id of its own ("srv-<n>"); it is not kept.
-module crew_harness.server
+module canopus.server
 
 import alula.engine.{Engine, Incoming, EventKind, Journal, Store, Link, PartyRequest, start_engine, resume_engine, decode_snapshot}
-import crew_harness.product_machines.{find_machines_dir, load_product_machines}
+import canopus.product_machines.{find_machines_dir, load_product_machines}
 import alula.machine_run.{AlulaMachine, AlulaState}
-import crew_harness.acp.{AcpConfig, AcpClient, AcpImage, AcpPreset, AskSetup, no_ask, open_client_full, acp_link, page_event, TRACE_LIMIT}
-import crew_harness.agent_config.{opencode_env}
-import crew_harness.config.{pick_prompt, ConfigLayout, load_presets, preset_named, preset_family, DEFAULT_PRESET, presets_reply}
-import crew_harness.config.{PoolEntry, ModelPool, parse_agent_source, preset_pick_weight, pick_source_json, pool_level_ok, resolve_pool_pinned}
-import crew_harness.config.{load_roles, role_of}
-import crew_harness.projects.{EnvEntry, projects_get, parse_dotenv, normalize_folder_path, project_has_folder, valid_project_id}
-import crew_harness.storage.{remove_session_dir, open_data_dir, file_journal, file_store, list_sessions, valid_session_name, session_file_made, migrate_flat_sessions, image_ext, decode_image, save_image, find_image, replace_file}
-import crew_harness.pgstore.{PgWorld, pg_journal, pg_store}
-import crew_harness.pgdb.{pg_list}
+import canopus.acp.{AcpConfig, AcpClient, AcpImage, AcpPreset, AskSetup, no_ask, open_client_full, acp_link, page_event, TRACE_LIMIT}
+import canopus.agent_config.{opencode_env}
+import canopus.config.{pick_prompt, ConfigLayout, load_presets, preset_named, preset_family, DEFAULT_PRESET, presets_reply}
+import canopus.config.{PoolEntry, ModelPool, parse_agent_source, preset_pick_weight, pick_source_json, pool_level_ok, resolve_pool_pinned}
+import canopus.config.{load_roles, role_of}
+import canopus.projects.{EnvEntry, projects_get, parse_dotenv, normalize_folder_path, project_has_folder, valid_project_id}
+import canopus.storage.{remove_session_dir, open_data_dir, file_journal, file_store, list_sessions, valid_session_name, session_file_made, migrate_flat_sessions, image_ext, decode_image, save_image, find_image, replace_file}
+import canopus.pgstore.{PgWorld, pg_journal, pg_store}
+import canopus.pgdb.{pg_list}
 import std.concurrency.nvchan.{Chan, ChanTx, ChanRx}
 import std.encoding.hex.{Hex}
 import std.encoding.json.{Json, JsonValue, JsonObject}
@@ -550,7 +550,7 @@ fn Hub @open_config(s Dialog) -> Option[AcpConfig] => @open_config_for(s.agent, 
 // (its own tool of questions) when it is `native`; the MCP tool of the hub, and no form, when it is `mcp`.
 fn Hub @ask_for(agent str, id str) -> AskSetup => @ask_with_tasks(@ask_base(agent, id), id)
 
-// Task 192.2: the tools of the recognition of the tasks go to every agent that takes an HTTP MCP server: `crew_task_list` always (the button), `crew_task` when `route_auto_propose`.
+// Task 192.2: the tools of the recognition of the tasks go to every agent that takes an HTTP MCP server: `canopus_task_list` always (the button), `canopus_task` when `route_auto_propose`.
 fn Hub @ask_with_tasks(base AskSetup, id str) -> AskSetup {
     if !@settings.route_tool || @mcps.len() == 0 { return AskSetup { form: base.form, mcp_url: base.mcp_url, mcp_token: base.mcp_token, hint: base.hint } }
     ro auto = @settings.route_auto_propose
@@ -562,7 +562,7 @@ fn Hub @ask_with_tasks(base AskSetup, id str) -> AskSetup {
 
 fn Hub @mcp_url_tools(id str, tools str) -> str => if tools == "all" { @mcp_url_for(id) } else { "${@mcp_url_for(id)}/${tools}" }
 
-const TASK_HINT = "[crew] Когда замечаешь реальную работу над файлами проекта (не вопрос и не беседу), вызови инструмент crew_task (сервер crew) до первой правки файла."
+const TASK_HINT = "[crew] Когда замечаешь реальную работу над файлами проекта (не вопрос и не беседу), вызови инструмент canopus_task (сервер crew) до первой правки файла."
 
 fn Hub @ask_base(agent str, id str) -> AskSetup {
     if !@settings.ask_form { return no_ask() }
@@ -689,7 +689,7 @@ fn Hub mut @env_of(s Dialog) -> []EnvEntry {
     }
 }
 
-// Task 192.9: the OpenCode that the hub starts gets the configuration of the owner without the plugin crew-harness (`agent_config.nv`): the variable XDG_CONFIG_HOME over the variables of the project.
+// Task 192.9: the OpenCode that the hub starts gets the configuration of the owner without the plugin canopus (`agent_config.nv`): the variable XDG_CONFIG_HOME over the variables of the project.
 fn Hub mut @agent_env(agent str, base []EnvEntry) -> []EnvEntry {
     mut out = []EnvEntry.new()
     for e in base { out.push(e) }
@@ -823,8 +823,8 @@ export fn start_hub_from(settings ServerSettings, table_text str) Proc Detach Ti
     if !settings.layout.legacy {
         ro made_state = create_dir_all(Path.from_bytes(settings.layout.state.bytes()))
         ro made_cache = create_dir_all(Path.from_bytes(settings.layout.cache.bytes()))
-    } else if settings.layout.home.byte_len() > 0 || settings.data_dir != "crew-data" {
-        hub.say_log("the old layout: data_dir ${settings.data_dir} holds sessions, projects, state and cache together; `crew-harness migrate --from ${settings.data_dir}` moves them into the new folders")
+    } else if settings.layout.home.byte_len() > 0 || settings.data_dir != "canopus-data" {
+        hub.say_log("the old layout: data_dir ${settings.data_dir} holds sessions, projects, state and cache together; `canopus migrate --from ${settings.data_dir}` moves them into the new folders")
     }
     hub.catalog_load()
     ro ids = if pg {

@@ -25,9 +25,9 @@ import { createAttachUi } from './attach-ui.js';
 import { createViewer } from './viewer-ui.js';
 import { createMachinesPanel } from './machines-ui.js';
 import { createRequestPanel } from './request-ui.js';
-import { createCrewTaskUi } from './crew-task-ui.js';
+import { createCanopusTaskUi } from './canopus-task-ui.js';
 import { createFamilyApprovals } from './family-approvals.js';
-import { subWaitsText } from './crew-task.js';
+import { subWaitsText } from './canopus-task.js';
 import { labelOf } from './labels-ru.js';
 import { createDraftStore, safeError, restoreText, afterSendText } from './delivery.js';
 import { deliveryCard } from './delivery-ui.js';
@@ -788,7 +788,7 @@ export function createView(doc, refs, deps) {
     const inspected = await projectsApi.inspectResultRepo(path);
     if (!inspected.ok) { handlers.onNotice(inspected.error, 'error'); return; }
     const target = inspected.body;
-    const confirmed = await projectsUi.confirm({ title: 'Подтвердить репозиторий результата', text: `${target.dir}\n${target.common}\n${target.url}\n${target.remote}/${target.branch}\nКарточка проекта Crew не создаётся.`, ok: 'Подтверждаю', cancel: 'Отмена' });
+    const confirmed = await projectsUi.confirm({ title: 'Подтвердить репозиторий результата', text: `${target.dir}\n${target.common}\n${target.url}\n${target.remote}/${target.branch}\nКарточка проекта Canopus не создаётся.`, ok: 'Подтверждаю', cancel: 'Отмена' });
     if (!confirmed || trace !== currentTrace) return;
     const registered = await projectsApi.registerResultRepo(target);
     if (!registered.ok) { handlers.onNotice(registered.error, 'error'); return; }
@@ -1310,8 +1310,8 @@ export function createView(doc, refs, deps) {
     routeCards.hidden = cards.length === 0;
   }
 
-  const crewUi = createCrewTaskUi(doc, handlers, { agents: () => Object.keys((current.model && current.model.catalog) || {}).sort() });
-  const routeOver = h(doc, 'div', { class: 'route-over' }, crewUi.el, routeCards, routeBanner, routeStrip);
+  const canopusUi = createCanopusTaskUi(doc, handlers, { agents: () => Object.keys((current.model && current.model.catalog) || {}).sort() });
+  const routeOver = h(doc, 'div', { class: 'route-over' }, canopusUi.el, routeCards, routeBanner, routeStrip);
 
   // форма вопросов агента (задача 192): элемент ленты сообщений, под сообщением владельца; прокручивается вместе с лентой
   const askCard = h(doc, 'div', { class: 'ask', role: 'dialog', hidden: true });
@@ -1999,7 +1999,7 @@ export function createView(doc, refs, deps) {
     renderRouteStrip(session);
     renderRouteBanner(session);
     renderTaskCards(session);
-    crewUi.render(session);
+    canopusUi.render(session);
 
     const nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight <= NEAR_BOTTOM_PX;
     const items = timeline(session);
@@ -2231,7 +2231,7 @@ export function createView(doc, refs, deps) {
   }
 
   // Вкладки правой колонки (задача 192.1): «Сведения» и «Машины» в той же колонке; выбор помнится в localStorage (без него — «Сведения»).
-  const RAIL_TAB_KEY = 'crew-rail-tab';
+  const RAIL_TAB_KEY = 'canopus-rail-tab';
   let railTab = 'info';
   try { if (win && win.localStorage) { const saved = win.localStorage.getItem(RAIL_TAB_KEY); if (saved === 'machines' || saved === 'request') railTab = saved; } } catch (e) { railTab = 'info'; }
   const machinesPanel = createMachinesPanel(doc, {
@@ -2287,7 +2287,7 @@ export function createView(doc, refs, deps) {
       ? machinesPanel.render(session, queued)
       : railTab === 'request'
         ? requestPanel.render(session)
-        : [envCard(session), crewUi.panel(session), subtasksCard(session), contextCard(session), outputsCard(session), tasksCard(session)].filter(Boolean);
+        : [envCard(session), canopusUi.panel(session), subtasksCard(session), contextCard(session), outputsCard(session), tasksCard(session)].filter(Boolean);
     refs.rail.replaceChildren(railTabs, ...cards);
   }
 

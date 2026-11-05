@@ -1,5 +1,5 @@
 // images_test.nv - the pictures of a session: the types, the folder, the numbers, the names that cannot leave the folder.
-module crew_harness.storage
+module canopus.storage
 
 import std.fs.{Fs, real_fs, Path, remove_dir_all, read}
 import std.os.{Os, real_os, temp_dir, pid}
@@ -7,7 +7,7 @@ import std.os.{Os, real_os, temp_dir, pid}
 fn img_root(name str) -> str {
     ro base = with Os = real_os() { temp_dir() }
     ro id = with Os = real_os() { pid() }
-    ro dir = base.join("crew-images-test-${id}-${name}")
+    ro dir = base.join("canopus-images-test-${id}-${name}")
     with Fs = real_fs() {
         ro removed = remove_dir_all(dir)
     }

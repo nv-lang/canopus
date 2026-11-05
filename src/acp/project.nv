@@ -9,7 +9,7 @@
 // event": `{ id, trace, step, kind, input, time }`, `input` an object): `name` becomes `kind`, `at` becomes `time`, the
 // `input` text becomes an object. An event the page has no kind for gives None. The `turn` code of the turn is given by
 // the caller: the page names a turn by the code of its `user_message`.
-module crew_harness.acp
+module canopus.acp
 
 import alula.engine.{Incoming, EventKind, FailCode}
 import std.encoding.json.{Json, JsonValue, JsonObject}
@@ -717,10 +717,10 @@ fn page_input_of(e Incoming, turn str) -> Option[PageInput] {
                 ro value = object_input(e)?
                 return with_turn("tool_call", value, turn)
             }
-            // task 192.9: a fallback marker `[[crew_task_list]] {json}` cut out of the answer; the hub reads it when the turn is over
-            if e.name == "crew_marker" {
+            // task 192.9: a fallback marker `[[canopus_task_list]] {json}` cut out of the answer; the hub reads it when the turn is over
+            if e.name == "canopus_marker" {
                 ro value = object_input(e)?
-                return with_turn("crew_marker", value, turn)
+                return with_turn("canopus_marker", value, turn)
             }
             if e.name == "turn_usage" {
                 ro value = object_input(e)?

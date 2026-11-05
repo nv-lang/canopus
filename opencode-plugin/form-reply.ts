@@ -25,7 +25,7 @@ export function serviceReg(file = path.join(stateDir(), "service.json")): { url:
   return r?.url && r?.password ? { url: String(r.url), password: String(r.password) } : undefined
 }
 
-export const REPLY_TIMEOUT_MS = Number(process.env.CREW_HARNESS_REPLY_MS) || 30_000
+export const REPLY_TIMEOUT_MS = Number(process.env.CANOPUS_REPLY_MS) || 30_000
 
 /**
  * Ответить на ожидающую форму вопросника. ok — 204 (вызов question завершён этим ответом); settled — 409 (форма уже

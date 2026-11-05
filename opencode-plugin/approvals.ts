@@ -4,7 +4,7 @@
 import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { readJson, safeKey } from "./core.ts"
-import { BASE } from "./paths.ts"
+import { BASE } from "./base.ts"
 
 export const APPROVALS = path.join(BASE, "approvals")
 export type Decision = "ok" | "ok-shortcuts" | "no"

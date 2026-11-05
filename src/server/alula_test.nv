@@ -1,10 +1,10 @@
 // alula_test.nv - the hub runs on Alula (task 114): the machine of the sessions is the embedded `dialog.alula.json` run by `AlulaMachine`, the idle term of the
 // settings is its parameter of the project, a session in memory goes through two turns and a restart on it, the snapshot is the state of that machine.
-module crew_harness.server
+module canopus.server
 
 import std.text
 import alula.engine.{Engine, MemoryWorld, Incoming, EventKind, Journal, Store, Link, StepEnvironment, start_engine, resume_engine, memory_journal, memory_store, memory_link, memory_time, decode_snapshot}
-import crew_harness.chat.{user_says, agent_chunk, agent_done}
+import canopus.chat.{user_says, agent_chunk, agent_done}
 import alula.machine_run.{AlulaMachine, AlulaState}
 
 fn hm_made(ms int) -> AlulaMachine {

@@ -1,6 +1,6 @@
 // table_test.nv - the many-turn chat as data (task 114): the table `machines/dialog.alula.md` (Alula 2.11) translates without a note, its translation is the committed file
 // `dialog.alula.json`, the machine loads, builds, takes the idle term from the parameter of the project, has no primitives; every row of the table has a scenario (the mark `taken`).
-module crew_harness.machine_dialog
+module canopus.machine_dialog
 
 import std.text
 import std.encoding.json.{Json}
@@ -9,7 +9,7 @@ import alula.machine_table.{MachineDef, load_machine}
 import alula.machine_run.{AlulaMachine, AlulaState, ProjectValue, Test, TestRun, load_alula_machine, load_alula_machine_with, parse_test, run_test, run_ok, report_text}
 import alula.machine_text.{translate_checked_with, translate_report_with, TranslateReport, error_text, render_summary}
 import alula.engine.{Incoming, EventKind, StepEnvironment, Order}
-import crew_harness.machines.{product_registry, dialog_machine_text, dialog_table_text, test_files, translation_files}
+import canopus.machines.{product_registry, dialog_machine_text, dialog_table_text, test_files, translation_files}
 
 fn dialog_report() -> TranslateReport => translate_checked_with(dialog_table_text(), product_registry(), translation_files())
 

@@ -1,7 +1,7 @@
 // Real hub and ACP stdio, exclusively local fake_agent.mjs processes (not real family calls).
-module crew_harness.server
+module canopus.server
 
-import crew_harness.config.{layout_with_data_dir}
+import canopus.config.{layout_with_data_dir}
 
 export fn scenario_family_approvals(settings ServerSettings) Proc Detach Time Net Fs Os -> str {
     mut c = kit_check()

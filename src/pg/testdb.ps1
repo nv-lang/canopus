@@ -41,7 +41,7 @@ if (Test-Path $settings) {
     exit 1
 }
 
-$name = 'crew-pg-test-' + [guid]::NewGuid().ToString('N').Substring(0, 8)
+$name = 'canopus-pg-test-' + [guid]::NewGuid().ToString('N').Substring(0, 8)
 # ORACLE-WORKAROUND(57): md5 for the test logins: a connection with SCRAM costs about a quarter of a second on the unoptimized build of the driver
 # (4096 rounds of HMAC in Nova), and the tests make hundreds of connections; use SCRAM for all the logins when item 57 is fixed.
 # A login created with a SCRAM secret still authenticates with SCRAM under this setting (the test "SCRAM login" makes one).

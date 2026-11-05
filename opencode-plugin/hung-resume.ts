@@ -3,15 +3,15 @@
 // ctx.session.interrupt({sessionID, resume: true}), тот же вызов, что делает окно по Esc, — и будит вкладку письмом «продолжай».
 // Пределы: одна попытка на зависание (время последней активности модели), не больше RESUME_PER_HOUR попыток на сессию за час.
 // Неуспех (interrupt нет, бросил, ответил interrupted=false; ход снова завис после попытки; предел) — прежнее уведомление
-// владельцу «нажмите Esc…». Решение — чистая функция resumeVerdict: её проверяет test/crew-hung-resume.test.mjs.
+// владельцу «нажмите Esc…». Решение — чистая функция resumeVerdict: её проверяет test/canopus-hung-resume.test.mjs.
 import { hhmm } from "./core.ts"
 
 export const RESUME_PER_HOUR = 2
 export const RESUME_WINDOW_MS = 60 * 60_000
 /** Сколько ждать после успешной попытки, пока ход того же зависания не сдвинется: потом — владельцу. */
-export const RESUME_GRACE_MS = Number(process.env.CREW_HARNESS_RESUME_GRACE_MS) || 5 * 60_000
+export const RESUME_GRACE_MS = Number(process.env.CANOPUS_RESUME_GRACE_MS) || 5 * 60_000
 /** Предел ожидания ответа interrupt: зависший вызов не держит проход сводки. */
-const INTERRUPT_MS = Number(process.env.CREW_HARNESS_STEP_MS) || 30_000
+const INTERRUPT_MS = Number(process.env.CANOPUS_STEP_MS) || 30_000
 
 /** Попытка: зависание (since — время последней активности модели), когда пробовали, удалась ли. */
 export type ResumeTry = { since: number; at: number; ok: boolean }
@@ -36,7 +36,7 @@ export const resumeLetter = (at: number) => `Ход завис и прерван
 /** Запись в истории задачи об успешном самовосстановлении. */
 export const resumeNote = (since: number, at: number) => `ход завис с ${hhmm(since)}; плагин прервал его в ${hhmm(at)} и попросил продолжить`
 
-/** Есть ли у плагина способ прервать ход (проба при загрузке и crew_doctor). */
+/** Есть ли у плагина способ прервать ход (проба при загрузке и canopus_doctor). */
 export const canInterrupt = (session: any) => typeof session?.interrupt === "function"
 
 /** Прервать ход сессии. ok — сервер ответил interrupted=true (прервано выполнение, принадлежащее этому процессу OpenCode). */

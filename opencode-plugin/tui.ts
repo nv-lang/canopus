@@ -1,4 +1,4 @@
-// crew-harness — ПЛАГИН ОКНА (TUI). OpenCode грузит его в каждом окне: tui.ts в папке плагина, папка указана в
+// canopus — ПЛАГИН ОКНА (TUI). OpenCode грузит его в каждом окне: tui.ts в папке плагина, папка указана в
 // ~/.config/opencode/cli.json, раздел plugins (сервер грузит index.ts той же папки из opencode.jsonc).
 //
 // ЗАЧЕМ. Письмо будит вкладку ходом модели, а сервис OpenCode работает и без окон; надёжно знать, какие вкладки
@@ -12,7 +12,7 @@
 // даёт {type: "session", sessionID}; api.ui.tabs.list() — [{sessionID, title, active, busy, ...}]; api.ui.toast.show
 // с sessionID чужой вкладки сам добавляет кнопку Open.
 //
-// СВОДКА /crew и «ЖДЁТ ВАС» (план 003). Команда окна — как встроенный модуль opencode.stats той же версии:
+// СВОДКА /canopus и «ЖДЁТ ВАС» (план 003). Команда окна — как встроенный модуль opencode.stats той же версии:
 // ui.slot({append: "app"}) + keymap.layer({commands: [{slash: {name}, palette: true, run}]}); run показывает
 // ui.dialog.alert со сводкой из status/ (пишет плагин сервиса) — в окне, без хода модели. Уведомление с attention —
 // ещё и attention.notify: системное уведомление, когда окно не в фокусе (настройка OpenCode attention.notifications).
@@ -29,10 +29,10 @@ import { listTasks, loadTask, taskNo } from "./tasks.ts"
 import { DECISION_RU, type Decision, writeApproval } from "./approvals.ts"
 
 const BEAT_MS = 1_000
-const AUTOCLOSE_MS = Number(process.env.CREW_HARNESS_AUTOCLOSE_MS) || 120_000
+const AUTOCLOSE_MS = Number(process.env.CANOPUS_AUTOCLOSE_MS) || 120_000
 
 export default {
-  id: "crew-harness.window",
+  id: "canopus.window",
   setup(api: any) {
     mkdirSync(WINDOWS, { recursive: true })
     // окно плагина закрывается само, когда его клавиши забрал вопрос, пришедший под него (задача 069, dialog-guard.ts): иначе Esc «закрыть окно» отменяет вопрос
@@ -96,7 +96,7 @@ export default {
     // длинный текст — в широком прокручиваемом диалоге (dialog-text.tsx): alert OpenCode узкий, прижат к верху и не прокручивается;
     // короткий остаётся обычным alert. Модуль грузится при старте, с защитой: не загрузился — везде alert
     let textDialog: any
-    if (api.ui?.slot && !process.env.CREW_HARNESS_NO_SIDEBAR) import("./dialog-text.tsx").then((m) => (textDialog = m)).catch((e) => log(`text dialog not drawn pid=${process.pid}: ${String(e).slice(0, 300)}`))
+    if (api.ui?.slot && !process.env.CANOPUS_NO_SIDEBAR) import("./dialog-text.tsx").then((m) => (textDialog = m)).catch((e) => log(`text dialog not drawn pid=${process.pid}: ${String(e).slice(0, 300)}`))
     const showText = (o0: { title: string; message: string }): Promise<void> | undefined => {
       const o = { title: str(o0?.title), message: str(o0?.message) } // в <text> идут только строки
 
@@ -125,7 +125,7 @@ export default {
     const offThread = (op: any): Promise<string> =>
       new Promise((resolve) => {
         const fallback = () => void inline(op).then(resolve)
-        if (process.env.CREW_HARNESS_NO_WORKER) return fallback()
+        if (process.env.CANOPUS_NO_WORKER) return fallback()
         import("node:worker_threads")
           .then(({ Worker }) => {
             if (!worker) {
@@ -156,7 +156,7 @@ export default {
             fallback()
           })
       })
-    // /crew: кто чего ждёт — свой проект первым
+    // /canopus: кто чего ждёт — свой проект первым
     const showStatus = () => {
       let route: string | undefined
       try {
@@ -165,7 +165,7 @@ export default {
       } catch {}
       const list = readStatuses()
       const mine = list.find((s) => s.session === route)?.project
-      showText({ title: "crew-harness — who waits for what", message: formatStatuses(list, Date.now(), mine) })
+      showText({ title: "canopus — who waits for what", message: formatStatuses(list, Date.now(), mine) })
     }
     // /ask: вопросы, которые ждут владельца (задача 040) - проект, вкладка, сколько ждёт, текст вопроса и варианты; из forms/, без хода модели
     const showAsk = () => {
@@ -175,9 +175,9 @@ export default {
       } catch (e) {
         text = `Не прочитать вопросы: ${e}`
       }
-      showText({ title: "crew-harness — вопросы, ждущие вас", message: text })
+      showText({ title: "canopus — вопросы, ждущие вас", message: text })
     }
-    // /crew-config: действующие настройки проекта вкладки на экране — значение и откуда (как crew_config show)
+    // /canopus-config: действующие настройки проекта вкладки на экране — значение и откуда (как canopus_config show)
     const showConfig = async () => {
       let route: string | undefined
       try {
@@ -185,7 +185,7 @@ export default {
         route = r?.type === "session" ? r.sessionID : undefined
       } catch {}
       const card = route ? readJson<any>(cardFile(route)) : undefined
-      const title = "crew-harness — настройки проекта"
+      const title = "canopus — настройки проекта"
       showText({ title, message: "Загрузка…" })
       const text = await offThread({ kind: "config", dir: card?.directory || process.cwd(), project: card?.project })
       showText({ title, message: text })
@@ -241,12 +241,12 @@ export default {
         return
       }
     }
-    // /crew-doctor: последняя самопроверка сервиса (он пишет её при запуске и раз в 10 минут)
+    // /canopus-doctor: последняя самопроверка сервиса (он пишет её при запуске и раз в 10 минут)
     const showDoctor = () => {
       const d = readJson<{ at: number; problems: string[]; notes?: string[] }>(DOCTOR_FILE)
-      showText({ title: "crew-harness — самопроверка", message: doctorText(d) })
+      showText({ title: "canopus — самопроверка", message: doctorText(d) })
     }
-    // /crew-progress: что сейчас идёт (задача 004) — ход фоновых сессий методики по `progress.log` всех рабочих деревьев репозитория
+    // /canopus-progress: что сейчас идёт (задача 004) — ход фоновых сессий методики по `progress.log` всех рабочих деревьев репозитория
     // вкладки на экране; без хода модели. progress-view.ts подгружается по требованию: сбой в нём — сообщение, а не падение окна
     const showProgress = async () => {
       let route: string | undefined
@@ -268,12 +268,12 @@ export default {
         const lines = w.stepProgressLines(Date.now(), { project: card?.project })
         if (lines.length) text += `\n\nСрок шага вышел:\n${lines.join("\n")}`
       } catch {}
-      showText({ title: "crew-harness — что сейчас идёт", message: text })
+      showText({ title: "canopus — что сейчас идёт", message: text })
     }
     // КОМАНДЫ БЕЗ ХОДА МОДЕЛИ, ОТВЕТ СРАЗУ (владелец, 2026-10-08: «выполнение команды должно делаться сразу»). Прежняя серверная
     // регистрация (ctx.command.transform + ctx.session.synthetic) отвечала служебным сообщением, которое окно OpenCode 2.0.23
     // не показывает вовсе (проба на одноразовом сервере: execute вызван, synthetic завершён, список сообщений сессии пуст).
-    // Поэтому /crew-help, /crew-sets и /crew-profiles — команды окна, как /crew-progress: текст в диалоге. Серверных команд с
+    // Поэтому /canopus-help, /canopus-sets и /canopus-profiles — команды окна, как /canopus-progress: текст в диалоге. Серверных команд с
     // этими именами нет (два одноимённых пункта в списке слэш-команд были бы лишними).
     const tabDir = (): string => {
       let route: string | undefined
@@ -301,7 +301,7 @@ export default {
       } catch (e) {
         text = `Не прочитать справку: ${e}`
       }
-      showText({ title: "crew-harness — справка", message: text })
+      showText({ title: "canopus — справка", message: text })
     }
     // Каталог моделей для сверки окон (use, check): живой список окна (api.state.provider), иначе снимок плагина сервиса
     // (model-catalog.ts) с возрастом; нет ни того ни другого — причина вместо молчаливого «недоступен»
@@ -317,11 +317,11 @@ export default {
       return snap.models ? { catalog: snap.models, catalogNote: snap.note } : { catalogWhy: snap.why }
     }
     // Меню команды: «Таблица» и все глаголы с краткой строкой «что делает и с какими аргументами» (описания — core.ts, VERB_HELP:
-    // тот же источник, что у /crew-help и у строки отказов); глагол с аргументами открывает ввод с форматом именно этого глагола
+    // тот же источник, что у /canopus-help и у строки отказов); глагол с аргументами открывает ввод с форматом именно этого глагола
     const verbCommand = (kind: "sets" | "profiles") => async (given?: unknown) => {
       // АРГУМЕНТЫ СЛЭШ-КОМАНДЫ (проба 2026-10-09, сборка OpenCode 2.0.23): команда окна со slash.arguments = true получает при отправке
-      // «/crew-sets use kimi» всё после имени строкой (run("use kimi")) и перехватывает ввод ДО отправки модели вкладки; без флага
-      // такая строка уходила модели как обычное сообщение. «/crew-sets» без аргументов, из палитры или из подсказки — пустая строка
+      // «/canopus-sets use kimi» всё после имени строкой (run("use kimi")) и перехватывает ввод ДО отправки модели вкладки; без флага
+      // такая строка уходила модели как обычное сообщение. «/canopus-sets» без аргументов, из палитры или из подсказки — пустая строка
       // или undefined: открывается выбор набора (семьи), ls делает то же. Ход выбора — sets-flow.ts (задача 066, пп. 8–9).
       const dialog = api.ui?.dialog
       if (!dialog?.select) return
@@ -334,15 +334,15 @@ export default {
       })
     }
     const commands = [
-      { id: "crew-harness.status", title: "Crew: кто чего ждёт", group: "Crew", slash: { name: "crew" }, palette: true, run: showStatus },
-      { id: "crew-harness.ask", title: "Crew: вопросы, ждущие вас", group: "Crew", slash: { name: "ask" }, palette: true, run: showAsk },
-      { id: "crew-harness.config", title: "Crew: настройки проекта", group: "Crew", slash: { name: "crew-config" }, palette: true, run: showConfig },
-      { id: "crew-harness.plans", title: "Crew: планы на согласовании", group: "Crew", slash: { name: "plans" }, palette: true, run: showPlans },
-      { id: "crew-harness.doctor", title: "Crew: самопроверка", group: "Crew", slash: { name: "crew-doctor" }, palette: true, run: showDoctor },
-      { id: "crew-harness.progress", title: "Crew: что сейчас идёт", group: "Crew", slash: { name: "crew-progress" }, palette: true, run: showProgress },
-      { id: "crew-harness.help", title: "Crew: справка", group: "Crew", slash: { name: "crew-help" }, palette: true, run: showHelp },
-      { id: "crew-harness.sets", title: "Crew: наборы профилей моделей", group: "Crew", slash: { name: "crew-sets", arguments: true }, palette: true, run: verbCommand("sets") },
-      { id: "crew-harness.profiles", title: "Crew: профили моделей и окон", group: "Crew", slash: { name: "crew-profiles", arguments: true }, palette: true, run: verbCommand("profiles") },
+      { id: "canopus.status", title: "Canopus: кто чего ждёт", group: "Canopus", slash: { name: "canopus" }, palette: true, run: showStatus },
+      { id: "canopus.ask", title: "Canopus: вопросы, ждущие вас", group: "Canopus", slash: { name: "ask" }, palette: true, run: showAsk },
+      { id: "canopus.config", title: "Canopus: настройки проекта", group: "Canopus", slash: { name: "canopus-config" }, palette: true, run: showConfig },
+      { id: "canopus.plans", title: "Canopus: планы на согласовании", group: "Canopus", slash: { name: "plans" }, palette: true, run: showPlans },
+      { id: "canopus.doctor", title: "Canopus: самопроверка", group: "Canopus", slash: { name: "canopus-doctor" }, palette: true, run: showDoctor },
+      { id: "canopus.progress", title: "Canopus: что сейчас идёт", group: "Canopus", slash: { name: "canopus-progress" }, palette: true, run: showProgress },
+      { id: "canopus.help", title: "Canopus: справка", group: "Canopus", slash: { name: "canopus-help" }, palette: true, run: showHelp },
+      { id: "canopus.sets", title: "Canopus: наборы профилей моделей", group: "Canopus", slash: { name: "canopus-sets", arguments: true }, palette: true, run: verbCommand("sets") },
+      { id: "canopus.profiles", title: "Canopus: профили моделей и окон", group: "Canopus", slash: { name: "canopus-profiles", arguments: true }, palette: true, run: verbCommand("profiles") },
     ]
     try {
       api.ui.slot({
@@ -358,14 +358,14 @@ export default {
       } catch {}
     }
 
-    // блок «Crew» в боковой панели (план 003.2): отдельным модулем и с защитой — JSX компилирует OpenCode; не вышло (другая
+    // блок «Canopus» в боковой панели (план 003.2): отдельным модулем и с защитой — JSX компилирует OpenCode; не вышло (другая
     // версия, тест под Node) — блока нет, присутствие, уведомления и команды работают
-    const crewSidebar = api.ui?.slot && !process.env.CREW_HARNESS_NO_SIDEBAR ? import("./sidebar.tsx").then((m) => (m.mountSidebar(api), log(`sidebar mounted pid=${process.pid}`))).catch((e) => log(`sidebar not drawn pid=${process.pid}: ${String(e).slice(0, 300)}`)) : undefined
-    // блок «Ход работ» (задача 004) — под «Crew», своей цепочкой: ошибка в нём не касается «Crew», ошибка в «Crew» не мешает ему
-    crewSidebar?.finally(() => import("./progress-sidebar.tsx").then((m) => (m.mountProgress(api), log(`progress block mounted pid=${process.pid}`))).catch((e) => log(`progress block not drawn pid=${process.pid}: ${String(e).slice(0, 300)}`)))
+    const canopusSidebar = api.ui?.slot && !process.env.CANOPUS_NO_SIDEBAR ? import("./sidebar.tsx").then((m) => (m.mountSidebar(api), log(`sidebar mounted pid=${process.pid}`))).catch((e) => log(`sidebar not drawn pid=${process.pid}: ${String(e).slice(0, 300)}`)) : undefined
+    // блок «Ход работ» (задача 004) — под «Canopus», своей цепочкой: ошибка в нём не касается «Canopus», ошибка в «Canopus» не мешает ему
+    canopusSidebar?.finally(() => import("./progress-sidebar.tsx").then((m) => (m.mountProgress(api), log(`progress block mounted pid=${process.pid}`))).catch((e) => log(`progress block not drawn pid=${process.pid}: ${String(e).slice(0, 300)}`)))
 
     // поток поднимается заранее (через 5 с после открытия окна), чтобы первая команда не ждала ни загрузки модулей, ни git
-    const warmTimer = process.env.CREW_HARNESS_NO_WORKER ? undefined : setTimeout(() => void offThread({ kind: "warm" }), 5_000)
+    const warmTimer = process.env.CANOPUS_NO_WORKER ? undefined : setTimeout(() => void offThread({ kind: "warm" }), 5_000)
     warmTimer?.unref?.()
     beat()
     const timer = setInterval(beat, BEAT_MS)

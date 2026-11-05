@@ -7,8 +7,8 @@
 //                                                   --new -- the same values set explicitly, --legacy -- hold and off
 // The snapshot is the base BEFORE task 005, which is the old behaviour; the defaults changed (owner, 2026-10-09), so the
 // snapshot is compared only with the explicit old values.
-// The texts: the refusal of crew_spawn by the limit with an accepted task, the reminders about an accepted, not cleaned up task,
-// formatTaskLetter, planTaskLetter, reviewLetter, planMergeLetter, crew_task show and list for tasks in running, reviewing and
+// The texts: the refusal of canopus_spawn by the limit with an accepted task, the reminders about an accepted, not cleaned up task,
+// formatTaskLetter, planTaskLetter, reviewLetter, planMergeLetter, canopus_task show and list for tasks in running, reviewing and
 // accepted. The temp folder and the clock are replaced by markers. LANDING_GOLDEN_FILE points to another snapshot file
 // (the control: a snapshot with one line spoiled must differ).
 import { execFileSync } from "node:child_process"
@@ -19,7 +19,7 @@ import { fileURLToPath, pathToFileURL } from "node:url"
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const SNAPSHOT = process.env.LANDING_GOLDEN_FILE || path.join(HERE, "landing-golden.json")
-const PLUGIN = process.env.CREW_PLUGIN_DIR ? path.resolve(process.env.CREW_PLUGIN_DIR) : path.join(HERE, "..")
+const PLUGIN = process.env.CANOPUS_PLUGIN_DIR ? path.resolve(process.env.CANOPUS_PLUGIN_DIR) : path.join(HERE, "..")
 const dumpAt = process.argv.indexOf("--dump")
 const mode = process.argv.includes("--write") ? "write" : process.argv.includes("--check") ? "check" : dumpAt > 0 ? "dump" : ""
 const keysMode = process.argv.includes("--legacy") ? "legacy" : process.argv.includes("--new") ? "new" : "none"
@@ -28,14 +28,14 @@ if (!mode || (mode === "check" && keysMode !== "legacy") || (mode === "write" &&
   process.exit(2)
 }
 
-const tmp = mkdtempSync(path.join(os.tmpdir(), "crew-golden-"))
+const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-golden-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CREW_HARNESS_POLL_MS = "100"
-process.env.CREW_HARNESS_STATUS_MS = "100"
-process.env.CREW_HARNESS_FLOW_MS = "200"
-process.env.CREW_HARNESS_LEFT_MS = "3600000"
-process.env.CREW_HARNESS_DB = path.join(tmp, "absent.db")
-delete process.env.CREW_HARNESS_PRESENCE
+process.env.CANOPUS_POLL_MS = "100"
+process.env.CANOPUS_STATUS_MS = "100"
+process.env.CANOPUS_FLOW_MS = "200"
+process.env.CANOPUS_LEFT_MS = "3600000"
+process.env.CANOPUS_DB = path.join(tmp, "absent.db")
+delete process.env.CANOPUS_PRESENCE
 
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true })
@@ -54,7 +54,7 @@ const settings = {
   ...(keysMode === "legacy" ? { accepted_slot: "hold", cleanup_limit: 10, merge_precheck: "off", task_extra_fields: [] } : {}),
   ...(keysMode === "new" ? { accepted_slot: "free", cleanup_limit: 10, merge_precheck: "required", task_extra_fields: [] } : {}),
 }
-writeFileSync(path.join(proj, ".opencode", "crew-harness.json"), JSON.stringify(settings))
+writeFileSync(path.join(proj, ".opencode", "canopus.json"), JSON.stringify(settings))
 const git = (...a) => execFileSync("git", ["-C", proj, "-c", "user.name=t", "-c", "user.email=t@t", ...a], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })
 git("init", "-q", "-b", "main")
 writeFileSync(path.join(proj, "a.txt"), "a")
@@ -110,16 +110,16 @@ make({ title: "согласованный план", slug: "plan-ok", goal: "в�
 
 const stop = await mod.default.setup(ctx)
 const call = async (name, input) => (await tools[name].execute(input, { sessionID: "sesINTEG1" })).content
-await call("crew_role", { role: "integrator" })
+await call("canopus_role", { role: "integrator" })
 
 const out = {}
 const cfg = core.loadConfig(proj)
 const load = (n) => tasks.loadTask("proj", n)
-out["spawn: refusal by inflight_limit"] = await call("crew_spawn", { title: "ещё", goal: "g", criteria: "c" })
-out["spawn: refusal, priority P1"] = await call("crew_spawn", { title: "ещё", goal: "g", criteria: "c", priority: "P1" })
-out["list"] = await call("crew_task", { action: "list" })
-out["list all"] = await call("crew_task", { action: "list", all: true })
-for (const n of [1, 2, 3, 4, 5]) out[`show #${n}`] = await call("crew_task", { action: "show", n })
+out["spawn: refusal by inflight_limit"] = await call("canopus_spawn", { title: "ещё", goal: "g", criteria: "c" })
+out["spawn: refusal, priority P1"] = await call("canopus_spawn", { title: "ещё", goal: "g", criteria: "c", priority: "P1" })
+out["list"] = await call("canopus_task", { action: "list" })
+out["list all"] = await call("canopus_task", { action: "list", all: true })
+for (const n of [1, 2, 3, 4, 5]) out[`show #${n}`] = await call("canopus_task", { action: "show", n })
 for (const n of [1, 2, 4]) out[`letter formatTaskLetter #${n}`] = core.formatTaskLetter(load(n))
 out["letter planTaskLetter #4"] = core.planTaskLetter(load(4))
 out["letter reviewLetter #2"] = review.reviewLetter(load(2), cfg)

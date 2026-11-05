@@ -3,7 +3,7 @@ module chat_delivery_fixture_tests.delivery_test
 // ORACLE-WORKAROUND(32): keep fs before text for direct test entry code generation.
 import std.fs.{Path}
 import std.text
-import crew_harness.server.{kit_files, kit_chat_files, scenario_chat, scenario_prompt}
+import canopus.server.{kit_files, kit_chat_files, scenario_chat, scenario_prompt}
 
 test "chat fixture: user echo is explicit and leaves raw defaults and agent identity intact" {
     ro raw = kit_files("chat-fixture-argv", 30000)

@@ -1,4 +1,4 @@
-# CrewHarness — the OpenCode plugin
+# Canopus — the OpenCode plugin
 
 *ИИ-команда в упряжке — обвязка для команды ИИ-агентов.*
 
@@ -12,15 +12,15 @@ from a plan to a merge, while the owner only approves and watches:
   confirms the cleanup;
 - **letters** — between tabs and projects, addressed by `project.role`; questions with an awaited answer;
 - **flow control** — reminders, a stall watchdog, recovery after a service restart, a stale-window check;
-- **the machine** — long waits that outlive a turn (`crew_watch`) and a queue for heavy runs;
-- **for the owner** — a side panel in the window, `/crew`, "waiting for you" notices, acceptance reports;
+- **the machine** — long waits that outlive a turn (`canopus_watch`) and a queue for heavy runs;
+- **for the owner** — a side panel in the window, `/canopus`, "waiting for you" notices, acceptance reports;
 - **everything is a setting** — plan form, acceptance steps, grades, limits, who approves.
 
 A *window* is the OpenCode program in a terminal; a *tab* is a session inside it (one on screen, the rest in the
 background); a task session may run with no window at all. Formerly `opencode-peers` (renamed 2026-10-07, plan 005).
 
-- tools `crew_list`, `crew_send`, `crew_wait`, `crew_watch`, `crew_role`, `crew_inbox`, `crew_spawn`,
-  `crew_task`, `crew_config`, `crew_doctor`, `crew_branch_note`, `crew_help` (also `/crew-help`);
+- tools `canopus_list`, `canopus_send`, `canopus_wait`, `canopus_watch`, `canopus_role`, `canopus_inbox`, `canopus_spawn`,
+  `canopus_task`, `canopus_config`, `canopus_doctor`, `canopus_branch_note`, `canopus_help` (also `/canopus-help`);
 - **projects**: every tab belongs to a project and its address is `project.role`
   (`nova.integrator`). A plain role means the sender's own project; `project.role` reaches another
   project; `all` is every open tab of the own project, `project.all` of another one; a session id
@@ -32,7 +32,7 @@ background); a task session may run with no window at all. Formerly `opencode-pe
   the name the plugin asks git which repository the folder belongs to (`git rev-parse
   --git-common-dir` points at the `.git` of the main working folder; the folder name is never
   guessed) and takes the project whose root holds that main folder. Reading and writing
-  (`/crew-sets use`, `/crew-profiles`, `crew_config show|set|apply_template`, the window files) go to
+  (`/canopus-sets use`, `/canopus-profiles`, `canopus_config show|set|apply_template`, the window files) go to
   the settings folder of the main working folder of the project; the committed copy of the file in
   a task branch does not stand in for it. A tab in a folder that belongs to no project is refused
   with «папка вкладки … не относится к проекту», not with the old-form text;
@@ -40,15 +40,15 @@ background); a task session may run with no window at all. Formerly `opencode-pe
   be a folder of many repositories, like `C:/work/nova`). The plugin option `project_settings` lists
   settings folders (not projects) — any folder inside a git repository; the old name `projects` stays a
   synonym: it is read when `project_settings` is not set (both set: `project_settings` acts, `projects` is
-  ignored and `crew_doctor` names the entries that differ; only `projects` as a list: it works, `crew_doctor`
+  ignored and `canopus_doctor` names the entries that differ; only `projects` as a list: it works, `canopus_doctor`
   adds one low-importance note «ключ projects переименован в project_settings; прежнее имя работает» below its
-  verdict, not a problem). The file `.opencode/crew-harness.json` there
+  verdict, not a problem). The file `.opencode/canopus.json` there
   names the project and its root (relative to the folder) and is read **committed** from the
   default branch (`git show`; another branch: its `"branch"` field), never from the working copy:
 
   ```jsonc
   "plugins": [
-    { "package": "C:/work/crew-harness/opencode-plugin",
+    { "package": "C:/work/canopus/opencode-plugin",
       "options": { "project_settings": ["C:/work/nova/nova-settings", "C:/work/tools"],
                    "local": { "nova": { "spawn_models": { "light": "kimi/k3" } } } } }
   ]
@@ -63,7 +63,7 @@ background); a task session may run with no window at all. Formerly `opencode-pe
 
   `local` holds machine-specific values on top of the file. The old options form
   `{ "nova": "C:/work/nova" }` (only under the old name `projects`) still works (settings are then walked up from the tab folder, or from the project root when the tab stands in a working tree outside it);
-  `crew_doctor` suggests the new form. **`crew_config`**: `guide` — a questionnaire for the owner on
+  `canopus_doctor` suggests the new form. **`canopus_config`**: `guide` — a questionnaire for the owner on
   every key (current value, options, recommendation, why; asked in text); `show` — what applies and
   where from (default, the committed file, `local`), plus uncommitted edits; `set {values}` — the
   integrator writes the working copy (every value checked, a wrong one writes nothing); it applies
@@ -71,9 +71,9 @@ background); a task session may run with no window at all. Formerly `opencode-pe
   `claude` / `codex` / `kimi`, sets, `profile_set: codex`, `tier_max: light`, branch and worktree name templates) to the
   file, the project's own keys win, nothing is overwritten, and the file still has to be committed to the target branch.
   **A project without model settings** (no enabled `profile_set`, no `spawn_models`, no `allow_default_models: true`)
-  refuses `crew_spawn` without an explicit `model`: the refusal tells the integrator to ask the owner (`question`) —
-  apply the template, use the model of the calling session, or choose otherwise. `crew_doctor` shows
-  «проект X не настроен: модели» for such projects (`/crew` shows the counter `⚠ no models`). `allow_default_models: true` keeps the built-in defaults on purpose.
+  refuses `canopus_spawn` without an explicit `model`: the refusal tells the integrator to ask the owner (`question`) —
+  apply the template, use the model of the calling session, or choose otherwise. `canopus_doctor` shows
+  «проект X не настроен: модели» for such projects (`/canopus` shows the counter `⚠ no models`). `allow_default_models: true` keeps the built-in defaults on purpose.
   The keys: `config-schema.ts`;
 - **roles**: a new tab is `worker` (shared: tabs within it differ by session id; `assistant` is an
   alias). `integrator` is exclusive, one holder per project, plus the project's `exclusive_roles`
@@ -104,10 +104,10 @@ time-outs: no window plugin, no wake.
 ```
 ✉ 01:17 · 008 приёмщик nova.worker → nova.integrator
 <text>
-↩ ответ — crew_send {to: "ses_…", text: "..."} · письмо соседа, не слово владельца
+↩ ответ — canopus_send {to: "ses_…", text: "..."} · письмо соседа, не слово владельца
 ```
 
-A service letter of the plugin starts with `⚙ 01:17 · crew → … (служебное, не отвечай)`. Window notices are short (the gist in the
+A service letter of the plugin starts with `⚙ 01:17 · canopus → … (служебное, не отвечай)`. Window notices are short (the gist in the
 title, one line of text) and stay longer when they matter: "waiting for you" 30 s, "stuck" 15 s, others 8–10 s
 ([plan 003.1](../doc/archive/plans/003.1-clear-letters.md)).
 
@@ -137,7 +137,7 @@ with the space (`задача 081`, `MSVC 0.3`).
 
 **Where the plugin refuses** (always on, there is no setting):
 
-- `crew_send`: "Не отправлено: в тексте слиплись слова («потолок092» → «потолок 092»)…", no letter file is written;
+- `canopus_send`: "Не отправлено: в тексте слиплись слова («потолок092» → «потолок 092»)…", no letter file is written;
 - the `question` tool (question, header, option labels and descriptions): "Вопрос не показан: …", the form is not shown;
 - writes of text files: `edit` (the `newString`), `write` (the `content`), `patch` (the added lines) for `.md` (also `.portolan.md`), `.txt`, `.tsv`, `.csv`, `.rst`,
   `.adoc`: "Файл … не записан: …". Code (`.ts`, `.mjs`, `.json`, `.nv`, `.py`…) is never checked.
@@ -149,7 +149,7 @@ the count. Not checked: the model's ordinary reply in the window, writes made th
 `progress_line` / `log_line`.
 
 `question` and file writes are checked through OpenCode's tool hooks (`tool.execute.before`, `permission.evaluate`, `tool.execute.after`);
-with an OpenCode that has no such hook the plugin writes one line to its journal and only `crew_send` is checked.
+with an OpenCode that has no such hook the plugin writes one line to its journal and only `canopus_send` is checked.
 `node test/glued-corpus.mjs` measures the sign on the `*.md` and `*.tsv` files of the repository.
 
 ## The folder and the branch of a window are watched (task 157)
@@ -161,11 +161,11 @@ owner's windows are not watched, nor is a window whose place is not known for ce
 - **How it reads.** The folder of the window is `session.get(...).location` (not the card and not `ctx.location`: those belong to the plugin instance),
   the branch is read from `.git/HEAD` (also in a working tree, `gitdir:` and `commondir`): no git process, on every turn and before every command.
 - **At a turn.** A window off its place gets one line in the system part: "окно не на своей ветке: ожидалось X, фактически Y" (with the way back:
-  `session_move` for the folder, `git switch` for the branch). The service looks at the watched windows every 10 s (`CREW_HARNESS_BRANCH_MS`) and after
+  `session_move` for the folder, `git switch` for the branch). The service looks at the watched windows every 10 s (`CANOPUS_BRANCH_MS`) and after
   every shell call, so a branch changed between turns is written as "was → became" in the journal.
 - **Commands.** `git checkout`/`switch`/`merge`/`cherry-pick`/`rebase`/`reset`/`commit`/`pull` (and writes of files) in the main copy, in the tree of
   another task, or in the window's own tree off its branch (or leaving it) are refused through the permission hook until a reason is recorded:
-  `crew_branch_note {what, why, who, directory?, branch?}` -- what changes, why, who allowed it (the owner's word with the date, or the orchestrator's
+  `canopus_branch_note {what, why, who, directory?, branch?}` -- what changes, why, who allowed it (the owner's word with the date, or the orchestrator's
   decision). With the reason the commands pass in that folder for 30 minutes; with `branch`, or when the window stands off its place and the folder is its
   own, the named pair becomes the expectation until the role or the task changes. Never refused: reading (`status`, `log`, `diff`), `git -C <a helper tree
   that is not the main copy and not another task's>`, `cd <tree> && git ...`, `checkout -- file` (and `checkout file` when the name is a file and not a branch),
@@ -173,8 +173,8 @@ owner's windows are not watched, nor is a window whose place is not known for ce
   hash in `HEAD`; the plugin then reads the branch from `rebase-merge/head-name` or `rebase-apply/head-name`, so the window is not marked as off its branch.
   A reviewer holding the merge lock of its task may merge in the main copy. `workdir`, `cd`, `git -C` and `--git-dir/--work-tree` of the command are read;
   a path with an unexpanded variable is passed with a line in the plugin journal. The plugin never switches, resets or moves anything itself.
-- **Where it shows.** `/crew` and the side panel: a red `⚠` row "ожидалось → фактически" for a window off its place, a yellow `✎` row for a change with a
-  reason in the last 24 hours, one grey line for the windows in place (`/crew` only); `crew_doctor`: the drift as a problem, the watched windows and the
+- **Where it shows.** `/canopus` and the side panel: a red `⚠` row "ожидалось → фактически" for a window off its place, a yellow `✎` row for a change with a
+  reason in the last 24 hours, one grey line for the windows in place (`/canopus` only); `canopus_doctor`: the drift as a problem, the watched windows and the
   recent reasons as notes. The journal is `branch-journal.jsonl` in the mailbox (lines `drift`, `restored`, `change`, `note`, `blocked`), the snapshots are
   in `branch/`; a reason of a window bound to a task is also a line in the history of the task.
 - **Limits (honest boundaries).** An arbitrary shell (variables, substitutions, `eval` of built strings) is not parsed, a terminal outside OpenCode is not seen, and the checks
@@ -183,7 +183,7 @@ owner's windows are not watched, nor is a window whose place is not known for ce
   statement asked for; a reviewer may write into `doc/tasks/<its task>/` of the main copy (its log and evidence) without the merge lock. A permission from a reason is kept
   per folder (30 minutes each; a second note for the same folder renews it, a note for another folder does not wipe the first). The hooks are the same as those of the glued-words guard (`tool.execute.before`,
   `permission.evaluate`, `tool.execute.after`); with an OpenCode that has no such hook the plugin writes one line to its journal, and only the turn line,
-  the panel and `crew_doctor` work.
+  the panel and `canopus_doctor` work.
 
 ## Turn economy
 
@@ -194,7 +194,7 @@ next message. So:
 - a tab running a turn gets nothing; its letters go in one message when the turn ends;
 - `wake: false` letters (statuses, FYI) go in with `session.synthetic({resume: false})`: OpenCode
   puts them right before the tab's next message, in the same step;
-- a question (`expect_reply`) gives a `qid`; the asker waits with `crew_wait` in the same turn and
+- a question (`expect_reply`) gives a `qid`; the asker waits with `canopus_wait` in the same turn and
   gets the answer there, not as a second wake;
 - an ack-only letter ("ok", "спасибо") is not sent.
 
@@ -212,9 +212,9 @@ in all, hashes and numbers only when the work cannot go on without them. The pat
 (`false` leaves the summary to OpenCode). Not for tabs of the `claude-code` provider (Claude Code compacts those itself) and not for
 provider-native compaction. The rule is a request, not a barrier: the plugin cannot see the summary text.
 
-## Waiting for something long: `crew_watch`
+## Waiting for something long: `canopus_watch`
 
-`crew_watch {command, note?, minutes?}` -- the plugin runs a waiting command (Git Bash, the tab's directory) in the
+`canopus_watch {command, note?, minutes?}` -- the plugin runs a waiting command (Git Bash, the tab's directory) in the
 OpenCode server, detached, and when it exits wakes the tab with a letter: exit code, duration, output tail. The tab
 ends its turn meanwhile. It survives the end of the turn and a service restart; a command gone without an exit code
 is reported as cut off; the time limit (default 120 min, up to 720) stops it with code 124. In a claude-code tab this
@@ -232,13 +232,13 @@ service restart, and writes its Windows pid to `<id>.pid` (the record's `pid`, u
 off" check). `.exit` is written atomically as before, no window blinks, `taskkill /T` by that pid stops the tree, the
 console closes with its last process. Starting takes about 0.4 s (two Git Bash starts; the pass of the plugin waits
 for the pid). Limits: no window and no keyboard, so an interactive program does not belong in a watch;
-`CREW_HARNESS_WATCH_NO_CONSOLE=1` in the service's environment starts a watch the old console-less way (the red probe
-of `test/crew-watch-console.test.mjs`, not a setting).
+`CANOPUS_WATCH_NO_CONSOLE=1` in the service's environment starts a watch the old console-less way (the red probe
+of `test/canopus-watch-console.test.mjs`, not a setting).
 
 **Cancel closes the whole tree (task 101).** `taskkill /T` by the pid of a watch does not reach the `timeout.exe` and
 `sleep.exe` of its command: their Windows parent is a dead fork copy of Git Bash (msys), not the watch process, so a
-cancelled gate or build stayed alive. Every process of a watch's command now carries `CREW_WATCH_ID=<watch id>` in its
-environment (children inherit it, also those whose parent is already dead). Cancel (`crew_watch cancel`, a closed task),
+cancelled gate or build stayed alive. Every process of a watch's command now carries `CANOPUS_WATCH_ID=<watch id>` in its
+environment (children inherit it, also those whose parent is already dead). Cancel (`canopus_watch cancel`, a closed task),
 the time limit (code 124) and the "cut off" check find the processes with that mark in a Git Bash pass (it reads
 `/proc/<pid>/environ` with shell built-ins, and adds the descendants by `PPID` of the marked ones) and close them in one
 `taskkill /T /F`, together with their Windows children; the watch's own pid is added if it is alive (a record made before
@@ -247,39 +247,39 @@ itself leaves nothing killed (what it started in the background stays, as before
 (`cancelled`, `.exit` written by the script when the command ends on its own). The pass costs one Git Bash start
 (a few tenths of a second) and only happens on cancel, limit and "cut off"; it ends with a marker line, so a Git Bash that
 died at its start under load ("cmalloc would have returned NULL") is not taken for "no processes" and the pass is repeated, and
-the tree is scanned again after the kill (`test/crew-watch-tree.test.mjs`).
+the tree is scanned again after the kill (`test/canopus-watch-tree.test.mjs`).
 
 **The machine queue.** `machine: true` marks a command that loads the machine (a gate, a build, a full test run):
 it waits for a slot in the project's machine queue — `machine_slots` at a time (1; 0 — no limit), in the order they
-were set; the time limit counts from the start. `crew_watch` says how many are ahead, `/crew` shows it as `queued`, the
+were set; the time limit counts from the start. `canopus_watch` says how many are ahead, `/canopus` shows it as `queued`, the
 letter says how long it waited. Use it only for heavy commands: waiting for a remote CI (a `gh` or `check-push-proven-by-ci` polling loop with a pause)
 and anything else that does not load the machine goes with `machine: false`, or it holds the slot while other windows'
 heavy runs stand idle. Ordinary watches and other projects do not wait ([plan 002.2](../doc/archive/plans/002.2-machine-queue.md)).
 
-**The project's deny rules.** The command runs outside the window's permissions, so `crew_watch` checks it against
+**The project's deny rules.** The command runs outside the window's permissions, so `canopus_watch` checks it against
 `permissions.deny` of the project's `.claude/settings.json` (from the tab's directory up to the git root; no file — no
 check, an unreadable one — refusal): a command matching `Bash(…)` / `PowerShell(…)` (`prefix:*`, `*` as a wildcard),
 whole or in any subcommand (`&&`, `||`, `;`, `|`, a newline, the body of `bash -c '…'`, `$(…)`; `git -C <dir>` and
 `VAR=1 timeout N` prefixes do not hide it), or naming a file under a `Read(…)` glob is refused, naming the rule.
-**Who started it:** the command's environment carries `CREW_SESSION_ID`, `CREW_ROLE`, `CREW_PROJECT`, and
-`CREW_REVIEW_N` for the reviewer of an open task, `CREW_TASK_N` for its executor — fixed when the watch is put and
+**Who started it:** the command's environment carries `CANOPUS_SESSION_ID`, `CANOPUS_ROLE`, `CANOPUS_PROJECT`, and
+`CANOPUS_REVIEW_N` for the reviewer of an open task, `CANOPUS_TASK_N` for its executor — fixed when the watch is put and
 kept in its record, so a restart or a later role change does not alter them ([plan 002.7](../doc/archive/plans/002.7-acceptor-role.md)).
 
-## Who waits for what: `/crew` and "waiting for you"
+## Who waits for what: `/canopus` and "waiting for you"
 
-The window's right panel shows a "Crew" block under "Context": the sessions of the project of the tab on screen —
+The window's right panel shows a "Canopus" block under "Context": the sessions of the project of the tab on screen —
 the ones waiting for you first, who is working and how long, who waits for what — refreshed every 2 s
 ([plan 003.2](../doc/archive/plans/003.2-sidebar.md)). A task is shown once (task 064): its number and title lead, as a heading
 wrapped by words onto two rows at most and cut with `…` (`‖ 085 Accept Oracle evaluation`), the mark on the left being its most
 important tab's; under it a row per tab with the role and the state (`↳ исп  вопрос — ждёт ответа`, `↳ прм  ↻ ждёт доработки`), and under
 that, as before, the question or the waiting phrase and the steps. A reviewer's step in progress names its id and a short name taken
 from the step's text (`проверка 3/12: sabotage — подсунь негодное`, wrapped the same way). The steps line stands once per task, under the
-reviewer (the executor and the other sessions have none; with no reviewer among the shown tabs it is one row under the title; `/crew` follows
+reviewer (the executor and the other sessions have none; with no reviewer among the shown tabs it is one row under the title; `/canopus` follows
 the same rule). A task with a folder heads its sessions
 the same way (`061 Канон и актуальная методика`, no mark: the sessions carry theirs); a session of the methodology shows its code and
 the name of its kind (`↳ С2-5 проверка спецификации`, the state on the row under it; the names come from one list, the same as in the
 "Ход работ" block; a code outside it takes the short name of the session's goal), and the finished sessions fold into one row
-`✓ сдано N сессий`, so the rows they freed go to live tabs. `/crew` is a different, minimal screen: see «The `/crew` screen» below.
+`✓ сдано N сессий`, so the rows they freed go to live tabs. `/canopus` is a different, minimal screen: see «The `/canopus` screen» below.
 
 A working session with no live task (a worker or a reviewer whose task was cancelled or merged) is
 named by the title of its card (task 111): the title stands over its row, wrapped by words onto two rows at most and cut with `…`, and the row
@@ -308,41 +308,41 @@ the essence does not fit in two rows it is cut with `…` and the time stays.
 drawn in the theme's **warning** colour, not in the plain white: the owner saw «ждёт указаний» merge with the titles, because the theme
 of OpenCode 2.x has no `text.accent` or `text.primary` (its colours are `text.base`, `text.muted` and `text.feedback.*.base`; the accent
 is the hue `hue.accent`), so the old expression fell to the plain colour. One function, `toneStyle()` in `attention-color.ts`, serves both
-blocks ("Crew" and "Ход работ"): the warning colour, then the accent, then the primary, the first one that differs from both the plain text
+blocks ("Canopus" and "Ход работ"): the warning colour, then the accent, then the primary, the first one that differs from both the plain text
 and the grey (compared by value). When none does, or the theme has no such fields at all, the row keeps the plain colour but is drawn
 **bold**, a sign visible without colour. The tones `base` and `muted` are not touched.
-Marks of a tab (the same in `/crew` and `/ask`): `?` — waits for you;
-`▶` — asked a question in text and waits for the integrator (or you), labelled `вопрос — ждёт ответа` (the word `question` in `/crew`) with the question
+Marks of a tab (the same in `/canopus` and `/ask`): `?` — waits for you;
+`▶` — asked a question in text and waits for the integrator (or you), labelled `вопрос — ждёт ответа` (the word `question` in `/canopus`) with the question
 under it; `‖` — its turn ended with a waiting phrase and no question mark («жду дальнейших указаний», «ожидаю вашего
-решения»), labelled `ждёт указаний` (the word `paused` in `/crew`) with the
+решения»), labelled `ждёт указаний` (the word `paused` in `/canopus`) with the
 phrase under it — such a tab gets no "continue" either, the same as a question (task 056); a tab of yours waiting with such a
 phrase is counted in "Ждут вас" with `‖`, not `?`, and once the plugin sees no question form open it turns into `⚠` (task 064, below); `⚠` — the tab recorded a gate (`log_line` kind `ворота`), its turn ended, and no question to you is open: labelled `ждёт вашего решения, вопроса нет` (task 062, see `log_line` below); `◷` — the tab stands idle with an open task and no question to you, labelled `простаивает …` (task 063, see below); `•` — its turn is going. The window closes the tab of a task or review session two minutes after its task was merged (accepted — before the cleanup: an open tab keeps the server watching the task's folder, and Windows will not remove it) or cancelled, unless its turn is going or
-the tab is on screen (the owner's own tabs are left alone; the session stays in the history). `/crew-config` shows the project's settings in effect, each with where it comes from (default, the committed file,
-`local`), like `crew_config show`. `/crew-doctor` shows the service's last self-check (made at start and every 10 minutes), like `crew_doctor`. `/crew` in any window (also in the Ctrl+P palette) shows, without a model turn, the sessions of the projects in the
-minimal form of «The `/crew` screen» below: working, **waiting for you** (its last answer ends with a question and you have not
+the tab is on screen (the owner's own tabs are left alone; the session stays in the history). `/canopus-config` shows the project's settings in effect, each with where it comes from (default, the committed file,
+`local`), like `canopus_config show`. `/canopus-doctor` shows the service's last self-check (made at start and every 10 minutes), like `canopus_doctor`. `/canopus` in any window (also in the Ctrl+P palette) shows, without a model turn, the sessions of the projects in the
+minimal form of «The `/canopus` screen» below: working, **waiting for you** (its last answer ends with a question and you have not
 written since), waiting for a watch, for an answer to its question, for its task's review or rework, for its own tasks, or
 idle — your project first, the ones waiting for you on top. A session that starts waiting for you puts a notice into every live window
 (with Open; a system notification when the window is not focused, if OpenCode's `attention.notifications` is on)
 and repeats it every `owner_reminder_min` minutes (15; 0 — once) until you answer ([plan 003](../doc/archive/plans/003-status.md)).
 
-### The `/crew` screen (task 077)
+### The `/canopus` screen (task 077)
 
-The owner (2026-10-17): «в /crew нужно уменьшить количество текста до минимума, оставшийся сделай на анг., общается crew должен на моем
-языке». `/crew` (`formatStatuses` in `status.ts`) shows the minimum and its labels are **English and short**; what tabs and the owner
+The owner (2026-10-17): «в /canopus нужно уменьшить количество текста до минимума, оставшийся сделай на анг., общается crew должен на моем <!-- guard-allow(legacy-name): дословное слово владельца 2026-10-17 -->
+языке». `/canopus` (`formatStatuses` in `status.ts`) shows the minimum and its labels are **English and short**; what tabs and the owner
 write (titles of tasks, questions, options, goals of sessions, the note of a watch) is shown **as it is** and is never translated. The
-language the tabs write in is `owner_language` of the project (above): `/crew` only shows their words and substitutes nothing — the
+language the tabs write in is `owner_language` of the project (above): `/canopus` only shows their words and substitutes nothing — the
 question of a tab is printed whole (spaces folded to one line), the title of a task is printed whole. The side panel keeps its own
-Russian words and drawing (task 068); `/crew-sets`, `/crew-profiles`, `/crew-progress` are not touched.
+Russian words and drawing (task 068); `/canopus-sets`, `/canopus-profiles`, `/canopus-progress` are not touched.
 
 ```
 Waiting for you: 4 · since 15:22 · nova 094 rev
-crew-harness
+canopus
   ? integrator  waiting you 39m
       ↳ <the question of the tab, as it is>
   061 Канон и актуальная методика · 26 done
     ‖ С2-5 spec review  paused 22h
   022 <title> — exec submitted · rev in review 12/12 ⚠ stuck 34h
-nova · uncleaned 091 29h · reports 091 098 099 · ⚠ off-branch · /crew-doctor
+nova · uncleaned 091 29h · reports 091 098 099 · ⚠ off-branch · /canopus-doctor
   ? 094 <title>
     ? exec  waiting you 46m
         ↳ <the question of the tab, as it is>
@@ -358,7 +358,7 @@ idle: ai-dev-methodology
   `· 26 done` (the same rule as the panel's «✓ сдано N сессий»).
 - **The first line** is the one «Waiting for you» for all projects: how many, since when (the oldest), and the project and the tab to open.
   The project line is its name and the counters; a project with only free tabs and nothing to count is on the last line `idle: …`.
-- **The words** are one list next to the words of the panel, in `progress.ts`: `CREW_STATE_WORDS` (`waiting you`, `question`, `paused`,
+- **The words** are one list next to the words of the panel, in `progress.ts`: `CANOPUS_STATE_WORDS` (`waiting you`, `question`, `paused`,
   `working`, `watch`, `queued`, `reply`, `tasks`, `stalled`, `idle`, `gate`, `hung · Esc`, `no turn · Esc`, `done`), `TASK_WORDS` (`submitted`,
   `in review`, `rework`, `accepted`, …), `ROLE_WORDS` (`exec`, `rev`), `SESSION_KIND` (the kinds of the methodology: `spec`, `spec fix`,
   `spec review`, `plan`, `plan fix`, `plan review`, `work`, `work resume`, `work fix`, `work review`, `delivery`, `delivery fix`,
@@ -370,21 +370,21 @@ idle: ai-dev-methodology
   merged tasks with a report of the last day, up to three), `stale asks N`, `answers N (M owner)` (automatic answers of the last
   24 hours and how many the owner took over), `for you K` (questions the answers left to the owner), `lock NNN Ч` (waiting for the merge lock),
   `⚠ off-branch` (settings in the working copy differ from the branch) and `⚠ no models` (the project has no model settings), with
-  `/crew-doctor`.
-- **Where the rest is now.** The model of a tab: `crew_list`, `/crew-profiles`, the field `model` of `status/<session>.json`. The sentence of
+  `/canopus-doctor`.
+- **Where the rest is now.** The model of a tab: `canopus_list`, `/canopus-profiles`, the field `model` of `status/<session>.json`. The sentence of
   the state (`detail`) and the reason of «stuck» (`stuck[].what`), the stale questions (`askedStale`): the same file. The text and the
-  short name of the step being checked: the side panel («проверка 3/13: id — название»), `crew_task show N` (the steps and the report).
+  short name of the step being checked: the side panel («проверка 3/13: id — название»), `canopus_task show N` (the steps and the report).
   The finished sessions of a task: the journal of the task folder (`log.md`) and the record of the task. The plans, their rounds and steps:
-  `/plans`, `crew_task list` and `show` of the plan's task. The questions and answers of automatic answers: the history of the task
-  (`crew_task show`), the line «авто 24ч» of the panel. The lock and the settings: the panel (`ждут замок`, `⚠ не на ветке`), `crew_doctor`
-  (`/crew-doctor`) and `crew_config show`. The screen no longer ends with a line of time: it does not refresh by itself.
+  `/plans`, `canopus_task list` and `show` of the plan's task. The questions and answers of automatic answers: the history of the task
+  (`canopus_task show`), the line «авто 24ч» of the panel. The lock and the settings: the panel (`ждут замок`, `⚠ не на ветке`), `canopus_doctor`
+  (`/canopus-doctor`) and `canopus_config show`. The screen no longer ends with a line of time: it does not refresh by itself.
 
 ### An idle tab between sessions is marked and woken (task 063)
 
 A tab that set tasks (the integrator, as a rule) may stop with nothing going: the next session of a task is not launched, a
 session waits for its word, and no question to you is open (owner, 2026-10-16: «что-то застряло?»). The tab **stands idle** when
 its state is "waiting for its own tasks" (no turn going, no question to you — a form, a question mark or a waiting phrase at the
-end of the turn, a gate of task 062 —, no `crew_watch`, no own question with `expect_reply` waiting, no own task), the tab is open in a
+end of the turn, a gate of task 062 —, no `canopus_watch`, no own question with `expect_reply` waiting, no own task), the tab is open in a
 window, and among its open tasks one stands — between sessions (status `idle`), or its executor or reviewer waits for the tab
 (marked stuck towards it, or its turn ended with a question) — while no other task goes, or some session waits for the tab. A
 task goes in `starting`, `running`, `rework` (the executor works), `submitted` (the plugin assigns a reviewer; the flow watch raises a
@@ -392,7 +392,7 @@ long wait), `reviewing`, `accepted` (the reviewer) and `approval` (the plan wait
 the tab's last turn or at the last change of the standing tasks, whichever is later. Past `idle_tab_minutes` (20; 0 — off) the tab
 gets ONE letter «Ты простаиваешь N мин: у задачи <…> нет идущей сессии … и нет вопроса владельцу. Сделай следующий шаг цикла или
 задай вопрос владельцу инструментом question», and the side panel shows `◷ простаивает с ЧЧ:ММ (N мин), вопроса владельцу
-нет: 061 между сессиями` and `/crew` the row `◷ integrator  stalled 35m` (the tab does not count in "Ждут вас": it waits for nobody). An empty turn in answer to the letter keeps the
+нет: 061 между сессиями` and `/canopus` the row `◷ integrator  stalled 35m` (the tab does not count in "Ждут вас": it waits for nobody). An empty turn in answer to the letter keeps the
 episode (no second letter, the mark comes back); the episode ends with a working turn of the tab (a tool call), your word in the tab,
 an open question to you, a watch, a launched session, or a change of the standing tasks; a new stand past the threshold is a new
 episode with its own letter. The episode with a sent letter is kept in `idle-tabs/<session>.json`, so a restart of the service
@@ -401,7 +401,7 @@ does not repeat the letter.
 **The same rule by the status of the task (task 070).** The status "going" does not yet mean that somebody works (owner, 2026-10-17:
 «никто не работает?»). A task in `starting`, `running` or `rework` **stands** when it has no executor (`096 без исполнителя`), when the
 plugin knows no live session of its executor (`сессии исполнителя нет`: no summary of the session and the card does not wake), or when the
-executor is **silent** — its turn ended, and it waits for nothing: no `crew_watch`, no question to you, no own question, no letter in
+executor is **silent** — its turn ended, and it waits for nothing: no `canopus_watch`, no question to you, no own question, no letter in
 delivery, no going turn (`092 исполнитель молчит с 10:24`). The silence is counted from the end of the executor's last turn, the newest
 unread letter to it, or the last change of the task, whichever is later, and must last `idle_tab_minutes` too (one setting for both
 rules). Unlike "between sessions", such a task is not excused by another task that goes: another task does not revive a dead one. An
@@ -409,8 +409,8 @@ rules). Unlike "between sessions", such a task is not excused by another task th
 the integrator of the addressee took it (`child`) or works a turn now, and stands when nobody took it for `idle_tab_minutes` — named apart
 (`096 заказ не взят: nova-bignum.integrator вне окна`, or `в окне, но не взял`). A silent executor that asks the tab (the state
 "question") or is stuck towards it still reads as "waits for the tab" of task 063. `submitted`, `reviewing` and `approval`
-stay as before (`accepted` — task 076, below). The letter adds the steps: reassign (`crew_task reassign`), write to the executor
-(`crew_send`), cancel (`crew_task cancel`); for an order — ask the owner whether he opens the window of the addressee, or cancel the
+stay as before (`accepted` — task 076, below). The letter adds the steps: reassign (`canopus_task reassign`), write to the executor
+(`canopus_send`), cancel (`canopus_task cancel`); for an order — ask the owner whether he opens the window of the addressee, or cancel the
 order.
 
 **An accepted task nobody cleans up (task 076).** The reminders of an accepted task that is not cleaned up stop after the fifth
@@ -418,12 +418,12 @@ one (task 043), and the status `accepted` used to read as "goes" for ever: on No
 all five letters were read (owner, 2026-10-17: «6 — по рекомендации»). Now an `accepted` task **stands** when all five reminders
 have gone to its author, its reviewer does not lead the cleanup, and `idle_tab_minutes` (no new key) have passed since the latest of
 the last reminder, the reviewer's silence and the last change of the task. The reviewer **leads** the cleanup while its turn goes, a
-question to you or its own question with `expect_reply` is open, or it asks the author; a `crew_watch` of the reviewer leads it only
+question to you or its own question with `expect_reply` is open, or it asks the author; a `canopus_watch` of the reviewer leads it only
 when it was started within the threshold — an older watch with no turn and no change of the task is waiting without progress. A
 reviewer without a live session (or a task without a reviewer) does not lead. Fewer than five reminders, a younger stand, and a
 cleaned task (`done`) are out of the rule; as with the other stands, another task that goes does not excuse it. The author gets ONE
 letter «задача NNN … принята в ЧЧ:ММ, все 5 напоминаний об уборке ушли, а приёмщик её не ведёт» (write to the reviewer with
-`crew_send`, or clean up and call `crew_task cleanup` yourself) and the mark `◷`: `NNN принята, уборка ждёт приёмщика с ЧЧ:ММ`
+`canopus_send`, or clean up and call `canopus_task cleanup` yourself) and the mark `◷`: `NNN принята, уборка ждёт приёмщика с ЧЧ:ММ`
 (the time of the acceptance). The episode ends as the others do: a working turn of the tab, your word, a cleaned task, a turn of the
 reviewer.
 
@@ -434,7 +434,7 @@ hours past the named term: the task read as going, the integrator's window worke
 asked for no answer and went nowhere higher (owner, 2026-10-24: «У каждого шага свой срок — да, 30 минут на выполнение», «092 не делается,
 в чем дело? как этого избежать в будущем?»). The watch of the term of a step looks at the TASK: it **stands** when its step did not change for
 longer than the term of the step, **whether or not the window is busy**. The file is `idle-watch.ts`; it runs in the pass of the service
-(every 30 s, `CREW_HARNESS_STEP_MS`) over the open tasks of all projects.
+(every 30 s, `CANOPUS_STEP_MS`) over the open tasks of all projects.
 
 - **The step** is by the status: `starting` — the launch of the executor, `running`/`rework` — the work of the executor,
   `submitted`/`reviewing` — the acceptance, `approval` — the presentation of the plan, `accepted` — the cleanup, `idle` — between sessions, an
@@ -447,20 +447,20 @@ longer than the term of the step, **whether or not the window is busy**. The fil
   review, plan, order, cleanup, between`). `step_extend_minutes` (30) is how long an answer extends the term, `step_answer_minutes` (15)
   how long the letter waits for the answer.
 - **The ladder.** (1) The term is out: ONE letter «Шаг стоит N мин, срок вышел: …» to the window of the holder that **asks for an answer by a
-  tool**: `crew_step_note {n, reason, minutes}` (what is done, what you wait for; the term is extended once, by at most
-  `step_extend_minutes`) or `crew_step_note {n, done: true}`. A word in the turn is not an answer. (2) After the extension the second letter
+  tool**: `canopus_step_note {n, reason, minutes}` (what is done, what you wait for; the term is extended once, by at most
+  `step_extend_minutes`) or `canopus_step_note {n, done: true}`. A word in the turn is not an answer. (2) After the extension the second letter
   (the last one: no more than two letters per step). (3) **The question to the owner** opens when the letter got no answer for
   `step_answer_minutes`, when the same reason is named a second time (the extension is then not given), or when the term is out again
   after two letters. It is a record with four options — wait more, narrow the task, change the executor, give up — a recommendation and an
   argument made of the records (who holds the step, what it waited for, how long it stands): the author gets a letter with the text for the
-  `question` tool, the windows a notice, and the task is marked **«срок вышел, вопрос открыт»** in `/crew`, the side panel, `/crew-progress`
-  and `crew_doctor` (a problem line). (4) The owner decides in words; the AUTHOR writes it down: `crew_step_note {n, decide: "wait"|"narrow"|
+  `question` tool, the windows a notice, and the task is marked **«срок вышел, вопрос открыт»** in `/canopus`, the side panel, `/canopus-progress`
+  and `canopus_doctor` (a problem line). (4) The owner decides in words; the AUTHOR writes it down: `canopus_step_note {n, decide: "wait"|"narrow"|
   "reassign"|"cancel", who: "<the owner's word with the date and the source>"}`. The question closes, the new term runs (for «wait» —
   `minutes`; for the others `step_extend_minutes` to do the action), and no new letter or question comes inside it.
 - **Обычный срок шага не тревожит** (это не отключение health/аварий) while: a turn of the window on THIS task goes (the executor or the reviewer of the task is working; a busy window of the author
   with other things is not an exception); a question to the owner is open at the holder, the executor or the reviewer; the task is on
-  **HOLD/STOP by the owner's word** (the author records it: `crew_step_note {n, hold: "HOLD"|"STOP", who}`; `release` with `who` removes it;
-  the mark is in the record of the task and shows in `/crew` and `crew_doctor`); an open `crew_watch` of the holder whose ceiling (`minutes`) is
+  **HOLD/STOP by the owner's word** (the author records it: `canopus_step_note {n, hold: "HOLD"|"STOP", who}`; `release` with `who` removes it;
+  the mark is in the record of the task and shows in `/canopus` and `canopus_doctor`); an open `canopus_watch` of the holder whose ceiling (`minutes`) is
   not out; a plan on `approval` when `plan_approver` is `owner` (you decide in `/plans`), and a question to you in the text of a turn (state `owner`) at the holder, the executor or the reviewer. A change of the step (a new status, a word of the holder) closes the episode and its open question.
 - **Where it lives.** `idle-watch/<project>/<n>.json` in the box of the plugin: the episode (the key of the step, the term, the letters, the
   answers, the question) and the mark. Nothing is kept in memory: after a restart of the service the term is the same and no letter is repeated
@@ -469,15 +469,15 @@ longer than the term of the step, **whether or not the window is busy**. The fil
   `step_letters_per_pass` (3) new letters in one pass of the service (every 30 s); the rest wait for the next pass and are not lost. At most
   `step_questions_max` (2) open questions to the owner per project; the others wait their turn (their ladder does not move on) until the owner decides
   an open one. (b) A task that stands longer than `step_old_minutes` (300, ten terms; 0 — no summary) gets no letter of its own: it goes into ONE
-  summary question per project «Шаг стоит давно, срок вышел: …» — the list «number «title» — minutes, holder», the options close (`crew_task cancel`) /
+  summary question per project «Шаг стоит давно, срок вышел: …» — the list «number «title» — minutes, holder», the options close (`canopus_task cancel`) /
   HOLD / wait / change the executor, a recommendation. (c) A holder with no live window (no card, or the card does not wake) gets no letter: its task goes
   into the same summary question at once, however young. The summary question is made once; it shrinks silently as tasks are decided (the author writes
-  `crew_step_note {n, decide | hold, who}` per task; `decide` works on a task of the summary question too) and goes away with the last one; a task
-  whose wait is over comes back into a new summary question. It shows in `/crew`, the side panel, `/crew-progress` («Срок шага вышел») and `crew_doctor`.
+  `canopus_step_note {n, decide | hold, who}` per task; `decide` works on a task of the summary question too) and goes away with the last one; a task
+  whose wait is over comes back into a new summary question. It shows in `/canopus`, the side panel, `/canopus-progress` («Срок шага вышел») and `canopus_doctor`.
 - **A deliberate wait needs HOLD.** The option «wait more» gives only a new term (`minutes`, default `step_extend_minutes`); when it is over the ladder begins
   again (about `step_extend_minutes + step_answer_minutes` later). To wait on purpose, the author records HOLD with the owner's word; the text of the question and
   the answer to `decide: "wait"` say so.
-- **Смыслы HOLD разделены.** `crew_step_note {n, hold: "HOLD", hold_scope, who}`:
+- **Смыслы HOLD разделены.** `canopus_step_note {n, hold: "HOLD", hold_scope, who}`:
   `execution` — не начинать исполнение/новые команды, но уже работающий процесс не прерывать;
   `external` — ждать конкретный `wait_id` до проверки через `minutes` (по умолчанию 30), разрешённая диагностика не запрещена;
   `gate` — не принимать и не сливать, исполнение/диагностика в прежних границах разрешены. `hold_gate: true` сочетает внешний
@@ -487,7 +487,7 @@ longer than the term of the step, **whether or not the window is busy**. The fil
   с датой/источником от автора. Изменение прототипа не означает, что оно уже применено к живым HOLD или настройкам владельца.
 - **Health не равен сроку шага.** Native failed и terminal внешнего ожидания (`failed/cancelled/timeout`) либо пропуск
   контрольного срока уведомляют ответственного автора даже под HOLD, CI/очередью, открытым вопросом и `step_term_minutes: 0`.
-  `wait_result` с текущим `wait_id` и `reason` фиксирует внешний факт; старый ID не принимается. Для `crew_watch` terminal
+  `wait_result` с текущим `wait_id` и `reason` фиксирует внешний факт; старый ID не принимается. Для `canopus_watch` terminal
   читается по точному ID, включая завершённые наблюдения. Это не разрешает CI rerun, увеличение timeout или merge.
   Без реакции через 15 минут — ограниченная эскалация. `health_blocker` сохраняет причину, ответственного и next-check
   (до 30 минут); та же причина его не переносит, более двух разных блокеров приводят к немедленной эскалации.
@@ -505,7 +505,7 @@ longer than the term of the step, **whether or not the window is busy**. The fil
   `review` of a reviewer). A reviewer that works a turn on task 31 gives no excuse for task 30 it also holds: the letter about 30 goes to it. (A reviewer tab that
   holds several tasks has one `review` on its card — the last one assigned; the others are watched.)
 - **Borders.** The step «answer to a question» (`expect_reply`) is not watched here (it has no task record; `askedStale` and the counters of
-  `/crew` keep it). The owner answers through the author; there is no dialog of the window as `/plans` has. The question is a record and a
+  `/canopus` keep it). The owner answers through the author; there is no dialog of the window as `/plans` has. The question is a record and a
   letter, not a form of the built-in questionnaire: only a call of the `question` tool in a model turn makes such a form.
 
 ### A question to the owner is not lost (task 040)
@@ -520,15 +520,15 @@ service (the windows get time to show their questions again); then the record sa
 the tab any more. The plugin does not answer for you here and never picks the recommended option for a LOST question; a form that is open
 and on the screen may be answered by the project's own setting (`answer_mode`, below, task 096) - never otherwise.
 A question you cancelled with Esc (`form.cancelled`) is returned faster: once its turn has ended the tab is asked again after 3 seconds
-(`CREW_HARNESS_FORM_CANCEL_GONE_MS`), the service looks every second until that is done, a busy tab and your own word in the tab still hold it back.
+(`CANOPUS_FORM_CANCEL_GONE_MS`), the service looks every second until that is done, a busy tab and your own word in the tab still hold it back.
 **A window of the plugin over a question (task 069).** In OpenCode the keys go to ONE handler, the one of the keyboard mode pushed last: a dialog
 pushes `modal`, the questionnaire pushes `form`. A question that is open before a window of the plugin is safe (Esc closes only the window). A
 question that arrives while the window is open takes the keys at once: Esc would cancel it, Enter would answer it with the first option, and the window
-cannot be closed by its own keys. So every window the plugin opens (`/crew`, `/crew-sets`, `/plans`, menus and inputs) is guarded: when another mode
+cannot be closed by its own keys. So every window the plugin opens (`/canopus`, `/canopus-sets`, `/plans`, menus and inputs) is guarded: when another mode
 holds the keys longer than 0.3 s the plugin closes the window itself, tells you in a notice, and the question stays open and on the screen; open the
 command again if you still need it (now the window lies over the question, which is safe). Windows of OpenCode itself (palette, model picker) are not
-guarded. Code: `dialog-guard.ts`, self-test `crew-esc-question`.
-Every window shows who waits for you, over all projects. `/crew` starts with one line `Waiting for you: N · since ЧЧ:ММ · <project> <NNN role>`
+guarded. Code: `dialog-guard.ts`, self-test `canopus-esc-question`.
+Every window shows who waits for you, over all projects. `/canopus` starts with one line `Waiting for you: N · since ЧЧ:ММ · <project> <NNN role>`
 (the time and the source of the oldest wait, so a window of another project sees the question is not its own). The side panel
 shows it on three lines, so the narrow panel cuts nothing you need: `Ждут вас: N · с ЧЧ:ММ`; `? <project> <NNN role>` — the tab
 that waits longest, whole (`‖` when its turn ended with a waiting phrase); `↳ <question>` — the start of its question, cut to the panel (no question text, no third line).
@@ -542,7 +542,7 @@ off by default).
 A tab that asks the same question again (the text and the options are the same, both, in the same order; case and spacing do not
 count, nothing is guessed by closeness) gets a new form, and the old form of that tab becomes «replaced»: its record stays in
 `forms/` as history (`replacedBy`, `replacedAt`), but it is no longer an open question - it is not in `/ask`, in «Ждут вас», in the
-panel, in `crew-answer` or in the reminders, and the plugin never wakes the tab for it. An answer to it is refused with
+panel, in `canopus-answer` or in the reminders, and the plugin never wakes the tab for it. An answer to it is refused with
 «вопрос задан заново формой <id>, ответьте на неё». A form of another text or other options, a form of another tab, and a form
 of a tab whose turn is long over and that was not asked again all stay open: the question is still the owner's. Duplicates that
 piled up before the rule are closed by the same rule at the first pass of the plugin (the tick of the lost questions and the
@@ -561,7 +561,7 @@ superset, another order), a form without options, another tab, and a tab that we
 
 ### The record of a question lives while its call is open; a dialog without a record (task 120)
 
-A dialog "Questions" can hang in a window for hours while `crew-answer` says "no open question form" and the orchestrator says "no questions" (2026-10-19:
+A dialog "Questions" can hang in a window for hours while `canopus-answer` says "no open question form" and the orchestrator says "no questions" (2026-10-19:
 the acceptance dialogs of two tasks, held for you by the closed list of task 096). The cause is in the database of OpenCode, which is the truth about the dialog: the
 call of the `question` tool of such a tab ended with the error "Tool execution interrupted" when the service restarted, the model went on, and the first request of
 the tab after that took the record for an answered question and removed it, while the window kept the dialog. The plugin now reads the call itself (the last `question`
@@ -572,16 +572,16 @@ tool part of the tab: running, completed, error) and decides by it:
   starts as before). There is no timer of the plugin that cancels a form: OpenCode itself aborts a call after an hour of waiting and emits `form.cancelled` at that moment.
 - **Record gone, call open** (a cleanup, the 12-hour term, an old version): on every pass, and at the start of the service, a form that the plugin left to you
   (`forms/auto/<form>.json`, state `held`) or the last ask of the tab in `forms/loops/` is made again as a record, with the options read from the call. The panel,
-  `/ask` and `crew-answer` see it again.
-- **Dialog on the screen and no record and no trace at all**: the tab is shown as waiting for you ("Ждут вас", `/crew`: `waiting you (dialog, no record) 35m`),
+  `/ask` and `canopus-answer` see it again.
+- **Dialog on the screen and no record and no trace at all**: the tab is shown as waiting for you ("Ждут вас", `/canopus`: `waiting you (dialog, no record) 35m`),
   with the age of the dialog, not as "working" or "free".
 - **Call broken, no answer** (the restart): the record stays and is marked dead (`dead`). It is shown in "Ждут вас" as "диалог закрыт" — the dialog may hang in the
-  window, but nobody can answer it any more, so it is not an open question for the reminders, the queue gate or the repeats. `crew-answer` on it (or on a held form whose
+  window, but nobody can answer it any more, so it is not an open question for the reminders, the queue gate or the repeats. `canopus-answer` on it (or on a held form whose
   call is dead and whose record is already gone) is refused with «диалог закрыт (вызов question завершён), вкладку закрыть вручную» and the form leaves the list; it also
   leaves it when the tab is closed, when you write in the tab, when the tab asks the same question again, and after a day.
 - **Completed call**: you answered (the event may have been lost): the record is removed, as before.
 
-Answer from outside the window: `node scripts/crew-answer.mjs` lists such dialogs too (a dead one is labelled), and `node scripts/crew-answer.mjs <form id | session> --option 1 --quote "your word"`
+Answer from outside the window: `node scripts/canopus-answer.mjs` lists such dialogs too (a dead one is labelled), and `node scripts/canopus-answer.mjs <form id | session> --option 1 --quote "your word"`
 applies to a restored form like to any other (a reply of the service settles the call, the record closed). No new settings key.
 
 ### Your answer to a question from outside the window (task 059)
@@ -589,9 +589,9 @@ applies to a restored form like to any other (a reply of the service settles the
 On your word in the orchestrator chat, the orchestrator can pass your answer to an open questionnaire of any tab:
 
 ```
-node scripts/crew-answer.mjs                    # open questions: project, tab, form id, question, options
-node scripts/crew-answer.mjs <form id | session | project.role> --option 2 --quote "your word"
-node scripts/crew-answer.mjs frm_123 --text "your own answer" --quote "your word"
+node scripts/canopus-answer.mjs                    # open questions: project, tab, form id, question, options
+node scripts/canopus-answer.mjs <form id | session | project.role> --option 2 --quote "your word"
+node scripts/canopus-answer.mjs frm_123 --text "your own answer" --quote "your word"
 ```
 
 The script puts an answer file into `<mailbox>/answers/` and waits up to 30 s for the result. Since task 263 the plugin settles the
@@ -621,8 +621,8 @@ a whole-word prefix of the other, «Разрешить» and «Разрешит�
 opens the loop** (`forms/loops/`, `LOOP_AFTER`). An answer that was not delivered (the tab is busy, the letter waits), a working turn
 between the questions, other questions and two forms only are not a loop. While the loop is open: the reminder «Не завершено» and the repeats
 of a lost question stop (your answers still reach the tab); you get **one row** - state «waiting for you», the mark `↻`, «вкладка зациклилась
-на вопросе: <вопрос> (ответ дан N раз); переназначьте задачу (crew_task reassign) или напишите вкладке прямо» in the panel, `/crew` (the
-counter `loop: N` in the project line) and `/ask`; the author of the task gets **one letter** with the way out (`crew_task reassign` with
+на вопросе: <вопрос> (ответ дан N раз); переназначьте задачу (canopus_task reassign) или напишите вкладке прямо» in the panel, `/canopus` (the
+counter `loop: N` in the project line) and `/ask`; the author of the task gets **one letter** with the way out (`canopus_task reassign` with
 your answer in the goal) and a line in the task history. The loop is cleared by a working turn of the tab, your word in the tab, a
 reassigned or closed task, a closed tab.
 
@@ -631,7 +631,7 @@ reassigned or closed task, a closed tab.
 A question whose repeats are used up («без ответа, нужен владелец») stays the state `owner` only while nothing else happened to the tab.
 Once the tab **worked after it** (a turn runs, or a turn ended after the form was exhausted - a letter was handed over and taken) or **made a
 newer form**, the exhausted form is spent: it gives the tab no `owner` state, and it is not in «Ждут вас», in `/ask` or in the reminders. The
-record stays in `forms/` (`resumed` is the time the service saw the tab go on; `crew-answer` still sees the form and takes an answer to it).
+record stays in `forms/` (`resumed` is the time the service saw the tab go on; `canopus-answer` still sees the form and takes an answer to it).
 A form with repeats left, a plain open question and the loop of task 078 wait as before. Likewise the mark `⚠ застряла` / `⚠ stuck` is not shown
 when the task is already past the tab: the review of a task that is accepted, done, cancelled, back with the executor on rework, or has another
 reviewer; the work of a task that is already submitted (or accepted, done, cancelled) or has another executor; a task whose record is gone. A task
@@ -660,7 +660,7 @@ about cleanup and idle time are not lost - they are postponed. The plugin log sa
 `card.busy`, старый PID, сохранённый `tool.status=running`, прежние `outcome/time.idle` и возраст флага не доказывают
 текущую занятость. Доставка проверяет read-only API OpenCode V2: `/api/info` подтверждает процесс, полный валидный
 `/api/session/active` читается до и после session info. Новый локальный context должен быть не новее terminal/idle.
-Активный native drain сохраняет занятость foreground. Отдельная команда/очередь `crew_watch` держит место для нового
+Активный native drain сохраняет занятость foreground. Отдельная команда/очередь `canopus_watch` держит место для нового
 назначения, но не блокирует рабочий вопрос/ответ при достоверно idle foreground: письмо не отменяет и не перезапускает
 наблюдение. Execution/legacy HOLD по-прежнему запрещает такой запуск. Ошибка API, неизвестная схема,
 другой процесс и устаревший снимок означают **unknown**, не «свободна». Отсутствующий старый wrapper PID не позволяет
@@ -680,13 +680,13 @@ native active/unknown и живой процесс по этому сигнал�
 новый prompt ID не создаётся, письма не теряются, ручной push не обходит неразрешённую terminal-попытку.
 Архив `wake-delivery/receipts/<id>.json` и указатели `wake-delivery/letters/` записываются **до POST**: восстановленный
 старый claim сохраняет исходные ID, timestamp и payload даже после замены latest receipt. Accepted/started не отправляются
-как новая пачка. Legacy recovered claim без проверяемого receipt остаётся в Crew-mailbox с диагностикой, а не объявляется
+как новая пачка. Legacy recovered claim без проверяемого receipt остаётся в Canopus-mailbox с диагностикой, а не объявляется
 доставленным и не повторяет неоднозначный POST. Архив пока не удаляется автоматически: сначала безопасная диагностика.
 
 GET coalescing объединяет только одновременно идущие **не-active** чтения: active observation после info должна начинаться
 заново, не присоединяться к старому in-flight snapshot. Idle по TTL не переиспользуется. Пределы: 2 GET одновременно,
 40 стартов GET/с, очередь до 64, freshness idle-снимка 10 секунд, outage backoff до 30 секунд. Unknown с ждущими письмами
-эскалирует через 120 секунд. Диагностика — `crew_task show`, `crew_doctor`; service registry/credentials не журналируются.
+эскалирует через 120 секунд. Диагностика — `canopus_task show`, `canopus_doctor`; service registry/credentials не журналируются.
 
 Снятие экземпляра плагина отзывает его локальное владение: AbortSignal отменяет native GET/ожидание очереди,
 а epoch guard отбрасывает поздние ответы SDK до применения к карточкам/задачам. `await stop()` дожидается собственных
@@ -697,7 +697,7 @@ prompt/create и не пишет файлы старого экземпляра.
 ### A hidden wait of a tab is named (task 263)
 
 «Busy» and «running» do not prove work (incident 258, 2026-10-30: a tab stood inside a `question` call for hours while the
-API said `running` and its letters waited unread). `crew_list` checks the blocker of a working tab (`blockingQuestion`,
+API said `running` and its letters waited unread). `canopus_list` checks the blocker of a working tab (`blockingQuestion`,
 `form-wait.ts`): a live record of a question form, and without a record an open `question` call in the database (a dialog
 without a record, task 120). A tab blocked on a question is shown as waiting for you with the question and since when —
 not as a bare «working». The check only reads; it never interrupts, never answers for you and sends no letters by itself.
@@ -707,14 +707,14 @@ not as a bare «working». The check only reads; it never interrupts, never answ
 The service plugin keeps `<mailbox>/status/<session id>.json` for open tabs, task sessions and sessions with watches
 or open tasks of their own — an open contract for outside checks (e.g. a project's Stop hook; the claude-code
 provider puts `OPENCODE_SESSION_ID` into Claude Code's environment). `<mailbox>` is
-`$XDG_DATA_HOME/opencode/crew-harness` (OpenCode's data directory; an earlier mailbox — `opencode-peers`, `nova-peers` — stays in place and the new name links to it on the first
-so old paths keep working):
+`$XDG_DATA_HOME/opencode/canopus` (OpenCode's data directory; an earlier mailbox — the previous product name, `opencode-peers`, `nova-peers` — blocks the plugin with a clear refusal until the one-shot
+explicit migration of task 284 moves it to the new name; no aliases, no links):
 
 ```jsonc
 { "session": "ses_…", "project": "nova", "role": "integrator", "title": "…", "model": "claude-code/opus",
   "state": "working" | "owner" | "question" | "watch" | "reply" | "task" | "tasks" | "idle",
   "since": 1791200000000, "detail": "a line for people", "question": "… (state owner)",
-  "watches": [{ "id", "note", "started", "minutes" }],          // running crew_watch
+  "watches": [{ "id", "note", "started", "minutes" }],          // running canopus_watch
   "asked": [{ "qid", "to", "at" }],                              // its questions without an answer
   "task": { "n", "status", "as": "executor" | "reviewer", "title" },
   "tasks": [{ "n", "status", "priority", "title" }],             // open tasks it set
@@ -730,17 +730,17 @@ into `doc/tasks/<NNN-name>/progress.log`, one line per finished unit: `<code> <k
 and the guard that checks it are in the Canon item "Журнал хода `progress.log`"). The window reads these journals itself —
 no service, no setting, no process — and shows them. The texts of the window are Russian, like the rest of the window.
 
-### 1. The "Ход работ" block and `/crew-progress`
+### 1. The "Ход работ" block and `/canopus-progress`
 
-Under the "Crew" block of the right panel the window draws a "Ход работ" block (nothing is drawn while no task is running):
+Under the "Canopus" block of the right panel the window draws a "Ход работ" block (nothing is drawn while no task is running):
 at most 3 tasks, 4 rows each — the mark and "NNN title", the session in words and "k/N", `↳` the last line, the state — and a bottom
-row: `ещё N · все: /crew-progress` when N tasks did not fit, `все: /crew-progress` when all fit. Marks: `!` needs attention (silent for
+row: `ещё N · все: /canopus-progress` when N tasks did not fit, `все: /canopus-progress` when all fit. Marks: `!` needs attention (silent for
 too long, stopped, a launch with no news past the threshold), `•` runs, launched, "no units" or "all steps done, no result", `✓` done. The states, as the panel prints them: "идёт HH:MM · Nм назад", "⚠ нет вестей Nм" (with
 "· ветка Mм" when the task's branch moved after the last line), "остановилась: <kind>", "готово HH:MM", "запущена HH:MM" (the row
 before says "шагов нет"), "без единиц HH:MM", "все шаги сделаны, итога нет". `HH:MM` is the time of the last line; a leading `≈` marks a
 time taken from the file (the line has no time field); `≠` after "k/N" marks a session whose lines differ between two copies
 of the journal; `+N` — other running sessions of the task. The block refreshes every 2 s from a cache; the files are walked
-at most every 5 s, so a new line is on the panel within 10 s. The command `/crew-progress` (also in the Ctrl+P palette, "Crew: что сейчас идёт")
+at most every 5 s, so a new line is on the panel within 10 s. The command `/canopus-progress` (also in the Ctrl+P palette, "Canopus: что сейчас идёт")
 shows the same in a dialog, without a model turn: every running task of the repository of the tab on screen, every running session of it with the
 last three lines of its journal, "вытеснено N" for the past sessions, and a stopped, launched or silent session with no news for
 24 hours marked "давно брошена" ("all steps done, no result" is never marked so). The repository is
@@ -755,8 +755,8 @@ Constants of the module, the same for all projects: silence is "давно не�
 for 15 minutes, a stopped, launched or silent unfinished session leaves the panel after 24 hours and the command marks it "давно брошена";
 a session in "все шаги сделаны, итога нет" leaves the panel and the command after 24 hours with no mark. They are counted
 from the clock at every show, not from a change of the file. The window process can override them, in milliseconds (a value that is not
-a positive number is ignored): `CREW_HARNESS_PROGRESS_STALE_MS` (10 minutes), `CREW_HARNESS_PROGRESS_DONE_MS` (15 minutes),
-`CREW_HARNESS_PROGRESS_ABANDON_MS` (24 hours). No project setting, no schema and no `crew_help` text is involved.
+a positive number is ignored): `CANOPUS_PROGRESS_STALE_MS` (10 minutes), `CANOPUS_PROGRESS_DONE_MS` (15 minutes),
+`CANOPUS_PROGRESS_ABANDON_MS` (24 hours). No project setting, no schema and no `canopus_help` text is involved.
 
 ### 3. Open contract: `ProgressTask`
 
@@ -816,7 +816,7 @@ state back. Later the sessions write `<code> N/N [HH:MM] готово …` last 
 
 Three tools of the plugin write the journals of a task folder (Canon item "Три журнала сессии"); they are the way to write these
 journals in an OpenCode window, the tool descriptions say so (the system hint of the tabs stays under its size cap). They are registered by a separate `ctx.tool.transform` call
-(`journal.ts`), are not in the MCP server and not among the `crew_*` tools; a failure to register them does not break the plugin. All
+(`journal.ts`), are not in the MCP server and not among the `canopus_*` tools; a failure to register them does not break the plugin. All
 are narrow: no shell, append only, a fixed file name, the path must stay inside the project folder of the window, the refusal of the
 file system comes back as a refusal, earlier lines are never rewritten. A refusal is the answer `Не записано: <reason>`, nothing is
 written; the reason names the rule, the expected form and an example call.
@@ -852,7 +852,7 @@ A stop at a gate ends with a question to the owner (task 062; owner, 2026-10-16)
 If the calling tab has no open question to the owner (no record in `forms/`), the answer adds «Ворота записаны, но вопроса владельцу нет:
 задай его сейчас инструментом question — вопрос, рекомендация, довод», and the plugin notes the stop (`gates/<session>.json`). When the turn of
 that tab ends and still no question is open, the tab gets ONE letter «ты остановился на воротах без вопроса владельцу — задай его через
-question» (not again for the same stop), and `/crew` (the word `gate` after `⚠`), `/ask`, the side panel and the notice show `⚠ ждёт вашего решения, вопроса нет`; the
+question» (not again for the same stop), and `/canopus` (the word `gate` after `⚠`), `/ask`, the side panel and the notice show `⚠ ждёт вашего решения, вопроса нет`; the
 tab counts in «Ждут вас». The stop is cleared by an open question (a questionnaire record, or a question mark at the end of the turn) or by
 the owner's word in the tab. A waiting phrase («остановлено до вашего решения») is no question: the mark `⚠` replaces `‖`. The system hint of
 the tabs carries the rule in one sentence. The phrases «до вашего решения», «остановлено … решение» are recognised as waiting phrases too, but
@@ -887,9 +887,9 @@ folder, empty outside a repository). A value the plugin cannot read is `null`, n
 
 Рабочий вопрос исполнителя/приёмщика — и с рекомендацией, и без неё — идёт доступному ответственному `task.author`, иначе актуальному интегратору проекта. Интегратор исполняет роль оркестратора **внутри** методики; внешний чат не обязательный посредник. Недостающий факт, команда Alula, служебный путь, артефакт и сверка требований — работа команды. `Recommended` не заменяет источник и не выдаёт полномочия.
 
-`crew_question {action: "ask", text, context}` сохраняет исходный `qid`, проект, задачу, адресата, канал и контекст. `crew_send {expect_reply:true}` от сессии задачи её автору/интегратору тоже создаёт такую корреляцию. Концы текстовых ходов, включая блоки `В-NN`, и новые/**уже открытые** native формы входят в тот же router, прежде старого recommendation autoanswer. Возраст старой записи не даёт права стереть действительно pending native вопрос. Роль приёмщика не исключение — blanket exception отменено ADR-0010 от 2026-10-19.
+`canopus_question {action: "ask", text, context}` сохраняет исходный `qid`, проект, задачу, адресата, канал и контекст. `canopus_send {expect_reply:true}` от сессии задачи её автору/интегратору тоже создаёт такую корреляцию. Концы текстовых ходов, включая блоки `В-NN`, и новые/**уже открытые** native формы входят в тот же router, прежде старого recommendation autoanswer. Возраст старой записи не даёт права стереть действительно pending native вопрос. Роль приёмщика не исключение — blanket exception отменено ADR-0010 от 2026-10-19.
 
-Интегратору доступны `crew_question`:
+Интегратору доступны `canopus_question`:
 
 - `status {id}` — исходный вопрос и устойчивое состояние;
 - `claim {id, epoch}` — подтверждение получения, не ответ;
@@ -897,13 +897,13 @@ folder, empty outside a repository). A value the plugin cannot read is `null`, n
 - `escalate {id, epoch, text, sources}` — только точное оставшееся решение владельца с источниками. Настоящий closed-list action нельзя разрешить нейтральным «да» через integrator reply;
 - `ack {id}` — исходный адресат подтверждает получение текстового/почтового ответа. Постановка в ящик/HTTP 200 не означает receipt или started.
 
-Состояние — `<mailbox>/question-routing/<sha256-correlation>.json`, версия `v:1`. Исходный вопрос не переписывается. `routing`/`queuedAt` — маршрут поставлен, `receivedAt` — интегратор явно подтвердил; `ready` — есть проверенный ответ; `applying` — единственная native попытка записана до I/O; `answer_queued` — текстовый ответ в ящике, не receipt; `answered` — native 204 либо ack; `settled` — актуальная native форма закрыта другим ответом/заменена; `unknown` — результат или схема не проверены; `owner` — точный необходимый остаток/ограниченная эскалация недоступного маршрута. Диагностика — `crew_question status`, `crew_list`, `crew_doctor`.
+Состояние — `<mailbox>/question-routing/<sha256-correlation>.json`, версия `v:1`. Исходный вопрос не переписывается. `routing`/`queuedAt` — маршрут поставлен, `receivedAt` — интегратор явно подтвердил; `ready` — есть проверенный ответ; `applying` — единственная native попытка записана до I/O; `answer_queued` — текстовый ответ в ящике, не receipt; `answered` — native 204 либо ack; `settled` — актуальная native форма закрыта другим ответом/заменена; `unknown` — результат или схема не проверены; `owner` — точный необходимый остаток/ограниченная эскалация недоступного маршрута. Диагностика — `canopus_question status`, `canopus_list`, `canopus_doctor`.
 
 Смена интегратора увеличивает `epoch`: старый адресат/эпоха не может ответить. Маршрут и answer outbox имеют устойчивые id. Native ответ использует **ключ из текущего `Form.Detail.fields`**, не предполагает старый `q0`, и идёт через `/api/session/{sessionID}/form/{formID}/reply`. Только 204 подтверждает наш ответ; 409 не приписывает нам чужой выбор. После timeout/restart между попыткой и результатом — только сверка, без второго POST. Вопрос/предложенный ответ/источник остаются в записи. Актуальный native ответ владельца старше позднего ответа команды; новый native пользовательский ввод для текста — барьер stale ответа, не источник разрешения из произвольной фразы. Неизвестная legacy схема видима и fail-closed.
 
 Предел командного маршрута — 15 минут от durable intake публикации (для давно открытой формы не от её старого timestamp). Нет безопасного продолжения/источника/receipt — устойчивый **адресный blocker** ответственному, не бесконечный внешний чат и не автоматический новый owner-вопрос. По unknown форме сначала диагностика команды; владельцу лишь настоящее оставшееся решение, не поиск пути. До источника ничего не угадывается.
 
-Локальное дополнение 2026-11-01 ([ADR-0017, датированное уточнение](../doc/canon/decisions/ADR-0017-working-questions-through-integrator.md)): `crew_question {action:"default", id, epoch, sources, deadline?}` заранее объявляет только фиксированное `continue_assigned`. Host берёт assignment qid и digest текущих goal/boundaries/criteria/phase/executor/reviewer из реальной записи задачи; модель не может передать scope/owner-approved флаг или произвольный default текст. Источник — проверяемый doc/ hash+quote; deadline можно сократить, но не продлить за исходные 15 минут. Это не перенос общего механизма вопросов/находок в Crew и не смена pin.
+Локальное дополнение 2026-11-01 ([ADR-0017, датированное уточнение](../doc/canon/decisions/ADR-0017-working-questions-through-integrator.md)): `canopus_question {action:"default", id, epoch, sources, deadline?}` заранее объявляет только фиксированное `continue_assigned`. Host берёт assignment qid и digest текущих goal/boundaries/criteria/phase/executor/reviewer из реальной записи задачи; модель не может передать scope/owner-approved флаг или произвольный default текст. Источник — проверяемый doc/ hash+quote; deadline можно сократить, но не продлить за исходные 15 минут. Это не перенос общего механизма вопросов/находок в Canopus и не смена pin.
 
 По сроку повторно проверяются источник, тот же scope/ответственный, native актуальность и HOLD. Допустимо лишь продолжить неблокированную часть уже порученной работы; неизвестный факт не объявляется найденным, на порученной границе — сохранить состояние и остановиться. Иначе `blocked` с `blocker {to, at, deadline, why}`; исходные qid/вопрос/контекст и происхождение default остаются. Сам срок/Recommended/текст «владелец разрешил» не разрешают owner gate, новые действия/live/деньги/публикацию и не снимают HOLD. Native attempt остаётся однократным. Источники/default и факт доставки различаются; выбранное default (`defaulted`) ещё не подтверждает native 204/receipt.
 
@@ -911,13 +911,13 @@ folder, empty outside a repository). A value the plugin cannot read is `null`, n
 
 `execution_pause`/legacy HOLD не снимаются: перед native reply, который продолжает вызов, проверяется trusted execution guard; блок сохраняет `ready` без `attempted`. Сохранение отчёта/состояния и остановка на уже выданной границе либо продолжение ранее разрешённой работы в её пределах не требуют новой формы. Диагностика CI timeout не разрешает autorerun, merge или увеличение timeout. Закрытый список и личные `answer_*` неизменны.
 
-Для documentary small сохраняется **явный** `task.criteria`: проверяемый артефакт/exact SHA не заменяется выдуманным web URL. Независимый просмотр идёт до отдельной финальной приёмки владельцем. После отрицательного дополнительного просмотра `crew_task rework {candidate:"<exact SHA>", text:"конкретные замечания"}` от интегратора возвращает только submitted/reviewing результат прежнему исполнителю в прежних границах (`status:rework`), без formal reviewer/full cycle/accept. Потолок корректировок и execution/legacy HOLD сохраняются; письмо лишь поставлено, не «разбудило» и не делает busy. Старый шаг больше не изображает ожидание финальной приёмки во время исправления. Это не разрешение main/push/публикации.
+Для documentary small сохраняется **явный** `task.criteria`: проверяемый артефакт/exact SHA не заменяется выдуманным web URL. Независимый просмотр идёт до отдельной финальной приёмки владельцем. После отрицательного дополнительного просмотра `canopus_task rework {candidate:"<exact SHA>", text:"конкретные замечания"}` от интегратора возвращает только submitted/reviewing результат прежнему исполнителю в прежних границах (`status:rework`), без formal reviewer/full cycle/accept. Потолок корректировок и execution/legacy HOLD сохраняются; письмо лишь поставлено, не «разбудило» и не делает busy. Старый шаг больше не изображает ожидание финальной приёмки во время исправления. Это не разрешение main/push/публикации.
 
-Схемы сверены по [официальному V2 OpenAPI](https://opencode.ai/v2/openapi.json) (`Form.Detail`, `Form.State`, `Form.StringField`, `Form.Reply`, `SessionMessagesResponse`, `Session.Message.User`), а не по старому SDK. Native fixtures полностью изолируют `XDG_STATE_HOME`/data/config/cache/DB и запрещают неожиданный transport; `createCrewPlugin({get, spacingMs, questionIO})` совмещает native read/формы, production не имеет test=>idle fallback. Шесть question-файлов и native regressions входят в общий `pretest`; parallel runner учитывает `pretest` + `test` без дублей. Question tools/I/O входят в async drain; снятый экземпляр не начинает новый reply POST.
+Схемы сверены по [официальному V2 OpenAPI](https://opencode.ai/v2/openapi.json) (`Form.Detail`, `Form.State`, `Form.StringField`, `Form.Reply`, `SessionMessagesResponse`, `Session.Message.User`), а не по старому SDK. Native fixtures полностью изолируют `XDG_STATE_HOME`/data/config/cache/DB и запрещают неожиданный transport; `createCanopusPlugin({get, spacingMs, questionIO})` совмещает native read/формы, production не имеет test=>idle fallback. Шесть question-файлов и native regressions входят в общий `pretest`; parallel runner учитывает `pretest` + `test` без дублей. Question tools/I/O входят в async drain; снятый экземпляр не начинает новый reply POST.
 
 Текстовый stale-input barrier использует тот же `getNative` и просматривает native user pages до границы исходного вопроса (ограничение чтения — fail-closed). Только точные session/id/text/time/mode/phase durable outbound receipt позволяют пропустить **своё служебное письмо**, а не объявить его ответом владельца. За ним всё равно проверяется другой новый ввод. Нет receipt — ввод остаётся stale barrier без атрибуции владельцу; повреждение/mismatch/неполная история — `unknown`. Receipt не даёт owner approval/admission/start и не отменяет HOLD/gates.
 
-После restart исторический streaming/empty `question` не доказывает живую форму. При свежем native form list `[]` старому form id не POST и историю не переписывать/interrupt. Только ранее source-backed ответ текущего ответственного в исходном assignment/subject/SHA/scope может перейти в один durable `question-recovery-<id>` Crew-letter той же сессии; отсутствие формы/receipt/текст модели не заменяют решение. Источник/scope/ответственный/HOLD и свежий native idle проверяются перед outbox и снова непосредственно перед native admission. Новые owner gates запрещены. Native ID сохраняет механизм 279 до I/O; recovery не повторяет POST после первой попытки даже при unknown. После crash восстанавливается тот же letter/receipt, не новая доставка.
+После restart исторический streaming/empty `question` не доказывает живую форму. При свежем native form list `[]` старому form id не POST и историю не переписывать/interrupt. Только ранее source-backed ответ текущего ответственного в исходном assignment/subject/SHA/scope может перейти в один durable `question-recovery-<id>` Canopus-letter той же сессии; отсутствие формы/receipt/текст модели не заменяют решение. Источник/scope/ответственный/HOLD и свежий native idle проверяются перед outbox и снова непосредственно перед native admission. Новые owner gates запрещены. Native ID сохраняет механизм 279 до I/O; recovery не повторяет POST после первой попытки даже при unknown. После crash восстанавливается тот же letter/receipt, не новая доставка.
 
 Recovery остаётся `answer_queued` до точного per-letter receipt с **связанным новым assistant generation** (`phase: started`, nativeId/proof/startedAt); admission/enqueue/одна запись answered не доказывают продолжение. Отдельная real-plugin регрессия использует настоящие historical DB question, форму, уже исчезнувшую **до** source-backed resolve, и независимый negative без permission. Active/unknown/HOLD/иной SHA/scope/new gate и restart проверяются без старого form POST. Семь question-файлов входят в общий `pretest`.
 
@@ -926,7 +926,7 @@ Recovery остаётся `answer_queued` до точного per-letter receipt
 ### Legacy recommendation path
 
 Вне рабочего question router прежний путь сохраняется: by default every question of a session waits for the owner. A project can hand some of them to the session's own
-recommendation with two keys of `.opencode/crew-harness.json`, which only a person sets (edit the file and commit; `crew_config set`
+recommendation with two keys of `.opencode/canopus.json`, which only a person sets (edit the file and commit; `canopus_config set`
 refuses them) — [ADR-0010](../doc/canon/decisions/ADR-0010-question-answering-modes.md):
 
 - `answer_mode` — a map "type of the question → mode". Types: `requirements`, `plan`, `implementation` and `default` (for a type
@@ -934,7 +934,7 @@ refuses them) — [ADR-0010](../doc/canon/decisions/ADR-0010-question-answering-
   question closes it). The type `gate` is not accepted in the map, and the mode `agent` (another agent answers) is moved to a
   separate future task. The value that fits most projects: `{"implementation": "recommendations"}` — for `requirements` and `plan` the owner stays
   (для `requirements` и `plan` — `owner`: there the method leaves the decision to a person).
-- `allow_self_assign` (legacy setting, default `false`) does not bypass the user-session guard: `assign` is refused without a trusted owner receipt, which the API does not currently provide. Use `crew_spawn` for a separate executor.
+- `allow_self_assign` (legacy setting, default `false`) does not bypass the user-session guard: `assign` is refused without a trusted owner receipt, which the API does not currently provide. Use `canopus_spawn` for a separate executor.
 - `answer_max` — how many answers in a row one session may get (3); the owner's word in the tab resets the count.
 
 **The form of a question.** A session asks in text: a block `В-01 …?` with the lines `Тип: requirements|plan|implementation|gate`,
@@ -952,7 +952,7 @@ with the recommendation, the list of the gates "только слово влад
 numbers of the questions that are left. It is not the owner's word: слово владельца старше автоответа.
 
 **Where to look and how to take it back.** Every answer is a file in `answers/` of the mailbox (kept 30 days from the answer, then removed) and a note in the
-history of the task (`crew_task show`); the counters `answers N (M owner)` and `for you K` of `/crew` and the line "авто 24ч: N · вмеш. M" of the side panel
+history of the task (`canopus_task show`); the counters `answers N (M owner)` and `for you K` of `/canopus` and the line "авто 24ч: N · вмеш. M" of the side panel
 count the answers of the last 24 hours and the questions that wait for the owner's word (their text is in the history of the task). There is no command to take an answer back: write
 in the tab — the record becomes "владелец вмешался" and the count of answers in a row starts over. Without the keys nothing changes.
 
@@ -963,14 +963,14 @@ closes a form by itself when ALL of this holds: the mode of the type of the ques
 the **closed list**; the limit `answer_max` of automatic answers in a row for the session is not spent (an answer of the owner or his word in the tab starts the
 count over); the form is open (not replaced, not stale, not cancelled with Esc, not in the repeat of a lost question) and the tab has a running turn; the form is
 at least `answer_delay_sec` seconds old. A doubt (a parse failure, an unknown type, more than one question, a multiple choice, a loop of task 078) is the owner too.
-- `answer_delay_sec` — seconds between the form and the answer (60; `0` — at once); a person sets it like `answer_mode` (`crew_config set` refuses it, the plugin never writes
+- `answer_delay_sec` — seconds between the form and the answer (60; `0` — at once); a person sets it like `answer_mode` (`canopus_config set` refuses it, the plugin never writes
   the keys `answer_*`). You answer first in the window, or write in the tab: your answer wins and no automatic answer is made.
 - The **closed list** (`CLOSED_LIST` in `form-auto.ts`; task 097). A form stays with the owner when the question **proposes an action** of the list, or the **recommended option** (label and
   description) contains such an action. A word of the list in the description of the situation closes nothing ("red on `main`", "found at the handover", a guard named `gate-…`):
   the first version looked for the words anywhere and sent about 70 % of the questions to the owner, two thirds of them for such a word (measure of 2026-10-18). The table is
   "action -> patterns + examples": every row has verbs in the form that proposes ("запушить", "пушим", "approve"), objects, nominal actions that close after a word of proposal
   ("разрешить push", "нужен релиз") or alone in a heading / label / short question, the examples that must close (`yes`) and those that must not (`no`), a cell in
-  `test/crew-form-auto.test.mjs` for each. A row is added by a line, without a change of the logic. The rows: gates of the methodology (pass / lift / bypass a gate), approval of
+  `test/canopus-form-auto.test.mjs` for each. A row is added by a line, without a change of the logic. The rows: gates of the methodology (pass / lift / bypass a gate), approval of
   the specification and the plan, the result and the handover, push to `main` or a server, merge, deletion and cleanup, restart or switch of the service, a live check,
   tag / release / publish / asset / pin, force, password / token / key, money, the owner's word ("продолжить без слова владельца"), the keys `answer_*`, the files of the settings,
   lifting a prohibition or a border of the task, giving up a requirement, the ceiling of rounds ("сверх лимита"), widening of the rights, shared environments; plus `Тип: gate`.
@@ -985,17 +985,17 @@ at least `answer_delay_sec` seconds old. A doubt (a parse failure, an unknown ty
 - **The automatic answer never chooses the word of the owner and never answers a question that asks for it** (task 142). If a form asks for the owner's word, or the recommended option IS a word of the
   plugin's format ("заводи 129"), the plugin does not put an answer: it checks in `judgeForm`, again in the tick right before the record of the answer, and once more in the delivery
   (`owner-answer.ts`: an answer file with the source `plugin` for such a form is refused with `удержана для владельца: …`, the form stays open, the turn is not interrupted, no letter is sent). The
-  marker of the form becomes `held`, not `failed`. An answer that you give yourself (the file of `scripts/crew-answer.mjs` with your quote) is delivered as always.
-- **Where you see why a form was kept for you.** `node scripts/crew-answer.mjs` prints `[удержана для владельца: <rule> («<the word that hit>»)]` after every such form (also for the forms whose record is in `forms/`),
-  the marker `forms/auto/<form id>.json` keeps `rule` and `why`, `/crew` says `form to you K (closed N (norms 1, rounds 2), no rec M, …)`, and `crew_doctor` adds the same rules to its note. The rows have no
+  marker of the form becomes `held`, not `failed`. An answer that you give yourself (the file of `scripts/canopus-answer.mjs` with your quote) is delivered as always.
+- **Where you see why a form was kept for you.** `node scripts/canopus-answer.mjs` prints `[удержана для владельца: <rule> («<the word that hit>»)]` after every such form (also for the forms whose record is in `forms/`),
+  the marker `forms/auto/<form id>.json` keeps `rule` and `why`, `/canopus` says `form to you K (closed N (norms 1, rounds 2), no rec M, …)`, and `canopus_doctor` adds the same rules to its note. The rows have no
   key of the settings: they always act.
   A negated action ("без push", "не удалять") is not a proposal. The vocabulary is open and errs toward the owner (a doubt - to the owner). Questions of the acceptance sessions
   are NOT closed by a rule of their own (owner, 2026-10-19), neither in forms nor in text blocks; only this list and the words of the gates stay.
 - Delivery is the answer of task 059 (`owner-answer.ts`) with the source `plugin`: the file `answers/auto-<form id>.json` (one per form - the name is the "once" mark), the interrupt
   of the turn, a service letter «Ответ по настройке проекта (answer_mode: recommendations, тип …), не слово владельца», an event of the task (`[answer auto-…]`) and a log
   line `owner answer auto-… applied`. If the interrupt fails the form stays open for the owner (one try).
-- Show: `forms/auto/<form id>.json` is a marker of every form of a project with the mode on (left to the owner with the reason, or sent / applied / failed). `/crew` counts
-  `form answers N` and `form to you K (closed, no rec, limit, doubt, failed)` of the last 24 hours, the side panel row says `авто 24ч: N · вмеш. M · вам: K`, and `crew_doctor` adds a note
+- Show: `forms/auto/<form id>.json` is a marker of every form of a project with the mode on (left to the owner with the reason, or sent / applied / failed). `/canopus` counts
+  `form answers N` and `form to you K (closed, no rec, limit, doubt, failed)` of the last 24 hours, the side panel row says `авто 24ч: N · вмеш. M · вам: K`, and `canopus_doctor` adds a note
   with the count, the time of the last closing and the reasons. There is no command to take an answer back: write in the tab (your word is older than the answer), as for text answers.
 Without the key (or with `owner`) nothing changes.
 
@@ -1013,16 +1013,16 @@ one, a turn without one is empty.
 - `push_empty_turns` (3) empty turns in a row or `push_max` (20) reminders without a working turn → the tab is stuck: no
   more reminders, the asker gets a call (a letter and a notice in its window; when the asker's tab is closed, the notice goes
   to the live windows of the project, or to all live windows when the project has none), the task's history
-  records it, and `/crew` (`⚠ stuck 9h` on the row of the tab) and the side panel (`⚠ застряла с ЧЧ:ММ`) show it until the mark is cleared; the reason is in the letter and in `stuck[].what` of `status/<session>.json`;
-  `crew_task {action: "push", n, to?}` ставит письмо исполнителю или приёмщику (`to: "reviewer"`); stuck снимается только
+  records it, and `/canopus` (`⚠ stuck 9h` on the row of the tab) and the side panel (`⚠ застряла с ЧЧ:ММ`) show it until the mark is cleared; the reason is in the letter and in `stuck[].what` of `status/<session>.json`;
+  `canopus_task {action: "push", n, to?}` ставит письмо исполнителю или приёмщику (`to: "reviewer"`); stuck снимается только
   после связанного нового assistant generation, не от постановки или HTTP admission; answer/submit закрывают обязательство;
 - "stuck" also goes by itself (task 052), for all obligations of the tab and with a log line `unstuck <session> for <qid>:
   <reason>`: a working turn of the tab (before any early exit of the reminder: answer modes, an open question, a watch), a
   turn where the owner wrote, the owner's word in the tab (on the nearest pass, not at the end of the turn) and the owner's
   reply to the tab's question form (at once); old marks without a time follow the same rules. While the tab waits for the
-  owner (a question form, a question to the owner) `/crew` and the side panel do not show it as stuck;
+  owner (a question form, a question to the owner) `/canopus` and the side panel do not show it as stuck;
 - a task session deleted in OpenCode (three deliveries in a row fail with `NotFoundError`) or a task session without a card
-  (three passes in a row) → one letter to the task's author with what to do (`crew_task reassign` for an executor) and a
+  (three passes in a row) → one letter to the task's author with what to do (`canopus_task reassign` for an executor) and a
   note in the task's history, no repeats;
 - a turn with the owner's own message gets no reminder (the owner leads the tab) and resets the count;
 - a turn cut off by an OpenCode restart (the session keeps `time_suspended`, no `idle` row, OpenCode
@@ -1032,26 +1032,26 @@ one, a turn without one is empty.
   and a submitted task waiting for a reviewer that long are raised to the task's author (with a notice to the live windows
   when the author's tab is closed), and so are the leftovers of a
   closed task (branches here and on origin, worktrees by the project's name templates) ([plan 002.4](../doc/archive/plans/002.4-flow-watch.md));
-- service letters of the plugin say "do not answer"; a letter to `crew-harness` itself is refused.
+- service letters of the plugin say "do not answer"; a letter to `canopus` itself is refused.
 
 ## Tasks
 
 Task statuses: `starting` → `running` → `submitted` → `reviewing` ⇄ `rework`; `approval` (a plan task waits for approval);
 `accepted` (landed, cleanup ahead) → `done` (accepted and cleaned up); `cancelled`; `idle` (a task led by method sessions
 between two sessions: the last one submitted to the integrator, no review yet). Task files written before 2026-10-14 may say
-`cleaned` instead of `done`: it is read as `done` (no migration of the files). The action that finishes a task is `crew_task cleanup`
-(`cleaned` still works as its old name). `crew_task show` and `crew_config show` are the only names for «show»: the old word `view` is refused with the hint «Команды view больше нет, используй show».
+`cleaned` instead of `done`: it is read as `done` (no migration of the files). The action that finishes a task is `canopus_task cleanup`
+(`cleaned` still works as its old name). `canopus_task show` and `canopus_config show` are the only names for «show»: the old word `view` is refused with the hint «Команды view больше нет, используй show».
 
 **One task, one number (task 058).** In a project with task folders (the key `tasks_dir`, default `doc/tasks`; on when that
 folder is in the target branch, `""` turns it off) the task number is the number of its folder `NNN-<slug>/`, shown as `045`
 (three digits, no `#`); the plugin's record has the same number. In a project without folders (Nova) a task has a number of the plugin
 (per project, only grows, kept through rework and reassignment), shown the same way, `094`. Every task of every project is shown
 with its number with zeros on the left up to three digits and no `#` (`022`, `061`, `094`; above 999 as it is, `1000`), with a folder or
-without (task 086, replacing the `#N` of its first edition and the rule of task 083 that held for crew-harness only: one function,
+without (task 086, replacing the `#N` of its first edition and the rule of task 083 that held for canopus only: one function,
 `taskNo`, writes the number everywhere). *Why no `#`:* GitHub turns every `#N` in a commit message, a description or a comment into a link
 to an issue or a pull request of the repository and notifies its people, so the pair "hash and a number" is kept for real issues and
 pull requests, and the commit message guard (`scripts/guards/guard-commit-message.py`, rule R8) refuses it for anything else. A tab still
-titled `#33 исп …` or `61 …` is read as `033 исп` / `061` and renamed by the title pass. The owner, the integrator and `crew_list` call a
+titled `#33 исп …` or `61 …` is read as `033 исп` / `061` and renamed by the title pass. The owner, the integrator and `canopus_list` call a
 task by its number; a session's title is `045 исп title`. The journal is
 `tasks/<project>/<N>.json` in the mailbox.
 
@@ -1061,31 +1061,31 @@ task by its number; a session's title is `045 исп title`. The journal is
   the folder on the task branch (`task/message.md` = the field `message` word for word, without it the text built from the
   fields by the template below; `log.md` with its first line `ГГГГ-ММ-ДД ЧЧ:ММ документ: задание заведено …`) and commits it there (signed off,
   `Add task NNN: <slug>`) without a working copy; the main copy of the target branch is never written. `{n}` of
-  `branch_name` and `worktree_name` is three digits (`task/045-…`). A folder made outside the plugin: `crew_spawn {task: N,
+  `branch_name` and `worktree_name` is three digits (`task/045-…`). A folder made outside the plugin: `canopus_spawn {task: N,
   goal}` makes the record N without a folder commit; no folder with that number — refused. An agent outside OpenCode takes
   a number the same way: `node scripts/task-number.mjs --dir <tree> --title "<title>"` (answers JSON `{n, number, folder,
   path}` and writes the folder into that tree; the agent commits it).
 - **A task session** is one launch of an agent inside the task — the executor (`исп`), the reviewer (`прм`), a method session
-  (`С1`, `С2`, `С3п`, `С4`…) — with no task number of its own: `crew_spawn {task: N, session: "С4", goal, place?}` adds a
+  (`С1`, `С2`, `С3п`, `С4`…) — with no task number of its own: `canopus_spawn {task: N, session: "С4", goal, place?}` adds a
   session to the record of task N. Its ident is `045 С4-3` (the code and its ordinal in the task) plus the launch number
   `№n` (through the task, the same as `запуск №n` of the progress journal); before the session starts the plugin writes
   `С4 0/0 [ГГГГ-ММ-ДД ЧЧ:ММ] запуск №3` into `progress.log` of the copy where it works and `пуск: запуск №3 С4 [время] — 045
   С4-3 …` into `log.md` of the task (the forms of `progress_line` / `log_line`). Review sessions `С2`, `С4`, `С6` work by
   default in their own tree and branch `task/045-s4-3` from the task branch (`place: "own"`, recorded as a side branch for
-  cleanup), the others in the task tree (`place: "task"`). A method session submits to the integrator (`crew_task submit`
+  cleanup), the others in the task tree (`place: "task"`). A method session submits to the integrator (`canopus_task submit`
   wakes it, `log.md` gets `документ: С4-3 сдала: …`); the task waits for the next session (status `idle`). The plugin's
   review is one per task: after the submit of a task with a single `исп` session, as before, and for a task with method
-  sessions after `crew_task {action: "deliver", n, text}`. `reassign` of a task with sessions gives the same code the next
+  sessions after `canopus_task {action: "deliver", n, text}`. `reassign` of a task with sessions gives the same code the next
   ordinal and a new launch number; the old session is marked handed.
 - **The tree of a session is the tree that already stands on its branch** (task 079). Before it makes a tree for the task or for
   an own-tree session, the plugin asks `git worktree list`: a tree made by hand on that branch (for example recorded by
-  `crew_task track`) is used as it is, the record of the task (`worktree`) or of the session is aligned to its path in the same
+  `canopus_task track`) is used as it is, the record of the task (`worktree`) or of the session is aligned to its path in the same
   step, and no second `git worktree add` runs on a busy branch; the launch lines go into that tree. A branch held by the main copy
   of the project or by the tree of another open task is a refusal naming that path (the author gets a letter, the start repeats
   by itself once the cause is gone); files and branches are never moved or deleted. A recorded path whose folder is gone (git still
   remembers the registration) is made again at the same path from the branch, with the commits intact. A tree the plugin makes
   itself, from the settings, is made as before.
-- **A sub-task** is a task of its own: `crew_spawn {part_of: N, …}` — own number and folder, the first line of its
+- **A sub-task** is a task of its own: `canopus_spawn {part_of: N, …}` — own number and folder, the first line of its
   `task/message.md` is `Часть задачи NNN «…».`, the parent's `log.md` gets `документ: заведена подзадача MMM «…»` (no tree of
   the parent — a letter to the integrator with that line); the records link `part_of` / `parts`. The rule: an own acceptance
   or an own landing in `main` — a sub-task; the next step of the same work — a session.
@@ -1093,7 +1093,7 @@ task by its number; a session's title is `045 исп title`. The journal is
   (`doc/canon/process.md`, «Задание task/message.md»): `# Задание: <title>`, a header (customer, repository and branch,
   date, source), then the second-level sections «Чего хочет владелец», «Что нужно», «Критерии приёмки», «Результат и куда
   он попадает», «Связи», «Границы» in this order; an empty section is written `нет: <why>`, not dropped. Without `message`,
-  `crew_spawn` (a new task or a sub-task) in a project with folders builds the text from the fields:
+  `canopus_spawn` (a new task or a sub-task) in a project with folders builds the text from the fields:
   `owner_words` — the owner's words word for word with date and source (`- «сделай X» (владелец, 2026-10-17, чат
   оркестратора)`), required and must carry a date `ГГГГ-ММ-ДД`; `goal` — its paragraphs and `- ` lines become the numbered
   points of «Что нужно» (an already numbered goal stays as it is); `criteria`; `result` — where the result lands, or `нет:
@@ -1103,18 +1103,18 @@ task by its number; a session's title is `045 исп title`. The journal is
   `result` the call is refused before any number or folder is taken, and the answer names the field with an example; a
   `message` without the template's title and sections (in order, not empty, `нет:` with a reason, a date in the owner's
   section) is refused the same way. Old calls stay valid where no task text is written: a project without task folders
-  (`NNN`) and a session of an existing task (`crew_spawn {task: N, session, goal}`) need none of the new fields. The guard
+  (`NNN`) and a session of an existing task (`canopus_spawn {task: N, session, goal}`) need none of the new fields. The guard
   `scripts/guards/check-task-docs.py` (`message-title`, `message-section`, `message-owner`) checks the same rules for tasks
   started from 2026-10-17 01:00.
 - **Transition.** Old records keep their numbers and their show (`057 исп`). A closed old record with the number of a folder
-  moves unchanged to `tasks/<project>/legacy/<N>.json` when that task gets its record (shown by `crew_task list all`); an
-  open one refuses with its title. An order (`crew_task order`) takes its number from the same count and makes no folder.
-- **The show.** The "Crew" panel puts the task line `045 <title>` over its sessions `↳ прм`, `↳ С4-3 проверка плана`, finished
-  sessions folded into `✓ сдано N сессий` (task 064); `/crew` lists the live ones under `045 <title>` and counts the finished (`· N done`); its first line "Waiting for you" names `045 rev`, the panel's "Ждут вас" `045 прм`; notices, letters and answers name the task `045` and the
-  session `045 С4-3`. Backlogged tasks are excluded from the Crew panel and open-task counts; `crew_task list` prints them
+  moves unchanged to `tasks/<project>/legacy/<N>.json` when that task gets its record (shown by `canopus_task list all`); an
+  open one refuses with its title. An order (`canopus_task order`) takes its number from the same count and makes no folder.
+- **The show.** The "Canopus" panel puts the task line `045 <title>` over its sessions `↳ прм`, `↳ С4-3 проверка плана`, finished
+  sessions folded into `✓ сдано N сессий` (task 064); `/canopus` lists the live ones under `045 <title>` and counts the finished (`· N done`); its first line "Waiting for you" names `045 rev`, the panel's "Ждут вас" `045 прм`; notices, letters and answers name the task `045` and the
+  session `045 С4-3`. Backlogged tasks are excluded from the Canopus panel and open-task counts; `canopus_task list` prints them
   in a separate `Бэклог:` group. `idle` remains an open task between methodology sessions, not a backlog state.
 
-- `crew_spawn {title?, goal, criteria, owner_words?, result?, links?, boundaries?, open_questions?, message?, extra?, tier?, priority?, role?, parent?}` (the
+- `canopus_spawn {title?, goal, criteria, owner_words?, result?, links?, boundaries?, open_questions?, message?, extra?, tier?, priority?, role?, parent?}` (the
   integrator only) starts task `NNN` in a new session, with or without a window. No task without a
   goal and acceptance criteria (the project may require more: `task_fields`); model by tier
   (by default `claude-code/opus` / `sonnet` / `haiku`, `spawn_models` overrides; an enabled set of model profiles overrides both for the stages it describes — see [Model profiles](#model-profiles-sets-of-models-and-windows-by-stage)); a limit of running tasks per
@@ -1122,16 +1122,16 @@ task by its number; a session's title is `045 исп title`. The journal is
   plugin creates the task's worktree and branch (from the target branch) and starts the session in it, so the
   project's hooks see the task's branch, not the main copy ([plan 002.3](../doc/archive/plans/002.3-task-worktree.md)).
   The place has to lie inside the `worktrees` folder (the rule of the trees folder): a place that escapes it through
-  the `worktree_name` template is refused before the task record is made (`crew_spawn`),
+  the `worktree_name` template is refused before the task record is made (`canopus_spawn`),
   and a tree made by hand outside the folder on the task's branch is not adopted — the start is refused with how to
   fix (`git worktree move` into the folder, or remove the tree).
 - The start is repeatable: the session id is chosen and written to the journal **before**
   `session.create` (OpenCode accepts an own id starting with `ses` and returns the existing session
   on a repeat), the task letter's id comes from the number — a start cut off at any step is
   finished by the next pass without a second session or letter.
-- `crew_task {action}`: `list`, `show {n}`; `assign {session, ...}` refuses user conversations (task 256).
-  Neither a free worker role, `crew_role`, `allow_self_assign`, nor agent-supplied `owner_words` is proof of owner consent.
-  No trusted receipt for session + assignment exists yet, so use `crew_spawn` or safe `reassign` to a new session.
+- `canopus_task {action}`: `list`, `show {n}`; `assign {session, ...}` refuses user conversations (task 256).
+  Neither a free worker role, `canopus_role`, `allow_self_assign`, nor agent-supplied `owner_words` is proof of owner consent.
+  No trusted receipt for session + assignment exists yet, so use `canopus_spawn` or safe `reassign` to a new session.
   Automatic review selection only considers program-created sessions (`spawned`); it never takes a user's tab just because it is idle.
   Historical `assign` records remain readable and can still be submitted, cancelled or reassigned. For the integrator, `push
   {n, text?}` (wake a stalled executor now), `reassign {n, text?}` (a new session, the same number, a
@@ -1141,8 +1141,8 @@ task by its number; a session's title is `045 исп title`. The journal is
   required reason; preserves the task record, history, branch and worktree), `resume {n, text?}` (integrator only; returns
   without replaying execution or review side effects; `accepted` stays accepted in the cleanup queue, a confirmed live executor may restore `running`/`rework`, otherwise resume is `idle` so the next session/assignment is explicit),
   `priority {n, priority}`, `deliver {n, text}` (a task with method sessions goes to the plugin's review once). Backlog is
-  not `done` or `cancelled`, does not release its number, and cannot be replaced by `crew_spawn` using that number.
-- The executor submits with `crew_task {action: "submit", n, text}` (`submit - executor - n, text`):
+  not `done` or `cancelled`, does not release its number, and cannot be replaced by `canopus_spawn` using that number.
+- The executor submits with `canopus_task {action: "submit", n, text}` (`submit - executor - n, text`):
   no qid needed; `text` is the report (what was done, how it was checked, what is left). It covers
   the first submission, the one after rework or after a sync, and a plan task with the form check. The task is
   submitted (title `NNN ✓`) — the report does **not** wake the integrator (after rework it wakes the
@@ -1187,7 +1187,7 @@ methodology); reading never rewrites the file. Records made by `assign`, `order`
 **Folderless legacy → fast (tasks 129, 133).** Use only after the owner has explicitly authorized migration; the task-creation word «заводи 129» does not authorize migrating another task. First inspect the exact existing record, then retrieve the already-saved sent letter from the project's read-only sent-mail archive by its letter ID/session and use its `text` field verbatim. For a JSON archive entry, this read-only command prints the original text: `python -c "import json,sys; print(json.load(open(sys.argv[1],encoding='utf-8'))['text'],end='')" <archive-entry.json>`. Copy `id`, `from_session`, `to` and `qid` from that same JSON and compute SHA256 over the exact UTF-8 `text` bytes; never call `formatTaskLetter` again, regenerate from current task fields, or change the archived message. If the archive entry or exact text is unavailable, refuse migration. Task 133 recognizes only the historical `formatTaskLetter` task-letter envelope: matching project integrator, number and title, non-empty goal and acceptance criteria, matching branch in `WORKTREE ГОТОВ`, plus the format's required final submit instruction. The `СДЕЛАНО ПРЕЖНИМ ИСПОЛНИТЕЛЕМ` handoff block is optional as in the formatter; if present, it must be non-empty and followed by the valid final submit instruction. It also checks `source_id` is `task-<project>-<number>-<attempt>`, the archived `from_session` equals the header author session, `to` equals the existing executor, `qid` equals the existing task, and `source_sha256` matches exact UTF-8 `text`. These values document source provenance; they are not cryptographic authentication of the archive. This is a narrow migration for the verified historical letter form, not general support for arbitrary legacy cards or other delivery formats; those require their own contract and tests. Modern briefs still use the ordinary strict fast-brief checks. Do not migrate Nova 092 automatically, import or rewrite Nova files/history, take its merge lock, or infer a missing owner word. Then the project integrator may run:
 
 ```js
-crew_task({
+canopus_task({
   action: "migrate",
   n: 92,
   message: "<дословный text из read-only архива уже отправленного письма>",
@@ -1201,9 +1201,9 @@ crew_task({
 })
 ```
 
-This updates the existing folderless task record at the same number; it does not create a task, folder, branch, worktree, session, evidence copy or a second task. Legacy criteria are validated through a temporary in-memory projection only; the original letter is not rewritten, and its exact text hash is stored. A mismatch, missing field, missing archive source or mismatched task/project/title/branch refuses without writing. A missing owner word or repeated migration also refuses. The record's sessions and IDs, status, branch/worktree, rounds, history, precheck (including old FAIL/stale), and evidence pointers remain in place; the migration adds its own history event and route fields. This does not make an old precheck green or a waiver acceptable, and it does not bypass exact-SHA CI, precheck, independent acceptance or the merge lock. Nova's integrator runs the command only after independent acceptance of this CrewHarness mechanism and obtaining the owner's migration word.
+This updates the existing folderless task record at the same number; it does not create a task, folder, branch, worktree, session, evidence copy or a second task. Legacy criteria are validated through a temporary in-memory projection only; the original letter is not rewritten, and its exact text hash is stored. A mismatch, missing field, missing archive source or mismatched task/project/title/branch refuses without writing. A missing owner word or repeated migration also refuses. The record's sessions and IDs, status, branch/worktree, rounds, history, precheck (including old FAIL/stale), and evidence pointers remain in place; the migration adds its own history event and route fields. This does not make an old precheck green or a waiver acceptable, and it does not bypass exact-SHA CI, precheck, independent acceptance or the merge lock. Nova's integrator runs the command only after independent acceptance of this Canopus mechanism and obtaining the owner's migration word.
 
-**`crew_spawn {route: "fast", route_word, route_word_date?, ...}`.** Without `route` the task goes the full route and the record gets the fields of the full route.
+**`canopus_spawn {route: "fast", route_word, route_word_date?, ...}`.** Without `route` the task goes the full route and the record gets the fields of the full route.
 `route` can only be `full` or `fast`. The fast path needs all of the following; otherwise nothing is made (no record, no branch) and the answer is
 «Задача не поставлена: быстрый путь требует: …» — the route stays full, a task is never made without an explicit decision:
 
@@ -1217,17 +1217,17 @@ This updates the existing folderless task record at the same number; it does not
   until fixed (there is no safer route than the full one).
 
 In a project without task folders there is no brief: the fast path is refused («постановки task/message.md нет»). A session of an open task (`task: N`) takes no `route`: the route of
-an open task is changed by `crew_task route`. A fast task with a folder gets in its `log.md`, in the first commit, the line `документ: маршрут: быстрый, основание: …, источник: человек, слово завода: «…» (ГГГГ-ММ-ДД)`,
+an open task is changed by `canopus_task route`. A fast task with a folder gets in its `log.md`, in the first commit, the line `документ: маршрут: быстрый, основание: …, источник: человек, слово завода: «…» (ГГГГ-ММ-ДД)`,
 and the same line goes to the history of the record. The route is not a field of the journal's envelope: the history events carry it only as text.
 
 **Decision 51 as data** (task-runner-states.md, «Решения при переводе» 48, 51; tests 21 and 23). The record of the fast route keeps the hash of the brief as it was at the
 word (`route_message_hash`; the line ends of Windows and trailing blanks are not an edit). When `task/message.md` of the task (the task's worktree, else its branch) differs
 after the word, the record is marked `route_word_stale: true`, `clean_series` is zeroed, the history and `log.md` get a line; the numbers, the word and the trace stay.
-The warning «⚠ постановка изменена после слова завода: нужно новое слово владельца» is printed by `crew_task list`, `crew_task show` and every next step of `crew_task` with that task, and shown
-in `/crew` and in the panel, until the word is renewed. The check runs when the task is shown and at a step of `crew_task` (idempotent: the event is written once). It covers the data only:
+The warning «⚠ постановка изменена после слова завода: нужно новое слово владельца» is printed by `canopus_task list`, `canopus_task show` and every next step of `canopus_task` with that task, and shown
+in `/canopus` and in the panel, until the word is renewed. The check runs when the task is shown and at a step of `canopus_task` (idempotent: the event is written once). It covers the data only:
 the gate В5, the phase «РАЗБОР» and the re-run of the implementation belong to the engine.
 
-**`crew_task {action: "route", n, route, ...}`** (integrator; an open task). `route: "full"` needs `text` — the reason, which becomes the basis in the journal; the word is emptied,
+**`canopus_task {action: "route", n, route, ...}`** (integrator; an open task). `route: "full"` needs `text` — the reason, which becomes the basis in the journal; the word is emptied,
 `clean_series` is zeroed, the trace is kept. `route: "fast"` with a new `route_word` (+ `route_word_date`) renews the word of a marked task: the same conditions as at the start,
 the brief is read again, the new hash is kept, the mark is removed, the series start over. `route: "small"` on an already-small record may omit `route_word`: the recorded phrase, its date, basis and time are reused (the recovery of the records switched before the lift existed). The line `документ: маршрут: …` goes to `log.md` of the task.
 
@@ -1235,19 +1235,19 @@ the brief is read again, the new hash is kept, the mark is removed, the series s
 
 **The small route («малый», task 191; the owner, 2026-10-25, the chat of the methodology).** The owner's entry phrases «сделай X мгновенно» and «сделай X, супер быстро» choose the
 route and name the owner the checker, with no questions; recognizing them is the orchestrator's logic — **the plugin does not parse the phrase** (a field of the record and the folder
-template only): `crew_spawn {route: "small", route_word: "<the phrase word for word with the date and the source>", estimate: "<T in one line>"}`.
+template only): `canopus_spawn {route: "small", route_word: "<the phrase word for word with the date and the source>", estimate: "<T in one line>"}`.
 The folder is three lines — `task/message.md` is `# Задание: <title>`, `T: <estimate>`, the phrase of the owner; criteria are not required (the default criterion is «приёмка — слово
 владельца на тестовом контуре»). The record gets `route_word_ts` — the mark «слово владельца»: with `route_word_at` (an ISO date or milliseconds) it is the time of the owner's
 message, without it the time the spawn is recorded, and the task's log carries the honest note «время слова — время записи, не сообщения» (`route_word_ts_kind`). There is **no reviewer, no review cycle and no merge
-lock**: the executor submits (`crew_task submit`), raises the test contour (`scripts/test-contour` of the task's tree), gives the owner the link and records the mark
-`crew_task {action: "contour", n, link}` — the line «ссылка на контур выдана» goes to `log.md` of the task with the relation to the norm of 10 minutes from the owner's word. The
-integrator accepts with `crew_task {action: "accept", n, text: "<the owner's word word for word with the date>"}`; the landing of the branch (or the commit) in the target branch is
-still required. `crew_task route` moves a task to and from `small` by the same conditions.
+lock**: the executor submits (`canopus_task submit`), raises the test contour (`scripts/test-contour` of the task's tree), gives the owner the link and records the mark
+`canopus_task {action: "contour", n, link}` — the line «ссылка на контур выдана» goes to `log.md` of the task with the relation to the norm of 10 minutes from the owner's word. The
+integrator accepts with `canopus_task {action: "accept", n, text: "<the owner's word word for word with the date>"}`; the landing of the branch (or the commit) in the target branch is
+still required. `canopus_task route` moves a task to and from `small` by the same conditions.
 
-**Display.** `crew_task list` and `show` and `/crew` mark a fast task with the word «быстрый» on the line of its title, the panel — on the heading («045 Название · быстрый»); a marked
+**Display.** `canopus_task list` and `show` and `/canopus` mark a fast task with the word «быстрый» on the line of its title, the panel — on the heading («045 Название · быстрый»); a marked
 task has the warning line under it (in the panel two rows: «⚠ правка после слова завода», «↳ нужно новое слово владельца»). `show` prints the route line with the source, the basis, the word and the numbers.
 
-**The project's settings: `route_defaults`** in `.opencode/crew-harness.json` (a person or `crew_config set`; the schema checks the shape, a value under the minimum can be written
+**The project's settings: `route_defaults`** in `.opencode/canopus.json` (a person or `canopus_config set`; the schema checks the shape, a value under the minimum can be written
 and is refused at the choice of the route). No key — the values of the methodology:
 
 ```json
@@ -1262,7 +1262,7 @@ and is refused at the choice of the route). No key — the values of the methodo
 that proposes the route (`route.ts`, `classify`): no features → «полный», «признаки не записаны»; a feature missing → «признаки неполны: …»; a helper's «полный» → «полный», source `helper`; a feature over its
 threshold → «полный», «признак выходит за порог: …»; otherwise «быстрый». The proposal is recorded in `route_proposal` and does not decide: the owner's word is older than the rule (test 10).
 
-**What the tests of the methodology cover here** (the data side only; `test/crew-task-route.test.mjs`): 3 (the check of the settings: clean runs 0, probes 2, weakenings → refused with the reason; the passage to В14 is the engine's),
+**What the tests of the methodology cover here** (the data side only; `test/canopus-task-route.test.mjs`): 3 (the check of the settings: clean runs 0, probes 2, weakenings → refused with the reason; the passage to В14 is the engine's),
 4, 9, 10, 14, 15 (the route in the journal line, not in the envelope), 19 (the cycle input of a record under the minimum is refused: `cycleInput`), 21 and 23 (the data part: the hash diverges → the mark, the series zeroed), 22.
 Not covered, the engine is needed: 1, 2, 5–8, 11–13, 16 (the copy `spec.md` is not made), 17, 18, 20, 24, 25.
 
@@ -1274,19 +1274,19 @@ The integrator stays free for the owner and does not re-check accepted work:
   integrator itself, otherwise a free open `worker` tab (never the author or the executor), or a
   new review session (`spawn_limits.reviewer`, 2); the reviewer gets the task, the report and the
   project's `acceptance` steps;
-- the reviewer: `crew_task {action: "review"}` (started; the executor learns it quietly), `rework
+- the reviewer: `canopus_task {action: "review"}` (started; the executor learns it quietly), `rework
   {text}` (back to the executor with the remarks; the resubmission wakes the same reviewer;
   over `rework_max` the integrator gets a call), `merge` (the project's merge lock: one merging
   reviewer at a time), `accept {checks, commit?}` — the plugin requires a report for every
   required acceptance step and checks that the task branch (or a squash commit) is in the target
   branch; then the cleanup steps by the project setting `cleanup` (`git worktree remove`, `git branch -D`, `git push
-  origin --delete`), and `crew_task cleanup` — the plugin checks the worktree and the branch are gone;
+  origin --delete`), and `canopus_task cleanup` — the plugin checks the worktree and the branch are gone;
   to keep a worktree as evidence call `cleanup {n, keep: [path, ...]}` (up to 8 paths, absolute, or relative to the repository root as `git rev-parse --show-toplevel` gives it from the task directory;
   each must be a worktree of the repository or an existing folder inside the project's worktree folder, never the main tree
   or a branch): the check skips those trees, the answer says `Сохранено: <path> (не проверялось уборкой)`, the task record
   keeps them in `kept` and the history says `улики сохранены: <path>`; the task branch must still be deleted (if it is checked out in a kept tree, run `git checkout --detach` there first, then `git branch -D`; the answer of `cleanup` says so); a repeated
   `cleanup` without `keep` keeps skipping them while they exist;
-  Side branches and worktrees of a task (task 023): `crew_task {action: "track", n, branch?, worktree?}` (executor, reviewer, integrator; no duplicates) records them in the task's `side` list (`show` shows it; the field is `side` because `extra` holds the project's extra task fields). The plugin records `integrate/t<N>` and `integrate/t<N>-*` and the trees on them itself at precheck, accept and cleaned. `cleanup` removes everything recorded except the trees in `keep` (no force: a dirty tree is reported, not deleted); an unrecorded branch or tree that only matches the name template is still refused, and the refusal offers `track`. Records without `side` read as empty.
+  Side branches and worktrees of a task (task 023): `canopus_task {action: "track", n, branch?, worktree?}` (executor, reviewer, integrator; no duplicates) records them in the task's `side` list (`show` shows it; the field is `side` because `extra` holds the project's extra task fields). The plugin records `integrate/t<N>` and `integrate/t<N>-*` and the trees on them itself at precheck, accept and cleaned. `cleanup` removes everything recorded except the trees in `keep` (no force: a dirty tree is reported, not deleted); an unrecorded branch or tree that only matches the name template is still refused, and the refusal offers `track`. Records without `side` read as empty.
 - `done` (after `cleanup`) → the sessions of the task close with a line in their history, titles `NNN ✓✓ готово`, the
   integrator gets a quiet summary. Titles on the way (a mark and a word): `NNN ✓ сдана`, `NNN ✓◐ приёмка`, `NNN ↻ доработка`, `NNN ✓✓◐ влита`
   accepted;
@@ -1301,11 +1301,11 @@ The integrator stays free for the owner and does not re-check accepted work:
 - `inflight_limit` (6) bounds the tasks running and in review; `P0` passes every limit;
 - `accepted_slot: "free"` (the default since the owner's decision of 2026-10-09; the explicit `hold` returns the previous
   behaviour: the accepted task holds its place until `cleanup`): an accepted task that is not cleaned up yet waits for cleanup and
-  no longer counts in `inflight_limit` (`crew_spawn` and the steps of an auto plan count it separately); `cleanup_limit`
+  no longer counts in `inflight_limit` (`canopus_spawn` and the steps of an auto plan count it separately); `cleanup_limit`
   (10, `0` — no limit) stops new work (not `P0`) when that many accepted tasks wait for cleanup, naming them. The tab of an
   accepted task is still woken and reminded (`accepted_reminder_min`; the reminder repeats every `accepted_reminder_min`, at most
-  5 times per acceptance, then `/crew` counts it: `uncleaned NNN Ч`, and the author's tab gets the idle mark `◷` when the reviewer
-  does not lead the cleanup, task 076), `crew_task list` and `show` mark it "ждёт уборки";
+  5 times per acceptance, then `/canopus` counts it: `uncleaned NNN Ч`, and the author's tab gets the idle mark `◷` when the reviewer
+  does not lead the cleanup, task 076), `canopus_task list` and `show` mark it "ждёт уборки";
   `OPEN_STATUSES` and `isOpen` are not changed;
 - `merge_precheck: "required"` (the default since the owner's decision of 2026-10-09; the explicit `off` returns the previous
   behaviour: `merge` takes the lock at once): `merge` without a green precheck is refused with text that names the next step
@@ -1332,8 +1332,8 @@ The integrator stays free for the owner and does not re-check accepted work:
   or `unlock` of the first one (with `merge_precheck: required` the gate always does this). A reviewer refused with "lock busy" is
   recorded in its own card (`lock_wait`, gone with the tab); when the lock is released (or found abandoned) every such live reviewer of the
   project gets a letter "lock is free" (no queue, no reservation; the lock is still taken atomically by whoever calls `merge` first), and
-  the panel shows one line "ждут замок: NNN (мин)" and `/crew` the counter `lock NNN Ч`. A broken settings file of the old (no settings repository) form keeps the last good
-  settings and is named by `crew_doctor`.
+  the panel shows one line "ждут замок: NNN (мин)" and `/canopus` the counter `lock NNN Ч`. A broken settings file of the old (no settings repository) form keeps the last good
+  settings and is named by `canopus_doctor`.
   then does not ask for the lock (only while the record is still green and of this round: a record marked stale by `rework`, `unlock`,
   a new review or `reassign` loses the mark). The release does not depend on `stall_minutes`. It counts the merge as done once the
   candidate is in the target tip: a mark that the plan step needs in the same merge must be inside the candidate, not pushed after it. The plugin still merges and pushes nothing. The lock is issued only on the
@@ -1348,7 +1348,7 @@ The integrator stays free for the owner and does not re-check accepted work:
   another. If the tip cannot be read (network, 20 s term, no such branch on `origin`) `merge` is refused with the cause and
   the lock is not issued; a repeat of `merge` by the holder keeps the lock in that case. Without `origin` the tip of the
   local branch is used;
-- `task_extra_fields` (default empty): up to 8 project fields `{id, label, hint?}`; `crew_spawn`
+- `task_extra_fields` (default empty): up to 8 project fields `{id, label, hint?}`; `canopus_spawn`
   take `extra {id: one line up to 300 characters}`, the values go into the executor letter, the reviewer letter (with the path
   of the task record, field `extra`) and `show` under "ДОПОЛНИТЕЛЬНО (поля проекта)". An unknown id is refused naming the
   declared ones; `order` takes no `extra`.
@@ -1362,7 +1362,7 @@ reply issues nothing.
 
 **The result lives in another repository (task 257).** When the task's result lands (or is already published) not in the
 repository the task was posted in, the integrator binds the explicit result repository:
-`crew_task {action: "target", n, dir, remote?, branch?, word}` — `dir` is its local clone (checked on binding: a git
+`canopus_task {action: "target", n, dir, remote?, branch?, word}` — `dir` is its local clone (checked on binding: a git
 repository, not the task's own one, the remote exists and its URL is recorded as evidence, the branch exists on the
 remote), `word` is the owner's word with its date and source. From then on the whole loop — `precheck`, the base freshness,
 the merge gate, `accept` — works against the bound repository and branch, and `show` names the binding; an arbitrary commit
@@ -1392,7 +1392,7 @@ non-fast-forward push and the project's own landing script checks again.
 ## Plans
 
 New work starts with a plan: a document in the project's repository (`plans_dir`, default `docs/plans`,
-named `{n}-{slug}.md`). The integrator sets a plan task: `crew_spawn {kind: "plan", title, goal}`.
+named `{n}-{slug}.md`). The integrator sets a plan task: `canopus_spawn {kind: "plan", title, goal}`.
 `goal` is the original task the plan must solve. The plugin picks the plan number: the next one after
 the files in the plans folder and the open plan tasks. A sub-plan gets `N.k`.
 
@@ -1414,7 +1414,7 @@ reviewer. The reviewer goes through two groups of steps:
 - **B — how the plan is composed:** machine-checkable criteria with a red probe, criterion tools
   tried before and after, one step = one task, explicit dependencies, existing paths, form.
 
-The round ends with `crew_task {action: "round", n, blocking, significant, cosmetic, text}`. The grade
+The round ends with `canopus_task {action: "round", n, blocking, significant, cosmetic, text}`. The grade
 of a remark is set by what fixing it changes:
 
 | Grade | What fixing it changes |
@@ -1438,10 +1438,10 @@ into the plan («Режим выполнения», «Решения владе�
 target branch and requires its form and the owner's answer.
 
 **Approval by the integrator.** With `plan_approver: "integrator"` the task author decides instead, from the tab:
-`crew_task {action: "plan_decide", n, decision: "ok" | "ok-shortcuts" | "no", text?}` (`text` is required with `no`: what to
-change). The decision is written the same way as the window's, the owner still sees the plan in `/crew` and can decide with
+`canopus_task {action: "plan_decide", n, decision: "ok" | "ok-shortcuts" | "no", text?}` (`text` is required with `no`: what to
+change). The decision is written the same way as the window's, the owner still sees the plan in `/canopus` and can decide with
 `/plans` first. The task status while the plan waits is `approval`. Verdicts of the recheck rounds are given by the round's
-reviewer with `crew_task {action: "round", n, blocking, significant, cosmetic, text}` (or `grades {id: count}` for custom
+reviewer with `canopus_task {action: "round", n, blocking, significant, cosmetic, text}` (or `grades {id: count}` for custom
 `plan_grades`) after `review` and `check` of every step: `plan_clean_rounds` clean rounds in a row end the recheck, `plan_rounds_max`
 rounds end it anyway and the plan goes to approval with the last remarks.
 
@@ -1454,8 +1454,8 @@ boundaries. A step starts when:
 
 Order is by priority (the step's, else the phase's), then by plan order. A `[подплан]` step becomes a
 plan task. A step task is accepted only with «✅ СДЕЛАНО <date>, commit» in its heading in the target
-branch. When every step is closed, the author is asked to close the plan. `/crew` shows a plan that waits for approval as a row (`◇ plan N … approval · /plans`) and counts the others (`plans N`);
-the rounds and the steps are in `crew_task show` of the plan's task.
+branch. When every step is closed, the author is asked to close the plan. `/canopus` shows a plan that waits for approval as a row (`◇ plan N … approval · /plans`) and counts the others (`plans N`);
+the rounds and the steps are in `canopus_task show` of the plan's task.
 
 Marks: plan `🔴 ОТКРЫТ / 🟡 В РАБОТЕ / ✅ ЗАКРЫТ / ❌ ОТМЕНЁН`, step `⏳ В РАБОТЕ / ✅ СДЕЛАНО`, criterion
 `✅ ВЫПОЛНЕНО / ⬜`, question `❔ / ✅`.
@@ -1469,18 +1469,18 @@ Marks: plan `🔴 ОТКРЫТ / 🟡 В РАБОТЕ / ✅ ЗАКРЫТ / ❌ �
 | notes | Update the changelog       | no       |
 ```
 
-`id` is lowercase Latin letters, digits, `_`, `-`, unique; `required` is `yes` unless the cell says `no` / `нет` / `false` / `0` / `-` (an empty cell means required). Rows without an id (or with a bad or repeated one, or without text) are skipped with a warning in the log. If both `acceptance_file` and a non-empty `acceptance` are set, `crew_doctor` reports an error and the file wins; if the file cannot be read (not in the branch, no table), the plugin falls back to `acceptance` and logs a warning. Without `acceptance_file` nothing changes. The order of acceptance is not written in the table: the plugin sets it (`crew_help`, ACCEPTANCE). `plan_acceptance` and `plan_merge_acceptance` are separate and unchanged.
+`id` is lowercase Latin letters, digits, `_`, `-`, unique; `required` is `yes` unless the cell says `no` / `нет` / `false` / `0` / `-` (an empty cell means required). Rows without an id (or with a bad or repeated one, or without text) are skipped with a warning in the log. If both `acceptance_file` and a non-empty `acceptance` are set, `canopus_doctor` reports an error and the file wins; if the file cannot be read (not in the branch, no table), the plugin falls back to `acceptance` and logs a warning. Without `acceptance_file` nothing changes. The order of acceptance is not written in the table: the plugin sets it (`canopus_help`, ACCEPTANCE). `plan_acceptance` and `plan_merge_acceptance` are separate and unchanged.
 
-**Everything is a setting.** The plan's form and process are project settings with nova's form as the default: `plan_sections`, `plan_header`, `plan_prefix`, `plan_labels`, `plan_marks`, `plan_mode_question`, `plan_acceptance`, `plan_merge_acceptance`, `plan_grades` (`{id, name, text, clean}`), `plan_approver` (owner / integrator — `crew_task plan_decide`), `plan_steps` (auto / manual), `plan_template` (a template file in the repository). `crew_config guide` asks about each.
+**Everything is a setting.** The plan's form and process are project settings with nova's form as the default: `plan_sections`, `plan_header`, `plan_prefix`, `plan_labels`, `plan_marks`, `plan_mode_question`, `plan_acceptance`, `plan_merge_acceptance`, `plan_grades` (`{id, name, text, clean}`), `plan_approver` (owner / integrator — `canopus_task plan_decide`), `plan_steps` (auto / manual), `plan_template` (a template file in the repository). `canopus_config guide` asks about each.
 
 **Heavy runs.** `heavy_commands` lists substrings of commands that load the machine (full gate,
-full build, full test run, benchmarks). `crew_watch` with such a command goes to the machine queue
+full build, full test run, benchmarks). `canopus_watch` with such a command goes to the machine queue
 by itself. Full design: [plan 004](../doc/archive/plans/004-plans.md).
 
 ## Model profiles: sets of models and windows by stage
 
 Which model runs a stage of work and how big its context window is are two settings of the project, kept as plain
-JSON in `.opencode/crew-harness.json` (any reader sees them without this plugin; the decision is
+JSON in `.opencode/canopus.json` (any reader sees them without this plugin; the decision is
 [ADR-0008](../doc/canon/decisions/ADR-0008-model-profiles-layer-and-window-files.md)). Without these keys nothing changes:
 `spawn_models`, `tiers`, `reviewer` and the texts of the tools work as before.
 
@@ -1498,40 +1498,40 @@ JSON in `.opencode/crew-harness.json` (any reader sees them without this plugin;
   the tier of the task, then one lower); the plugin stores and shows them, the sessions of the specification and delivery are
   still run by the orchestrator. A cell is `{"family": "claude", "tier": "heavy"}`; the tier `task` means «the tier of the
   task» (the default behaviour). A stage without a cell (and nothing to inherit) keeps the model of `spawn_models`.
-  A check stage without a cell goes by `spawn_models` (the owner's decision of task 003). The old name `accept` stays a readable alias of `develop_accept` (the settings file of this repository still uses it; nothing rewrites it). A check on the same family as its author while another family exists is only warned about by `/crew-sets show` with one ⚠ line (the rule «the
+  A check stage without a cell goes by `spawn_models` (the owner's decision of task 003). The old name `accept` stays a readable alias of `develop_accept` (the settings file of this repository still uses it; nothing rewrites it). A check on the same family as its author while another family exists is only warned about by `/canopus-sets show` with one ⚠ line (the rule «the
   reviewer is on another model family», ADR-0013). Names of sets: lowercase Latin
   letters, digits, dashes, up to 40 characters, not a word of the commands or a word kept from the removed ones (`use`, `reset`, `all`, `list`, `show`, `set`,
   `unset`, `new`, `rename`, `delete`, `check`, `save`, `from`).
-- **The enabled set** — `profile_set`: the name, set by a person (`/crew-sets use`, or editing the file);
-  `crew_config set` refuses this key whatever the value. `use` writes the name into the file of the project, takes effect
+- **The enabled set** — `profile_set`: the name, set by a person (`/canopus-sets use`, or editing the file);
+  `canopus_config set` refuses this key whatever the value. `use` writes the name into the file of the project, takes effect
   at once and needs no commit and no restart of the service.
 - **Tier bounds** — `tier_min` and `tier_max` (`light`, `medium`, `heavy`; no key — no bound), project settings in the same
-  file. Any tier of any stage (explicit, inherited, `task`, the `tier` of `crew_spawn`) is clamped into them, so there is no
+  file. Any tier of any stage (explicit, inherited, `task`, the `tier` of `canopus_spawn`) is clamped into them, so there is no
   need for a separate set with explicit tiers to cap the cost. The clamp holds on every path that picks a model, with a set
-  and without one: `crew_spawn`, the steps of an auto-plan, the review session started without a cell of the set (the tier of
+  and without one: `canopus_spawn`, the steps of an auto-plan, the review session started without a cell of the set (the tier of
   the task record is clamped when the session starts) and `reassign` (without a set the model of the record stays while its
-  tier is inside the bounds). The `tier` of `crew_send` picks a tab, not a model, and is not clamped. A clamp is written to the
+  tier is inside the bounds). The `tier` of `canopus_send` picks a tab, not a model, and is not clamped. A clamp is written to the
   log of the plugin and to the task event, and into the task record (`profiles`: `clamped_from`; without a set the set is
-  «(без набора)»), and `/crew-sets show` prints the tier of the set and the tier after the clamp. If the clamp lands on a family
+  «(без набора)»), and `/canopus-sets show` prints the tier of the set and the tier after the clamp. If the clamp lands on a family
   that has no profile of that tier, the session is refused and the text names the clamp as the cause (the nearest tier is not
-  searched). `tier_min` above `tier_max` is a settings error: `crew_config set` refuses such a write (also against the other key
-  already in the file), and if it comes into the file by hand `crew_doctor` says so and the bounds are not applied.
+  searched). `tier_min` above `tier_max` is a settings error: `canopus_config set` refuses such a write (also against the other key
+  already in the file), and if it comes into the file by hand `canopus_doctor` says so and the bounds are not applied.
 
 The window is a property of the model **in a folder**, not of a stage or a session. The plugin writes the windows of the
-models of the enabled set (all three tiers of every family named in the set, because `tier` on the input of `crew_spawn`
+models of the enabled set (all three tiers of every family named in the set, because `tier` on the input of `canopus_spawn`
 moves a session along the tiers of its family) as `.opencode/opencode.json` **into the worktree of each task**, before
 the first turn of the session; OpenCode and the `claude-code` provider read it within seconds, without a restart. The
 file holds only `limit` of the models (`context` and `output` together, `input` when the profile has it) and the key
-`_crew_harness` (the mark: a file without it is never overwritten or removed); it never holds `compaction` — the
+`_canopus` (the mark: a file without it is never overwritten or removed); it never holds `compaction` — the
 thresholds stay the owner's. It is excluded from git through `info/exclude` of the common git directory and removed when
 the set is switched off, the task is accepted or cancelled, or its folder is gone.
 
 **The window of a profile applies only to sessions in the worktree of a task (development, planning).** The review
 sessions (`develop_accept`, `plan_accept`) run in the main folder: their model comes from the set, but their window comes from the
-owner's general hand-written settings for that model; `check` and the detailed `/crew-sets show <stage>` say so and print the number
+owner's general hand-written settings for that model; `check` and the detailed `/canopus-sets show <stage>` say so and print the number
 and the file; `use` has one short line about it. The root of the project and the main folders get no file, and a task without a worktree gets none. A
 hand-written `.opencode/opencode.jsonc` in the same folder is stronger than the file of the plugin there (the plugin
-names such a case, with the file and the value, in `use`, `check` and `crew_doctor`); an explicit `autoCompactWindow` of
+names such a case, with the file and the value, in `use`, `check` and `canopus_doctor`); an explicit `autoCompactWindow` of
 the `claude-code` provider is stronger than the window for Claude Code and is never rewritten — only named. For a model
 with `input` the compaction is driven by `input` (the threshold is `input` minus `compaction.reserved`), otherwise by
 `context`; a **smaller window compacts** the tabs whose context is above the new threshold on their next turn.
@@ -1542,42 +1542,42 @@ is taken only if its model is a model of that family (any of its three tiers; `o
 of the cell — when there is no free open tab of the role. With a `task` cell the model of an open tab is not checked, as
 without a set. With `reviewer: integrator` the reviewer is the integrator's tab on its own model and the set does not
 change that (the plugin never switches the model of an open tab). A reviewer on Kimi or Codex works with the same
-`crew_*` tools; the rules of the repository's `.claude` act in a tab of another family only in part (the PreToolUse
+`canopus_*` tools; the rules of the repository's `.claude` act in a tab of another family only in part (the PreToolUse
 hooks of the shell, `permissions.deny` and `.claude/commands` through the guards plugin; `Write`, `Stop`,
 `SessionStart` and `PostToolUse` hooks do not).
 
-Commands of the window (answers are shown in a dialog at once, no turn of the model; a window opens the commands after its restart). In the window `/crew-sets` (also `ls` and `list`) opens a pick (`dialog.select`): a row per set, `●` at the enabled one, the models in the description; arrows and Enter enable the set and show a short result; the last row, «other actions», opens the menu of the other verbs. `/crew-profiles` opens the same pick of the families (Enter shows the family). A verb that takes a name of a set (a family) — `use`, `show`, `rename`, `delete`, `set`, `unset` (`show`, `set`, `rename`, `delete`) — opens the same list first; a text is typed only for a new name (`new`, the second name of `rename`) or a cell (`set`); `unset` and the tier of `delete` are picked too. What the dialog gives: the fields `title`, `value`, `description`, `footer`, `category`, `current` and the per-row `onSelect`, the filter by typing inside the dialog; what it does not give: a completion of the typed word in the line of `/` itself (the plugin has no hook for it), a text in `showText` is not interactive — that is why `ls` is a pick, not a table. The catalog of models for `check` and `use` comes from the window, otherwise from a snapshot that the plugin of the service writes (`model-catalog.json` in the mailbox, every 10 minutes); an old or absent snapshot is named in the answer. Sizes in the answers are written as «контекст 720K · вывод до 64K» (with a separate input limit: «контекст 525K · ввод 461K · вывод до 128K»); «контекст» is the OpenCode `limit.context`, the word «окно» is kept for the terminal window:
+Commands of the window (answers are shown in a dialog at once, no turn of the model; a window opens the commands after its restart). In the window `/canopus-sets` (also `ls` and `list`) opens a pick (`dialog.select`): a row per set, `●` at the enabled one, the models in the description; arrows and Enter enable the set and show a short result; the last row, «other actions», opens the menu of the other verbs. `/canopus-profiles` opens the same pick of the families (Enter shows the family). A verb that takes a name of a set (a family) — `use`, `show`, `rename`, `delete`, `set`, `unset` (`show`, `set`, `rename`, `delete`) — opens the same list first; a text is typed only for a new name (`new`, the second name of `rename`) or a cell (`set`); `unset` and the tier of `delete` are picked too. What the dialog gives: the fields `title`, `value`, `description`, `footer`, `category`, `current` and the per-row `onSelect`, the filter by typing inside the dialog; what it does not give: a completion of the typed word in the line of `/` itself (the plugin has no hook for it), a text in `showText` is not interactive — that is why `ls` is a pick, not a table. The catalog of models for `check` and `use` comes from the window, otherwise from a snapshot that the plugin of the service writes (`model-catalog.json` in the mailbox, every 10 minutes); an old or absent snapshot is named in the answer. Sizes in the answers are written as «контекст 720K · вывод до 64K» (with a separate input limit: «контекст 525K · ввод 461K · вывод до 128K»); «контекст» is the OpenCode `limit.context`, the word «окно» is kept for the terminal window:
 
 | Command | What it does |
 |---|---|
-| `/crew-sets ls` (also `list`, and the command without words) | the sets with `●` at the enabled one and the models in the cells (short names with a legend; stages with one model are grouped; a `task` cell shows the models of the three tiers `opus/sonnet/haiku`); in the window it is the pick described above |
-| `/crew-sets show [name]` | a set in short: a table stage x tier (heavy, medium, light) with short model names (`luna`, `opus`), `как «stage»` for an inherited stage that does not differ, one line `all stages: …` when all are alike, a legend (full name, context, output; once per model), one ⚠ line per warning (the check on the same family as its author, a model out of the catalog, a missing profile), a hint; the enabled one if no name. Width of the window `/crew`, no line is wrapped |
-| `/crew-sets show [name] <stage>` / `show [name] all` | the detailed answer: everything the table hides — inheritance and its tier, the clamp by the tier bounds, the tiers of the task, the window of the profile in the worktree, the window of the review sessions with the number and the file, the errors and the full notes; `all` is the whole former text. A set named like a stage wins as the first word; `show <name> <stage>` is unambiguous |
-| `/crew-sets use <name>` | enable a set (writes `profile_set` into the file of the project; Enter on a set in the pick does the same). The screen: the first line `Набор «kimi» включён (был «codex»)`; a line per group of stages — `Работа` (development and planning) and `Приёмка` (their checks), or each stage under its own word when they differ — with the model and `(было …)` (alike are collapsed: `(было те же)`, `(без изменений)`); the three tiers of a task are shown as «by the size of the task» (`luna / sol / astra по размеру задачи`), never as heavy/medium/light; a line when the tier bounds of the project cut something, and a line about the stages described apart; **the running sessions** that stay on the old models (`сейчас 2: 094, 098`, then a task, its title and the old model per line; counted from the status files of the plugin: the sessions of the open tasks of this project that work now — an executor in `starting`, `running` or `rework`, a reviewer in `submitted`, `reviewing` or `approval` — whose model is not in the new set; no status folder — no such line; the tabs of the owner and of the integrators are not counted) and where new sessions go (no restart); the window of the model (`Контекст модели: 220K, вывод до 131072 (у «codex» было 525K, ввод 461K, вывод до 128K)`); ⚠ lines (a smaller window is compacted on the next turn of a tab: the threshold is the context minus `compaction.reserved`, for a model with an input limit the input minus `reserved`; the check on the same family as its author; hand-written windows that win); `Не закоммичено — это локальная настройка проекта.`; a line about the window files of the task worktrees only when something was written, removed or failed. The short names with provider and legend, the review windows from the hand-written settings and the details of the stages are in `show` |
-| `/crew-sets set <name> <stage> <family>/<tier>` | change a cell (stages: `develop`, `develop_accept` (also `accept`), `plan`, `plan_accept`, `spec`, `spec_accept`, `delivery`, `delivery_accept` or Russian words) |
-| `/crew-sets unset <name> <stage>` | remove a cell: the stage goes back to `spawn_models` |
-| `/crew-sets new <name> [from <other>]`, `rename <a> <b>`, `delete <name>` | create (empty or a copy), rename (the enabled name follows), delete (not the enabled one) |
-| `/crew-profiles ls` (also `list`, and the command without words) | a table «family, tier → model, window»; in the window a pick of the families |
-| `/crew-profiles show [<family>]` | without a name — the table in detail. With a family (also Enter on a family in the pick): the three tiers (the model without the provider, `контекст 525K, ввод 461K, вывод 128K`, `то же` when the window equals the one above), `Используют наборы:` — the sets that use the family with their stages by words (`codex (разработка, приёмка, …)`), and the last line — whether the enabled set uses the family now (`эта семья сейчас не используется`, or the stages that use it, the inherited ones apart). The provider is in `/crew-profiles ls`; the cell `family/tier` of a stage — in `/crew-sets show <set> <stage>` |
-| `/crew-profiles set <family> <tier\|all> <model> <context> output=<n> [input=<n>]` | create or change a record; `all` changes the three tiers in one check |
-| `/crew-profiles new <family> [from <other>]`, `rename <a> <b>`, `delete <family> [<tier>]` | three empty records or a copy; rename updates every set; delete is refused while a set refers to the record |
+| `/canopus-sets ls` (also `list`, and the command without words) | the sets with `●` at the enabled one and the models in the cells (short names with a legend; stages with one model are grouped; a `task` cell shows the models of the three tiers `opus/sonnet/haiku`); in the window it is the pick described above |
+| `/canopus-sets show [name]` | a set in short: a table stage x tier (heavy, medium, light) with short model names (`luna`, `opus`), `как «stage»` for an inherited stage that does not differ, one line `all stages: …` when all are alike, a legend (full name, context, output; once per model), one ⚠ line per warning (the check on the same family as its author, a model out of the catalog, a missing profile), a hint; the enabled one if no name. Width of the window `/canopus`, no line is wrapped |
+| `/canopus-sets show [name] <stage>` / `show [name] all` | the detailed answer: everything the table hides — inheritance and its tier, the clamp by the tier bounds, the tiers of the task, the window of the profile in the worktree, the window of the review sessions with the number and the file, the errors and the full notes; `all` is the whole former text. A set named like a stage wins as the first word; `show <name> <stage>` is unambiguous |
+| `/canopus-sets use <name>` | enable a set (writes `profile_set` into the file of the project; Enter on a set in the pick does the same). The screen: the first line `Набор «kimi» включён (был «codex»)`; a line per group of stages — `Работа` (development and planning) and `Приёмка` (their checks), or each stage under its own word when they differ — with the model and `(было …)` (alike are collapsed: `(было те же)`, `(без изменений)`); the three tiers of a task are shown as «by the size of the task» (`luna / sol / astra по размеру задачи`), never as heavy/medium/light; a line when the tier bounds of the project cut something, and a line about the stages described apart; **the running sessions** that stay on the old models (`сейчас 2: 094, 098`, then a task, its title and the old model per line; counted from the status files of the plugin: the sessions of the open tasks of this project that work now — an executor in `starting`, `running` or `rework`, a reviewer in `submitted`, `reviewing` or `approval` — whose model is not in the new set; no status folder — no such line; the tabs of the owner and of the integrators are not counted) and where new sessions go (no restart); the window of the model (`Контекст модели: 220K, вывод до 131072 (у «codex» было 525K, ввод 461K, вывод до 128K)`); ⚠ lines (a smaller window is compacted on the next turn of a tab: the threshold is the context minus `compaction.reserved`, for a model with an input limit the input minus `reserved`; the check on the same family as its author; hand-written windows that win); `Не закоммичено — это локальная настройка проекта.`; a line about the window files of the task worktrees only when something was written, removed or failed. The short names with provider and legend, the review windows from the hand-written settings and the details of the stages are in `show` |
+| `/canopus-sets set <name> <stage> <family>/<tier>` | change a cell (stages: `develop`, `develop_accept` (also `accept`), `plan`, `plan_accept`, `spec`, `spec_accept`, `delivery`, `delivery_accept` or Russian words) |
+| `/canopus-sets unset <name> <stage>` | remove a cell: the stage goes back to `spawn_models` |
+| `/canopus-sets new <name> [from <other>]`, `rename <a> <b>`, `delete <name>` | create (empty or a copy), rename (the enabled name follows), delete (not the enabled one) |
+| `/canopus-profiles ls` (also `list`, and the command without words) | a table «family, tier → model, window»; in the window a pick of the families |
+| `/canopus-profiles show [<family>]` | without a name — the table in detail. With a family (also Enter on a family in the pick): the three tiers (the model without the provider, `контекст 525K, ввод 461K, вывод 128K`, `то же` when the window equals the one above), `Используют наборы:` — the sets that use the family with their stages by words (`codex (разработка, приёмка, …)`), and the last line — whether the enabled set uses the family now (`эта семья сейчас не используется`, or the stages that use it, the inherited ones apart). The provider is in `/canopus-profiles ls`; the cell `family/tier` of a stage — in `/canopus-sets show <set> <stage>` |
+| `/canopus-profiles set <family> <tier\|all> <model> <context> output=<n> [input=<n>]` | create or change a record; `all` changes the three tiers in one check |
+| `/canopus-profiles new <family> [from <other>]`, `rename <a> <b>`, `delete <family> [<tier>]` | three empty records or a copy; rename updates every set; delete is refused while a set refers to the record |
 | `check` (both commands) | the first line is the summary (`no remarks` or their count), then ⚠ lines and the facts about the environment: the whole table and the sets against the catalog of OpenCode («not checked» when the catalog is unavailable), hand-written windows, the explicit threshold, empty records, links; changes nothing |
 
-The answers follow one pattern: the first line is the result in one sentence (`Готово: …` for an edit, with «was» for `set`; the set is on for `use`; the summary for `check`), below only what changed or what needs attention. `/crew-sets show` is the place for the rest.
+The answers follow one pattern: the first line is the result in one sentence (`Готово: …` for an edit, with «was» for `set`; the set is on for `use`; the summary for `check`), below only what changed or what needs attention. `/canopus-sets show` is the place for the rest.
 
 Edits act at once, without a commit and without any layer between: every command rewrites the three keys (`model_profiles`,
-`profile_sets`, `profile_set`) of the file `.opencode/crew-harness.json` in the working copy of the settings folder, in one
+`profile_sets`, `profile_set`) of the file `.opencode/canopus.json` in the working copy of the settings folder, in one
 atomic write; the data in force are those keys of the working copy (the plugin does not commit — commit the file when you
 want the change to travel). An edit that would make the enabled set invalid or leave a dangling reference is refused whole
 and the file stays as it was. There is no `save` and no `reset`: the earlier local layer
 (`profiles/<project>.layer.json` in the mailbox of the plugin) is switched off — see [ADR-0014](../doc/canon/decisions/ADR-0008-model-profiles-layer-and-window-files.md);
 an old layer file is not read, the service and `check` name it once, and it can be deleted by hand. An invalid state that came not through the commands (a commit removed a profile) does not stop the running tabs:
-sessions go by the last valid state (the snapshot) with a warning in `/crew-sets`, `crew_doctor` and a notice in the
+sessions go by the last valid state (the snapshot) with a warning in `/canopus-sets`, `canopus_doctor` and a notice in the
 window; a set that is gone and has no snapshot gives a refusal that names the set. Every edit leaves one line
 `profile edit: …` in the log of the plugin; a task keeps, per launched session, the stage, the set, the family, the tier
 and the model.
 
-An example of the two keys (invented numbers; `crew_config set` takes it in one call, or copy it into the file; the default
+An example of the two keys (invented numbers; `canopus_config set` takes it in one call, or copy it into the file; the default
 name is not part of it):
 
 ```json
@@ -1641,9 +1641,9 @@ is what the tabs in the main folder use — the plugin only names it.
 
 - **inbound** of the receiving project limits letters from other projects: `integrator` (default:
   only to its integrator), `any`, `none`; a refused letter names the address to use;
-- **an order**: `crew_task {action: "order", to: "beta.integrator", goal, criteria, …}` records task
+- **an order**: `canopus_task {action: "order", to: "beta.integrator", goal, criteria, …}` records task
   `NNN` of kind order in the orderer's journal (no session, no title marks) and sends it to beta's
-  integrator, who does it with its own tasks: `crew_spawn {…, parent: "alpha#N"}`. The order follows
+  integrator, who does it with its own tasks: `canopus_spawn {…, parent: "alpha#N"}`. The order follows
   that task: done → the order is done (a quiet summary to the orderer), cancelled → a call.
 
 ## Other machines (research, not in the plugin)
@@ -1656,50 +1656,50 @@ measurements and open questions are in
 
 ## Self-check
 
-`crew_doctor` (and once at load, as a notice): the OpenCode features the plugin relies on, the
+`canopus_doctor` (and once at load, as a notice): the OpenCode features the plugin relies on, the
 mailbox, whether any window plugin is beating, whether the caller's tab is visible to a window.
 
 The system hint the plugin adds to each request is **constant** within a session (it sits before
 the whole history, and anything changing there re-bills the history with Claude's prefix prompt
-cache); neighbours and their models come from `crew_list`.
+cache); neighbours and their models come from `canopus_list`.
 
 ## Windows on the `claude-code` provider (MCP)
 
 The [`claude-code` provider](https://github.com/unitcraft/opencode-claude-code-provider) hands
-every turn to the official Claude Code and drops OpenCode's tool list, so the plugin's `crew_*`
+every turn to the official Claude Code and drops OpenCode's tool list, so the plugin's `canopus_*`
 tools do not reach those tabs. `mcp.ts` is a stdio MCP server with the same tools
-(`mcp__crew__crew_list`, ... in Claude Code), built on the same core (`core.ts`) as the plugin:
+(`mcp__canopus__canopus_list`, ... in Claude Code), built on the same core (`core.ts`) as the plugin:
 
 ```sh
-OPENCODE_CREW_SESSION=<opencode session id> node mcp.ts   # node >= 24
+OPENCODE_CANOPUS_SESSION=<opencode session id> node mcp.ts   # node >= 24
 ```
 
-- it acts for the one OpenCode session in `OPENCODE_CREW_SESSION` (the provider sets it per
+- it acts for the one OpenCode session in `OPENCODE_CANOPUS_SESSION` (the provider sets it per
   request) and writes to the same mailbox (`XDG_DATA_HOME` as for OpenCode);
 - the project list is not repeated: the plugin writes its `project_settings` (or `projects`) and `local` options to
-  `<mailbox>/projects.json` at load (`OPENCODE_CREW_PROJECTS`, JSON of the `project_settings` value,
+  `<mailbox>/projects.json` at load (`OPENCODE_CANOPUS_PROJECTS`, JSON of the `project_settings` value,
   overrides);
 - delivery stays with the plugin (the letter goes into the OpenCode session); a task started from
-  MCP is written to the journal and the plugin starts it on its next pass; a `crew_watch` from MCP is
+  MCP is written to the journal and the plugin starts it on its next pass; a `canopus_watch` from MCP is
   a request file the plugin runs (the MCP server lives only as long as Claude Code's turn).
 
 ## Install
 
 ```sh
-git clone https://github.com/unitcraft/crew-harness C:/work/crew-harness
+git clone https://github.com/unitcraft/canopus C:/work/canopus
 ```
 
 `~/.config/opencode/opencode.jsonc` (the server plugin):
 
 ```jsonc
-"plugins": ["C:/work/crew-harness/opencode-plugin"]
+"plugins": ["C:/work/canopus/opencode-plugin"]
 ```
 
 `~/.config/opencode/cli.json` (the window plugin; the plugin folder, not a file — OpenCode loads `tui.ts`
 from it):
 
 ```json
-{ "plugins": ["C:/work/crew-harness/opencode-plugin"] }
+{ "plugins": ["C:/work/canopus/opencode-plugin"] }
 ```
 
 Windows opened before the window plugin was added do not report their tabs: reopen them.
@@ -1716,7 +1716,7 @@ Other OpenCode plugins of the same set (they work independently; together they a
 
 When a model asks through the built-in OpenCode questionnaire, the bus emits `form.created` (metadata kind `question`);
 the plugin records the open form in `forms/<session>.json` and the session shows as "waiting for you" with the text of
-the first question, in `/crew`, the sidebar and the notice. `form.replied` and `form.cancelled` remove the record and
+the first question, in `/canopus`, the sidebar and the notice. `form.replied` and `form.cancelled` remove the record and
 the status returns by itself. No model is involved, and the same applies to task sessions (the questionnaire is always
 addressed to a human). Events arrive in copies (several windows), so records are idempotent by form id; a form older
 than 12 hours does not count. The wait phrases stay as a safety net for plain prose.
@@ -1724,7 +1724,7 @@ Details: [doc/tasks/026-crew-question/task/analysis.md](../doc/tasks/026-crew-qu
 
 ## Event probe
 
-A diagnostic, off by default (task 026): `CREW_HARNESS_EVENT_PROBE=1` in the service environment, then restart.
+A diagnostic, off by default (task 026): `CANOPUS_EVENT_PROBE=1` in the service environment, then restart.
 It subscribes to OpenCode bus events and logs `form.*`, `permission.*`, `question.*`, `session.idle|status`, `tool.*`
 lines to `%TEMP%/opencode-plugins.log` (lines start with `event probe:`). It changes no plugin behaviour.
 Details: [doc/tasks/026-crew-question/task/probe.md](../doc/tasks/026-crew-question/task/probe.md).
@@ -1740,9 +1740,11 @@ npm run test:stable       # the files that were flaky under load, 10 times each,
 What each test checks, the manual latency checks and what the tests do not cover — [test/README.md](test/README.md).
 
 History: moved with its commits from a private plugins repository of the nova project (`plugins/nova-peers`).
-Renamed 2026-10-07 (plan 005): `nova-peers` → `opencode-peers` → CrewHarness (`crew-harness`); the plugin id is
-`crew-harness`; the mailbox `crew-harness` is a junction to the folder of the earliest one (nothing moves, nothing is
-lost); the settings file is `.opencode/crew-harness.json` (`.opencode/opencode-peers.json` is still read, with a
-`crew_doctor` note to rename it).
+Renamed 2026-10-07 (plan 005): `nova-peers` → `opencode-peers` → Canopus (`canopus`); renamed 2026-11-02 (task
+282): the previous product name → Canopus (`canopus`); the plugin id is
+`canopus`; the mailbox of the earliest name was moved to `canopus` by the one-shot explicit migration of task 284
+(no aliases, no links left; nothing is
+lost); the settings file is `.opencode/canopus.json` (`.opencode/opencode-peers.json` is still read, with a
+`canopus_doctor` note to rename it).
 
 License: MIT OR Apache-2.0 (see [LICENSE](../LICENSE)).

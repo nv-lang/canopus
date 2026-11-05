@@ -100,16 +100,16 @@ function callClient(method, params) {
 async function prompt(id, params) {
   const first = params.prompt && params.prompt[0];
   let text = first && first.type === "text" ? first.text : "";
-  // a note of the hub about the tool of questions comes before the first prompt: "[crew] ...", a blank line, the text of the owner
+  // a note of the hub about the tool of questions comes before the first prompt: "[canopus] ...", a blank line, the text of the owner
   let hinted = false;
-  // (the notes of the modes of work and the service prompts also begin with "[crew]" or carry its words; only the note that names the tool is cut off)
-  if (text.startsWith("[crew]") && text.slice(0, text.indexOf("\n\n")).includes("ask_user_question") && text.includes("\n\n")) {
+  // (the notes of the modes of work and the service prompts also begin with "[canopus]" or carry its words; only the note that names the tool is cut off)
+  if (text.startsWith("[canopus]") && text.slice(0, text.indexOf("\n\n")).includes("ask_user_question") && text.includes("\n\n")) {
     hinted = true;
     text = text.slice(text.indexOf("\n\n") + 2);
   }
-  // the notes of the hub ("[crew] ..." paragraphs) come before the words of the owner: the command word is the first word after them
+  // the notes of the hub ("[canopus] ..." paragraphs) come before the words of the owner: the command word is the first word after them
   let plain = text;
-  while (plain.startsWith("[crew]") && plain.includes("\n\n")) plain = plain.slice(plain.indexOf("\n\n") + 2);
+  while (plain.startsWith("[canopus]") && plain.includes("\n\n")) plain = plain.slice(plain.indexOf("\n\n") + 2);
   const word = plain.split(" ")[0];
   // the modes of work (task 192q): the hub asks to resolve conflicts (the files are resolved here, in the folder of the process) and to run the tests
   if (text.includes("Разреши конфликты")) {
@@ -206,7 +206,7 @@ async function prompt(id, params) {
     }
     case "tasklist":
     case "tasktool": {
-      // task 192.2: calls crew_task_list / crew_task of the MCP server of the hub with the JSON after the word
+      // task 192.2: calls canopus_task_list / canopus_task of the MCP server of the hub with the JSON after the word
       if (mcpServers.length === 0) {
         chunk(word + ": no-server");
         return respond(id, { stopReason: "end_turn" });
@@ -224,7 +224,7 @@ async function prompt(id, params) {
         const tools = await post({ jsonrpc: "2.0", id: 2, method: "tools/list" });
         const names = ((tools.body && tools.body.result && tools.body.result.tools) || []).map((t) => t.name).join(",");
         const args = JSON.parse(plain.slice(plain.indexOf(" ") + 1));
-        const called = await post({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: word === "tasklist" ? "crew_task_list" : "crew_task", arguments: args } });
+        const called = await post({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: word === "tasklist" ? "canopus_task_list" : "canopus_task", arguments: args } });
         const content = called.body && called.body.result && called.body.result.content;
         chunk(word + ": " + names + " | " + (content && content[0] ? content[0].text : JSON.stringify(called.body)));
       } catch (e) {
@@ -233,7 +233,7 @@ async function prompt(id, params) {
       return respond(id, { stopReason: "end_turn" });
     }
     case "ctl": {
-      // task 250: calls one tool crew_* of the MCP server of the hub: `ctl <tool> <json>`; the chunk is "ctl <tool>: <names> | <text>"
+      // task 250: calls one tool canopus_* of the MCP server of the hub: `ctl <tool> <json>`; the chunk is "ctl <tool>: <names> | <text>"
       if (mcpServers.length === 0) {
         chunk("ctl: no-server");
         return respond(id, { stopReason: "end_turn" });

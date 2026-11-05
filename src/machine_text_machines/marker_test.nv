@@ -1,10 +1,10 @@
 // marker_test.nv - the marker `- ` of a key line (format 2.6): since 2.26 (AL-137) a key line without the marker is an error that
 // names the marker; since 0.28 `Начальное состояние` is an item of the list too, so the chat table holds no bare key line (task 255).
-module crew_harness.machine_text_machines
+module canopus.machine_text_machines
 
 import std.text
 import alula.machine_text.{error_text}
-import crew_harness.machines.{chat_table_text}
+import canopus.machines.{chat_table_text}
 
 test "mk chat table" {
     ro text = chat_table_text()

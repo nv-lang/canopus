@@ -1,6 +1,6 @@
 // Proof of red for the merge gate (task 005, AC-30):  node test/landing-red.mjs
 // A test that cannot fail proves nothing. The script copies the plugin into a temp folder, replaces exactly ONE line (found by its
-// marker `GATE:*`) by a stub that says "all is well" and runs the gate test on the copy (CREW_PLUGIN_DIR); the cells that guard that check
+// marker `GATE:*`) by a stub that says "all is well" and runs the gate test on the copy (CANOPUS_PLUGIN_DIR); the cells that guard that check
 // must go red (a run may also name cells that must be among them). Five runs:
 //   1. sameTip -> true                         red: AC-09, AC-17 (a moved tip is let through)
 //   2. isFresh -> true                          red: AC-08 (a missing, running or stale record is let through)
@@ -68,7 +68,7 @@ RUNS.forEach((run, k) => {
       text[i] = stub
       writeFileSync(file, text.join("\n"))
     }
-    const r = spawnSync(process.execPath, [path.join(TEST, "crew-landing-gate.test.mjs")], { encoding: "utf8", env: { ...process.env, CREW_PLUGIN_DIR: copy, LANDING_SECTIONS: run.sections }, maxBuffer: 64 * 1024 * 1024 })
+    const r = spawnSync(process.execPath, [path.join(TEST, "canopus-landing-gate.test.mjs")], { encoding: "utf8", env: { ...process.env, CANOPUS_PLUGIN_DIR: copy, LANDING_SECTIONS: run.sections }, maxBuffer: 64 * 1024 * 1024 })
     const out = `${r.stdout}${r.stderr}`
     const reds = out.split(/\r?\n/).filter((l) => l.startsWith("FAIL"))
     const redIds = [...new Set(reds.map((l) => /^FAIL (AC-\d+)/.exec(l)?.[1]).filter(Boolean))]

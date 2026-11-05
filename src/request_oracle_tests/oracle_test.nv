@@ -3,7 +3,7 @@ module request_oracle_tests.oracle_test
 // ORACLE-WORKAROUND(32): keep fs before text for direct test entry code generation.
 import std.fs.{Path}
 import std.text
-import crew_harness.server.{kit_files_mcp, kit_request_turn_matches, kit_request_range_closed, scenario_request_view}
+import canopus.server.{kit_files_mcp, kit_request_turn_matches, kit_request_range_closed, scenario_request_view}
 
 test "request oracle: only the exact session and integer turn match" {
     assert(kit_request_turn_matches("{\"trace\":\"s-rq\",\"input\":{\"turn\":1}}", "s-rq", 1))

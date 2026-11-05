@@ -11,7 +11,7 @@ import * as queue from '../queue.js';
 import * as loading from '../loading.js';
 import * as attachments from '../attachments.js';
 import * as routes from '../routes.js';
-import * as crew from '../crew-task.js';
+import * as crew from '../canopus-task.js';
 import * as delivery from '../delivery.js';
 import { chooseMode, parseAgentRegistry } from '../transport.js';
 

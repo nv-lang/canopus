@@ -162,7 +162,7 @@ export function commitFiles(dir: string, branch: string, base: string, files: Re
   const existing = tryRun(top, ["rev-parse", "--verify", "--quiet", `refs/heads/${branch}`])?.trim()
   const parent = existing || tryRun(top, ["rev-parse", "--verify", "--quiet", `${base}^{commit}`])?.trim()
   if (!parent) return { ok: false, error: `нет ветки ${base}` }
-  const tmp = mkdtempSync(path.join(os.tmpdir(), "crew-idx-"))
+  const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-idx-"))
   const env = { ...process.env, GIT_INDEX_FILE: path.join(tmp, "index"), GIT_AUTHOR_NAME: name, GIT_AUTHOR_EMAIL: email, GIT_COMMITTER_NAME: name, GIT_COMMITTER_EMAIL: email }
   try {
     run(top, ["read-tree", parent], undefined, env)

@@ -1,9 +1,9 @@
-// СОСТОЯНИЕ СЕССИЙ (план 003, 2026-10-05): кто чего ждёт — для владельца (сводка /crew, уведомление «ждёт вас») и
+// СОСТОЯНИЕ СЕССИЙ (план 003, 2026-10-05): кто чего ждёт — для владельца (сводка /canopus, уведомление «ждёт вас») и
 // для внешних проверок (хук проекта читает status/<сессия>.json — открытый контракт, README «Session status»).
 //
 // Случай владельца 2026-10-05: вопрос интегратора дважды висел незамеченным (окно прокручено вверх), а что работают
 // три воркера, владелец узнал случайно. Состояние выводится из данных плагина, без проектного текста: идёт ход;
-// ждёт наблюдения (crew_watch); ждёт ответа на свой вопрос; своя задача сдана / на доработке; ждёт своих задач;
+// ждёт наблюдения (canopus_watch); ждёт ответа на свой вопрос; своя задача сдана / на доработке; ждёт своих задач;
 // ход кончился вопросом — ждёт владельца. Последнее — общий признак любой модели: ответ кончается вопросом (строка
 // с «?» в конце среди последних строк ответа), владелец после этого не писал, и это вкладка владельца, а не сессия
 // задачи (её ведёт интегратор).
@@ -11,7 +11,7 @@
 import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { type Card, type Obligation, obligationsOf, readJson, safeKey } from "./core.ts"
-import { BASE } from "./paths.ts"
+import { BASE } from "./base.ts"
 import { answerCounts, answerSideRow } from "./answer.ts"
 import { divergenceLineFor, unconfiguredLineFor } from "./config-diverge.ts"
 import { branchRows, branchSideRows } from "./branch-guard.ts"
@@ -21,7 +21,7 @@ import { lockWaitLine, lockWaiters } from "./review.ts"
 import { refreshRouteStale } from "./task-folders.ts"
 import { ROUTE_RU, STALE_WARNING } from "./route.ts"
 import { type Task, ACCEPTED_REMINDERS_MAX, EXECUTOR_CODE, acceptedAt, acceptedReminders, isOpen, listTasks, loadTask, sesLabel, sessionOf, taskNo } from "./tasks.ts"
-import { CREW_STATE_WORDS, ROLE_WORDS, SESSION_KIND, SESSION_WORDS, TASK_WORDS } from "./progress.ts"
+import { CANOPUS_STATE_WORDS, ROLE_WORDS, SESSION_KIND, SESSION_WORDS, TASK_WORDS } from "./progress.ts"
 import { LOOP_HINT, LOOP_MARK, LOOP_WORD, loopLine, loopOf } from "./answer-loop.ts"
 import { GATE_MARK } from "./gate-stop.ts"
 import { IDLE_MARK } from "./idle-tab.ts"
@@ -54,7 +54,7 @@ export type Status = {
   /** Отметка ворот поставлена не записью «ворота», а фразой ожидания решения владельца без вопроса (задача 064, п. 10). */
   gateWait?: true
   /** state owner, но «вопрос» — служебный текст плагина, а не слово вкладки (задача 077): lost — окно считает ход идущим, а сервер свободен;
-   *  hung — ход завис. /crew называет такое словом (CREW_STATE_WORDS), а не русским предложением из question и detail. */
+   *  hung — ход завис. /canopus называет такое словом (CANOPUS_STATE_WORDS), а не русским предложением из question и detail. */
   sys?: "lost" | "hung"
   /** Вкладка зациклилась на вопросе (задача 078, answer-loop.ts): владелец ответил n раз, ответы доставлены, а она спрашивает снова. State owner, значок
    *  LOOP_MARK, подпись «вкладка зациклилась на вопросе…» с предложением (переназначить, написать вкладке). Снимается рабочим ходом, словом владельца,
@@ -66,14 +66,14 @@ export type Status = {
   /** Вопрос встроенного вопросника (form-wait.ts): уведомления по нему ведёт formWatch, не общий повтор owner_reminder_min. */
   formId?: string
   /** Задача 120 (state owner): диалог вопроса на экране без записи формы в forms/ (norecord: вызов question открыт по базе, записи нет) или с мёртвой записью
-   *  (dead: вызов оборван, диалог мог остаться в окне - закрыть вручную). Тот же «ждёт вас», с возрастом; /crew называет это словом. */
+   *  (dead: вызов оборван, диалог мог остаться в окне - закрыть вручную). Тот же «ждёт вас», с возрастом; /canopus называет это словом. */
   dialog?: "norecord" | "dead"
   watches: { id: string; note?: string; started?: number; minutes: number }[]
   asked: { qid: string; to: string; at: number }[]
-  /** Вопросы старше ASKED_STALE_MIN без ответа: в /crew отдельной строкой, состояние reply не держат. */
+  /** Вопросы старше ASKED_STALE_MIN без ответа: в /canopus отдельной строкой, состояние reply не держат. */
   askedStale?: { qid: string; to: string; at: number }[]
   /** Своя задача (исполнитель или приёмщик). ref — номер задачи в показе («045», задачи 058, 086); label — сессия
-   *  методики («С4-3»); group — задача с папкой: панель и /crew группируют её сессии под строкой задачи; status у сессии методики —
+   *  методики («С4-3»); group — задача с папкой: панель и /canopus группируют её сессии под строкой задачи; status у сессии методики —
    *  её собственный (сдана — submitted, передана — handed), ended — когда сдана. */
   task?: { n: number; status: string; as: "executor" | "reviewer"; title: string; steps?: StepView[]; checking?: string; ref?: string; label?: string; group?: true; ended?: number; kind?: string; route?: "fast" | "small"; routeStale?: true }
   /** Открытые задачи, поставленные этой сессией. */
@@ -288,7 +288,7 @@ function statusOfAll(x: StatusInput): Status {
   if (x.busy) return { ...base, state: "working", since: x.busySince, ...(x.longTurnMs && x.busySince ? { longTurnMs: x.longTurnMs } : {}), detail: `работает${x.busySince ? ` (${minutes(x.busySince, now)})` : ""}` }
   // сессию задачи ведёт интегратор, и её вопрос в конце хода бывает ему (сдавший воркер спросил интегратора), а бывает
   // владельцу (приёмщик просил «вливай?»): кому — по тексту не определить. Поэтому у сессии задачи — «question»: видно
-  // в /crew, но без уведомления; «owner» с уведомлением — только у вкладок владельца.
+  // в /canopus, но без уведомления; «owner» с уведомлением — только у вкладок владельца.
   // исполнитель, сдавший задачу (submitted/reviewing/accepted), по роли ждёт приёмщика: «жду решения приёмки» — не вопрос
   const handedOver = !!card.task && !!own && ["submitted", "reviewing", "accepted"].includes(own.status)
   // ход кончился фразой ожидания, а не вопросом (задача 056): то же состояние, отметка wait и подпись без слова «вопрос»
@@ -387,7 +387,7 @@ export function readStatuses(): Status[] {
 }
 
 /** Значки вкладок (владелец, 2026-10-15: «? — ждёт вас; ▶ — задал вопрос текстом, ждёт ответа интегратора (или вашего);»):
- *  панель, /crew, /ask. */
+ *  панель, /canopus, /ask. */
 export const MARK: Partial<Record<State, string>> = { owner: "?", question: "▶", working: "•" }
 /** Значок вкладки, чей ход кончился фразой ожидания, а не вопросом (задача 056; владелец, 2026-10-15: значок «не похожий на
  *  вопрос»): «‖» — пауза в одну колонку («⏸» в терминале бывает шириной в две, «…» — знак обрезки строки). */
@@ -397,12 +397,12 @@ export const markOf = (s: Pick<Status, "state" | "wait"> & { gate?: true; loop?:
   s.loop && s.state === "owner" ? LOOP_MARK : s.gate && s.state === "owner" ? GATE_MARK : s.wait && (s.state === "owner" || s.state === "question") ? WAIT_MARK : s.idleTab && s.state === "tasks" ? IDLE_MARK : MARK[s.state]
 const ORDER: Record<State, number> = { owner: 0, question: 1, working: 2, watch: 3, reply: 4, task: 5, tasks: 6, idle: 7 }
 
-/** Ширина строки окна /crew (диалог OpenCode ~74 знака): длиннее — перенос, и список рвётся (владелец 2026-10-07:
+/** Ширина строки окна /canopus (диалог OpenCode ~74 знака): длиннее — перенос, и список рвётся (владелец 2026-10-07:
  *  «выглядит некрасиво»). Строка обрезается с «…». */
 export const DIALOG_WIDTH = 72
 const fit = (line: string, n = DIALOG_WIDTH) => (line.length > n ? `${line.slice(0, n - 1)}…` : line)
 
-/** Сводная строка «Waiting for you: N · since ЧЧ:ММ · проект задача роль» (все проекты): первая строка /crew (задача 077: английская, подпись
+/** Сводная строка «Waiting for you: N · since ЧЧ:ММ · проект задача роль» (все проекты): первая строка /canopus (задача 077: английская, подпись
  *  панели «Ждут вас» не менялась). Время и источник — у самого давнего ожидания; источник назван, чтобы в окне другого проекта было видно,
  *  что вопрос не его (владелец, 2026-10-15: «смущают» одинаковые строки в окнах всех проектов). Никто не ждёт — undefined. */
 export function waitingLine(list: Status[], _now = Date.now()): string | undefined {
@@ -413,7 +413,7 @@ export function waitingLine(list: Status[], _now = Date.now()): string | undefin
   return `Waiting for you: ${w.length}${oldest.since ? ` · since ${hm(oldest.since)}` : ""}${where ? ` · ${where}` : ""}`
 }
 
-/** Кто ждёт владельца (задача 084): один источник числа - «Ждут вас» в панели, первая строка /crew и «ждут N» внизу панели считают по нему. */
+/** Кто ждёт владельца (задача 084): один источник числа - «Ждут вас» в панели, первая строка /canopus и «ждут N» внизу панели считают по нему. */
 export const waitingOf = (list: Status[]) => list.filter((s) => s.state === "owner")
 const oldestWait = (w: Status[]) => w.reduce((a, b) => ((b.since ?? Infinity) < (a.since ?? Infinity) ? b : a))
 /** Номер своей задачи в показе (задачи 083, 086): тот же taskNo, что пишет ref сводки; у сводки прежней версии ref мог быть «#22». */
@@ -441,14 +441,14 @@ export function waitingRows(list: Status[], width = SIDE_WIDTH): SideRow[] {
   return rows
 }
 
-// ЭКРАН /crew (задача 077; владелец, 2026-10-17: «в /crew нужно уменьшить количество текста до минимума, оставшийся сделай на анг.,
+// ЭКРАН /canopus (задача 077; владелец, 2026-10-17: «в /canopus нужно уменьшить количество текста до минимума, оставшийся сделай на анг., — дословно; guard-allow(legacy-name): дословное слово владельца 2026-10-17
 // общается crew должен на моем языке»). По проекту: название; вкладки и задачи — значок, номер и название как есть, роль и состояние одним
-// английским словом (CREW_STATE_WORDS, progress.ts), возраст ожидания, у сессии задачи с папкой — код и вид (SESSION_KIND); вопрос владельцу —
+// английским словом (CANOPUS_STATE_WORDS, progress.ts), возраст ожидания, у сессии задачи с папкой — код и вид (SESSION_KIND); вопрос владельцу —
 // своей строкой «↳», как есть. Не больше одной строки на вкладку. Остальное (планы, неочищенные задачи, отчёты, автоответы, устаревшие
 // вопросы, замок, настройки) — счётчиками в строке проекта. Содержимое вкладок и владельца не переводится: язык общения вкладок —
-// owner_language проекта (core.ts, подсказка вкладкам); /crew только показывает их слова и ничего не подменяет.
+// owner_language проекта (core.ts, подсказка вкладкам); /canopus только показывает их слова и ничего не подменяет.
 
-/** Возраст ожидания для /crew: «35m», «10h», «2d». */
+/** Возраст ожидания для /canopus: «35m», «10h», «2d». */
 export function ageText(from: number | undefined, now: number): string {
   if (!from) return ""
   const m = Math.max(0, Math.round((now - from) / 60_000))
@@ -458,7 +458,7 @@ export function ageText(from: number | undefined, now: number): string {
 const roleWord = (t: NonNullable<Status["task"]>) => (t.as === "reviewer" ? ROLE_WORDS.reviewer : ROLE_WORDS.executor)
 /** Вкладка ждущего — то, что открыть: «033 exec» (задача и роль), «045 С4-3» (сессия задачи), иначе роль («integrator»). */
 const tabRef = (s: Status) => (s.task ? `${refOf(s)} ${s.task.label ?? roleWord(s.task)}` : s.role)
-/** Сессия методики закончена (сдана, передана, закрыта) и не ждёт владельца и не работает: в /crew — счётом «N done», как в панели
+/** Сессия методики закончена (сдана, передана, закрыта) и не ждёт владельца и не работает: в /canopus — счётом «N done», как в панели
  *  (то же правило, что finished() в sidebarLines). */
 const finishedSession = (s: Status) => !!s.task?.group && !!s.task.label && ["submitted", "handed", "cancelled"].includes(s.task.status) && s.state !== "owner" && s.state !== "question" && s.state !== "working"
 /** Вид сессии методики по-английски: по коду из SESSION_KIND; код вне перечня — цель сессии как есть (содержимое), у исполнителя — нет. */
@@ -472,30 +472,30 @@ const whoOf = (s: Status, dup: Set<string>): string => {
 /** Состояние вкладки словом и возрастом: «waiting you 35m», «watch gate 12m», «reply from proj.integrator 50m». */
 export function stateText(s: Status, now: number): string {
   const age = (t?: number) => (t ? ` ${ageText(t, now)}` : "")
-  if (s.sys) return `${CREW_STATE_WORDS[s.sys === "hung" ? "hung" : "lost"]}${age(s.since)}`
+  if (s.sys) return `${CANOPUS_STATE_WORDS[s.sys === "hung" ? "hung" : "lost"]}${age(s.since)}`
   switch (s.state) {
     case "owner":
-      return `${CREW_STATE_WORDS[s.gate ? "gate" : "owner"]}${s.dialog ? ` (${CREW_STATE_WORDS[s.dialog === "dead" ? "deadDialog" : "dialog"]})` : ""}${age(s.since)}`
+      return `${CANOPUS_STATE_WORDS[s.gate ? "gate" : "owner"]}${s.dialog ? ` (${CANOPUS_STATE_WORDS[s.dialog === "dead" ? "deadDialog" : "dialog"]})` : ""}${age(s.since)}`
     case "question":
-      return `${CREW_STATE_WORDS[s.wait ? "paused" : "question"]}${age(s.since)}`
+      return `${CANOPUS_STATE_WORDS[s.wait ? "paused" : "question"]}${age(s.since)}`
     case "working":
-      return `${CREW_STATE_WORDS.working}${age(s.since)}`
+      return `${CANOPUS_STATE_WORDS.working}${age(s.since)}`
     case "watch": {
       const w = s.watches[0]
-      return `${CREW_STATE_WORDS[w && !w.started ? "queued" : "watch"]}${w?.note ? ` ${short(w.note, 30)}` : ""}${age(s.since)}${s.watches.length > 1 ? ` +${s.watches.length - 1}` : ""}`
+      return `${CANOPUS_STATE_WORDS[w && !w.started ? "queued" : "watch"]}${w?.note ? ` ${short(w.note, 30)}` : ""}${age(s.since)}${s.watches.length > 1 ? ` +${s.watches.length - 1}` : ""}`
     }
     case "reply":
-      return `${CREW_STATE_WORDS.reply}${s.asked.length ? ` from ${s.asked.map((a) => a.to).join(", ")}` : ""}${age(s.since)}`
+      return `${CANOPUS_STATE_WORDS.reply}${s.asked.length ? ` from ${s.asked.map((a) => a.to).join(", ")}` : ""}${age(s.since)}`
     case "task": {
       const t = s.task
       if (!t) return "task"
-      if (t.label && ["submitted", "handed", "cancelled"].includes(t.status)) return CREW_STATE_WORDS[t.status === "submitted" ? "done" : t.status === "handed" ? "handed" : "closed"]
+      if (t.label && ["submitted", "handed", "cancelled"].includes(t.status)) return CANOPUS_STATE_WORDS[t.status === "submitted" ? "done" : t.status === "handed" ? "handed" : "closed"]
       return TASK_WORDS[t.status] ?? t.status
     }
     case "tasks":
-      return s.idleTab ? `${CREW_STATE_WORDS.stalled}${age(s.idleTab.since)}` : `${CREW_STATE_WORDS.tasks} ${s.tasks.length}`
+      return s.idleTab ? `${CANOPUS_STATE_WORDS.stalled}${age(s.idleTab.since)}` : `${CANOPUS_STATE_WORDS.tasks} ${s.tasks.length}`
     default:
-      return CREW_STATE_WORDS.idle
+      return CANOPUS_STATE_WORDS.idle
   }
 }
 /** Слова строки вкладки после состояния: шаг приёмки «3/13» (у приёмщика) и «⚠ stuck 9h» (застряла, задача 043). */
@@ -513,7 +513,7 @@ const questionOf = (s: Status): string | undefined => {
 /** Значок строки: только у вкладок, которым нужно внимание (как в панели). */
 const rowMark = (s: Status) => (s.state === "owner" || s.state === "question" || (s.idleTab && s.state === "tasks") ? `${markOf(s)} ` : "")
 
-/** Текст /crew: проекты (свой первым), в проекте — сначала ждущие владельца. */
+/** Текст /canopus: проекты (свой первым), в проекте — сначала ждущие владельца. */
 export function formatStatuses(list: Status[], now = Date.now(), first?: string): string {
   if (!list.length) return "No sessions yet: the service plugin has not written status/ yet."
   const byProject = new Map<string, Status[]>()
@@ -530,7 +530,7 @@ export function formatStatuses(list: Status[], now = Date.now(), first?: string)
     const body = items.filter((s) => !quiet.includes(s))
     const idle = quiet.filter((s) => s.state === "idle")
     const quietParts = [
-      ...(idle.length ? [idle.length === 1 ? `${idle[0].role} ${CREW_STATE_WORDS.idle}` : `${idle.length} ${CREW_STATE_WORDS.idle}`] : []),
+      ...(idle.length ? [idle.length === 1 ? `${idle[0].role} ${CANOPUS_STATE_WORDS.idle}` : `${idle.length} ${CANOPUS_STATE_WORDS.idle}`] : []),
       ...quiet.filter((s) => s.state === "tasks").map((s) => `${s.role} ${stateText(s, now)}`),
     ]
     const lines: string[] = []
@@ -565,7 +565,7 @@ export function formatStatuses(list: Status[], now = Date.now(), first?: string)
       const staleLine = group.some((x) => x.task?.routeStale) ? `    ⚠ ${STALE_WARNING}` : undefined
       if (s.task!.group) {
         const done = group.filter(finishedSession).length
-        lines.push(`  ${title}${onTitle}${done ? ` · ${done} ${CREW_STATE_WORDS.done}` : ""}`)
+        lines.push(`  ${title}${onTitle}${done ? ` · ${done} ${CANOPUS_STATE_WORDS.done}` : ""}`)
         if (staleLine) lines.push(staleLine)
         for (const x of group.filter((y) => !finishedSession(y))) row(x, "    ", holder)
       } else if (group.some((x) => x.state === "owner" || x.state === "question")) {
@@ -593,12 +593,12 @@ export function formatStatuses(list: Status[], now = Date.now(), first?: string)
     }
     out.push([p, ...quietParts, ...(counters ? [counters] : [])].join(" · "), ...lines)
   }
-  if (sleeping.length) out.push(`${CREW_STATE_WORDS.idle}: ${sleeping.join(", ")}`)
+  if (sleeping.length) out.push(`${CANOPUS_STATE_WORDS.idle}: ${sleeping.join(", ")}`)
   return out.join("\n")
 }
 
 /** Строка-счётчик проекта: всё, что не вкладка и не вопрос владельцу. Каждый счётчик называет номера и часы там, где их мало; подробности —
- *  в своих местах (README плагина, «/crew»): crew_task list / show, /plans, /crew-doctor, панель. Нет ничего — undefined. */
+ *  в своих местах (README плагина, «/canopus»): canopus_task list / show, /plans, /canopus-doctor, панель. Нет ничего — undefined. */
 function countersOf(project: string, items: Status[], otherPlans: number, now: number): string | undefined {
   const parts: string[] = []
   if (otherPlans) parts.push(`plans ${otherPlans}`)
@@ -621,7 +621,7 @@ function countersOf(project: string, items: Status[], otherPlans: number, now: n
   const bare = !!unconfiguredLineFor(project)
   if (diverge) parts.push("⚠ off-branch")
   if (bare) parts.push("⚠ no models")
-  if (diverge || bare) parts.push("/crew-doctor")
+  if (diverge || bare) parts.push("/canopus-doctor")
   return parts.length ? parts.join(" · ") : undefined
 }
 
@@ -638,7 +638,7 @@ const short = (x: string, n: number) => {
   const one = x.replace(/\s+/g, " ").trim()
   return one.length > n ? `${one.slice(0, n - 1)}…` : one
 }
-/** Планы проекта для /crew (план 004): на согласовании владельца — approval, остальные (на перепроверке, в работе) — числом other. */
+/** Планы проекта для /canopus (план 004): на согласовании владельца — approval, остальные (на перепроверке, в работе) — числом other. */
 export function plansOf(project: string): { approval: Task[]; other: number } {
   let list: Task[] = []
   try {
@@ -649,7 +649,7 @@ export function plansOf(project: string): { approval: Task[]; other: number } {
 }
 
 const REPORT_MS = 24 * 3_600_000
-/** Отчёты приёмки за сутки: задачи, принятые или влитые с шагами (до трёх, свежие первыми) — в счётчике «reports NNN»; шаги — crew_task show. */
+/** Отчёты приёмки за сутки: задачи, принятые или влитые с шагами (до трёх, свежие первыми) — в счётчике «reports NNN»; шаги — canopus_task show. */
 export function reportsOf(project: string, now = Date.now()): string[] {
   let done: Task[] = []
   try {
@@ -659,7 +659,7 @@ export function reportsOf(project: string, now = Date.now()): string[] {
 }
 
 // БОКОВАЯ ПАНЕЛЬ ОКНА (план 003.2, 2026-10-06; владелец: «в этой области можно выводить активные сессии и обновлять в
-// реальном времени?»). Строки блока «Crew» под «Context»: кто чего ждёт в проекте вкладки на экране, ждущие владельца
+// реальном времени?»). Строки блока «Canopus» под «Context»: кто чего ждёт в проекте вкладки на экране, ждущие владельца
 // первыми. Чистая функция — рисует sidebar.tsx, проверяет тест.
 /** Строка панели. what — её текст; lead — то, что печатается перед ним (у строки вкладки: «↳ прм  », «интегр.   »; у остальных
  *  нет), mark и who остаются для логики (какая вкладка, её значок). Иерархия панели — знаком и цветом, не отступом (задача 068;
@@ -763,7 +763,7 @@ export function sidebarLines(list: Status[], now = Date.now(), project?: string,
   // ЗАДАЧА — ОДНИМ ЗАГОЛОВКОМ (задача 058; задача 064, п. 8; владелец, 2026-10-17, «по рекомендации»): вкладки одной задачи подряд, под
   // строкой «номер название» — на месте самой важной из них. У задачи с папкой — по номеру папки, без папки — по номеру задачи.
   // Законченные сессии задачи с папкой (сданы, переданы, закрыты; не ждут вас и не работают) — одной строкой «✓ сдано N сессий» под
-  // живыми, в счёт строк панели (SIDE_MAX) не идут; полный список — в /crew
+  // живыми, в счёт строк панели (SIDE_MAX) не идут; полный список — в /canopus
   const tkey = (s: Status) => (s.task ? (s.task.group ? `g${s.task.ref ?? s.task.n}` : `t${s.task.n}`) : undefined)
   const finished = (s: Status) => !!s.task?.group && !!s.task.label && ["submitted", "handed", "cancelled"].includes(s.task.status) && s.state !== "owner" && s.state !== "question" && s.state !== "working"
   // HOLD/STOP (задача 262): метка сторожа шага по слову владельца + открытая задача — старше любой карточки: вкладки такой задачи
@@ -936,10 +936,10 @@ export function sidebarLines(list: Status[], now = Date.now(), project?: string,
   const more = ordered.length > SIDE_MAX ? ` · +${ordered.length - SIDE_MAX}` : ""
   // «ждут» - то же число, что «Ждут вас» (задача 084; владелец видел «Ждут вас: 2» и внизу «ждут 0»); наблюдения - отдельным значком ⧗, как в строках
   const watch = watching ? ` · ⧗ ${watching}${queued ? ` (очередь ${queued})` : ""}` : ""
-  return { title: `Crew${project ? ` · ${project}` : ""}`, rows, foot: `ход ${working} · ждут ${waitingOf(list).length}${watch}${more} · /crew` }
+  return { title: `Canopus${project ? ` · ${project}` : ""}`, rows, foot: `ход ${working} · ждут ${waitingOf(list).length}${watch}${more} · /canopus` }
 }
 
-/** Текст /crew-doctor: последняя самопроверка сервиса (DOCTOR_FILE) и её время. */
+/** Текст /canopus-doctor: последняя самопроверка сервиса (DOCTOR_FILE) и её время. */
 export function doctorText(d: { at: number; problems: string[]; notes?: string[] } | undefined, now = Date.now()): string {
   if (!d?.at) return "Самопроверки ещё не было: сервис делает её через 10 с после запуска плагина и раз в 10 минут."
   const when = `проверено в ${hm(d.at)} (${minutes(d.at, now) || "0 мин"} назад)`

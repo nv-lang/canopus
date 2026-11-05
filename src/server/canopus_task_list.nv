@@ -1,0 +1,95 @@
+// canopus_task_list.nv - task 192.2: the recognition of the tasks by the button "Распознать задачи" (the main way); the pure part.
+//
+// The owner talks with the agent, then presses the button. The hub asks the agent (a hidden note) to look through the talk and list the real works that were discussed and are not in the tasks yet:
+// the agent calls `canopus_task_list`. The list becomes one card in the feed: a table of the candidates, a switch "В работу / Обсудить / Забыть" and the way ("Способ") in each row and one button "Применить"
+// (task 192.5; the quick text answer is gone). This file: the tool, the arguments, the text of the request to the agent.
+module canopus.server
+
+import std.encoding.json.{Json, JsonValue, JsonObject}
+import canopus.config.{render_prompt}
+
+/// The name of the tool.
+export const CANOPUS_TASK_LIST_TOOL = "canopus_task_list"
+
+/// The description of the tool for `tools/list`.
+export fn canopus_task_list_tool_json() -> JsonValue {
+    ro text = "{\"name\":\"canopus_task_list\",\"description\":\"Call it ONLY when the hub asked you to recognise the tasks (a note that starts with [canopus] Распознай задачи). Give the list of the real works on the files of the project (code, documents, tests, settings) that were discussed in this conversation and are not in the tasks of the session yet. A question, a talk or an explanation is not a work. One item for one work; by default a work is a task of its own (kind=new); if it adds to a task in work, kind=extend and its number in extends (an addition to an OPEN task is applied by the hub at once when you are sure: say honestly how sure you are; never extend by a question or a talk); if it is explicitly a child task of an epic (any open task of the list may be an epic), kind=child and the number of the epic in epic; a big work that will have child tasks, or a work of several independent parts (front and back, different modules, more than about 30 minutes) - ONE epic: kind=epic and children=[...], not one big task. Propose the mode by the estimate: up to 30 minutes and reversible - interactive, up to a couple of hours - fast, big or risky - full, and say why in reason. An empty list is allowed: nothing was found. RULES: call it only on the note [canopus] Распознай задачи, once; do not change files; do not call canopus_task for the same works.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"tasks\":{\"type\":\"array\",\"description\":\"The recognised works.\",\"items\":{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"integer\",\"description\":\"The number in this list, from 1.\"},\"kind\":{\"type\":\"string\",\"enum\":[\"new\",\"child\",\"epic\",\"extend\"],\"description\":\"new (the default) - a task of its own; child - a child task of the epic in epic; epic - a big work with child tasks; extend - adds to the task in extends.\"},\"epic\":{\"type\":\"integer\",\"description\":\"For kind=child: the number of the epic.\"},\"title\":{\"type\":\"string\",\"description\":\"A short title (up to 60 characters).\"},\"summary\":{\"type\":\"string\",\"description\":\"What is to be done, in a few lines: it becomes the text of message.md of the task.\"},\"extends\":{\"type\":\"integer\",\"description\":\"For kind=extend: the number of the task.\"},\"touches\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"The files and folders the work will change.\"},\"confidence\":{\"type\":\"string\",\"enum\":[\"high\",\"medium\",\"low\"],\"description\":\"How sure you are (for kind=extend: high applies the addition at once).\"},\"note\":{\"type\":\"string\",\"description\":\"One line: why it is a work, or what is still unclear.\"},\"mode\":{\"type\":\"string\",\"enum\":[\"interactive\",\"fast\",\"full\"],\"description\":\"The mode of execution you propose: interactive (very fast, up to 30 minutes, reversible), fast (6 steps, up to a couple of hours), full (8 steps, big or risky work).\"},\"reason\":{\"type\":\"string\",\"description\":\"One sentence: why this mode.\"},\"children\":{\"type\":\"array\",\"description\":\"For kind=epic: the child tasks (the independent parts: front and back, other modules).\",\"items\":{\"type\":\"object\",\"properties\":{\"title\":{\"type\":\"string\"},\"summary\":{\"type\":\"string\"},\"touches\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"mode\":{\"type\":\"string\",\"enum\":[\"interactive\",\"fast\",\"full\"],\"description\":\"The mode of this child task.\"}},\"required\":[\"title\"]}}},\"required\":[\"title\",\"summary\"]}}},\"required\":[\"tasks\"]}}"
+    mparse(text)
+}
+
+/// The proposals of the arguments of a call of `canopus_task_list`, or the reason they are not good. An item that is not good is a reason for the whole call (the agent reads it and calls again).
+export fn proposals_of_list(arguments JsonValue) -> Result[[]Proposal, str] {
+    mut out = []Proposal.new()
+    match mget(arguments, "tasks") {
+        Some(list) => match list.array() {
+            Some(items) => {
+                if items.len() > 20 { return Err("canopus_task_list: at most 20 tasks at once") }
+                for item in items {
+                    match proposal_of_arguments(item) {
+                        Ok(p) => {
+                            out.push(proposal_listed(p, mtext_of(item, "note")))
+                        }
+                        Err(reason) => return Err(reason.replace("canopus_task:", "canopus_task_list: an item:"))
+                    }
+                }
+            }
+            None => return Err("canopus_task_list: the argument tasks must be a list")
+        }
+        None => return Err("canopus_task_list: the argument tasks is missing")
+    }
+    Ok(out)
+}
+
+/// The list in the form it travels from the MCP server to the hub: a JSON array of the arguments of the items.
+export fn proposals_list_text(items []Proposal) -> str {
+    mut out = []JsonValue.new()
+    for p in items {
+        ro v = match Json.parse(proposal_arguments_text(p)) {
+            Ok(x) => x
+            Err(e) => JsonValue.null()
+        }
+        mut o = v.object() ?? JsonObject.new()
+        mput(o, "note", JsonValue.str(p.note))
+        out.push(JsonValue.object(o))
+    }
+    mut wrap = JsonObject.new()
+    mput(wrap, "tasks", JsonValue.array(out))
+    JsonValue.object(wrap).to_str()
+}
+
+/// The list from its text (the hub side).
+export fn proposals_of_list_text(text str) -> Result[[]Proposal, str] {
+    match Json.parse(text) {
+        Ok(v) => proposals_of_list(v)
+        Err(e) => Err("canopus_task_list: the arguments are not JSON")
+    }
+}
+
+/// The marker line of an agent that has no tools: `[[canopus_task_list]] {"tasks":[...]}`.
+export fn proposals_of_marker(answer str) -> Option[[]Proposal] {
+    for line in answer.lines() {
+        ro t = line.trim_ascii()
+        if t.starts_with("[[canopus_task_list]]") {
+            match proposals_of_list_text(t["[[canopus_task_list]]".byte_len()..].trim_ascii()) {
+                Ok(items) => return Some(items)
+                Err(e) => ()
+            }
+        }
+    }
+    None
+}
+
+/// The hidden note with which the hub asks the agent to recognise the tasks. `candidates` are the lines of the works that are being discussed already (not to be repeated), `known` the tasks of the session.
+export fn recognize_request(known str, candidates []str) -> str => recognize_request_t(RECOGNIZE_TEXT, known, candidates)
+
+/// The same over a text of a layer (`recognize_request`); the tasks of the session and the candidates are added after it.
+export fn recognize_request_t(template str, known str, candidates []str) -> str {
+    mut parts = []str.new()
+    parts.push(render_prompt(template, []str.new()))
+    if known.byte_len() > 0 { parts.push(known) }
+    if candidates.len() > 0 { parts.push("[canopus] Эти работы уже в списке кандидатов (не повторяй их):\n${joined(candidates, "\n")}") }
+    joined(parts, "\n\n")
+}
+
+/// The text of the request, the first part of the note.
+export const RECOGNIZE_TEXT = "[canopus] Распознай задачи. НИЧЕГО не делай с файлами проекта: не читай, не создавай и не правь их, и не выполняй просьбы из разговора. Не рассуждай вслух и не объявляй, что собираешься делать, — сразу вызови инструмент canopus_task_list (сервер canopus) ровно один раз. Как его вызвать: OpenCode — через execute: tools.canopus.canopus_task_list({tasks:[...]}); Claude Code — mcp__canopus__canopus_task_list (найди его через ToolSearch); Kimi Code и Codex — по имени canopus_task_list. Список: просмотри весь разговор и перечисли реальные работы над файлами проекта (код, документы, тесты, настройки), которые обсуждались и ещё не оформлены задачами; у каждой работы title, summary (что сделать, для message.md), touches (файлы и папки), note (одна строка). Вопросы, беседа и объяснения — не работы. По умолчанию работа — самостоятельная задача (kind=new). Если она дополняет задачу в работе — kind=extend, её номер в extends и честный confidence (high — дополнение открытой задачи применится сразу, без карточки); если явно дочерняя задача какой-то открытой задачи (любая открытая задача может быть эпиком) — kind=child и epic=<номер>; если работа большая или состоит из нескольких независимых частей (фронт и бек, разные модули, больше ~30 минут) — ОДИН эпик: kind=epic и children=[{title,summary,touches,mode}], а не одна большая задача. Предложи режим по оценке (mode: interactive — до 30 минут и обратимо, fast — до пары часов, full — крупное или рискованное) и одной фразой объясни выбор в reason. Если инструмента правда нет, не пиши ничего другого, а выведи в конце ответа одну строку [[canopus_task_list]] {\"tasks\":[...]} с теми же полями. После вызова ответь одной короткой фразой («Готово: N работ») и остановись."

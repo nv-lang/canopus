@@ -1,7 +1,7 @@
 // disk_test.nv - the machines of the product are read from a folder on the disk, not compiled in (task 248): the folder of the tree loads and
 // passes the checks; a missing file, an alula_version that is not the one of the engine and a hash of a library that is not the hash of the file
 // are errors that name the path; a file put in place of another is what the loader gives; no `embed_str` is left in the data of the machines.
-module crew_harness.product_machines
+module canopus.product_machines
 
 import std.fs.{Fs, real_fs, Path, write_text, create_dir_all, remove_dir_all}
 import alula.machine.{NamedText}
@@ -12,7 +12,7 @@ import std.os.{Os, real_os, temp_dir, pid}
 fn dk_copy(name str, target str, from str, to str, drop bool) -> str {
     ro base = with Os = real_os() { temp_dir() }
     ro id = with Os = real_os() { pid() }
-    ro dir = base.join("crew-machines-test-${id}-${name}")
+    ro dir = base.join("canopus-machines-test-${id}-${name}")
     mut files = tree_product_machines().files
     for chat in ["chat.alula.json", "chat.alula.md"] { files.push(NamedText { name: chat, text: tree_text("machines/product/${chat}") }) }
     with Fs = real_fs() {
@@ -109,22 +109,22 @@ test "disk: a file put in the folder is the machine the loader gives" {
 }
 
 test "disk: the folder of the machines is the setting, else beside the program, else the build of the tree" {
-    assert(pm_join(machines_dir_candidates("C:/work/kit/crew-hub.exe"), "|") == "C:/work/kit/machines/product|C:/work/kit/../machines/product")
-    assert(pm_join(machines_dir_candidates("C:\\kit\\crew-hub.exe"), "|") == "C:\\kit/machines/product|C:\\kit/../machines/product")
-    assert(pm_join(machines_dir_candidates("crew-hub.exe"), "|") == "./machines/product|./../machines/product")
-    match find_machines_dir("", "${tree_machines_dir()}/../../target/crew-hub.exe") {
+    assert(pm_join(machines_dir_candidates("C:/work/kit/canopus-hub.exe"), "|") == "C:/work/kit/machines/product|C:/work/kit/../machines/product")
+    assert(pm_join(machines_dir_candidates("C:\\kit\\canopus-hub.exe"), "|") == "C:\\kit/machines/product|C:\\kit/../machines/product")
+    assert(pm_join(machines_dir_candidates("canopus-hub.exe"), "|") == "./machines/product|./../machines/product")
+    match find_machines_dir("", "${tree_machines_dir()}/../../target/canopus-hub.exe") {
         Ok(d) => assert(d.ends_with("/../machines/product"))
         Err(e) => panic(e)
     }
-    match find_machines_dir("C:/work/nowhere/machines", "C:/work/kit/crew-hub.exe") {
+    match find_machines_dir("C:/work/nowhere/machines", "C:/work/kit/canopus-hub.exe") {
         Ok(d) => assert(d == "C:/work/nowhere/machines")
         Err(e) => panic(e)
     }
-    match find_machines_dir("", "C:/work/nowhere/kit/crew-hub.exe") {
+    match find_machines_dir("", "C:/work/nowhere/kit/canopus-hub.exe") {
         Ok(d) => panic("a folder without machines was taken: ${d}")
         Err(e) => {
             assert(e.contains("C:/work/nowhere/kit/machines/product"))
-            assert(e.contains("CREW_SERVER_MACHINES_DIR"))
+            assert(e.contains("CANOPUS_SERVER_MACHINES_DIR"))
         }
     }
 }

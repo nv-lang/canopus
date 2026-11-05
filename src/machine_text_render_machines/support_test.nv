@@ -1,12 +1,12 @@
 // support_test.nv - helpers of the tests of the reverse generator (task 113): JSON `kind: machine` -> a file of Alula in Russian or English (section 1b of the specification, the canonical form).
 // The trees are compared as trees (the order of the keys, the spaces and the `title` do not count).
-module crew_harness.machine_text_render_machines
+module canopus.machine_text_render_machines
 
 import std.text
 import std.encoding.json.{Json, JsonValue, JsonObject}
 import alula.machine.{text_of_file}
 import alula.machine_text.{translate_checked_with, translate_report_with, TranslateReport, render_machine, RenderReport, error_text}
-import crew_harness.machines.{machine_files, product_registry, translation_files, connects_library, part_mended}
+import canopus.machines.{machine_files, product_registry, translation_files, connects_library, part_mended}
 
 fn machine_json(name str) -> str => text_of_file(machine_files(), name)
 

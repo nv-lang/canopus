@@ -6,8 +6,8 @@
 
 import { pageTitle } from './attention.js';
 
-export const BELL_KEY = 'crew-console-notify';
-export const SOUND_KEY = 'crew-console-sound';
+export const BELL_KEY = 'canopus-console-notify';
+export const SOUND_KEY = 'canopus-console-sound';
 export const BLINK_MS = 2000;
 
 function readFlag(storage, key) {
@@ -122,7 +122,7 @@ export function createNotifier(deps) {
       if (state.bell && typeof Notif === 'function' && Notif.permission === 'granted') {
         for (const k of worth.slice(0, 3)) {
           const id = k.split('|')[0];
-          try { new Notif(blinkText, { body: names[id] || id, tag: `crew-${id}` }); } catch { /* уведомление не показалось: подсветка остаётся */ }
+          try { new Notif(blinkText, { body: names[id] || id, tag: `canopus-${id}` }); } catch { /* уведомление не показалось: подсветка остаётся */ }
         }
       }
       if (state.sound) playDing(deps.AudioContext);

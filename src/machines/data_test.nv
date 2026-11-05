@@ -1,6 +1,6 @@
 // data_test.nv - the data of the machines of the product (task 158): the lists of the files in `data.nv` hold every file of the folder `machines/product/`, the names follow the Alula rule, the registry
 // of the product loads, and every machine loads with it. The machines of the methodology left the product with task 249.
-module crew_harness.machines
+module canopus.machines
 
 import alula.machine.{NamedText, text_of_file, find_primitive, journal_find, is_machine_json_name, is_table_name}
 import alula.machine_run.{load_alula_machine}

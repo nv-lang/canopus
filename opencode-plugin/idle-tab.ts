@@ -21,7 +21,7 @@
 import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { INBOX, obligationsOf, readJson, safeKey } from "./core.ts"
-import { BASE } from "./paths.ts"
+import { BASE } from "./base.ts"
 import { type Task, ACCEPTED_REMINDERS_MAX, EXECUTOR_CODE, acceptedAt, sesLabel, sessionOf, taskNo, taskRef } from "./tasks.ts"
 
 export const IDLE_DIR = path.join(BASE, "idle-tabs")
@@ -151,7 +151,7 @@ export function idleBlockers(me: string, tasks: Task[], waits: (sid: string | un
 
 const hm = (t?: number) => (t ? new Date(t).toTimeString().slice(0, 5) : "?")
 
-/** Что стоит — для владельца (/crew, панель): «061 между сессиями», «022 прм ждёт указаний», «096 заказ не взят: …», «092 исполнитель молчит с 10:24». */
+/** Что стоит — для владельца (/canopus, панель): «061 между сессиями», «022 прм ждёт указаний», «096 заказ не взят: …», «092 исполнитель молчит с 10:24». */
 export const idleWhat = (items: IdleItem[]): string[] =>
   items.map((x) => {
     const no = taskNo(x.task)
@@ -179,10 +179,10 @@ export function idleLetter(minutes: number, items: IdleItem[]): string {
   const clean = items.find((x) => x.kind === "cleanup")
   return (
     `Ты простаиваешь ${Math.max(1, Math.round(minutes))} мин: ${what} — и нет вопроса владельцу. ` +
-    `Сделай следующий уже разрешённый шаг цикла (запусти сессию, ответь ждущей сессии). Рабочий вопрос/недостающий факт — через crew_question к ответственному автору/актуальному интегратору; только настоящее неразрешённое решение задай владельцу инструментом question — вопрос, рекомендация, довод. Сохранить отчёт/состояние и остановиться на порученной границе — не новые ворота; HOLD не снимать. ` +
-    (dead ? `Задачу без исполнителя или с молчащим исполнителем передай (crew_task reassign), напиши исполнителю (crew_send) или отмени (crew_task cancel). ` : "") +
-    (order ? `Заказ, который адресат не взял, — спроси владельца, откроет ли он окно адресата, или отмени заказ (crew_task cancel). ` : "") +
-    (clean ? `Принятую задачу ${taskNo(clean.task)} убери сам или добейся уборки: напиши приёмщику, что мешает (crew_send), либо убери дерево и ветки и вызови crew_task {action: "cleanup", n: ${clean.task.n}} — отказ назовёт, что осталось. ` : "") +
-    `Ждёшь законно — открой crew_watch или вопрос с expect_reply.`
+    `Сделай следующий уже разрешённый шаг цикла (запусти сессию, ответь ждущей сессии). Рабочий вопрос/недостающий факт — через canopus_question к ответственному автору/актуальному интегратору; только настоящее неразрешённое решение задай владельцу инструментом question — вопрос, рекомендация, довод. Сохранить отчёт/состояние и остановиться на порученной границе — не новые ворота; HOLD не снимать. ` +
+    (dead ? `Задачу без исполнителя или с молчащим исполнителем передай (canopus_task reassign), напиши исполнителю (canopus_send) или отмени (canopus_task cancel). ` : "") +
+    (order ? `Заказ, который адресат не взял, — спроси владельца, откроет ли он окно адресата, или отмени заказ (canopus_task cancel). ` : "") +
+    (clean ? `Принятую задачу ${taskNo(clean.task)} убери сам или добейся уборки: напиши приёмщику, что мешает (canopus_send), либо убери дерево и ветки и вызови canopus_task {action: "cleanup", n: ${clean.task.n}} — отказ назовёт, что осталось. ` : "") +
+    `Ждёшь законно — открой canopus_watch или вопрос с expect_reply.`
   )
 }

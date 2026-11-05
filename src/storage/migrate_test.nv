@@ -1,5 +1,5 @@
 // migrate_test.nv - the flat files of the older form into the folders of the sessions (task 192k).
-module crew_harness.storage
+module canopus.storage
 
 import std.fs.{Fs, real_fs, Path, write_text, read_text, remove_dir_all, try_exists, create_dir_all}
 import std.os.{Os, real_os, temp_dir, pid}
@@ -7,7 +7,7 @@ import std.os.{Os, real_os, temp_dir, pid}
 fn mig_root(name str) -> str {
     ro base = with Os = real_os() { temp_dir() }
     ro id = with Os = real_os() { pid() }
-    ro dir = base.join("crew-migrate-test-${id}-${name}")
+    ro dir = base.join("canopus-migrate-test-${id}-${name}")
     with Fs = real_fs() {
         ro removed = remove_dir_all(dir)
         ro made = create_dir_all(dir)

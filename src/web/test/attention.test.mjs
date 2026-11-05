@@ -158,8 +158,8 @@ test('вёрстка и проводка: выключатели в шапке �
 });
 
 test('хаб присылает минуты молчания (agent_silent_minutes): страница разбирает их, нет поля — -1', async () => {
-  const { parseCrewTask } = await import('../crew-task.js');
-  assert.equal(parseCrewTask({ silent_minutes: 7 }).silentMinutes, 7);
-  assert.equal(parseCrewTask({ silent_minutes: 0 }).silentMinutes, 0);
-  assert.equal(parseCrewTask({}).silentMinutes, -1);
+  const { parseCanopusTask } = await import('../canopus-task.js');
+  assert.equal(parseCanopusTask({ silent_minutes: 7 }).silentMinutes, 7);
+  assert.equal(parseCanopusTask({ silent_minutes: 0 }).silentMinutes, 0);
+  assert.equal(parseCanopusTask({}).silentMinutes, -1);
 });

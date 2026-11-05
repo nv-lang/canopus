@@ -1,7 +1,7 @@
 // Contract fixtures only: no paid or real family agent is launched here.
-module crew_harness.acp_live
+module canopus.acp_live
 
-import crew_harness.acp.{AcpPreset, acp_link}
+import canopus.acp.{AcpPreset, acp_link}
 import alula.engine.{Link, EventKind}
 import std.fs.{Fs, real_fs, Path, try_exists, create_dir_all}
 import std.os.{Os, real_os, temp_dir, pid}
@@ -9,7 +9,7 @@ import std.os.{Os, real_os, temp_dir, pid}
 fn approval_marker(label str) -> str {
     ro base = with Os = real_os() { temp_dir() }
     ro id = with Os = real_os() { pid() }
-    ro dir = base.join("crew-272-${id}-${label}")
+    ro dir = base.join("canopus-272-${id}-${label}")
     with Fs = real_fs() { ro made = create_dir_all(dir) }
     dir.join("prompt.marker").display()
 }

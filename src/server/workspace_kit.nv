@@ -1,6 +1,6 @@
-module crew_harness.server
+module canopus.server
 
-import crew_harness.projects.{projects_create}
+import canopus.projects.{projects_create}
 import std.fs.{Fs, create_dir_all, Path}
 import std.os.{Os, real_os}
 import std.encoding.json.{JsonValue}

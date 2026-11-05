@@ -2,7 +2,7 @@
 import { SMALL_NORM_MIN } from "./route.ts"
 export const QUESTION_ROUTING_SYSTEM = "Working questions go via task author/current project integrator; recommendation is no fact/permission. "
 export const QUESTION_ROUTING_HINT =
-  `Рабочий вопрос исполнителя/приёмщика с рекомендацией или без неё — через crew_question {action: "ask", text, context} к ответственному автору/актуальному интегратору проекта, не сразу владельцу. ` +
+  `Рабочий вопрос исполнителя/приёмщика с рекомендацией или без неё — через canopus_question {action: "ask", text, context} к ответственному автору/актуальному интегратору проекта, не сразу владельцу. ` +
   `Недостающий факт, путь, команда Alula, артефакт и конфликт требований выясняет команда с проверяемым источником; Recommended не знание и не разрешение. ` +
   `Интегратор исполняет роль оркестратора внутри методики; внешний чат не обязательный посредник. ` +
   `Владельцу через question — только необходимое неразрешённое решение/настоящие ворота с рекомендацией и доводом. ` +
@@ -15,5 +15,5 @@ export const QUESTION_ROUTING_HINT =
 export const DEFAULT_SMALL_CRITERION = "приёмка — слово владельца на тестовом контуре"
 export function smallHandoff(t: { n: number; criteria?: string }) {
   if (t.criteria?.trim() && t.criteria.trim() !== DEFAULT_SMALL_CRITERION) return `Явный критерий задания сохранён: «${t.criteria.trim()}». Передай точный SHA/проверяемый артефакт автору для проверки по этому критерию; служебный адрес команда выясняет сама, URL не выдумывай. Технический просмотр не заменяет финальное решение владельца; установленные owner gates сохранены.`
-  return `Приёмка словом владельца на тестовом контуре; норма — ссылка за ${SMALL_NORM_MIN} мин от слова владельца. Дай владельцу ссылку и запиши метку: crew_task {action: "contour", n: ${t.n}, link: "<адрес контура>"}.`
+  return `Приёмка словом владельца на тестовом контуре; норма — ссылка за ${SMALL_NORM_MIN} мин от слова владельца. Дай владельцу ссылку и запиши метку: canopus_task {action: "contour", n: ${t.n}, link: "<адрес контура>"}.`
 }

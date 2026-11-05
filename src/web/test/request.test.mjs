@@ -20,7 +20,7 @@ const wire = (turn, extra = {}) => ({
     hub: [{ name: 'ask_user_question', description: 'Ask the user a question.\nSecond line.', schema: '{"type":"object","properties":{"question":{"type":"string"}}}' }],
     agent: [{ name: 'Read', kind: 'read', title: 'Read file a.txt' }], commands: ['init - make a file'],
   },
-  mcp: [{ name: 'crew', url_kind: 'http, 127.0.0.1' }], raw_ref: { file: 'acp.jsonl', from_line: turn * 10, to_line: 0 }, ...extra,
+  mcp: [{ name: 'canopus', url_kind: 'http, 127.0.0.1' }], raw_ref: { file: 'acp.jsonl', from_line: turn * 10, to_line: 0 }, ...extra,
 });
 const run = (events) => events.reduce((m, e) => st.reduce(m, e), st.initialModel());
 
@@ -148,7 +148,7 @@ test('инструменты: хаб — имя, описание, схема; �
 test('параметры: агент, режим, модель, усилие, папка, MCP', () => {
   const s = setup([wire(1)]);
   const text = s.paint().querySelector('.req-params').textContent;
-  for (const x of ['opencode', 'default', 'interactive', 'C:/work/app', 'high', 'crew: http, 127.0.0.1']) assert.ok(text.includes(x), x);
+  for (const x of ['opencode', 'default', 'interactive', 'C:/work/app', 'high', 'canopus: http, 127.0.0.1']) assert.ok(text.includes(x), x);
 });
 
 test('сырой обмен: строки по запросу, ошибка, выключенная трасса', async () => {

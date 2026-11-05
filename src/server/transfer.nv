@@ -4,7 +4,7 @@
 // WHOLE and word for word, the tools as one line (the action, the state, a short result), the earlier changes of the agent as a note.
 // A limit of size never cuts inside a message: from the end to the beginning whole messages are taken while they fit, the earlier ones
 // stay only as headers (the first words), and the caller tells the owner so.
-module crew_harness.server
+module canopus.server
 
 /// The size (bytes of text) of a protocol over which the earlier messages are given only as headers.
 export const TRANSFER_LIMIT = 400000

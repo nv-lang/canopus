@@ -99,13 +99,13 @@ def main():
 
     def names(base_env, patterns):
         path = stlib.names_file(base, patterns, name="n%d.txt" % counter[0])
-        return dict(base_env, CREW_PRIVATE_NAMES_FILE=path), path
+        return dict(base_env, CANOPUS_PRIVATE_NAMES_FILE=path), path
 
     def dry_run_protect():
         e, state, _ = sandbox()
         proc = setup(e, "--dry-run", "protect")
         assert proc.returncode == 0, proc.out + proc.err
-        assert "repos/unitcraft/crew-harness/branches/main/protection" in proc.out, proc.out
+        assert "repos/unitcraft/canopus/branches/main/protection" in proc.out, proc.out
         for piece in ('"enforce_admins":true', '"required_linear_history":true', '"allow_force_pushes":false',
                       '"allow_deletions":false', '"required_pull_request_reviews":null', '"required_status_checks":null'):
             assert piece in proc.out, piece
@@ -152,31 +152,31 @@ def main():
         proc = setup(e, "secret")
         assert proc.returncode == 0, proc.out + proc.err
         assert "zorblax" not in proc.out + proc.err, "значение напечатано"
-        stored = open(os.path.join(state, "secrets", "CREW_PRIVATE_NAMES"), "rb").read()
+        stored = open(os.path.join(state, "secrets", "CANOPUS_PRIVATE_NAMES"), "rb").read()
         assert stored == open(path, "rb").read(), "секрет не равен файлу списка"
-        assert any(c.startswith("secret set CREW_PRIVATE_NAMES") for c in calls(state))
+        assert any(c.startswith("secret set CANOPUS_PRIVATE_NAMES") for c in calls(state))
 
     def secret_without_file():
-        e, state, _ = sandbox(CREW_PRIVATE_NAMES_FILE=os.path.join(base, "absent.txt"))
+        e, state, _ = sandbox(CANOPUS_PRIVATE_NAMES_FILE=os.path.join(base, "absent.txt"))
         proc = setup(e, "secret")
         assert proc.returncode == 1 and "нет файла" in proc.out and calls(state) == [], proc.out
         empty = os.path.join(base, "empty.txt")
         open(empty, "w").close()
-        proc = setup(dict(e, CREW_PRIVATE_NAMES_FILE=empty), "secret")
+        proc = setup(dict(e, CANOPUS_PRIVATE_NAMES_FILE=empty), "secret")
         assert proc.returncode == 1 and calls(state) == []
 
     def probe_set_two_values():
         e, state, tmpdir = sandbox()
         proc = setup(e, "probe-set")
         assert proc.returncode == 0, proc.out + proc.err
-        values = open(os.path.join(tmpdir, "crew-probe-values.txt"), encoding="utf-8").read().split()
+        values = open(os.path.join(tmpdir, "canopus-probe-values.txt"), encoding="utf-8").read().split()
         assert len(values) == 2 and values[0] != values[1], values
         assert all(v not in proc.out + proc.err for v in values), "значение напечатано"
-        stored = open(os.path.join(state, "secrets", "CREW_PRIVATE_NAMES_PROBE"), encoding="utf-8").read().split()
+        stored = open(os.path.join(state, "secrets", "CANOPUS_PRIVATE_NAMES_PROBE"), encoding="utf-8").read().split()
         assert stored == values
         proc = setup(e, "probe-clear")
-        assert proc.returncode == 0 and not os.path.exists(os.path.join(tmpdir, "crew-probe-values.txt"))
-        assert not os.path.exists(os.path.join(state, "secrets", "CREW_PRIVATE_NAMES_PROBE"))
+        assert proc.returncode == 0 and not os.path.exists(os.path.join(tmpdir, "canopus-probe-values.txt"))
+        assert not os.path.exists(os.path.join(state, "secrets", "CANOPUS_PRIVATE_NAMES_PROBE"))
 
     def probe_branch_local_only():
         e, state, tmpdir = sandbox()
@@ -189,7 +189,7 @@ def main():
         files = stlib.git(repo, env0, "ls-tree", "-r", "--name-only", "probe/demo1").out.split()
         assert ".github/workflows/probe-log.yml" in files and "probe/planted.txt" in files, files
         planted = stlib.git(repo, env0, "show", "probe/demo1:probe/planted.txt").out.strip()
-        values = open(os.path.join(tmpdir, "crew-probe-values.txt"), encoding="utf-8").read().split()
+        values = open(os.path.join(tmpdir, "canopus-probe-values.txt"), encoding="utf-8").read().split()
         assert planted == values[0], "в файле пробы должно быть первое значение"
         assert stlib.git(repo, env0, "status", "--porcelain").out == before, "рабочее дерево тронуто"
         assert stlib.git(repo, env0, "branch", "--show-current").out.strip() == branch_before
@@ -201,7 +201,7 @@ def main():
     def log_search_cases():
         e, state, tmpdir = sandbox()
         assert setup(e, "probe-set").returncode == 0
-        values = open(os.path.join(tmpdir, "crew-probe-values.txt"), encoding="utf-8").read().split()
+        values = open(os.path.join(tmpdir, "canopus-probe-values.txt"), encoding="utf-8").read().split()
         good = os.path.join(base, "good.log")
         with open(good, "w", encoding="utf-8", newline="\n") as handle:
             handle.write("2026-10-08T10:00:00Z ***\n2026-10-08T10:00:00Z ***\nPROBE-MARKER\n"

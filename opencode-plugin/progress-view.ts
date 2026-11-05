@@ -1,4 +1,4 @@
-// ХОД РАБОТ — ТЕКСТЫ ПАНЕЛИ И КОМАНДЫ /crew-progress (задача 004). Из сводки `ProgressTask` (progress.ts) строит строки блока
+// ХОД РАБОТ — ТЕКСТЫ ПАНЕЛИ И КОМАНДЫ /canopus-progress (задача 004). Из сводки `ProgressTask` (progress.ts) строит строки блока
 // «Ход работ» (до 32 знаков) и текст диалога команды (до 72 знаков). Окна и OpenCode здесь нет: модуль под Node проверяется
 // самотестом. Окно подгружает его через import() с защитой (progress-sidebar.tsx, tui.ts): не загрузился — блок пуст.
 import { summarizeTasks, thresholdsFromEnv, type ProgressSession, type ProgressTask } from "./progress.ts"
@@ -105,18 +105,18 @@ function panelWord(t: ProgressSession, now: number): string {
   return full
 }
 
-/** Блок «Ход работ»: заголовок, до трёх задач по четыре строки и нижняя строка «ещё N · все: /crew-progress» (без скрытых —
- * «все: /crew-progress»); нет идущих задач — пусто (REQ-07). */
+/** Блок «Ход работ»: заголовок, до трёх задач по четыре строки и нижняя строка «ещё N · все: /canopus-progress» (без скрытых —
+ * «все: /canopus-progress»); нет идущих задач — пусто (REQ-07). */
 export function panelLines(tasks: ProgressTask[], now: number): PanelRow[] {
   const { shown, hidden } = orderTasks(tasks)
   if (!shown.length) return []
   const rows: PanelRow[] = [{ text: "Ход работ", tone: "base" }]
   for (const t of shown) rows.push(...taskRows(t, now))
-  rows.push({ text: fitRow(hidden > 0 ? `ещё ${hidden} · все: /crew-progress` : "все: /crew-progress", PANEL_WIDTH), tone: "muted" })
+  rows.push({ text: fitRow(hidden > 0 ? `ещё ${hidden} · все: /canopus-progress` : "все: /canopus-progress", PANEL_WIDTH), tone: "muted" })
   return rows
 }
 
-// ---- диалог команды /crew-progress (ширина 72) ---------------------------------------------------------------------------
+// ---- диалог команды /canopus-progress (ширина 72) ---------------------------------------------------------------------------
 
 const D = (s: string) => fitRow(s, DIALOG_WIDTH)
 
@@ -173,7 +173,7 @@ export function progressPanel(dir: string | undefined, now: number = Date.now(),
   }
 }
 
-/** Текст диалога `/crew-progress`: журналы разбираются все за один вызов, начиная со свежих. */
+/** Текст диалога `/canopus-progress`: журналы разбираются все за один вызов, начиная со свежих. */
 export function progressDialog(dir: string | undefined, now: number = Date.now(), rel?: string): string {
   if (!dir) return OUTSIDE_TEXT
   const scan = scanner.scanAll(dir, now, rel)

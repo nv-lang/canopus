@@ -1,5 +1,5 @@
 // Lifecycle decisions belong to Alula; this adapter supplies the saved mode and asks whether the operation has a row.
-module crew_harness.server
+module canopus.server
 
 import alula.engine.{Incoming, StepEnvironment}
 import alula.machine_run.{AlulaMachine, ProjectValue, load_alula_machine_with}

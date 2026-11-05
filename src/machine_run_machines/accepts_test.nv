@@ -1,9 +1,9 @@
 // accepts_test.nv - task 126: the question "does the state take this signal?" (`AlulaMachine.accepts_signal`), the hub asks it in place of the name of a state.
-module crew_harness.machine_run_machines
+module canopus.machine_run_machines
 
 import alula.machine.{text_of_file, Null}
 import alula.engine.{Incoming, EventKind, StepEnvironment}
-import crew_harness.machines.{machine_files, product_registry}
+import canopus.machines.{machine_files, product_registry}
 import alula.machine_run.{AlulaMachine, AlulaState, load_alula_machine}
 
 fn ac_load(file str) -> AlulaMachine {

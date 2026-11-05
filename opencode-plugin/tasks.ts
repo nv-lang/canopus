@@ -11,7 +11,7 @@ import { existsSync, mkdirSync, readdirSync, renameSync, writeFileSync } from "n
 import path from "node:path"
 import { INBOX, READ, type Priority, type Tier, readJson, safeKey } from "./core.ts"
 import { idsHas } from "./housekeeping.ts"
-import { BASE } from "./paths.ts"
+import { BASE } from "./base.ts"
 import type { RouteFields } from "./route.ts"
 
 // путь — из paths.ts (модуль без зависимостей: core и tasks импортируют друг друга, а BASE ядра здесь ещё не готов)
@@ -112,7 +112,7 @@ export type PrecheckRecord = {
 }
 
 /** Привязка целевого репозитория результата (задача 257): куда вливается/опубликован результат, если не в репозиторий
- *  постановки. Пишется только действием crew_task {action: "target"} (интегратор, со словом владельца с датой): dir —
+ *  постановки. Пишется только действием canopus_task {action: "target"} (интегратор, со словом владельца с датой): dir —
  *  локальный клон репозитория результата, remote/branch — целевые remote и ветка в нём, url — адрес remote на момент
  *  привязки, word/by/at — основание и след. */
 export type LandingBinding = { dir: string; remote: string; branch: string; url: string; word: string; by: string; at: number }
@@ -139,7 +139,7 @@ export type Task = RouteFields & {
   /** сессия и адрес автора (интегратора) */
   author: string
   author_role: string
-  /** qid отчёта: исполнитель отвечает crew_send {reply_to: qid} */
+  /** qid отчёта: исполнитель отвечает canopus_send {reply_to: qid} */
   qid: string
   status: TaskStatus
   /** Explicit pause. Snapshot is audit/context only; resume must not replay a session or acceptance side effect. */
@@ -324,7 +324,7 @@ export function moveToLegacy(project: string, n: number): string {
   changed = true
   return dest
 }
-/** Старые записи, перенесённые в legacy/ (задача 058): видны в crew_task list all. */
+/** Старые записи, перенесённые в legacy/ (задача 058): видны в canopus_task list all. */
 export function listLegacy(project: string): Task[] {
   const dir = path.join(TASKS, safeKey(project), "legacy")
   if (!existsSync(dir)) return []
@@ -370,13 +370,13 @@ export const rounds = (t: Task) => (t.rework ?? 0) + (t.syncs ?? 0)
 /** Принятые и не очищенные задачи из списка: они ждут уборки (при accepted_slot: free, по умолчанию, место в inflight_limit не занимают). */
 export const waitingCleanup = (tasks: Task[]): Task[] => tasks.filter((t) => t.status === "accepted")
 /** Открытые задачи, которые идут в счёт inflight_limit. Принимает уже отобранные открытые задачи проекта; slot "hold" — все
- *  (как всегда), "free" — без принятых, ждущих уборки. Одна функция на два места: crew_spawn и шаги авто-плана. */
+ *  (как всегда), "free" — без принятых, ждущих уборки. Одна функция на два места: canopus_spawn и шаги авто-плана. */
 export const countedOpen = (open: Task[], slot: "hold" | "free"): Task[] => (slot === "free" ? open.filter((t) => !waitingCleanup([t]).length) : open)
 
 /** Когда задачу приняли (последняя запись «accepted» журнала). */
 export const acceptedAt = (t: Task) => [...(t.history ?? [])].reverse().find((h) => h.status === "accepted")?.at ?? t.updated
 // ПРИНЯТА, НО НЕ ОЧИЩЕНА (задача 043, M18a): напоминание повторяется каждые accepted_reminder_min, не больше
-// ACCEPTED_REMINDERS_MAX раз на приёмку; счёт — по письмам автору (id первого — прежний, без номера). После предела — строка в /crew.
+// ACCEPTED_REMINDERS_MAX раз на приёмку; счёт — по письмам автору (id первого — прежний, без номера). После предела — строка в /canopus.
 export const ACCEPTED_REMINDERS_MAX = 5
 export const acceptedReminderId = (t: Task, at: number, k: number) => `stale-accepted-${safeKey(t.project)}-${t.n}-${at}${k > 1 ? `-${k}` : ""}`
 /** Сколько напоминаний «принята и не очищена» уже ушло автору по этой приёмке. */

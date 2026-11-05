@@ -1,7 +1,7 @@
-module crew_harness.server
+module canopus.server
 
 import std.encoding.json.{JsonValue}
-import crew_harness.acp.{connect}
+import canopus.acp.{connect}
 
 // Self-contained: only this scenario's local fixture is used, never the owner's registration or provider.
 export fn scenario_preparation_backend(settings ServerSettings) Proc Detach Time Net Fs Os -> str {

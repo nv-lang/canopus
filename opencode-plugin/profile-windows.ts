@@ -4,21 +4,21 @@
 // сессии, провайдер Claude Code читает те же файлы на каждый ход. Поэтому окна профилей включённого набора плагин задаёт
 // ФАЙЛОМ `.opencode/opencode.json` в рабочем дереве (worktree) задачи — только там: корень проекта и основные папки не
 // трогаются (DNC-03). В файле только `limit` моделей набора (context и output вместе, input — если он есть в профиле) и
-// ключ-пометка `_crew_harness`; файл без пометки плагин не перезаписывает и не удаляет. Строка `/.opencode/opencode.json` —
+// ключ-пометка `_canopus`; файл без пометки плагин не перезаписывает и не удаляет. Строка `/.opencode/opencode.json` —
 // в info/exclude общего каталога git. Реестр записанных файлов — ящик плагина (profiles/<проект>.windows.json): по нему
 // плагин находит, что снимать, когда набора нет. Порог сжатия (compaction.*) файл не задаёт никогда (DNC-02).
 
 import { createHash } from "node:crypto"
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, rmdirSync, writeFileSync } from "node:fs"
 import path from "node:path"
-import { BASE } from "./paths.ts"
+import { BASE } from "./base.ts"
 import { readHead } from "./branch-head.ts"
 import { type Task, taskNo } from "./tasks.ts"
 import * as P from "./profiles.ts"
 import { LIMIT_RU, fmtTokens } from "./core.ts" // единственное форматирование чисел ответов; вызывается при показе
 
-export const MARK = "_crew_harness"
-export const MARK_TEXT = "created by crew-harness (model profiles): windows of the models of the enabled set for the sessions of this task; the plugin rewrites and removes this file, do not edit"
+export const MARK = "_canopus"
+export const MARK_TEXT = "created by canopus (model profiles): windows of the models of the enabled set for the sessions of this task; the plugin rewrites and removes this file, do not edit"
 export const WINDOW_FILE = path.join(".opencode", "opencode.json")
 export const EXCLUDE_LINE = "/.opencode/opencode.json"
 
@@ -101,7 +101,7 @@ export function ensureExclude(worktree: string) {
   const text = readText(file) ?? ""
   if (!text.split(/\r?\n/).includes(EXCLUDE_LINE)) {
     mkdirSync(path.dirname(file), { recursive: true })
-    appendFileSync(file, `${text && !text.endsWith("\n") ? "\n" : ""}# crew-harness: window file of the model profiles (generated per task worktree)\n${EXCLUDE_LINE}\n`)
+    appendFileSync(file, `${text && !text.endsWith("\n") ? "\n" : ""}# canopus: window file of the model profiles (generated per task worktree)\n${EXCLUDE_LINE}\n`)
   }
   excluded.add(common)
 }
@@ -242,7 +242,7 @@ export function removeProjectWindows(project: string): string[] {
   return out
 }
 
-// ---- проблемы файлов окон (для crew_doctor, check, уведомления) -------------------------------------------------------
+// ---- проблемы файлов окон (для canopus_doctor, check, уведомления) -------------------------------------------------------
 
 export function windowProblems(project: string, tasks: Task[], plan: WindowPlan): string[] {
   const out: string[] = []

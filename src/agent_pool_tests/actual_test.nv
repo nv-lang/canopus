@@ -2,7 +2,7 @@
 module agent_pool_tests.actual_test
 
 import alula.engine.{Incoming, EventKind}
-import crew_harness.acp.{page_event}
+import canopus.acp.{page_event}
 import std.encoding.json.{Json}
 
 test "269 actual dispatch snapshot binds to response turn not request id" {

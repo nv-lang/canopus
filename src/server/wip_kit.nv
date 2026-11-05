@@ -1,8 +1,8 @@
 // wip_kit.nv - task 192.4: the scenarios of the work that is not a task yet (a tree on a detached head, no branch) over a hub with the fake ACP agent in a repository with a remote
-// (the helpers are in `routes_kit.nv`, `crew_task_kit.nv` and `child_kit.nv`).
-module crew_harness.server
+// (the helpers are in `routes_kit.nv`, `canopus_task_kit.nv` and `child_kit.nv`).
+module canopus.server
 
-import crew_harness.projects.{projects_create}
+import canopus.projects.{projects_create}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 import std.fs.{Fs, Path, create_dir_all}
 

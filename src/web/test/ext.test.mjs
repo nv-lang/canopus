@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { initialModel, reduce, timeline } from '../state.js';
-import { parseCrewTask, crewSignal } from '../crew-task.js';
+import { parseCanopusTask, canopusSignal } from '../canopus-task.js';
 import { t } from '../strings.js';
 
 let counter = 0;
@@ -15,9 +15,9 @@ const ext = (extra = {}) => ({ id: 1, task: 3, title: 'Кнопка выхода
 const state = (extensions, step) => ev('route_state', { route: 'interactive', extensions }, { step });
 const lines = (m) => timeline(m.sessions.s1).filter((x) => x.type === 'autoext');
 
-test('parseCrewTask: дополнения читаются, мусор и нулевой номер отбрасываются', () => {
-  assert.deepEqual(parseCrewTask({ extensions: [ext(), { id: 0 }, 5, ext({ id: 2, undone: true })] }).extensions.map((x) => [x.id, x.undone]), [[1, false], [2, true]]);
-  assert.deepEqual(parseCrewTask({}).extensions, []);
+test('parseCanopusTask: дополнения читаются, мусор и нулевой номер отбрасываются', () => {
+  assert.deepEqual(parseCanopusTask({ extensions: [ext(), { id: 0 }, 5, ext({ id: 2, undone: true })] }).extensions.map((x) => [x.id, x.undone]), [[1, false], [2, true]]);
+  assert.deepEqual(parseCanopusTask({}).extensions, []);
 });
 
 test('в ленте одна серая строка на дополнение, повтор состояния её не дублирует', () => {
@@ -36,11 +36,11 @@ test('отмена меняет ту же строку (без новой), вт
 });
 
 test('сигнал и кнопка: route_ext_undo с номером дополнения, обработчик подключён в странице', () => {
-  assert.deepEqual(crewSignal.extUndo(4), { kind: 'route_ext_undo', input: { id: 4 } });
+  assert.deepEqual(canopusSignal.extUndo(4), { kind: 'route_ext_undo', input: { id: 4 } });
   const web = new URL('../', import.meta.url);
   const read = (n) => fs.readFileSync(new URL(n, web), 'utf8');
   assert.match(read('view.js'), /handlers\.onExtUndo\(currentTrace, item\.id\)/);
   assert.match(read('view.js'), /item\.undone \? false : h\(doc, 'button'/);
-  assert.match(read('app.js'), /onExtUndo\(trace, id\) \{ send\(\.\.\.signal\(trace, crewSignal\.extUndo\(id\)\)\); \}/);
+  assert.match(read('app.js'), /onExtUndo\(trace, id\) \{ send\(\.\.\.signal\(trace, canopusSignal\.extUndo\(id\)\)\); \}/);
   assert.match(read('transport.js'), /'route_ext_undo'/);
 });

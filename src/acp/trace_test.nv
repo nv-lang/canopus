@@ -1,5 +1,5 @@
 // trace_test.nv - the record of the raw exchange: the form of a record, the rotation at the limit, a failed write.
-module crew_harness.acp
+module canopus.acp
 
 import std.encoding.json.{Json, JsonValue}
 import std.fs.{Fs, real_fs, Path, remove_dir_all, create_dir_all, read_text, try_exists}
@@ -8,7 +8,7 @@ import std.os.{Os, real_os, temp_dir, pid}
 fn trace_dir(name str) -> Path {
     ro base = with Os = real_os() { temp_dir() }
     ro id = with Os = real_os() { pid() }
-    ro dir = base.join("crew-acp-trace-${id}-${name}")
+    ro dir = base.join("canopus-acp-trace-${id}-${name}")
     with Fs = real_fs() {
         ro removed = remove_dir_all(dir)
         ro made = create_dir_all(dir)

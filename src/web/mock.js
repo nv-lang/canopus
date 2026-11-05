@@ -235,7 +235,7 @@ function buildJournal() {
   // 1. закреплённая, закончена: инструменты, фоновые задачи, правки, результаты
   const s1 = 'ses-demo-1';
   add(s1, 'session_created', {
-    name: 'Разбор падающих тестов', agent: 'opencode', project: 'crew-harness', project_id: 'proj-crew', folder: 'C:/work/crew-harness', branch: 'task/flaky-tests',
+    name: 'Разбор падающих тестов', agent: 'opencode', project: 'canopus', project_id: 'proj-crew', folder: 'C:/work/canopus', branch: 'task/flaky-tests',
   }, BASE);
   add(s1, 'session_model', MOCK_OPTIONS, BASE + 1);
   add(s1, 'route_state', routeStateInput('full', { finished: 3, active: true }), BASE + 2);
@@ -287,7 +287,7 @@ function buildJournal() {
   // 2. отказ агента после запроса разрешения
   const s2 = 'ses-demo-2';
   add(s2, 'session_created', {
-    name: 'Уборка временных файлов', agent: 'opencode', project: 'crew-harness', project_id: 'proj-crew', folder: 'C:/work/crew-harness', branch: 'main',
+    name: 'Уборка временных файлов', agent: 'opencode', project: 'canopus', project_id: 'proj-crew', folder: 'C:/work/canopus', branch: 'main',
   }, BASE + 5 * MIN);
   add(s2, 'user_message', { turn: 't1', text: 'Удали все временные файлы в проекте.' }, BASE + 6 * MIN);
   add(s2, 'agent_chunk', { turn: 't1', text: 'Для этого мне нужно удалить файлы в папке tmp. ' }, BASE + 6 * MIN + 400);
@@ -311,7 +311,7 @@ function buildJournal() {
   // 4. дочерняя сессия закреплённой, работа идёт: красная полоска контекста и бегущая строка
   const s3 = 'ses-demo-3';
   add(s3, 'session_created', {
-    name: 'Проверка стражей', agent: 'opencode', project: 'crew-harness', project_id: 'proj-crew', folder: 'C:/work/crew-harness', branch: 'task/flaky-tests', parent: s1,
+    name: 'Проверка стражей', agent: 'opencode', project: 'canopus', project_id: 'proj-crew', folder: 'C:/work/canopus', branch: 'task/flaky-tests', parent: s1,
   }, END - 4 * MIN);
   add(s3, 'route_state', routeStateInput('interactive', { task: TASK_020 }), END - 4 * MIN + 1);
   add(s3, 'user_message', { turn: 't1', text: 'Прогони все стражи по индексу и скажи, что красное.' }, END - 96 * SEC);
@@ -407,8 +407,8 @@ export function requestInput(trace, turn, text, at) {
   return {
     session: trace, turn, at, agent: 'opencode', cwd: 'C:/work/app', mode: 'default', route: 'interactive', model: 'mock-model', effort: 'high', label: '',
     parts: [
-      part('reminder', 'Напоминание режима', '[crew] Режим: беседа. Файлы проекта без задачи не правь.'),
-      part('mode_instruction', 'Инструкция режима', 'Ты работаешь в режиме беседы. Если замечаешь работу над файлами — вызови crew_task.'),
+      part('reminder', 'Напоминание режима', '[canopus] Режим: беседа. Файлы проекта без задачи не правь.'),
+      part('mode_instruction', 'Инструкция режима', 'Ты работаешь в режиме беседы. Если замечаешь работу над файлами — вызови canopus_task.'),
       part('owner_message', 'Сообщение владельца', text),
     ],
     tools: {
@@ -416,7 +416,7 @@ export function requestInput(trace, turn, text, at) {
       agent: [{ name: 'Read', kind: 'read', title: 'Read file a.txt' }],
       commands: ['init - создать AGENTS.md'],
     },
-    mcp: [{ name: 'crew', url_kind: 'http, 127.0.0.1 (локально), адрес и токен не показываются' }],
+    mcp: [{ name: 'canopus', url_kind: 'http, 127.0.0.1 (локально), адрес и токен не показываются' }],
     raw_ref: { file: 'acp.jsonl', from_line: turn * 10, to_line: 0 },
   };
 }
@@ -690,27 +690,27 @@ export const MOCK_STT_TEXT = 'пример распознанного текст
 const MOCK_TREE = Object.freeze({
   'C:/': ['Users', 'work'],
   'C:/Users': ['demo'],
-  'C:/work': ['api-server', 'crew-harness', 'docs-site', 'notes'],
+  'C:/work': ['api-server', 'canopus', 'docs-site', 'notes'],
   'C:/work/api-server': ['src', 'tests'],
-  'C:/work/crew-harness': ['doc', 'scripts', 'src'],
-  'C:/work/crew-harness/src': ['web', 'machine'],
+  'C:/work/canopus': ['doc', 'scripts', 'src'],
+  'C:/work/canopus/src': ['web', 'machine'],
   'C:/work/docs-site': ['content', 'theme'],
   'C:/work/notes': [],
   'D:/': ['data', 'tmp'],
   'D:/data': ['archive'],
 });
 const MOCK_GIT = Object.freeze({
-  'C:/work/crew-harness': 'main',
+  'C:/work/canopus': 'main',
   'C:/work/docs-site': 'docs',
   'C:/work/api-server': 'develop',
 });
-const MOCK_RECENT = Object.freeze(['C:/work/crew-harness', 'C:/work/docs-site', 'C:/work/api-server']);
+const MOCK_RECENT = Object.freeze(['C:/work/canopus', 'C:/work/docs-site', 'C:/work/api-server']);
 
 function mockProjects() {
   const projects = [
     {
-      id: 'proj-crew', name: 'crew-harness', env: 'NODE_ENV=production\nGIT_AUTHOR_NAME=Your Name',
-      folders: [{ path: 'C:/work/crew-harness', branch: 'main', worktree: true }],
+      id: 'proj-crew', name: 'canopus', env: 'NODE_ENV=production\nGIT_AUTHOR_NAME=Your Name',
+      folders: [{ path: 'C:/work/canopus', branch: 'main', worktree: true }],
     },
     {
       id: 'proj-docs', name: 'docs-site', env: '',

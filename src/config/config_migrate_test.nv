@@ -1,5 +1,5 @@
-// config_migrate_test.nv - `crew-harness migrate`: the plan, the dry run, the move on a temporary folder (task 192.12).
-module crew_harness.config
+// config_migrate_test.nv - `canopus migrate`: the plan, the dry run, the move on a temporary folder (task 192.12).
+module canopus.config
 
 import std.os.{Os, real_os, temp_dir, pid}
 import std.fs.{Fs, real_fs, read_text, write_text, create_dir_all, remove_dir_all, try_exists, Path}
@@ -7,7 +7,7 @@ import std.fs.{Fs, real_fs, read_text, write_text, create_dir_all, remove_dir_al
 fn tmp4(name str) -> str {
     ro base = with Os = real_os() { temp_dir() }
     ro id = with Os = real_os() { pid() }
-    ro dir = base.join("crew-migrate-${name}-${id}")
+    ro dir = base.join("canopus-migrate-${name}-${id}")
     with Fs = real_fs() {
         ro gone = remove_dir_all(dir)
         ro made = create_dir_all(dir)

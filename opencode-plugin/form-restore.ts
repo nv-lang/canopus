@@ -1,10 +1,10 @@
 // A FORM WHOSE RECORD IS GONE WHILE ITS DIALOG IS OPEN (task 120). Source: 2026-10-20 two dialogs "Questions" (acceptance of tasks 105 and 107) hung in the window
-// for 18-19 hours, forms/<session>.json was gone, crew-answer got "no open question form" and the orchestrator answered "no questions" (analysis.md).
+// for 18-19 hours, forms/<session>.json was gone, canopus-answer got "no open question form" and the orchestrator answered "no questions" (analysis.md).
 // The plugin keeps three other traces of every form it saw: the marker of the automatic answer (forms/auto/<form>.json, state "held" for the owner), the ask of the
 // loop (forms/loops/<session>.json) and, the truth, the call `question` in the database of OpenCode (core.ts questionCall). Here:
 //   restoreForms - on every pass of the service (and at the start): a tab with an OPEN call `question` and no record of it gets the record back from the marker or the
 //                  ask of the loop, with the options and the facts read from the call itself. A call that has ended restores nothing (answered, or dead: see below);
-//   deadDialogOf - a held form with no record whose call ended with an abort: the dialog may still hang in the window, nobody can answer it; crew-answer says so
+//   deadDialogOf - a held form with no record whose call ended with an abort: the dialog may still hang in the window, nobody can answer it; canopus-answer says so
 //                  (owner-answer.ts) and the marker stops counting as "left to the owner" (closeDeadMark).
 import { existsSync, mkdirSync, readdirSync, renameSync, writeFileSync } from "node:fs"
 import path from "node:path"

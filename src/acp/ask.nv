@@ -11,7 +11,7 @@
 // `project_question` turns a form into the questions of the page (`{request, tool_call, questions:[{question, header, multiSelect,
 // options:[{label, description}]}]}`), `question_response` turns the answer of the page back into the answer to the agent. Both read the form again, so
 // the client keeps only the parameters of the call.
-module crew_harness.acp
+module canopus.acp
 
 import std.encoding.json.{Json, JsonValue, JsonObject}
 

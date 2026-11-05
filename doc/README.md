@@ -6,7 +6,7 @@
 
 Решение — [ADR-0016](canon/decisions/ADR-0016-config-layout.md) (владелец, 2026-10-29); подробности и команды — раздел «Where things lie» в [src/server/README.md](../src/server/README.md).
 
-Корень экземпляра `CREW_HOME`: аргумент `--home <папка>` → переменная `CREW_HOME` → `<домашняя папка>/.crew-harness`. Портативного режима нет.
+Корень экземпляра `CANOPUS_HOME`: аргумент `--home <папка>` → переменная `CANOPUS_HOME` → `<домашняя папка>/.canopus`. Портативного режима нет.
 
 | Где | Папка | Что лежит | Можно удалить |
 |---|---|---|---|
@@ -14,13 +14,13 @@
 | корень | `data/` | `projects.json`, `sessions/<id>/` (журнал, снимок, `acp.jsonl`, `inbox`, `images`) | нет |
 | корень | `state/` | `serve.*.log`, `stt.pid`, `last_dir.txt`, резервные копии и отчёты `migrate` | да |
 | корень | `cache/` | `agents.json` (каталог семей), `agent-config/` (копия настроек OpenCode без плагина) | да |
-| корень | `tools/` | тяжёлые установки: `whisper/`; `CREW_TOOLS_DIR` или `voice.dir` переопределяют | да |
-| репозиторий | `.crew-harness/config.json` | общие настройки проекта (в git) | нет |
-| репозиторий | `.crew-harness/local.json` | личные настройки (абсолютные пути); в `.gitignore` | нет |
-| репозиторий | `.crew-harness/modes/`, `presets/`, `prompts/`, `roles.json` | то же по именам, что в `config/` | нет |
+| корень | `tools/` | тяжёлые установки: `whisper/`; `CANOPUS_TOOLS_DIR` или `voice.dir` переопределяют | да |
+| репозиторий | `.canopus/config.json` | общие настройки проекта (в git) | нет |
+| репозиторий | `.canopus/local.json` | личные настройки (абсолютные пути); в `.gitignore` | нет |
+| репозиторий | `.canopus/modes/`, `presets/`, `prompts/`, `roles.json` | то же по именам, что в `config/` | нет |
 | репозиторий | `doc/tasks/` | задачи (остаются здесь) | нет |
 
-Слои настроек (нижние перекрываются верхними): значения в коде → `config/config.json` → файл сервера (`serve <файл>`, `CREW_SERVER_CONFIG`) → `.crew-harness/config.json` → `.crew-harness/local.json` →
-`config/secrets.json` → переменные `CREW_*` → аргументы (`--set ключ=значение`). Режимы работы: `.crew-harness/modes` → `config/modes` → `doc/routes`; роли, наборы и подсказки — те же слои по именам.
+Слои настроек (нижние перекрываются верхними): значения в коде → `config/config.json` → файл сервера (`serve <файл>`, `CANOPUS_SERVER_CONFIG`) → `.canopus/config.json` → `.canopus/local.json` →
+`config/secrets.json` → переменные `CANOPUS_*` → аргументы (`--set ключ=значение`). Режимы работы: `.canopus/modes` → `config/modes` → `doc/routes`; роли, наборы и подсказки — те же слои по именам.
 
-Старый `data_dir` остаётся рабочим (плоская раскладка в этой папке); `crew-harness migrate` переносит её в новую. Команды: `crew-harness config list --show-origin`, `config get`, `config set`, `doctor`, `migrate`.
+Старый `data_dir` остаётся рабочим (плоская раскладка в этой папке); `canopus migrate` переносит её в новую. Команды: `canopus config list --show-origin`, `config get`, `config set`, `doctor`, `migrate`.

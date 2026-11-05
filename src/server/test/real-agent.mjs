@@ -2,7 +2,7 @@
 // hub starts the agent, the handshake (initialize and session/new) is done. No message is sent, so no model is called and no key or
 // login is needed (task 099; the conversation with the real model is the owner's step after the hand-over).
 //   node src/server/test/real-agent.mjs [port]        exit code 0 = the agent was started and answered the handshake
-// Run it from the root of the repository, after building target/crew-hub.exe and target/crew-harness.exe (see e2e.mjs).
+// Run it from the root of the repository, after building target/canopus-hub.exe and target/canopus.exe (see e2e.mjs).
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const port = Number(process.argv[2] ?? 18098);
-const dir = fs.mkdtempSync(path.join(os.tmpdir(), "crew-real-"));
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), "canopus-real-"));
 const configFile = path.join(dir, "server.json");
 fs.writeFileSync(configFile, JSON.stringify({
   port,
@@ -19,12 +19,12 @@ fs.writeFileSync(configFile, JSON.stringify({
   agents: [{ id: "opencode", label: "OpenCode", program: process.platform === "win32" ? "opencode.cmd" : "opencode", args: ["acp"] }],
   workdir: dir,
   web_dir: path.join(root, "src/web"),
-  hub: { program: path.join(root, "target", "crew-hub.exe"), args: [] },
+  hub: { program: path.join(root, "target", "canopus-hub.exe"), args: [] },
 }));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let log = "";
-const front = spawn(path.join(root, "target", "crew-harness.exe"), ["serve", configFile], { stdio: ["ignore", "pipe", "pipe"], cwd: root });
+const front = spawn(path.join(root, "target", "canopus.exe"), ["serve", configFile], { stdio: ["ignore", "pipe", "pipe"], cwd: root });
 front.stderr.on("data", (d) => { log += d.toString(); });
 front.stdout.on("data", (d) => { log += d.toString(); });
 

@@ -1,5 +1,5 @@
 // Fixed tables of the second net of the gate words (task 007, spec.md: Т-7, Т-8, Т-9), copied word for word from the specification.
-// The tests may add forms and never remove them. Generated once from spec.md; the counts are checked by crew-answer-gate.test.mjs
+// The tests may add forms and never remove them. Generated once from spec.md; the counts are checked by canopus-answer-gate.test.mjs
 // against the figures of the specification (20, 30, 76 word forms, 20 gate questions, 17 jargon forms, 10 living phrasings, 36
 // forms of nine verbs, 6 forms of emphasis, 3 cut words, 8 holes of fields, 10 real fields).
 export const T7 = [

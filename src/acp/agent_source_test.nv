@@ -1,4 +1,4 @@
-module crew_harness.acp
+module canopus.acp
 
 import alula.engine.{Incoming}
 import std.encoding.json.{Json}

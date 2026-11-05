@@ -5,10 +5,10 @@
 // Старт, что завис (страница не заявила «запущена» за BOOT_WAIT_MS, 15 с: запрос модуля ждёт, а не падает): один раз сама перезагружается
 // с новым адресом (?_r=…, сокет и ответ берутся заново), второй раз — нейтральная строка с кнопками «Подождать» и «Перезагрузить».
 // Только то, что умеют старые Chromium: без ?., ??, let над var не обязательно, стили — через CSSOM (CSP запрещает style="").
-(function crewBootGuard(global) {
+(function canopusBootGuard(global) {
   var BOOT_WAIT_MS = 15000;
-  var OUR_KEY = /^crew-/;
-  var RETRY_KEY = 'crew-boot-retry';
+  var OUR_KEY = /^canopus-/;
+  var RETRY_KEY = 'canopus-boot-retry';
   var RETRY_MS = 1000;
   var shown = false;
   var slow = null;
@@ -111,8 +111,8 @@
     return String(value);
   }
 
-  global.__crewBootError = show;
-  global.__crewClearOurStorage = clearOurStorage;
+  global.__canopusBootError = show;
+  global.__canopusClearOurStorage = clearOurStorage;
   // Не загрузился скрипт страницы (сеть, 503): один раз перезагрузить через секунду; счётчик в sessionStorage, чтобы не зациклиться.
   function retryOrShow(src) {
     var store;

@@ -19,27 +19,27 @@ import path from "node:path"
 import { CARDS, type QuestionCall, readJson, safeKey } from "./core.ts"
 import { loopLine, loopNote, loopOf, LOOP_HINT, noteAsk } from "./answer-loop.ts"
 import { clearGate, GATE_MARK } from "./gate-stop.ts"
-import { BASE } from "./paths.ts"
+import { BASE } from "./base.ts"
 
 export const FORMS = path.join(BASE, "forms")
 export const FORM_TTL_MS = 12 * 3_600_000
 /** Task 120: how long a DEAD record (see PendingForm.dead) stays in the list after the call died: the dialog may hang in the window that long. */
 export const FORM_DEAD_TTL_MS = 24 * 3_600_000
-/** Task 120: the refusal of an answer to a dead dialog (crew-answer, owner-answer.ts) and the tail of its row in the panel. */
+/** Task 120: the refusal of an answer to a dead dialog (canopus-answer, owner-answer.ts) and the tail of its row in the panel. */
 export const DEAD_WHY = "диалог закрыт (вызов question завершён), вкладку закрыть вручную"
 
-/** Repeats of a lost question (the times can be shortened by CREW_HARNESS_FORM_*_MS, for self-tests), the pause between them, the reminder of the owner, the time a tab must be quiet before the
+/** Repeats of a lost question (the times can be shortened by CANOPUS_FORM_*_MS, for self-tests), the pause between them, the reminder of the owner, the time a tab must be quiet before the
  *  question counts as gone, and the time the windows get to recover after a restart of the service. */
 export const FORM_MAX_REPEATS = 3
-export const FORM_REPEAT_GAP_MS = Number(process.env.CREW_HARNESS_FORM_REPEAT_GAP_MS) || 2 * 60_000
-export const FORM_REMIND_MS = Number(process.env.CREW_HARNESS_FORM_REMIND_MS) || 30 * 60_000
-export const FORM_GONE_MS = Number(process.env.CREW_HARNESS_FORM_GONE_MS) || 20_000
+export const FORM_REPEAT_GAP_MS = Number(process.env.CANOPUS_FORM_REPEAT_GAP_MS) || 2 * 60_000
+export const FORM_REMIND_MS = Number(process.env.CANOPUS_FORM_REMIND_MS) || 30 * 60_000
+export const FORM_GONE_MS = Number(process.env.CANOPUS_FORM_GONE_MS) || 20_000
 /** TASK 069: a question closed WITHOUT an answer (Esc, a window that took the keys) is known at once from form.cancelled, so the tab waits only for the end of
  *  its turn (FORM_CANCEL_GONE_MS) and not for the long time of a question that vanished unseen; while such a question waits to be returned the service looks
  *  every FORM_HOT_LOOK_MS instead of the usual time. */
-export const FORM_CANCEL_GONE_MS = Number(process.env.CREW_HARNESS_FORM_CANCEL_GONE_MS) || 3_000
+export const FORM_CANCEL_GONE_MS = Number(process.env.CANOPUS_FORM_CANCEL_GONE_MS) || 3_000
 export const FORM_HOT_LOOK_MS = 1_000
-export const FORM_RESTART_GRACE_MS = Number(process.env.CREW_HARNESS_FORM_RESTART_GRACE_MS) || 3 * 60_000
+export const FORM_RESTART_GRACE_MS = Number(process.env.CANOPUS_FORM_RESTART_GRACE_MS) || 3 * 60_000
 /** A model request this soon after the question is the question itself, not a new turn. */
 const FORM_SELF_MS = 3_000
 
@@ -90,7 +90,7 @@ export type PendingForm = {
 /**
  * Task 084 (owner, 2026-10-17, "по рекомендации"): an EXHAUSTED form is not a wait for the owner any more once the tab went on: it worked after
  * the form was exhausted (`resumed`, set by formTick), or it made a newer form (a later record of the same file that is not replaced).
- * The record stays in forms/ (history; crew-answer still sees it). A form that is not exhausted is a live wait, as before.
+ * The record stays in forms/ (history; canopus-answer still sees it). A form that is not exhausted is a live wait, as before.
  * `list` is the records of the tab in the order of the asks.
  */
 export function spentForm(f: PendingForm, list: PendingForm[]): boolean {
@@ -176,7 +176,7 @@ export function shownForms(session: string, now = Date.now(), dir = FORMS): Pend
 /** ЗАДАЧА 263: блокирующее ожидание вкладки — вопрос владельцу во встроенном вопроснике. Сначала живая запись формы
  *  (pendingForms: мёртвые и отработанные записи блокером не считаются), без неё — открытый по базе вызов `question`
  *  (диалог без записи, задача 120). Ничего не найдено — undefined; без `call` вызов по базе не читается.
- *  Только чтение: для crew_list и диагностики; «занята»/«running» сами по себе работу не доказывают (инцидент 258, 2026-10-30). */
+ *  Только чтение: для canopus_list и диагностики; «занята»/«running» сами по себе работу не доказывают (инцидент 258, 2026-10-30). */
 export type QuestionBlock = { since: number; question?: string; formId?: string; rid?: string; options?: string[]; norecord?: boolean }
 export async function blockingQuestion(session: string, now = Date.now(), call?: (session: string) => Promise<QuestionCall>, dir = FORMS): Promise<QuestionBlock | undefined> {
   const f = pendingForms(session, now, dir)[0]

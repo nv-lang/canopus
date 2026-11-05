@@ -9,7 +9,7 @@
 //   - a name that comes twice keeps the last value.
 // A mistake is `Err("строка N: ...")` with the number of the line where the entry begins (the text is shown to the owner as it is).
 // The values are secrets: nothing in this module logs them, and no error holds a value.
-module crew_harness.projects
+module canopus.projects
 
 import std.text
 

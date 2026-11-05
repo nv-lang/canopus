@@ -6,22 +6,22 @@
 -- no data is touched.
 --
 -- What is here:
---   crew.machine_snapshot  one row per (session, step): the snapshot of the engine after the step;
---   crew.machine_journal   the lines of the journal: (session, step, seq), seq counts from 0 inside a step;
---   crew.save_step         the only way to write: the snapshot and the lines of a step in ONE transaction;
---   crew.load              the only way to read: the last snapshot and the whole journal of a session;
---   crew.list_sessions     the ids of the sessions (task 099);
---   crew_app               the role of the application: it may run the three functions and nothing else.
--- The application logs in with a role that is a member of crew_app (create it by hand, with the password of the
--- deployment: `create role crew_service login password '...' in role crew_app`); no password is in this file.
+--   canopus.machine_snapshot  one row per (session, step): the snapshot of the engine after the step;
+--   canopus.machine_journal   the lines of the journal: (session, step, seq), seq counts from 0 inside a step;
+--   canopus.save_step         the only way to write: the snapshot and the lines of a step in ONE transaction;
+--   canopus.load              the only way to read: the last snapshot and the whole journal of a session;
+--   canopus.list_sessions     the ids of the sessions (task 099);
+--   canopus_app               the role of the application: it may run the three functions and nothing else.
+-- The application logs in with a role that is a member of canopus_app (create it by hand, with the password of the
+-- deployment: `create role canopus_service login password '...' in role canopus_app`); no password is in this file.
 
-create schema if not exists crew;
+create schema if not exists canopus;
 
 -- The group role of the application. It cannot log in itself. A concurrent run may create it first: that is fine.
 do $$
 begin
-    if not exists (select 1 from pg_roles where rolname = 'crew_app') then
-        create role crew_app nologin;
+    if not exists (select 1 from pg_roles where rolname = 'canopus_app') then
+        create role canopus_app nologin;
     end if;
 exception
     when duplicate_object or unique_violation then
@@ -29,7 +29,7 @@ exception
 end
 $$;
 
-create table if not exists crew.machine_snapshot (
+create table if not exists canopus.machine_snapshot (
     id       text        not null check (id <> '' and length(id) <= 128),
     step     integer     not null check (step >= 1),
     snapshot jsonb       not null check (jsonb_typeof(snapshot) = 'object'),
@@ -39,13 +39,13 @@ create table if not exists crew.machine_snapshot (
 
 -- A line of the journal belongs to a step that has its snapshot: the foreign key makes a "line without a step" impossible
 -- even for the owner. The text of the line is kept as jsonb (the object of the engine's journal line).
-create table if not exists crew.machine_journal (
+create table if not exists canopus.machine_journal (
     id    text    not null,
     step  integer not null,
     seq   integer not null check (seq >= 0),
     entry jsonb   not null check (jsonb_typeof(entry) = 'object'),
     primary key (id, step, seq),
-    foreign key (id, step) references crew.machine_snapshot (id, step)
+    foreign key (id, step) references canopus.machine_snapshot (id, step)
 );
 
 -- save_step(session, step, snapshot, lines, first_seq)
@@ -58,7 +58,7 @@ create table if not exists crew.machine_journal (
 --   CH002 and nothing is written.
 --   The whole call is one transaction: if any line cannot be stored, the snapshot of the step is not stored either.
 --   Returns the step.
-create or replace function crew.save_step(
+create or replace function canopus.save_step(
     p_id        text,
     p_step      integer,
     p_snapshot  jsonb,
@@ -67,7 +67,7 @@ create or replace function crew.save_step(
 ) returns integer
 language plpgsql
 security definer
-set search_path = pg_catalog, crew
+set search_path = pg_catalog, canopus
 as $$
 declare
     v_current  integer;
@@ -89,26 +89,26 @@ begin
     end if;
 
     -- one writer per session at a time: two processes cannot both take "the next step"
-    perform pg_advisory_xact_lock(hashtextextended('crew.save_step:' || p_id, 0));
+    perform pg_advisory_xact_lock(hashtextextended('canopus.save_step:' || p_id, 0));
 
-    select coalesce(max(step), 0) into v_current from crew.machine_snapshot where id = p_id;
+    select coalesce(max(step), 0) into v_current from canopus.machine_snapshot where id = p_id;
 
     if p_step = v_current + 1 then
         if p_snapshot is null then
             raise exception 'save_step: the step % of % needs a snapshot', p_step, p_id using errcode = 'CH001';
         end if;
-        insert into crew.machine_snapshot (id, step, snapshot) values (p_id, p_step, p_snapshot);
+        insert into canopus.machine_snapshot (id, step, snapshot) values (p_id, p_step, p_snapshot);
         v_first := coalesce(p_first_seq, 0);
     elsif p_step = v_current then
         if p_snapshot is not null then
-            select snapshot into v_stored from crew.machine_snapshot where id = p_id and step = p_step;
+            select snapshot into v_stored from canopus.machine_snapshot where id = p_id and step = p_step;
             if v_stored <> p_snapshot then
                 raise exception 'save_step: the step % of % is already saved with another snapshot', p_step, p_id
                     using errcode = 'CH002';
             end if;
         end if;
         if p_first_seq is null then
-            select coalesce(max(seq) + 1, 0) into v_first from crew.machine_journal where id = p_id and step = p_step;
+            select coalesce(max(seq) + 1, 0) into v_first from canopus.machine_journal where id = p_id and step = p_step;
         else
             v_first := p_first_seq;
         end if;
@@ -117,7 +117,7 @@ begin
             using errcode = 'CH001';
     end if;
 
-    insert into crew.machine_journal (id, step, seq, entry)
+    insert into canopus.machine_journal (id, step, seq, entry)
         select p_id, p_step, v_first + (l.ord - 1)::integer, l.line
         from jsonb_array_elements(p_lines) with ordinality as l(line, ord)
     on conflict (id, step, seq) do nothing;
@@ -125,7 +125,7 @@ begin
     -- a number that was taken must hold the same line
     select count(*) into v_mismatch
         from jsonb_array_elements(p_lines) with ordinality as l(line, ord)
-        join crew.machine_journal j
+        join canopus.machine_journal j
           on j.id = p_id and j.step = p_step and j.seq = v_first + (l.ord - 1)::integer
         where j.entry <> l.line;
     if v_mismatch > 0 then
@@ -139,18 +139,18 @@ $$;
 
 -- load(session): the last snapshot and the whole journal of the session (the lines in the order of writing: by step,
 -- then by seq). No row - the session is unknown.
-create or replace function crew.load(p_id text)
+create or replace function canopus.load(p_id text)
 returns table (step integer, snapshot jsonb, journal jsonb)
 language sql
 stable
 security definer
-set search_path = pg_catalog, crew
+set search_path = pg_catalog, canopus
 as $$
     select s.step,
            s.snapshot,
-           coalesce((select jsonb_agg(j.entry order by j.step, j.seq) from crew.machine_journal j where j.id = s.id),
+           coalesce((select jsonb_agg(j.entry order by j.step, j.seq) from canopus.machine_journal j where j.id = s.id),
                     '[]'::jsonb)
-    from crew.machine_snapshot s
+    from canopus.machine_snapshot s
     where s.id = p_id
     order by s.step desc
     limit 1
@@ -158,24 +158,24 @@ $$;
 
 -- list_sessions(): the ids of all sessions, once each, in the order of the names (the server finds its sessions with it
 -- when it starts).
-create or replace function crew.list_sessions()
+create or replace function canopus.list_sessions()
 returns table (id text)
 language sql
 stable
 security definer
-set search_path = pg_catalog, crew
+set search_path = pg_catalog, canopus
 as $$
-    select distinct s.id from crew.machine_snapshot s order by s.id
+    select distinct s.id from canopus.machine_snapshot s order by s.id
 $$;
 
 -- The rights. Nobody but the owner touches the tables; the application role runs the three functions.
-revoke all on schema crew from public;
-revoke all on all tables in schema crew from public;
-revoke all on all tables in schema crew from crew_app;
-grant usage on schema crew to crew_app;
-revoke all on function crew.save_step(text, integer, jsonb, jsonb, integer) from public;
-revoke all on function crew.load(text) from public;
-revoke all on function crew.list_sessions() from public;
-grant execute on function crew.save_step(text, integer, jsonb, jsonb, integer) to crew_app;
-grant execute on function crew.load(text) to crew_app;
-grant execute on function crew.list_sessions() to crew_app;
+revoke all on schema canopus from public;
+revoke all on all tables in schema canopus from public;
+revoke all on all tables in schema canopus from canopus_app;
+grant usage on schema canopus to canopus_app;
+revoke all on function canopus.save_step(text, integer, jsonb, jsonb, integer) from public;
+revoke all on function canopus.load(text) from public;
+revoke all on function canopus.list_sessions() from public;
+grant execute on function canopus.save_step(text, integer, jsonb, jsonb, integer) to canopus_app;
+grant execute on function canopus.load(text) to canopus_app;
+grant execute on function canopus.list_sessions() to canopus_app;

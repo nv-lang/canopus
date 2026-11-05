@@ -1,7 +1,7 @@
 // Isolated 272 integration entry: Nova otherwise collects every peer test in server_live.
-module crew_harness.family_approval_tests
+module canopus.family_approval_tests
 
-import crew_harness.server.{kit_files, scenario_family_approvals, scenario_choose_cold, scenario_approval_launch_gates}
+import canopus.server.{kit_files, scenario_family_approvals, scenario_choose_cold, scenario_approval_launch_gates}
 
 test "272: approvals persist across source and restart, unknown and preparation block dispatch" {
     ro report = scenario_family_approvals(kit_files("approval272isolated", 30000))

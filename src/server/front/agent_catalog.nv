@@ -1,6 +1,6 @@
 // agent_catalog.nv - `GET /api/agent-catalog` (task 192o): the catalog of the families that the hub keeps in `<data_dir>/agents.json` (see src/server/catalog.nv),
 // as it is on disk. The front only reads it; a missing or damaged file is an empty catalog, so the page never gets a broken answer.
-module crew_harness.server.front
+module canopus.server.front
 
 import std.encoding.json.{Json, JsonValue, JsonObject}
 

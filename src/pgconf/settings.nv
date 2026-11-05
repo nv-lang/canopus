@@ -1,16 +1,16 @@
 // settings.nv - the settings of the PostgreSQL connection from a file and from the environment (task 098).
 //
 // The file is a JSON object with the keys `host`, `port`, `database`, `user`, `password` (a missing key has its default,
-// see `parse_pg_config`); its name is the argument or, when that is empty, the variable CREW_PG_CONFIG. The environment is
+// see `parse_pg_config`); its name is the argument or, when that is empty, the variable CANOPUS_PG_CONFIG. The environment is
 // over the file, key by key:
-//   CREW_PG_HOST, CREW_PG_PORT, CREW_PG_DATABASE, CREW_PG_USER, CREW_PG_PASSWORD
+//   CANOPUS_PG_HOST, CANOPUS_PG_PORT, CANOPUS_PG_DATABASE, CANOPUS_PG_USER, CANOPUS_PG_PASSWORD
 // (an empty variable is the same as an unset one). The password may live in the environment alone, so that no file holds it.
 //
 // The program that starts the sessions reads the settings here and gives the value `PgConfig` to the handlers.
-// ORACLE-WORKAROUND(21, 14): the module is apart from `crew_harness.pgdb` because of `std.os`: a user type `Output` (the engine had one, it is gone since task 102) breaks the C of a program that also holds `std.os`; the split was not tried again, so merge this module into `pgdb` (check that a program with the engine and `std.os` builds) when items 14 and 21 are fixed
-module crew_harness.pgconf
+// ORACLE-WORKAROUND(21, 14): the module is apart from `canopus.pgdb` because of `std.os`: a user type `Output` (the engine had one, it is gone since task 102) breaks the C of a program that also holds `std.os`; the split was not tried again, so merge this module into `pgdb` (check that a program with the engine and `std.os` builds) when items 14 and 21 are fixed
+module canopus.pgconf
 
-import crew_harness.pgdb.{PgConfig, parse_pg_config}
+import canopus.pgdb.{PgConfig, parse_pg_config}
 import std.os.{Os, env}
 import std.fs.{Fs, read_text, Path}
 
@@ -23,26 +23,26 @@ fn env_or(key str, fallback str) Os -> str {
 
 /// The environment over a base configuration; a port that is not a number is an error.
 export fn pg_config_env(base PgConfig) Os -> Result[PgConfig, str] {
-    ro host = env_or("CREW_PG_HOST", base.host)
-    ro database = env_or("CREW_PG_DATABASE", base.database)
-    ro user = env_or("CREW_PG_USER", base.user)
-    ro password = env_or("CREW_PG_PASSWORD", base.password)
-    ro port_text = env_or("CREW_PG_PORT", "")
+    ro host = env_or("CANOPUS_PG_HOST", base.host)
+    ro database = env_or("CANOPUS_PG_DATABASE", base.database)
+    ro user = env_or("CANOPUS_PG_USER", base.user)
+    ro password = env_or("CANOPUS_PG_PASSWORD", base.password)
+    ro port_text = env_or("CANOPUS_PG_PORT", "")
     ro port = if port_text.byte_len() == 0 {
         base.port
     } else {
         match port_text.to_int() {
             Ok(n) => n
-            Err(e) => return Err("CREW_PG_PORT must be a whole number")
+            Err(e) => return Err("CANOPUS_PG_PORT must be a whole number")
         }
     }
     Ok(PgConfig { host, port, database, user, password })
 }
 
-/// The settings: the file `file` (or the one named by CREW_PG_CONFIG when `file` is empty; no file at all means the
+/// The settings: the file `file` (or the one named by CANOPUS_PG_CONFIG when `file` is empty; no file at all means the
 /// defaults), then the environment over it. The error never quotes the content of the file.
 export fn pg_config(file str) Os Fs -> Result[PgConfig, str] {
-    ro name = if file.byte_len() > 0 { file } else { env_or("CREW_PG_CONFIG", "") }
+    ro name = if file.byte_len() > 0 { file } else { env_or("CANOPUS_PG_CONFIG", "") }
     ro base = if name.byte_len() == 0 {
         parse_pg_config("{}")?
     } else {

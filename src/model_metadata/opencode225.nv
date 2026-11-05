@@ -1,7 +1,7 @@
 // Metadata-only native shape conversion, NOT evidence of configured-family or
 // runtime-context equivalence. The caller must bind its source separately.
 // Source: OpenCode v2.2.5 cli/acp/catalog.ts and config-option.ts.
-module crew_harness.model_metadata
+module canopus.model_metadata
 
 import std.text
 import std.encoding.json.{Json, JsonValue, JsonObject}

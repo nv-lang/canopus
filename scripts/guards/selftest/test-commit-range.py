@@ -29,7 +29,7 @@ def main():
     base = pr.mkdtemp()
     env = stlib.isolated_env(base)
     names = stlib.names_file(base, ["zorblax-nothing"])
-    env = dict(env, CREW_PRIVATE_NAMES_FILE=names)
+    env = dict(env, CANOPUS_PRIVATE_NAMES_FILE=names)
 
     remote = os.path.join(base, "remote.git")
     os.makedirs(remote)
@@ -39,7 +39,7 @@ def main():
     old = stlib.commit_file(repo, env, "old.txt", "o\n", "Old main commit without any signature")
     stlib.git(repo, env, "remote", "add", "origin", remote)
     stlib.git(repo, env, "push", "-q", "origin", "main")
-    stlib.git(repo, env, "config", "crewharness.expectedEmail", "author@example.test")
+    stlib.git(repo, env, "config", "canopus.expectedEmail", "author@example.test")
 
     def signed(subject):
         return "%s\n\nSigned-off-by: Test Author <author@example.test>\n" % subject

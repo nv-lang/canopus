@@ -1,4 +1,4 @@
-module crew_harness.server
+module canopus.server
 
 import alula.engine.{Incoming}
 
@@ -81,7 +81,7 @@ export fn scenario_delivery_intent_crash(settings ServerSettings) Proc Detach Ti
 export fn scenario_delivery_refusal() Proc Detach Time Net Fs Os -> str {
     mut c = Check { failures: []str.new() }
     mut settings = kit_files("delivery260-refusal", 30000)
-    settings.agents = [AgentSpec { id: "missing", label: "Missing test agent", program: "crew-harness-no-such-agent-260", args: []str.new(), ask: "native" }]
+    settings.agents = [AgentSpec { id: "missing", label: "Missing test agent", program: "canopus-no-such-agent-260", args: []str.new(), ask: "native" }]
     mut r = rig_open(settings)
     r.attach(1)
     r.page(1, "session_created", "refused-s", "{\"name\":\"refused\",\"agent\":\"missing\"}")

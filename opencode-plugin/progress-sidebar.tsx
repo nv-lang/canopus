@@ -1,8 +1,8 @@
 /** @jsxImportSource @opentui/solid */
-// БЛОК «Ход работ» В БОКОВОЙ ПАНЕЛИ ОКНА (задача 004, 2026-10-08). Слот sidebar.content, сразу после блока «Crew» (sidebar.tsx):
+// БЛОК «Ход работ» В БОКОВОЙ ПАНЕЛИ ОКНА (задача 004, 2026-10-08). Слот sidebar.content, сразу после блока «Canopus» (sidebar.tsx):
 // фоновые сессии методики не вкладки, их ход берётся из `progress.log` всех рабочих деревьев репозитория вкладки. Строки строит
 // progress-view.ts (под самотестом), раз в 2 с; обход файлов он делает не чаще раза в 5 с. Подключается из tui.ts отдельной
-// цепочкой import() с защитой: блок «Crew» его сбой не касается, а ошибка в этом файле не мешает «Crew». Сам progress-view.ts
+// цепочкой import() с защитой: блок «Canopus» его сбой не касается, а ошибка в этом файле не мешает «Canopus». Сам progress-view.ts
 // подгружается отсюда через import() в try/catch: не загрузился — блок пуст, окно живо.
 import { createSignal, For, onCleanup } from "solid-js"
 import { cardFile, readJson } from "./core.ts"

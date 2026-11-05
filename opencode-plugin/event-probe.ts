@@ -1,8 +1,8 @@
 // Event probe (task 026, step 1): shows whether the plugin subscription gets OpenCode bus events (form.*, permission.*)
-// and in what shape. Off by default; on with CREW_HARNESS_EVENT_PROBE=1. Writes lines to the plugin log, changes nothing.
+// and in what shape. Off by default; on with CANOPUS_EVENT_PROBE=1. Writes lines to the plugin log, changes nothing.
 const KEEP = ["form.", "permission.", "question.", "session.idle", "session.status", "tool."]
 
-export const probeEnabled = (env: Record<string, string | undefined> = process.env) => env.CREW_HARNESS_EVENT_PROBE === "1"
+export const probeEnabled = (env: Record<string, string | undefined> = process.env) => env.CANOPUS_EVENT_PROBE === "1"
 
 export function describeEvent(ev: any): string | undefined {
   const type = String(ev?.type ?? ev?.event?.type ?? "")

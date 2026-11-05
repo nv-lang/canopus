@@ -1,4 +1,4 @@
-module crew_harness.server
+module canopus.server
 
 // A confirmed proposal in Preparation writes only its statement, never starts a child or wakes another executor.
 fn Hub mut @ct_prepare(at int, p Proposal) Proc Detach Time -> () {

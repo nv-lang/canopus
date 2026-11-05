@@ -1,8 +1,8 @@
 # db.ps1 - the permanent PostgreSQL of the product in Docker (task 115).
 #
-#   powershell -File src/pg/db.ps1 up                  create/start the container crew-harness-pg (volume crew-harness-pg-data, port
-#                                                      15432 on 127.0.0.1), make the database crew, apply schema.sql, make the login
-#                                                      crew_service; safe to run again (no password changes)
+#   powershell -File src/pg/db.ps1 up                  create/start the container canopus-pg (volume canopus-pg-data, port
+#                                                      15432 on 127.0.0.1), make the database canopus, apply schema.sql, make the login
+#                                                      canopus_service; safe to run again (no password changes)
 #   powershell -File src/pg/db.ps1 status              container, port, volume, version, schema (tables, functions), sessions
 #   powershell -File src/pg/db.ps1 down                stop the container, keep the volume
 #   powershell -File src/pg/db.ps1 psql [-Sql "..."]   psql inside the container as the administrator (interactive, or one command)
@@ -11,13 +11,13 @@
 #   powershell -File src/pg/db.ps1 reset -Force        remove the container AND THE VOLUME (all data; cannot be undone)
 #   powershell -File src/pg/db.ps1 env [-ShowPassword] the variables of the environment for the server (the password only on request)
 #   powershell -File src/pg/db.ps1 serve-config        write an example settings file of the server with store pg (no password)
-#   powershell -File src/pg/db.ps1 dropdb -Database crew_x   drop an extra database crew_* (made by `up -Database crew_x`; never `crew`)
+#   powershell -File src/pg/db.ps1 dropdb -Database canopus_x   drop an extra database canopus_* (made by `up -Database canopus_x`; never `canopus`)
 #
 # Options: -Port (15432; a changed port re-creates the container, the data stay), -Config (the file with the passwords,
-# default ~/.config/crew-harness/pg.json), -Database (default crew; `up` makes it, `psql`, `backup`, `restore` use it), -Out
+# default ~/.config/canopus/pg.json), -Database (default canopus; `up` makes it, `psql`, `backup`, `restore` use it), -Out
 # (serve-config), -Image (postgres:16-alpine).
 #
-# The script works with ONE container, `crew-harness-pg`, and ONE volume, `crew-harness-pg-data`, and with nothing else: other
+# The script works with ONE container, `canopus-pg`, and ONE volume, `canopus-pg-data`, and with nothing else: other
 # containers and volumes of the machine, and any PostgreSQL service of the machine, are not touched. The passwords are made at
 # random on the first `up` and kept in the settings file OUTSIDE the repository (only its owner may read it); they are in no output
 # of this script except `env -ShowPassword`. Docker not running: a message and exit code 1.
@@ -26,7 +26,7 @@ param(
     [Parameter(Position = 1)][string]$Path = '',
     [int]$Port = 0,
     [string]$Config = '',
-    [string]$Database = 'crew',
+    [string]$Database = 'canopus',
     [string]$Out = '',
     [string]$Sql = '',
     [string]$Image = 'postgres:16-alpine',
@@ -35,13 +35,13 @@ param(
 )
 
 $ErrorActionPreference = 'Continue'
-$Container = 'crew-harness-pg'
-$Volume = 'crew-harness-pg-data'
-$ServiceUser = 'crew_service'
+$Container = 'canopus-pg'
+$Volume = 'canopus-pg-data'
+$ServiceUser = 'canopus_service'
 $DefaultPort = 15432
 $root = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $schemaFile = Join-Path $PSScriptRoot 'schema.sql'
-$configDir = Join-Path $HOME '.config/crew-harness'
+$configDir = Join-Path $HOME '.config/canopus'
 if ($Config -eq '') { $Config = Join-Path $configDir 'pg.json' }
 $script:Secrets = @()
 
@@ -147,13 +147,13 @@ function Wait-Ready {
 
 # a real login with the password through the network address of the container (not the trusted local one)
 function Test-Login([string]$Db, [string]$User, [string]$Password) {
-    $env:CREW_DB_PROBE_PW = $Password
+    $env:CANOPUS_DB_PROBE_PW = $Password
     try {
-        $cmd = ('PGPASSWORD=$CREW_DB_PROBE_PW psql -h $(hostname -i) -U {0} -d {1} -v ON_ERROR_STOP=1 -q -t -A -c ''select count(*) from crew.list_sessions()''' -f $User, $Db)
-        $o = docker exec -e CREW_DB_PROBE_PW $Container sh -c $cmd 2>&1
+        $cmd = ('PGPASSWORD=$CANOPUS_DB_PROBE_PW psql -h $(hostname -i) -U {0} -d {1} -v ON_ERROR_STOP=1 -q -t -A -c ''select count(*) from canopus.list_sessions()''' -f $User, $Db)
+        $o = docker exec -e CANOPUS_DB_PROBE_PW $Container sh -c $cmd 2>&1
         return @{ Ok = ($LASTEXITCODE -eq 0); Text = (Hide-Secrets (($o | ForEach-Object { "$_" }) -join ' ')) }
     } finally {
-        Remove-Item Env:CREW_DB_PROBE_PW -ErrorAction SilentlyContinue
+        Remove-Item Env:CANOPUS_DB_PROBE_PW -ErrorAction SilentlyContinue
     }
 }
 
@@ -169,7 +169,7 @@ function Invoke-Up {
         $p = $DefaultPort
         if ($Port -gt 0) { $p = $Port } elseif ($state -ne 'absent') { $actual = Get-ContainerPort; if ($actual -gt 0) { $p = $actual } }
         $cfg = [ordered]@{
-            container = $Container; volume = $Volume; host = '127.0.0.1'; port = $p; database = 'crew'
+            container = $Container; volume = $Volume; host = '127.0.0.1'; port = $p; database = 'canopus'
             admin_user = 'postgres'; admin_password = (New-Password)
             service_user = $ServiceUser; service_password = (New-Password)
         }
@@ -220,10 +220,10 @@ function Invoke-Up {
         $null = Invoke-SqlOrStop 'postgres' "create database $Database" 'creating the database'
         Write-Output "database $Database created"
     }
-    docker cp $schemaFile "${Container}:/tmp/crew-schema.sql" | Out-Null
-    $apply = docker exec $Container psql -U postgres -d $Database -v ON_ERROR_STOP=1 -q -f /tmp/crew-schema.sql 2>&1
+    docker cp $schemaFile "${Container}:/tmp/canopus-schema.sql" | Out-Null
+    $apply = docker exec $Container psql -U postgres -d $Database -v ON_ERROR_STOP=1 -q -f /tmp/canopus-schema.sql 2>&1
     $applyCode = $LASTEXITCODE
-    docker exec $Container rm -f /tmp/crew-schema.sql *> $null
+    docker exec $Container rm -f /tmp/canopus-schema.sql *> $null
     if ($applyCode -ne 0) { Stop-Script ("applying schema.sql failed: " + (($apply | ForEach-Object { "$_" }) -join ' ')) }
 
     # the login: made once; its password is not touched afterwards, except when the settings file was made anew
@@ -232,7 +232,7 @@ function Invoke-Up {
 do `$`$
 begin
     if not exists (select 1 from pg_roles where rolname = '$($cfg.service_user)') then
-        create role $($cfg.service_user) login password '$pw' in role crew_app;
+        create role $($cfg.service_user) login password '$pw' in role canopus_app;
     end if;
 end
 `$`$;
@@ -241,7 +241,7 @@ end
     if ($newSettings -and $state -ne 'absent') {
         $null = Invoke-SqlOrStop 'postgres' "alter role $($cfg.service_user) password '$pw'" 'setting the login password'
     }
-    $null = Invoke-SqlOrStop 'postgres' "grant crew_app to $($cfg.service_user)" 'granting crew_app'
+    $null = Invoke-SqlOrStop 'postgres' "grant canopus_app to $($cfg.service_user)" 'granting canopus_app'
 
     $login = Test-Login $Database $cfg.service_user $pw
     if (-not $login.Ok) { Stop-Script "the login $($cfg.service_user) cannot connect to $Database with the password of $Config : $($login.Text)" }
@@ -273,9 +273,9 @@ function Invoke-Status {
     Write-Output "databases: $dbs"
     $has = Invoke-SqlOrStop 'postgres' "select 1 from pg_database where datname = '$Database'" 'looking for the database'
     if ($has -ne '1') { Write-Output "database ${Database}: absent"; return }
-    $schema = Invoke-SqlOrStop $Database "select (select count(*) from information_schema.tables where table_schema = 'crew') || ' tables, ' || (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'crew') || ' functions'" 'reading the schema'
-    Write-Output "schema crew in ${Database}: $schema"
-    $sessions = Invoke-Sql $Database 'select count(*) from crew.list_sessions()'
+    $schema = Invoke-SqlOrStop $Database "select (select count(*) from information_schema.tables where table_schema = 'canopus') || ' tables, ' || (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'canopus') || ' functions'" 'reading the schema'
+    Write-Output "schema canopus in ${Database}: $schema"
+    $sessions = Invoke-Sql $Database 'select count(*) from canopus.list_sessions()'
     if ($sessions.Code -eq 0) { Write-Output "sessions: $($sessions.Text)" }
     if ($cfg) {
         $login = Test-Login $Database $cfg.service_user $cfg.service_password
@@ -311,7 +311,7 @@ function Resolve-UserPath([string]$P) {
 }
 
 function Invoke-Dump([string]$Target) {
-    $inside = '/tmp/crew-backup.dump'
+    $inside = '/tmp/canopus-backup.dump'
     $o = docker exec $Container pg_dump -U postgres -d $Database -Fc -f $inside 2>&1
     if ($LASTEXITCODE -ne 0) { Stop-Script ("pg_dump failed: " + (($o | ForEach-Object { "$_" }) -join ' ')) }
     $dir = Split-Path -Parent $Target
@@ -342,7 +342,7 @@ function Invoke-Restore {
     $safety = Join-Path $configDir ("backups/$Database-before-restore-" + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.dump')
     Invoke-Dump $safety
     Write-Output "the present state is saved first: $safety"
-    $inside = '/tmp/crew-restore.dump'
+    $inside = '/tmp/canopus-restore.dump'
     docker cp $file "${Container}:${inside}" | Out-Null
     if ($LASTEXITCODE -ne 0) { Stop-Script 'could not copy the dump into the container.' }
     $o = docker exec $Container pg_restore -U postgres -d $Database --clean --if-exists --single-transaction $inside 2>&1
@@ -350,9 +350,9 @@ function Invoke-Restore {
     docker exec $Container rm -f $inside *> $null
     if ($code -ne 0) { Stop-Script ("pg_restore failed (the database is as before; the safety dump is above): " + (($o | ForEach-Object { "$_" }) -join ' ')) }
     # the schema again, so that functions and rights are those of this repository
-    docker cp $schemaFile "${Container}:/tmp/crew-schema.sql" | Out-Null
-    docker exec $Container psql -U postgres -d $Database -v ON_ERROR_STOP=1 -q -f /tmp/crew-schema.sql *> $null
-    docker exec $Container rm -f /tmp/crew-schema.sql *> $null
+    docker cp $schemaFile "${Container}:/tmp/canopus-schema.sql" | Out-Null
+    docker exec $Container psql -U postgres -d $Database -v ON_ERROR_STOP=1 -q -f /tmp/canopus-schema.sql *> $null
+    docker exec $Container rm -f /tmp/canopus-schema.sql *> $null
     Write-Output "restored $Database from $file"
 }
 
@@ -380,7 +380,7 @@ function Invoke-Reset {
 
 function Invoke-DropDb {
     Assert-Docker
-    if ($Database -cnotmatch '^crew_[a-z0-9_]+$') { Stop-Script "dropdb drops only an extra database named crew_<something> (not $Database); reset removes everything." }
+    if ($Database -cnotmatch '^canopus_[a-z0-9_]+$') { Stop-Script "dropdb drops only an extra database named canopus_<something> (not $Database); reset removes everything." }
     if ((Get-ContainerState) -ne 'running') { Stop-Script "the container $Container is not running." }
     $null = Invoke-SqlOrStop 'postgres' "drop database if exists $Database with (force)" 'dropping the database'
     Write-Output "database $Database dropped"
@@ -390,16 +390,16 @@ function Invoke-Env {
     $cfg = Read-Settings
     if (-not $cfg) { Stop-Script "no settings file $Config : run powershell -File src/pg/db.ps1 up first." }
     $vars = [ordered]@{
-        CREW_SERVER_STORE = 'pg'
-        CREW_PG_HOST = $cfg.host
-        CREW_PG_PORT = [string]$cfg.port
-        CREW_PG_DATABASE = $cfg.database
-        CREW_PG_USER = $cfg.service_user
+        CANOPUS_SERVER_STORE = 'pg'
+        CANOPUS_PG_HOST = $cfg.host
+        CANOPUS_PG_PORT = [string]$cfg.port
+        CANOPUS_PG_DATABASE = $cfg.database
+        CANOPUS_PG_USER = $cfg.service_user
     }
-    if ($ShowPassword) { $vars['CREW_PG_PASSWORD'] = $cfg.service_password }
+    if ($ShowPassword) { $vars['CANOPUS_PG_PASSWORD'] = $cfg.service_password }
     foreach ($name in $vars.Keys) { Write-Output ("`$env:{0} = '{1}'" -f $name, $vars[$name]) }
     if (-not $ShowPassword) {
-        Write-Output "# CREW_PG_PASSWORD: the field service_password of $Config (add -ShowPassword to print it)"
+        Write-Output "# CANOPUS_PG_PASSWORD: the field service_password of $Config (add -ShowPassword to print it)"
     }
 }
 
@@ -415,14 +415,14 @@ function Invoke-ServeConfig {
     }
     $server = [ordered]@{
         port = 8099
-        data_dir = 'target/crew-data'
+        data_dir = 'target/canopus-data'
         store = 'pg'
         pg = [ordered]@{ host = $cfg.host; port = [int]$cfg.port; database = $cfg.database; user = $cfg.service_user }
         agents = @([ordered]@{ id = 'opencode'; label = 'OpenCode'; program = 'opencode.cmd'; args = @('acp') })
         idle_term_seconds = 900
         workdir = ''
         web_dir = 'src/web'
-        hub = [ordered]@{ program = 'target/crew-hub.exe'; args = @() }
+        hub = [ordered]@{ program = 'target/canopus-hub.exe'; args = @() }
     }
     Write-JsonFile $target $server
     Write-Output "settings of the server with store pg (no password) written: $target"

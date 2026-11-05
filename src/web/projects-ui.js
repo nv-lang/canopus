@@ -86,7 +86,7 @@ export function createProjectsUi(doc, deps) {
     let ticket = 0;
     let history = [];
     let historyAt = -1;
-    const FAVORITES_KEY = 'crew-folder-picker-favorites-v1';
+    const FAVORITES_KEY = 'canopus-folder-picker-favorites-v1';
     let favorites = [];
     try {
       const saved = JSON.parse(doc.defaultView?.localStorage?.getItem(FAVORITES_KEY) || '[]');

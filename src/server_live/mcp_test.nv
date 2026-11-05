@@ -1,8 +1,8 @@
 // mcp_test.nv - the MCP server of the questions over a real socket (task 192i): the token, the methods, a call that waits for the hub and gets its answer, a call
 // that is not answered in time. The test plays the hub: it takes the messages of the inbox and answers them.
-module crew_harness.server_live
+module canopus.server_live
 
-import crew_harness.server.{start_mcp_server, McpServer, McpMsg}
+import canopus.server.{start_mcp_server, McpServer, McpMsg}
 import std.concurrency.nvchan.{Chan, ChanTx, ChanRx}
 import std.net.{Net, real_net, TcpStream, SocketAddr}
 

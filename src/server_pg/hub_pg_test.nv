@@ -1,10 +1,10 @@
 // hub_pg_test.nv - the session server over POSTGRESQL with the fake ACP agent (task 099): the same scenarios as in src/server_live
 // (over files), and the same results. Needs the temporary database of src/pg/testdb.ps1 (see src/pg/README.md); no database is a
 // red test with a message, not a skip.
-module crew_harness.server_pg
+module canopus.server_pg
 
-import crew_harness.server.{kit_pg, kit_chat_pg, scenario_chat, scenario_stream_burst, scenario_permission, scenario_cancel, scenario_restart_idle, scenario_restart_open, scenario_crash, scenario_two_pages, scenario_rejects, scenario_many, scenario_broken_agent, scenario_renamed_table}
-import crew_harness.pgdb.{new_test_db, drop_test_db, test_count, test_must_sql}
+import canopus.server.{kit_pg, kit_chat_pg, scenario_chat, scenario_stream_burst, scenario_permission, scenario_cancel, scenario_restart_idle, scenario_restart_open, scenario_crash, scenario_two_pages, scenario_rejects, scenario_many, scenario_broken_agent, scenario_renamed_table}
+import canopus.pgdb.{new_test_db, drop_test_db, test_count, test_must_sql}
 
 fn clean(report str) -> () {
     if report.byte_len() > 0 { println("NOT AS IT MUST BE: ${report}") }
@@ -14,7 +14,7 @@ fn clean(report str) -> () {
 test "pg: two turns of a chat" {
     ro db = new_test_db("hub_chat")
     ro report = scenario_chat(kit_chat_pg("pgchat", 30000, db.app))
-    ro stored = test_count(db.admin, "select count(distinct id) from crew.machine_snapshot")
+    ro stored = test_count(db.admin, "select count(distinct id) from canopus.machine_snapshot")
     drop_test_db(db)
     clean(report)
     assert(stored == 1)
@@ -22,9 +22,9 @@ test "pg: two turns of a chat" {
 
 test "pg: burst chunks flush before the end event" {
     ro db = new_test_db("hub_burst")
-    test_must_sql(db.admin, "create function crew.test_slow_stream_save() returns trigger language plpgsql as $fn$ begin if new.id = 's-burst' then perform pg_sleep(0.015); end if; return new; end; $fn$; create trigger test_slow_stream_save before insert on crew.machine_snapshot for each row execute function crew.test_slow_stream_save()")
+    test_must_sql(db.admin, "create function canopus.test_slow_stream_save() returns trigger language plpgsql as $fn$ begin if new.id = 's-burst' then perform pg_sleep(0.015); end if; return new; end; $fn$; create trigger test_slow_stream_save before insert on canopus.machine_snapshot for each row execute function canopus.test_slow_stream_save()")
     ro report = scenario_stream_burst(kit_pg("pgburst", 30000, db.app))
-    ro stored = test_count(db.admin, "select count(distinct id) from crew.machine_snapshot")
+    ro stored = test_count(db.admin, "select count(distinct id) from canopus.machine_snapshot")
     drop_test_db(db)
     if report.byte_len() > 0 { panic("stream burst: ${report}") }
     assert(stored == 2)
@@ -33,7 +33,7 @@ test "pg: burst chunks flush before the end event" {
 test "pg: permission asked, allowed, denied" {
     ro db = new_test_db("hub_perm")
     ro report = scenario_permission(kit_pg("pgperm", 30000, db.app))
-    ro stored = test_count(db.admin, "select count(distinct id) from crew.machine_snapshot")
+    ro stored = test_count(db.admin, "select count(distinct id) from canopus.machine_snapshot")
     drop_test_db(db)
     clean(report)
     assert(stored == 1)
@@ -42,7 +42,7 @@ test "pg: permission asked, allowed, denied" {
 test "pg: a cancel keeps the session open" {
     ro db = new_test_db("hub_cancel")
     ro report = scenario_cancel(kit_chat_pg("pgcancel", 30000, db.app))
-    ro stored = test_count(db.admin, "select count(distinct id) from crew.machine_snapshot")
+    ro stored = test_count(db.admin, "select count(distinct id) from canopus.machine_snapshot")
     drop_test_db(db)
     clean(report)
     assert(stored == 1)
@@ -51,7 +51,7 @@ test "pg: a cancel keeps the session open" {
 test "pg: restart between turns" {
     ro db = new_test_db("hub_restart")
     ro report = scenario_restart_idle(kit_chat_pg("pgrestart", 30000, db.app))
-    ro stored = test_count(db.admin, "select count(distinct id) from crew.machine_snapshot")
+    ro stored = test_count(db.admin, "select count(distinct id) from canopus.machine_snapshot")
     drop_test_db(db)
     clean(report)
     assert(stored == 1)
@@ -60,7 +60,7 @@ test "pg: restart between turns" {
 test "pg: restart in the middle of a turn" {
     ro db = new_test_db("hub_open")
     ro report = scenario_restart_open(kit_chat_pg("pgopen", 2000, db.app))
-    ro stored = test_count(db.admin, "select count(distinct id) from crew.machine_snapshot")
+    ro stored = test_count(db.admin, "select count(distinct id) from canopus.machine_snapshot")
     drop_test_db(db)
     clean(report)
     assert(stored == 1)
@@ -69,7 +69,7 @@ test "pg: restart in the middle of a turn" {
 test "pg: the agent dies" {
     ro db = new_test_db("hub_crash")
     ro report = scenario_crash(kit_chat_pg("pgcrash", 30000, db.app))
-    ro stored = test_count(db.admin, "select count(distinct id) from crew.machine_snapshot")
+    ro stored = test_count(db.admin, "select count(distinct id) from canopus.machine_snapshot")
     drop_test_db(db)
     clean(report)
     assert(stored == 1)
@@ -78,7 +78,7 @@ test "pg: the agent dies" {
 test "pg: two pages, one session" {
     ro db = new_test_db("hub_two")
     ro report = scenario_two_pages(kit_pg("pgtwo", 30000, db.app))
-    ro stored = test_count(db.admin, "select count(distinct id) from crew.machine_snapshot")
+    ro stored = test_count(db.admin, "select count(distinct id) from canopus.machine_snapshot")
     drop_test_db(db)
     clean(report)
     assert(stored == 1)
@@ -87,7 +87,7 @@ test "pg: two pages, one session" {
 test "pg: what cannot be done is an error" {
     ro db = new_test_db("hub_rejects")
     ro report = scenario_rejects(kit_pg("pgrejects", 30000, db.app))
-    ro stored = test_count(db.admin, "select count(distinct id) from crew.machine_snapshot")
+    ro stored = test_count(db.admin, "select count(distinct id) from canopus.machine_snapshot")
     drop_test_db(db)
     clean(report)
     assert(stored == 0)
@@ -96,7 +96,7 @@ test "pg: what cannot be done is an error" {
 test "pg: several sessions" {
     ro db = new_test_db("hub_many")
     ro report = scenario_many(kit_chat_pg("pgmany", 30000, db.app))
-    ro stored = test_count(db.admin, "select count(distinct id) from crew.machine_snapshot")
+    ro stored = test_count(db.admin, "select count(distinct id) from canopus.machine_snapshot")
     drop_test_db(db)
     clean(report)
     assert(stored == 2)
@@ -105,7 +105,7 @@ test "pg: several sessions" {
 test "pg: an agent that refuses to start" {
     ro db = new_test_db("hub_broken")
     ro report = scenario_broken_agent(kit_pg("pgbroken", 30000, db.app))
-    ro stored = test_count(db.admin, "select count(distinct id) from crew.machine_snapshot")
+    ro stored = test_count(db.admin, "select count(distinct id) from canopus.machine_snapshot")
     drop_test_db(db)
     clean(report)
     assert(stored == 1)
@@ -114,7 +114,7 @@ test "pg: an agent that refuses to start" {
 test "pg: the table with other names of the states" {
     ro db = new_test_db("hub_renamed")
     ro report = scenario_renamed_table(kit_chat_pg("pgrenamed", 30000, db.app))
-    ro stored = test_count(db.admin, "select count(distinct id) from crew.machine_snapshot")
+    ro stored = test_count(db.admin, "select count(distinct id) from canopus.machine_snapshot")
     drop_test_db(db)
     clean(report)
     assert(stored == 1)

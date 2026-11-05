@@ -1,6 +1,6 @@
 // taskwt_adapter.nv - task 192q: the hub's view of the git operations of the tasks (`taskwt.nv`, task 192r). The hub does not know the types and the effects of that module:
 // here they are turned into plain records and the effects `Os` and `Fs` are given (`with`). The names begin with `tk_`.
-module crew_harness.server
+module canopus.server
 
 import std.os.{Os, real_os}
 import std.fs.{Fs, real_fs}

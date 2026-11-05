@@ -1,5 +1,5 @@
 // config_layout_test.nv - the root of the instance, the folders, the layers of the settings (task 192.12).
-module crew_harness.config
+module canopus.config
 
 import std.os.{Os, MockOs, mock_os, real_os, temp_dir, pid}
 import std.fs.{Fs, real_fs, read_text, write_text, create_dir_all, remove_dir_all, Path}
@@ -8,7 +8,7 @@ import std.encoding.json.{Json, JsonValue, JsonObject}
 fn tmp_root(name str) -> str {
     ro base = with Os = real_os() { temp_dir() }
     ro id = with Os = real_os() { pid() }
-    ro dir = base.join("crew-config-${name}-${id}")
+    ro dir = base.join("canopus-config-${name}-${id}")
     with Fs = real_fs() {
         ro gone = remove_dir_all(dir)
         ro made = create_dir_all(dir)
@@ -43,19 +43,19 @@ fn obj_of(text str) -> JsonObject {
 test "home: the argument, then the variable, then the folder of the user" {
     assert(resolve_home("C:/work/arg", "C:/work/env", "C:/work/me") == "C:/work/arg")
     assert(resolve_home("", "C:/work/env", "C:/work/me") == "C:/work/env")
-    assert(resolve_home("", "", "C:/work/me") == "C:/work/me/.crew-harness")
-    assert(resolve_home("", "", "C:\\work\\me\\") == "C:/work/me/.crew-harness")
+    assert(resolve_home("", "", "C:/work/me") == "C:/work/me/.canopus")
+    assert(resolve_home("", "", "C:\\work\\me\\") == "C:/work/me/.canopus")
     assert(resolve_home("", "", "") == "")
 }
 
-test "home: crew_home reads CREW_HOME and the home of the user from the system" {
+test "home: canopus_home reads CANOPUS_HOME and the home of the user from the system" {
     mut state = MockOs.new()
-    state.put_env("CREW_HOME", "C:/work/inst")
-    assert(with Os = mock_os(state) { crew_home("") } == "C:/work/inst")
-    assert(with Os = mock_os(state) { crew_home("C:/work/arg2") } == "C:/work/arg2")
+    state.put_env("CANOPUS_HOME", "C:/work/inst")
+    assert(with Os = mock_os(state) { canopus_home("") } == "C:/work/inst")
+    assert(with Os = mock_os(state) { canopus_home("C:/work/arg2") } == "C:/work/arg2")
     mut plain = MockOs.new()
     plain.set_home_str("C:/work/me2")
-    assert(with Os = mock_os(plain) { crew_home("") } == "C:/work/me2/.crew-harness")
+    assert(with Os = mock_os(plain) { canopus_home("") } == "C:/work/me2/.canopus")
 }
 
 test "layout: the five folders under the root, sessions inside data" {
@@ -73,11 +73,11 @@ test "layout: an old data_dir is flat and keeps everything in one folder" {
 }
 
 test "args: --home and --set are taken out of the words" {
-    ro a = split_cli_args(["crew-harness", "serve", "--home", "C:/work/h", "f.json", "--set", "port=8131", "--set=store=files"])
+    ro a = split_cli_args(["canopus", "serve", "--home", "C:/work/h", "f.json", "--set", "port=8131", "--set=store=files"])
     assert(a.error == "" && a.home == "C:/work/h")
     assert(a.sets.len() == 2 && a.sets[0] == "port=8131" && a.sets[1] == "store=files")
     assert(a.rest.len() == 3 && a.rest[1] == "serve" && a.rest[2] == "f.json")
-    ro b = split_cli_args(["crew-harness", "--home=C:/work/x"])
+    ro b = split_cli_args(["canopus", "--home=C:/work/x"])
     assert(b.home == "C:/work/x" && b.rest.len() == 1)
     assert(split_cli_args(["p", "--home"]).error.byte_len() > 0)
 }
@@ -130,9 +130,9 @@ test "layers: the files are read in the order user, server, project, local, and 
     ro root = tmp_root("layers")
     put(root, "inst/config/config.json", "{\"port\":1,\"store\":\"files\"}")
     put(root, "srv.json", "{\"port\":2}")
-    put(root, "repo/.crew-harness/config.json", "{\"port\":3,\"workdir\":\"w\"}")
-    put(root, "repo/.crew-harness/local.json", "{\"workdir\":\"mine\"}")
-    ro layout = layout_in("${root}/inst", "${root}/repo/.crew-harness")
+    put(root, "repo/.canopus/config.json", "{\"port\":3,\"workdir\":\"w\"}")
+    put(root, "repo/.canopus/local.json", "{\"workdir\":\"mine\"}")
+    ro layout = layout_in("${root}/inst", "${root}/repo/.canopus")
     match with Fs = real_fs() { file_layers(layout, "${root}/srv.json") } {
         Err(e) => assert(false)
         Ok(layers) => {
@@ -171,9 +171,9 @@ test "layers: the variables are over the files and the arguments over the variab
     put(root, "inst/config/config.json", "{\"port\":1,\"voice\":{\"model\":\"small\"}}")
     ro layout = layout_in("${root}/inst", "")
     mut state = MockOs.new()
-    state.put_env("CREW_SERVER_PORT", "7")
-    state.put_env("CREW_VOICE_MODEL", "medium")
-    state.put_env("CREW_SERVER_ACP_TRACE", "false")
+    state.put_env("CANOPUS_SERVER_PORT", "7")
+    state.put_env("CANOPUS_VOICE_MODEL", "medium")
+    state.put_env("CANOPUS_SERVER_ACP_TRACE", "false")
     match with Os = mock_os(state), Fs = real_fs() { all_layers(layout, "", ["port=9", "voice.language=en"]) } {
         Err(e) => assert(false)
         Ok(layers) => {
@@ -190,12 +190,25 @@ test "layers: the variables are over the files and the arguments over the variab
 
 test "project folder: found in a folder above, the root of the instance is not a project" {
     ro root = tmp_root("project")
-    put(root, "repo/.crew-harness/config.json", "{}")
+    put(root, "repo/.canopus/config.json", "{}")
     put(root, "repo/src/deep/x.txt", "x")
-    put(root, "inst/.crew-harness/config/config.json", "{}")
+    put(root, "inst/.canopus/config/config.json", "{}")
     with Fs = real_fs() {
-        assert(find_project_dir("${root}/repo/src/deep", "${root}/inst/.crew-harness") == "${root}/repo/.crew-harness")
-        assert(find_project_dir("${root}/inst", "${root}/inst/.crew-harness") == "")
+        assert(find_project_dir("${root}/repo/src/deep", "${root}/inst/.canopus") == "${root}/repo/.canopus")
+        assert(find_project_dir("${root}/inst", "${root}/inst/.canopus") == "")
     }
     tmp_drop(root)
+}
+
+test "legacy env: a set old name is a refusal with the new name, a clean environment passes (task 284)" {
+    mut state = MockOs.new()
+    assert(with Os = mock_os(state) { legacy_env_problem() } == "")
+    state.put_env("CANOPUS_HOME", "C:/work/old") // guard-allow(legacy-name): негативная проба старого env
+    state.put_env("CANOPUS_SERVER_PORT", "7") // guard-allow(legacy-name): негативная проба старого env
+    ro problem = with Os = mock_os(state) { legacy_env_problem() }
+    assert(problem.contains("CANOPUS_HOME -> задай CANOPUS_HOME")) // guard-allow(legacy-name): негативная проба старого env
+    assert(problem.contains("CANOPUS_SERVER_PORT -> задай CANOPUS_SERVER_PORT")) // guard-allow(legacy-name): негативная проба старого env
+    mut fresh = MockOs.new()
+    fresh.put_env("CANOPUS_HOME", "C:/work/inst")
+    assert(with Os = mock_os(fresh) { legacy_env_problem() } == "")
 }

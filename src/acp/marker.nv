@@ -1,13 +1,13 @@
 // marker.nv - task 192.9: the fallback marker of the tools of the hub in the text of an answer of an agent.
 //
-// An agent that cannot call the MCP tools `crew_task_list` / `crew_task` writes one line at the end of its answer: `[[crew_task_list]] {json}` (or `[[crew_task]] {json}`).
+// An agent that cannot call the MCP tools `canopus_task_list` / `canopus_task` writes one line at the end of its answer: `[[canopus_task_list]] {json}` (or `[[canopus_task]] {json}`).
 // The owner must never see it in the feed and the journal must not keep it as text of the answer: the client of ACP cuts it out of the chunks of the answer while they
-// travel (the marker may come in parts), and gives the cut marker as an event of its own (`crew_marker`), that the hub reads when the turn is over.
+// travel (the marker may come in parts), and gives the cut marker as an event of its own (`canopus_marker`), that the hub reads when the turn is over.
 //
 // The pure part: `marker_feed` takes the part of the answer that came (and what was held back from the previous part) and says what may be shown, what is held back
 // (a marker that is not closed yet, the beginning of a marker name, a line of a code fence that may be followed by a marker), and which markers were found.
 // A marker in a code fence is cut together with the lines of the fence (`` ``` `` before it and after it). A marker that never closes (the answer is cut) is dropped.
-module crew_harness.acp
+module canopus.acp
 
 /// MarkerState: what is held back between two parts of an answer. `tail`: the text not shown yet (it begins with a marker, or with a fence line before a marker, or is
 /// the beginning of a marker name); `fence`: a line of a fence was cut together with a marker, and the closing line of the fence is cut when it comes.
@@ -19,8 +19,8 @@ export type MarkerStep { out str, state MarkerState, found []str }
 /// The state before the first part of an answer.
 export fn marker_start() -> MarkerState => { tail: "", fence: false }
 
-const MARKER_LIST = "[[crew_task_list]]"
-const MARKER_ONE = "[[crew_task]]"
+const MARKER_LIST = "[[canopus_task_list]]"
+const MARKER_ONE = "[[canopus_task]]"
 
 fn is_blank_byte(b u8) -> bool => b == (32 as u8) || b == (9 as u8) || b == (10 as u8) || b == (13 as u8)
 
@@ -204,9 +204,9 @@ export fn marker_feed(state MarkerState, text str, last bool) -> MarkerStep {
     MarkerStep { out, state: MarkerState { tail: held, fence: fence && !last }, found }
 }
 
-/// A tool of the MCP server `crew` of the hub as an agent titles its call (Kimi Code: `mcp__crew__crew_task_list`): such a call is not a request for the owner's leave,
+/// A tool of the MCP server `canopus` of the hub as an agent titles its call (Kimi Code: `mcp__canopus__canopus_task_list`): such a call is not a request for the owner's leave,
 /// the hub offered the tool itself (task 192.9).
-export fn is_crew_tool_title(title str) -> bool {
+export fn is_canopus_tool_title(title str) -> bool {
     ro t = title.trim_ascii()
-    t == "mcp__crew__crew_task_list" || t == "mcp__crew__crew_task" || t == "mcp__crew__ask_user_question"
+    t == "mcp__canopus__canopus_task_list" || t == "mcp__canopus__canopus_task" || t == "mcp__canopus__ask_user_question"
 }

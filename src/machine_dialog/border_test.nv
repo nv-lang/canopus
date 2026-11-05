@@ -2,12 +2,12 @@
 // the cancel of the dialog is declared once (a signal of the machine, not a signal of the party user), the translation says `content`. Alula 2.26 (task 240): the part is the type `КусокОтвета`
 // named in the column `части` of the agent, the cancel is the signal of the protocol of a call `отмена_запроса` (`cancel_request`), declared by the library `libs/call_cancel.alula.md` that the
 // machine connects, and taken by a common event of the machine in the state of the open turn.
-module crew_harness.machine_dialog
+module canopus.machine_dialog
 
 import std.fs.{Path}
 import std.text
 import alula.machine_text.{translate_checked_with, error_text}
-import crew_harness.machines.{product_registry, chat_table_text, dialog_machine_text, dialog_table_text, translation_files}
+import canopus.machines.{product_registry, chat_table_text, dialog_machine_text, dialog_table_text, translation_files}
 
 test "bd dialog: the message and the chunk have the field содержание" {
     ro t = dialog_table_text()

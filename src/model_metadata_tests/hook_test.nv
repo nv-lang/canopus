@@ -4,7 +4,7 @@ module model_metadata_tests.hook_test
 import std.text
 import std.encoding.json.{Json}
 import std.crypto.sha256.{Sha256}
-import crew_harness.model_metadata.{NativeMetadataBinding, MetadataHook, model_metadata_reply}
+import canopus.model_metadata.{NativeMetadataBinding, MetadataHook, model_metadata_reply}
 
 fn binding(family str, config str) -> NativeMetadataBinding => {
     family, config_sha256: config,

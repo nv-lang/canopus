@@ -7,9 +7,9 @@
 // A child is cut from the branch of its epic (no branch - from main) and ALWAYS merges into it by its own button (a conflict is resolved by the agent of the child); a child of an epic with no
 // branch merges into main by "Слить в main". The epic goes to main at any moment by its own "Слить в main": the children not merged yet are only named ("не слиты: ..., останутся отдельно"),
 // they never hold it; "Влить все дочерние" merges them one after another when the owner wants it.
-module crew_harness.server
+module canopus.server
 
-import crew_harness.acp.{AcpImage}
+import canopus.acp.{AcpImage}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 
 // ----- who is whose -----
@@ -396,7 +396,7 @@ fn Hub mut @cs_extend(at int, p Proposal, k int) Proc Detach Time -> bool {
     ro found = @cs_find_number(k)
     if found < 0 { return false }
     ro c = @sessions[found]
-    ro added = append_file("${c.rt.task_dir}/${c.rt.msg_file(c.rt.last_sub())}", crew_addition_text(p.summary, p.source, now_millis()))
+    ro added = append_file("${c.rt.task_dir}/${c.rt.msg_file(c.rt.last_sub())}", canopus_addition_text(p.summary, p.source, now_millis()))
     if c.rt.tstate != "active" { @rt_state(found, "active", "") }
     @ct_drop(at, p.id, false)
     @ct_note(at, "▸ задача ${c.rt.number} «${c.rt.title}» дополнена")
@@ -628,7 +628,7 @@ fn Hub mut @cs_merge(cat int) Proc Detach Time -> bool {
 }
 
 fn Hub mut @cs_resolve_turn(cat int, files []str) Proc Detach Time -> () {
-    ro reason = @route_agent_turn(cat, "Служебный ход: разрешение конфликта слияния в ветку эпика", "[crew] ${tk_resolve_text(files)}")
+    ro reason = @route_agent_turn(cat, "Служебный ход: разрешение конфликта слияния в ветку эпика", "[canopus] ${tk_resolve_text(files)}")
     if reason.byte_len() > 0 {
         ro dropped = tk_merge_abort(@sessions[cat].rt.ptree)
         @cs_fail(cat, "агент не смог начать ход: ${reason}")

@@ -6,8 +6,8 @@
 // file is there, the alula_version of every tree, table and library is the one of the engine, the hash of every connection of a library is the
 // `definitions_hash` of its file. There is no copy to fall back on: an error names the path. The package `alula` knows the language only (spec 7a);
 // the registry of the product is the language and the codes of `journal.md`: the machines of the product call no primitive of their own.
-// The tests read the same files from the tree (`tree_product_machines`) and from `crew_harness.machines`.
-module crew_harness.product_machines
+// The tests read the same files from the tree (`tree_product_machines`) and from `canopus.machines`.
+module canopus.product_machines
 
 import std.fs.{Fs, real_fs, Path, read_text, read_dir, try_exists}
 import alula.machine.{NamedText, Registry, load_host, text_of_file}
@@ -251,7 +251,7 @@ fn pm_has_machines(dir str) -> bool {
     }
 }
 
-/// The folder of the machines: the setting `machines_dir` (or CREW_SERVER_MACHINES_DIR) when it is given, else the first of
+/// The folder of the machines: the setting `machines_dir` (or CANOPUS_SERVER_MACHINES_DIR) when it is given, else the first of
 /// `machines_dir_candidates(program)` that holds `dialog.alula.json`; none - an error that names the folders looked at.
 export fn find_machines_dir(setting str, program str) -> Result[str, str] {
     if setting.byte_len() > 0 { return Ok(setting) }
@@ -259,7 +259,7 @@ export fn find_machines_dir(setting str, program str) -> Result[str, str] {
     for dir in candidates {
         if pm_has_machines(dir) { return Ok(dir) }
     }
-    Err("the machines of the product are not found: no dialog.alula.json in ${pm_join(candidates, " or ")}; put the folder machines/product beside the program or name it by the setting machines_dir or CREW_SERVER_MACHINES_DIR")
+    Err("the machines of the product are not found: no dialog.alula.json in ${pm_join(candidates, " or ")}; put the folder machines/product beside the program or name it by the setting machines_dir or CANOPUS_SERVER_MACHINES_DIR")
 }
 
 // ----- the tree of the repository (the tests) -----

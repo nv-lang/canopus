@@ -11,8 +11,8 @@
     подсказкой, а не пропуск.
 Правило: AGENTS.md п.15, ADR-0006.
 
-Источники списка: CREW_PRIVATE_NAMES (секрет в CI), файл CREW_PRIVATE_NAMES_FILE или
-~/.config/crew-harness/private-names.txt. Пометок-исключений у этого стража нет.
+Источники списка: CANOPUS_PRIVATE_NAMES (секрет в CI), файл CANOPUS_PRIVATE_NAMES_FILE или
+~/.config/canopus/private-names.txt. Пометок-исключений у этого стража нет.
 """
 import sys
 

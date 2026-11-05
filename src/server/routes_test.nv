@@ -1,6 +1,6 @@
 // routes_test.nv - task 192q: the modes of work by the methodology (`routes.nv`): the files of the modes, the numbers of the tasks, the progress files,
 // the rule "extend the subtask or open a new one", the state `route_state` for the page, the choice of the independent reviewer.
-module crew_harness.server
+module canopus.server
 
 import std.encoding.json.{Json, JsonValue, JsonObject}
 import std.fs.{Fs, real_fs, read_text}

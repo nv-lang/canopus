@@ -1,4 +1,4 @@
-// ВЫБОР В ОКНЕ ДЛЯ /crew-sets И /crew-profiles (задача 066, пп. 8–9; владелец, 2026-10-17: «стрелками выбрали kimi — Enter, ничего
+// ВЫБОР В ОКНЕ ДЛЯ /canopus-sets И /canopus-profiles (задача 066, пп. 8–9; владелец, 2026-10-17: «стрелками выбрали kimi — Enter, ничего
 // вводить не надо»). Команда без слов и `ls` открывают выбор (dialog.select): строка — набор (семья), ● у включённого, модели в
 // подписи; Enter включает набор (у семьи — показывает её), последняя строка открывает меню остальных глаголов. Глаголы, которым нужно
 // имя набора (семьи), сначала показывают тот же список; текст набирается только для нового имени или ячейки. Модуль чистый: окно
@@ -20,12 +20,12 @@ const SET_VERBS = ["use", "show", "rename", "delete", "set", "unset"]
 const FAMILY_VERBS = ["show", "set", "rename", "delete"]
 
 export async function runFlow(kind: "sets" | "profiles", typed: string, io: FlowIO): Promise<void> {
-  const name = `/crew-${kind}`
+  const name = `/canopus-${kind}`
   const needs = kind === "sets" ? SET_VERBS : FAMILY_VERBS
   const helps = verbHelpOf(kind)
   const what = kind === "sets" ? "набор" : "семью"
   const run = async (text: string) => {
-    const title = `crew-harness — ${name}${text ? " " + text : ""}`
+    const title = `canopus — ${name}${text ? " " + text : ""}`
     io.show(title, "Загрузка…")
     io.show(title, await io.load(text))
   }
@@ -63,7 +63,7 @@ export async function runFlow(kind: "sets" | "profiles", typed: string, io: Flow
     if (!v) return
     if (!needs.includes(verb)) return v.bare ? run(verb) : askVerb(verb)
     const d = await loadPick()
-    if (!d.items.length) return void io.show(`crew-harness — ${name} ${verb}`, kind === "sets" ? "Наборов нет: создайте пункт «new» меню /crew-sets." : "Справочник пуст: создайте семью пунктом «new» меню /crew-profiles.")
+    if (!d.items.length) return void io.show(`canopus — ${name} ${verb}`, kind === "sets" ? "Наборов нет: создайте пункт «new» меню /canopus-sets." : "Справочник пуст: создайте семью пунктом «new» меню /canopus-profiles.")
     const target = await io.select({ title: str(`${name} ${verb} — выберите ${what}`), options: options(d.items), current: d.current })
     if (!target || !d.items.some((i) => i.value === target)) return
     if (verb === "use" || verb === "show" || (verb === "delete" && kind === "sets")) return run(`${verb} ${target}`)
@@ -77,7 +77,7 @@ export async function runFlow(kind: "sets" | "profiles", typed: string, io: Flow
     }
     if (kind === "sets" && verb === "unset") {
       const st = await loadPick(target)
-      if (!st.items.length) return void io.show(`crew-harness — ${name} unset`, `У набора «${target}» нет описанных этапов.`)
+      if (!st.items.length) return void io.show(`canopus — ${name} unset`, `У набора «${target}» нет описанных этапов.`)
       const stage = await io.select({ title: str(`${name} unset ${target} — какой этап убрать`), options: options(st.items) })
       return stage && st.items.some((i) => i.value === stage) ? run(`unset ${target} ${stage}`) : undefined
     }

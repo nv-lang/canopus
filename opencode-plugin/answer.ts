@@ -6,9 +6,9 @@
 // Закрыто по умолчанию: любой сбой, сомнение и неготовность — вопрос остаётся владельцу, ошибка идёт в журнал службы.
 import { linkSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs"
 import path from "node:path"
-import { type Card, type CrewConfig, type TurnEnd, PLUGIN_SENDER, letterExistsFor, log, obligationsOf, postLetter, safeKey } from "./core.ts"
+import { type Card, type CanopusConfig, type TurnEnd, PLUGIN_SENDER, letterExistsFor, log, obligationsOf, postLetter, safeKey } from "./core.ts"
 import { loadTask, taskEvent, taskRef } from "./tasks.ts"
-import { BASE } from "./paths.ts"
+import { BASE } from "./base.ts"
 import { type Block, type ClassifyCtx, answerModesOn, classify, parseTurn } from "./answer-parse.ts"
 import { autoStats, heldShort } from "./form-auto.ts"
 
@@ -263,7 +263,7 @@ export function answerLetterText(rec: AnswerRecord, rest: RestItem[]): string {
   return lines.join("\n")
 }
 
-/** Что показать владельцу об остатке одной строкой (уведомление, /crew). */
+/** Что показать владельцу об остатке одной строкой (уведомление, /canopus). */
 export const restSummary = (rest: RestItem[], max = 240) => {
   const t = rest.map((r) => `${r.n ? `В-${String(r.n).padStart(2, "0")}` : "вопрос"} ${r.head} (${r.reason})`).join("; ")
   return t.length > max ? `${t.slice(0, max - 1)}…` : t
@@ -273,7 +273,7 @@ function restLetterText(card: Card, key: string, end: TurnEnd, rest: RestItem[])
   const ref = card.task ?? card.review
   const what = ref ? `${card.review && !card.task ? "приёмка задачи" : "задача"} ${taskRef({ project: ref.project, n: ref.n, folder: loadTask(ref.project, ref.n)?.folder })}` : "вопрос"
   const tail = end.text.replace(/\r/g, "").trim().slice(-700)
-  return `${what}: вкладка ${key} (сессия ${card.session}) остановилась с вопросами, которых по настройке проекта закрыть нельзя, работа стоит до ответа:\n${rest.map(restLine).join("\n")}\n\nКонец её ответа:\n${tail}\n\nСначала разбери рабочий вопрос через question router: проверь факт/артефакт и источник, ответь исходному qid через crew_question resolve. Рекомендация не знание и не разрешение. Только точное оставшееся решение/настоящие ворота — владельцу инструментом question; не проси его искать служебный путь.`
+  return `${what}: вкладка ${key} (сессия ${card.session}) остановилась с вопросами, которых по настройке проекта закрыть нельзя, работа стоит до ответа:\n${rest.map(restLine).join("\n")}\n\nКонец её ответа:\n${tail}\n\nСначала разбери рабочий вопрос через question router: проверь факт/артефакт и источник, ответь исходному qid через canopus_question resolve. Рекомендация не знание и не разрешение. Только точное оставшееся решение/настоящие ворота — владельцу инструментом question; не проси его искать служебный путь.`
 }
 
 /**
@@ -300,7 +300,7 @@ export type AnswerInput = {
   /** адрес вкладки «проект.роль» для текстов писем */
   key: string
   end: TurnEnd | undefined
-  cfg: CrewConfig
+  cfg: CanopusConfig
   now: number
   channel: "nudge" | "status"
   deps: Deps
@@ -446,7 +446,7 @@ async function decide(input: AnswerInput): Promise<AnswerResult> {
 }
 
 // ПОКАЗ -------------------------------------------------------------------------------------------------------------
-// Счётчики автоответов для /crew (answerCounts, задача 077) и строка боковой панели. Журнал читается целиком, но файлы разбираются заново только когда
+// Счётчики автоответов для /canopus (answerCounts, задача 077) и строка боковой панели. Журнал читается целиком, но файлы разбираются заново только когда
 // они изменились (время и размер), поэтому перерисовка панели не читает диск на каждый кадр.
 
 const fileCache = new Map<string, { mtime: number; size: number; rec?: AnswerRecord }>()
@@ -498,8 +498,8 @@ function readAllCached(now: number): AnswerRecord[] {
   return out
 }
 
-/** Счётчики раздела автоответов для /crew (REQ-17, задача 077): ответы за 24 часа, из них со вмешательством владельца, и вопросы, которые
- *  ждут слова владельца (остаток хода). Подробности — в истории задачи (`crew_task show`); строки с вопросами и ответами /crew больше не
+/** Счётчики раздела автоответов для /canopus (REQ-17, задача 077): ответы за 24 часа, из них со вмешательством владельца, и вопросы, которые
+ *  ждут слова владельца (остаток хода). Подробности — в истории задачи (`canopus_task show`); строки с вопросами и ответами /canopus больше не
  *  печатает. Нет ни того ни другого — undefined. */
 export function answerCounts(project: string, now = Date.now()): { auto: number; stepped: number; forYou: number; forms?: number; formsToYou?: number; formsWhy?: string } | undefined {
   const all = readAllCached(now).filter((r) => r.project === project)

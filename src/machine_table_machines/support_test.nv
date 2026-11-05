@@ -1,8 +1,8 @@
 // support_test.nv - helpers and fixtures of the tests of the loader and of the checks.
-module crew_harness.machine_table_machines
+module canopus.machine_table_machines
 
 import std.text
-import crew_harness.machines.{product_registry, chat_machine_text}
+import canopus.machines.{product_registry, chat_machine_text}
 import alula.machine_table.{MachineDef, issue_text, load_machine, parse_machine}
 
 fn jl(v str) -> str => `{"op":"lit","value":${v}}`

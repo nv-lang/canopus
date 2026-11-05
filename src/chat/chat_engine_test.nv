@@ -2,7 +2,7 @@
 //
 // Every property of the engine is shown on the chat session: one request - one answer, restart by a
 // repeated entry, cancel, idle term, the journal, the snapshot, UTF-8.
-module crew_harness.chat
+module canopus.chat
 
 import std.encoding.json.{JsonValue, JsonObject}
 import alula.engine.{Engine, MemoryWorld, Incoming, EventKind, FailCode, PartyResponse, Reply, Rejection, JournalEntry, Journal, Store, Link, start_engine, resume_engine, memory_journal, memory_store, memory_link, memory_time, decode_snapshot, journal_line, journal_event, param}

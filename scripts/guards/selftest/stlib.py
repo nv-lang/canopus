@@ -101,7 +101,7 @@ def isolated_env(base, extra=None):
     """Среда без глобальной настройки git, переменных CI и списков имён хозяина."""
     env = dict(os.environ)
     for key in list(env):
-        if key.startswith("GIT_") or key.startswith("CREW_") or key in (
+        if key.startswith("GIT_") or key.startswith("CANOPUS_") or key in (
                 "GITHUB_ACTIONS", "CI", "GITHUB_ENV", "GITHUB_OUTPUT"):
             del env[key]
     home = os.path.join(base, "home")
@@ -273,7 +273,7 @@ def hooked_repo(base, env, name="hooked", extra=None, install=True):
 
 def install_hooks(repo, env):
     git(repo, env, "config", "core.hooksPath", "scripts/githooks")
-    git(repo, env, "config", "crewharness.expectedEmail", EXPECTED_EMAIL)
+    git(repo, env, "config", "canopus.expectedEmail", EXPECTED_EMAIL)
 
 
 def commit(repo, env, message, *args, **kw):

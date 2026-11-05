@@ -1,5 +1,5 @@
 // dotenv_test.nv - the `.env` text of a project: quotes, lines that span, comments, `export`, the mistakes with the number of the line.
-module crew_harness.projects
+module canopus.projects
 
 import std.text
 

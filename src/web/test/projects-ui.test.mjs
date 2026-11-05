@@ -64,8 +64,8 @@ test('создание проекта: выбор папки, ветка из gi
   await s.enterItem('C:/');
   await s.enterItem('C:/work');
   assert.equal(s.q('#picker-path').value, 'C:/work');
-  assert.deepEqual(s.top().querySelectorAll('.picker-list .picker-item').map(s.textOf), ['api-server', 'crew-harness', 'docs-site', 'notes']);
-  await s.click(s.pickItem('C:/work/crew-harness'));
+  assert.deepEqual(s.top().querySelectorAll('.picker-list .picker-item').map(s.textOf), ['api-server', 'canopus', 'docs-site', 'notes']);
+  await s.click(s.pickItem('C:/work/canopus'));
   await s.click(s.q('.primary'));
   assert.equal(s.layers().length, 1, 'окно выбора закрыто');
   assert.equal(s.doc.activeElement.className.includes('add-folder'), true, 'фокус вернулся к кнопке');
@@ -73,7 +73,7 @@ test('создание проекта: выбор папки, ветка из gi
   // ---- папка в списке: ветка и Worktree
   let rows = s.q('.proj-folders').querySelectorAll('.proj-folder');
   assert.equal(rows.length, 1);
-  assert.match(s.textOf(rows[0]), /crew-harness/);
+  assert.match(s.textOf(rows[0]), /canopus/);
   assert.match(s.textOf(s.q('.chip', rows[0])), /main\s*Текущая/);
   const wt = s.q('input[type="checkbox"]', rows[0]);
   assert.equal(wt.disabled, false);
@@ -125,7 +125,7 @@ test('создание проекта: выбор папки, ветка из gi
   const mine = listed.projects.find((p) => p.id === id);
   assert.ok(mine, 'проект есть в списке');
   assert.equal(mine.name, 'Мой сайт');
-  assert.deepEqual(mine.folders.map((f) => [f.path, f.worktree]), [['C:/work/crew-harness', true], ['C:/work/notes', false]]);
+  assert.deepEqual(mine.folders.map((f) => [f.path, f.worktree]), [['C:/work/canopus', true], ['C:/work/notes', false]]);
   assert.deepEqual(mine.envKeys, ['A', 'B'], 'в списке только имена переменных');
   assert.equal(mine.env, '', 'значений в списке нет');
   const full = await s.api.get(id);
@@ -158,7 +158,7 @@ test('выбор папки: путь руками, «..», ошибка, дво
   await settle();
   await s.click(s.q('.picker-recent .picker-item'));
   await s.click(s.q('.primary'));
-  assert.equal(await again, 'C:/work/crew-harness', 'недавнее место выбирается и подтверждается');
+  assert.equal(await again, 'C:/work/canopus', 'недавнее место выбирается и подтверждается');
 
   const third = s.ui.pickFolder('C:/work');
   await settle();
@@ -173,25 +173,25 @@ test('выбор папки: поиск фильтрует каталоги те
   await settle();
   const search = s.q('.picker-search');
   await s.type(search, 'crew');
-  assert.deepEqual(s.top().querySelectorAll('.picker-list .picker-item').map(s.textOf), ['crew-harness']);
-  await s.click(s.pickItem('C:/work/crew-harness'));
+  assert.deepEqual(s.top().querySelectorAll('.picker-list .picker-item').map(s.textOf), ['canopus']);
+  await s.click(s.pickItem('C:/work/canopus'));
   await s.click(s.q('.primary'));
-  assert.equal(await result, 'C:/work/crew-harness');
+  assert.equal(await result, 'C:/work/canopus');
 });
 
 test('выбор папки: одиночный выбор не входит, Enter и двойной клик входят, breadcrumb и Назад ведут по истории', async () => {
   const s = setup();
   const result = s.ui.pickFolder('C:/work');
   await settle();
-  const selected = s.pickItem('C:/work/crew-harness');
+  const selected = s.pickItem('C:/work/canopus');
   await s.click(selected);
   assert.equal(s.q('#picker-path').value, 'C:/work', 'один клик только выделяет каталог');
   assert.equal(s.q('.picker-list').contains(selected), true, 'выделение не удаляет target до dblclick');
-  assert.equal(s.pickItem('C:/work/crew-harness').getAttribute('aria-selected'), 'true');
-  s.pickItem('C:/work/crew-harness').focus();
-  s.pickItem('C:/work/crew-harness').dispatchEvent(key('Enter'));
+  assert.equal(s.pickItem('C:/work/canopus').getAttribute('aria-selected'), 'true');
+  s.pickItem('C:/work/canopus').focus();
+  s.pickItem('C:/work/canopus').dispatchEvent(key('Enter'));
   await settle();
-  assert.equal(s.q('#picker-path').value, 'C:/work/crew-harness', 'Enter входит в выделенную папку');
+  assert.equal(s.q('#picker-path').value, 'C:/work/canopus', 'Enter входит в выделенную папку');
   assert.equal(s.q('.picker-back').disabled, false);
   await s.click(s.q('.picker-back'));
   assert.equal(s.q('#picker-path').value, 'C:/work', 'Назад возвращает предыдущий каталог');
@@ -226,7 +226,7 @@ test('выбор папки: избранное хранится локальн�
   const first = s.ui.pickFolder('C:/work');
   await settle();
   await s.click(s.q('.picker-favorite'));
-  assert.deepEqual(JSON.parse(s.stored.get('crew-folder-picker-favorites-v1')), ['C:/work']);
+  assert.deepEqual(JSON.parse(s.stored.get('canopus-folder-picker-favorites-v1')), ['C:/work']);
   s.doc.dispatchEvent(key('Escape'));
   assert.equal(await first, null, 'закрытие не подтверждает путь');
 
@@ -242,7 +242,7 @@ test('выбор папки: избранное хранится локальн�
 
 test('устаревшее избранное перепроверяется через API и не подтверждается при ошибке', async () => {
   const s = setup();
-  s.stored.set('crew-folder-picker-favorites-v1', JSON.stringify(['C:/missing']));
+  s.stored.set('canopus-folder-picker-favorites-v1', JSON.stringify(['C:/missing']));
   const result = s.ui.pickFolder('C:/work');
   await settle();
   await s.click(s.q('.picker-place.is-favorite'));
@@ -308,12 +308,12 @@ test('правка проекта сохраняется (PUT) и видна в 
   const done = s.ui.openEditor('proj-crew');
   await settle();
   assert.match(s.textOf(s.q('.proj-env')), /2 переменные/, 'переменные подтянуты из полного проекта');
-  await s.type(s.q('#project-name'), 'crew-harness-main');
+  await s.type(s.q('#project-name'), 'canopus-main');
   await s.submit(s.q('form'));
   assert.equal(await done, 'proj-crew');
   assert.equal(s.log.changed, 1);
   const after = (await s.api.list()).projects.find((p) => p.id === 'proj-crew');
-  assert.equal(after.name, 'crew-harness-main');
+  assert.equal(after.name, 'canopus-main');
   assert.equal(after.folders[0].branch, 'main', 'ветка папки сохранилась');
 
   assert.equal(await s.ui.removeProject(after), true);

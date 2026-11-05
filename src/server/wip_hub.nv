@@ -8,9 +8,9 @@
 // the session of the task (`wip` of `route_task` is cleared by the `open` of the task). The way "Эпик" does the same and marks the task as an epic.
 // The next separate works of the session are sessions of their own with trees cut from a fresh origin/main (`child_hub.nv`).
 // A deleted session takes its tree with it when there is nothing to lose (no commits that are not in origin/main, no changed files); else the owner is asked (keep the work / delete all).
-module crew_harness.server
+module canopus.server
 
-import crew_harness.acp.{AcpImage}
+import canopus.acp.{AcpImage}
 import std.concurrency.nvchan.{ChanTx}
 import std.os.{real_os}
 import std.encoding.json.{Json, JsonValue, JsonObject}

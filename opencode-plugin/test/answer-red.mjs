@@ -47,23 +47,23 @@ const pairRe = (name) => new RegExp(`/\\* GATE:${name.replace(/[-]/g, "\\-")}< \
 
 /** the stubs of runs 1..12: markers, and the tests with the cells that must go red (a trailing space or "*" -- a family by prefix) */
 const STUBS = [
-  { n: 1, name: "GATE:words", markers: ["words"], tests: { "crew-answer-gate": ["AC-05 а stem:*", "AC-05 б Т-7 *", "AC-05 з", "AC-05 и"] } },
-  { n: 2, name: "GATE:flag", markers: ["flag"], tests: { "crew-answer-parse": ["AC-06", "AC-29 10"] } },
-  { n: 3, name: "GATE:type", markers: ["type"], tests: { "crew-answer-parse": ["AC-06", "AC-29 3"], "crew-answer-flow": ["AC-04"] } },
-  { n: 5, name: "GATE:limit", markers: ["limit"], tests: { "crew-answer-journal": ["AC-14 счёт", "AC-14 пачка из трёх", "AC-14 после остатка"], "crew-answer-flow": ["AC-14 пакет"] } },
-  { n: 6, name: "GATE:owner", markers: ["owner"], tests: { "crew-answer-flow": ["AC-11 a"] } },
-  { n: 7, name: "GATE:once (exists, once-link, once-letter)", markers: ["exists", "once-link", "once-letter"], tests: { "crew-answer-journal": ["AC-17 письмо в доставке", "AC-17 повтор прохода", "AC-17 второй процесс"] } },
-  { n: 8, name: "GATE:mode", markers: ["mode"], tests: { "crew-answer-flow": ["AC-03 c", "AC-30 е"] } },
-  { n: 9, name: "GATE:rec", markers: ["rec"], tests: { "crew-answer-parse": ["AC-29 9"], "crew-answer-flow": ["AC-30 г"] } },
-  { n: 10, name: "GATE:default", markers: ["default"], tests: { "crew-answer-golden": ["AC-01 без ключей"], "crew-answer-flow": ["AC-01 строки без ключей", "AC-03 a"] } },
-  { n: 11, name: "GATE:recount (exists, recount-count)", markers: ["exists", "recount-count"], tests: { "crew-answer-journal": ["AC-17 повтор при пределе"], "crew-answer-flow": ["AC-14 пакет повтор"] } },
-  { n: 12, name: "GATE:row", markers: ["row"], tests: { "crew-answer-journal": ["AC-14 после остатка"] } },
-  { n: 15, name: "GATE:viewage", markers: ["viewage"], tests: { "crew-answer-journal": ["REQ-17 ответ на старый ход виден"] } },
-  { n: 16, name: "GATE:keep", markers: ["keep"], tests: { "crew-answer-journal": ["REQ-15 ход старше срока"] } },
-  { n: 17, name: "GATE:safepost", markers: ["safepost"], tests: { "crew-answer-journal": ["AC-17 гонка за имя письма"] } },
-  { n: 14, name: "GATE:addressee", markers: ["addressee"], tests: { "crew-answer-gate": ["AC-05 и адресат"] } },
+  { n: 1, name: "GATE:words", markers: ["words"], tests: { "canopus-answer-gate": ["AC-05 а stem:*", "AC-05 б Т-7 *", "AC-05 з", "AC-05 и"] } },
+  { n: 2, name: "GATE:flag", markers: ["flag"], tests: { "canopus-answer-parse": ["AC-06", "AC-29 10"] } },
+  { n: 3, name: "GATE:type", markers: ["type"], tests: { "canopus-answer-parse": ["AC-06", "AC-29 3"], "canopus-answer-flow": ["AC-04"] } },
+  { n: 5, name: "GATE:limit", markers: ["limit"], tests: { "canopus-answer-journal": ["AC-14 счёт", "AC-14 пачка из трёх", "AC-14 после остатка"], "canopus-answer-flow": ["AC-14 пакет"] } },
+  { n: 6, name: "GATE:owner", markers: ["owner"], tests: { "canopus-answer-flow": ["AC-11 a"] } },
+  { n: 7, name: "GATE:once (exists, once-link, once-letter)", markers: ["exists", "once-link", "once-letter"], tests: { "canopus-answer-journal": ["AC-17 письмо в доставке", "AC-17 повтор прохода", "AC-17 второй процесс"] } },
+  { n: 8, name: "GATE:mode", markers: ["mode"], tests: { "canopus-answer-flow": ["AC-03 c", "AC-30 е"] } },
+  { n: 9, name: "GATE:rec", markers: ["rec"], tests: { "canopus-answer-parse": ["AC-29 9"], "canopus-answer-flow": ["AC-30 г"] } },
+  { n: 10, name: "GATE:default", markers: ["default"], tests: { "canopus-answer-golden": ["AC-01 без ключей"], "canopus-answer-flow": ["AC-01 строки без ключей", "AC-03 a"] } },
+  { n: 11, name: "GATE:recount (exists, recount-count)", markers: ["exists", "recount-count"], tests: { "canopus-answer-journal": ["AC-17 повтор при пределе"], "canopus-answer-flow": ["AC-14 пакет повтор"] } },
+  { n: 12, name: "GATE:row", markers: ["row"], tests: { "canopus-answer-journal": ["AC-14 после остатка"] } },
+  { n: 15, name: "GATE:viewage", markers: ["viewage"], tests: { "canopus-answer-journal": ["REQ-17 ответ на старый ход виден"] } },
+  { n: 16, name: "GATE:keep", markers: ["keep"], tests: { "canopus-answer-journal": ["REQ-15 ход старше срока"] } },
+  { n: 17, name: "GATE:safepost", markers: ["safepost"], tests: { "canopus-answer-journal": ["AC-17 гонка за имя письма"] } },
+  { n: 14, name: "GATE:addressee", markers: ["addressee"], tests: { "canopus-answer-gate": ["AC-05 и адресат"] } },
 ]
-const ALL_TESTS = ["crew-answer-golden", "crew-answer-config", "crew-answer-parse", "crew-answer-gate", "crew-answer-journal", "crew-answer-view", "crew-answer-docs", "crew-answer-flow"]
+const ALL_TESTS = ["canopus-answer-golden", "canopus-answer-config", "canopus-answer-parse", "canopus-answer-gate", "canopus-answer-journal", "canopus-answer-view", "canopus-answer-docs", "canopus-answer-flow"]
 
 /** the cells that must be green on the base (run 0); every other cell of these tests is red or the test falls whole */
 const BASE_FILE = path.join(here, "answer-red-base.json")
@@ -101,7 +101,7 @@ function applyStubs(markers, dst) {
 
 /** one test file under a copy of the code; cells: name -> "ok" | "FAIL" */
 function runTest(test, copy, extraEnv = {}) {
-  const r = spawnSync(process.execPath, [path.join(here, `${test}.test.mjs`)], { cwd: pluginDir, encoding: "utf8", timeout: 900_000, env: { ...process.env, CREW_PLUGIN_DIR: copy, ...extraEnv }, maxBuffer: 64 * 1024 * 1024 })
+  const r = spawnSync(process.execPath, [path.join(here, `${test}.test.mjs`)], { cwd: pluginDir, encoding: "utf8", timeout: 900_000, env: { ...process.env, CANOPUS_PLUGIN_DIR: copy, ...extraEnv }, maxBuffer: 64 * 1024 * 1024 })
   const cells = new Map()
   for (const line of (r.stdout ?? "").split(NL)) {
     const m = /^(ok  |FAIL) (.*?)(?: :: |$)/.exec(line)

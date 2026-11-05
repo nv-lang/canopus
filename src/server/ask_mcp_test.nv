@@ -1,6 +1,6 @@
 // ask_mcp_test.nv - the MCP server of the questions (task 192i): the part that is pure functions - what the server answers to a JSON-RPC message of an agent and
 // what text the agent gets back for the answer of the owner.
-module crew_harness.server
+module canopus.server
 
 import std.encoding.json.{Json, JsonValue, JsonObject}
 
@@ -50,7 +50,7 @@ test "mcp: initialize answers with the protocol, the tools capability and the na
     ro result = mkey(reply, "result")
     assert(mtext(result, "protocolVersion") == "2025-03-26")
     assert(mkey(mkey(result, "capabilities"), "tools").is_object())
-    assert(mtext(mkey(result, "serverInfo"), "name") == "crew")
+    assert(mtext(mkey(result, "serverInfo"), "name") == "canopus")
 }
 
 test "mcp: an initialize with a protocol we do not know is answered with ours" {

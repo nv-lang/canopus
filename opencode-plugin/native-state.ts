@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto"
 import { mkdirSync, readdirSync, existsSync, renameSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
-import { BASE } from "./paths.ts"
+import { BASE } from "./base.ts"
 import { readJson, safeKey } from "./core.ts"
 
 export type NativeState = {

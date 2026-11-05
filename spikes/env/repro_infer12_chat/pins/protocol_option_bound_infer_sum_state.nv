@@ -1,6 +1,6 @@
 // EXPECT_STDOUT step=3 state=idle
 
-// №TBD regression pin (items 12/13 incomplete -- the CHAT shape, task 282 of
+// №TBD regression pin (items 12/13 incomplete -- the CHAT shape, task 284 of
 // CrewHarness; repro `spikes/env/repro_infer12_chat/src/infer_sum_record_state`
 // and `.../cross_file_nested_a`; real-world carrier: crew-harness
 // src/chat/chat_engine_test.nv and src/pgstore/engine_test.nv with the

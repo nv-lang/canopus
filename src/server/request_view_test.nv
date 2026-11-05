@@ -1,7 +1,7 @@
 // request_view_test.nv - the view of the request to the agent (task 192.11): the parts, the secrets, the cut, the tools of the hub, the kept turns.
-module crew_harness.server
+module canopus.server
 
-import crew_harness.acp.{AcpImage}
+import canopus.acp.{AcpImage}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 
 fn rv_fixed_text(n int) -> str {
@@ -40,7 +40,7 @@ test "request view: a turn with the instruction of the mode, the message and a p
     ro tools = (input.get("tools") ?? JsonValue.null()).object() ?? JsonObject.new()
     ro hub = jlist(tools, "hub")
     assert(hub.len() >= 2)
-    assert(line.contains("ask_user_question") && line.contains("crew_task_list"))
+    assert(line.contains("ask_user_question") && line.contains("canopus_task_list"))
     assert(jlist(tools, "commands").len() == 1)
 }
 

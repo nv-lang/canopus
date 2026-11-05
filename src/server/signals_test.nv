@@ -1,6 +1,6 @@
 // signals_test.nv - task 126: the dictionary of the signals between the table of the dialog and the code (`signals.nv`, the section "The border of the table and the code" of README.md):
 // every signal that the code gives is declared in the table or named in the list "the table does not know"; the sources say the same as the dictionary; the hub does not name a state.
-module crew_harness.server
+module canopus.server
 
 import std.text
 import std.fs.{Fs, real_fs, Path, read_text, read_dir}

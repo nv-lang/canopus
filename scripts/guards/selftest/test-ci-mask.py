@@ -29,7 +29,7 @@ def shell_works(shell, env):
     if not shutil.which(shell):
         return False
     try:
-        proc = stlib.run((shell, SCRIPT, "CREW_TEST_PROBE"), env=dict(env, CREW_TEST_PROBE="x"))
+        proc = stlib.run((shell, SCRIPT, "CANOPUS_TEST_PROBE"), env=dict(env, CANOPUS_TEST_PROBE="x"))
     except OSError:
         return False
     return proc.returncode == 0 and proc.stdout == b"::add-mask::x\n"
@@ -41,7 +41,7 @@ def main():
     env = stlib.isolated_env(base)
     shells = [s for s in ("sh", "dash", "bash") if shell_works(s, env)]
 
-    def run(shell, value, name="CREW_TEST_LIST", unset=False):
+    def run(shell, value, name="CANOPUS_TEST_LIST", unset=False):
         e = dict(env)
         if not unset:
             e[name] = value
@@ -98,7 +98,7 @@ def main():
     def injection_is_not_executed():
         marker = os.path.join(base, "injected.txt")
         for shell in shells:
-            proc = stlib.run((shell, SCRIPT, "CREW_TEST_LIST; touch '%s'" % marker.replace(BS, "/")), env=env)
+            proc = stlib.run((shell, SCRIPT, "CANOPUS_TEST_LIST; touch '%s'" % marker.replace(BS, "/")), env=env)
             assert proc.returncode == 2
         assert not os.path.exists(marker), "имя переменной исполнено как команда"
 

@@ -1,11 +1,11 @@
-// РАСХОЖДЕНИЕ НАСТРОЕК (задача 029, 2026-10-11): плагин читает .opencode/crew-harness.json с целевой ветки, а файл в рабочей
+// РАСХОЖДЕНИЕ НАСТРОЕК (задача 029, 2026-10-11): плагин читает .opencode/canopus.json с целевой ветки, а файл в рабочей
 // копии до коммита не действует. Здесь файл рабочей копии сравнивается с веткой по верхнеуровневым ключам; результат
 // кешируется на несколько секунд (git не на каждый вызов), как в acceptance-file.ts. «Рабочая копия» — папка настроек
-// проекта из реестра проектов (Project.repo + Project.file): та, что правит crew_config set.
+// проекта из реестра проектов (Project.repo + Project.file): та, что правит canopus_config set.
 import { execFileSync } from "node:child_process"
 import { existsSync, readdirSync, readFileSync } from "node:fs"
 import path from "node:path"
-import { BASE } from "./paths.ts"
+import { BASE } from "./base.ts"
 import { modelsDefined, unconfiguredLine } from "./settings.ts"
 
 export type Divergence = { kind: "same" } | { kind: "differ"; keys: string[]; ref: string } | { kind: "note"; text: string }
@@ -27,7 +27,7 @@ export function differingKeys(a: Record<string, any>, b: Record<string, any>): s
 }
 
 const cache = new Map<string, { at: number; value: Divergence }>()
-const ttl = () => (process.env.CREW_HARNESS_DIVERGE_TTL_MS !== undefined ? Number(process.env.CREW_HARNESS_DIVERGE_TTL_MS) : 5_000)
+const ttl = () => (process.env.CANOPUS_DIVERGE_TTL_MS !== undefined ? Number(process.env.CANOPUS_DIVERGE_TTL_MS) : 5_000)
 
 /** Сравнить файл рабочей копии (repo/file) с файлом целевой ветки (origin/<ветка>, затем локальная). Не падает. */
 export function configDivergence(repo: string | undefined, file: string | undefined, branch: string | undefined): Divergence {
@@ -60,14 +60,14 @@ function compute(repo: string, file: string, branch: string): Divergence {
   return { kind: "note", text: `файла ${file} нет на ветке ${branch} (или ветки нет): действуют настройки по умолчанию; расхождение не проверено` }
 }
 
-/** Предупреждение crew_doctor по проекту; нет расхождения — undefined. */
+/** Предупреждение canopus_doctor по проекту; нет расхождения — undefined. */
 export function divergenceProblem(name: string, d: Divergence): string | undefined {
   if (d.kind === "differ") return `проект ${name}: настройки в рабочей копии отличаются от целевой ветки: действуют те, что на ветке (${d.ref}); ключи: ${d.keys.join(", ")} (предупреждение, не ошибка; закоммить и влей правку или откати файл)`
   if (d.kind === "note") return `проект ${name}: ${d.text}`
   return undefined
 }
 
-/** Короткая строка для /crew и боковой панели: только при расхождении (note в постоянный показ не идёт). */
+/** Короткая строка для /canopus и боковой панели: только при расхождении (note в постоянный показ не идёт). */
 export function divergenceLine(d: Divergence): string | undefined {
   if (d.kind !== "differ") return undefined
   const k = d.keys.join(", ")
@@ -86,7 +86,7 @@ export function divergenceLineFor(project: string): string | undefined {
   return undefined
 }
 
-/** Строка «проект X не настроен: модели» для /crew и боковой панели (задача 033); модели определены или настроек не читали — undefined. */
+/** Строка «проект X не настроен: модели» для /canopus и боковой панели (задача 033); модели определены или настроек не читали — undefined. */
 export function unconfiguredLineFor(project: string): string | undefined {
   try {
     const dir = path.join(BASE, "settings-good")

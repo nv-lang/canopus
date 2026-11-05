@@ -12,9 +12,9 @@
 //
 // ORACLE-WORKAROUND(31): `Stdin.read` waits until the whole buffer is full (or the end of the stream), so a line that is shorter than the buffer would never arrive; the buffer is ONE byte; read a chunk when item 31 is fixed.
 // Reading parks only the fiber that reads.
-module crew_harness.server
+module canopus.server
 
-import crew_harness.acp.{LineSplitter}
+import canopus.acp.{LineSplitter}
 import std.concurrency.nvchan.{Chan, ChanTx, ChanRx}
 import std.io.{stdin, stdout, stderr, Stdin, IoError}
 

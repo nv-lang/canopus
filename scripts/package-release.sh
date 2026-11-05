@@ -2,7 +2,7 @@
 # Зачем: собрать релизный комплект продукта одной командой (задача 248): машины продукта не вшиты в
 #     программы, хаб читает их из machines/product рядом с собой, поэтому комплект — это программы и
 #     эта папка; руками её не собирают, а собранное проверяет страж.
-# Проверяет: target/crew-harness.exe и target/crew-hub.exe есть (с --build собирает их nova build);
+# Проверяет: target/canopus.exe и target/canopus-hub.exe есть (с --build собирает их nova build);
 #     папка комплекта пуста или её нет; кладёт обе программы и machines/product: dialog.alula.json,
 #     dialog.alula.md, work-mode.*, family-approval.*, journal.md и libs/ (без tests/, без чата chat.*);
 #     затем зовёт стража scripts/guards/check-release-kit.py --kit на собранной папке.
@@ -29,10 +29,10 @@ PYTHON=${PYTHON:-python}
 here=$(cd "$(dirname "$0")" && pwd)
 
 if [ "$build" = 1 ]; then
-  (cd "$root" && nova build src/crew_hub.nv -o target/crew-hub.exe) || { echo "FAIL: nova build crew-hub"; exit 1; }
-  (cd "$root" && nova build src/crew_harness.nv -o target/crew-harness.exe) || { echo "FAIL: nova build crew-harness"; exit 1; }
+  (cd "$root" && nova build src/canopus_hub.nv -o target/canopus-hub.exe) || { echo "FAIL: nova build canopus-hub"; exit 1; }
+  (cd "$root" && nova build src/canopus.nv -o target/canopus.exe) || { echo "FAIL: nova build canopus"; exit 1; }
 fi
-for program in crew-harness.exe crew-hub.exe; do
+for program in canopus.exe canopus-hub.exe; do
   [ -f "$root/target/$program" ] || { echo "FAIL: предпосылка: нет target/$program; соберите (--build)"; exit 1; }
 done
 if [ -e "$kit" ] && [ -n "$(ls -A "$kit" 2>/dev/null)" ]; then
@@ -40,7 +40,7 @@ if [ -e "$kit" ] && [ -n "$(ls -A "$kit" 2>/dev/null)" ]; then
 fi
 
 mkdir -p "$kit/machines/product/libs" || { echo "FAIL: папка $kit не создаётся"; exit 1; }
-cp "$root/target/crew-harness.exe" "$root/target/crew-hub.exe" "$kit/" || { echo "FAIL: программы не скопированы"; exit 1; }
+cp "$root/target/canopus.exe" "$root/target/canopus-hub.exe" "$kit/" || { echo "FAIL: программы не скопированы"; exit 1; }
 cp "$root/src/server/preparation-agent.mjs" "$kit/preparation-agent.mjs" || { echo "FAIL: встроенный адаптер Подготовки не скопирован"; exit 1; }
 for name in dialog.alula.json dialog.alula.md work-mode.alula.json work-mode.alula.md family-approval.alula.json family-approval.alula.md journal.md; do
   cp "$root/machines/product/$name" "$kit/machines/product/" || { echo "FAIL: machines/product/$name не скопирован"; exit 1; }

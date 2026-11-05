@@ -1,9 +1,9 @@
-module crew_harness.server
+module canopus.server
 
 // ORACLE-WORKAROUND(32): direct test entries import fs before text so Vec.join is not resolved as Path.join.
 import std.fs.{Path}
 import std.text
-import crew_harness.acp.{AcpConfig}
+import canopus.acp.{AcpConfig}
 
 test "preparation launch identity: argument boundaries cannot collide through newline joining" {
     ro a = AcpConfig { program: "node", args: ["x\ny", "z"], cwd: "C:/work/data", inbox_path: "" }

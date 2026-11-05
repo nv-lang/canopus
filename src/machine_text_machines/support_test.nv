@@ -1,9 +1,9 @@
 // support_test.nv - helpers and fixtures of the tests of the translator: a small machine in Russian and the way to read what the translator says.
-module crew_harness.machine_text_machines
+module canopus.machine_text_machines
 
 import std.text
 import alula.machine.{NamedText}
-import crew_harness.machines.{product_registry, translation_files}
+import canopus.machines.{product_registry, translation_files}
 import alula.machine_text.{TranslateReport, translate_checked_with, translate_expression}
 
 // The report of a translation of a text with the checks of the table.

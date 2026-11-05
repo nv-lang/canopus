@@ -9,7 +9,7 @@
 // A session id is checked (`valid_session_name`): letters, digits, dot, dash and underscore, not starting with a dot, not
 // ending with a dot, no two dots in a row, at most 128 characters - so an id cannot hold a separator, a drive letter or `..`
 // and a path never leaves the data folder. The name of a file in the folder is checked by the same rule.
-module crew_harness.storage
+module canopus.storage
 
 import std.fs.{Fs, real_fs, Path, create_dir_all, remove_dir_all, metadata}
 

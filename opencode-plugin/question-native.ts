@@ -34,8 +34,8 @@ export const productionQuestionIO: QuestionFormIO = {
 }
 
 /** Newer unrelated user input is a stale-answer barrier, NOT owner authority.
- * Exact durable outbound provenance excludes our own crew mail, never grants permission.
- * Inspect older pages too: a fresh crew message must not hide an intervening user input. */
+ * Exact durable outbound provenance excludes our own canopus mail, never grants permission.
+ * Inspect older pages too: a fresh canopus message must not hide an intervening user input. */
 export async function inspectQuestionText(get: (route: string) => Promise<any>, session: string, since: number): Promise<QuestionObservation> {
   try {
     let cursor: string | undefined

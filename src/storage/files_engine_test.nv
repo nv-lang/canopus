@@ -2,17 +2,17 @@
 // the death between the write of the journal and the save of the snapshot (rule 13 and 34(e) of the methodology:
 // a step is committed by the snapshot; journal lines of a step newer than the snapshot are the lines of a step
 // that did not commit).
-module crew_harness.storage
+module canopus.storage
 
 import alula.engine.{Engine, Incoming, JournalEntry, Journal, Store, Link, Time, MemoryWorld, start_engine, resume_engine, memory_link, memory_time, journal_event, param}
-import crew_harness.chat.{ChatSession, ChatState, chat_session, encode_chat_state, user_says, agent_chunk, agent_done}
+import canopus.chat.{ChatSession, ChatState, chat_session, encode_chat_state, user_says, agent_chunk, agent_done}
 import std.fs.{Fs, real_fs, remove_dir_all}
 import std.os.{Os, real_os, temp_dir, pid}
 
 fn engine_root(name str) -> str {
     ro base = with Os = real_os() { temp_dir() }
     ro id = with Os = real_os() { pid() }
-    ro dir = base.join("crew-storage-engine-${id}-${name}")
+    ro dir = base.join("canopus-storage-engine-${id}-${name}")
     with Fs = real_fs() {
         ro removed = remove_dir_all(dir)
     }

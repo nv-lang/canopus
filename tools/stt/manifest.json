@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "The local speech recognizer of the control panel (task 192l): whisper.cpp for Windows with CUDA and a model. The files are NOT in the repository (they are 685 MB and 488 MB); scripts/install-stt.ps1 downloads them from these addresses, checks the size and SHA256, and puts them into the tool folder (CREW_STT_DIR, by default %LOCALAPPDATA%/crew-harness/stt).",
+  "description": "The local speech recognizer of the control panel (task 192l): whisper.cpp for Windows with CUDA and a model. The files are NOT in the repository (they are 685 MB and 488 MB); scripts/install-stt.ps1 downloads them from these addresses, checks the size and SHA256, and puts them into the tool folder (CANOPUS_STT_DIR, by default %LOCALAPPDATA%/canopus/stt).",
   "binary": {
     "name": "whisper.cpp",
     "version": "b5454",

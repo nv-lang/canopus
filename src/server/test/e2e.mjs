@@ -1,15 +1,15 @@
 // e2e.mjs - the whole session server through its door, as a page uses it (task 099): the front and the hub are started as programs
-// (target/crew-harness.exe and target/crew-hub.exe), the agent is the fake ACP agent of src/acp/testdata, the client is a WebSocket
+// (target/canopus.exe and target/canopus-hub.exe), the agent is the fake ACP agent of src/acp/testdata, the client is a WebSocket
 // of Node (Node 22 or newer, global WebSocket and fetch).
 //   node src/server/test/e2e.mjs [port]                 the store in files; exit code 0 = every check passed
 //   node src/server/test/e2e.mjs --pg [port]            the store pg on the TEMPORARY PostgreSQL of src/pg/testdb.ps1 (task 115): the same
 //                                                       checks, then the sessions are looked for in the database
-//   node src/server/test/e2e.mjs --pg-docker [port]     the store pg on the PERMANENT PostgreSQL of src/pg/db.ps1 (container crew-harness-pg),
-//                                                       on a database of its own, crew_e2e, made and dropped here (the data of the owner,
-//                                                       the database crew, are not touched); then `db.ps1 down`, `db.ps1 up`, and the
+//   node src/server/test/e2e.mjs --pg-docker [port]     the store pg on the PERMANENT PostgreSQL of src/pg/db.ps1 (container canopus-pg),
+//                                                       on a database of its own, canopus_e2e, made and dropped here (the data of the owner,
+//                                                       the database canopus, are not touched); then `db.ps1 down`, `db.ps1 up`, and the
 //                                                       sessions must be there after it
-// Run it from the root of the repository, after: nova build src/crew_hub.nv -o target/crew-hub.exe;
-//                                               nova build src/crew_harness.nv -o target/crew-harness.exe
+// Run it from the root of the repository, after: nova build src/canopus_hub.nv -o target/canopus-hub.exe;
+//                                               nova build src/canopus.nv -o target/canopus.exe
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -22,13 +22,13 @@ const argv = process.argv.slice(2);
 const mode = argv.includes("--pg-docker") ? "pg-docker" : argv.includes("--pg") ? "pg" : "files";
 const port = Number(argv.find((a) => /^\d+$/.test(a)) ?? 18099);
 const exe = (name) => path.join(root, "target", `${name}.exe`);
-const dir = fs.mkdtempSync(path.join(os.tmpdir(), "crew-e2e-"));
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), "canopus-e2e-"));
 const configFile = path.join(dir, "server.json");
 const streamMarker = path.join(dir, "stream-active");
 
 // ----- the database (modes pg and pg-docker) -----
 
-const E2E_DB = "crew_e2e";
+const E2E_DB = "canopus_e2e";
 const pg = { container: "", host: "127.0.0.1", port: 0, database: E2E_DB, user: "", password: "" };
 const mask = (text) => (pg.password ? String(text).split(pg.password).join("***") : String(text));
 function stopWith(message) {
@@ -54,7 +54,7 @@ function provision() {
     const settings = path.join(root, "target/pg-test.json");
     if (!fs.existsSync(settings)) stopWith("target/pg-test.json is not there: start the temporary PostgreSQL first: powershell -File src/pg/testdb.ps1");
     const t = JSON.parse(fs.readFileSync(settings, "utf8"));
-    Object.assign(pg, { container: t.container, port: t.port, user: "crew_e2e_user", password: t.app_password });
+    Object.assign(pg, { container: t.container, port: t.port, user: "canopus_e2e_user", password: t.app_password });
     try {
       psql("postgres", `drop database if exists ${E2E_DB} with (force)`);
       psql("postgres", `drop role if exists ${pg.user}`);
@@ -63,24 +63,24 @@ function provision() {
     const schema = spawnSync("docker", ["exec", "-i", pg.container, "psql", "-U", "postgres", "-d", E2E_DB, "-v", "ON_ERROR_STOP=1", "-q", "-f", "-"],
       { input: fs.readFileSync(path.join(root, "src/pg/schema.sql")), encoding: "utf8" });
     if (schema.status !== 0) stopWith(`the schema was not applied: ${mask(schema.stderr)}`);
-    try { psql("postgres", `create role ${pg.user} login password '${pg.password}' in role crew_app`); } catch (e) { stopWith(String(e.message ?? e)); }
+    try { psql("postgres", `create role ${pg.user} login password '${pg.password}' in role canopus_app`); } catch (e) { stopWith(String(e.message ?? e)); }
     // Isolated test-only latency: delay only snapshot commits for the burst session. This makes
     // persistence backpressure controlled without touching a product database or weakening commit.
     try {
-      psql(E2E_DB, "create function crew.test_slow_stream_save() returns trigger language plpgsql as $fn$ begin if new.id = 's-stream' then perform pg_sleep(0.015); end if; return new; end; $fn$; create trigger test_slow_stream_save before insert on crew.machine_snapshot for each row execute function crew.test_slow_stream_save()");
+      psql(E2E_DB, "create function canopus.test_slow_stream_save() returns trigger language plpgsql as $fn$ begin if new.id = 's-stream' then perform pg_sleep(0.015); end if; return new; end; $fn$; create trigger test_slow_stream_save before insert on canopus.machine_snapshot for each row execute function canopus.test_slow_stream_save()");
     } catch (e) { stopWith(String(e.message ?? e)); }
   } else {
     // the permanent container of src/pg/db.ps1 and its settings file outside the repository
     dbScript("dropdb", "-Database", E2E_DB); // a leftover of an earlier run
     const up = dbScript("up", "-Database", E2E_DB);
     if (up.status !== 0) stopWith(`db.ps1 up failed: ${(up.stderr || up.stdout || "").trim()}`);
-    const file = process.env.CREW_PG_DB_SETTINGS || path.join(os.homedir(), ".config", "crew-harness", "pg.json");
+    const file = process.env.CANOPUS_PG_DB_SETTINGS || path.join(os.homedir(), ".config", "canopus", "pg.json");
     const t = JSON.parse(fs.readFileSync(file, "utf8"));
     Object.assign(pg, { container: t.container, port: t.port, user: t.service_user, password: t.service_password });
   }
   // the login must really work and the schema must be there: a message now, not a hang later
   let n;
-  try { n = psql(E2E_DB, "select count(*) from crew.list_sessions()"); } catch (e) { stopWith(String(e.message ?? e)); }
+  try { n = psql(E2E_DB, "select count(*) from canopus.list_sessions()"); } catch (e) { stopWith(String(e.message ?? e)); }
   if (n !== "0") stopWith(`the database ${E2E_DB} is not empty (${n} sessions)`);
 }
 function unprovision() {
@@ -103,7 +103,7 @@ fs.writeFileSync(configFile, JSON.stringify({
   idle_term_seconds: 3,
   workdir: root,
   web_dir: path.join(root, "src/web"),
-  hub: { program: exe("crew-hub"), args: [] },
+  hub: { program: exe("canopus-hub"), args: [] },
 }));
 
 let failed = 0;
@@ -119,8 +119,8 @@ let front = null;
 let frontLog = "";
 async function startFront() {
   // the password of the database is in the environment of the front (and of the hub it starts), not in a file or on a command line
-  const env = mode === "files" ? process.env : { ...process.env, CREW_PG_PASSWORD: pg.password };
-  front = spawn(exe("crew-harness"), ["serve", configFile], { stdio: ["ignore", "pipe", "pipe"], cwd: root, env });
+  const env = mode === "files" ? process.env : { ...process.env, CANOPUS_PG_PASSWORD: pg.password };
+  front = spawn(exe("canopus"), ["serve", configFile], { stdio: ["ignore", "pipe", "pipe"], cwd: root, env });
   let exited = false;
   front.once("exit", () => { exited = true; });
   front.stderr.on("data", (d) => { frontLog += d.toString(); });
@@ -214,7 +214,7 @@ try {
   check("GET /app.css is css", css.status === 200 && (css.headers.get("content-type") ?? "").includes("css"));
   const none = await fetch(`http://127.0.0.1:${port}/no-such-file.js`);
   check("an unknown file is 404", none.status === 404, `status=${none.status}`);
-  const escape = await fetch(`http://127.0.0.1:${port}/..%2Fsrc%2Fcrew_harness.nv`);
+  const escape = await fetch(`http://127.0.0.1:${port}/..%2Fsrc%2Fcanopus.nv`);
   check("a path out of the folder of the page is not served", escape.status >= 400, `status=${escape.status}`);
   const plain = await fetch(`http://127.0.0.1:${port}/ws`);
   check("GET /ws without an upgrade is 4xx", plain.status >= 400 && plain.status < 500, `status=${plain.status}`);
@@ -369,9 +369,9 @@ try {
   // ----- the store pg: the sessions are in the database, and the password is nowhere it should not be -----
   if (mode !== "files") {
     const traces = ["s-chat", "s-perm", "s-cancel", "s-crash", "s-rest", "s-stream"];
-    const ids = psql(E2E_DB, "select string_agg(id, ',' order by id) from crew.list_sessions()").split(",");
+    const ids = psql(E2E_DB, "select string_agg(id, ',' order by id) from canopus.list_sessions()").split(",");
     check("the sessions are in the database", traces.every((t) => ids.includes(t)), ids.join(","));
-    const lines = Number(psql(E2E_DB, "select count(*) from crew.machine_journal"));
+    const lines = Number(psql(E2E_DB, "select count(*) from canopus.machine_journal"));
     check("the journal of the engine is in the database", lines >= 40, String(lines));
     check("the password is in no line of the log of the front", !frontLog.includes(pg.password));
     check("the password is not in the settings file of the server", !fs.readFileSync(configFile, "utf8").includes(pg.password));
@@ -389,7 +389,7 @@ try {
     check("db.ps1 down stops the container", down.status === 0 && state !== "running", state);
     const up = dbScript("up", "-Database", E2E_DB);
     check("db.ps1 up starts it again", up.status === 0, (up.stderr || up.stdout || "").trim());
-    check("the volume keeps the sessions of the database", psql(E2E_DB, "select count(*) from crew.list_sessions()") === String(traces.length));
+    check("the volume keeps the sessions of the database", psql(E2E_DB, "select count(*) from canopus.list_sessions()") === String(traces.length));
     check("the front starts again on the restarted database", await startFront(), frontLog);
     const d = page();
     await d.opened;

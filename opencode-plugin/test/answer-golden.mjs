@@ -4,11 +4,11 @@
 //   node test/answer-golden.mjs --check            collect the texts again and compare with the snapshot: "golden ok" / "golden differs"
 //   node test/answer-golden.mjs --check --owner    the same, with answer_mode set to {"default": "owner"} in the project file
 // The texts: the notice "waits for you" of the owner's tab and its repeat, the forwarded question of a task session (the letter
-// `ask-...`), /crew (formatStatuses) and the side panel (sidebarLines) for four states, crew_config guide and show, crew_help,
+// `ask-...`), /canopus (formatStatuses) and the side panel (sidebarLines) for four states, canopus_config guide and show, canopus_help,
 // formatLetters on letters of the old kinds. The temp folder, the clock and the moments are replaced by markers. The lines of the
 // two new keys (`answer_*`), the heading of their group and the empty line before it are left out of guide and show: the new keys
 // change those two texts, everything else must stay. ANSWER_GOLDEN_FILE points to another snapshot file (the control: a snapshot
-// with one line spoiled must differ). CREW_PLUGIN_DIR points to another copy of the plugin code.
+// with one line spoiled must differ). CANOPUS_PLUGIN_DIR points to another copy of the plugin code.
 import { copyFileSync, existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -29,7 +29,7 @@ if (!mode) {
 const BLOCK = ["Итог по шагу.", "", "В-01 Какой формат писать?", "Тип: implementation", "Рекомендация: формат json — потому что его читает тест", "Автоответ: допустим", "Согласны с рекомендацией?"].join(String.fromCharCode(10))
 const NOW = Date.UTC(2026, 9, 9, 12, 0, 0)
 
-const H = await harness("crew-answer-golden", { settings: { owner_reminder_min: 0.03, ...(withOwner ? { answer_mode: { default: "owner" } } : {}) } })
+const H = await harness("canopus-answer-golden", { settings: { owner_reminder_min: 0.03, ...(withOwner ? { answer_mode: { default: "owner" } } : {}) } })
 const out = {}
 const { core, status } = H
 
@@ -52,7 +52,7 @@ ${ask.text}` : "(no letter)"
 const nudges = H.letters("sesTASK01").filter((l) => /Не завершено/.test(l.text ?? "")).length
 out["forward: no 'Не завершено' letter to the task session"] = String(nudges)
 
-// 3. /crew and the side panel for four states
+// 3. /canopus and the side panel for four states
 const card = (session, extra = {}) => ({ session, role: "integrator", auto: false, title: session, directory: H.proj, repo: "proj", project: "proj", pid: process.pid, updated: NOW, ...extra })
 const statuses = [
   status.statusOf({ card: card("sesOWNER1"), busy: false, end: { at: NOW - 600_000, text: BLOCK, ownerAfter: false }, asked: [], now: NOW, watches: [] }),
@@ -60,14 +60,14 @@ const statuses = [
   status.statusOf({ card: card("sesIDLE001", { role: "worker" }), busy: false, end: { at: NOW - 300_000, text: "Готово. Вопросов нет.", ownerAfter: false }, asked: [], now: NOW, watches: [] }),
   status.statusOf({ card: card("sesTASKQ01", { role: "worker", spawned: { by: "sesOWNER1", task: "x", tier: "light", status: "running", at: NOW - 900_000, qid: "q9" } }), busy: false, end: { at: NOW - 60_000, text: "Сдал. Базу опустит интегратор или мне?", ownerAfter: false }, asked: [], now: NOW, watches: [] }),
 ]
-out["crew: formatStatuses"] = status.formatStatuses(statuses, NOW, "proj")
-out["crew: sidebarLines"] = JSON.stringify(status.sidebarLines(statuses, NOW, "proj"))
-out["crew: sidebarLines, texts"] = status.sidebarLines(statuses, NOW, "proj").rows.map((r) => status.sideText(r)).join("\n")
+out["canopus: formatStatuses"] = status.formatStatuses(statuses, NOW, "proj")
+out["canopus: sidebarLines"] = JSON.stringify(status.sidebarLines(statuses, NOW, "proj"))
+out["canopus: sidebarLines, texts"] = status.sidebarLines(statuses, NOW, "proj").rows.map((r) => status.sideText(r)).join("\n")
 
-// 4. crew_config guide and show, crew_help
-out["config: guide"] = await H.call("crew_config", "sesTASK02", { action: "guide" })
-out["config: show"] = await H.call("crew_config", "sesTASK02", { action: "show" })
-out["help"] = await H.call("crew_help", "sesTASK02")
+// 4. canopus_config guide and show, canopus_help
+out["config: guide"] = await H.call("canopus_config", "sesTASK02", { action: "guide" })
+out["config: show"] = await H.call("canopus_config", "sesTASK02", { action: "show" })
+out["help"] = await H.call("canopus_help", "sesTASK02")
 
 // 5. the letters of the old kinds as the session sees them
 const me = card("sesTASK02", { role: "worker" })

@@ -1,5 +1,5 @@
 // config_cmd_test.nv - `config list|get|set`, the schema and `doctor` (task 192.12).
-module crew_harness.config
+module canopus.config
 
 import std.os.{Os, MockOs, mock_os, real_os, temp_dir, pid}
 import std.fs.{Fs, real_fs, read_text, write_text, create_dir_all, remove_dir_all, Path}
@@ -8,7 +8,7 @@ import std.encoding.json.{Json, JsonValue, JsonObject}
 fn tmp3(name str) -> str {
     ro base = with Os = real_os() { temp_dir() }
     ro id = with Os = real_os() { pid() }
-    ro dir = base.join("crew-cmd-${name}-${id}")
+    ro dir = base.join("canopus-cmd-${name}-${id}")
     with Fs = real_fs() {
         ro gone = remove_dir_all(dir)
         ro made = create_dir_all(dir)
@@ -67,10 +67,10 @@ test "list: each key shows the layer it comes from" {
     ro root = tmp3("origin")
     put3(root, "inst/config/config.json", "{\"port\":8100,\"store\":\"files\",\"voice\":{\"model\":\"medium\"}}")
     put3(root, "srv.json", "{\"web_dir\":\"srv-web\"}")
-    put3(root, "repo/.crew-harness/config.json", "{\"web_dir\":\"proj-web\",\"preset\":\"mix\"}")
-    put3(root, "repo/.crew-harness/local.json", "{\"workdir\":\"C:/work/mine\"}")
-    ro layout = layout_in("${root}/inst", "${root}/repo/.crew-harness")
-    ro text = listing(layout, "${root}/srv.json", ["port=8131"], true, ["CREW_SERVER_ACP_TRACE=false"])
+    put3(root, "repo/.canopus/config.json", "{\"web_dir\":\"proj-web\",\"preset\":\"mix\"}")
+    put3(root, "repo/.canopus/local.json", "{\"workdir\":\"C:/work/mine\"}")
+    ro layout = layout_in("${root}/inst", "${root}/repo/.canopus")
+    ro text = listing(layout, "${root}/srv.json", ["port=8131"], true, ["CANOPUS_SERVER_ACP_TRACE=false"])
     assert(line_of(text, "port").starts_with("port=8131\targ"))
     assert(line_of(text, "store").starts_with("store=files\tuser\t${root}/inst/config/config.json"))
     assert(line_of(text, "web_dir").starts_with("web_dir=proj-web\tproject\t"))
@@ -112,11 +112,11 @@ test "secrets: a password is never printed, from the environment, secrets.json o
     ro quiet = listing(layout, "${root}/srv.json", []str.new(), true, []str.new())
     assert(!quiet.contains("from-secrets-file") && !quiet.contains("from-server-file"))
     assert(line_of(quiet, "pg.password").starts_with("pg.password=***\tsecret"))
-    ro loud = listing(layout, "${root}/srv.json", []str.new(), true, ["CREW_PG_PASSWORD=from-env-xyz"])
+    ro loud = listing(layout, "${root}/srv.json", []str.new(), true, ["CANOPUS_PG_PASSWORD=from-env-xyz"])
     assert(!loud.contains("from-env-xyz"))
     assert(line_of(loud, "pg.password").starts_with("pg.password=***\tenv"))
     mut state = MockOs.new()
-    state.put_env("CREW_PG_PASSWORD", "from-env-xyz")
+    state.put_env("CANOPUS_PG_PASSWORD", "from-env-xyz")
     match with Os = mock_os(state), Fs = real_fs() { config_get(layout, "${root}/srv.json", []str.new(), "pg.password", false) } {
         Ok(t) => assert(t == "***")
         Err(e) => assert(false)
@@ -142,17 +142,17 @@ test "get: a value, with the origin, and an error for an unknown key" {
 test "set: writes the key into the file of the scope and keeps the other keys" {
     ro root = tmp3("set")
     put3(root, "inst/config/config.json", "{\"port\":8100,\"voice\":{\"model\":\"medium\"}}")
-    put3(root, "repo/.crew-harness/config.json", "{}")
-    ro layout = layout_in("${root}/inst", "${root}/repo/.crew-harness")
+    put3(root, "repo/.canopus/config.json", "{}")
+    ro layout = layout_in("${root}/inst", "${root}/repo/.canopus")
     with Fs = real_fs() {
         assert(config_set(layout, "user", "", "voice.language", "ru").is_ok())
         assert(config_set(layout, "project", "", "route_wip", "false").is_ok())
         assert(config_set(layout, "local", "", "workdir", "C:/work/mine").is_ok())
         ro user = read_text(Path.from_bytes("${root}/inst/config/config.json".bytes())).unwrap()
         assert(user.contains("\"port\": 8100") && user.contains("\"model\": \"medium\"") && user.contains("\"language\": \"ru\""))
-        ro project = read_text(Path.from_bytes("${root}/repo/.crew-harness/config.json".bytes())).unwrap()
+        ro project = read_text(Path.from_bytes("${root}/repo/.canopus/config.json".bytes())).unwrap()
         assert(project.contains("\"route_wip\": false"))
-        ro local = read_text(Path.from_bytes("${root}/repo/.crew-harness/local.json".bytes())).unwrap()
+        ro local = read_text(Path.from_bytes("${root}/repo/.canopus/local.json".bytes())).unwrap()
         assert(local.contains("\"workdir\": \"C:/work/mine\""))
     }
     drop3(root)
@@ -202,7 +202,7 @@ test "doctor: lists the paths, a broken file is a problem with file:line, a good
     assert(good.text.contains("home: ${root}/good  (--home)"))
     assert(good.text.contains("user: ${root}/good/config/config.json  ok"))
     put3(root, "bad/config/config.json", "{\n  \"port\": oops\n}")
-    ro bad = with Os = mock_os(MockOs.new()), Fs = real_fs() { doctor(layout_in("${root}/bad", ""), "", "CREW_HOME", "${root}") }
+    ro bad = with Os = mock_os(MockOs.new()), Fs = real_fs() { doctor(layout_in("${root}/bad", ""), "", "CANOPUS_HOME", "${root}") }
     assert(bad.errors == 1)
     assert(bad.text.contains("${root}/bad/config/config.json:2:"))
     assert(!bad.text.contains("oops"))
@@ -213,7 +213,7 @@ test "doctor: the old flat layout and an unknown key are named" {
     ro root = tmp3("legacy")
     put3(root, "srv.json", "{\"colour\":1}")
     ro layout = layout_with_data_dir("${root}/inst", "${root}/old-data", "")
-    ro report = with Os = mock_os(MockOs.new()), Fs = real_fs() { doctor(layout, "${root}/srv.json", "CREW_HOME", "${root}") }
+    ro report = with Os = mock_os(MockOs.new()), Fs = real_fs() { doctor(layout, "${root}/srv.json", "CANOPUS_HOME", "${root}") }
     assert(report.text.contains("layout: OLD (flat)"))
     assert(report.text.contains("migrate --from ${root}/old-data"))
     assert(report.text.contains("unknown key colour"))

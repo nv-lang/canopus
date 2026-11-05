@@ -1,0 +1,13 @@
+// canopus_tools_live_test.nv - the tools canopus_* over a hub with the fake ACP agent in a repository (task 250): the scenario `scenario_canopus_tools` of canopus.server/canopus_tools_kit.nv.
+module canopus.server_canopus_live
+
+import canopus.server.{kit_canopus_tools, scenario_canopus_tools}
+
+fn canopus_tools_clean(report str) -> () {
+    if report.byte_len() > 0 { panic("NOT AS IT MUST BE: ${report}") }
+    assert(report == "")
+}
+
+test "files: the tools canopus_*: the roles, the letters and the inbox, a question and its answer, spawn as a card of the owner, the waits, the tasks, the timer and the watches, the doctor, the notes, the refusals" {
+    canopus_tools_clean(scenario_canopus_tools(kit_canopus_tools("canopus-tools")))
+}

@@ -1,12 +1,12 @@
 // alula.nv - the machine of the sessions of the hub (task 114): the many-turn chat written as data (`machines/product/dialog.alula.md`, its JSON is
 // read from the folder of the machines when the hub starts, task 248) and run by `AlulaMachine`. The hub makes it once when it starts. The idle term of a turn is the parameter of the project
 // `проект.срок_бездействия` (format 2.7, P-9): the settings give it in milliseconds (`idle_term_seconds` * 1000).
-module crew_harness.server
+module canopus.server
 
 import std.fs.{Path}
 import alula.machine.{Int}
 import alula.machine.{Registry}
-import crew_harness.product_machines.{product_registry, dialog_machine_text}
+import canopus.product_machines.{product_registry, dialog_machine_text}
 import alula.machine_run.{AlulaMachine, ProjectValue, load_alula_machine_with}
 
 /// The key of the parameter of the idle term in the table of the project.

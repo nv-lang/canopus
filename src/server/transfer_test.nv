@@ -1,6 +1,6 @@
 // transfer_test.nv - task 192: the protocol of a conversation that is handed to another agent (`transfer.nv`): whole messages, in order,
 // the tools as one line, a limit that cuts between messages and never inside one.
-module crew_harness.server
+module canopus.server
 
 fn tl(kind str, input str) -> str => "{\"id\":\"x\",\"trace\":\"s\",\"step\":1,\"kind\":\"${kind}\",\"input\":${input},\"time\":0}"
 

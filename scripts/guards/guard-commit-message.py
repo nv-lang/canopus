@@ -5,7 +5,7 @@
     приватные данные в них проверяются до коммита и до пуша, а не по просьбе.
 Проверяет: сообщение в смысле «что git сохранит» (lib/message.py). R1 «Signed-off-by» совпадает с
     автором (имя и адрес); R2 нет «Co-Authored-By»; R3 имя автора не пусто; R4 только ASCII, кроме
-    строк цитаты на «>»; R5 адрес автора равен git config crewharness.expectedEmail (пишет
+    строк цитаты на «>»; R5 адрес автора равен git config canopus.expectedEmail (пишет
     установщик; нет настройки — красный «запусти установщик»); R6 в сообщении нет пути машины и
     образца из списка запрещённых имён (в том числе в строках на «#» при -m и -F и на «>»);
     R7 сообщение не пусто; R8 «#<число>» в сообщении только как ссылка на issue или PR GitHub
@@ -106,7 +106,7 @@ def check_author(label, author, expected, ci, rep):
         rep.accept(label, None, "expected-email", "судить нечего: CI, нет настройки установщика")
     elif not expected:
         rep.add(label, None, "expected-email",
-                "нет настройки crewharness.expectedEmail: запусти установщик (sh scripts/install-hooks.sh)")
+                "нет настройки canopus.expectedEmail: запусти установщик (sh scripts/install-hooks.sh)")
     elif author[1] != expected:
         rep.add(label, None, "expected-email", "адрес автора не совпадает с ожидаемым установщиком")
 
@@ -154,7 +154,7 @@ def judge(source, args, rep):
         rep.add(label, None, "empty-message", "сообщение пусто")
         return guardlib.Outcome(count=1)
     author = author_of(source, args)
-    expected = config_value(source, "--get", "crewharness.expectedEmail")
+    expected = config_value(source, "--get", "canopus.expectedEmail")
     check_signoff(label, lines, author, rep)
     check_trailers(label, lines, rep)
     check_author(label, author, expected, args.ci, rep)

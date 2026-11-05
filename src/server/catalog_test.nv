@@ -1,5 +1,5 @@
 // catalog_test.nv - task 192o: the catalog of the families (`catalog.nv`): the merge of a summary into the record of an agent, the file, the line of the page, the coalescing of the writes.
-module crew_harness.server
+module canopus.server
 
 import std.encoding.json.{Json, JsonValue, JsonObject}
 

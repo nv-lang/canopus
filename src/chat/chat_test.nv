@@ -1,5 +1,5 @@
 // chat_test.nv - the chat session as a machine: `step` takes a state, an event and an environment, nothing else.
-module crew_harness.chat
+module canopus.chat
 
 import alula.engine.{Incoming, EventKind, Order, StepEnvironment, Transition, FailCode}
 

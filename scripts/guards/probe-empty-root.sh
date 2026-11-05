@@ -30,8 +30,8 @@ tmp=$(mktemp -d 2>/dev/null) || { echo "FAIL: предпосылка: не со�
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 
 printf 'zorblax-demo\n' > "$tmp/names.txt"
-CREW_PRIVATE_NAMES_FILE="$tmp/names.txt"
-export CREW_PRIVATE_NAMES_FILE
+CANOPUS_PRIVATE_NAMES_FILE="$tmp/names.txt"
+export CANOPUS_PRIVATE_NAMES_FILE
 
 mkdir -p "$tmp/t1" "$tmp/t2" "$tmp/t3"
 git -C "$tmp/t1" init -q 2>/dev/null

@@ -1,6 +1,6 @@
-// Result targets are NOT Crew projects. Task signals carry an id; registration uses ordinary UI confirmation.
+// Result targets are NOT Canopus projects. Task signals carry an id; registration uses ordinary UI confirmation.
 // The owner accepted the existing local trust model (2026-10-30): no isolation from arbitrary shell/HTTP under the same OS account.
-module crew_harness.projects
+module canopus.projects
 
 import std.fs.{Fs, real_fs, Path, canonicalize, read_text, write_atomic, create_dir_all, try_exists, read_dir}
 import std.os.{Os, real_os, Command, Tree}

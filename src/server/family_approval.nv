@@ -1,5 +1,5 @@
 // Native ids are protocol facts; the Alula table decides whether the choice may be applied.
-module crew_harness.server
+module canopus.server
 
 import alula.engine.{Incoming}
 import std.encoding.json.{JsonObject}

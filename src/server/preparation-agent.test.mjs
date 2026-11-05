@@ -10,14 +10,14 @@ import path from 'node:path';
 import { endpointOf, generate, optionsOf, parseAnswer, serve, serviceTransport } from './preparation-agent.mjs';
 
 const rootOf = async (t) => {
-  const root = await mkdtemp(path.join(process.env.TEMP || os.tmpdir(), 'crew-preparation-271-'));
+  const root = await mkdtemp(path.join(process.env.TEMP || os.tmpdir(), 'canopus-preparation-271-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   return root;
 };
 const response = (value) => new Response(JSON.stringify({ data: { text: JSON.stringify(value) } }), { status: 200 });
 
 test('RED controls: no path/tool/native mode/git action can enter the document protocol', () => {
-  for (const extra of [{ path: '../src/main.nv' }, { tools: ['bash'] }, { permissions: 'allow' }, { action: 'git worktree add' }, { crew_spawn: {} }, { native_permissions: 'yolo' }]) {
+  for (const extra of [{ path: '../src/main.nv' }, { tools: ['bash'] }, { permissions: 'allow' }, { action: 'git worktree add' }, { canopus_spawn: {} }, { native_permissions: 'yolo' }]) {
     assert.throws(() => parseAnswer(JSON.stringify({ reply: 'x', ...extra })), /не разрешено/);
   }
   for (const value of [null, [], {}, { reply: 4 }, { reply: 'x', statement: false }]) assert.throws(() => parseAnswer(JSON.stringify(value)));

@@ -4,7 +4,7 @@
 // (`started`, `input`, `data`) and the last lines of the journal of the machine. It is the state for looking at, not the history: the event is not written
 // to the journal of the session and not kept in `lines`, a page gets it when the state changes, when it attaches, and when it asks (`machine_state_get`).
 // The data of the table of the dialog are the texts of the turn (`user`, `reply`) and counters: no secrets; the size of the event is limited anyway.
-module crew_harness.server
+module canopus.server
 
 import alula.engine.{Incoming}
 import std.encoding.json.{Json, JsonValue, JsonObject}

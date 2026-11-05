@@ -1,12 +1,12 @@
 // circle_test.nv - task 116: the circles of the program `alula` on the machines of the product (the chat and the dialog; the agent step left with the methodology, task 249): `compile` -> `render` -> `compile` gives an
 // equal JSON in Russian and in English, and `convert` ru -> en -> ru gives an equal JSON; the commands give what the functions of the translator give.
-module crew_harness.alula_eq_machines
+module canopus.alula_eq_machines
 
 import std.fs.{Path}
 import std.text
 import alula.machine.{NamedText}
 import alula.machine_text.{translate_checked_with, render, render_summary}
-import crew_harness.machines.{chat_table_text, dialog_table_text, product_registry, translation_files, connects_library, part_mended}
+import canopus.machines.{chat_table_text, dialog_table_text, product_registry, translation_files, connects_library, part_mended}
 
 // A circle through the program: the JSON of the machine -> `render` in the language -> `compile` of the file it wrote. "" when the second tree equals the first, else why not.
 fn circle(name str, language str) -> str {

@@ -4,14 +4,14 @@
 // `route_subtask_done`, `route_subtask_parallel`, `route_merge` (`route_publish` is the same), `route_tests_run`, `route_tree_drop`, `route_diff`, `session_worktree`. What the hub says: the page event `route_state`
 // (on every change and when a page attaches), and in the feed the lines "subtask N: new / extended" and the block of the independent review.
 // Every change that must survive a restart is a signal of the journal (`route_set`, `route_task`, `route_step`, `route_note`, `route_review`); `RouteSession.apply` reads them again.
-module crew_harness.server
+module canopus.server
 
-import crew_harness.config.{modes_dirs, PoolEntry, load_presets, preset_named, preset_pick_weight, pick_source_json, resolve_pool_pinned}
+import canopus.config.{modes_dirs, PoolEntry, load_presets, preset_named, preset_pick_weight, pick_source_json, resolve_pool_pinned}
 import alula.engine.{Incoming, EventKind, Link}
-import crew_harness.acp.{AcpClient, AcpConfig, AcpPreset, open_client_traced, acp_link}
+import canopus.acp.{AcpClient, AcpConfig, AcpPreset, open_client_traced, acp_link}
 import std.fs.{Fs, real_fs}
 import std.prelude.effects.{real_random}
-import crew_harness.projects.{projects_get, result_repo_validate}
+import canopus.projects.{projects_get, result_repo_validate}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 
 const REVIEW_LIMIT_MS = 1200000
@@ -70,7 +70,7 @@ fn Hub @routes_path() -> str {
     if d.starts_with("/") || d.starts_with("\\") || d.contains(":") { d } else { "${@workdir}/${d}" }
 }
 
-// The folders of the files of the modes, the strongest first (task 192.12): `routes_dir` of the settings alone when it is set; else `.crew-harness/modes` of the project, `<home>/config/modes`,
+// The folders of the files of the modes, the strongest first (task 192.12): `routes_dir` of the settings alone when it is set; else `.canopus/modes` of the project, `<home>/config/modes`,
 // and last `doc/routes` of the working folder (the texts of the product).
 fn Hub @mode_dirs() -> []str {
     if @settings.routes_dir.byte_len() > 0 { return [@routes_path()] }
@@ -321,7 +321,7 @@ fn Hub mut @route_make_task(session str, route str, text str, use_tree bool) Pro
     if explicit && !use_tree && route != "planning" { return no_task() }
     // a tree is made when the session wants one (the switch "Worktree") and the mode is not the planning (it writes the task and touches no code: the tree comes later)
     ro want_tree = repo && use_tree && route != "planning"
-    // task 192.2: the mode "interactive" makes a task only for a confirmed proposal (`crew_task`, `crew_task_list`), see crew_task_hub.nv
+    // task 192.2: the mode "interactive" makes a task only for a confirmed proposal (`canopus_task`, `canopus_task_list`), see canopus_task_hub.nv
     ro number = task_number_text(@take_task_number(session))
     ro slug = task_slug(text)
     ro folder = "${number}-${slug}"

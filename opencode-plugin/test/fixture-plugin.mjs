@@ -6,7 +6,7 @@ import "./native-isolation.mjs"
 import { existsSync, readdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
-import { createCrewPlugin } from "../index.ts"
+import { createCanopusPlugin } from "../index.ts"
 
 export * from "../index.ts"
 if (!process.env.XDG_DATA_HOME) throw new Error("fixture-plugin requires an isolated XDG_DATA_HOME")
@@ -20,7 +20,7 @@ export const settleFixtureNative = (ctx, session) => fixtureSettlers.get(ctx)?.(
 export function nativeFixture(ctx) {
   const projected = new Map(), ended = new Map(), admitted = new Map()
   fixtureSettlers.set(ctx, session => { fixtureNativeActive.delete(session); ended.set(session, Date.now()) })
-  const file = process.env.CREW_HARNESS_DB
+  const file = process.env.CANOPUS_DB
   const rows = session => {
     if (!file || !existsSync(file)) return { messages: [], known: true }
     let db
@@ -29,8 +29,8 @@ export function nativeFixture(ctx) {
       return { messages: db.prepare("select id, type, time_created, time_updated, seq, data from session_message where session_id = ? order by seq desc").all(session), known: true }
     } catch { return { messages: [], known: false } } finally { db?.close() }
   }
-  const cardsDir = path.join(process.env.XDG_DATA_HOME, "opencode", "crew-harness", "cards")
-  const windowsDir = path.join(process.env.XDG_DATA_HOME, "opencode", "crew-harness", "windows")
+  const cardsDir = path.join(process.env.XDG_DATA_HOME, "opencode", "canopus", "cards")
+  const windowsDir = path.join(process.env.XDG_DATA_HOME, "opencode", "canopus", "windows")
   const jsons = dir => !existsSync(dir) ? [] : readdirSync(dir).filter(f => f.endsWith(".json")).map(f => { try { return JSON.parse(readFileSync(path.join(dir, f), "utf8")) } catch { return undefined } }).filter(Boolean)
   const fact = session => {
     if (fixtureNativeActive.has(session)) return { active: true }
@@ -102,5 +102,5 @@ export function nativeFixture(ctx) {
 }
 export default { async setup(ctx) {
   const fixture = nativeFixture(ctx)
-  return createCrewPlugin({ get: fixture.get, spacingMs: 0 }).setup(fixture.ctx)
+  return createCanopusPlugin({ get: fixture.get, spacingMs: 0 }).setup(fixture.ctx)
 } }

@@ -1,10 +1,10 @@
 // support_test.nv - helpers of the tests of the interpreter: the machines of the data directory, a step with its orders as text.
-module crew_harness.machine_run_machines
+module canopus.machine_run_machines
 
 import std.text
 import alula.machine.{Value, PrimitiveHost, EvalError, Null, enum_value, text_of_file, record_get, value_json}
 import alula.engine.{Incoming, EventKind, Order, StepEnvironment, JournalEvent, SignalOrder}
-import crew_harness.machines.{machine_files, product_registry}
+import canopus.machines.{machine_files, product_registry}
 import alula.machine_run.{AlulaMachine, AlulaState, ScriptedHost, ScriptedReply, alula_step, load_alula_machine, with_replies}
 
 fn machine_text(name str) -> str => text_of_file(machine_files(), name)

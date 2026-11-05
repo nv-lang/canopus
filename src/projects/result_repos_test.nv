@@ -1,13 +1,13 @@
-module crew_harness.projects
+module canopus.projects
 
 import std.fs.{Fs, real_fs, Path, create_dir_all, write_text, remove_dir_all}
 import std.os.{Os, real_os, temp_dir, pid}
 import std.text
 
-test "result registry: owner confirms a repository without creating a Crew project; remote drift invalidates it" {
+test "result registry: owner confirms a repository without creating a Canopus project; remote drift invalidates it" {
     ro parent = with Os = real_os() { temp_dir() }
     ro id = with Os = real_os() { pid() }
-    ro root = parent.join("crew-result-target-${id}").display()
+    ro root = parent.join("canopus-result-target-${id}").display()
     with Fs = real_fs() { ro removed = remove_dir_all(Path.from_bytes(root.bytes())) }
     ro dir = "${root}/repo"
     with Fs = real_fs() {

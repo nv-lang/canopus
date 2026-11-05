@@ -6,7 +6,7 @@
 //
 // The `id` of a message is kept as `JsonValue` (a number or a string): an answer to a request of the peer must echo the
 // id exactly as it came.
-module crew_harness.acp
+module canopus.acp
 
 import std.encoding.json.{Json, JsonValue, JsonObject}
 

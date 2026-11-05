@@ -38,8 +38,8 @@ const textOf = (node) => [node.textContent, ...node.children.map(textOf)].join('
 
 test('исключение при старте: на странице блок «Ошибка запуска: …» с кнопкой сброса, второй блок не добавляется', () => {
   const { win, body } = boot();
-  win.__crewBootError('что-то упало');
-  win.__crewBootError('и ещё');
+  win.__canopusBootError('что-то упало');
+  win.__canopusBootError('и ещё');
   assert.equal(body.children.length, 1);
   const block = body.children[0];
   assert.match(textOf(block), /Ошибка запуска: что-то упало/);
@@ -69,7 +69,7 @@ test('страница не объявила «запущена» за 15 с: о
   assert.equal(first.body.children.length, 0, 'первый раз — тихий повтор, без блока');
   assert.equal(first.replaced.length, 1);
   assert.match(first.replaced[0], /^\/\?mock=1&_r=\d+$/, 'адрес с новой меткой, прежние параметры сохранены');
-  assert.equal(storage.data['crew-boot-retry'], '1');
+  assert.equal(storage.data['canopus-boot-retry'], '1');
 
   const second = boot({ booted: false, storage });
   second.timers[0].fn();
@@ -84,7 +84,7 @@ test('страница не объявила «запущена» за 15 с: о
   block.children[2].listeners.click();
   assert.equal(second.replaced.length, 1, 'кнопка «Перезагрузить» открывает адрес заново, с новой меткой');
   // красный блок настоящей ошибки по-прежнему появляется поверх
-  second.win.__crewBootError('настоящая ошибка');
+  second.win.__canopusBootError('настоящая ошибка');
   assert.equal(second.body.children.length, 2);
   assert.match(textOf(second.body.children[1]), /Ошибка запуска: настоящая ошибка/);
 });
@@ -106,15 +106,15 @@ test('автоповтор метит адрес один раз: старая �
   assert.equal((replaced[0].match(/_r=/g) || []).length, 1);
 });
 
-test('кнопка сброса чистит только наши ключи (crew-…) и перезагружает страницу', () => {
-  const data = { 'crew-console-theme': 'dark', 'crew-draft': 'x', other: 'keep' };
+test('кнопка сброса чистит только наши ключи (canopus-…) и перезагружает страницу', () => {
+  const data = { 'canopus-console-theme': 'dark', 'canopus-draft': 'x', other: 'keep' };
   const storage = {
     get length() { return Object.keys(data).length; },
     key: (i) => Object.keys(data)[i],
     removeItem: (k) => { delete data[k]; },
   };
   const { win, body, reloads } = boot({ storage });
-  win.__crewBootError('x');
+  win.__canopusBootError('x');
   body.children[0].children[1].listeners.click();
   assert.deepEqual(Object.keys(data), ['other']);
   assert.equal(reloads.length, 1);
@@ -122,7 +122,7 @@ test('кнопка сброса чистит только наши ключи (c
 
 test('сброс без хранилища не бросает', () => {
   const { win, body, reloads } = boot();
-  win.__crewBootError('x');
+  win.__canopusBootError('x');
   body.children[0].children[1].listeners.click();
   assert.equal(reloads.length, 1);
 });
@@ -153,7 +153,7 @@ test('не загрузился скрипт страницы (503): один а
   assert.ok(reload, 'повтор поставлен на секунду');
   reload.fn();
   assert.equal(first.reloads.length, 1);
-  assert.equal(storage.data['crew-boot-retry'], '1');
+  assert.equal(storage.data['canopus-boot-retry'], '1');
   const second = boot({ storage });
   second.handlers.error({ target: { tagName: 'SCRIPT', src: 'http://127.0.0.1:8100/app.js' } });
   assert.match(textOf(second.body.children[0]), /не загрузился http:\/\/127.0.0.1:8100\/app.js/);

@@ -6,7 +6,7 @@
 // the only reader); they are never put into a log, a journal, a trace or the list of the projects (the list holds the names only).
 // The front writes the file (it has the HTTP routes), the hub only reads it when a session is made with a project.
 // This module holds `std` only, so that both programs (the front with Polaris, the hub with the PostgreSQL driver) can import it.
-module crew_harness.projects
+module canopus.projects
 
 import std.encoding.json.{Json, JsonValue, JsonObject}
 import std.fs.{Fs, real_fs, Path, read_text, write_atomic, try_exists, create_dir_all}

@@ -7,7 +7,7 @@
 // read a chunk, feed it, collect the events up to ReadyForQuery) is repeated here over the pure core, which has no such clash.
 // ORACLE-WORKAROUND(22): the socket loop of `pgnet/conn.nv` is repeated here instead of using `postgres.pgnet`; the clash was with the engine's `Event`, renamed `Incoming` in task 102, and whether `pgnet` fits next to the engine now was not tried: use `pgnet` and drop this loop when item 22 is fixed (or tried)
 // Plaintext only, as `pgnet`: `PgConfig.check` allows a local host alone.
-module crew_harness.pgdb
+module canopus.pgdb
 
 import std.net.{TcpStream}
 import std.encoding.base64.{Base64}

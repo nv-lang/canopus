@@ -1,16 +1,16 @@
 // files_test.nv - the file handlers of Journal and Store: lines appended, snapshots replaced as a whole,
 // names that cannot leave the data folder, a torn last line, a restart over the same folder.
-module crew_harness.storage
+module canopus.storage
 
 import alula.engine.{Journal, Store, JournalEntry, Snapshot, journal_event, param}
 import std.fs.{Fs, real_fs, Path, read_text, write_text, remove_dir_all, try_exists, create_dir_all}
 import std.os.{Os, real_os, temp_dir, pid}
 
-// A clean data folder of one test, outside the repository: <temp>/crew-storage-test-<pid>-<name>.
+// A clean data folder of one test, outside the repository: <temp>/canopus-storage-test-<pid>-<name>.
 fn fresh_root(name str) -> str {
     ro base = with Os = real_os() { temp_dir() }
     ro id = with Os = real_os() { pid() }
-    ro dir = base.join("crew-storage-test-${id}-${name}")
+    ro dir = base.join("canopus-storage-test-${id}-${name}")
     with Fs = real_fs() {
         ro removed = remove_dir_all(dir)
     }

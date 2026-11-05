@@ -1,5 +1,5 @@
 // Read-only source choices. No fetch/switch/worktree operation belongs to this endpoint.
-module crew_harness.projects
+module canopus.projects
 
 import std.text
 

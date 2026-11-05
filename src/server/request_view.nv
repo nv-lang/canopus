@@ -11,10 +11,10 @@
 // of its built-in tools are put together by the agent itself and never reach the hub; `tools.agent` is what the agent has shown in this session (`tool_call`), "со слов агента".
 // The event is kept in the process only (`RouteSession.reqs`, the last 20 of a session), like the service hints; it is never written to the feed or to the journal. Every
 // text and schema goes through `secret_redact` (tokens, keys, user names of paths), the text of a part is cut at 64 KiB. The addresses of the MCP servers are not shown, only their kind.
-module crew_harness.server
+module canopus.server
 
-import crew_harness.acp.{AcpImage}
-import crew_harness.storage.{secret_redact}
+import canopus.acp.{AcpImage}
+import canopus.storage.{secret_redact}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 
 /// A part of the request that is waiting for the turn: the kind (`hub_note`, `mode_instruction`, `reminder`, `task_list`, `owner_message`, `images`, `tool_result_hint`, `other`), the title, the text.
@@ -53,7 +53,7 @@ fn req_str_of(v JsonValue, key str) -> str {
     }
 }
 
-/// The tools the hub gives to the agent in its MCP server `crew` (`tools`: "ask", "task", "list", "asklist", "all" as in the address of the server): name, description, schema (the text of JSON), from the answer of the server itself to `tools/list`.
+/// The tools the hub gives to the agent in its MCP server `canopus` (`tools`: "ask", "task", "list", "asklist", "all" as in the address of the server): name, description, schema (the text of JSON), from the answer of the server itself to `tools/list`.
 export fn req_hub_tools(tools str) -> JsonValue {
     ro reply = mcp_handle_for("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}", tools)
     mut out = []JsonValue.new()
@@ -161,7 +161,7 @@ export fn req_event_text(id str, session str, step int, turn int, at int, agent 
     mut mcp = []JsonValue.new()
     if mcp_kind.byte_len() > 0 {
         mut m = JsonObject.new()
-        jput(m, "name", JsonValue.str("crew"))
+        jput(m, "name", JsonValue.str("canopus"))
         jput(m, "url_kind", JsonValue.str(mcp_kind))
         mcp.push(JsonValue.object(m))
     }

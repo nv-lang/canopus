@@ -1,7 +1,7 @@
-// children_live_test.nv - the child sessions over a hub with the fake ACP agent in a repository (task 192.3): the scenario `scenario_route_children` of crew_harness.server/child_kit.nv.
-module crew_harness.server_route_live
+// children_live_test.nv - the child sessions over a hub with the fake ACP agent in a repository (task 192.3): the scenario `scenario_route_children` of canopus.server/child_kit.nv.
+module canopus.server_route_live
 
-import crew_harness.server.{kit_routes_children, scenario_route_children}
+import canopus.server.{kit_routes_children, scenario_route_children}
 
 fn children_clean(report str) -> () {
     if report.byte_len() > 0 { panic("NOT AS IT MUST BE: ${report}") }

@@ -2,7 +2,7 @@
 //
 // A value and its checks, no input/output: the file and the environment are read in src/pgconf.
 // ORACLE-WORKAROUND(21, 14): the module has no `std.os` on purpose: a user type `Output` (the engine had one, it is gone since task 102) breaks the C of a program that also holds `std.os`, and the handlers of the engine live beside this module; the split was not tried again, read the environment here (and merge `pgconf`) when items 14 and 21 are fixed
-module crew_harness.pgdb
+module canopus.pgdb
 
 import std.encoding.json.{Json, JsonObject}
 
@@ -31,7 +31,7 @@ fn number_key(o JsonObject, key str, fallback int) -> Result[int, str] {
 }
 
 /// A configuration from the text of a settings file: a JSON object with the keys `host`, `port`, `database`, `user`,
-/// `password`; a missing key has its default (`127.0.0.1`, 5432, `crew`, `crew_app`, no password). The text itself is
+/// `password`; a missing key has its default (`127.0.0.1`, 5432, `canopus`, `canopus_app`, no password). The text itself is
 /// never quoted in an error: it may hold the password.
 export fn parse_pg_config(text str) -> Result[PgConfig, str] {
     ro value = match Json.parse(text) {
@@ -44,8 +44,8 @@ export fn parse_pg_config(text str) -> Result[PgConfig, str] {
     }
     ro host = text_key(o, "host", "127.0.0.1")?
     ro port = number_key(o, "port", 5432)?
-    ro database = text_key(o, "database", "crew")?
-    ro user = text_key(o, "user", "crew_app")?
+    ro database = text_key(o, "database", "canopus")?
+    ro user = text_key(o, "user", "canopus_app")?
     ro password = text_key(o, "password", "")?
     Ok(PgConfig { host, port, database, user, password })
 }

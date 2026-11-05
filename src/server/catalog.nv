@@ -9,7 +9,7 @@
 // of an agent is the summary of its last event `agent_model` merged into the old record: a list or a value that the summary lacks stays as it was
 // (the last list that the agent gave), a list that it gives replaces the old one. The values are ids and names the agent offers; no secrets.
 // The pure functions are here (checked by catalog_test.nv); the hub does the rest (hub.nv).
-module crew_harness.server
+module canopus.server
 
 import std.encoding.json.{Json, JsonValue, JsonObject}
 

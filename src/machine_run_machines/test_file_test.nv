@@ -1,10 +1,10 @@
 // test_file_test.nv - the scenario runner: the files of the data directory run green, a difference gets a report that says where.
-module crew_harness.machine_run_machines
+module canopus.machine_run_machines
 
 import std.text
 import std.encoding.json.{Json}
 import alula.machine.{schema_files, is_machine_json_name, NamedText, text_of_file}
-import crew_harness.machines.{machine_files, test_files, table_files}
+import canopus.machines.{machine_files, test_files, table_files}
 import alula.machine_run.{AlulaMachine, AlulaState, Test, TestRun, drive_test, parse_test, report_text, run_ok, run_test}
 
 // The machine a scenario names.

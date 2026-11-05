@@ -1,10 +1,10 @@
 // chat_test.nv - the chat machine written as tables (machines/chat.alula.md) and its translation: the same tree as the hand-written chat.alula.json.
-module crew_harness.machine_text_machines
+module canopus.machine_text_machines
 
 import std.fs.{Path}
 import std.text
 import std.encoding.json.{Json, JsonValue, JsonObject}
-import crew_harness.machines.{chat_machine_text, chat_table_text, translation_files, product_registry}
+import canopus.machines.{chat_machine_text, chat_table_text, translation_files, product_registry}
 import alula.machine_text.{TranslateError, error_text, translate_checked_with}
 
 // The translation of the table of the chat with the libraries beside it (Alula 2.26, task 240: the chat connects the library of the cancel `libs/call_cancel.alula.md`), with the check:

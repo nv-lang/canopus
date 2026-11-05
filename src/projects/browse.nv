@@ -3,7 +3,7 @@
 // The panel of the owner asks `/api/fs/list`; the answer holds the FOLDERS only (never a file name), sorted by name, the hidden ones
 // (a name that begins with `.` or `$`) at the end, at most BROWSE_MAX of them. Paths go both ways with `/` between the names (`C:/work/x`).
 // The branch is read from the files of git (`.git/HEAD`, also for a work tree whose `.git` is a file `gitdir: ...`), so no process is started.
-module crew_harness.projects
+module canopus.projects
 
 import std.fs.{Fs, real_fs, Path, read_dir, read_text, metadata, try_exists}
 import std.text

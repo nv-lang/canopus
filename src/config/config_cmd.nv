@@ -1,9 +1,9 @@
-// config_cmd.nv - the commands `crew-harness config list|get|set` and `crew-harness doctor`, the schema of the settings (task 192.12, ADR-0016).
+// config_cmd.nv - the commands `canopus config list|get|set` and `canopus doctor`, the schema of the settings (task 192.12, ADR-0016).
 //
 // The schema is the list of the keys the settings know, with the type and the default. It checks the files of the layers (`validate_layer`: the error is
 // `file:line: reason`) and gives the layer "default" for `config list --show-origin`. The defaults here are the same as in `src/server/settings.nv`
 // (`settings_test.nv` compares a few of them). A value of a secret key (a password, a token) is never printed: it is `***`.
-module crew_harness.config
+module canopus.config
 
 import std.text
 import std.encoding.json.{Json, JsonValue, JsonObject}
@@ -19,8 +19,8 @@ fn ks(key str, kind str, default_text str) -> KeySpec => { key, kind, default_te
 export fn known_keys() -> []KeySpec => [
     ks("port", "i", "8099"), ks("data_dir", "s", "\"\""), ks("store", "s", "\"files\""), ks("workdir", "s", "\"\""), ks("web_dir", "s", "\"src/web\""), ks("machines_dir", "s", "\"\""),
     ks("idle_term_seconds", "i", "900"), ks("acp_trace", "b", "true"), ks("ask_form", "b", "true"), ks("ask_timeout_seconds", "i", "1800"),
-    ks("max_image_bytes", "i", "10485760"), ks("agents", "a", "[]"), ks("hub.program", "s", "\"target/crew-hub.exe\""), ks("hub.args", "a", "[]"),
-    ks("pg.host", "s", "\"127.0.0.1\""), ks("pg.port", "i", "5432"), ks("pg.database", "s", "\"crew\""), ks("pg.user", "s", "\"crew_app\""), ks("pg.password", "s", "\"\""),
+    ks("max_image_bytes", "i", "10485760"), ks("agents", "a", "[]"), ks("hub.program", "s", "\"target/canopus-hub.exe\""), ks("hub.args", "a", "[]"),
+    ks("pg.host", "s", "\"127.0.0.1\""), ks("pg.port", "i", "5432"), ks("pg.database", "s", "\"canopus\""), ks("pg.user", "s", "\"canopus_app\""), ks("pg.password", "s", "\"\""),
     ks("routes_dir", "s", "\"\""), ks("route_reviewer_order", "a", "[\"codex\",\"claude\",\"kimi\",\"opencode\"]"), ks("route_task_limit", "i", "12"), ks("route_task_messages", "i", "40"),
     ks("route_fix_attempts", "i", "2"), ks("route_worktree_ask", "b", "true"), ks("route_overlap_seconds", "i", "30"), ks("route_keep_days", "i", "30"),
     ks("context_drop_percent", "i", "40"), ks("route_confirm_word", "s", "\"задача\""), ks("route_over_limit_word", "s", "\"сверх\""), ks("route_max_active", "i", "3"),
@@ -199,14 +199,14 @@ export fn config_get(layout ConfigLayout, server_file str, sets []str, key str, 
     Err("no such key: ${key}")
 }
 
-/// The file `config set` writes: `user` is `<home>/config/config.json`, `project` is `.crew-harness/config.json` of the project, `local` is `.crew-harness/local.json`.
-/// `work` is the folder of the project when it has no `.crew-harness` yet. Err when the scope has no place.
+/// The file `config set` writes: `user` is `<home>/config/config.json`, `project` is `.canopus/config.json` of the project, `local` is `.canopus/local.json`.
+/// `work` is the folder of the project when it has no `.canopus` yet. Err when the scope has no place.
 export fn set_target(layout ConfigLayout, scope str, work str) -> Result[str, str] {
     if scope == "user" {
-        if layout.config.byte_len() == 0 { return Err("no root of the instance: give --home <folder> or set CREW_HOME") }
+        if layout.config.byte_len() == 0 { return Err("no root of the instance: give --home <folder> or set CANOPUS_HOME") }
         return Ok("${layout.config}/config.json")
     }
-    ro dir = if layout.project.byte_len() > 0 { layout.project } else if work.byte_len() > 0 { "${work}/.crew-harness" } else { "" }
+    ro dir = if layout.project.byte_len() > 0 { layout.project } else if work.byte_len() > 0 { "${work}/.canopus" } else { "" }
     if dir.byte_len() == 0 { return Err("the project folder is not known") }
     if scope == "project" { return Ok("${dir}/config.json") }
     if scope == "local" { return Ok("${dir}/local.json") }
@@ -295,8 +295,8 @@ fn mode_open(path str) Fs -> bool {
     }
 }
 
-/// `crew-harness doctor`: the paths, the existence of the folders, the files of the layers checked against the schema, the rights of secrets.json, the old places.
-/// `home_source` says where the root came from (`--home`, `CREW_HOME`, `the folder of the user`, `none`).
+/// `canopus doctor`: the paths, the existence of the folders, the files of the layers checked against the schema, the rights of secrets.json, the old places.
+/// `home_source` says where the root came from (`--home`, `CANOPUS_HOME`, `the folder of the user`, `none`).
 export fn doctor(layout ConfigLayout, server_file str, home_source str, work str) Os Fs -> DoctorReport {
     mut lines = []str.new()
     mut errors = 0
@@ -304,16 +304,16 @@ export fn doctor(layout ConfigLayout, server_file str, home_source str, work str
     ro home_shown = if layout.home.byte_len() > 0 { layout.home } else { "(none)" }
     lines.push("home: ${home_shown}  (${home_source})")
     if layout.home.byte_len() == 0 {
-        lines.push("  no root of the instance is known: give --home <folder> or set CREW_HOME; the flat folder is used")
+        lines.push("  no root of the instance is known: give --home <folder> or set CANOPUS_HOME; the flat folder is used")
         warnings += 1
     }
     if layout.legacy {
-        lines.push("layout: OLD (flat) - data_dir ${layout.data} holds sessions, projects, state and cache together; `crew-harness migrate --from ${layout.data}` moves them into the new folders")
+        lines.push("layout: OLD (flat) - data_dir ${layout.data} holds sessions, projects, state and cache together; `canopus migrate --from ${layout.data}` moves them into the new folders")
         warnings += 1
     }
     lines.push("folders:")
     for line in folder_lines(layout) { lines.push(line) }
-    ro project_shown = if layout.project.byte_len() > 0 { layout.project } else { "(no .crew-harness folder found above ${work})" }
+    ro project_shown = if layout.project.byte_len() > 0 { layout.project } else { "(no .canopus folder found above ${work})" }
     lines.push("project: ${project_shown}")
     lines.push("layers (the lower are covered by the upper):")
     for (origin, file) in layer_files(layout, server_file) {
@@ -349,18 +349,18 @@ export fn doctor(layout ConfigLayout, server_file str, home_source str, work str
         }
     }
     if layout.project.byte_len() > 0 && is_present("${layout.project}/local.json") {
-        lines.push("  note: ${layout.project}/local.json is personal: the repository must ignore it (a line `.crew-harness/local.json` in .gitignore)")
+        lines.push("  note: ${layout.project}/local.json is personal: the repository must ignore it (a line `.canopus/local.json` in .gitignore)")
     }
     lines.push("old places:")
     mut old = 0
     ro local_app = (env("LOCALAPPDATA") ?? "").replace("\\", "/")
-    ro old_stt = "${local_app}/crew-harness/stt"
+    ro old_stt = "${local_app}/canopus/stt"
     if local_app.byte_len() > 0 && is_present(old_stt) {
         lines.push("  ${old_stt}  (the recognizer of an old install; it is still found there; new place: <tools>/whisper or voice.dir)")
         old += 1
     }
-    if work.byte_len() > 0 && is_present("${work}/crew-data") && !layout.legacy {
-        lines.push("  ${work}/crew-data  (the default data folder of an old start; `crew-harness migrate --from ${work}/crew-data`)")
+    if work.byte_len() > 0 && is_present("${work}/canopus-data") && !layout.legacy {
+        lines.push("  ${work}/canopus-data  (the default data folder of an old start; `canopus migrate --from ${work}/canopus-data`)")
         old += 1
     }
     if old == 0 { lines.push("  none") }

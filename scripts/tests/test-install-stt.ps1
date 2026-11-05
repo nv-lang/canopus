@@ -12,7 +12,7 @@ function Throws([scriptblock]$block) {
     try { & $block | Out-Null; return $false } catch { return $true }
 }
 
-$tmp = Join-Path ([IO.Path]::GetTempPath()) ("crew-install-stt-test-" + [guid]::NewGuid().ToString('N'))
+$tmp = Join-Path ([IO.Path]::GetTempPath()) ("canopus-install-stt-test-" + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force -Path $tmp | Out-Null
 try {
     $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -100,23 +100,23 @@ try {
     Set-Content -LiteralPath (Join-Path $inst 'bin/.sha256') -Value ('a' * 64)
     Check 'installed: the marker is right' (Test-SttBinaryInstalled $inst $binary)
 
-    # the folder: CREW_VOICE_DIR, CREW_STT_DIR, an older install in LOCALAPPDATA, CREW_TOOLS_DIR, CREW_HOME, the folder of the user (task 192.12)
-    $oldDir = $env:CREW_STT_DIR; $oldLocal = $env:LOCALAPPDATA; $oldVoice = $env:CREW_VOICE_DIR; $oldTools = $env:CREW_TOOLS_DIR; $oldHome = $env:CREW_HOME
+    # the folder: CANOPUS_VOICE_DIR, CANOPUS_STT_DIR, an older install in LOCALAPPDATA, CANOPUS_TOOLS_DIR, CANOPUS_HOME, the folder of the user (task 192.12)
+    $oldDir = $env:CANOPUS_STT_DIR; $oldLocal = $env:LOCALAPPDATA; $oldVoice = $env:CANOPUS_VOICE_DIR; $oldTools = $env:CANOPUS_TOOLS_DIR; $oldHome = $env:CANOPUS_HOME
     try {
-        $env:CREW_VOICE_DIR = ''; $env:CREW_TOOLS_DIR = ''; $env:CREW_HOME = ''
-        $env:CREW_STT_DIR = 'C:/work/somewhere/stt'
-        Check 'dir: CREW_STT_DIR' ((Get-SttDir) -eq 'C:/work/somewhere/stt')
-        $env:CREW_VOICE_DIR = 'C:/work/voice'
-        Check 'dir: CREW_VOICE_DIR over CREW_STT_DIR' ((Get-SttDir) -eq 'C:/work/voice')
-        $env:CREW_VOICE_DIR = ''; $env:CREW_STT_DIR = ''
+        $env:CANOPUS_VOICE_DIR = ''; $env:CANOPUS_TOOLS_DIR = ''; $env:CANOPUS_HOME = ''
+        $env:CANOPUS_STT_DIR = 'C:/work/somewhere/stt'
+        Check 'dir: CANOPUS_STT_DIR' ((Get-SttDir) -eq 'C:/work/somewhere/stt')
+        $env:CANOPUS_VOICE_DIR = 'C:/work/voice'
+        Check 'dir: CANOPUS_VOICE_DIR over CANOPUS_STT_DIR' ((Get-SttDir) -eq 'C:/work/voice')
+        $env:CANOPUS_VOICE_DIR = ''; $env:CANOPUS_STT_DIR = ''
         $env:LOCALAPPDATA = 'C:/work/local'
-        $env:CREW_TOOLS_DIR = 'C:/work/tools'
-        Check 'dir: CREW_TOOLS_DIR/whisper when no older install is there' ((Get-SttDir).Replace([string][char]92, '/') -eq 'C:/work/tools/whisper')
-        $env:CREW_TOOLS_DIR = ''; $env:CREW_HOME = 'C:/work/inst'
-        Check 'dir: CREW_HOME/tools/whisper' ((Get-SttDir).Replace([string][char]92, '/') -eq 'C:/work/inst/tools/whisper')
-        $env:CREW_HOME = ''
-        Check 'dir: the folder of the user otherwise' ((Get-SttDir).Replace([string][char]92, '/') -like '*/.crew-harness/tools/whisper')
-    } finally { $env:CREW_STT_DIR = $oldDir; $env:LOCALAPPDATA = $oldLocal; $env:CREW_VOICE_DIR = $oldVoice; $env:CREW_TOOLS_DIR = $oldTools; $env:CREW_HOME = $oldHome }
+        $env:CANOPUS_TOOLS_DIR = 'C:/work/tools'
+        Check 'dir: CANOPUS_TOOLS_DIR/whisper when no older install is there' ((Get-SttDir).Replace([string][char]92, '/') -eq 'C:/work/tools/whisper')
+        $env:CANOPUS_TOOLS_DIR = ''; $env:CANOPUS_HOME = 'C:/work/inst'
+        Check 'dir: CANOPUS_HOME/tools/whisper' ((Get-SttDir).Replace([string][char]92, '/') -eq 'C:/work/inst/tools/whisper')
+        $env:CANOPUS_HOME = ''
+        Check 'dir: the folder of the user otherwise' ((Get-SttDir).Replace([string][char]92, '/') -like '*/.canopus/tools/whisper')
+    } finally { $env:CANOPUS_STT_DIR = $oldDir; $env:LOCALAPPDATA = $oldLocal; $env:CANOPUS_VOICE_DIR = $oldVoice; $env:CANOPUS_TOOLS_DIR = $oldTools; $env:CANOPUS_HOME = $oldHome }
 } finally {
     Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
 }

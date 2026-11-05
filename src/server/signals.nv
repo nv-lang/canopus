@@ -4,7 +4,7 @@
 // (the hub, the client of ACP, the engine) is a signal of this list; `README.md` ("The border of the table and the code") says the same in prose.
 // `signals_test.nv` keeps the two honest: a signal the code gives must be here, a signal marked `known` must be declared in the table, a signal marked
 // not known must not be (the machine writes `event_unknown` for it and does nothing else).
-module crew_harness.server
+module canopus.server
 
 /// CodeSignal: a signal that goes between the code and the machine of the sessions.
 ///   - `name`: the name of the engine event (the Latin key of the table for a signal of a party, a signal of the machine and a part);
@@ -22,7 +22,7 @@ export fn signals_given_by_code() -> []CodeSignal => [
     cs("cancel_request", "input", "src/server/hub.nv: Hub.cancel", "-", true),
     cs("permission_decision", "input", "src/server/hub.nv: Hub.decide", "request, decision (JSON text)", false),
     cs("question_answer", "input", "src/server/hub.nv: Hub.answer", "request, skipped, answers (JSON text)", false),
-    cs("mcp_recovery_read", "input", "src/server/crew_tools_hub.nv: Hub.ctl_take", "stable recovery qid", false),
+    cs("mcp_recovery_read", "input", "src/server/canopus_tools_hub.nv: Hub.ctl_take", "stable recovery qid", false),
     cs("session_created", "input", "src/server/hub.nv: Hub.create", "name, agent, folder, project, project_id (JSON text)", false),
     cs("session_renamed", "input", "src/server/hub.nv: Hub.rename", "name (JSON text)", false),
     cs("session_preset", "input", "src/server/hub.nv: Hub.set_preset (the owner chose the preset and role assignment)", "preset, role, weight (JSON text; old events omit role and weight)", false),
@@ -39,9 +39,9 @@ export fn signals_given_by_code() -> []CodeSignal => [
     cs("route_set", "input", "src/server/routes_hub.nv: Hub.rt_journal (mode, worktree and owner-confirmed result binding)", "route, worktree, repo, repo_label, repo_dir, repo_common, repo_url, repo_remote, repo_ref (JSON text)", false),
     cs("route_task", "input", "src/server/routes_hub.nv: Hub.rt_task_op (the task and its subtasks, trees, state)", "op and its fields (JSON text)", false),
     cs("route_step", "input", "src/server/routes_hub.nv: Hub.rt_step (the state of a step of the mode)", "n, state (JSON text)", false),
-    cs("context_compacted", "input", "src/server/crew_task_hub.nv: Hub.ctx_watch (the context of the agent was compacted)", "{before, after, at} (JSON text)", false),
-    cs("task_extended", "input", "src/server/crew_task_hub.nv: Hub.ct_auto_extend (the addition to an open task was applied at once)", "{id, task, title, text, at, file, added} (JSON text)", false),
-    cs("task_extend_undone", "input", "src/server/crew_task_hub.nv: Hub.ct_ext_undo (the owner took the addition back)", "{id, task, at} (JSON text)", false),
+    cs("context_compacted", "input", "src/server/canopus_task_hub.nv: Hub.ctx_watch (the context of the agent was compacted)", "{before, after, at} (JSON text)", false),
+    cs("task_extended", "input", "src/server/canopus_task_hub.nv: Hub.ct_auto_extend (the addition to an open task was applied at once)", "{id, task, title, text, at, file, added} (JSON text)", false),
+    cs("task_extend_undone", "input", "src/server/canopus_task_hub.nv: Hub.ct_ext_undo (the owner took the addition back)", "{id, task, at} (JSON text)", false),
     cs("route_note", "input", "src/server/routes_hub.nv: Hub.rt_note (a line of the hub in the feed)", "text (JSON text)", false),
     cs("route_review", "input", "src/server/routes_hub.nv: Hub.route_review_finish (the block of the independent review in the feed)", "family, step, text (JSON text)", false),
     cs("setting_chosen", "input", "src/server/hub.nv: Hub.watch_agent (the agent took a choice of the owner)", "agent, setting, value, at (JSON text)", false),
@@ -57,7 +57,7 @@ export fn signals_from_agent() -> []CodeSignal => [
     cs("turn_usage", "progress", "src/acp/client.nv: on_result (the usage of session/prompt), src/acp/project.nv: turn_usage_projection", "new, cached, output, total, reason (JSON text)", false),
     cs("agent_thought", "progress", "src/acp/project.nv: project_update", "text", false),
     cs("tool_call", "progress", "src/acp/project.nv: project_update", "JSON text", false),
-    cs("crew_marker", "progress", "src/acp/client.nv: AcpClient.push_answer_part (a marker cut out of the answer, src/acp/marker.nv)", "text (JSON text)", false),
+    cs("canopus_marker", "progress", "src/acp/client.nv: AcpClient.push_answer_part (a marker cut out of the answer, src/acp/marker.nv)", "text (JSON text)", false),
     cs("tool_call_update", "progress", "src/acp/project.nv: project_update", "JSON text", false),
     cs("usage_update", "progress", "src/acp/project.nv: project_update", "JSON text", false),
     cs("plan", "progress", "src/acp/project.nv: project_update", "JSON text", false),

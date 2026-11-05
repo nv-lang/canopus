@@ -1,11 +1,11 @@
-// config_migrate.nv - `crew-harness migrate [--from <data_dir>] [--dry-run]`: the old flat folder into the new layout (task 192.12, ADR-0016).
+// config_migrate.nv - `canopus migrate [--from <data_dir>] [--dry-run]`: the old flat folder into the new layout (task 192.12, ADR-0016).
 //
 // The old layout kept everything in `data_dir`: `projects.json`, `agents.json`, `last_dir.txt`, `stt.pid`, `serve.*.log`, `agent-config/` and a folder per session.
 // The new one: `data/projects.json`, `data/sessions/<id>/`, `state/{last_dir.txt, stt.pid, serve.*.log}`, `cache/{agents.json, agent-config/}`.
 // Nothing moves without the command. The small files are copied to `state/migrate-backup-<stamp>/` first; the folders of the sessions are MOVED (a rename,
 // no copy: they can be large); a target that is there already is never overwritten. The report is printed and written to `state/migrate-report-<stamp>.txt`.
 // The server must be stopped: it holds some of these files open.
-module crew_harness.config
+module canopus.config
 
 import std.text
 import std.fs.{Fs, Path, read_dir, rename, copy_file, create_dir_all, try_exists, metadata, write_atomic}
@@ -52,7 +52,7 @@ export fn plan_migration(from str, layout ConfigLayout) Fs -> Plan {
     mut steps = []Step.new()
     mut notes = []str.new()
     if layout.legacy || layout.home.byte_len() == 0 {
-        return Plan { from: src, steps, notes, error: "no root of the instance: give --home <folder> or set CREW_HOME (the new layout needs a root)" }
+        return Plan { from: src, steps, notes, error: "no root of the instance: give --home <folder> or set CANOPUS_HOME (the new layout needs a root)" }
     }
     if src == layout.data || src == layout.sessions || src == layout.state || src == layout.cache {
         return Plan { from: src, steps, notes, error: "${src} is a folder of the new layout already" }

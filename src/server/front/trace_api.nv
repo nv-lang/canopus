@@ -2,9 +2,9 @@
 //
 // The numbers are the numbers of the lines of the file, from 1, both ends included; `to` 0 or none - up to `from` + 199. At most 200 lines and 256 KiB of text go out; a line
 // over 16 KiB is cut. Every line goes through `secret_redact` (tokens, keys, user names of paths). The answer: `{"lines":[{"n","t","dir","line"}], "from", "to", "total", "truncated"}`.
-module crew_harness.server.front
+module canopus.server.front
 
-import crew_harness.storage.{session_file, secret_redact}
+import canopus.storage.{session_file, secret_redact}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 import std.fs.{Fs, real_fs, read_text}
 

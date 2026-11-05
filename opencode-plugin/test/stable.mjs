@@ -16,53 +16,53 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, "..")
 // the files that were flaky under load (tasks 085, 088); `npm run test:stable` runs them
 export const STABLE_FILES = [
-  "crew-landing-golden",
-  "crew-progress",
-  "crew-step-yield",
-  "crew-hung-turn",
-  "crew-hung-resume",
-  "crew-owner-answer",
-  "crew-stale-diag",
-  "crew-stuck",
-  "crew-stuck-clear",
-  "crew-acceptance-file",
-  "crew-profiles-layer",
-  "crew-answer-journal",
-  "crew-answer-golden",
-  "crew-profiles-select",
-  "crew-push",
-  "crew-plan-task",
-  "crew-landing-slot",
-  "crew-mcp",
+  "canopus-landing-golden",
+  "canopus-progress",
+  "canopus-step-yield",
+  "canopus-hung-turn",
+  "canopus-hung-resume",
+  "canopus-owner-answer",
+  "canopus-stale-diag",
+  "canopus-stuck",
+  "canopus-stuck-clear",
+  "canopus-acceptance-file",
+  "canopus-profiles-layer",
+  "canopus-answer-journal",
+  "canopus-answer-golden",
+  "canopus-profiles-select",
+  "canopus-push",
+  "canopus-plan-task",
+  "canopus-landing-slot",
+  "canopus-mcp",
   // task 088: the lock release race and the rest of the files that were red under load
-  "crew-landing-race",
-  "crew-landing-release",
-  "crew-nudge-matrix",
-  "crew-answer-flow",
-  "crew-landing-tip",
-  "crew-landing-gate",
-  "crew-review",
-  "crew-idle-tab",
-  "crew-esc-question",
-  "crew-owner-wait",
-  "crew-submit",
-  "crew-gate-stop",
-  "crew-answer-loop",
+  "canopus-landing-race",
+  "canopus-landing-release",
+  "canopus-nudge-matrix",
+  "canopus-answer-flow",
+  "canopus-landing-tip",
+  "canopus-landing-gate",
+  "canopus-review",
+  "canopus-idle-tab",
+  "canopus-esc-question",
+  "canopus-owner-wait",
+  "canopus-submit",
+  "canopus-gate-stop",
+  "canopus-answer-loop",
   // task 096: timing of the delay and the interrupt
-  "crew-form-auto-flow",
+  "canopus-form-auto-flow",
   // task 111: a service pass and the database in one file
-  "crew-panel-busy",
+  "canopus-panel-busy",
   // task 120: the passes of the service over a hand-made database
-  "crew-form-record-flow",
-  // task 127: the glued-words guard over the setup of the plugin and crew_send
-  "crew-glued",
-  "crew-glued-hooks",
+  "canopus-form-record-flow",
+  // task 127: the glued-words guard over the setup of the plugin and canopus_send
+  "canopus-glued",
+  "canopus-glued-hooks",
 ]
 
 const args = process.argv.slice(2)
 let runs = 10
 let jobs = 8
-let timeoutS = 1800 // crew-landing-gate alone takes about 4 minutes, several times that on a loaded machine (task 088)
+let timeoutS = 1800 // canopus-landing-gate alone takes about 4 minutes, several times that on a loaded machine (task 088)
 let all = false
 let cores = 0
 const names = []
@@ -105,7 +105,7 @@ const t0 = Date.now()
 const runOne = ({ f }) =>
   new Promise((resolve) => {
     const begun = Date.now()
-    const state = mkdtempSync(path.join(os.tmpdir(), "crew-test-native-state-"))
+    const state = mkdtempSync(path.join(os.tmpdir(), "canopus-test-native-state-"))
     const isolate = pathToFileURL(path.join(here, "native-isolation.mjs")).href
     const options = `${process.env.NODE_OPTIONS ?? ""} --import=${isolate}`.trim()
     const child = spawn(process.execPath, [f], { cwd: root, env: { ...process.env, XDG_STATE_HOME: state, NODE_OPTIONS: options }, stdio: ["ignore", "pipe", "pipe"] })

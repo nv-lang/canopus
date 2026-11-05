@@ -1,5 +1,5 @@
 // ОКНО ПЛАГИНА НЕ ОСТАЁТСЯ ОТКРЫТЫМ, КОГДА ЕГО КЛАВИШИ ЗАБРАЛ ДРУГОЙ РЕЖИМ (задача 069). Источник: владелец открыл окно плагина
-// (/crew-sets use ...), под ним пришёл вопрос встроенного вопросника, Esc «закрыть окно» отменил вопрос («The user dismissed this
+// (/canopus-sets use ...), под ним пришёл вопрос встроенного вопросника, Esc «закрыть окно» отменил вопрос («The user dismissed this
 // question»), вкладка осталась без ответа.
 //
 // ПОЧЕМУ ТАК (проверено по коду сборки OpenCode 2.0.26, подробности — doc/tasks/069-esc-keeps-question/analysis.md). Клавиша идёт ОДНОМУ
@@ -18,11 +18,11 @@
 const MODAL = "modal"
 
 /** The look of the guard and the time the stack of dialogs needs to push its own mode after show() (env: for self-tests). */
-export const GUARD_MS = Number(process.env.CREW_HARNESS_DIALOG_GUARD_MS) || 50
-export const GRACE_MS = Number(process.env.CREW_HARNESS_DIALOG_GRACE_MS) || 300
+export const GUARD_MS = Number(process.env.CANOPUS_DIALOG_GUARD_MS) || 50
+export const GRACE_MS = Number(process.env.CANOPUS_DIALOG_GRACE_MS) || 300
 
 export const HIJACK_NOTICE = {
-  title: "crew-harness",
+  title: "canopus",
   message: "Вопрос забрал клавиши у окна — окно закрыто, чтобы Esc не отменил вопрос. Ответьте на вопрос; команду можно открыть заново.",
 }
 

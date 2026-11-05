@@ -239,19 +239,19 @@ export async function beginPrecheck(t: Task, session: string, target: string): P
   const cur = fresh(t, session)
   if (!cur) return `Предпроверка не начата: ${REREAD}.`
   const snap = liveSnap(cur)
-  if (snap && snap.url !== cur.landing!.url) return `Предпроверка не начата: адрес remote ${cur.landing!.remote} в клоне результата сменился после привязки (был ${cur.landing!.url}, стал ${snap.url || "не прочитан"}). Привязку подтверждает интегратор заново: crew_task {action: "target", n: ${t.n}, dir, remote, branch, word}. Запись задачи не менялась.`
+  if (snap && snap.url !== cur.landing!.url) return `Предпроверка не начата: адрес remote ${cur.landing!.remote} в клоне результата сменился после привязки (был ${cur.landing!.url}, стал ${snap.url || "не прочитан"}). Привязку подтверждает интегратор заново: canopus_task {action: "target", n: ${t.n}, dir, remote, branch, word}. Запись задачи не менялась.`
   const rec = cur.precheck
   if (isLive(rec) && rec.base === tip.tip && rec.round === roundOf(cur) && sameSnap(rec.landing, snap)) {
-    if (rec.state === "green") return `Предпроверка уже зелёная на ${short(rec.base)} (кандидат ${short(rec.candidate ?? "")}, ${hm(rec.green_at ?? rec.at)}); ${target} пока на той же вершине. Дальше — crew_task {action: "merge", n: ${t.n}}: замок выдастся на эту вершину.${neighbourHints(cur, "running")}`
-    return `Предпроверка уже идёт с ${hm(rec.at)} на вершине ${rec.base} (${target}). Влей эту вершину в кандидата, прогони CI и заверши: crew_task {action: "precheck", n: ${t.n}, candidate: "<ветка или хеш>", result: "<чем подтверждено>"}.${neighbourHints(cur, "running")}`
+    if (rec.state === "green") return `Предпроверка уже зелёная на ${short(rec.base)} (кандидат ${short(rec.candidate ?? "")}, ${hm(rec.green_at ?? rec.at)}); ${target} пока на той же вершине. Дальше — canopus_task {action: "merge", n: ${t.n}}: замок выдастся на эту вершину.${neighbourHints(cur, "running")}`
+    return `Предпроверка уже идёт с ${hm(rec.at)} на вершине ${rec.base} (${target}). Влей эту вершину в кандидата, прогони CI и заверши: canopus_task {action: "precheck", n: ${t.n}, candidate: "<ветка или хеш>", result: "<чем подтверждено>"}.${neighbourHints(cur, "running")}`
   }
   const now = Date.now()
   cur.precheck = { state: "running", base: tip.tip, at: now, by: session, round: roundOf(cur), ...(snap ? { landing: snap } : {}) }
   const held = mergeHolder(cur.project)
   const note = isLive(rec) ? `предпроверка начата заново на ${short(tip.tip)} (прежняя на ${short(rec.base)}: ${rec.state === "green" ? "зелёная" : "шла"}, ${target} сдвинулась)` : `предпроверка начата на ${short(tip.tip)}`
   taskEvent(cur, session, undefined, note)
-  const lockNote = held && held.session === session && held.n === cur.n ? ` Замок вливания у тебя уже есть для этой задачи и остаётся; если он не нужен — crew_task {action: "unlock", n: ${t.n}}.` : ""
-  return `Предпроверка начата: ${target} на ${landingRemote(t)} сейчас ${tip.tip}${t.landing ? ` (репозиторий результата ${t.landing.dir})` : ""}. Влей эту вершину в кандидата (например, в ветку integrate/t${t.n}; имя плагин не навязывает), прогони CI и заверши: crew_task {action: "precheck", n: ${t.n}, candidate: "<ветка или хеш>", result: "<чем подтверждено: строка CI>"}. Замок вливания этим действием не берётся: merge выдаст его только на эту же вершину.${lockNote}${neighbourHints(cur, "running")}`
+  const lockNote = held && held.session === session && held.n === cur.n ? ` Замок вливания у тебя уже есть для этой задачи и остаётся; если он не нужен — canopus_task {action: "unlock", n: ${t.n}}.` : ""
+  return `Предпроверка начата: ${target} на ${landingRemote(t)} сейчас ${tip.tip}${t.landing ? ` (репозиторий результата ${t.landing.dir})` : ""}. Влей эту вершину в кандидата (например, в ветку integrate/t${t.n}; имя плагин не навязывает), прогони CI и заверши: canopus_task {action: "precheck", n: ${t.n}, candidate: "<ветка или хеш>", result: "<чем подтверждено: строка CI>"}. Замок вливания этим действием не берётся: merge выдаст его только на эту же вершину.${lockNote}${neighbourHints(cur, "running")}`
 }
 
 /** Коммит по имени или хешу из локального репозитория задачи: полный хеш или undefined. */
@@ -266,15 +266,15 @@ const FETCH_HINT = "подтяни объекты (git fetch) вручную и 
 export async function finishPrecheck(t: Task, session: string, target: string, input: { candidate?: string; result?: string }): Promise<string> {
   const rec0 = t.precheck
   const refuse = (why: string) => `Предпроверка не завершена: ${why}. Запись задачи не изменена${isLive(rec0) ? ` (остаётся ${rec0.state === "green" ? "зелёной" : "«идёт»"} на ${short(rec0.base)})` : ""}.`
-  if (!isLive(rec0)) return `Предпроверка не завершена: записи «идёт» или «зелёная» нет${rec0 ? ` (прежняя устарела: ${rec0.stale?.reason ?? "?"})` : ""}. Начни: crew_task {action: "precheck", n: ${t.n}} (без candidate и result).`
-  if (rec0.round !== roundOf(t)) return refuse(`запись прежнего круга, а задачу с тех пор возвращали; начни заново: crew_task {action: "precheck", n: ${t.n}}`)
-  if (!sameSnap(rec0.landing, liveSnap(t))) return refuse(`запись начата для другой привязки репозитория результата — иной dir/remote/ref или адрес remote сменился (предпроверка привязана к repo/remote/ref/url явно); начни заново: crew_task {action: "precheck", n: ${t.n}}`)
+  if (!isLive(rec0)) return `Предпроверка не завершена: записи «идёт» или «зелёная» нет${rec0 ? ` (прежняя устарела: ${rec0.stale?.reason ?? "?"})` : ""}. Начни: canopus_task {action: "precheck", n: ${t.n}} (без candidate и result).`
+  if (rec0.round !== roundOf(t)) return refuse(`запись прежнего круга, а задачу с тех пор возвращали; начни заново: canopus_task {action: "precheck", n: ${t.n}}`)
+  if (!sameSnap(rec0.landing, liveSnap(t))) return refuse(`запись начата для другой привязки репозитория результата — иной dir/remote/ref или адрес remote сменился (предпроверка привязана к repo/remote/ref/url явно); начни заново: canopus_task {action: "precheck", n: ${t.n}}`)
   const result = String(input.result ?? "").trim()
   const candidate = String(input.candidate ?? "").trim()
   if (!result) return refuse("нужен result — чем подтверждено (строка CI), непустой")
   if (!candidate) return refuse("нужен candidate — ветка или хеш собранного кандидата")
   const held = mergeHolder(t.project)
-  if (held && held.session === session && held.n === t.n) return refuse(`замок вливания уже у тебя для этой задачи; сначала crew_task {action: "unlock", n: ${t.n}}`)
+  if (held && held.session === session && held.n === t.n) return refuse(`замок вливания уже у тебя для этой задачи; сначала canopus_task {action: "unlock", n: ${t.n}}`)
   const dir = landingDir(t)
   target = landingTarget(t, target)
   if (!resolveCommit(dir, rec0.base)) return refuse(`основы ${short(rec0.base)} нет в локальном репозитории результата (${dir}); ${FETCH_HINT}`)
@@ -316,7 +316,7 @@ export async function finishPrecheck(t: Task, session: string, target: string, i
   const moved = tip.tip !== rec.base
   const pubNote = published ? ` Кандидат уже опубликован: он предок вершины ${target} (${short(tip.tip)}) на ${landingRemote(t)} — вливание не нужно, merge зафиксирует учёт, затем accept {n, commit: "${cand}"}.` : ""
   return `Предпроверка зелёная на ${short(rec.base)} (кандидат ${short(cand)}, результат: ${result.slice(0, 200)}). ${
-    moved ? `Но ${target} уже сдвинулась: сейчас ${short(tip.tip)} (проверено ${hm(now)}). Начни заново: crew_task {action: "precheck", n: ${t.n}} (эта запись остаётся, пока не начнёшь новую); замок на сдвинутую вершину не выдастся.` : `${target} пока не сдвинулась. Дальше — crew_task {action: "merge", n: ${t.n}}: замок выдастся на эту вершину.`
+    moved ? `Но ${target} уже сдвинулась: сейчас ${short(tip.tip)} (проверено ${hm(now)}). Начни заново: canopus_task {action: "precheck", n: ${t.n}} (эта запись остаётся, пока не начнёшь новую); замок на сдвинутую вершину не выдастся.` : `${target} пока не сдвинулась. Дальше — canopus_task {action: "merge", n: ${t.n}}: замок выдастся на эту вершину.`
   }${pubNote}${warn}`
 }
 
@@ -329,7 +329,7 @@ export function unlockMerge(t: Task, session: string): string {
   releaseTaskLocks(t, session, t.n)
   markPrecheckStale(t, "замок отпущен")
   taskEvent(t, session, undefined, "замок вливания отпущен (unlock); предпроверка устарела")
-  return `Замок вливания проекта ${t.project} отпущен. Предпроверка устарела (замок отпущен): чтобы вливать, начни заново — crew_task {action: "precheck", n: ${t.n}}.`
+  return `Замок вливания проекта ${t.project} отпущен. Предпроверка устарела (замок отпущен): чтобы вливать, начни заново — canopus_task {action: "precheck", n: ${t.n}}.`
 }
 
 /**
@@ -361,7 +361,7 @@ export async function releaseLandedLock(project: string, target: string): Promis
   // замок при готовой отметке: следующий проход службы видит отметку, не пишет её и событие второй раз и просто снимает замок.
   if (!cur.precheck.landed) {
     cur.precheck = { ...cur.precheck, landed: { tip: tip.tip, at: Date.now() } }
-    taskEvent(cur, "crew-harness", undefined, `замок отпущен: слияние на вершине ${short(tip.tip)} (проверенный кандидат ${short(rec.candidate)} уже в ${target}); дальше accept, уборка без замка`)
+    taskEvent(cur, "canopus", undefined, `замок отпущен: слияние на вершине ${short(tip.tip)} (проверенный кандидат ${short(rec.candidate)} уже в ${target}); дальше accept, уборка без замка`)
   }
   seams.betweenLandedSteps?.()
   releaseTaskLocks(cur, lock.session, lock.n)
@@ -405,11 +405,11 @@ export async function gateMerge(t: Task, session: string, target: string): Promi
   const rec = t.precheck
   const base = rec?.base ?? ""
   const refuse = (why: string, next = "") => ({ text: `Замок не выдан: ${why}.${next ? ` ${next}` : ""}` })
-  const start = `Начни с crew_task {action: "precheck", n: ${t.n}} без замка: назову вершину ${target}; влей её вместе с веткой задачи в candidate (например, integrate/t${t.n}), прогони полный CI проекта, сохрани точный проверенный commit и заверши precheck {candidate, result}. Замок бери только после зелёной записи; после merge fast-forward влей именно этот candidate. Если вершина сдвинулась — старый candidate не вливай, повтори интеграцию и CI.`
+  const start = `Начни с canopus_task {action: "precheck", n: ${t.n}} без замка: назову вершину ${target}; влей её вместе с веткой задачи в candidate (например, integrate/t${t.n}), прогони полный CI проекта, сохрани точный проверенный commit и заверши precheck {candidate, result}. Замок бери только после зелёной записи; после merge fast-forward влей именно этот candidate. Если вершина сдвинулась — старый candidate не вливай, повтори интеграцию и CI.`
   // 2. запись предпроверки
   if (!isFresh(rec, t)) {
-    if (!rec) return refuse(`merge без предпроверки отклоняется: у задачи ${taskRef(t)} нет зелёной предпроверки (в проекте merge_precheck: required)`, `${start} Затем снова вызови merge: замок выдаётся только на ту вершину, на которой проверен кандидат. Чужое вливание до замка не задерживается. Прежний порядок возвращает интегратор явным ключом merge_precheck: off.${mergeHolder(project)?.session === session ? ` Замок вливания у тебя уже есть: если предпроверку делать позже, отпусти его: crew_task {action: "unlock", n: ${t.n}}.` : ""}`)
-    if (rec.state === "running") return refuse(`предпроверка задачи ${taskRef(t)} ещё идёт (кандидат не завершён)`, `Заверши её: crew_task {action: "precheck", n: ${t.n}, candidate, result}.`)
+    if (!rec) return refuse(`merge без предпроверки отклоняется: у задачи ${taskRef(t)} нет зелёной предпроверки (в проекте merge_precheck: required)`, `${start} Затем снова вызови merge: замок выдаётся только на ту вершину, на которой проверен кандидат. Чужое вливание до замка не задерживается. Прежний порядок возвращает интегратор явным ключом merge_precheck: off.${mergeHolder(project)?.session === session ? ` Замок вливания у тебя уже есть: если предпроверку делать позже, отпусти его: canopus_task {action: "unlock", n: ${t.n}}.` : ""}`)
+    if (rec.state === "running") return refuse(`предпроверка задачи ${taskRef(t)} ещё идёт (кандидат не завершён)`, `Заверши её: canopus_task {action: "precheck", n: ${t.n}, candidate, result}.`)
     if (rec.state === "stale") return refuse(`предпроверка задачи ${taskRef(t)} устарела (${rec.stale?.reason ?? "причина не записана"})`, start)
     return refuse(`запись предпроверки прежнего круга: задачу с тех пор возвращали или передавали`, start)
   }
@@ -427,7 +427,7 @@ export async function gateMerge(t: Task, session: string, target: string): Promi
       if (lockStillMine(project, session, t.n)) {
         const cur = loadTask(project, t.n) ?? t
         taskEvent(cur, session, undefined, "повтор merge: уже влито")
-        return { text: `Ветка уже влита в ${target} (${m.how}); замок остаётся у тебя. Вызови crew_task {action: "accept", n: ${t.n}, ...}: повтор merge не нужен.` }
+        return { text: `Ветка уже влита в ${target} (${m.how}); замок остаётся у тебя. Вызови canopus_task {action: "accept", n: ${t.n}, ...}: повтор merge не нужен.` }
       }
       return { text: `Ветка уже влита в ${target} (${m.how}), но замок вливания снят (cancel или rework по другой задаче, перехват). accept без замка откажет. Повтори merge: он увидит вершину, сдвинутую самим вливанием, и откажет «сдвинулась»; нужна новая предпроверка.` }
     }
@@ -456,7 +456,7 @@ export async function gateMerge(t: Task, session: string, target: string): Promi
   if (!tip.ok) {
     if (!hadLock) releaseBoth()
     return hadLock
-      ? { text: `Вершину ${target} узнать не удалось (${tip.error}). Замок остаётся у тебя, как был; повтори merge позже или отпусти его: crew_task {action: "unlock", n: ${t.n}}.` }
+      ? { text: `Вершину ${target} узнать не удалось (${tip.error}). Замок остаётся у тебя, как был; повтори merge позже или отпусти его: canopus_task {action: "unlock", n: ${t.n}}.` }
       : refuse(`вершину ${target} на origin узнать не удалось (${tip.error})`, "Замок не взят; повтори merge через минуту. Влить без origin всё равно нельзя.")
   }
   // 7. вершина сдвинулась
@@ -530,7 +530,7 @@ export function landingLine(t: Task, target: string): string {
   if (!cand) return ""
   target = landingTarget(t, target)
   if (t.precheck?.published)
-    return `Проверенный кандидат ${cand} уже опубликован в ${target} (${landingDir(t)}, факт публикации перепроверен под замком): вливать не нужно — сразу crew_task {action: "accept", n: ${t.n}, commit: "${cand}"}.`
+    return `Проверенный кандидат ${cand} уже опубликован в ${target} (${landingDir(t)}, факт публикации перепроверен под замком): вливать не нужно — сразу canopus_task {action: "accept", n: ${t.n}, commit: "${cand}"}.`
   const br = t.branch ? resolveCommit(repoDir(t), t.branch) : undefined
   const diff = t.branch && br && br !== cand ? ` Ветка задачи ${t.branch} (${short(br)}) отличается от проверенного кандидата, это нормально (squash/пересборка): влей кандидата.` : ""
   const where = t.landing ? ` в репозитории результата ${t.landing.dir} (git -C ${t.landing.dir} push ${landingRemote(t)} ${cand}:${target})` : ` (git push origin ${cand}:${target})`

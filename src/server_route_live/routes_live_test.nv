@@ -1,7 +1,7 @@
-// routes_live_test.nv - the modes of work over a hub with the fake ACP agent (task 192q): the scenarios `scenario_route_*` of crew_harness.server/routes_kit.nv.
-module crew_harness.server_route_live
+// routes_live_test.nv - the modes of work over a hub with the fake ACP agent (task 192q): the scenarios `scenario_route_*` of canopus.server/routes_kit.nv.
+module canopus.server_route_live
 
-import crew_harness.server.{scenario_context_compaction, kit_routes, kit_routes_git, kit_routes_remote, scenario_route_fast, scenario_route_nosteps, scenario_route_tree, scenario_route_publish, scenario_route_planning, scenario_route_notree, kit_routes_recognize, scenario_route_recognize, kit_routes_wip, scenario_projectless_git_guard}
+import canopus.server.{scenario_context_compaction, kit_routes, kit_routes_git, kit_routes_remote, scenario_route_fast, scenario_route_nosteps, scenario_route_tree, scenario_route_publish, scenario_route_planning, scenario_route_notree, kit_routes_recognize, scenario_route_recognize, kit_routes_wip, scenario_projectless_git_guard}
 
 fn route_clean(report str) -> () {
     if report.byte_len() > 0 { panic("NOT AS IT MUST BE: ${report}") }

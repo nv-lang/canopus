@@ -5,10 +5,10 @@
 // of the independent reviewer. The state of a session (`RouteSession`) is rebuilt from the journal: every change is a signal of the journal
 // (`route_set`, `route_task`, `route_step`, `route_review`) and `RouteSession.apply` is the one place that reads it, live and on resume.
 // What touches the disk and git is in `routes_io.nv`, the use in `hub.nv`.
-module crew_harness.server
+module canopus.server
 
 import std.encoding.json.{Json, JsonValue, JsonObject}
-import crew_harness.config.{render_prompt}
+import canopus.config.{render_prompt}
 
 // ----- the files of the modes -----
 
@@ -315,15 +315,15 @@ export fn review_prompt(prompt str, message str, status str, diff str, answer st
 /// the files of the subtask, the prompt of a step. "" when there is nothing to say.
 export fn route_prelude(doc RouteDoc, with_instruction bool, task_shown str, n int, step_prompt str) -> str {
     mut parts = []str.new()
-    if with_instruction && doc.instruction.byte_len() > 0 { parts.push("[crew] ${doc.instruction}") }
+    if with_instruction && doc.instruction.byte_len() > 0 { parts.push("[canopus] ${doc.instruction}") }
     if task_shown.byte_len() > 0 {
         if n == 0 {
-            parts.push("[crew] Задача: ${task_shown}: сообщение — message.md, ведите progress.md, отмечая [x] выполненное.")
+            parts.push("[canopus] Задача: ${task_shown}: сообщение — message.md, ведите progress.md, отмечая [x] выполненное.")
         } else {
-            parts.push("[crew] Задача: ${task_shown}. Подзадача ${n}: сообщение — message.${n}.md, ведите progress.${n}.md, отмечая [x] выполненное.")
+            parts.push("[canopus] Задача: ${task_shown}. Подзадача ${n}: сообщение — message.${n}.md, ведите progress.${n}.md, отмечая [x] выполненное.")
         }
     }
-    if step_prompt.byte_len() > 0 { parts.push("[crew] Задание шага режима:\n${step_prompt}") }
+    if step_prompt.byte_len() > 0 { parts.push("[canopus] Задание шага режима:\n${step_prompt}") }
     joined(parts, "\n\n")
 }
 
@@ -335,7 +335,7 @@ export fn route_files_hint(task_shown str, n int, has_assignment bool, has_image
     if has_assignment { parts.push("в конце ${task_shown}/${mname} есть раздел «Задание» (задачу планировали): это и есть постановка") }
     if has_images { parts.push("картинки владельца лежат в ${task_shown}/images/, на них ссылки в сообщении") }
     if parts.len() == 0 { return "" }
-    "[crew] ${joined(parts, "; ")}."
+    "[canopus] ${joined(parts, "; ")}."
 }
 
 // ----- the state of a session -----
@@ -355,11 +355,11 @@ export type CtxRec { ms int, before int, after int }
 /// `added` the exact text that was appended to it (the undo takes it out), `undone` - the owner pressed "Отменить".
 export type ExtRec { id int, task int, title str, brief str, ms int, file str, added str, undone bool }
 
-/// The short reminder before every message of the owner (2-3 lines of the main): the mode, the step now, where the task and the branch are, and when to call `crew_task` / `crew_task_list`.
+/// The short reminder before every message of the owner (2-3 lines of the main): the mode, the step now, where the task and the branch are, and when to call `canopus_task` / `canopus_task_list`.
 export fn route_reminder(route str, step_title str, task_shown str, branch str) -> str => route_reminder_t(REMINDER_TEXT, route, step_title, task_shown, branch)
 
 /// The text of the reminder (`route_reminder`: route, step, place).
-export const REMINDER_TEXT = "[crew] Напоминание: режим «{route}», шаг: {step}; {place}.\n[crew] crew_task — раз в начале реальной работы над файлами, до первой правки; crew_task_list — только по просьбе хаба; вопрос или беседа — не работа; файлы задачи сам не заводи."
+export const REMINDER_TEXT = "[canopus] Напоминание: режим «{route}», шаг: {step}; {place}.\n[canopus] canopus_task — раз в начале реальной работы над файлами, до первой правки; canopus_task_list — только по просьбе хаба; вопрос или беседа — не работа; файлы задачи сам не заводи."
 
 /// The same over a text of a layer.
 export fn route_reminder_t(template str, route str, step_title str, task_shown str, branch str) -> str {

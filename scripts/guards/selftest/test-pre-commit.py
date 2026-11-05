@@ -31,7 +31,7 @@ def main():
     base = pr.mkdtemp()
     env0 = stlib.isolated_env(base)
     names = stlib.names_file(base, [P1])
-    env = dict(env0, CREW_PRIVATE_NAMES_FILE=names)
+    env = dict(env0, CANOPUS_PRIVATE_NAMES_FILE=names)
     counter = [0]
 
     def repo(**kw):
@@ -136,11 +136,11 @@ def main():
     def no_names_list_refuses():
         r = repo()
         stage(r, "doc/ok.md", "# ok\n")
-        e = dict(env0, CREW_PRIVATE_NAMES_FILE=os.path.join(base, "absent.txt"))
+        e = dict(env0, CANOPUS_PRIVATE_NAMES_FILE=os.path.join(base, "absent.txt"))
         before = stlib.head(r, env)
         proc = stlib.commit(r, e, "Add ok")
         assert proc.returncode != 0 and stlib.head(r, env) == before
-        assert "CREW_PRIVATE_NAMES" in proc.out + proc.err
+        assert "CANOPUS_PRIVATE_NAMES" in proc.out + proc.err
 
     def no_interpreter_refuses():
         r = repo()

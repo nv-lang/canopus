@@ -1,6 +1,6 @@
-module crew_harness.server
+module canopus.server
 
-import crew_harness.product_machines.{tree_text, product_registry}
+import canopus.product_machines.{tree_text, product_registry}
 import alula.machine.{NamedText}
 import alula.machine_text.{translate_checked_with, error_text}
 

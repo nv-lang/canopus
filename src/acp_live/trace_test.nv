@@ -1,7 +1,7 @@
 // trace_test.nv - the raw record of the exchange over the FAKE agent: every line, both ways, in the order of the exchange.
-module crew_harness.acp_live
+module canopus.acp_live
 
-import crew_harness.acp.{AcpConfig, AcpClient, open_client, open_client_traced, TRACE_LIMIT, acp_link}
+import canopus.acp.{AcpConfig, AcpClient, open_client, open_client_traced, TRACE_LIMIT, acp_link}
 import alula.engine.{Link, Incoming, EventKind}
 import std.encoding.json.{Json, JsonObject}
 import std.fs.{Fs, real_fs, Path, remove_dir_all, create_dir_all, read_text, try_exists}
@@ -10,7 +10,7 @@ import std.os.{Os, real_os, temp_dir, pid}
 fn trace_folder(name str) -> Path {
     ro base = with Os = real_os() { temp_dir() }
     ro id = with Os = real_os() { pid() }
-    ro dir = base.join("crew-acp-live-trace-${id}-${name}")
+    ro dir = base.join("canopus-acp-live-trace-${id}-${name}")
     with Fs = real_fs() {
         ro removed = remove_dir_all(dir)
         ro made = create_dir_all(dir)

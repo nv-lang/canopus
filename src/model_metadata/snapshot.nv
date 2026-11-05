@@ -1,6 +1,6 @@
 // Only an explicitly supplied trusted-host snapshot path is read; no discovery,
 // fetch, CLI, session creation, writes or native program startup.
-module crew_harness.model_metadata
+module canopus.model_metadata
 
 import std.fs.{Fs, Path, metadata, read_text}
 

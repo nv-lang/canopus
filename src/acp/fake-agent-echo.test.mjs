@@ -6,7 +6,7 @@ import test from 'node:test';
 
 async function fixture(t, flags = [], onChunk = () => {}) {
   const child = spawn(process.execPath, [fileURLToPath(new URL('./testdata/fake_agent.mjs', import.meta.url)), ...flags], {
-    stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, CREW_ECHO_FIXTURE: 'two words' },
+    stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, CANOPUS_ECHO_FIXTURE: 'two words' },
   });
   t.after(() => child.kill());
   const lines = createInterface({ input: child.stdout });
@@ -50,8 +50,8 @@ test('opt-in user echo strips only leading reminders without cross-turn leakage'
 
 test('env arguments exclude reminders and retain exact requested names', { timeout: 10000 }, async (t) => {
   const ask = await fixture(t);
-  assert.equal(await ask('[crew] never an env argument\n\nenv CREW_ECHO_FIXTURE CREW_ECHO_ABSENT_271'),
-    'env CREW_ECHO_FIXTURE=[two words]; CREW_ECHO_ABSENT_271=<unset>');
+  assert.equal(await ask('[crew] never an env argument\n\nenv CANOPUS_ECHO_FIXTURE CANOPUS_ECHO_ABSENT_271'),
+    'env CANOPUS_ECHO_FIXTURE=[two words]; CANOPUS_ECHO_ABSENT_271=<unset>');
 });
 
 

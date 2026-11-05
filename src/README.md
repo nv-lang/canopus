@@ -1,6 +1,6 @@
 # src: the product on Nova and its dependency `alula`
 
-The product CrewHarness on Nova (Oracle 0.1.0) is the folders below. The state machine engine and the core of the machines written as data live in the
+The product Canopus on Nova (Oracle 0.1.0) is the folders below. The state machine engine and the core of the machines written as data live in the
 package **`alula`** (task 144 moved them out of this folder, with the tests; the history before the move stays in this repository).
 
 ## What is where
@@ -14,9 +14,9 @@ package **`alula`** (task 144 moved them out of this folder, with the tests; the
 | `alula_cli_machines/`, `alula_eq_machines/`, `alula_tests_machines/`, `machine_run_machines/`, `machine_table_machines/`, `machine_text_machines/`, `machine_text_eq_machines/`, `machine_text_render_machines/` | tests only (task 158): the program, the translator, the checks and the interpreter of the pinned package on the machines of the product |
 | `acp/`, `acp_live/` | the ACP client and the handler of `Link` ([README](acp/README.md)) |
 | `storage/`, `pgconf/`, `pgdb/`, `pgstore/`, `pg/` | the file and PostgreSQL handlers of `Journal` and `Store` ([README](pg/README.md)) |
-| `server/`, `server_live/`, `server_pg/`, `server_delivery_live/` | the session server and the hub ([README](server/README.md)); the hub runs the dialog machine of the product (`crew_harness.product_machines`, `machines/product/dialog.alula.json`) on the package `alula`; `server_delivery_live` isolates delivery receipt/replay/crash and new-action identity checks (also discovered by `nova test src`) |
+| `server/`, `server_live/`, `server_pg/`, `server_delivery_live/` | the session server and the hub ([README](server/README.md)); the hub runs the dialog machine of the product (`canopus.product_machines`, `machines/product/dialog.alula.json`) on the package `alula`; `server_delivery_live` isolates delivery receipt/replay/crash and new-action identity checks (also discovered by `nova test src`) |
 | `web/` | the console in the browser |
-| `crew_harness.nv`, `crew_hub.nv` | the entry points: the front and the hub |
+| `canopus.nv`, `canopus_hub.nv` | the entry points: the front and the hub |
 
 | In the package `alula` (a dependency) | What it is |
 |---|---|

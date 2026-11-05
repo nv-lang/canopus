@@ -14,7 +14,7 @@
 // no clock, no random. The typed core is `chat_step` (state and event as sum types); `ChatSession.step` maps the
 // incoming event of the engine to a `ChatEvent` and calls the core. The state is encoded only at the border of
 // the snapshot (`encode_state`, `decode_state`).
-module crew_harness.chat
+module canopus.chat
 
 import alula.engine.{Incoming, EventKind, Environment, Transition, SendOrder, CancelOrder, Conclusion, FailCode, JournalParam, param, journal_event, fail_code_word}
 import std.encoding.json.{Json, JsonValue, JsonObject}

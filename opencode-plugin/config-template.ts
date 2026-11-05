@@ -1,5 +1,5 @@
 // Стандартный шаблон настроек проекта (задача 033): профили семей claude / codex / kimi, наборы, набор codex, потолок light,
-// шаблоны ветки и дерева. crew_config {action: "apply_template"} дописывает его в файл проекта; уже заданные ключи проекта побеждают.
+// шаблоны ветки и дерева. canopus_config {action: "apply_template"} дописывает его в файл проекта; уже заданные ключи проекта побеждают.
 export const CONFIG_TEMPLATE: Record<string, any> = {
   "model_profiles": {
     "claude": {

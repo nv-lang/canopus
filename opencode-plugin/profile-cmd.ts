@@ -1,4 +1,4 @@
-// КОМАНДЫ ОКНА /crew-sets И /crew-profiles (задача 003, ADR-0008, заменён ADR-0014). Правят профили и наборы прямо в файле проекта
+// КОМАНДЫ ОКНА /canopus-sets И /canopus-profiles (задача 003, ADR-0008, заменён ADR-0014). Правят профили и наборы прямо в файле проекта
 // (рабочая копия папки настроек, profile-layer.ts): СРАЗУ и атомарно, без коммита и без промежуточного слоя; `use` включает набор
 // (пишет profile_set), `check` проверяет. Ответ — текст для окна без хода модели. Правка, делающая включённый набор недопустимым
 // или создающая повисшую ссылку, отклоняется целиком (файл не тронут). Единственная точка журнала правок — commitEdit.
@@ -33,8 +33,8 @@ const refused = (project: string, command: string, why: string): string => {
 }
 const usageLine = (cmd: "sets" | "profiles"): string =>
   cmd === "sets"
-    ? `Глаголы /crew-sets: ${verbUsageList("sets")}. Этапы: develop, develop_accept, plan, plan_accept, spec, spec_accept, delivery, delivery_accept (прежнее accept — то же, что develop_accept; или русские: разработка, приёмка, планирование, приёмка-плана, разбор, приёмка-разбора, сдача, приёмка-сдачи). Без аргумента — таблица наборов.`
-    : `Глаголы /crew-profiles: ${verbUsageList("profiles")}. Без аргумента — таблица справочника.`
+    ? `Глаголы /canopus-sets: ${verbUsageList("sets")}. Этапы: develop, develop_accept, plan, plan_accept, spec, spec_accept, delivery, delivery_accept (прежнее accept — то же, что develop_accept; или русские: разработка, приёмка, планирование, приёмка-плана, разбор, приёмка-разбора, сдача, приёмка-сдачи). Без аргумента — таблица наборов.`
+    : `Глаголы /canopus-profiles: ${verbUsageList("profiles")}. Без аргумента — таблица справочника.`
 /** В окне команды — пункты меню, а не набираемые слова: тексты ссылаются на пункт меню, слэш-форма остаётся записью для памяти. */
 let windowMenu = false
 const ref = (slash: string, item: string): string => (windowMenu ? `пункт «${item}» меню ${slash.split(" ")[0]} (${slash})` : slash)
@@ -82,7 +82,7 @@ const cellsString = (set: any): string =>
     .join(", ") || "(пусто)"
 
 // ---------------------------------------------------------------------------------------------------------------------
-// /crew-sets: глаголы правки
+// /canopus-sets: глаголы правки
 
 function setNames(data: P.Data): string[] {
   return Object.keys(isObj(data.sets) ? data.sets : {}).sort()
@@ -91,7 +91,7 @@ const listSets = (data: P.Data) => (setNames(data).length ? setNames(data).join(
 
 export function setsEditVerb(dir: string, verb: string, args: string[]): { ok: boolean; text: string } | undefined {
   const ps = L.profileState(dir)
-  const command = `crew-sets ${verb}`
+  const command = `canopus-sets ${verb}`
   const bad = (why: string) => ({ ok: false, text: refused(ps.project, command, why) })
   switch (verb) {
     case "set": {
@@ -101,7 +101,7 @@ export function setsEditVerb(dir: string, verb: string, args: string[]): { ok: b
       if (!st) return bad(`этап «${stageWord}» не годится: ${P.STAGES_TEXT} (или русские названия)`)
       const cell = P.parseCell(cellWord)
       if (typeof cell === "string") return bad(cell)
-      if (!isObj(ps.data.sets?.[name])) return bad(`набора «${name}» нет (есть: ${listSets(ps.data)}); новый — /crew-sets new ${name}`)
+      if (!isObj(ps.data.sets?.[name])) return bad(`набора «${name}» нет (есть: ${listSets(ps.data)}); новый — /canopus-sets new ${name}`)
       return applyEdit(dir, command, ({ draft, data }) => (L.dSetCell(draft, name, st, cell), { what: `набор «${name}»: этап «${P.STAGE_RU[st]}» — ${P.cellText(cell)}${P.rawCell((data.sets as any)[name], st) ? ` (было ${P.cellText(P.rawCell((data.sets as any)[name], st))})` : ""}`, from: P.rawCell((data.sets as any)[name], st) ? P.cellText(P.rawCell((data.sets as any)[name], st)) : undefined, to: P.cellText(cell) }))
     }
     case "unset": {
@@ -155,7 +155,7 @@ export function setsEditVerb(dir: string, verb: string, args: string[]): { ok: b
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
-// /crew-profiles: глаголы правки
+// /canopus-profiles: глаголы правки
 
 function parseProfileArgs(args: string[]): P.Profile | string {
   // <модель> <context> output=<n> [input=<n>]
@@ -190,7 +190,7 @@ export function referencing(data: P.Data, family: string, tier?: string): string
 
 export function profilesEditVerb(dir: string, verb: string, args: string[]): { ok: boolean; text: string } | undefined {
   const ps = L.profileState(dir)
-  const command = `crew-profiles ${verb}`
+  const command = `canopus-profiles ${verb}`
   const bad = (why: string) => ({ ok: false, text: refused(ps.project, command, why) })
   const fams = (data: P.Data) => Object.keys(isObj(data.profiles) ? data.profiles : {}).sort()
   const listFams = (data: P.Data) => (fams(data).length ? fams(data).join(", ") : "справочник пуст")
@@ -225,7 +225,7 @@ export function profilesEditVerb(dir: string, verb: string, args: string[]): { o
       }
       return applyEdit(dir, command, ({ draft }) => {
         for (const t of P.PROFILE_TIERS) L.dSetProfile(draft, family, t, src?.[t] ?? { model: "" })
-        return { what: src ? `создана семья «${family}» как копия «${args[2]}»` : `создана семья «${family}» из трёх пустых записей («заполнить»: /crew-profiles set ${family} all <модель> <context> output=<n>)`, from: undefined, to: src ? args[2] : "3 пустых" }
+        return { what: src ? `создана семья «${family}» как копия «${args[2]}»` : `создана семья «${family}» из трёх пустых записей («заполнить»: /canopus-profiles set ${family} all <модель> <context> output=<n>)`, from: undefined, to: src ? args[2] : "3 пустых" }
       })
     }
     case "rename": {
@@ -275,7 +275,8 @@ export function profilesEditVerb(dir: string, verb: string, args: string[]): { o
 
 import path from "node:path"
 import { readdirSync } from "node:fs"
-import { BASE, PROFILES_README_URL } from "./paths.ts"
+import { BASE } from "./base.ts"
+import { PROFILES_README_URL } from "./paths.ts"
 import { DEFAULT_SPAWN_MODELS, LIMIT_RU, VIEW_GONE, fmtTokens, limitsText, loadConfig, readJson, settingsContext, verbUsageList } from "./core.ts"
 import { projectFor } from "./settings.ts"
 import { listTasks, taskNo } from "./tasks.ts"
@@ -336,13 +337,13 @@ function modelsOfSets(ps: L.PState, names: string[]): { keys: string[]; first: M
 }
 const groupsText = (g: { label: string; stages: string[] }[]): string[] => (g.length === 1 ? [g[0].label] : g.map((x) => `${x.label}: ${x.stages.join(", ")}`))
 
-/** /crew-sets ls (и команда без слов): набор в строке, ● у включённого, модели вместо «семья/режим», расшифровка коротких имён. */
+/** /canopus-sets ls (и команда без слов): набор в строке, ● у включённого, модели вместо «семья/режим», расшифровка коротких имён. */
 export function setsTable(ps: L.PState): string {
   const names = setNames(ps.data)
   const lines = [`Наборы проекта ${ps.project}. Включён: ${ps.name ? `«${ps.name}».` : "нет (модели — по spawn_models)."}`]
   if (!names.length) lines.push(`Наборов нет. Готовый пример файла (справочник и наборы) — в разделе README о профилях моделей:
 ${PROFILES_README_URL}
-Скопируйте пример в .opencode/crew-harness.json проекта (или передайте агенту: crew_config set) и коммитьте файл.`)
+Скопируйте пример в .opencode/canopus.json проекта (или передайте агенту: canopus_config set) и коммитьте файл.`)
   else {
     const { keys, first } = modelsOfSets(ps, names)
     const shorts = shortModelNames(keys)
@@ -388,7 +389,7 @@ function pickJson(ps: L.PState, kind: "sets" | "profiles", args: string[]): stri
 export function profilesTable(ps: L.PState): string {
   const fams = Object.keys(isObj(ps.data.profiles) ? ps.data.profiles : {}).sort()
   const lines = [`Справочник профилей проекта ${ps.project}: семья, ступень → модель, контекст.`]
-  if (!fams.length) lines.push(`Справочник пуст. Готовый пример файла (справочник и наборы) — в разделе README о профилях моделей:\n${PROFILES_README_URL}\nСкопируйте пример в .opencode/crew-harness.json проекта (или передайте агенту: crew_config set) и коммитьте файл.`)
+  if (!fams.length) lines.push(`Справочник пуст. Готовый пример файла (справочник и наборы) — в разделе README о профилях моделей:\n${PROFILES_README_URL}\nСкопируйте пример в .opencode/canopus.json проекта (или передайте агенту: canopus_config set) и коммитьте файл.`)
   for (const f of fams)
     for (const t of P.PROFILE_TIERS) {
       const p = (ps.data.profiles as any)[f][t]
@@ -403,9 +404,9 @@ export function profilesTable(ps: L.PState): string {
 const familyWindow = (p: any): string => [`контекст ${fmtTokens(Number(p.context))}`, ...(p.input !== undefined ? [`ввод ${fmtTokens(Number(p.input))}`] : []), `вывод ${fmtTokens(Number(p.output))}`].join(", ")
 
 /**
- * Экран семьи (задача 075; /crew-profiles show <семья>, Enter на семье в окне): ступени с моделью без провайдера и окном («то же» —
+ * Экран семьи (задача 075; /canopus-profiles show <семья>, Enter на семье в окне): ступени с моделью без провайдера и окном («то же» —
  * как у выше стоящей), какие наборы семью используют и на каких этапах (словами этапов), используется ли она включённым набором
- * сейчас. Провайдер и клетки «семья/ступень» набора — в `/crew-profiles ls` и `/crew-sets show <набор> <этап>`.
+ * сейчас. Провайдер и клетки «семья/ступень» набора — в `/canopus-profiles ls` и `/canopus-sets show <набор> <этап>`.
  */
 export function showFamily(ps: L.PState, family?: string): string {
   if (!family) return profilesTable(ps)
@@ -418,7 +419,7 @@ export function showFamily(ps: L.PState, family?: string): string {
   for (const t of P.PROFILE_TIERS) {
     const p = f[t]
     if (!p) lines.push(`  ${pad(t, 8)}записи нет`)
-    else if (P.isEmptyProfile(p)) lines.push(`  ${pad(t, 8)}пусто («заполнить»: ${ref(`/crew-profiles set ${family} ${t} <модель> <context> output=<n>`, "set")})`)
+    else if (P.isEmptyProfile(p)) lines.push(`  ${pad(t, 8)}пусто («заполнить»: ${ref(`/canopus-profiles set ${family} ${t} <модель> <context> output=<n>`, "set")})`)
     else {
       const win = familyWindow(p)
       lines.push(`  ${pad(t, 8)}${pad(idOf(p), w1)}${win === prev ? "то же" : win}`)
@@ -448,7 +449,7 @@ export function showFamily(ps: L.PState, family?: string): string {
 // Краткий вид набора (задача 066): таблица «этап × ступень» с короткими именами моделей, расшифровка, предупреждения одной
 // строкой, подсказка. Подробности (наследование, срезы ступеней, откуда контекст) — по этапу: showSetFull.
 
-/** Ширина диалога /crew (DIALOG_WIDTH в status.ts: импортировать нельзя — тот тянет ядро; самотест сверяет). */
+/** Ширина диалога /canopus (DIALOG_WIDTH в status.ts: импортировать нельзя — тот тянет ядро; самотест сверяет). */
 export const SETS_VIEW_WIDTH = 72
 const fit = (s: string, n = SETS_VIEW_WIDTH): string => {
   const a = [...s]
@@ -529,7 +530,7 @@ function gridOf(ps: L.PState, set: any): Row[] {
 }
 const tripleOf = (r?: Row): string => (r?.cols ? r.cols.map((c) => c.key ?? "∅").join("|") : "")
 
-const hintLine = (): string => (windowMenu ? "Подробно: пункт «show» меню /crew-sets (show <этап> или show all)" : "Подробно: /crew-sets show <этап> или show all")
+const hintLine = (): string => (windowMenu ? "Подробно: пункт «show» меню /canopus-sets (show <этап> или show all)" : "Подробно: /canopus-sets show <этап> или show all")
 
 /** Ошибки набора и профили, которых не хватает после среза ступеней, — строками ⚠ (обрезаны до ширины окна; полный текст — в подробном виде). */
 function problemWarns(ps: L.PState, n: string, rows: Row[]): string[] {
@@ -623,7 +624,7 @@ function parseShowArgs(ps: L.PState, args: string[]): { set?: string; only?: P.S
 
 export async function showSet(ps: L.PState, name: string | undefined, dir: string, deps: CmdDeps = {}, only?: P.Stage | "all"): Promise<string> {
   const n = name ?? ps.name
-  if (!n) return `Набор не включён (имени нет в файле проекта). Покажи любой: ${ref("/crew-sets show <имя>", "show")}; включить: ${ref("/crew-sets use <имя>", "use")}.`
+  if (!n) return `Набор не включён (имени нет в файле проекта). Покажи любой: ${ref("/canopus-sets show <имя>", "show")}; включить: ${ref("/canopus-sets use <имя>", "use")}.`
   const set = (ps.data.sets as any)?.[n]
   if (!isObj(set)) return `Набора «${n}» нет (есть: ${listSets(ps.data)}).`
   if (only) return showSetFull(ps, n, set, dir, only)
@@ -900,7 +901,7 @@ export function filesNote(f: { written: string[]; removed: string[]; foreign: st
 
 async function useSet(dir: string, name: string | undefined, deps: CmdDeps): Promise<string> {
   const ps = L.profileState(dir)
-  const command = "crew-sets use"
+  const command = "canopus-sets use"
   if (!name) return refused(ps.project, command, `нужно: use <имя>; наборы: ${listSets(ps.data)}`)
   if (!isObj(ps.data.sets?.[name])) return refused(ps.project, command, `набора «${name}» нет; наборы: ${listSets(ps.data)}`)
   const chk = P.checkData(ps.data, name)
@@ -957,7 +958,7 @@ async function useSet(dir: string, name: string | undefined, deps: CmdDeps): Pro
 /** Выключить набор: убрать profile_set из рабочей копии файла проекта; модели новых сессий снова по spawn_models. */
 function offSet(dir: string): string {
   const ps = L.profileState(dir)
-  const command = "crew-sets off"
+  const command = "canopus-sets off"
   if (!ps.name) return `Набор и так не включён (profile_set в файле проекта нет). Модели новых сессий — по spawn_models. Данные не тронуты.`
   const draft = L.draftOf(ps)
   draft.name = undefined
@@ -969,7 +970,7 @@ function offSet(dir: string): string {
   return [
     `Набор «${ps.name}» выключен; новые сессии пойдут по spawn_models, перезапуск не нужен.`,
     "profile_set убран из файла проекта без коммита: если имя уже закоммичено, оно вернётся из коммита — закоммитьте файл.",
-    `Наборы и справочник на месте; включить снова: ${ref("/crew-sets use <имя>", "use")}.`,
+    `Наборы и справочник на месте; включить снова: ${ref("/canopus-sets use <имя>", "use")}.`,
   ].join("\n")
 }
 

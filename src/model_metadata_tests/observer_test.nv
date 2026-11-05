@@ -4,11 +4,11 @@
 module model_metadata_tests.observer_test
 
 import std.encoding.json.{Json}
-import crew_harness.model_metadata.{normalize_dir, launch_identity, launch_sha256, basic_auth_header, server_password_of, http_body_of, binding_of, envelope_text, default_opencode_program}
+import canopus.model_metadata.{normalize_dir, launch_identity, launch_sha256, basic_auth_header, server_password_of, http_body_of, binding_of, envelope_text, default_opencode_program}
 
 test "the location of the binding compares with forward slashes on both sides" {
-    assert(normalize_dir("C:\\work\\crew") == "C:/work/crew")
-    assert(normalize_dir("C:/work/crew") == "C:/work/crew")
+    assert(normalize_dir("C:\\work\\crew") == "C:/work/canopus")
+    assert(normalize_dir("C:/work/canopus") == "C:/work/canopus")
 }
 
 test "the launch identity joins the program and its words and pins them by hash" {
@@ -40,11 +40,11 @@ test "the body of the catalog answer: status 200, chunked and content-length are
 
 test "the binding keeps the exact contract of the version" {
     ro launch = launch_sha256("opencode.cmd", ["serve"])
-    ro binding = binding_of("opencode", launch, "aabb", "C:/work/crew")
+    ro binding = binding_of("opencode", launch, "aabb", "C:/work/canopus")
     assert(binding.family == "opencode")
     assert(binding.launch_sha256 == launch)
     assert(binding.config_sha256 == "aabb")
-    assert(binding.location == "C:/work/crew")
+    assert(binding.location == "C:/work/canopus")
     assert(binding.contract == "opencode-acp-2.2.5")
     assert(binding.source == "opencode.api.model")
     assert(binding.source_version == "2.2.5")

@@ -1,10 +1,10 @@
-module crew_harness.server
+module canopus.server
 
-import crew_harness.acp.{AcpConfig}
-import crew_harness.storage.{valid_session_name, ensure_session_dir}
+import canopus.acp.{AcpConfig}
+import canopus.storage.{valid_session_name, ensure_session_dir}
 import std.os.{Os, real_os, env, args}
 import std.fs.{Fs, real_fs}
-import crew_harness.config.{load_presets, preset_named, preset_pick}
+import canopus.config.{load_presets, preset_named, preset_pick}
 import std.encoding.json.{JsonObject}
 
 // Trusted host/test DI only; no browser, model response or ACP method can set it.
@@ -53,7 +53,7 @@ fn Hub @preparation_config(s Dialog) -> Result[AcpConfig, str] {
         }
     }
     // D454: boundary override inside non-test code, see module-conventions
-    ro registration = with Os = real_os() { env("CREW_PREPARATION_SERVICE_REGISTRATION") ?? "" }
+    ro registration = with Os = real_os() { env("CANOPUS_PREPARATION_SERVICE_REGISTRATION") ?? "" }
     mut model = ""
     mut variant = ""
     for pick in presets_for(s.chosen, s.agent) {
@@ -78,12 +78,12 @@ fn Hub @preparation_config(s Dialog) -> Result[AcpConfig, str] {
     // Explicit fixture registration permits DI without reading the owner's registry or changing a session model.
     if model.byte_len() == 0 && registration.byte_len() > 0 {
         // D454: boundary override inside non-test code, see module-conventions
-        model = with Os = real_os() { env("CREW_PREPARATION_MODEL") ?? "" }
+        model = with Os = real_os() { env("CANOPUS_PREPARATION_MODEL") ?? "" }
         // D454: boundary override inside non-test code, see module-conventions
-        variant = with Os = real_os() { env("CREW_PREPARATION_VARIANT") ?? "" }
+        variant = with Os = real_os() { env("CANOPUS_PREPARATION_VARIANT") ?? "" }
     }
     // D454: boundary override inside non-test code, see module-conventions
-    ro explicit = with Os = real_os() { env("CREW_PREPARATION_ADAPTER") ?? "" }
+    ro explicit = with Os = real_os() { env("CANOPUS_PREPARATION_ADAPTER") ?? "" }
     // D454: boundary override inside non-test code, see module-conventions
     ro argv = with Os = real_os() { args() }
     ro local = "${@settings.routes_dir}/../../src/server/preparation-agent.mjs"

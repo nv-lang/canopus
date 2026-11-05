@@ -40,9 +40,9 @@ def main():
     base = pr.mkdtemp()
     env0 = stlib.isolated_env(base)
     names = stlib.names_file(base, ["# list", P1])
-    env = dict(env0, CREW_PRIVATE_NAMES_FILE=names)
+    env = dict(env0, CANOPUS_PRIVATE_NAMES_FILE=names)
     repo = stlib.make_repo(base, env, {"a.txt": "x\n"})
-    stlib.git(repo, env, "config", "crewharness.expectedEmail", EMAIL)
+    stlib.git(repo, env, "config", "canopus.expectedEmail", EMAIL)
     counter = [0]
 
     def write_msg(text):
@@ -131,7 +131,7 @@ def main():
         stlib.expect(run(text, "message"), 0, "ок: осмотрено 1 сообщений")
 
     def no_email_setting():
-        env2 = dict(env0, CREW_PRIVATE_NAMES_FILE=names)
+        env2 = dict(env0, CANOPUS_PRIVATE_NAMES_FILE=names)
         repo2 = stlib.make_repo(base, env2, {"a.txt": "x\n"}, name="noset")
         proc = run(good(), "message", repo=repo2, env=env2)
         stlib.expect(proc, 1, "FAIL: guard-commit-message: 1 нарушений")
@@ -142,24 +142,24 @@ def main():
         assert stlib.has_line(proc, "запусти установщик"), proc.out
 
     def ci_no_setting_nothing_to_judge():
-        env2 = dict(env0, CREW_PRIVATE_NAMES_FILE=names)
+        env2 = dict(env0, CANOPUS_PRIVATE_NAMES_FILE=names)
         repo2 = stlib.make_repo(base, env2, {"a.txt": "x\n"}, name="noset2")
         proc = run(good(), "message", "--ci", repo=repo2, env=env2)
         stlib.expect(proc, 0, "ок: осмотрено 1 сообщений")
         assert stlib.has_line(proc, "судить нечего: CI, нет настройки установщика"), proc.out
 
     def email_mismatch():
-        stlib.git(repo, env, "config", "crewharness.expectedEmail", "other@example.test")
+        stlib.git(repo, env, "config", "canopus.expectedEmail", "other@example.test")
         try:
             proc = run(good(), "message")
             stlib.expect(proc, 1, "FAIL: guard-commit-message: 1 нарушений")
             assert stlib.has_line(proc, "expected-email: адрес автора не совпадает"), proc.out
             stlib.expect(run(good(), "message", "--ci"), 0, "ок: осмотрено 1 сообщений")
         finally:
-            stlib.git(repo, env, "config", "crewharness.expectedEmail", EMAIL)
+            stlib.git(repo, env, "config", "canopus.expectedEmail", EMAIL)
 
     def no_names_list():
-        e = dict(env0, CREW_PRIVATE_NAMES_FILE=os.path.join(base, "absent.txt"))
+        e = dict(env0, CANOPUS_PRIVATE_NAMES_FILE=os.path.join(base, "absent.txt"))
         proc = run(good(), "message", env=e)
         stlib.expect(proc, 1, "FAIL: предпосылка")
 

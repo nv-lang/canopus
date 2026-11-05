@@ -1,5 +1,5 @@
 // presets_test.nv - the roles and the presets: the layers by name, the family of the independent check, the API reply (task 192.12).
-module crew_harness.config
+module canopus.config
 
 import std.os.{Os, real_os, temp_dir, pid}
 import std.fs.{Fs, real_fs, write_text, create_dir_all, remove_dir_all, Path}
@@ -25,7 +25,7 @@ test "269: role defaults and explicit weight overrides remain independent" {
 fn tmp_root2(name str) -> str {
     ro base = with Os = real_os() { temp_dir() }
     ro id = with Os = real_os() { pid() }
-    ro dir = base.join("crew-presets-${name}-${id}")
+    ro dir = base.join("canopus-presets-${name}-${id}")
     with Fs = real_fs() {
         ro gone = remove_dir_all(dir)
         ro made = create_dir_all(dir)
@@ -122,8 +122,8 @@ test "presets: the project replaces the user's preset of the same name, the othe
     ro root = tmp_root2("layers")
     put2(root, "inst/config/presets/a.json", "{\"roles\":{\"dev\":{\"family\":\"claude\"},\"dev_accept\":{\"family\":\"kimi\"}}}")
     put2(root, "inst/config/presets/b.json", "{\"roles\":{\"dev_accept\":{\"family\":\"codex\"}}}")
-    put2(root, "repo/.crew-harness/presets/a.json", "{\"roles\":{\"dev_accept\":{\"family\":\"opencode\"}}}")
-    ro layout = layout_in("${root}/inst", "${root}/repo/.crew-harness")
+    put2(root, "repo/.canopus/presets/a.json", "{\"roles\":{\"dev_accept\":{\"family\":\"opencode\"}}}")
+    ro layout = layout_in("${root}/inst", "${root}/repo/.canopus")
     match with Fs = real_fs() { load_presets(layout, ["codex", "claude"]) } {
         Err(e) => assert(false)
         Ok(list) => {

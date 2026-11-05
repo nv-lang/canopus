@@ -1,4 +1,4 @@
-// ПРОСРОЧЕННЫЕ ОТКРЫТЫЕ ВОПРОСЫ В crew_doctor (задача 060). Число считает страж проекта
+// ПРОСРОЧЕННЫЕ ОТКРЫТЫЕ ВОПРОСЫ В canopus_doctor (задача 060). Число считает страж проекта
 // scripts/guards/check-open-questions.py --overdue — тот же код, что оркестратор зовёт перед «пушь»; второго счётчика здесь нет:
 // плагин только вызывает скрипт и читает его первую строку «просрочено: N» и список. Проект без файла или стража — молчит.
 import { existsSync } from "node:fs"
@@ -10,7 +10,7 @@ export const OQ_FILE = ["doc", "open-questions.md"]
 
 type Run = (file: string, args: string[]) => Promise<string>
 
-/** Строки для crew_doctor: по проекту с просроченными вопросами (или со сбоем счёта). Ноль просроченных — ничего. */
+/** Строки для canopus_doctor: по проекту с просроченными вопросами (или со сбоем счёта). Ноль просроченных — ничего. */
 export async function overdueProblems(projects: { name: string; rootPath?: string; root: string }[], run: Run = (f, a) => execQueued(f, a, 15_000)): Promise<string[]> {
   const out: string[] = []
   for (const p of projects) {

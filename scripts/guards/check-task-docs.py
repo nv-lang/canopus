@@ -624,7 +624,7 @@ def check_number_dup(source, changed, rep):
             continue
         for folder in names:
             rep.add(folder, None, "task-number-dup", "номер %03d у двух папок задач: %s — одна задача — один номер (Канон, process.md, "
-                    "«Задача, сессия, подзадача»); новой задаче номер выдают crew_spawn плагина или scripts/task-number.mjs, "
+                    "«Задача, сессия, подзадача»); новой задаче номер выдают canopus_spawn плагина или scripts/task-number.mjs, "
                     "переименуй одну из папок на свободный номер" % (number, " и ".join(names)))
 
 

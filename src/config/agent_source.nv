@@ -1,5 +1,5 @@
 // Agent sources: pool levels are not native model efforts (task 269).
-module crew_harness.config
+module canopus.config
 
 import std.encoding.json.{JsonValue, JsonObject}
 

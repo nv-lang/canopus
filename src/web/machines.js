@@ -92,4 +92,4 @@ export function workingNow(session, queued = []) {
 }
 
 /** Ключ localStorage: раскрытие карточки отладки — по сессии. */
-export const machineOpenKey = (sessionId) => `crew-machine-debug:${sessionId}`;
+export const machineOpenKey = (sessionId) => `canopus-machine-debug:${sessionId}`;

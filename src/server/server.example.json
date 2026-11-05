@@ -1,8 +1,8 @@
 {
   "port": 8099,
-  "data_dir": "crew-data",
+  "data_dir": "canopus-data",
   "store": "files",
-  "pg": { "host": "127.0.0.1", "port": 5432, "database": "crew", "user": "crew_service" },
+  "pg": { "host": "127.0.0.1", "port": 5432, "database": "canopus", "user": "canopus_service" },
   "agents": [
     { "id": "opencode", "label": "OpenCode", "program": "opencode.cmd", "args": ["acp"] }
   ],
@@ -14,5 +14,5 @@
   "ask_form": true,
   "ask_timeout_seconds": 1800,
   "stt": { "url": "http://127.0.0.1:8178/inference", "language": "auto" },
-  "hub": { "program": "target/crew-hub.exe", "args": [] }
+  "hub": { "program": "target/canopus-hub.exe", "args": [] }
 }

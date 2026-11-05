@@ -12,19 +12,19 @@ const appSrc = read('app.js');
 const cssSrc = read('app.css');
 
 test('название нового проекта по имени папки: свободное — как есть, занятое — «имя (2)», «имя (3)», регистр не важен', () => {
-  assert.equal(uniqueProjectName('crew-harness', []), 'crew-harness');
-  assert.equal(uniqueProjectName('crew-harness', ['Другой']), 'crew-harness');
-  assert.equal(uniqueProjectName('crew-harness', ['crew-harness']), 'crew-harness (2)');
-  assert.equal(uniqueProjectName('crew-harness', ['Crew-Harness', 'crew-harness (2)']), 'crew-harness (3)');
+  assert.equal(uniqueProjectName('canopus', []), 'canopus');
+  assert.equal(uniqueProjectName('canopus', ['Другой']), 'canopus');
+  assert.equal(uniqueProjectName('canopus', ['canopus']), 'canopus (2)');
+  assert.equal(uniqueProjectName('canopus', ['Canopus-Harness', 'canopus (2)']), 'canopus (3)');
   assert.equal(uniqueProjectName('', []), 'Проект');
 });
 
 test('черновик новой сессии: есть в модели, помечен draft, не пишется на сервер; сбрасывается; поля меняются', () => {
   let m = initialModel();
-  m = addDraft(m, { id: 'd1', agent: 'codex', projectId: 'p1', project: 'crew', folder: 'C:/work/crew', branch: 'main', now: 5 });
+  m = addDraft(m, { id: 'd1', agent: 'codex', projectId: 'p1', project: 'crew', folder: 'C:/work/canopus', branch: 'main', now: 5 });
   const s = m.sessions.d1;
   assert.equal(s.draft, true);
-  assert.deepEqual([s.agent, s.projectId, s.folder, s.state, s.messages.length], ['codex', 'p1', 'C:/work/crew', 'idle', 0]);
+  assert.deepEqual([s.agent, s.projectId, s.folder, s.state, s.messages.length], ['codex', 'p1', 'C:/work/canopus', 'idle', 0]);
   m = patchDraft(m, 'd1', { agent: 'kimi' });
   assert.equal(m.sessions.d1.agent, 'kimi');
   // черновик одной сессии заменяет прежний
@@ -58,7 +58,7 @@ test('выбор/снятие проекта сохраняет черновик
 test('новый чат без проекта не наследует worktree, папку или ветку; закрепления переживают перезапуск', () => {
   assert.match(appSrc, /worktree: Boolean\(project\) && readWorktreePref\(\)/);
   assert.match(appSrc, /projectId: project \? project\.id : '', project: project \? project\.name : '', folder: folder \? folder\.path : '', branch: folder && folder\.branch \? folder\.branch : '', worktree: Boolean\(project\)/);
-  assert.match(appSrc, /const PINS_KEY = 'crew-console-session-pins'/);
+  assert.match(appSrc, /const PINS_KEY = 'canopus-console-session-pins'/);
   assert.match(appSrc, /pins: readPins\(\)/);
   assert.match(appSrc, /onPin\(trace, pinned\) \{ ui\.pins = \{ \.\.\.ui\.pins, \[trace\]: pinned \}; savePins\(ui\.pins\);/);
   assert.match(viewSrc, /worktreeButton\.hidden = currentRoute === 'planning' \|\| !session\.projectId/);

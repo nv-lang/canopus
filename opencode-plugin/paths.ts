@@ -1,9 +1,12 @@
-// ПАПКА ПЛАГИНА. Ящик — <данные OpenCode>/crew-harness: письма, карточки, задачи, наблюдения, состояние. Прежние
-// имена: opencode-peers (до плана 005, 2026-10-06), nova-peers (до 2026-10-05). Новое имя — ссылка-junction на настоящую
-// папку прежнего ящика: данные не двигаются, ничего не раздваивается. Модуль без зависимостей: его импортируют core,
+// ПАПКА ПЛАГИНА. Ящик — <данные OpenCode>/canopus: письма, карточки, задачи, наблюдения, состояние. Прежние
+// имена: crew-harness (до задачи 284, 2026-11-02), opencode-peers (до плана 005, 2026-10-06), nova-peers (до // guard-allow(legacy-name): карта переименования — прежние имена ящика, предмет переноса
+// 2026-10-05). Алиасов и ссылок-junction больше нет: существующий прежний ящик переносится однократно и явно
+// (migrateBase, из switch-манифеста задачи 284, при остановленной службе); до переноса существующая установка
+// получает понятный отказ, а новый пустой ящик рядом не создаётся. Модуль без зависимостей и без записи на
+// диск при импорте (отказ по старым env в точке входа идёт раньше любой мутации): его импортируют core,
 // tasks, watch, status, settings.
 
-import { existsSync, realpathSync, symlinkSync } from "node:fs"
+import { existsSync, lstatSync, realpathSync, renameSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
@@ -12,32 +15,71 @@ export function dataDir(): string {
   return xdg ? path.join(xdg, "opencode") : path.join(os.homedir(), ".local", "share", "opencode")
 }
 
-export const CREW_DIR = "crew-harness"
-/** прежние имена ящика, от новых к старым: opencode-peers (до 2026-10-06, план 005), nova-peers (до 2026-10-05) */
-export const LEGACY_DIRS = ["opencode-peers", "nova-peers"]
+export const CANOPUS_DIR = "canopus"
+/** прежние имена ящика, от новых к старым: crew-harness (до 2026-11-02, задача 284), opencode-peers (до 2026-10-06, план 005), nova-peers (до 2026-10-05) */ // guard-allow(legacy-name): карта переименования — прежние имена ящика
+export const LEGACY_DIRS = ["crew-harness", "opencode-peers", "nova-peers"] // guard-allow(legacy-name): карта переименования — прежние имена ящика, предмет переноса
 
-/**
- * Ящик плагина. Есть прежний (opencode-peers или nova-peers; любой может быть ссылкой) — новое имя становится
- * ссылкой-junction на его настоящую папку: данные не двигаются (Windows не переименует папку, файлы которой держат
- * окна и MCP-процессы), прежние процессы и новый код работают с одними файлами.
- */
-export function crewBase(root = dataDir()): string {
-  const neu = path.join(root, CREW_DIR)
-  if (existsSync(neu)) return neu
+/** Прежний ящик рядом с новым именем, если он есть. Только чтение: ничего не создаёт и не двигает. */
+export function legacyBase(root = dataDir()): string | undefined {
   for (const name of LEGACY_DIRS) {
     const old = path.join(root, name)
-    if (!existsSync(old)) continue
-    try {
-      symlinkSync(realpathSync(old), neu, "junction")
-      return neu
-    } catch {
-      return old
-    }
+    if (existsSync(old)) return old
   }
+  return undefined
+}
+
+/**
+ * Ящик плагина. Есть новый — возвращается он. Есть только прежний — понятный отказ (блокер существующей
+ * установки): ждёт однократного переноса по switch-манифесту задачи 284, новый пустой ящик рядом не создаётся.
+ */
+export function canopusBase(root = dataDir()): string {
+  const neu = path.join(root, CANOPUS_DIR)
+  if (existsSync(neu)) {
+    const old = legacyBase(root)
+    if (old) throw new Error(`canopus: рядом с новым ящиком ${neu} остался прежний ${old} — разберите вручную по switch-манифесту задачи 284 (двойной записи быть не должно)`)
+    return neu
+  }
+  const old = legacyBase(root)
+  if (old) throw new Error(`canopus: найден прежний ящик ${old}, а нового ${neu} нет. Нужен однократный перенос (задача 284, switch-манифест, при остановленной службе): migrateBase() или переименование папки в ${neu}. Новый пустой ящик не создаётся, данные не тронуты.`)
   return neu // прежнего ящика нет: новая установка
 }
 
-export const BASE = crewBase()
+/**
+ * Однократный перенос прежнего ящика в новое имя (switch-манифест задачи 284; служба остановлена, папку никто не
+ * держит). Живое состояние: настоящие данные в самом старом имени, новые — ссылки-junction на него. Перенос:
+ * ссылки просто снимаются, настоящая папка переименовывается. Возвращает квитанцию {from, to} со всеми
+ * снятыми именами; переносить нечего — undefined. После переноса прежних имён нет: ни алиасов, ни ссылок.
+ * Два настоящих прежних ящика сразу или ссылка наружу — отказ, разбор вручную. Откат — rollbackBase.
+ */
+export function migrateBase(root = dataDir()): { from: string[]; to: string } | undefined {
+  const neu = path.join(root, CANOPUS_DIR)
+  const found = LEGACY_DIRS.map((name) => path.join(root, name)).filter((p) => existsSync(p))
+  if (existsSync(neu)) {
+    if (found.length) throw new Error(`canopus: перенос невозможен: новый ящик ${neu} уже есть, а прежний ${found[0]} остался — разберите вручную по switch-манифесту задачи 284`)
+    return undefined
+  }
+  if (!found.length) return undefined
+  const links = found.filter((p) => lstatSync(p).isSymbolicLink())
+  const reals = found.filter((p) => !lstatSync(p).isSymbolicLink())
+  if (reals.length > 1) throw new Error(`canopus: перенос невозможен: несколько настоящих прежних ящиков (${reals.join(", ")}) — разберите вручную, какой из них живой`)
+  for (const link of links) {
+    const target = realpathSync(link)
+    if (path.dirname(target) !== root) throw new Error(`canopus: прежний ящик ${link} — ссылка наружу (${target}); разберите вручную`)
+  }
+  if (!reals.length) throw new Error(`canopus: перенос невозможен: прежние имена (${found.join(", ")}) — только ссылки без настоящей папки рядом; разберите вручную`)
+  for (const link of links) rmSync(link)
+  renameSync(reals[0], neu)
+  return { from: found, to: neu }
+}
+
+/** Откат переноса по его квитанции: новый ящик возвращается на прежнее имя. Нечего откатывать — undefined. */
+export function rollbackBase(root = dataDir(), toLegacy: string = LEGACY_DIRS[0]): { from: string; to: string } | undefined {
+  const neu = path.join(root, CANOPUS_DIR)
+  const old = path.join(root, toLegacy)
+  if (!existsSync(neu) || existsSync(old)) return undefined
+  renameSync(neu, old)
+  return { from: neu, to: old }
+}
 
 /** Раздел README о профилях моделей на GitHub: ответы команд и подсказки отсылают к нему прямой ссылкой (отдельным токеном: терминал делает её кликабельной). */
-export const PROFILES_README_URL = "https://github.com/unitcraft/crew-harness/blob/main/opencode-plugin/README.md#model-profiles-sets-of-models-and-windows-by-stage"
+export const PROFILES_README_URL = "https://github.com/unitcraft/canopus/blob/main/opencode-plugin/README.md#model-profiles-sets-of-models-and-windows-by-stage"

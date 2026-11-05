@@ -510,7 +510,7 @@ def main():
         files = dict((k, v) for k, v in real_journals().items() if not k.startswith("doc/tasks/001-"))
         assert len(files) >= 2, "мишень: отслеживаемых журналов кроме 001 меньше двух: %d" % len(files)
         base2 = pr.mkdtemp()
-        env2 = stlib.isolated_env(base2, {"CREW_PRIVATE_NAMES_FILE": stlib.names_file(base2, ["zz-no-such-" + "name-zz"])})
+        env2 = stlib.isolated_env(base2, {"CANOPUS_PRIVATE_NAMES_FILE": stlib.names_file(base2, ["zz-no-such-" + "name-zz"])})
         repo = stlib.hooked_repo(base2, env2, extra=files, install=False)
         proc = stlib.run(("sh", os.path.join("scripts", "guards", "run-all.sh"), "--ci"), cwd=repo, env=env2)
         last = stlib.verdict(proc)
@@ -739,7 +739,7 @@ def main():
     # ------------------------------------------------------------------------------------------------
     mm = "doc/tasks/066-n/"
     mm_msg = mm + "task/message.md"
-    mm_text = ("# Задание: Образец\n\nЗаказчик: владелец.\nРепозиторий: crew-harness, ветка main. Дата задания: 2026-10-17.\n"
+    mm_text = ("# Задание: Образец\n\nЗаказчик: владелец.\nРепозиторий: canopus, ветка main. Дата задания: 2026-10-17.\n"
                "Источник: чат оркестратора.\n\n## Чего хочет владелец (его слова, 2026-10-17, чат оркестратора)\n\n- «сделай»\n\n"
                "## Что нужно\n\n1. сделать\n\n## Критерии приёмки\n\n- тест зелёный\n\n## Результат и куда он попадает\n\n"
                "нет: результат — код: scripts/guards/\n\n## Связи\n\nнет: задача одна\n\n## Границы\n\n- чужое не трогать\n")

@@ -1,6 +1,6 @@
 // db_test.nv - the SQL side on a real PostgreSQL: save_step and load, the rules of the step, one transaction,
 // the rights of the application role, the migration.
-module crew_harness.pgdb
+module canopus.pgdb
 
 import std.encoding.json.{Json}
 import std.net.{real_net}
@@ -90,14 +90,14 @@ test "migration: runs again over a database with data and changes nothing" {
     ro l = loaded_or_stop(db.app, "s-1")
     assert(l.step == 1)
     assert(l.journal.len() == 1)
-    assert(test_count(db.admin, "select count(*) from crew.machine_snapshot") == 1)
+    assert(test_count(db.admin, "select count(*) from canopus.machine_snapshot") == 1)
     drop_test_db(db)
 }
 
-test "migration: the tables and the three functions are in the schema crew" {
+test "migration: the tables and the three functions are in the schema canopus" {
     ro db = new_test_db("objects")
-    assert(test_count(db.admin, "select count(*) from pg_tables where schemaname = 'crew'") == 2)
-    assert(test_count(db.admin, "select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'crew' and p.proname in ('save_step', 'load', 'list_sessions')") == 3)
+    assert(test_count(db.admin, "select count(*) from pg_tables where schemaname = 'canopus'") == 2)
+    assert(test_count(db.admin, "select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'canopus' and p.proname in ('save_step', 'load', 'list_sessions')") == 3)
     drop_test_db(db)
 }
 
@@ -156,7 +156,7 @@ test "UTF-8: Cyrillic, quotes, a line break and a letter of four bytes go throug
     assert(l.journal.len() == 1)
     assert(text_of_line(l.journal[0]) == text)
     // and in the table itself, not as \u escapes
-    ro raw = test_must_sql(db.admin, "select entry->'event'->'params'->>'text' from crew.machine_journal")
+    ro raw = test_must_sql(db.admin, "select entry->'event'->'params'->>'text' from canopus.machine_journal")
     assert(raw[0][0] == text)
     drop_test_db(db)
 }
@@ -169,11 +169,11 @@ test "step: the next step passes, the same step again with the same snapshot and
     assert(is_ok(save_step(db.app, "s-1", 1, snap_at(1, "x"), lines)))
     assert(is_ok(save_step(db.app, "s-1", 1, snap_at(1, "x"), lines)))
     assert(is_ok(save_step(db.app, "s-1", 1, snap_at(1, "x"), lines)))
-    assert(test_count(db.admin, "select count(*) from crew.machine_journal") == 2)
-    assert(test_count(db.admin, "select count(*) from crew.machine_snapshot") == 1)
+    assert(test_count(db.admin, "select count(*) from canopus.machine_journal") == 2)
+    assert(test_count(db.admin, "select count(*) from canopus.machine_snapshot") == 1)
     assert(is_ok(save_step(db.app, "s-1", 2, snap_at(2, "y"), [line_at(2, "c")])))
     assert(is_ok(save_step(db.app, "s-1", 2, snap_at(2, "y"), [line_at(2, "c")])))
-    assert(test_count(db.admin, "select count(*) from crew.machine_journal") == 3)
+    assert(test_count(db.admin, "select count(*) from canopus.machine_journal") == 3)
     drop_test_db(db)
 }
 
@@ -181,8 +181,8 @@ test "step: the first step of a session is 1, a session cannot begin with anothe
     ro db = new_test_db("first")
     assert(is_error_with(save_step(db.app, "s-1", 2, snap_at(2, "x"), [line_at(2, "a")]), "CH001"))
     assert(!is_ok(save_step(db.app, "s-1", 0, snap_at(0, "x"), [])))
-    assert(test_count(db.admin, "select count(*) from crew.machine_snapshot") == 0)
-    assert(test_count(db.admin, "select count(*) from crew.machine_journal") == 0)
+    assert(test_count(db.admin, "select count(*) from canopus.machine_snapshot") == 0)
+    assert(test_count(db.admin, "select count(*) from canopus.machine_journal") == 0)
     drop_test_db(db)
 }
 
@@ -193,7 +193,7 @@ test "step: skipping a number is an error and writes nothing" {
     ro l = loaded_or_stop(db.app, "s-1")
     assert(l.step == 1)
     assert(l.journal.len() == 1)
-    assert(test_count(db.admin, "select count(*) from crew.machine_journal") == 1)
+    assert(test_count(db.admin, "select count(*) from canopus.machine_journal") == 1)
     // the right number still works afterwards
     assert(is_ok(save_step(db.app, "s-1", 2, snap_at(2, "y"), [line_at(2, "b")])))
     drop_test_db(db)
@@ -259,8 +259,8 @@ test "one transaction: a line that cannot be stored takes the snapshot of the st
     ro l = loaded_or_stop(db.app, "s-1")
     assert(l.step == 1)
     assert(l.journal.len() == 1)
-    assert(test_count(db.admin, "select count(*) from crew.machine_snapshot") == 1)
-    assert(test_count(db.admin, "select count(*) from crew.machine_journal") == 1)
+    assert(test_count(db.admin, "select count(*) from canopus.machine_snapshot") == 1)
+    assert(test_count(db.admin, "select count(*) from canopus.machine_journal") == 1)
     // the step number 2 is free: the right save passes
     assert(is_ok(save_step(db.app, "s-1", 2, snap_at(2, "y"), [line_at(2, "good")])))
     drop_test_db(db)
@@ -270,14 +270,14 @@ test "one transaction: a snapshot that cannot be stored takes the lines down wit
     ro db = new_test_db("atomic2")
     ro bad = with Net = real_net() { pg_save_step(db.app, "s-1", 1, Some("[1,2]"), [line_at(1, "a")], Some(0)) }
     assert(!is_ok(bad))
-    assert(test_count(db.admin, "select count(*) from crew.machine_snapshot") == 0)
-    assert(test_count(db.admin, "select count(*) from crew.machine_journal") == 0)
+    assert(test_count(db.admin, "select count(*) from canopus.machine_snapshot") == 0)
+    assert(test_count(db.admin, "select count(*) from canopus.machine_journal") == 0)
     drop_test_db(db)
 }
 
 test "one transaction: the database itself refuses a line of a step that has no snapshot" {
     ro db = new_test_db("fk")
-    ro result = test_sql(db.admin, "insert into crew.machine_journal (id, step, seq, entry) values ('s-1', 1, 0, '{}')")
+    ro result = test_sql(db.admin, "insert into canopus.machine_journal (id, step, seq, entry) values ('s-1', 1, 0, '{}')")
     match result {
         Ok(rows) => assert(false)
         Err(f) => assert(f.sqlstate == "23503")
@@ -291,30 +291,30 @@ test "role: the application role cannot read the tables, write them, or create a
     ro db = new_test_db("rights")
     assert(is_ok(save_step(db.app, "s-1", 1, snap_at(1, "x"), [line_at(1, "a")])))
     for sql in [
-        "select * from crew.machine_snapshot",
-        "select * from crew.machine_journal",
-        "select count(*) from crew.machine_snapshot",
-        "insert into crew.machine_snapshot (id, step, snapshot) values ('s-2', 1, '{}')",
-        "insert into crew.machine_journal (id, step, seq, entry) values ('s-1', 1, 9, '{}')",
-        "update crew.machine_snapshot set step = 9",
-        "delete from crew.machine_journal",
-        "truncate crew.machine_snapshot cascade",
-        "create table crew.extra (a int)"
+        "select * from canopus.machine_snapshot",
+        "select * from canopus.machine_journal",
+        "select count(*) from canopus.machine_snapshot",
+        "insert into canopus.machine_snapshot (id, step, snapshot) values ('s-2', 1, '{}')",
+        "insert into canopus.machine_journal (id, step, seq, entry) values ('s-1', 1, 9, '{}')",
+        "update canopus.machine_snapshot set step = 9",
+        "delete from canopus.machine_journal",
+        "truncate canopus.machine_snapshot cascade",
+        "create table canopus.extra (a int)"
     ] {
         match test_sql(db.app, sql) {
             Ok(rows) => assert(false)
             Err(f) => assert(f.sqlstate == "42501")
         }
     }
-    assert(test_count(db.admin, "select count(*) from crew.machine_snapshot") == 1)
-    assert(test_count(db.admin, "select count(*) from crew.machine_journal") == 1)
+    assert(test_count(db.admin, "select count(*) from canopus.machine_snapshot") == 1)
+    assert(test_count(db.admin, "select count(*) from canopus.machine_journal") == 1)
     drop_test_db(db)
 }
 
 test "role: the application role can run save_step and load, and nothing else of the schema" {
     ro db = new_test_db("rights2")
     assert(is_ok(save_step(db.app, "s-1", 1, snap_at(1, "x"), [])))
-    ro rows = test_must_sql(db.app, "select step from crew.load('s-1')")
+    ro rows = test_must_sql(db.app, "select step from canopus.load('s-1')")
     assert(rows.len() == 1)
     assert(rows[0][0] == "1")
     drop_test_db(db)
@@ -323,14 +323,14 @@ test "role: the application role can run save_step and load, and nothing else of
 test "role: a login that is not a member of the application role has no access to the schema at all" {
     ro db = new_test_db("public")
     ro root = test_admin_on("postgres")
-    ro made = test_must_sql(root, "create role crew_u_stranger login password '${test_app_password()}'")
-    ro stranger PgConfig = { host: "127.0.0.1", port: test_port(), database: db.name, user: "crew_u_stranger", password: test_app_password() }
+    ro made = test_must_sql(root, "create role canopus_u_stranger login password '${test_app_password()}'")
+    ro stranger PgConfig = { host: "127.0.0.1", port: test_port(), database: db.name, user: "canopus_u_stranger", password: test_app_password() }
     assert(is_error_with(save_step(stranger, "s-1", 1, snap_at(1, "x"), []), "42501"))
     match load_session(stranger, "s-1") {
         Ok(found) => assert(false)
         Err(f) => assert(f.sqlstate == "42501")
     }
-    ro gone = test_must_sql(root, "drop role crew_u_stranger")
+    ro gone = test_must_sql(root, "drop role canopus_u_stranger")
     drop_test_db(db)
 }
 
@@ -361,16 +361,16 @@ test "list: no session in a new database, then the ids of the sessions once each
 test "list: a login that is not a member of the application role cannot list" {
     ro db = new_test_db("listpublic")
     ro root = test_admin_on("postgres")
-    ro old = test_must_sql(root, "drop role if exists crew_u_stranger2")
-    ro made = test_must_sql(root, "create role crew_u_stranger2 login password '${test_app_password()}'")
-    ro stranger PgConfig = { host: "127.0.0.1", port: test_port(), database: db.name, user: "crew_u_stranger2", password: test_app_password() }
+    ro old = test_must_sql(root, "drop role if exists canopus_u_stranger2")
+    ro made = test_must_sql(root, "create role canopus_u_stranger2 login password '${test_app_password()}'")
+    ro stranger PgConfig = { host: "127.0.0.1", port: test_port(), database: db.name, user: "canopus_u_stranger2", password: test_app_password() }
     with Net = real_net() {
         match pg_list(stranger) {
             Ok(ids) => assert(false)
             Err(f) => assert(f.sqlstate == "42501")
         }
     }
-    ro gone = test_must_sql(root, "drop role crew_u_stranger2")
+    ro gone = test_must_sql(root, "drop role canopus_u_stranger2")
     drop_test_db(db)
 }
 
@@ -393,15 +393,15 @@ test "fault: a wrong password is a fault that does not contain the password" {
 test "SCRAM: a login with a SCRAM-SHA-256 secret connects and works, with the wrong password it is a fault" {
     ro db = new_test_db("scram")
     ro root = test_admin_on("postgres")
-    ro gone = test_must_sql(root, "drop role if exists crew_u_scram_login")
-    ro made = test_must_sql(root, "set password_encryption = 'scram-sha-256'; create role crew_u_scram_login login password '${test_app_password()}' in role crew_app")
-    assert(test_count(root, "select count(*) from pg_authid where rolname = 'crew_u_scram_login' and rolpassword like 'SCRAM-SHA-256$%'") == 1)
-    ro scram PgConfig = { host: "127.0.0.1", port: test_port(), database: db.name, user: "crew_u_scram_login", password: test_app_password() }
+    ro gone = test_must_sql(root, "drop role if exists canopus_u_scram_login")
+    ro made = test_must_sql(root, "set password_encryption = 'scram-sha-256'; create role canopus_u_scram_login login password '${test_app_password()}' in role canopus_app")
+    assert(test_count(root, "select count(*) from pg_authid where rolname = 'canopus_u_scram_login' and rolpassword like 'SCRAM-SHA-256$%'") == 1)
+    ro scram PgConfig = { host: "127.0.0.1", port: test_port(), database: db.name, user: "canopus_u_scram_login", password: test_app_password() }
     assert(is_ok(save_step(scram, "s-1", 1, snap_at(1, "x"), [line_at(1, "a")])))
     assert(loaded_or_stop(scram, "s-1").step == 1)
     ro wrong PgConfig = { host: scram.host, port: scram.port, database: scram.database, user: scram.user, password: wrong_password() }
     assert(!is_ok(save_step(wrong, "s-1", 2, snap_at(2, "y"), [])))
-    ro dropped = test_must_sql(root, "drop role crew_u_scram_login")
+    ro dropped = test_must_sql(root, "drop role canopus_u_scram_login")
     drop_test_db(db)
 }
 

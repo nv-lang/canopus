@@ -4,7 +4,7 @@
 // Claude Code закрывается, уведомления о конце не будет (замер). Случай владельца: интегратор поставил ожидание
 // вердикта гейта в фон и закончил ход «уведомление придёт само» — гейт кончился, окно стояло.
 //
-// crew_watch {command}: инструмент только КЛАДЁТ задание (watches/<id>.req.json) — MCP-сервер окна claude-code
+// canopus_watch {command}: инструмент только КЛАДЁТ задание (watches/<id>.req.json) — MCP-сервер окна claude-code
 // умирает вместе с ходом. Запускает его плагин (сервер OpenCode, проход доставки): команда идёт в Git Bash
 // ОТКРЕПЛЁННО (переживает и перезапуск сервиса), вывод — в <id>.out, код выхода — в <id>.exit. Когда код появился —
 // письмо окну с побудкой: код, длительность, хвост вывода. Процесс пропал без кода — письмо «оборвано».
@@ -13,13 +13,13 @@ import { execFileSync, spawn, spawnSync } from "node:child_process"
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { readJson } from "./core.ts"
-import { BASE } from "./paths.ts"
+import { BASE } from "./base.ts"
 
 export const WATCHES = path.join(BASE, "watches")
 export const WATCH_MAX_MIN = 720
 export const WATCH_DEFAULT_MIN = 120
 
-/** crew_timer: таймер — наблюдение, чья команда спит. Минуты больше 0 и меньше WATCH_MAX_MIN; предел наблюдения — на минуту длиннее сна. */
+/** canopus_timer: таймер — наблюдение, чья команда спит. Минуты больше 0 и меньше WATCH_MAX_MIN; предел наблюдения — на минуту длиннее сна. */
 export function timerSpec(minutes: unknown): { seconds: number; limit: number } | { error: string } {
   const m = Number(minutes)
   if (!Number.isFinite(m) || m <= 0) return { error: "minutes: число минут больше 0" }
@@ -48,11 +48,11 @@ export type Watch = {
   code?: number | null
   /** снято: задача закрыта */
   dropped?: boolean
-  /** отменено своей вкладкой (crew_watch cancel) */
+  /** отменено своей вкладкой (canopus_watch cancel) */
   cancelled?: boolean
   /** перенесено из дерева убираемой задачи в основную копию (новое наблюдение — с другим id) */
   moved?: boolean
-  /** кто поставил (план 002.7, п.5): CREW_SESSION_ID, CREW_ROLE, CREW_PROJECT, CREW_REVIEW_N / CREW_TASK_N —
+  /** кто поставил (план 002.7, п.5): CANOPUS_SESSION_ID, CANOPUS_ROLE, CANOPUS_PROJECT, CANOPUS_REVIEW_N / CANOPUS_TASK_N —
    *  в окружение команды. Фиксируется при постановке и лежит в записи на диске: запуск после перезапуска сервера
    *  берёт те же значения, а не роль вкладки на момент запуска. */
   env?: Record<string, string>
@@ -100,15 +100,15 @@ function pidAlive(pid?: number): boolean {
   }
 }
 
-/** Метка наблюдения (задача 101): каждый процесс команды наследует CREW_WATCH_ID=<id> — по ней находят всё дерево команды, в том числе потомков, чьи родители уже мертвы. */
-export const WATCH_MARK = "CREW_WATCH_ID"
+/** Метка наблюдения (задача 101): каждый процесс команды наследует CANOPUS_WATCH_ID=<id> — по ней находят всё дерево команды, в том числе потомков, чьи родители уже мертвы. */
+export const WATCH_MARK = "CANOPUS_WATCH_ID"
 const watchEnv = (w: Watch) => ({ ...process.env, ...(w.env ?? {}), [WATCH_MARK]: w.id })
 
 /** Скрипт Git Bash: pid (Windows-pid под msys, иначе обычный pid) всех процессов с меткой наблюдения $1 и их потомков по PPID.
  *  Окружение читается из /proc/<pid>/environ встроенными средствами bash (без вилок: весь обход — доли секунды).
  *  Последняя строка вывода — TREE_END: без неё обход не дошёл до конца (Git Bash под нагрузкой иногда падает на старте с
  *  «cmalloc would have returned NULL», и тогда вывод пуст — как у дерева без единого процесса). */
-const TREE_END = "CREW_TREE_SCAN_END"
+const TREE_END = "CANOPUS_TREE_SCAN_END"
 const TREE_SCRIPT = `
 declare -A parent mark
 for d in /proc/[0-9]*; do
@@ -180,7 +180,7 @@ export function killWatchTree(w: Watch, log: (s: string) => void = () => {}): nu
  *  с 0xC0000142 до первой команды. Здесь внешний bash запускается НЕ откреплённо и скрыто — Windows даёт ему новую
  *  скрытую консоль; он порождает внутренний bash (в консоли внешнего, вне job-объекта Node — не умирает с службой) и
  *  сразу выходит; внутренний пишет свой Windows-pid в `.pid` и ведёт команду. Вся цепочка команды делит одну консоль,
- *  дерево закрывает killWatchTree (метка CREW_WATCH_ID, задача 101), консоль закрывается с последним процессом.
+ *  дерево закрывает killWatchTree (метка CANOPUS_WATCH_ID, задача 101), консоль закрывается с последним процессом.
  *  Возвращает pid внутреннего bash или undefined (файл с pid не появился). */
 function startWithConsole(w: Watch, script: string): number | undefined {
   const pidFile = forBash(file(w.id, ".pid"))
@@ -202,7 +202,7 @@ function start(w: Watch, now: number, log: (s: string) => void): Watch {
   const exit = forBash(file(w.id, ".exit"))
   const script = `timeout ${w.minutes * 60} bash -c ${quote(w.command)} > ${quote(out)} 2>&1; echo $? > ${quote(exit + ".tmp")} && mv ${quote(exit + ".tmp")} ${quote(exit)}`
   try {
-    if (process.platform === "win32" && !process.env.CREW_HARNESS_WATCH_NO_CONSOLE) {
+    if (process.platform === "win32" && !process.env.CANOPUS_WATCH_NO_CONSOLE) {
       const pid = startWithConsole(w, script)
       if (!pid) log(`watch ${w.id}: pid внутреннего bash не появился за 10 с`)
       return { ...w, status: "running", ...(pid ? { pid } : {}), started: now }
@@ -352,7 +352,7 @@ export function dropWatch(w: Watch, log: (s: string) => void = () => {}, now = D
  *  ошибкой в команде 90 мин держало единственное место машины nova, снять его можно было только руками. */
 export function cancelWatch(id: string, session: string, log: (s: string) => void = () => {}, now = Date.now()): { ok: boolean; text: string } {
   const w = readJson<Watch>(file(id, ".req.json")) ?? readJson<Watch>(file(id, ".json"))
-  if (!w || w.status === "done") return { ok: false, text: `Открытого наблюдения ${id} нет (crew_watch без команды — список своих).` }
+  if (!w || w.status === "done") return { ok: false, text: `Открытого наблюдения ${id} нет (canopus_watch без команды — список своих).` }
   if (w.session !== session) return { ok: false, text: `Наблюдение ${id} — не этой вкладки; отменить его может только она.` }
   dropWatch(w, log, now, { cancelled: true })
   return { ok: true, text: `Наблюдение ${w.note ? `«${w.note}» ` : ""}${id} отменено${w.status === "requested" ? " (снято из очереди)" : " (процесс остановлен)"}${w.machine ? ", место в очереди машины свободно" : ""}. Письма о нём не будет.` }

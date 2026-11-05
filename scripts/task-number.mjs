@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // Номер задачи для агента вне OpenCode (задача 058, REQ-21; вопрос В-05).
 //
-// Зачем: быстрые задачи заводит и агент вне OpenCode (оркестратор), а crew_spawn плагина — окна OpenCode; без общего счёта оба
+// Зачем: быстрые задачи заводит и агент вне OpenCode (оркестратор), а canopus_spawn плагина — окна OpenCode; без общего счёта оба
 // берут один номер наперегонки. Скрипт берёт номер тем же кодом плагина (opencode-plugin/task-numbers.ts: 1 + наибольший номер
 // записей проекта и папок задач во всех рабочих деревьях, локальных ветках и ветках origin), занимает его записью в хранилище
-// плагина (атомарное создание файла, как crew_spawn) и заводит папку NNN-<slug>/ (task/message.md и log.md с первой строкой) в
+// плагина (атомарное создание файла, как canopus_spawn) и заводит папку NNN-<slug>/ (task/message.md и log.md с первой строкой) в
 // указанном дереве. Коммитит агент сам, на своей ветке; основную копию целевой ветки скрипт не трогает (откажет, если дерево — она).
 //
 // Запуск (node >= 24, из любого каталога):
@@ -51,7 +51,7 @@ const common = path.resolve(top, git("rev-parse", "--git-common-dir"))
 const mainRoot = path.dirname(common)
 if (!a["allow-main"] && path.resolve(mainRoot).toLowerCase() === path.resolve(top).toLowerCase()) fail("дерево — основная копия; папка задачи заводится в рабочем дереве на ветке задачи")
 const rel = String(a["tasks-dir"] ?? tn.DEFAULT_TASKS_DIR).replace(/\\/g, "/").replace(/^\.\/+|\/+$/g, "")
-if (!rel) fail("пустой --tasks-dir: у проекта без папок задач номер выдаёт только crew_spawn")
+if (!rel) fail("пустой --tasks-dir: у проекта без папок задач номер выдаёт только canopus_spawn")
 const project = String(a.project ?? path.basename(mainRoot)).trim()
 const title = String(a.title).trim()
 const slug = a.slug ? tasks.slugify(String(a.slug)) : tasks.slugify(title)

@@ -1,17 +1,17 @@
 // store_test.nv - the projects of the control panel: the paths, the id, create / read / replace / delete, the list without the values,
 // a file that is replaced as a whole, a broken file.
-module crew_harness.projects
+module canopus.projects
 
 import std.encoding.json.{Json, JsonObject}
 import std.fs.{Fs, real_fs, Path, read_text, write_text, remove_dir_all, try_exists, create_dir_all, read_dir}
 import std.os.{Os, real_os, temp_dir, pid}
 import std.text
 
-// A clean data folder of one test, outside the repository: <temp>/crew-projects-test-<pid>-<name>.
+// A clean data folder of one test, outside the repository: <temp>/canopus-projects-test-<pid>-<name>.
 fn fresh_root(name str) -> str {
     ro base = with Os = real_os() { temp_dir() }
     ro id = with Os = real_os() { pid() }
-    ro dir = base.join("crew-projects-test-${id}-${name}")
+    ro dir = base.join("canopus-projects-test-${id}-${name}")
     with Fs = real_fs() {
         ro removed = remove_dir_all(dir)
     }

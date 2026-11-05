@@ -11,7 +11,7 @@
 # test-contour.sh - a test contour of the console (пульт) from THIS worktree, for the owner's check of a small-route
 # task (task 191): the owner says «сделай X мгновенно» / «сделай X, супер быстро» (the orchestrator recognizes the entry),
 # the executor raises the contour and gives the owner the
-# link; the mark «ссылка на контур выдана» is crew_task {action: "contour", n, link}.
+# link; the mark «ссылка на контур выдана» is canopus_task {action: "contour", n, link}.
 #
 #   sh scripts/test-contour.sh             start the contour, print the link (a free port from 8100 up)
 #   sh scripts/test-contour.sh --port 8103 start on this port
@@ -40,7 +40,7 @@ while [ $# -gt 0 ]; do
 done
 
 hash=$(printf '%s' "$tree" | tr 'A-Z' 'a-z' | sha1sum | cut -c1-8)
-dir="${TMPDIR:-/tmp}/crew-contour-$hash"
+dir="${TMPDIR:-/tmp}/canopus-contour-$hash"
 pidfile="$dir/contour.pid"
 
 if [ "$stop" -eq 1 ]; then
@@ -63,21 +63,21 @@ main_copy=$(CDPATH= cd -- "$(git rev-parse --git-common-dir)/.." && pwd)
 # a server task: the diff to main touches src/ outside src/web — build from THIS tree, else take the built main copy
 if git diff --name-only main...HEAD -- src/ | grep -v '^src/web/' | grep -q .; then build=1; fi
 
-front="$tree/target/crew-harness"
-hub="$tree/target/crew-hub"
+front="$tree/target/canopus"
+hub="$tree/target/canopus-hub"
 exe=""
 case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) exe=".exe" ;; esac
 if [ "$build" -eq 1 ]; then
     echo "building the server programs of THIS tree..."
-    nova build "src/crew_hub.nv" -o "target/crew-hub$exe"
-    nova build "src/crew_harness.nv" -o "target/crew-harness$exe"
+    nova build "src/canopus_hub.nv" -o "target/canopus-hub$exe"
+    nova build "src/canopus.nv" -o "target/canopus$exe"
 else
-    front="$main_copy/target/crew-harness"
-    hub="$main_copy/target/crew-hub"
+    front="$main_copy/target/canopus"
+    hub="$main_copy/target/canopus-hub"
     if [ ! -x "$front$exe" ] || [ ! -x "$hub$exe" ]; then
         echo "The built programs of the main copy are not there ($front$exe). Build them in the main copy:" >&2
-        echo "  nova build src/crew_hub.nv -o target/crew-hub$exe" >&2
-        echo "  nova build src/crew_harness.nv -o target/crew-harness$exe" >&2
+        echo "  nova build src/canopus_hub.nv -o target/canopus-hub$exe" >&2
+        echo "  nova build src/canopus.nv -o target/canopus$exe" >&2
         exit 1
     fi
 fi
@@ -128,5 +128,5 @@ fi
 echo "$pid" >"$pidfile"
 echo "$port" >"$dir/contour.port"
 echo "the test contour of this tree is up: http://127.0.0.1:$port/"
-echo "give the link to the owner and record the mark: crew_task {action: \"contour\", n: <N>, link: \"http://127.0.0.1:$port/\"}"
+echo "give the link to the owner and record the mark: canopus_task {action: \"contour\", n: <N>, link: \"http://127.0.0.1:$port/\"}"
 echo "stop: sh scripts/test-contour.sh --stop (data: $dir)"

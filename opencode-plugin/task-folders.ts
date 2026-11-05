@@ -50,7 +50,7 @@ const OWNER_SECTION = MESSAGE_SECTIONS[0]
 const DATE_RE = /(?<![0-9])[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])(?![0-9])/
 const BARE_NONE_RE = /^[ \t]*(?:[-*][ \t]+)?нет:[ \t.,;:—–-]*$/
 export const OWNER_EXAMPLE = "- «сделай X» (владелец, 2026-10-17, чат оркестратора)"
-const TEMPLATE_REF = "образец задания — Канон crew-harness, doc/canon/process.md, «Задание task/message.md»"
+const TEMPLATE_REF = "образец задания — Канон canopus, doc/canon/process.md, «Задание task/message.md»"
 
 /** Цель — пунктами «Что нужно»: уже нумерованная остаётся как есть; иначе пункт — абзац или строка «- …» (строка перед списком — тоже пункт). */
 export function numberedPoints(goal: string): string {
@@ -92,7 +92,7 @@ export function templateMessage(t: MessageFields, now: Date = new Date(), opts: 
   return [
     `# Задание: ${t.title}`,
     "",
-    `Заказчик: ${t.author_role}; задание собрано плагином из полей ${opts.via ?? "crew_spawn"}.`,
+    `Заказчик: ${t.author_role}; задание собрано плагином из полей ${opts.via ?? "canopus_spawn"}.`,
     `Репозиторий: ${t.project ? `проект ${t.project}` : "проект задачи"}${opts.target ? `, ветка ${opts.target}` : ""}. Дата задания: ${ymdhm(now).slice(0, 10)}.`,
     `Источник: слова владельца с датой — раздел «${OWNER_SECTION}».`,
     ...part(OWNER_SECTION, t.owner_words, "owner_words", "слов владельца"),
@@ -185,7 +185,7 @@ export function readTaskMessage(t: Pick<Task, "folder" | "worktree" | "branch" |
 }
 
 /** Решение 51 как данные: постановка быстрого пути изменена после слова завода — запись помечается route_word_stale, серия чистых заходов обнуляется, в
- *  журнале задачи и в истории записи строка. Идемпотентно: помеченная запись не пишется заново. Вызывается при показе и при шагах crew_task. Возвращает true, если пометила. */
+ *  журнале задачи и в истории записи строка. Идемпотентно: помеченная запись не пишется заново. Вызывается при показе и при шагах canopus_task. Возвращает true, если пометила. */
 export function refreshRouteStale(t: Task): boolean {
   if (t.route !== "fast" || t.route_word_stale || !t.route_message_hash) return false
   if (!markStale(t, readTaskMessage(t))) return false

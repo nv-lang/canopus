@@ -1,9 +1,9 @@
 // routes_kit.nv - task 192q: the scenarios of the modes of work over a hub with the fake ACP agent (the same kit as `testkit.nv`): a scenario returns "" when everything
 // was as it must be, else the list of what was not.
-module crew_harness.server
+module canopus.server
 
 import std.encoding.json.{Json, JsonValue, JsonObject}
-import crew_harness.projects.{projects_load, projects_create}
+import canopus.projects.{projects_load, projects_create}
 import std.concurrency.nvchan.{Chan}
 import std.fs.{Fs, real_fs, remove_dir_all}
 import std.os.{Os, real_os, temp_dir, pid}
@@ -64,7 +64,7 @@ fn rk_offer_tasks(mut rig Rig, session str, items []JsonValue, title str) Proc D
     mut body = JsonObject.new()
     jput(body, "tasks", JsonValue.array(items))
     ro reply = Chan[str].new(1)
-    rig.hub.ct_list_call(McpMsg { kind: "crew_task_list", call: 1, session, text: JsonValue.object(body).to_str(), reply: reply.tx })
+    rig.hub.ct_list_call(McpMsg { kind: "canopus_task_list", call: 1, session, text: JsonValue.object(body).to_str(), reply: reply.tx })
     rig.collect()
     rk_card_id(ck_state(rig, 1, session), title) > 0
 }
@@ -160,7 +160,7 @@ fn rk_item(kind str, title str, extends int, touches []str) -> JsonValue {
     JsonValue.object(item)
 }
 
-/// The page message that makes the fake agent call `crew_task_list` with the items.
+/// The page message that makes the fake agent call `canopus_task_list` with the items.
 fn rk_tasklist_page(turn str, items []JsonValue) -> str {
     mut list = JsonObject.new()
     jput(list, "tasks", JsonValue.array(items))
@@ -170,7 +170,7 @@ fn rk_tasklist_page(turn str, items []JsonValue) -> str {
     JsonValue.object(o).to_str()
 }
 
-/// The page message that makes the fake agent call `crew_task` with one item.
+/// The page message that makes the fake agent call `canopus_task` with one item.
 fn rk_tasktool_page(turn str, item JsonValue) -> str {
     mut o = JsonObject.new()
     jput(o, "turn", JsonValue.str(turn))
@@ -387,7 +387,7 @@ fn rk_root(name str) -> str {
     // D454: boundary override inside non-test code, see module-conventions (Os/Fs would leak through kit_routes_git into named fn kit_routes_children in child_kit.nv)
     ro base = with Os = real_os() { temp_dir() }
     ro id = with Os = real_os() { pid() }
-    ro dir = base.join("crew-routes-git-${id}-${name}")
+    ro dir = base.join("canopus-routes-git-${id}-${name}")
     with Fs = real_fs() {
         ro removed = remove_dir_all(dir)
     }
@@ -724,7 +724,7 @@ export fn scenario_route_planning(settings ServerSettings) Proc Detach Time Net 
         ro lines2 = rig.lines_for(1)
         echo2 = answer_of(lines2, rk_last_turn(lines2))
     }
-    c.expect(echo2.contains("[crew] в конце") && echo2.contains("раздел «Задание»"), "the agent is told the assignment is the statement: ${echo2.byte_len()}")
+    c.expect(echo2.contains("[canopus] в конце") && echo2.contains("раздел «Задание»"), "the agent is told the assignment is the statement: ${echo2.byte_len()}")
     c.expect(echo2.contains("images/"), "and where the pictures are")
     rig.page(1, "session_route", "s-r5", "{\"route\":\"planning\"}")
     rig.run(200)

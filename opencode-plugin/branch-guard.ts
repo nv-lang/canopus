@@ -12,7 +12,7 @@
 // ЧТО ПРОВЕРЯЕТСЯ. Каталог окна — по session.get(...).location (источник истины: карточка и ctx.location относятся не к каждой сессии),
 // ветка — чтением .git/HEAD без git (branch-head.ts). Ход: одна строка предупреждения в системную часть. Команда оболочки, меняющая ветку
 // или историю в основной копии, в дереве чужой задачи или в своём дереве не на своей ветке, отклоняется, пока не записана причина
-// (crew_branch_note: что, зачем, кто разрешил). Чтение, `git -C <своё helper-дерево>` и возврат на свою ветку не блокируются.
+// (canopus_branch_note: что, зачем, кто разрешил). Чтение, `git -C <своё helper-дерево>` и возврат на свою ветку не блокируются.
 // ПРИЧИНА: строка в журнале ящика (branch-journal.jsonl) и в истории задачи; разрешение на мутации в названном каталоге — 30 минут;
 // названная пара становится ожиданием окна, пока не сменились роль или задача (override).
 // Нет автоматического checkout, reset и переноса: плагин только показывает и отклоняет. Окно переносит штатный session_move.
@@ -308,7 +308,7 @@ export function checkWindow(card: CardLike, dir: string | undefined, deps: Deps,
 export function turnWarning(st: State | undefined): string | undefined {
   if (!st || st.status !== "drift") return undefined
   const moveHint = st.reason?.startsWith("каталог") ? "каталог исправляет session_move" : st.expected.branch ? `ветку исправляет git switch ${st.expected.branch} (возврат разрешён без причины)` : "верни окно на место"
-  return `crew-harness: окно не на своей ветке: ожидалось ${st.expected.label}, фактически ${st.actual.label}. ${moveHint}; если так и должно быть — запиши причину: crew_branch_note {what, why, who}. Пока расхождение не снято, команды, меняющие ветку или историю, отклоняются.`
+  return `canopus: окно не на своей ветке: ожидалось ${st.expected.label}, фактически ${st.actual.label}. ${moveHint}; если так и должно быть — запиши причину: canopus_branch_note {what, why, who}. Пока расхождение не снято, команды, меняющие ветку или историю, отклоняются.`
 }
 
 // ---- команды
@@ -327,7 +327,7 @@ function foreignOwner(top: string, exp: Expect, deps: Deps): TaskLike | undefine
 const taskNo = (t: { n: number }) => String(t.n).padStart(3, "0")
 
 function refusal(what: string, why: string, dir: string, extra = ""): string {
-  return `Отклонено: ${what} — ${why}.${extra} Запиши причину: crew_branch_note {what: "<что меняешь>", why: "<зачем>", who: "<кто разрешил: слово владельца с датой или решение оркестратора>", directory: "${dir.replace(/\\/g, "/")}"} и повтори команду (разрешение на этот каталог — ${PASS_MS / 60_000} минут). Чтение (git status, log, diff), git -C <своё helper-дерево> и возврат на свою ветку не блокируются.`
+  return `Отклонено: ${what} — ${why}.${extra} Запиши причину: canopus_branch_note {what: "<что меняешь>", why: "<зачем>", who: "<кто разрешил: слово владельца с датой или решение оркестратора>", directory: "${dir.replace(/\\/g, "/")}"} и повтори команду (разрешение на этот каталог — ${PASS_MS / 60_000} минут). Чтение (git status, log, diff), git -C <своё helper-дерево> и возврат на свою ветку не блокируются.`
 }
 
 /** Есть ли у окна действующее разрешение (запись причины) на каталог top. */
@@ -439,7 +439,7 @@ export function judgeWrite(card: CardLike, windowDir: string | undefined, tool: 
 
 export type NoteInput = { what?: unknown; why?: unknown; who?: unknown; directory?: unknown; branch?: unknown }
 
-/** Записать причину (инструмент crew_branch_note). Без «что, зачем, кто разрешил» не принимается. */
+/** Записать причину (инструмент canopus_branch_note). Без «что, зачем, кто разрешил» не принимается. */
 export function noteBranch(card: CardLike, windowDir: string | undefined, input: NoteInput, deps: Deps): { ok: boolean; text: string } {
   const s = (v: unknown) => (typeof v === "string" ? v.trim() : "")
   const what = s(input?.what)
@@ -479,7 +479,7 @@ export function noteBranch(card: CardLike, windowDir: string | undefined, input:
     }
     const until = new Date(now + PASS_MS)
     const hh = `${String(until.getHours()).padStart(2, "0")}:${String(until.getMinutes()).padStart(2, "0")}`
-    return { ok: true, text: `Причина записана: ${what}. Зачем: ${why}. Разрешил: ${who}. Команды, меняющие ветку или историю в ${path.basename(passDir)}, разрешены ${PASS_MS / 60_000} минут (до ${hh}).${branch || (cur?.override && cur.status !== "drift") ? ` Ожидание окна теперь: ${cur?.override ? pairLabel(cur.override.dir, { branch: cur.override.branch }) : to}, пока не сменятся роль или задача.` : ""} Запись видна в /crew и crew_doctor.` }
+    return { ok: true, text: `Причина записана: ${what}. Зачем: ${why}. Разрешил: ${who}. Команды, меняющие ветку или историю в ${path.basename(passDir)}, разрешены ${PASS_MS / 60_000} минут (до ${hh}).${branch || (cur?.override && cur.status !== "drift") ? ` Ожидание окна теперь: ${cur?.override ? pairLabel(cur.override.dir, { branch: cur.override.branch }) : to}, пока не сменятся роль или задача.` : ""} Запись видна в /canopus и canopus_doctor.` }
   } catch (e) {
     deps.log(`branch guard: note failed: ${e}`)
     return { ok: false, text: `Причина не записана: ${e}` }
@@ -493,7 +493,7 @@ const liveStates = (base: string, now: number, project?: string) => allStates(ba
 const roleOf = (s: State) => `${ROLE_WORD[s.role]}${s.task ? ` ${s.task}` : ""}`
 const noteText = (n: LastNote) => `${n.from} → ${n.to}; причина: ${n.what} — ${n.why}; разрешил: ${n.who}`
 
-/** Строки /crew по окнам проекта: красная при расхождении, жёлтая — смена с причиной за сутки, серая — как ожидалось. */
+/** Строки /canopus по окнам проекта: красная при расхождении, жёлтая — смена с причиной за сутки, серая — как ожидалось. */
 export function branchRows(base: string, project: string | undefined, now = Date.now()): Row[] {
   const rows: Row[] = []
   const calm: string[] = []
@@ -503,7 +503,7 @@ export function branchRows(base: string, project: string | undefined, now = Date
     else if (s.status === "ok") calm.push(roleOf(s))
     else rows.push({ tone: "muted", text: `? ${roleOf(s)}: не определено${s.reason ? ` (${s.reason})` : ""}` })
   }
-  // окна на своих местах — одной строкой (подробно: crew_doctor, «К сведению»)
+  // окна на своих местах — одной строкой (подробно: canopus_doctor, «К сведению»)
   if (calm.length) rows.push({ tone: "muted", text: `⎇ окна на своих местах (каталог и ветка как ожидалось): ${calm.join(", ")}` })
   return rows
 }
@@ -519,14 +519,14 @@ export function branchSideRows(base: string, project: string | undefined, now = 
   return rows
 }
 
-/** Проблемы для crew_doctor: окна не на своём месте. */
+/** Проблемы для canopus_doctor: окна не на своём месте. */
 export function branchProblems(base: string, now = Date.now()): string[] {
   return liveStates(base, now)
     .filter((s) => s.status === "drift")
-    .map((s) => `окно ${roleOf(s)} (проект ${s.project}, сессия ${s.session}) не на своей ветке: ожидалось ${s.expected.label}, фактически ${s.actual.label} (${s.reason}); исправить: session_move (каталог) или git switch (ветка), либо записать причину: crew_branch_note`)
+    .map((s) => `окно ${roleOf(s)} (проект ${s.project}, сессия ${s.session}) не на своей ветке: ожидалось ${s.expected.label}, фактически ${s.actual.label} (${s.reason}); исправить: session_move (каталог) или git switch (ветка), либо записать причину: canopus_branch_note`)
 }
 
-/** Справка для crew_doctor: смены с причиной за сутки (не проблема). */
+/** Справка для canopus_doctor: смены с причиной за сутки (не проблема). */
 export function branchNotes(base: string, now = Date.now()): string[] {
   const live = liveStates(base, now)
   const out: string[] = []
@@ -545,7 +545,7 @@ export function pruneStates(base: string, now = Date.now(), maxAgeMs = 2 * DAY_M
 type HookState = { verdicts: Map<string, { message: string; at: number }>; pending: Map<string, Promise<void>>; seen: Set<string> }
 const hookState = (): HookState => {
   const g = globalThis as any
-  return (g.__crewBranchGuard ??= { verdicts: new Map(), pending: new Map(), seen: new Set() })
+  return (g.__canopusBranchGuard ??= { verdicts: new Map(), pending: new Map(), seen: new Set() })
 }
 const VERDICT_TTL_MS = 10 * 60_000
 

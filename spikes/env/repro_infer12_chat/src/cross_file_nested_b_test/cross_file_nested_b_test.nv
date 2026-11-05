@@ -1,6 +1,6 @@
 module repro_infer12_chat.cross_file_nested_b_test
 
-// Live 0.1.1 regression D2 (task 282): editing ONLY the files of ANOTHER unit of the package
+// Live 0.1.1 regression D2 (task 284): editing ONLY the files of ANOTHER unit of the package
 // (cross_file_nested_a -- the role of crew-harness src/chat, whose test file holds the
 // turbofish-less protocol-bound call) breaks the C compilation of THIS unit, which does not
 // contain the call at all: the importing unit inlines the edited module's test file and the

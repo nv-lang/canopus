@@ -1,5 +1,5 @@
 // stt_test.nv - the voice to the text (task 192f): the address, the request to the recognizer, its answer, the JSON of the front.
-module crew_harness.server.front
+module canopus.server.front
 
 import std.text
 import std.encoding.json.{Json}

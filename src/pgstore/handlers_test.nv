@@ -1,9 +1,9 @@
 // handlers_test.nv - the handlers of Journal and Store on a real PostgreSQL, alone (the engine over them is in
 // pg_engine_test.nv): lines wait for the snapshot, marks go at once, death between the journal write and the snapshot save.
-module crew_harness.pgstore
+module canopus.pgstore
 
 import alula.engine.{Journal, Store, JournalEntry, Snapshot, journal_event, param}
-import crew_harness.pgdb.{PgFault, new_test_db, drop_test_db, test_count, test_snap}
+import canopus.pgdb.{PgFault, new_test_db, drop_test_db, test_count, test_snap}
 import std.net.{real_net}
 
 fn entry_at(step int, kind str, text str) -> JournalEntry => {
@@ -54,13 +54,13 @@ test "handlers: lines of a step wait for the snapshot and all arrive with it, in
     mut world = PgWorld.open(db.app, "s-1")
     write_lines(world, [entry_at(1, "start", "one"), entry_at(1, "note", "two")])
     assert(read_all(world).len() == 0)
-    assert(test_count(db.admin, "select count(*) from crew.machine_journal") == 0)
+    assert(test_count(db.admin, "select count(*) from canopus.machine_journal") == 0)
     save_snapshot(world, "s-1", snap(1, "x"))
     ro all = read_all(world)
     assert(all.len() == 2)
     assert((all[0].event.value_of("text") ?? "") == "one" && (all[1].event.value_of("text") ?? "") == "two")
     assert(all[0].step == 1)
-    assert(test_count(db.admin, "select count(*) from crew.machine_snapshot") == 1)
+    assert(test_count(db.admin, "select count(*) from canopus.machine_snapshot") == 1)
     drop_test_db(db)
 }
 
@@ -70,7 +70,7 @@ test "handlers: a mark of the committed step goes to the journal at once and sta
     write_lines(world, [entry_at(1, "start", "a")])
     save_snapshot(world, "s-1", snap(1, "x"))
     write_lines(world, [entry_at(1, "sent", "mark")])
-    assert(test_count(db.admin, "select count(*) from crew.machine_journal") == 2)
+    assert(test_count(db.admin, "select count(*) from canopus.machine_journal") == 2)
     write_lines(world, [entry_at(2, "event", "next step")])
     save_snapshot(world, "s-1", snap(2, "y"))
     write_lines(world, [entry_at(2, "sent", "mark 2")])
@@ -124,7 +124,7 @@ test "death between the journal write and the snapshot save: the lines of the st
     ro all = read_all(after)
     assert(all.len() == 1)
     assert((all[0].event.value_of("text") ?? "") == "committed")
-    assert(test_count(db.admin, "select count(*) from crew.machine_journal where step = 2") == 0)
+    assert(test_count(db.admin, "select count(*) from canopus.machine_journal where step = 2") == 0)
     // the step 2 is made again by the next process and passes
     write_lines(after, [entry_at(2, "event", "again")])
     save_snapshot(after, "s-1", snap(2, "y"))
@@ -149,8 +149,8 @@ test "handlers: a commit that breaks the rule of the step is a fault, and the li
         Ok(done) => assert(false)
         Err(f) => assert(f.sqlstate == "CH001")
     }
-    assert(test_count(db.admin, "select count(*) from crew.machine_journal") == 1)
-    assert(test_count(db.admin, "select count(*) from crew.machine_snapshot") == 1)
+    assert(test_count(db.admin, "select count(*) from canopus.machine_journal") == 1)
+    assert(test_count(db.admin, "select count(*) from canopus.machine_snapshot") == 1)
     drop_test_db(db)
 }
 
@@ -170,6 +170,6 @@ test "handlers: a line of a step older than the committed one, a line of another
     assert(!unit_ok(stray))
     ro other = with Net = real_net() { pg_commit(world, "s-2", snap(3, "z")) }
     assert(!unit_ok(other))
-    assert(test_count(db.admin, "select count(*) from crew.machine_journal") == 2)
+    assert(test_count(db.admin, "select count(*) from canopus.machine_journal") == 2)
     drop_test_db(db)
 }

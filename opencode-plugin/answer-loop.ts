@@ -1,25 +1,25 @@
 // A TAB THAT ASKS AGAIN AFTER THE OWNER ANSWERED (task 078; owner, 2026-10-17, "по рекомендации", chat of the orchestrator).
 // Source: the tab of task #94 asked the owner the same question again and again, though the owner answered it four times from outside
-// the window (crew-answer, task 059). The model got old service messages from the queue of the OpenCode server, one per turn, and the
+// the window (canopus-answer, task 059). The model got old service messages from the queue of the OpenCode server, one per turn, and the
 // letters with the answers stood at the tail; every old message made it call `question` again. The plugin cannot see that queue, so it
 // counts what it can see and what is certain:
 //   a form of the tab made AFTER a letter with the owner's answer was handed to the tab, with NO working turn in between (a tool
 //   call other than `question`), and the same ask as the form that was answered. The third such form in a row opens the LOOP.
 // While the loop is open: the reminders "Не завершено" and the repeats of a lost question stop (the answers of the owner still reach
-// the tab), the owner sees ONE row (state owner, the mark ↻, the counter `loop` in /crew, a line in /ask), the author of the task gets
+// the tab), the owner sees ONE row (state owner, the mark ↻, the counter `loop` in /canopus, a line in /ask), the author of the task gets
 // ONE letter. The loop is cleared by a working turn of the tab, a word of the owner in the tab, a reassigned or closed task, a closed tab.
 // Store: forms/loops/<session>.json = { session, asks: [the last forms with what became of them], loop? }. The store knows nothing about
 // turns or windows (dependencies are passed in), so the pure rules are tested without a plugin.
 import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { readJson, safeKey } from "./core.ts"
-import { BASE } from "./paths.ts"
+import { BASE } from "./base.ts"
 
 /** Forms in a row, each made after a delivered answer to the previous one, that make a loop. */
 export const LOOP_AFTER = 3
 /** The mark of a tab in a loop (next to MARK, WAIT_MARK, GATE_MARK, IDLE_MARK in status.ts; tasks 055, 056, 062, 063): one column. */
 export const LOOP_MARK = "↻"
-/** The word of the counter in /crew (the screen is English since task 077). */
+/** The word of the counter in /canopus (the screen is English since task 077). */
 export const LOOP_WORD = "loop"
 const KEEP_ASKS = 12
 /** A record with no loop whose last form is older than this is forgotten. */
@@ -189,12 +189,12 @@ export const loopNote = (n: number) => `ответ дан ${times(n)}`
 /** The row of the owner: "вкладка зациклилась на вопросе: <вопрос> (ответ дан N раз)". */
 export const loopLine = (l: Pick<Loop, "n" | "question">) => `вкладка зациклилась на вопросе: ${l.question} (${loopNote(l.n)})`
 /** The way out the owner is offered. */
-export const LOOP_HINT = "переназначьте задачу (crew_task reassign) или напишите вкладке прямо"
+export const LOOP_HINT = "переназначьте задачу (canopus_task reassign) или напишите вкладке прямо"
 /** The one letter to the author of the task. */
 export const loopLetter = (a: { who: string; session: string; loop: Pick<Loop, "n" | "question">; task?: string }) =>
   `Исполнитель зациклился на вопросе, владелец ответил ${times(a.loop.n)}: вкладка ${a.who} (сессия ${a.session}) после каждого доставленного ответа снова задаёт «${a.loop.question}» и не работает. ` +
   `Напоминаний ей больше нет; ответы владельца ей по-прежнему приходят. Переназначь задачу с ответом владельца в цели` +
-  (a.task ? `: crew_task {action: "reassign", n: ${a.task}, text: "<ответ владельца и что делать дальше>"}.` : ".")
+  (a.task ? `: canopus_task {action: "reassign", n: ${a.task}, text: "<ответ владельца и что делать дальше>"}.` : ".")
 
 // ---------------------------------------------------------------------------------------------------------------------
 export type LoopDeps = {

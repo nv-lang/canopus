@@ -1,7 +1,7 @@
 // Task 257: a task owned by A produces code in B. All repositories and registry records are temporary.
-module crew_harness.server
+module canopus.server
 
-import crew_harness.projects.{result_repo_inspect, result_repo_register, result_repo_json, result_repos_list, projects_load}
+import canopus.projects.{result_repo_inspect, result_repo_register, result_repo_json, result_repos_list, projects_load}
 import std.encoding.json.{JsonObject, JsonValue}
 import std.fs.{Fs}
 import std.os.{Os}
@@ -23,7 +23,7 @@ export fn scenario_result_repo(settings ServerSettings) Proc Detach Time Net Fs 
     ro record = "${settings.layout.data}/result-repositories/${id}.json"
     ro saved_record = rk_text(record)
     ro projects = match projects_load(settings.layout.data) { Ok(p) => p, Err(f) => return f.message }
-    c.expect(projects.len() == 0, "B is registered without creating any Crew project")
+    c.expect(projects.len() == 0, "B is registered without creating any Canopus project")
     mut rig = rig_open(settings)
     rig.attach(1)
     rk_project_page(rig, 1, "s-target", "{\"name\":\"Owner A\",\"agent\":\"opencode\"}")

@@ -7,7 +7,7 @@
 import { existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { readJson, safeKey } from "./core.ts"
-import { BASE } from "./paths.ts"
+import { BASE } from "./base.ts"
 
 export const GATES = path.join(BASE, "gates")
 /** A stop older than this is forgotten (the tab is long gone, or the owner answered somewhere the plugin did not see). */

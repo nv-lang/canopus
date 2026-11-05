@@ -59,7 +59,7 @@ export const FILE_KINDS = Object.freeze(['create', 'edit', 'delete']);
 export const TASK_STATUSES = Object.freeze(['running', 'completed', 'failed', 'stopped']);
 
 /** Ключ localStorage для выбора темы: 'system' | 'light' | 'dark'. */
-export const THEME_KEY = 'crew-console-theme';
+export const THEME_KEY = 'canopus-console-theme';
 
 // Ключи подписей состояний в strings.js — полными литералами, чтобы проверка «все ключи
 // использованы» видела их без догадок.
@@ -245,7 +245,7 @@ function apply(session, event) {
         .map((x) => ({ role: 'route_note', key: `rn:${event.id}:${x.n}`, n: x.n, action: x.action }));
       // серые строки «Дополнено в задачу K» — по одной на каждое применённое сразу дополнение (задача 192.7); отмена меняет только флаг в routeState
       const known = new Set(session.messages.map((m) => m.key));
-      const exts = routeState.crew.extensions
+      const exts = routeState.canopus.extensions
         .filter((x) => !known.has(`ae:${x.id}`))
         .map((x) => ({ role: 'auto_extend', key: `ae:${x.id}`, id: x.id }));
       const added = [...notes, ...exts];

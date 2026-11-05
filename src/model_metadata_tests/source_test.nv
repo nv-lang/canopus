@@ -1,7 +1,7 @@
 module model_metadata_tests.source_test
 
 import std.text
-import crew_harness.model_metadata.{opencode225_models, model_metadata_fresh}
+import canopus.model_metadata.{opencode225_models, model_metadata_fresh}
 
 test "269 F07 exact OpenCode225 native model and per-model effort mapping" {
     ro source = "{\"data\":[{\"providerID\":\"example\",\"id\":\"native/model\",\"modelID\":\"not-the-acp-id\",\"family\":\"not-a-configured-family\",\"name\":\"Example\",\"enabled\":true,\"variants\":[{\"id\":\"native-effort\"}]},{\"providerID\":\"example\",\"id\":\"plain\",\"name\":\"Plain\",\"enabled\":true,\"variants\":[]},{\"enabled\":false}]}"

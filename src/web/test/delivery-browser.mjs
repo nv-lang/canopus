@@ -80,7 +80,7 @@ try {
   socket.send(JSON.stringify({ id: 'late-answer', trace: 's', step: 5, kind: 'agent_chunk', input: { turn: 'engine-turn', text: 'поздний успешный ответ' }, time: 6 }));
   socket.send(JSON.stringify({ id: 'late-done', trace: 's', step: 6, kind: 'agent_done', input: { turn: 'engine-turn' }, time: 7 }));
   await page.getByText('поздний успешный ответ', { exact: true }).waitFor();
-  await page.waitForFunction(() => !JSON.parse(localStorage.getItem('crew-console-delivery-v1') || '[]').some(r => r.turn === 'engine-turn'));
+  await page.waitForFunction(() => !JSON.parse(localStorage.getItem('canopus-console-delivery-v1') || '[]').some(r => r.turn === 'engine-turn'));
   await page.reload();
   await input.waitFor();
   assert.equal(await page.getByText('Сообщение принято сервером, но агент не завершил обработку.', { exact: false }).count(), 0);

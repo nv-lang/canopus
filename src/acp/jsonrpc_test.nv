@@ -1,5 +1,5 @@
 // jsonrpc_test.nv - JSON-RPC 2.0 lines of ACP: parsing, building, and the splitting of a byte stream into lines.
-module crew_harness.acp
+module canopus.acp
 
 import std.encoding.json.{Json, JsonValue, JsonObject}
 

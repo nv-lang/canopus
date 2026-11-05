@@ -5,7 +5,7 @@
     чат или чужие машины или не позвал стража, выдаёт комплект, который не стартует или несёт лишнее.
 Проверяет: зелёные — из дерева с программами в target/ собирается комплект: две программы,
     machines/product с dialog.*, work-mode.*, family-approval.*, journal.md и libs/, без tests/ и chat.*,
-    страж комплекта зелёный; красные — нет target/crew-hub.exe; папка комплекта не пуста; машины
+    страж комплекта зелёный; красные — нет target/canopus-hub.exe; папка комплекта не пуста; машины
     дерева несогласованы (страж красный); без папки комплекта — отказ с кодом 2.
 Не проверяет: сборку программ nova build (флаг --build), сам страж (его самотест test-check-release-kit.py).
 Правило: задача 248.
@@ -51,9 +51,9 @@ def tree_files(lib_hash=None, hub=True):
              "machines/product/libs/call_cancel.alula.md": LIB,
              "machines/product/tests/dialog-x.alula.test.json": "{}\n",
              "machines/other/agent_step.alula.json": "{}\n",
-             "target/crew-harness.exe": "MZ"}
+             "target/canopus.exe": "MZ"}
     if hub:
-        files["target/crew-hub.exe"] = "MZ"
+        files["target/canopus-hub.exe"] = "MZ"
     return files
 
 
@@ -80,7 +80,7 @@ def main():
         assert proc.returncode == 0, proc.out + proc.err
         listed = sorted(os.path.relpath(os.path.join(b, n), kit).replace("\\", "/")
                         for b, _, names in os.walk(kit) for n in names)
-        assert listed == ["crew-harness.exe", "crew-hub.exe", "machines/product/dialog.alula.json",
+        assert listed == ["canopus.exe", "canopus-hub.exe", "machines/product/dialog.alula.json",
                           "machines/product/dialog.alula.md", "machines/product/family-approval.alula.json",
                           "machines/product/family-approval.alula.md", "machines/product/journal.md",
                            "machines/product/libs/call_cancel.alula.md", "machines/product/work-mode.alula.json",
@@ -91,11 +91,11 @@ def main():
         repo = fresh(tree_files())
         proc = package(repo, "relative-kit")
         assert proc.returncode == 0, proc.out + proc.err
-        assert os.path.isfile(os.path.join(repo, "relative-kit", "crew-hub.exe"))
+        assert os.path.isfile(os.path.join(repo, "relative-kit", "canopus-hub.exe"))
 
     def no_hub():
         proc = package(fresh(tree_files(hub=False)), kit_path())
-        assert proc.returncode == 1 and stlib.has_line(proc, "нет target/crew-hub.exe"), proc.out
+        assert proc.returncode == 1 and stlib.has_line(proc, "нет target/canopus-hub.exe"), proc.out
 
     def not_empty():
         kit = kit_path()
@@ -119,7 +119,7 @@ def main():
 
     pr.probe("законное", "комплект: две программы и машины диалога, без tests/, чата и чужих машин", legit)
     pr.probe("иной-синтаксис", "относительный путь комплекта разрешается от рабочего каталога", relative_kit)
-    pr.probe("красная", "нет target/crew-hub.exe", no_hub)
+    pr.probe("красная", "нет target/canopus-hub.exe", no_hub)
     pr.probe("красная", "папка комплекта не пуста", not_empty)
     pr.probe("красная", "хеш подключения не равен хешу библиотеки — страж красный", broken_hash)
     for name in ("family-approval.alula.json", "family-approval.alula.md"):

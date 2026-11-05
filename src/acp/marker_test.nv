@@ -1,5 +1,5 @@
-// marker_test.nv - task 192.9: the cutting of the fallback marker `[[crew_task_list]] {json}` out of the text of an answer: whole, in parts, in the middle, in a fence, cut off.
-module crew_harness.acp
+// marker_test.nv - task 192.9: the cutting of the fallback marker `[[canopus_task_list]] {json}` out of the text of an answer: whole, in parts, in the middle, in a fence, cut off.
+module canopus.acp
 
 // The answer given in parts of `size` bytes (ASCII only in the texts that are cut by size); the shown text and the markers found.
 fn run_parts(text str, size int) -> MarkerStep => run_checked(text, size, true)
@@ -15,7 +15,7 @@ fn run_checked(text str, size int, strict bool) -> MarkerStep {
         ro step = marker_feed(state, text[at..e], false)
         shown = "${shown}${step.out}"
         // nothing that looks like a marker is ever shown
-        if strict { assert(!shown.contains("[[crew")) }
+        if strict { assert(!shown.contains("[[canopus")) }
         for f in step.found { found.push(f) }
         state = step.state
         at = e
@@ -29,32 +29,32 @@ fn run_checked(text str, size int, strict bool) -> MarkerStep {
 const LIST_JSON = "{\"tasks\":[{\"title\":\"Fix {braces} \\\" here\",\"summary\":\"s\"}]}"
 
 test "marker: at the end of an answer, whole: cut, found" {
-    ro step = run_parts("Done.\n[[crew_task_list]] ${LIST_JSON}", 10000)
+    ro step = run_parts("Done.\n[[canopus_task_list]] ${LIST_JSON}", 10000)
     assert(step.out == "Done.\n")
     assert(step.found.len() == 1)
-    assert(step.found[0] == "[[crew_task_list]] ${LIST_JSON}")
+    assert(step.found[0] == "[[canopus_task_list]] ${LIST_JSON}")
 }
 
 test "marker: in the middle of an answer the text around it stays" {
-    ro step = run_parts("Before.\n[[crew_task_list]] ${LIST_JSON}\nAfter.", 10000)
+    ro step = run_parts("Before.\n[[canopus_task_list]] ${LIST_JSON}\nAfter.", 10000)
     assert(step.out == "Before.\n\nAfter.")
     assert(step.found.len() == 1)
 }
 
 test "marker: the same in parts of every size: never a piece of it is shown" {
-    ro text = "Before.\n[[crew_task_list]] ${LIST_JSON}\nAfter text and [[crew_task]] {\"title\":\"T\",\"summary\":\"S\"}"
+    ro text = "Before.\n[[canopus_task_list]] ${LIST_JSON}\nAfter text and [[canopus_task]] {\"title\":\"T\",\"summary\":\"S\"}"
     mut size = 1
     while size < 40 {
         ro step = run_parts(text, size)
         assert(step.out == "Before.\n\nAfter text and ")
         assert(step.found.len() == 2)
-        assert(step.found[1].starts_with("[[crew_task]] {"))
+        assert(step.found[1].starts_with("[[canopus_task]] {"))
         size += 1
     }
 }
 
 test "marker: a marker in a code fence goes with the lines of the fence" {
-    ro text = "Total:\n```json\n[[crew_task_list]] ${LIST_JSON}\n```\nThe end"
+    ro text = "Total:\n```json\n[[canopus_task_list]] ${LIST_JSON}\n```\nThe end"
     ro whole = run_parts(text, 10000)
     assert(whole.out == "Total:\nThe end")
     assert(whole.found.len() == 1)
@@ -79,16 +79,16 @@ test "marker: a code fence without a marker is shown as it is" {
 }
 
 test "marker: a marker that is cut off (no closing brace) is dropped, the text before it stays" {
-    ro step = run_parts("Answer\n[[crew_task_list]] {\"tasks\":[{\"title\":\"x\"", 7)
+    ro step = run_parts("Answer\n[[canopus_task_list]] {\"tasks\":[{\"title\":\"x\"", 7)
     assert(step.out == "Answer\n")
     assert(step.found.len() == 0)
-    ro bare = run_parts("Answer [[crew_task_list]]", 5)
+    ro bare = run_parts("Answer [[canopus_task_list]]", 5)
     assert(bare.out == "Answer ")
     assert(bare.found.len() == 0)
 }
 
 test "marker: the name in an ordinary sentence is text" {
-    ro text = "The mark [[crew_task_list]] is a word, and [[crew_tasks are not one."
+    ro text = "The mark [[canopus_task_list]] is a word, and [[canopus_tasks are not one."
     ro step = run_checked(text, 3, false)
     assert(step.out == text)
     assert(step.found.len() == 0)
@@ -101,15 +101,15 @@ test "marker: text with no marker passes unchanged, also a lone bracket at the e
 }
 
 test "marker: the line the hub reads has no line breaks" {
-    ro step = run_parts("[[crew_task_list]] {\"tasks\":\n[]}", 10000)
+    ro step = run_parts("[[canopus_task_list]] {\"tasks\":\n[]}", 10000)
     assert(step.found.len() == 1)
     assert(!step.found[0].contains("\n"))
     assert(step.out == "")
 }
 
 test "marker: the calls of the tools of the hub are known by their titles, others are not" {
-    assert(is_crew_tool_title("mcp__crew__crew_task_list"))
-    assert(is_crew_tool_title(" mcp__crew__ask_user_question "))
-    assert(!is_crew_tool_title("mcp__other__crew_task_list"))
-    assert(!is_crew_tool_title("Shell"))
+    assert(is_canopus_tool_title("mcp__canopus__canopus_task_list"))
+    assert(is_canopus_tool_title(" mcp__canopus__ask_user_question "))
+    assert(!is_canopus_tool_title("mcp__other__crew_task_list"))
+    assert(!is_canopus_tool_title("Shell"))
 }

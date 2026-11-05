@@ -75,13 +75,13 @@ export function answerNotes(rawMode: unknown, rawMax: unknown, rawDelay?: unknow
   return notes
 }
 
-/** Ошибка значения answer_mode для crew_config / invalid: текст или undefined. */
+/** Ошибка значения answer_mode для canopus_config / invalid: текст или undefined. */
 export function answerModeError(v: unknown): string | undefined {
   const { notes } = normalizeAnswerMode(v)
   return notes.length ? notes.join("; ") : undefined
 }
 
-// РАЗБОР ОТВЕТА СЕССИИ (REQ-04, REQ-05, REQ-07, REQ-11, REQ-12). Три слоя, каждый проверяется отдельно (crew-answer-parse):
+// РАЗБОР ОТВЕТА СЕССИИ (REQ-04, REQ-05, REQ-07, REQ-11, REQ-12). Три слоя, каждый проверяется отдельно (canopus-answer-parse):
 // деление на блоки по строкам «В-<число>», поля по девяти именам, блок-вопрос («?» в конце строки по трём правилам места).
 // Закрыто по умолчанию: всё, что разбор не понял, остаётся владельцу.
 

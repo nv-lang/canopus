@@ -1,5 +1,5 @@
 // more_test.nv - the common events, the pause and the previous state, the set, the restart, the fallback of a failure, the constants and the parameters.
-module crew_harness.machine_run_machines
+module canopus.machine_run_machines
 
 import std.text
 import alula.machine.{Null, Int}

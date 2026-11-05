@@ -16,11 +16,11 @@
 // written to the inbox file (when the config has one) BEFORE it is handed out. `receive` moves it to "taken"; `ack(key)` -
 // which the engine calls after the commit of the step - forgets it. A restart hands out again, first, what was not
 // acknowledged. The numbers never go back, not even after the file is compacted, so a key is never used for two events.
-module crew_harness.acp
+module canopus.acp
 
 import alula.engine.{Link, Incoming, EventKind, PartyRequest, FailCode}
-import crew_harness.storage.{append_line, read_lines, replace_file, encode_image}
-import crew_harness.projects.{EnvEntry}
+import canopus.storage.{append_line, read_lines, replace_file, encode_image}
+import canopus.projects.{EnvEntry}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 import std.fs.{Fs, real_fs, Path, read}
 
@@ -123,9 +123,9 @@ fn parse_value(text str) -> JsonValue {
 
 fn initialize_params(form bool) -> JsonValue {
     if form {
-        return parse_value("{\"protocolVersion\":1,\"clientCapabilities\":{\"fs\":{\"readTextFile\":false,\"writeTextFile\":false},\"terminal\":false,\"elicitation\":{\"form\":{}}},\"clientInfo\":{\"name\":\"crew-harness\",\"title\":\"CrewHarness\",\"version\":\"0.1.0\"}}")
+        return parse_value("{\"protocolVersion\":1,\"clientCapabilities\":{\"fs\":{\"readTextFile\":false,\"writeTextFile\":false},\"terminal\":false,\"elicitation\":{\"form\":{}}},\"clientInfo\":{\"name\":\"canopus\",\"title\":\"Canopus\",\"version\":\"0.1.0\"}}")
     }
-    parse_value("{\"protocolVersion\":1,\"clientCapabilities\":{\"fs\":{\"readTextFile\":false,\"writeTextFile\":false},\"terminal\":false},\"clientInfo\":{\"name\":\"crew-harness\",\"title\":\"CrewHarness\",\"version\":\"0.1.0\"}}")
+    parse_value("{\"protocolVersion\":1,\"clientCapabilities\":{\"fs\":{\"readTextFile\":false,\"writeTextFile\":false},\"terminal\":false},\"clientInfo\":{\"name\":\"canopus\",\"title\":\"Canopus\",\"version\":\"0.1.0\"}}")
 }
 
 // The MCP server of the hub as `session/new` wants it: an HTTP server with the token in the header `Authorization`.
@@ -135,7 +135,7 @@ fn mcp_servers_params(url str, token str) -> JsonValue {
     put(header, "value", JsonValue.str("Bearer ${token}"))
     mut server = JsonObject.new()
     put(server, "type", JsonValue.str("http"))
-    put(server, "name", JsonValue.str("crew"))
+    put(server, "name", JsonValue.str("canopus"))
     put(server, "url", JsonValue.str(url))
     put(server, "headers", JsonValue.array([JsonValue.object(header)]))
     JsonValue.array([JsonValue.object(server)])
@@ -562,7 +562,7 @@ fn AcpClient mut @on_update(params JsonValue) -> () {
         return
     }
     if projected.name == "agent_chunk" && @active.byte_len() > 0 {
-        // task 192.9: the fallback marker `[[crew_task_list]] {json}` is cut out of the answer and given as an event of its own
+        // task 192.9: the fallback marker `[[canopus_task_list]] {json}` is cut out of the answer and given as an event of its own
         @push_answer_part(@active, marker_feed(@marker, projected.input, false))
         return
     }
@@ -576,7 +576,7 @@ fn AcpClient mut @push_answer_part(request str, step MarkerStep) -> () {
     for line in step.found {
         mut o = JsonObject.new()
         put(o, "text", JsonValue.str(line))
-        @push(progress_event(request, Projection { name: "crew_marker", input: JsonValue.object(o).to_str() }))
+        @push(progress_event(request, Projection { name: "canopus_marker", input: JsonValue.object(o).to_str() }))
     }
 }
 
@@ -775,7 +775,7 @@ fn AcpClient mut @on_permission(id JsonValue, params JsonValue) -> () {
             Some(c) => field_text(c, "title") ?? ""
             None => ""
         }
-        if is_crew_tool_title(call_title) {
+        if is_canopus_tool_title(call_title) {
             for o in options {
                 if o.kind == "allow_once" {
                     @say(rpc_result_line(id, outcome_result("selected", o.id)))

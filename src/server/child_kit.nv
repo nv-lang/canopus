@@ -1,5 +1,5 @@
-// child_kit.nv - task 192.3: the scenario of the child sessions over a hub with the fake ACP agent in a repository (the helpers are in `routes_kit.nv` and `crew_task_kit.nv`).
-module crew_harness.server
+// child_kit.nv - task 192.3: the scenario of the child sessions over a hub with the fake ACP agent in a repository (the helpers are in `routes_kit.nv` and `canopus_task_kit.nv`).
+module canopus.server
 
 import std.encoding.json.{Json, JsonValue, JsonObject}
 

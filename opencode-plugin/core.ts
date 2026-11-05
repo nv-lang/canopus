@@ -1,7 +1,7 @@
-// Ядро crew-harness: ящик, визитки, адреса, проекты, ступени и САМИ ИНСТРУМЕНТЫ (crew_list, crew_role,
-// crew_send, crew_inbox, crew_help). Его делят плагин OpenCode (index.ts) и MCP-сервер (mcp.ts) для окон
+// Ядро canopus: ящик, визитки, адреса, проекты, ступени и САМИ ИНСТРУМЕНТЫ (canopus_list, canopus_role,
+// canopus_send, canopus_inbox, canopus_help). Его делят плагин OpenCode (index.ts) и MCP-сервер (mcp.ts) для окон
 // провайдера claude-code, которым инструменты плагина недоступны: одна реализация — одна семантика.
-// Отличия хозяев — в CrewHost (визитка своего окна, кандидаты, немедленная доставка в своём процессе).
+// Отличия хозяев — в CanopusHost (визитка своего окна, кандидаты, немедленная доставка в своём процессе).
 
 import { judge as judgeGlued } from "./glued-guard.ts"
 import { type Deps as BranchDeps, branchNotes, branchProblems, noteBranch } from "./branch-guard.ts"
@@ -12,7 +12,8 @@ import { execFileSync } from "node:child_process"
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync, appendFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { BASE as CREW_BASE, dataDir } from "./paths.ts"
+import { BASE as CANOPUS_BASE } from "./base.ts"
+import { dataDir } from "./paths.ts"
 import { rotateLog } from "./housekeeping.ts"
 import { type Projects, outsideProject, parseProjects as parseProjectsWith, projectFor, rawSettingsFor, readSettingsFolder, workingSettings, writeSettings } from "./settings.ts"
 import { SCHEMA, guideText, invalid } from "./config-schema.ts"
@@ -41,19 +42,19 @@ import { createQuestionRouting, digest as questionScopeDigest, requestOf, routin
 import { QUESTION_ROUTING_HINT, smallHandoff } from "./question-policy.ts"
 import { QUESTION_ROUTE_TERM_MS, type QuestionObservation, type QuestionRequest } from "./question-router.ts"
 
-export const POLL_MS = Number(process.env.CREW_HARNESS_POLL_MS) || 1_000 // переопределение — для самотеста
+export const POLL_MS = Number(process.env.CANOPUS_POLL_MS) || 1_000 // переопределение — для самотеста
 export const LIVE_MS = 15 * 60_000
 const STALE_CARD_MS = 7 * 24 * 3600_000
 export const ROLE_RE = /^[a-z][a-z0-9-]{0,40}$/
 const LOG = path.join(os.tmpdir(), "opencode-plugins.log")
 
 // журнал общий для плагинов окружения; больше LOG_MAX_BYTES — в .1 (проверка раз в 200 строк)
-const LOG_MAX_BYTES = Number(process.env.CREW_HARNESS_LOG_MAX) || 5_000_000
+const LOG_MAX_BYTES = Number(process.env.CANOPUS_LOG_MAX) || 5_000_000
 let logWrites = 0
 export function log(line: string) {
   if (++logWrites % 200 === 0) rotateLog(LOG, LOG_MAX_BYTES)
   try {
-    appendFileSync(LOG, `${new Date().toISOString()} crew-harness ${line}\n`)
+    appendFileSync(LOG, `${new Date().toISOString()} canopus ${line}\n`)
   } catch {}
 }
 
@@ -93,7 +94,7 @@ export function setProjects(projects: Projects, local: any = {}) {
 /** Проекты процесса и локальные поправки (для профилей моделей, profile-layer.ts). */
 export const settingsContext = (): { projects: Projects; local: Record<string, any> } => ({ projects: currentProjects, local: currentLocal })
 
-/** Действующие настройки проекта каталога dir: значение и откуда оно (crew_config show и команда окна /crew-config). */
+/** Действующие настройки проекта каталога dir: значение и откуда оно (canopus_config show и команда окна /canopus-config). */
 export function configShowText(dir: string, fallbackName = "?", compact = false): string {
   // fallbackName — имя проекта из карточки вкладки: по нему проект находится, даже если вкладка стоит в рабочем дереве вне корня
   const p = projectFor(dir, currentProjects, fallbackName)
@@ -101,7 +102,7 @@ export function configShowText(dir: string, fallbackName = "?", compact = false)
   const local = (p && currentLocal[p.name]) || {}
   const effective = { ...committed, ...local }
   const sourceOf = (k: string) => (k in local ? "local в opencode.jsonc" : k in committed ? (p?.dir ? `файл, ветка ${p.branch}` : "файл (прежняя форма)") : "по умолчанию")
-  // compact — для окна: у списков с id — число и имена, длинное обрезается (полное — crew_config show у модели)
+  // compact — для окна: у списков с id — число и имена, длинное обрезается (полное — canopus_config show у модели)
   const shown = (v: any) => {
     if (compact && Array.isArray(v) && v.length && v.every((x) => x && typeof x === "object" && "id" in x)) return `${v.length}: ${v.map((x) => x.id).join(", ")}`
     const j = JSON.stringify(v)
@@ -114,7 +115,7 @@ export function configShowText(dir: string, fallbackName = "?", compact = false)
   const profileKeys = ["model_profiles", "profile_sets"]
   const rows = SCHEMA.map((s) => `  ${s.key} = ${profileKeys.includes(s.key) && effective[s.key] !== undefined ? `(${Object.keys(effective[s.key] ?? {}).length} шт., таблицей ниже)` : s.key === "profile_set" && effective[s.key] === undefined ? "(не включён)" : shown(effective[s.key] ?? s.default)} — ${sourceOf(s.key)}${answerNote(s.key)}`)
   const head = p?.dir
-    ? `Проект ${p.name}: настройки ${path.join(p.dir, ".opencode", "crew-harness.json")}, читается ветка ${p.branch} (${p.repo}).`
+    ? `Проект ${p.name}: настройки ${path.join(p.dir, ".opencode", "canopus.json")}, читается ветка ${p.branch} (${p.repo}).`
     : p
       ? `Проект ${p.name}: прежняя форма опций — настройки из рабочей копии вверх от каталога вкладки.`
       : `Папка вкладки ${dir.replace(/\\/g, "/")} не относится к проекту плагина (ни корень, ни рабочее дерево репозитория проекта): настройки — из файла вверх от этой папки, если он есть, иначе по умолчанию.`
@@ -172,12 +173,19 @@ export function parseAddr(to: string, home: string, isSession: (s: string) => bo
 // Ящик роли — `<проект>.<роль>` (имя каталога через safeKey: `nova_integrator`; ни в проекте, ни в роли `_` нет).
 export const roleKey = (project: string, role: string) => `${project}.${role}`
 
-export const BASE = CREW_BASE // paths.ts: crew-harness (прежняя nova-peers переносится)
+export const BASE = CANOPUS_BASE // base.ts: canopus (прежний ящик переносится однократно, задача 284)
 export const CARDS = path.join(BASE, "cards")
 export const INBOX = path.join(BASE, "inbox")
 export const READ = path.join(BASE, "read")
 export const QUEUE = path.join(BASE, "queue") // queue/<роль>/*.json — письма с tier, ждущие свободного окна нужной ступени
-for (const d of [CARDS, INBOX, READ, QUEUE]) mkdirSync(d, { recursive: true }) // delivering/ — по мере надобности
+// Папки ящика создаются лениво, при первой реальной записи или чтении (задача 284: отказ по старым env в точке
+// входа обязан стоять раньше любой мутации диска — даже mkdir).
+let baseDirsReady = false
+export function ensureBaseDirs(): void {
+  if (baseDirsReady) return
+  baseDirsReady = true
+  for (const d of [CARDS, INBOX, READ, QUEUE]) mkdirSync(d, { recursive: true }) // delivering/ — по мере надобности
+}
 
 export type Spawned = { by: string; task: string; tier: string; status: "running" | "done" | "closed"; at: number; qid: string }
 // busySince — время последнего запроса модели (ставится на каждом шаге хода); turnStart — первого запроса хода: по нему lastTurn
@@ -185,11 +193,11 @@ export type Spawned = { by: string; task: string; tier: string; status: "running
 export type Card = { session: string; role: string; auto: boolean; spawned?: Spawned; task?: { project: string; n: number }; review?: { project: string; n: number }; titleShown?: string; title: string; directory: string; repo: string; project?: string; lock_wait?: { project: string; n: number; at: number }; model?: string; modelAt?: number; modelFrom?: "request" | "db"; modelCheckedAt?: number; tasksDir?: string; busy?: boolean; busySince?: number; reservedAt?: number; turnStart?: number; wokeAt?: number; pid: number; updated: number }
 export type Letter = { id: string; from_role: string; from_session: string; to: string; text: string; time: number; tier?: Tier; wake?: boolean; qid?: string; reply_to?: string; wake_qid?: string; delivery_recovered?: true; purpose?: "diagnostic" }
 
-// НАСТРОЙКИ ПРОЕКТА — settings.ts: файл `.opencode/crew-harness.json` из репозитория настроек (закоммиченный),
+// НАСТРОЙКИ ПРОЕКТА — settings.ts: файл `.opencode/canopus.json` из репозитория настроек (закоммиченный),
 // для прежней формы опций — тот же файл вверх от каталога окна. Плагин абстрактен: ни ролей, ни проектного текста в
 // нём нет. Роли ИСКЛЮЧИТЕЛЬНЫЕ (`integrator` + exclusive_roles проекта) — у них один держатель (замок, см. РОЛИ);
-// любая другая роль РАЗДЕЛЯЕМАЯ: crew_role присоединяет окно, а письмо на роль с несколькими открытыми
-// держателями не доставляется наугад (см. crew_send). Ступени heavy/medium/light — по семействам моделей
+// любая другая роль РАЗДЕЛЯЕМАЯ: canopus_role присоединяет окно, а письмо на роль с несколькими открытыми
+// держателями не доставляется наугад (см. canopus_send). Ступени heavy/medium/light — по семействам моделей
 // (подстрока id в нижнем регистре); `tiers` проекта заменяет список ступени целиком.
 const BASE_EXCLUSIVE = ["integrator"]
 export const TIER_ORDER = ["light", "medium", "heavy"] as const
@@ -201,7 +209,7 @@ export const PRIORITIES = ["P0", "P1", "P2", "P3"] as const
 export type Priority = (typeof PRIORITIES)[number]
 export const isPriority = (p: any): p is Priority => PRIORITIES.includes(p)
 export type AcceptanceStep = { id: string; text: string; required: boolean }
-export type CrewConfig = {
+export type CanopusConfig = {
   exclusive: Set<string>
   projectRules: string
   /** язык владельца (owner_language, задача 054): английское имя языка для правила системного блока; умолчание Russian */
@@ -256,7 +264,7 @@ export type CrewConfig = {
   planName: string
   planRoundsMax: number
   planCleanRounds: number
-  /** подстроки команд — тяжёлые прогоны: crew_watch ставит их в очередь машины сам */
+  /** подстроки команд — тяжёлые прогоны: canopus_watch ставит их в очередь машины сам */
   heavyCommands: string[]
   /** форма плана (plans.ts PlanForm) из plan_sections, plan_header, plan_prefix, plan_labels, plan_marks, plan_mode_question, plan_grades */
   planForm: PlanForm
@@ -307,7 +315,7 @@ export function extraFieldsOf(raw: any): ExtraField[] {
 }
 export const EXTRA_VALUE_MAX = 300
 /** Разбор входа extra {id: строка} по объявлению проекта: значение — одна строка до 300 знаков после обрезки, пустое отбрасывается. */
-export function parseExtra(raw: any, cfg: CrewConfig): { value?: Record<string, string> } | { error: string } {
+export function parseExtra(raw: any, cfg: CanopusConfig): { value?: Record<string, string> } | { error: string } {
   if (raw === undefined || raw === null) return {}
   if (typeof raw !== "object" || Array.isArray(raw)) return { error: "extra — объект {id: строка}." }
   const declared = cfg.extraFields.map((f) => f.id)
@@ -372,7 +380,7 @@ function warnOnce(key: string, line: string) {
   log(line)
 }
 /** Настройки проекта каталога dir (с умолчаниями). */
-export function loadConfig(dir: string): CrewConfig {
+export function loadConfig(dir: string): CanopusConfig {
   const j = rawSettingsFor(dir, currentProjects, currentLocal) ?? {}
   const roles = Array.isArray(j.exclusive_roles) ? j.exclusive_roles.map((r: any) => String(r)) : []
   const tiers = { ...DEFAULT_TIERS }
@@ -469,13 +477,13 @@ export function loadConfig(dir: string): CrewConfig {
 export const ACCEPTOR_ROLE = "acceptor"
 export const DEFAULT_REVIEW_LIMIT = 2
 /** Роль приёмщика по настройке проекта: acceptor — при reviewer "acceptor", иначе worker (как было). */
-export const reviewerRole = (cfg: CrewConfig) => (cfg.reviewer === "acceptor" ? ACCEPTOR_ROLE : DEFAULT_ROLE)
+export const reviewerRole = (cfg: CanopusConfig) => (cfg.reviewer === "acceptor" ? ACCEPTOR_ROLE : DEFAULT_ROLE)
 /** Сколько сессий приёмки проекта работает разом. */
-export const reviewSessionLimit = (cfg: CrewConfig) =>
+export const reviewSessionLimit = (cfg: CanopusConfig) =>
   cfg.reviewer === "acceptor" ? (cfg.spawnLimits.acceptor ?? cfg.spawnLimits.reviewer ?? DEFAULT_REVIEW_LIMIT) : (cfg.spawnLimits.reviewer ?? DEFAULT_REVIEW_LIMIT)
 
 // Ступень модели «провайдер/id#вариант»: проверяется от тяжёлой к лёгкой; нет совпадения — undefined (вне ступеней).
-export function tierOf(model: string | undefined, cfg: CrewConfig): Tier | undefined {
+export function tierOf(model: string | undefined, cfg: CanopusConfig): Tier | undefined {
   const m = (model ?? "").toLowerCase()
   if (!m) return undefined
   for (const t of ["heavy", "medium", "light"] as const) if (cfg.tiers[t].some((s) => s && m.includes(s))) return t
@@ -485,13 +493,13 @@ export function tierOf(model: string | undefined, cfg: CrewConfig): Tier | undef
 // Возраст флага не доказывает idle: stale busy снимает только native reconciliation.
 // Резерв письма — не native active и не время последнего запроса модели.
 export const BUSY_MAX_MS = 30 * 60_000
-// Давность последней активности (`updated`) отбора НЕ делает — только показ в crew_list: простаивающее окно и есть
+// Давность последней активности (`updated`) отбора НЕ делает — только показ в canopus_list: простаивающее окно и есть
 // лучший исполнитель. Кандидат = процесс визитки жив И сессия существует и не архивирована (candidates()) И не занят.
 export const isFree = (c: Card, now = Date.now()) => !c.busy && !c.reservedAt
 
 // Кандидаты письма с ступенью: СВОБОДНЫЕ живые держатели роли с моделью той же ступени; если таких нет — со
 // ступенью выше (ближайшей, затем дальше), ниже — никогда. Окно с моделью вне ступеней не кандидат.
-export function pickHolder(holders: Card[], tier: Tier, cfg: CrewConfig, now = Date.now()): Card | undefined {
+export function pickHolder(holders: Card[], tier: Tier, cfg: CanopusConfig, now = Date.now()): Card | undefined {
   const free = holders.filter((c) => isFree(c, now))
   for (let r = TIER_ORDER.indexOf(tier); r < TIER_ORDER.length; r++) {
     const hit = free.filter((c) => tierOf(c.model, cfg) === TIER_ORDER[r]).sort((a, b) => (a.busySince ?? 0) - (b.busySince ?? 0))
@@ -509,7 +517,7 @@ export function pickHolder(holders: Card[], tier: Tier, cfg: CrewConfig, now = D
 // печатается с меткой «последний ход HH:MM». Замер владельца: окно на Haiku показывалось как Kimi.
 export const MODEL_TTL_MS = 20_000
 const MODEL_FRESH_MS = 5 * 60_000
-export const dbFile = () => process.env.CREW_HARNESS_DB || path.join(dataDir(), "opencode.db")
+export const dbFile = () => process.env.CANOPUS_DB || path.join(dataDir(), "opencode.db")
 
 export function fmtModel(m: any): string {
   if (!m) return ""
@@ -605,6 +613,7 @@ export function cardFile(session: string) {
 }
 
 export function allCards(): Card[] {
+  ensureBaseDirs()
   const now = Date.now()
   const out: Card[] = []
   for (const f of readdirSync(CARDS)) {
@@ -621,6 +630,7 @@ export function allCards(): Card[] {
 }
 
 export function saveCard(c: Card) {
+  ensureBaseDirs()
   writeFileSync(cardFile(c.session), JSON.stringify(c, null, 1))
 }
 
@@ -686,7 +696,7 @@ export async function sessionFromDb(sessionID: string): Promise<SessionRow | und
 export type TurnFacts = { tools: boolean; owner: boolean; outcome?: string; at: number }
 const TURN_SLACK_MS = 5_000 // сообщение владельца пишется чуть раньше запроса, с которого визитка занята
 // КОНЕЦ ПОСЛЕДНЕГО ХОДА (план 003): время строки idle, текст последнего ответа модели в этом ходе и было ли после
-// конца сообщение владельца. Нужен сводке /crew и признаку «ждёт вас». Нет базы или хода — undefined.
+// конца сообщение владельца. Нужен сводке /canopus и признаку «ждёт вас». Нет базы или хода — undefined.
 export type TurnEnd = { at: number; text: string; ownerAfter: boolean }
 /** Последние n строк сессии: тип и время (данных сообщений не читает) — для диагностики залипшего хода. */
 export async function recentRows(sessionID: string, n = 6): Promise<{ type: string; at: number }[]> {
@@ -889,7 +899,7 @@ export async function userAfter(sessionID: string, at: number): Promise<boolean>
     return rows.some((r) => {
       try {
         const t = JSON.parse(r.data)?.text
-        return typeof t === "string" && !isCrewText(t)
+        return typeof t === "string" && !isCanopusText(t)
       } catch {
         return false
       }
@@ -915,7 +925,7 @@ export async function ownerWordAfter(sessionID: string, at: number): Promise<num
     for (const r of rows) {
       try {
         const t = JSON.parse(r.data)?.text
-        if (typeof t === "string" && !isCrewText(t)) return Number(r.time_created) || 0
+        if (typeof t === "string" && !isCanopusText(t)) return Number(r.time_created) || 0
       } catch {}
     }
     return 0
@@ -952,7 +962,7 @@ export async function workedAfter(sessionID: string, at: number): Promise<boolea
 }
 
 /** Health recovery: a NEW actual diagnostic tool action, not a status letter,
- * a question, crew_step_note, or a historical orphaned running tool. */
+ * a question, canopus_step_note, or a historical orphaned running tool. */
 export async function diagnosticWorkAfter(sessionID: string, at: number, correlation: { task: Task; fingerprint: string; healthId: string; nativeMessage: string; text: string }): Promise<string | undefined> {
   if (!sessionID || !correlation || !existsSync(dbFile())) return undefined
   const { task, fingerprint, healthId, nativeMessage, text } = correlation
@@ -1033,8 +1043,8 @@ export async function lastUserAt(sessionID: string): Promise<number> {
 
 /** Ход открыт и живой: после последнего idle есть сообщения, обновлённые не раньше чем за fresh мс. */
 /** Путь worktree и ветка задачи по настройкам проекта (worktrees не задан — решает методология). Слаг — из записи задачи:
- *  вычислен один раз при постановке, путь в ответе crew_spawn и созданный — одни и те же. */
-export function taskPlace(dir: string, cfg: CrewConfig, n: number | string, slug: string, project: string): { worktree?: string; branch: string } {
+ *  вычислен один раз при постановке, путь в ответе canopus_spawn и созданный — одни и те же. */
+export function taskPlace(dir: string, cfg: CanopusConfig, n: number | string, slug: string, project: string): { worktree?: string; branch: string } {
   const v = { repo: repoNameOf(dir), n, slug, project }
   return { worktree: cfg.worktrees ? path.join(cfg.worktrees, fillName(cfg.worktreeName, v)) : undefined, branch: fillName(cfg.branchName, v) }
 }
@@ -1064,14 +1074,14 @@ export function insideDir(p: string, dir: string): boolean {
 }
 /** Каталог дерева обязан лежать в папке деревьев проекта (владелец, 2026-10-26: деревья создаются только там). Текст отказа
  *  или undefined; корень — из настройки worktrees проекта, путей машины в репозитории нет (AGENTS.md, п. 15). */
-export function placeFault(worktree: string | undefined, cfg: CrewConfig): string | undefined {
+export function placeFault(worktree: string | undefined, cfg: CanopusConfig): string | undefined {
   if (!cfg.worktrees || !worktree) return undefined
   if (insideDir(worktree, cfg.worktrees)) return undefined
   return `каталог дерева ${worktree} вне папки деревьев проекта ${cfg.worktrees} (деревья создаются только там — владелец, 2026-10-26); проверь настройки проекта worktrees и worktree_name`
 }
 /** Место задачи по настройкам с проверкой правила о папке деревьев: место вне её — бросок с меткой placeRefusal;
  *  обработчики постановки ловят его и отвечают отказом до записи задачи. */
-export function checkedPlace(dir: string, cfg: CrewConfig, n: number | string, slug: string, project: string): { worktree?: string; branch: string } {
+export function checkedPlace(dir: string, cfg: CanopusConfig, n: number | string, slug: string, project: string): { worktree?: string; branch: string } {
   const p = taskPlace(dir, cfg, n, slug, project)
   const f = placeFault(p.worktree, cfg)
   if (f) throw Object.assign(new Error(f), { placeRefusal: true })
@@ -1079,12 +1089,12 @@ export function checkedPlace(dir: string, cfg: CrewConfig, n: number | string, s
 }
 
 /** Старт процесса сервера (не загрузки плагина: OpenCode грузит его заново в том же процессе на каждую папку). */
-export const PROCESS_START = Number(process.env.CREW_HARNESS_PROCESS_START) || Date.now() - process.uptime() * 1000
+export const PROCESS_START = Number(process.env.CANOPUS_PROCESS_START) || Date.now() - process.uptime() * 1000
 // Замер 2026-10-13 по базе за 7 дней (doc/tasks/036-hung-turn-detection/task/analysis.md): тишина между строками внутри закрытых
 // ходов — медиана 0,05 с, 95-й процентиль 1,8 с, 99-й 62 с, 99,9-й 194 с, максимум 81 мин (один ход с долгим инструментом).
 // Окно открытого хода 45 мин, порог «завис» 15 мин.
-const OPEN_TURN_MAX_MS = Number(process.env.CREW_HARNESS_OPEN_TURN_MAX_MS) || 45 * 60_000
-export const HUNG_MS = Number(process.env.CREW_HARNESS_HUNG_MS) || 15 * 60_000
+const OPEN_TURN_MAX_MS = Number(process.env.CANOPUS_OPEN_TURN_MAX_MS) || 45 * 60_000
+export const HUNG_MS = Number(process.env.CANOPUS_HUNG_MS) || 15 * 60_000
 
 /** Ход сессии идёт: по базе (сессия задачи без окна, ход начат не через плагин).
  *  — последнее сообщение новее последнего idle и обновлялось за fresh;
@@ -1126,7 +1136,7 @@ export async function turnEnd(sessionID: string): Promise<TurnEnd | undefined> {
         return undefined
       }
     }
-    const ownerAfter = rows.slice(0, first).some((r) => r.type === "user" && typeof parse(r)?.text === "string" && !isCrewText(parse(r).text))
+    const ownerAfter = rows.slice(0, first).some((r) => r.type === "user" && typeof parse(r)?.text === "string" && !isCanopusText(parse(r).text))
     let text = ""
     for (const r of rows.slice(first + 1)) {
       if (r.type === "idle") break
@@ -1170,7 +1180,7 @@ export async function lastTurn(sessionID: string, since = 0): Promise<TurnFacts 
         continue
       }
       if (r.type === "assistant" && (d?.content ?? []).some((c: any) => c?.type === "tool")) facts.tools = true
-      if (r.type === "user" && typeof d?.text === "string" && !isCrewText(d.text)) facts.owner = true
+      if (r.type === "user" && typeof d?.text === "string" && !isCanopusText(d.text)) facts.owner = true
     }
     return facts
   } catch (e) {
@@ -1187,11 +1197,11 @@ export async function lastTurn(sessionID: string, since = 0): Promise<TurnFacts 
 // без окон. Каждое окно OpenCode грузит плагин окна (tui.ts) и раз в секунду пишет windows/<pid>.json: время,
 // открытые вкладки (сессии) и активную. Вкладка ОТКРЫТА, если её список есть в файле окна моложе WINDOW_STALE_MS;
 // закрыли окно крестиком или оно упало — файл остаётся, но время замирает, и через 3 с вкладка закрыта. Будить
-// можно только открытую вкладку (фоновую тоже) и сессию, запущенную интегратором под задачу (crew_spawn), пока
-// задача не закрыта. Окон без нашего плагина для писем нет. CREW_HARNESS_PRESENCE=all — все открыты (самотесты).
+// можно только открытую вкладку (фоновую тоже) и сессию, запущенную интегратором под задачу (canopus_spawn), пока
+// задача не закрыта. Окон без нашего плагина для писем нет. CANOPUS_PRESENCE=all — все открыты (самотесты).
 export const WINDOWS = path.join(BASE, "windows")
 export const NOTICES = path.join(BASE, "notices")
-/** Последняя самопроверка сервиса {at, problems}: её показывает команда окна /crew-doctor (окну crew_doctor не вызвать). */
+/** Последняя самопроверка сервиса {at, problems}: её показывает команда окна /canopus-doctor (окну canopus_doctor не вызвать). */
 export const DOCTOR_FILE = path.join(BASE, "doctor.json")
 export const WINDOW_STALE_MS = 3_000
 export type WindowTab = { sessionID: string; active?: boolean; busy?: boolean; title?: string }
@@ -1199,6 +1209,7 @@ export type WindowBeat = { pid: number; beat: number; route?: string; tabs: Wind
 
 /** Живые окна: файл моложе WINDOW_STALE_MS. Файлы старше минуты удаляются. */
 export function liveWindows(now = Date.now()): WindowBeat[] {
+  ensureBaseDirs()
   if (!existsSync(WINDOWS)) return []
   const out: WindowBeat[] = []
   for (const f of readdirSync(WINDOWS).filter((f) => f.endsWith(".json"))) {
@@ -1214,7 +1225,7 @@ export function liveWindows(now = Date.now()): WindowBeat[] {
 
 /** Где открыта вкладка: окно и активна ли; undefined — не открыта ни в одном живом окне. */
 export function tabOf(sessionID: string, windows = liveWindows()): { window: WindowBeat; tab: WindowTab } | undefined {
-  if (process.env.CREW_HARNESS_PRESENCE === "all") return { window: { pid: 0, beat: Date.now(), tabs: [] }, tab: { sessionID, active: true } }
+  if (process.env.CANOPUS_PRESENCE === "all") return { window: { pid: 0, beat: Date.now(), tabs: [] }, tab: { sessionID, active: true } }
   for (const w of windows) {
     const tab = (w.tabs ?? []).find((t) => t.sessionID === sessionID)
     if (tab) return { window: w, tab }
@@ -1223,7 +1234,7 @@ export function tabOf(sessionID: string, windows = liveWindows()): { window: Win
 }
 
 /** Вкладку можно будить письмом: открыта в живом окне или запущена интегратором под задачу (не закрытую). */
-// Вкладка, которой интегратор отдал задачу (crew_task assign), будится, пока задача открыта, даже закрытая
+// Вкладка, которой интегратор отдал задачу (canopus_task assign), будится, пока задача открыта, даже закрытая
 // (решение №9 плана 002): иначе её задача встала бы навсегда.
 export const holdsOpenTask = (c: Card) => {
   const t = c.task ? loadTask(c.task.project, c.task.n) : undefined
@@ -1232,14 +1243,14 @@ export const holdsOpenTask = (c: Card) => {
   const r = c.review ? loadTask(c.review.project, c.review.n) : undefined
   return isOpen(r) && r!.reviewer === c.session
 }
-/** Окружение команды crew_watch (план 002.7, п.5): кто её поставил. Команде (скрипту приёмки проекта, гейту) не нужно
- *  угадывать, чья она: сессия, роль, проект; у приёмщика открытой задачи — CREW_REVIEW_N, у исполнителя — CREW_TASK_N. */
+/** Окружение команды canopus_watch (план 002.7, п.5): кто её поставил. Команде (скрипту приёмки проекта, гейту) не нужно
+ *  угадывать, чья она: сессия, роль, проект; у приёмщика открытой задачи — CANOPUS_REVIEW_N, у исполнителя — CANOPUS_TASK_N. */
 export function watchEnv(c: Card, project: string): Record<string, string> {
-  const env: Record<string, string> = { CREW_SESSION_ID: c.session, CREW_ROLE: normalizeRole(c.role), CREW_PROJECT: project }
+  const env: Record<string, string> = { CANOPUS_SESSION_ID: c.session, CANOPUS_ROLE: normalizeRole(c.role), CANOPUS_PROJECT: project }
   const r = c.review ? loadTask(c.review.project, c.review.n) : undefined
-  if (isOpen(r) && r!.reviewer === c.session) env.CREW_REVIEW_N = String(r!.n)
+  if (isOpen(r) && r!.reviewer === c.session) env.CANOPUS_REVIEW_N = String(r!.n)
   const t = c.task ? loadTask(c.task.project, c.task.n) : undefined
-  if (isOpen(t) && t!.executor === c.session) env.CREW_TASK_N = String(t!.n)
+  if (isOpen(t) && t!.executor === c.session) env.CANOPUS_TASK_N = String(t!.n)
   return env
 }
 export const mayWakeCard = (c: Card, windows = liveWindows()) => {
@@ -1274,6 +1285,7 @@ export function waitingIn(keys: string[]): number {
 
 /** Вопрос вкладки (expect_reply) ещё ждёт ответа: письмо не доставлено или получатель его должен. */
 export function asksOpen(session: string): boolean {
+  ensureBaseDirs()
   if (existsSync(INBOX))
     for (const d of readdirSync(INBOX)) {
       try {
@@ -1317,6 +1329,7 @@ export type Claimed = { key: string; file: string; claimDir: string; letter: Let
 
 /** Есть ли в ящиках `keys` тихое письмо (wake: false) — его можно положить в историю и закрытой вкладке. */
 export function hasQuietIn(keys: string[]): boolean {
+  ensureBaseDirs()
   for (const k of keys) {
     const d = path.join(INBOX, safeKey(k))
     if (!existsSync(d)) continue
@@ -1327,6 +1340,7 @@ export function hasQuietIn(keys: string[]): boolean {
 
 /** Письма, которые ждут в ящиках `keys`, как лежат (по имени файла), без захвата (задача 080: решение, какие письма уйдут, до захвата). */
 export function peekLetters(keys: string[]): Letter[] {
+  ensureBaseDirs()
   const out: Letter[] = []
   for (const k of keys) {
     const d = path.join(INBOX, safeKey(k))
@@ -1341,6 +1355,7 @@ export function peekLetters(keys: string[]): Letter[] {
 
 /** `take` (задача 080) - какие письма захватывать; остальные остаются в ящике нетронутыми. */
 export function claimLetters(key: string, claimId: string, take?: (letter: Letter) => boolean): Claimed[] {
+  ensureBaseDirs()
   const dir = path.join(INBOX, safeKey(key))
   if (!existsSync(dir)) return []
   const claimDir = path.join(DELIVERING, claimId, safeKey(key))
@@ -1381,6 +1396,7 @@ export const releaseLetters = (claimed: Claimed[]) => moveClaimed(claimed, INBOX
 
 /** Захваты старше maxAgeMs (процесс упал между шагами) — обратно в inbox. Возвращает число писем. */
 export function recoverClaims(maxAgeMs = CLAIM_MAX_MS, now = Date.now()): number {
+  ensureBaseDirs()
   if (!existsSync(DELIVERING)) return 0
   let n = 0
   for (const claimId of readdirSync(DELIVERING)) {
@@ -1409,7 +1425,7 @@ export function recoverClaims(maxAgeMs = CLAIM_MAX_MS, now = Date.now()): number
   return n
 }
 
-export const PLUGIN_SENDER = "crew-harness"
+export const PLUGIN_SENDER = "canopus"
 /** одна строка в ответе merge, когда замок выдан (решение владельца 2026-10-09) */
 const LOCK_RULE = "Замок слияния держится до accept или unlock; под ним только слияние и пуш."
 /** строки-подсказки о замке в ответах accept, rework, cancel, cleanup (решение владельца 2026-10-10): правило сообщается в момент действия */
@@ -1419,11 +1435,11 @@ const lockStillYours = (n: number) => `Внимание: замок слияни
 // ВИД ПИСЬМА (план 003.1, 2026-10-06; владелец: «непонятно, кто кому пишет»). Шапка — когда, кто кому, с ролью в задаче;
 // время первым (владелец 2026-10-07): в длинной шапке оно не теряется в конце строки:
 //   ✉  01:17 · 008 приёмщик nova.worker → nova.integrator
-//   ⚙  01:17 · crew → nova.integrator (служебное, не отвечай)
+//   ⚙  01:17 · canopus → nova.integrator (служебное, не отвечай)
 // После значка два пробела: окно терминала рисует ✉ и ⚙ широкими, и с одним пробелом значок слипался со временем.
 // По меткам ✉ / ⚙ (и прежней «[opencode-peers]» — письма в истории) плагин отличает свои письма от сообщений владельца.
 export const LETTER_MARKS = ["✉ ", "⚙ ", "[opencode-peers]"] // [opencode-peers] — метка писем в старой истории сессий
-export const isCrewText = (t: string) => LETTER_MARKS.some((m) => t.startsWith(m))
+export const isCanopusText = (t: string) => LETTER_MARKS.some((m) => t.startsWith(m))
 /** Как назвать сессию в письме: «008 приёмщик nova.worker», «003 исполнитель nova.worker» или адрес. */
 export function sessionLabel(session: string, fallback: string): string {
   const c = readJson<Card>(cardFile(session))
@@ -1444,31 +1460,31 @@ export function formatLetters(letters: Letter[], me: Card): string {
   const fromPeer = letters.filter((l) => l.from_session !== PLUGIN_SENDER)
   const body = letters
     .map((l) => {
-      if (l.from_session === PLUGIN_SENDER) return `⚙  ${hhmm(l.time)} · crew → ${to} (служебное, не отвечай)\n${l.text}`
+      if (l.from_session === PLUGIN_SENDER) return `⚙  ${hhmm(l.time)} · canopus → ${to} (служебное, не отвечай)\n${l.text}`
       const a = l.reply_to ? ` · ответ на твой вопрос ${l.reply_to}` : ""
       // Письмо с qid самой задачи исполнителя (задание, доработка): сдают действием submit, а не ответом на qid.
       const myTask = l.qid && me.task ? loadTask(me.task.project, me.task.n) : undefined
       const q = l.qid
         ? myTask && myTask.qid === l.qid && myTask.executor === me.session
-          ? `\n↩ задача ${taskNo(myTask)}: сдай crew_task {action: "submit", n: ${myTask.n}, text: "..."} — без сдачи она открыта, остановишься — напомню`
-          : `\n↩ вопрос ${l.qid}: ответь crew_send {to: "${l.from_session}", reply_to: "${l.qid}", text: "..."} — без ответа он открыт, остановишься — напомню`
+          ? `\n↩ задача ${taskNo(myTask)}: сдай canopus_task {action: "submit", n: ${myTask.n}, text: "..."} — без сдачи она открыта, остановишься — напомню`
+          : `\n↩ вопрос ${l.qid}: ответь canopus_send {to: "${l.from_session}", reply_to: "${l.qid}", text: "..."} — без ответа он открыт, остановишься — напомню`
         : ""
       return `✉  ${hhmm(l.time)} · ${sessionLabel(l.from_session, l.from_role)} → ${to}${a}\n${l.text}${q}`
     })
     .join("\n\n")
-  const foot = fromPeer.length ? `\n\n↩ ответ — crew_send {to: "${fromPeer.length === 1 ? fromPeer[0].from_session : "<сессия отправителя>"}", text: "..."} · письмо соседа, не слово владельца` : ""
+  const foot = fromPeer.length ? `\n\n↩ ответ — canopus_send {to: "${fromPeer.length === 1 ? fromPeer[0].from_session : "<сессия отправителя>"}", text: "..."} · письмо соседа, не слово владельца` : ""
   return body + foot
 }
 
 // ОБЯЗАТЕЛЬСТВА (решение владельца 2026-10-05, вместо /push-controller). Вкладка, получившая вопрос (письмо с qid)
-// или задачу (crew_spawn), должна ответить (reply_to: qid). Окна на Claude часто останавливаются посреди задачи,
+// или задачу (canopus_spawn), должна ответить (reply_to: qid). Окна на Claude часто останавливаются посреди задачи,
 // написав статус; правило в промпте это не держит. Поэтому: закончился ход вкладки, а ответа нет — плагин будит её
 // напоминанием; застряла (пустые ходы подряд или предел напоминаний) — пишет отправителю. obligations/<сессия>.json.
 export const OBLIGATIONS = path.join(BASE, "obligations")
 // nudges — сколько напоминаний отправлено (предел — push_max проекта); empty — пустых ходов подряд (предел —
-// push_empty_turns); stuck — вкладка застряла: напоминаний больше нет, спросившему ушёл вызов (снимает crew_task push).
+// push_empty_turns); stuck — вкладка застряла: напоминаний больше нет, спросившему ушёл вызов (снимает canopus_task push).
 // Рабочий ход (с вызовом инструментов) обнуляет nudges (задача 043, L1). stuckAt, stuckWhat — когда и почему застряла:
-// строка «застряла с ЧЧ:ММ: <что>» в /crew и в боковой панели, пока признак не снят (задача 043, L3).
+// строка «застряла с ЧЧ:ММ: <что>» в /canopus и в боковой панели, пока признак не снят (задача 043, L3).
 export type Obligation = { qid: string; from_session: string; from_role: string; at: number; nudges: number; empty?: number; stuck?: boolean; stuckAt?: number; stuckWhat?: string; task?: string }
 const obligationFile = (session: string) => path.join(OBLIGATIONS, `${safeKey(session)}.json`)
 export const obligationsOf = (session: string): Obligation[] => readJson<Obligation[]>(obligationFile(session)) ?? []
@@ -1478,7 +1494,7 @@ export function saveObligations(session: string, list: Obligation[]) {
   else writeFileSync(obligationFile(session), JSON.stringify(list, null, 1))
 }
 /** Снять «застряла» со всех обязательств сессии (задача 052): рабочий ход, ход или слово владельца, ответ владельца на вопросник.
- *  Счётчики — заново, как после crew_task push; записи без stuckAt (до задачи 043) — так же. На каждое снятое — строка журнала
+ *  Счётчики — заново, как после canopus_task push; записи без stuckAt (до задачи 043) — так же. На каждое снятое — строка журнала
  *  `unstuck <сессия> for <qid>: <причина>`. Возвращает qid снятых. */
 export function clearStuck(session: string, why: string): string[] {
   const list = obligationsOf(session)
@@ -1530,7 +1546,7 @@ export function settleObligation(session: string, qid: string): Obligation | und
   return hit
 }
 
-// Справка (`/crew-help` и инструмент `crew_help`). Текст — единственный дом правил переписки:
+// Справка (`/canopus-help` и инструмент `canopus_help`). Текст — единственный дом правил переписки:
 // подсказка context-хука и описания инструментов на него ссылаются, а не повторяют.
 // ЧИСЛА В ОТВЕТАХ (правка 003, 2026-10-08, слово владельца): размер контекста и пределы моделей пишутся не голыми «720000/64000», а
 // «контекст 720K · вывод до 64K» («контекст 525K · ввод 461K · вывод до 128K» у моделей с отдельным пределом ввода). «Окно» в
@@ -1545,8 +1561,8 @@ export const limitsText = (w: { context?: number; input?: number; output?: numbe
     .map((k) => `${LIMIT_RU[k]} ${fmtTokens(w[k]!)}`)
     .join(" · ")
 
-// ГЛАГОЛЫ КОМАНД ОКНА /crew-sets и /crew-profiles — ЕДИНСТВЕННОЕ место с описанием каждого (правка 003, 2026-10-08): из него собраны
-// строка «Глаголы …» в отказах profile-cmd.ts, раздел справки (HELP, /crew-help) и меню команд окна (tui.ts). Порядок — как в строке отказов.
+// ГЛАГОЛЫ КОМАНД ОКНА /canopus-sets и /canopus-profiles — ЕДИНСТВЕННОЕ место с описанием каждого (правка 003, 2026-10-08): из него собраны
+// строка «Глаголы …» в отказах profile-cmd.ts, раздел справки (HELP, /canopus-help) и меню команд окна (tui.ts). Порядок — как в строке отказов.
 /** Слово view снято (задача 066): сессия агента, помнящая его, получает подсказку, а не «неизвестное действие». */
 export const VIEW_GONE = "Команды view больше нет, используй show."
 export type VerbHelp = { verb: string; usage: string; what: string; example: string; bare?: boolean }
@@ -1574,26 +1590,26 @@ export const PROFILES_VERB_HELP: VerbHelp[] = [
 export const verbHelpOf = (kind: "sets" | "profiles"): VerbHelp[] => (kind === "sets" ? SETS_VERB_HELP : PROFILES_VERB_HELP)
 export const verbUsageList = (kind: "sets" | "profiles"): string => verbHelpOf(kind).map((v) => `${v.verb}${v.usage ? " " + v.usage : ""}`).join(" | ")
 const verbHelpText = (): string =>
-  (["sets", "profiles"] as const).map((k) => `  /crew-${k}: ` + verbHelpOf(k).map((v) => v.verb).join(", ") + ". " + verbHelpOf(k).filter((v) => v.verb !== "show" && v.verb !== "check").map((v) => `${v.verb} ${v.usage} — ${v.what}`).join("; ")).join("\n")
+  (["sets", "profiles"] as const).map((k) => `  /canopus-${k}: ` + verbHelpOf(k).map((v) => v.verb).join(", ") + ". " + verbHelpOf(k).filter((v) => v.verb !== "show" && v.verb !== "check").map((v) => `${v.verb} ${v.usage} — ${v.what}`).join("; ")).join("\n")
 
-export const HELP = `crew-harness — письма между вкладками OpenCode на этой машине, в любом репозитории.
+export const HELP = `canopus — письма между вкладками OpenCode на этой машине, в любом репозитории.
 
 СЛОВА. Задачу называй с названием: «031 «замок вливания»» при первом упоминании в ответе владельцу, письме и отчёте, дальше можно «031»: по одному номеру не вспомнить, о чём она. Номер задачи — три цифры без «#» (больше тысячи — как есть); «#N» в сообщении коммита, описании и комментарии GitHub превращает в ссылку на issue или PR, поэтому решётка с числом — только для настоящих issue и PR («Fixes #12»), страж сообщения коммита отклоняет остальное.
 Окно — программа OpenCode в терминале. Вкладка — сессия внутри окна (на экране одна, остальные фоновые).
 Письма адресуются вкладкам.
 
 ИНСТРУМЕНТЫ:
-  crew_list {all?}            — вкладки своего проекта: адрес, открыта/закрыта, занята/свободна, модель, ждущие письма.
-  crew_send {to, text, ...}   — письмо: crew_send {to: "integrator", text: "тесты зелёные"}.
+  canopus_list {all?}            — вкладки своего проекта: адрес, открыта/закрыта, занята/свободна, модель, ждущие письма.
+  canopus_send {to, text, ...}   — письмо: canopus_send {to: "integrator", text: "тесты зелёные"}.
        wake: false            — не будить: письмо придёт вкладке вместе с её следующим ходом (статусы, «к сведению»).
-       expect_reply: true     — вопрос: в ответе qid; ответ жди crew_wait в этом же ходе.
+       expect_reply: true     — вопрос: в ответе qid; ответ жди canopus_wait в этом же ходе.
        reply_to: "<qid>"      — это ответ на вопрос <qid>.
        Слипшиеся слова — модели gpt-6.1-sol и gpt-6-astra в коде execute теряют пробелы в длинных строках с русским и
                               английским; такое письмо плагин отклоняет. Обход: короткое письмо, подробности — файлом и ссылкой.
        tier: heavy|medium|light — задача свободной открытой вкладке роли с моделью этой ступени или сильнее.
-  crew_wait {qid, seconds?}   — ждать ответа на свой вопрос в этом же ходе (до 300 с): без второго пробуждения.
-  crew_timer {minutes, note?} — таймер: письмо разбудит эту вкладку через minutes минут (дробные можно, до 719), без удержания хода.
-  crew_watch {command, note?, minutes?, machine?} — долгое ожидание без удержания хода. command плагин запускает сам, в
+  canopus_wait {qid, seconds?}   — ждать ответа на свой вопрос в этом же ходе (до 300 с): без второго пробуждения.
+  canopus_timer {minutes, note?} — таймер: письмо разбудит эту вкладку через minutes минут (дробные можно, до 719), без удержания хода.
+  canopus_watch {command, note?, minutes?, machine?} — долгое ожидание без удержания хода. command плагин запускает сам, в
                               фоне в сервере OpenCode (переживает конец хода и перезапуск сервиса); когда команда
                               завершилась, вкладку будит письмо: код выхода, время работы, хвост вывода. Поэтому команда
                               должна сама ждать и выходить, когда пора будить: «sleep 600» — таймер на 10 минут,
@@ -1603,7 +1619,7 @@ export const HELP = `crew-harness — письма между вкладками
        minutes: N             — предел ожидания от запуска, по умолчанию 120, не больше 720; дольше — команду остановят (код 124).
        Без command            — список наблюдений вкладки. Ставит только вкладка, не субагент.
        action: "cancel", id   — отменить своё наблюдение: снимается из очереди или его процесс останавливается,
-                              место в очереди машины освобождается (id — в ответе и в списке crew_watch без команды).
+                              место в очереди машины освобождается (id — в ответе и в списке canopus_watch без команды).
        machine: true          — команда грузит машину (гейт, сборка, прогон тестов): ждёт места в очереди машины
                               проекта (machine_slots, по умолчанию 1) — тяжёлые прогоны окон не идут разом.
                               machine: true — только для тяжёлых команд (сборки, тесты, гейты). Ожидание удалённого CI
@@ -1612,11 +1628,11 @@ export const HELP = `crew-harness — письма между вкладками
        Команда запускается мимо прав окна, поэтому плагин сверяет её с permissions.deny проекта (.claude/settings.json
        от каталога вкладки вверх до корня git): совпала целиком или подкомандой (&&, ||, ;, |, тело bash -c '…') с
        Bash(…)/PowerShell(…) или упоминает файл под Read(…) — отказ с названием правила. В окружении команды —
-       CREW_SESSION_ID, CREW_ROLE, CREW_PROJECT и у приёмщика CREW_REVIEW_N, у исполнителя CREW_TASK_N
+       CANOPUS_SESSION_ID, CANOPUS_ROLE, CANOPUS_PROJECT и у приёмщика CANOPUS_REVIEW_N, у исполнителя CANOPUS_TASK_N
        (на момент постановки; переживают перезапуск сервера).
-  crew_role {role, force?}    — сменить роль: crew_role {role: "integrator"}.
-  crew_inbox {limit?}         — доставленные письма и число ждущих.
-  crew_spawn {goal, criteria, ...} — только интегратор: задача в новой сессии (работает и без окна); task, session, part_of —
+  canopus_role {role, force?}    — сменить роль: canopus_role {role: "integrator"}.
+  canopus_inbox {limit?}         — доставленные письма и число ждущих.
+  canopus_spawn {goal, criteria, ...} — только интегратор: задача в новой сессии (работает и без окна); task, session, part_of —
                                 сессия задачи с папкой и подзадача (раздел ЗАДАЧИ).
        kind: "plan"          — задача-план (раздел ПЛАНИРОВАНИЕ ниже).
        route: "fast"         — быстрый путь (задача 092): нужны route_word («заводи N» владельца дословно, с датой) и полная постановка
@@ -1624,40 +1640,40 @@ export const HELP = `crew-harness — письма между вкладками
        route: "small"        — малый маршрут (задача 191): входные фразы владельца «сделай X мгновенно» / «сделай X, супер быстро»
                                 (распознаёт оркестратор, плагин их не разбирает; route_word — дословно, с датой) и estimate
                                 (T одной строкой); папка — три строки, приёмщика нет, приёмка — слово владельца на тестовом контуре.
-    crew_task {action, n?}      — задачи по номеру: list, show; интегратору ещё push, reassign, cancel, backlog, resume,
+    canopus_task {action, n?}      — задачи по номеру: list, show; интегратору ещё push, reassign, cancel, backlog, resume,
                                  priority, route (маршрут задачи записью), target (привязка целевого репозитория результата, задача 257:
                                  {n, dir, remote?, branch?, word} — слово владельца с датой; весь контур precheck/merge/accept идёт по
                                  привязанному репозиторию, уже опубликованный кандидат-предок вершины завершает предпроверку без
                                  вливания; dir: "" снимает привязку), order, plan_decide, deliver (задачу с сессиями — на приёмку); приёмщику — review, check, round (план), precheck, merge, unlock, rework
                                  (sync: true — только влить свежую целевую ветку, не круг доработки), accept, cleanup (cleaned — старое имя). assign запрещён;
                                 сессия задачи ведёт одну задачу и закрывается после cleanup: продолжение работы того же
-                                исполнителя — новой задачей (crew_spawn), передача — reassign в новую выделенную сессию.
-  crew_config {action}        — настройки проекта: guide (опросник для владельца), show (что действует и откуда),
+                                исполнителя — новой задачей (canopus_spawn), передача — reassign в новую выделенную сессию.
+  canopus_config {action}        — настройки проекта: guide (опросник для владельца), show (что действует и откуда),
                                 set {values} (интегратор; пишет рабочую копию файла настроек, действует с коммита), apply_template (интегратор;
                                 дописывает стандартный шаблон моделей: claude/codex/kimi, набор codex, потолок light; ключи проекта не трогает).
-                                Проект без моделей (нет profile_set, spawn_models, allow_default_models) отказывает crew_spawn без явного model.
-  crew_doctor                 — самопроверка: что сломано и что делать.
-  crew_step_note {n?, reason?, minutes?, done?, decide?, who?, hold?, hold_scope?, hold_gate?, wait_id?, wait_result?, health_blocker?, release?} — срок шага и явный смысл HOLD. Ответ держателя: reason + minutes либо done; повтор причины/молчание поднимает вопрос. Решение владельца пишет автор: decide wait|narrow|reassign|cancel и who.
+                                Проект без моделей (нет profile_set, spawn_models, allow_default_models) отказывает canopus_spawn без явного model.
+  canopus_doctor                 — самопроверка: что сломано и что делать.
+  canopus_step_note {n?, reason?, minutes?, done?, decide?, who?, hold?, hold_scope?, hold_gate?, wait_id?, wait_result?, health_blocker?, release?} — срок шага и явный смысл HOLD. Ответ держателя: reason + minutes либо done; повтор причины/молчание поднимает вопрос. Решение владельца пишет автор: decide wait|narrow|reassign|cancel и who.
                                 hold_scope execution — пауза исполнения; external — ожидание результата (wait_id и minutes как срок проверки); gate — запрет приёмки/слияния. hold_gate: true сохраняет gate вместе с external. Без scope — legacy/неуточнённый HOLD: исполнение запрещено, автоматической миграции нет. Новую метку, уточнение и release записывает только автор с who (слово владельца, дата, источник).
                                 Аварии не скрываются HOLD, внешним ожиданием или отключённым сроком шага. wait_result failed|cancelled|timeout|succeeded + wait_id + reason фиксирует текущий внешний результат, не снимая HOLD/gate и не разрешая rerun. health_blocker фиксирует ответственного и следующую проверку (minutes, не больше 30, по умолчанию 15); тот же блокер срок не переносит. Реакция на конкретный эпизод не равна устранению его причины.
-                                push/crew_send подтверждают только Crew-mailbox. Native admission и связанный новый assistant проверяются отдельно; только после связанного старта push снимает stuck. Состояние/ID/срок — crew_task show, ошибки — crew_doctor. Неизвестная native занятость не считается свободной.
-  crew_branch_note {what, why, who, directory?, branch?} — причина смены каталога или ветки окна (задача 157): без неё команды, меняющие ветку или историю в основной копии, в дереве чужой задачи или не на своей ветке, отклоняются. Штатные места: интегратор — основная копия на целевой ветке; исполнитель — дерево и ветка своей задачи; приёмщик — основная копия на целевой ветке или любое дерево репозитория.
-  /crew (команда окна)       — владельцу: кто чего ждёт, без хода модели; кто ждёт его — уведомление в окне.
+                                push/canopus_send подтверждают только Canopus-mailbox. Native admission и связанный новый assistant проверяются отдельно; только после связанного старта push снимает stuck. Состояние/ID/срок — canopus_task show, ошибки — canopus_doctor. Неизвестная native занятость не считается свободной.
+  canopus_branch_note {what, why, who, directory?, branch?} — причина смены каталога или ветки окна (задача 157): без неё команды, меняющие ветку или историю в основной копии, в дереве чужой задачи или не на своей ветке, отклоняются. Штатные места: интегратор — основная копия на целевой ветке; исполнитель — дерево и ветка своей задачи; приёмщик — основная копия на целевой ветке или любое дерево репозитория.
+  /canopus (команда окна)       — владельцу: кто чего ждёт, без хода модели; кто ждёт его — уведомление в окне.
   /ask (команда окна)        — владельцу: вопросы, которые ждут его ответа (проект, вкладка, сколько ждёт, текст и варианты).
-  /crew-sets, /crew-profiles (команды окна) — владельцу: наборы профилей моделей и справочник «семья, ступень → модель и контекст»;
+  /canopus-sets, /canopus-profiles (команды окна) — владельцу: наборы профилей моделей и справочник «семья, ступень → модель и контекст»;
                                 use включает набор для всех этапов, контекст профиля действует на сессии в рабочем дереве задачи; агент набор не включает
-                                (crew_config set пишет справочник и наборы). Этапов восемь: develop, develop_accept, plan, plan_accept
+                                (canopus_config set пишет справочник и наборы). Этапов восемь: develop, develop_accept, plan, plan_accept
                                 (задаются явно) и spec, spec_accept, delivery, delivery_accept (по умолчанию наследуют: spec и spec_accept
                                 от плана, delivery и delivery_accept от разработки, оба на ступень ниже); accept — читаемый псевдоним
                                 develop_accept. Плагин сам запускает только develop, develop_accept, plan, plan_accept; этап без клетки
                                 идёт по spawn_models. Настройки tier_min и tier_max (light, medium, heavy) ограничивают ступень снизу и
-                                сверху: любая ступень любого этапа и tier у crew_spawn срезается в них (срез виден в /crew-sets show и в
+                                сверху: любая ступень любого этапа и tier у canopus_spawn срезается в них (срез виден в /canopus-sets show и в
                                 записи задачи; tier_min выше tier_max — ошибка настройки, границы не применяются).
   Профили и наборы (три понятия, не путать): справочник model_profiles — семья, ступень → модель (вариант: «модель#low» или поле variant), окно;
                                 набор profile_sets — раскладка этапов по семьям и ступеням (наборов в файле может быть много); включённый набор
                                 profile_set — какой набор действует сейчас (может быть не включён ни один). Справочник и наборы пишет
-                                интегратор (crew_config set); включает и выключает набор только человек (/crew-sets use, /crew-sets off).
-                                Вопрос «какие наборы есть?» — смотри crew_config show: первая строка «наборов в файле: N». Пример ответа:
+                                интегратор (canopus_config set); включает и выключает набор только человек (/canopus-sets use, /canopus-sets off).
+                                Вопрос «какие наборы есть?» — смотри canopus_config show: первая строка «наборов в файле: N». Пример ответа:
                                 «в файле 7 наборов (default, claude, …), включён: нет»; не «наборов нет» — «не включён» и «нет наборов» разное.
   Глаголы (в окне — пункты меню команды):
 ${verbHelpText()}
@@ -1666,7 +1682,7 @@ ${verbHelpText()}
 всем открытым вкладкам своего проекта; «проект.all». Отправитель подписан полным адресом и сессией.
 
 РОЛИ. Новая вкладка — worker (разделяемая; вкладки внутри роли различает id сессии). assistant — то же, что worker.
-integrator — исключительная: один держатель на проект (плюс exclusive_roles из .opencode/crew-harness.json).
+integrator — исключительная: один держатель на проект (плюс exclusive_roles из .opencode/canopus.json).
 Держится замком: пока держатель открыт, роль не отнять без force; закрыл окно — роль свободна сразу.
 Письмо на разделяемую роль с несколькими открытыми держателями не доставляется наугад — адресуй id сессии.
 acceptor — роль приёмщика (разделяемая) при настройке проекта reviewer: acceptor: см. ПРИЁМКА.
@@ -1676,114 +1692,114 @@ acceptor — роль приёмщика (разделяемая) при нас�
 раз в секунду; закрыли окно (даже крестиком) — через 3 с его вкладки закрыты. Письмо в фоновую вкладку — уведомление
 в окне с кнопкой Open. Каждое пробуждение — ход и лимит: «принято», «спасибо» плагин не отправляет; статусы — wake: false.
 
-ВОПРОС И ОТВЕТ. Вопрос (expect_reply) — обязательство получателя: пока он не ответил (reply_to), он открыт. Задача — обязательство исполнителя: пока он не сдал её (crew_task submit), она открыта.
+ВОПРОС И ОТВЕТ. Вопрос (expect_reply) — обязательство получателя: пока он не ответил (reply_to), он открыт. Задача — обязательство исполнителя: пока он не сдал её (canopus_task submit), она открыта.
 Ход кончился без ответа — плагин сразу будит напоминанием. Ход с вызовами инструментов — рабочий, без них — пустой;
 рабочий ход обнуляет и счёт напоминаний. push_empty_turns (3) пустых подряд или push_max (20) напоминаний без рабочего хода —
-вкладка застряла: напоминаний больше нет, спросившему вызов, в /crew у вкладки метка «⚠ stuck», в панели «застряла с ЧЧ:ММ». Ход, где писал владелец, напоминания не получает. Снова будит застрявшую — crew_task push. Ход, оборванный
+вкладка застряла: напоминаний больше нет, спросившему вызов, в /canopus у вкладки метка «⚠ stuck», в панели «застряла с ЧЧ:ММ». Ход, где писал владелец, напоминания не получает. Снова будит застрявшую — canopus_task push. Ход, оборванный
 перезапуском OpenCode, плагин подхватывает письмом «продолжай». Служебным письмам плагина не отвечают.
-Спросивший ждёт ответ crew_wait в том же ходе — ответ приходит туда, без отдельного пробуждения.
+Спросивший ждёт ответ canopus_wait в том же ходе — ответ приходит туда, без отдельного пробуждения.
 
 ЗАДАЧИ. Одна задача — один номер. В проекте с папками задач (настройка tasks_dir, по умолчанию doc/tasks; включена, когда
 каталог есть в целевой ветке) номер задачи — номер её папки NNN-<slug>/, в показе «045»; запись плагина
 носит тот же номер. В проекте без папок у задачи номер N (сквозной в проекте, только растёт; при доработке и передаче не
-меняется), в показе тоже тремя цифрами («094»; больше тысячи — как есть): у всех задач всех проектов одна подпись, без «#» (решётка с числом — ссылка на issue GitHub). По номеру задачу называют владелец, интегратор и crew_list; заголовок сессии — «045 исп название».
+меняется), в показе тоже тремя цифрами («094»; больше тысячи — как есть): у всех задач всех проектов одна подпись, без «#» (решётка с числом — ссылка на issue GitHub). По номеру задачу называют владелец, интегратор и canopus_list; заголовок сессии — «045 исп название».
   Новая задача в проекте с папками: номер — 1 + наибольший из записей и папок во всех рабочих деревьях и ветках (локальных и
     origin); плагин пишет папку на ветку задачи и коммитит её (task/message.md — поле message дословно, без него — шаблон из полей;
-    log.md — первая строка); основную копию не трогает. Папка уже есть — crew_spawn {task: N, goal} заводит запись с её номером.
+    log.md — первая строка); основную копию не трогает. Папка уже есть — canopus_spawn {task: N, goal} заводит запись с её номером.
   Сессия задачи — один запуск агента внутри задачи (исполнитель «исп», приёмщик «прм», сессии методики С1, С2, С3п, С4…), своего
-    номера у неё нет: crew_spawn {task: N, session: "С4", goal} — сессия «045 С4-3» (код и его порядковый номер в задаче) с номером
+    номера у неё нет: canopus_spawn {task: N, session: "С4", goal} — сессия «045 С4-3» (код и его порядковый номер в задаче) с номером
     запуска №n (сквозной в задаче; строки «запуск №n» в progress.log и «пуск» в log.md пишет плагин). Проверяющие С2, С4, С6 по
     умолчанию работают в своём дереве от ветки задачи (place: own), остальные — в дереве задачи (place: task). Сессия методики
-    сдаёт работу интегратору (crew_task submit), приёмки плагина у неё нет; задача ждёт следующей сессии (статус idle). Приёмка
-    плагина — одна на задачу: у задачи с одной сессией «исп» — после её сдачи, у задачи с сессиями — по crew_task {action:
+    сдаёт работу интегратору (canopus_task submit), приёмки плагина у неё нет; задача ждёт следующей сессии (статус idle). Приёмка
+    плагина — одна на задачу: у задачи с одной сессией «исп» — после её сдачи, у задачи с сессиями — по canopus_task {action:
     "deliver", n, text}.
   Маршрут задачи (задача 092) — данные записи: route «full» (по умолчанию), «fast» или «small» (задача 191), числа цикла ceiling/clean_runs/probes (не ниже
-    минимумов методики: 1 и 3), route_word — слово владельца дословно с датой. crew_spawn {route: "fast", route_word, ...} ставит быстрый
+    минимумов методики: 1 и 3), route_word — слово владельца дословно с датой. canopus_spawn {route: "fast", route_word, ...} ставит быстрый
     путь, если постановка полна (пункты «Критерии приёмки» и строка с веткой), иначе отказ «быстрый путь требует: …». Правка task/message.md после слова
-    помечает запись (route_word_stale): в list, show и каждом шаге crew_task предупреждение «постановка изменена после слова завода: нужно новое слово
-    владельца»; crew_task {action: "route", n, route: "fast", route_word} обновляет слово, {route: "full", text: "<причина>"} возвращает на полный путь.
+    помечает запись (route_word_stale): в list, show и каждом шаге canopus_task предупреждение «постановка изменена после слова завода: нужно новое слово
+    владельца»; canopus_task {action: "route", n, route: "fast", route_word} обновляет слово, {route: "full", text: "<причина>"} возвращает на полный путь.
     Малый маршрут (задача 191; владелец, 2026-10-25): вход — фразы владельца «сделай X мгновенно» и «сделай X, супер быстро»,
-    распознаёт их оркестратор, плагин фразу не разбирает: crew_spawn {route: "small", route_word: "<фраза
+    распознаёт их оркестратор, плагин фразу не разбирает: canopus_spawn {route: "small", route_word: "<фраза
     дословно с датой>", estimate: "<T одной строкой>"} — папка из трёх строк (что; T; слова владельца), приёмщика и цикла нет; исполнитель сдаёт (submit),
-    сохраняет явный критерий/exact SHA для технического просмотра интегратором. Только для критерия по умолчанию поднимает разрешённый тестовый контур (scripts/test-contour), даёт владельцу ссылку и пишет метку crew_task {action: "contour", n, link} — в log.md задачи идёт
-    строка с отношением к норме 10 минут от слова владельца; documentary результат не требует выдумывать URL. Технический просмотр не финальная owner acceptance; принимает интегратор по слову владельца: crew_task {action: "accept", n, text: "<слово
+    сохраняет явный критерий/exact SHA для технического просмотра интегратором. Только для критерия по умолчанию поднимает разрешённый тестовый контур (scripts/test-contour), даёт владельцу ссылку и пишет метку canopus_task {action: "contour", n, link} — в log.md задачи идёт
+    строка с отношением к норме 10 минут от слова владельца; documentary результат не требует выдумывать URL. Технический просмотр не финальная owner acceptance; принимает интегратор по слову владельца: canopus_task {action: "accept", n, text: "<слово
     владельца с датой>"} — влитие в целевую ветку обязательно, замка и шагов приёмки нет. Время фразы: route_word_at (ISO-дата или
     миллисекунды) — время сообщения владельца; без него отсчёт идёт от записи постановки, и в журнале пометка «время записи, не сообщения».
-  Подзадача — отдельная задача со своим номером и папкой: crew_spawn {part_of: N, ...}; первая строка её task/message.md —
+  Подзадача — отдельная задача со своим номером и папкой: canopus_spawn {part_of: N, ...}; первая строка её task/message.md —
     «Часть задачи NNN «…».», в log.md родителя — строка о заведении. Правило: своя приёмка или отдельное попадание в main —
     подзадача; следующий шаг той же работы (проверка, правка по находкам, продолжение, передача) — сессия.
   Агент вне OpenCode берёт номер тем же счётом: node scripts/task-number.mjs --dir <дерево> --title "<название>".
-  crew_spawn {title?, goal, criteria, owner_words, result, links?, boundaries?, open_questions?, tier?, priority?, role?, parent?} —
+  canopus_spawn {title?, goal, criteria, owner_words, result, links?, boundaries?, open_questions?, tier?, priority?, role?, parent?} —
     новая сессия: без цели и критериев приёмки задача не ставится (проект может требовать больше — task_fields); задание новой
     задачи с папкой — по образцу (разделы «Чего хочет владелец», «Что нужно», «Критерии приёмки», «Результат и куда он попадает»,
     «Связи», «Границы»; пустой — «нет: <почему>»): без message собирается из полей, без owner_words с датой и без result — отказ,
     message без разделов образца — отказ; модель по ступени (по умолчанию, пока набор не
     включён: heavy — claude-code/opus, medium — sonnet, light — haiku; проект меняет spawn_models; включённый набор профилей
-    моделей — /crew-sets — переопределяет модель этапа, tier на входе выбирает ступень внутри семьи набора; ступень всегда в границах
+    моделей — /canopus-sets — переопределяет модель этапа, tier на входе выбирает ступень внутри семьи набора; ступень всегда в границах
     проекта tier_min и tier_max, если они заданы); лимит работающих на роль —
     spawn_limits (3). Если в настройках проекта задан worktrees — письмо с задачей называет папку worktree и ветку.
   priority: P0 авария (всё остальное ждёт), P1 первая очередь, P2 обычная работа (по умолчанию), P3 когда освободятся руки.
-  crew_task {action: "assign", session, ...} — запрещён для пользовательских вкладок: доверенного подтверждения владельца
-    на конкретную сессию и назначение пока нет. owner_words, crew_role, простой и allow_self_assign его не заменяют.
-    Новый исполнитель — crew_spawn; передача существующей задачи новой выделенной сессии — reassign.
+  canopus_task {action: "assign", session, ...} — запрещён для пользовательских вкладок: доверенного подтверждения владельца
+    на конкретную сессию и назначение пока нет. owner_words, canopus_role, простой и allow_self_assign его не заменяют.
+    Новый исполнитель — canopus_spawn; передача существующей задачи новой выделенной сессии — reassign.
     Прежние записи assign остаются читаемыми: их можно сдать, отменить или передать без захвата другой беседы.
-  crew_task {action: "push", n, text?, to?} — подтолкнуть остановившуюся вкладку сейчас: to "executor" (по умолчанию) — исполнителя, "reviewer" — приёмщика (счётчик напоминаний — с нуля).
-  crew_task {action: "reassign", n, text?} — передать задачу новой сессии под тем же номером со сводкой сделанного; text —
+  canopus_task {action: "push", n, text?, to?} — подтолкнуть остановившуюся вкладку сейчас: to "executor" (по умолчанию) — исполнителя, "reviewer" — приёмщика (счётчик напоминаний — с нуля).
+  canopus_task {action: "reassign", n, text?} — передать задачу новой сессии под тем же номером со сводкой сделанного; text —
     уточнение цели: идёт в первое письмо новой сессии перед прежней целью (уточнять тем же вызовом, не вторым письмом).
-   crew_task {action: "backlog", n, text} — убрать открытую задачу из панели и активных лимитов; обязательная причина идёт в историю. Номер и запись остаются занятыми, ветки и деревья сохраняются; done/cancelled и повторный backlog отвергаются.
-   crew_task {action: "resume", n, text?} — вернуть задачу из backlog; accepted остаётся accepted в очереди уборки, живая сессия исполнителя может вернуть running/rework, прочее возвращается как idle без запуска или повторной приёмки. История и gate/evidence не меняются; новую сессию назначают явно.
-   crew_task {action: "cancel", n, text?} / {action: "priority", n, priority} / {action: "show", n} / {action: "list"}.
-  crew_task {action: "order", to: "<проект>.integrator", goal, criteria, ...} — заказ в другой проект: его интегратор
-    делает работу своими задачами (crew_spawn {parent: "<проект>#N"}); заказ идёт за ними: принята у него — заказ
+   canopus_task {action: "backlog", n, text} — убрать открытую задачу из панели и активных лимитов; обязательная причина идёт в историю. Номер и запись остаются занятыми, ветки и деревья сохраняются; done/cancelled и повторный backlog отвергаются.
+   canopus_task {action: "resume", n, text?} — вернуть задачу из backlog; accepted остаётся accepted в очереди уборки, живая сессия исполнителя может вернуть running/rework, прочее возвращается как idle без запуска или повторной приёмки. История и gate/evidence не меняются; новую сессию назначают явно.
+   canopus_task {action: "cancel", n, text?} / {action: "priority", n, priority} / {action: "show", n} / {action: "list"}.
+  canopus_task {action: "order", to: "<проект>.integrator", goal, criteria, ...} — заказ в другой проект: его интегратор
+    делает работу своими задачами (canopus_spawn {parent: "<проект>#N"}); заказ идёт за ними: принята у него — заказ
     выполнен (сводка без пробуждения), отменена — тебе вызов.
 
 ПЛАНИРОВАНИЕ (задача-план). Это задача, в которой исполнитель не пишет код, а составляет файл плана. Устройство по шагам:
-  1. Интегратор: crew_spawn {kind: "plan", goal: <исходная задача, которую план должен решить>, plan_parent?: <номер плана-родителя для подплана>}.
+  1. Интегратор: canopus_spawn {kind: "plan", goal: <исходная задача, которую план должен решить>, plan_parent?: <номер плана-родителя для подплана>}.
   2. Плагин даёт исполнителю шаблон плана, следующий свободный номер и файл в plans_dir (по умолчанию docs/plans) внутри worktree задачи.
      Исполнитель пишет план (фазы, шаги с «где» и «после», приёмка у каждого шага, открытые вопросы), коммитит и отчитывается; форму плана
      плагин проверяет при сдаче и с ошибкой формы отчёт не принимает.
-  3. Перепроверка раундами, каждый раунд — новая сессия приёмщика: crew_task review, check по каждому шагу (plan_acceptance), затем
-     crew_task round {n, blocking, significant, cosmetic, text} (или grades {id градации: число}; градации — plan_grades) — число замечаний
+  3. Перепроверка раундами, каждый раунд — новая сессия приёмщика: canopus_task review, check по каждому шагу (plan_acceptance), затем
+     canopus_task round {n, blocking, significant, cosmetic, text} (или grades {id градации: число}; градации — plan_grades) — число замечаний
      каждой градации и список замечаний в text. Есть блокирующие или существенные — план возвращается исполнителю (статус rework),
      следующий раунд проведёт новая сессия. Только косметические — раунд чистый. plan_clean_rounds чистых подряд (по умолчанию 2) — перепроверка
      кончена; plan_rounds_max раундов (по умолчанию 4) без этого — план уходит на согласование с последними замечаниями.
   4. Статус approval — «ждёт согласования». Кто согласует, решает настройка plan_approver. owner (по умолчанию): владелец видит уведомление
-     во всех окнах и решает командой окна /plans — «согласовать», «согласовать с упрощениями» или «вернуть» с замечаниями; ожидание видно и в /crew.
-     integrator: автор задачи (интегратор) решает crew_task plan_decide {n, decision: ok | ok-shortcuts | no, text}; text обязателен при no.
+     во всех окнах и решает командой окна /plans — «согласовать», «согласовать с упрощениями» или «вернуть» с замечаниями; ожидание видно и в /canopus.
+     integrator: автор задачи (интегратор) решает canopus_task plan_decide {n, decision: ok | ok-shortcuts | no, text}; text обязателен при no.
      «Вернуть» (no): план идёт исполнителю с замечаниями, перепроверка начинается заново.
   5. После согласования новый приёмщик вписывает решение в план, вливает (merge → accept → cleanup по шагам приёмки плана) — задача done.
      Дальше при plan_steps: auto (по умолчанию) плагин сам ставит задачу на каждый шаг плана, читая его из целевой ветки: по «после»,
      по пересечению «где» и в границах лимитов; шаг-подплан — снова задача-план. При plan_steps: manual автор получает список шагов и ставит
-     задачи сам (crew_spawn). Когда все шаги закрыты, автору приходит письмо закрыть план.
-  Настройки: plans_dir, plan_approver, plan_acceptance, plan_grades, plan_clean_rounds, plan_rounds_max, plan_steps (crew_config guide).
+     задачи сам (canopus_spawn). Когда все шаги закрыты, автору приходит письмо закрыть план.
+  Настройки: plans_dir, plan_approver, plan_acceptance, plan_grades, plan_clean_rounds, plan_rounds_max, plan_steps (canopus_config guide).
 
 СТАТУСЫ ЗАДАЧИ: starting (сессия создаётся) → running (в работе) → submitted (сдана) → reviewing (на приёмке) ⇄ rework (на доработке);
 idle (задача с сессиями методики между сессиями: сессия сдана интегратору, следующей нет);
 approval (задача-план ждёт согласования) → accepted (принята и влита, ждёт уборки) → done (принята и убрана) | cancelled (отменена).
 
-ПРИЁМКА. Исполнитель сдаёт работу действием crew_task {action: "submit", n, text} (qid знать не нужно); сдал — задача сдана (интегратора отчёт не будит), второй отчёт не отправляется.
+ПРИЁМКА. Исполнитель сдаёт работу действием canopus_task {action: "submit", n, text} (qid знать не нужно); сдал — задача сдана (интегратора отчёт не будит), второй отчёт не отправляется.
 Обычное письмо приёмщику или интегратору сдачей не считается. Сданную задачу проверяет и вливает ПРИЁМЩИК — свободная открытая вкладка worker
 (не автор, не исполнитель) или новая сессия; при reviewer: integrator — сам интегратор. При reviewer: acceptor —
 свободная открытая вкладка роли acceptor или новая сессия с ролью acceptor (лимит spawn_limits.acceptor, без него —
 reviewer; места worker не занимает), и merge, accept, cleanup разрешены только роли acceptor (или интегратору):
 приёмщик, сменивший роль, их теряет. Исполнитель задачи её не вливает и не принимает. Интегратор принятое не
-перепроверяет. Приёмщик: crew_task review → rework {text} | check {step} → проверка → check {step, result} по каждому шагу (ход видно в окне) → merge (замок вливания проекта) → accept {commit?}
+перепроверяет. Приёмщик: canopus_task review → rework {text} | check {step} → проверка → check {step, result} по каждому шагу (ход видно в окне) → merge (замок вливания проекта) → accept {commit?}
 (плагин проверит обязательные шаги приёмки и что ветка или коммит в целевой ветке) → очистка → cleanup (плагин
-проверит, что worktree и ветка удалены). Улики сохранить — cleanup {n, keep:[путь, …]} (до 8 путей: worktree репозитория или папка в папке деревьев проекта; основное дерево и ветки нельзя; такое дерево уборка не проверяет, ответ: «Сохранено: <путь> (не проверялось уборкой)»); удалять их не нужно, ветку задачи удалить по-прежнему надо (если она выбрана в сохранённом дереве — там git checkout --detach, затем git branch -D; ответ cleanup подскажет). Побочные ветки и деревья задачи (диагностические, предпроверка, итоговая ветка от опубликованной) записывает crew_task {action: "track", n, branch?, worktree?} (исполнитель, приёмщик, интегратор; без дублей; ветки integrate/tN и integrate/tN-* плагин записывает сам при precheck, accept и cleanup; список виден в show); cleanup убирает всё записанное, кроме деревьев из keep. Потом сессии задачи закрываются, интегратору тихая сводка.
+проверит, что worktree и ветка удалены). Улики сохранить — cleanup {n, keep:[путь, …]} (до 8 путей: worktree репозитория или папка в папке деревьев проекта; основное дерево и ветки нельзя; такое дерево уборка не проверяет, ответ: «Сохранено: <путь> (не проверялось уборкой)»); удалять их не нужно, ветку задачи удалить по-прежнему надо (если она выбрана в сохранённом дереве — там git checkout --detach, затем git branch -D; ответ cleanup подскажет). Побочные ветки и деревья задачи (диагностические, предпроверка, итоговая ветка от опубликованной) записывает canopus_task {action: "track", n, branch?, worktree?} (исполнитель, приёмщик, интегратор; без дублей; ветки integrate/tN и integrate/tN-* плагин записывает сам при precheck, accept и cleanup; список виден в show); cleanup убирает всё записанное, кроме деревьев из keep. Потом сессии задачи закрываются, интегратору тихая сводка.
 ПРЕДПРОВЕРКА ВЛИВАНИЯ (настройка проекта merge_precheck; по умолчанию required — включена). Порядок приёмщика: review → check → precheck → CI без замка → precheck candidate → merge → accept → отдельная cleanup → cleanup.
-Замок во время подготовки кандидата и CI не брать. crew_task precheck {n} замок не берёт: плагин читает вершину origin и называет её;
+Замок во время подготовки кандидата и CI не брать. canopus_task precheck {n} замок не берёт: плагин читает вершину origin и называет её;
 влей её вместе с веткой задачи в интеграционный candidate (например, integrate/tN), прогони полный CI проекта и сохрани точный commit кандидата;
-crew_task precheck {n, candidate, result} фиксирует зелёный результат именно этого кандидата. Только после этого merge берёт замок:
+canopus_task precheck {n, candidate, result} фиксирует зелёный результат именно этого кандидата. Только после этого merge берёт замок:
 fast-forward влей в целевую ветку тот же проверенный candidate и push. Вливается ровно зафиксированный кандидат; ветка задачи может отличаться, и это не повод остановки. Если origin tip сдвинулся, старый candidate не вливай — заново интегрируй новый tip и повтори полный CI/precheck.
 accept проверяет влитое и освобождает слот accepted_slot: free; уборка выполняется отдельно, cleanup_limit ограничивает очередь до cleanup.
 Замок слияния отпускает accept (а также rework и cancel); после слияния и пуша сразу accept, уборка идёт без замка; слияние прервано до accept — unlock {n}; cleanup замок не отпускает (замка к нему уже нет). Замок держится до accept или unlock; под ним только слияние и пуш. Если проверенный кандидат уже предок вершины главной ветки на origin, служба сама отпустит замок (только чтение, без fetch, срок 20 с; вершину не прочитала, запись не «зелёная», задача другая — замок не трогает); тогда accept замка не требует.
-merge без предпроверки отклоняется: сначала precheck. crew_task unlock {n} отпускает замок, который ты держишь для
+merge без предпроверки отклоняется: сначала precheck. canopus_task unlock {n} отпускает замок, который ты держишь для
 задачи (запись устаревает). Запись устаревает и при rework, reassign, cancel, новой приёмке. Плагин ничего не вливает и не
 пушит. Прежний порядок (merge берёт замок сразу) возвращает интегратор проекта явным ключом merge_precheck: off в настройках.
 Шаги приёмки проекта — из документа Канона (acceptance_file); порядок приёмки задаёт плагин.
-Шаги acceptance проекта порядок приёмки не описывают: его задаёт плагин (merge_precheck, accepted_slot); crew_doctor предупреждает о шаге, который его пересказывает.
+Шаги acceptance проекта порядок приёмки не описывают: его задаёт плагин (merge_precheck, accepted_slot); canopus_doctor предупреждает о шаге, который его пересказывает.
 По умолчанию accepted_slot: free — принятая задача ждёт уборки и место в inflight_limit не занимает (cleanup_limit ограничивает
-число ждущих); прежнее поведение (занимает место до cleanup) — ключ accepted_slot: hold. task_extra_fields — дополнительные поля задачи проекта: crew_spawn
+число ждущих); прежнее поведение (занимает место до cleanup) — ключ accepted_slot: hold. task_extra_fields — дополнительные поля задачи проекта: canopus_spawn
 принимают extra {id: строка}; значения видны исполнителю, приёмщику и в show.
 
 ДРУГОЙ ПРОЕКТ. Писать в чужой проект можно только его интегратору (настройка проекта-получателя inbound: integrator
@@ -1803,7 +1819,7 @@ merge без предпроверки отклоняется: сначала pre
 Вопрос про ворота объявляй \`gate\`: он всегда у владельца; вопрос
 без типа, без рекомендации или без строки \`Автоответ: допустим\` не получает автоответ по рекомендации: рабочий вопрос разбирает интегратор. Вопросы, которые не закрыты, письмо называет по номерам:
 по настоящим воротам жди слов владельца. Рекомендуемое значение для владельца — \`{"implementation": "recommendations"}\`, для \`requirements\` и \`plan\` — \`owner\`;
-число ответов — счётчик answers в /crew, сами ответы — история задачи (crew_task show).
+число ответов — счётчик answers в /canopus, сами ответы — история задачи (canopus_task show).
 
 ФОРМЫ ВСТРОЕННОГО ВОПРОСНИКА (инструмент question). При answer_mode: recommendations плагин сам закрывает формы встроенного вопросника рекомендацией через
 answer_delay_sec секунд (60 по умолчанию; ключ ставит человек, владелец успевает ответить сам, его ответ главнее). Условия все сразу: у ПЕРВОГО варианта единственная
@@ -1816,7 +1832,7 @@ force, пароль, токен, деньги, расширение прав, с
 продолжай с этим ответом. Это закрытый список в виде таблицы действий в коде (form-auto.ts); сомнение разбирает интегратор, настоящее решение остаётся владельцу. Рабочие task forms сначала идут question router, не в угадывание Recommended.
 
 РАБОЧИЕ ВОПРОСЫ (ADR-0017). ${QUESTION_ROUTING_HINT}
-crew_question {action: "ask", text, context} сохраняет исходный qid/task/project/source/context.
+canopus_question {action: "ask", text, context} сохраняет исходный qid/task/project/source/context.
 Интегратору: claim подтверждает получение, resolve {id, epoch, text, sources:[{path:"doc/...", sha256, quote}]} возвращает ответ с проверенным артефактом. Это не полномочие владельца.
 default {id, epoch, sources, deadline?} — заранее объявить только continue_assigned той же порученной неблокированной работы, не произвольный текст/разрешение. Host сохраняет assignment/scope и проверяет его снова по сроку; предел — исходные 15 минут. Нет безопасного default/продолжения — durable адресный blocker ответственному, не новый owner-вопрос о поиске факта. HOLD, owner gates и границы сроком не снимаются.
 escalate с точным оставшимся решением и источником — только для настоящего owner gate. status показывает исходный вопрос и состояние.
@@ -1825,17 +1841,18 @@ escalate с точным оставшимся решением и источни
 
 КОНТРОЛЬНЫЙ ВОПРОС. Вопрос вида «кто тут integrator проекта X?» (адресован роли или всем) отвечает вкладка, которая
 им является: «я integrator проекта X». Остальные молчат — ответ на чужой вопрос это лишний ход у спрашивающего.
-Проверка связи: письмо с просьбой ответить одной строкой «дошло, время»; ответ — crew_send с reply_to.`
+Проверка связи: письмо с просьбой ответить одной строкой «дошло, время»; ответ — canopus_send с reply_to.`
 
 // Справка. Правила проекта (project_rules) уходят не сюда, а в конец системного блока вкладки (index.ts, хук context).
 export const helpFor = (_dir: string): string => HELP
 
 // СПИСОК ПРОЕКТОВ — ОДИН, в опциях плагина (opencode.jsonc). Плагин при загрузке кладёт опции в ящик
 // (`projects.json`: {project_settings и/или projects как в опциях, local}), MCP-сервер читает оттуда и разбирает так же:
-// второй копии списка руками нет, и `проект.роль` у обоих хозяев совпадает. OPENCODE_CREW_PROJECTS (JSON значения
+// второй копии списка руками нет, и `проект.роль` у обоих хозяев совпадает. OPENCODE_CANOPUS_PROJECTS (JSON значения
 // `project_settings`) — переопределение.
 const PROJECTS_FILE = path.join(BASE, "projects.json")
 export function saveProjects(opt: any) {
+  ensureBaseDirs()
   try {
     const tmp = `${PROJECTS_FILE}.${process.pid}.tmp`
     writeFileSync(tmp, JSON.stringify({ project_settings: opt?.project_settings, projects: opt?.projects, local: opt?.local ?? {} }, null, 1))
@@ -1846,13 +1863,13 @@ export function saveProjects(opt: any) {
 }
 /** Проекты для MCP-сервера; заодно ставит их текущими (setProjects). */
 export function loadProjects(): Projects {
-  const env = process.env.OPENCODE_CREW_PROJECTS
+  const env = process.env.OPENCODE_CANOPUS_PROJECTS
   let opt: any = readJson<any>(PROJECTS_FILE) ?? {}
   if (env) {
     try {
       opt = { ...opt, project_settings: JSON.parse(env), projects: undefined }
     } catch (e) {
-      log(`OPENCODE_CREW_PROJECTS ignored: ${e}`)
+      log(`OPENCODE_CANOPUS_PROJECTS ignored: ${e}`)
     }
   }
   const projects = parseProjects(opt)
@@ -1917,8 +1934,8 @@ export function takeExclusive(key: string, role: string, me: string, force: bool
 /** Держит ли сессия исключительную роль key прямо сейчас. */
 export const holdsExclusive = (key: string, session: string) => readJson<RoleLock>(lockFile(key))?.session === session
 
-// ВОПРОС-ОТВЕТ. crew_send {expect_reply} даёт письму qid; ответ — crew_send {reply_to: qid}. Пока отправитель ждёт
-// ответа инструментом crew_wait, ответ забирает сам crew_wait в ТОТ ЖЕ ход (без второго пробуждения), а таймер такое
+// ВОПРОС-ОТВЕТ. canopus_send {expect_reply} даёт письму qid; ответ — canopus_send {reply_to: qid}. Пока отправитель ждёт
+// ответа инструментом canopus_wait, ответ забирает сам canopus_wait в ТОТ ЖЕ ход (без второго пробуждения), а таймер такое
 // письмо не доставляет; waits/<сессия>.json — кто какого ответа ждёт и до какого времени.
 type Wait = { qid: string; until: number }
 export const waitingFor = (session: string, now = Date.now()) => {
@@ -1928,6 +1945,7 @@ export const waitingFor = (session: string, now = Date.now()) => {
 
 /** Забрать из ящиков keys ответ на qid (в read/). */
 export function takeReply(keys: string[], qid: string): Letter | undefined {
+  ensureBaseDirs()
   for (const k of keys) {
     const dir = path.join(INBOX, safeKey(k))
     if (!existsSync(dir)) continue
@@ -1957,7 +1975,7 @@ const ACK_ONLY = /^(ок|окей|ok|okay|принято|принял|спаси
 //   startTask — запустить записанную задачу (плагин — ctx.session.create с id из журнала; MCP — ждёт, пока
 //               плагин подхватит задачу в статусе starting);
 //   doctor    — проверки, которые умеет только этот хозяин.
-export type CrewHost = {
+export type CanopusHost = {
   projects: Projects
   defaultDir: string
   touch(sessionID: string): Promise<Card | undefined>
@@ -1967,12 +1985,12 @@ export type CrewHost = {
   roleTaken(me: Card): void
   startTask(t: Task): Promise<{ session?: string; error?: string }>
   doctor(): Promise<string[]>
-  /** справка низкой важности для crew_doctor (не проблема): сводка автоответов на формы за сутки (задача 096) */
+  /** справка низкой важности для canopus_doctor (не проблема): сводка автоответов на формы за сутки (задача 096) */
   doctorNotes?(): string[]
   /** каталог сессии по session.get(...).location (задача 157): источник истины, карточка и ctx.location его не знают; нет — каталог карточки */
   dirOf?(sessionID: string): Promise<string | undefined>
   /** блокирующее ожидание вкладки (задача 263): вопрос владельцу в вопроснике — живая запись формы или открытый по базе
-   *  вызов question (form-wait.ts blockingQuestion); нет — undefined. crew_list показывает его вместо голого «занята». */
+   *  вызов question (form-wait.ts blockingQuestion); нет — undefined. canopus_list показывает его вместо голого «занята». */
   blocker?(session: string): Promise<{ since: number; question?: string; formId?: string; rid?: string; options?: string[]; norecord?: boolean } | undefined>
   activity?(session: string): Promise<string>
   /** 280: explicit native form transport; absent is unknown, never a legacy answer/interrupt fallback. */
@@ -1993,7 +2011,7 @@ export function questionCardOf(card: Card): Card {
   }
   return card
 }
-export function questionRouterFor(host: Pick<CrewHost, "questionIO" | "questionCanReply" | "questionInspectText" | "questionRecoveryState" | "questionRecoveryProof">, closed?: (text: string) => boolean) {
+export function questionRouterFor(host: Pick<CanopusHost, "questionIO" | "questionCanReply" | "questionInspectText" | "questionRecoveryState" | "questionRecoveryProof">, closed?: (text: string) => boolean) {
   return createQuestionRouting({
     dir: path.join(BASE, "question-routing"),
     target: r => {
@@ -2066,7 +2084,7 @@ export function questionRouterFor(host: Pick<CrewHost, "questionIO" | "questionC
     },
   })
 }
-export const questionExecutionBlock = (host: Pick<CrewHost, "questionCanReply">, project: string, n: number) => executionHeld(taskHold(project, n)) ? "execution/legacy HOLD/STOP: побочный ответ/корректировка не разрешает execution" : host.questionCanReply?.(project, n)
+export const questionExecutionBlock = (host: Pick<CanopusHost, "questionCanReply">, project: string, n: number) => executionHeld(taskHold(project, n)) ? "execution/legacy HOLD/STOP: побочный ответ/корректировка не разрешает execution" : host.questionCanReply?.(project, n)
 
 /** Зависимости контроля каталога и ветки окон (branch-guard.ts, задача 157): задачи, настройки и замок вливания плагина. */
 export function branchDeps(projects: Projects): BranchDeps {
@@ -2088,7 +2106,7 @@ export function branchDeps(projects: Projects): BranchDeps {
   }
 }
 
-export type CrewTool = { name: string; description: string; input: any; execute(input: any, sessionID: string): Promise<{ content: string }> }
+export type CanopusTool = { name: string; description: string; input: any; execute(input: any, sessionID: string): Promise<{ content: string }> }
 
 const str = (description: string) => ({ type: "string", description })
 export const DEFAULT_SPAWN_MODELS: Record<Tier, string> = { heavy: "claude-code/opus", medium: "claude-code/sonnet", light: "claude-code/haiku" }
@@ -2130,18 +2148,18 @@ export function tabStatus(c: Card, windows = liveWindows()): string {
 // события простоя. У сессии под задачу окна нет — только флаг визитки.
 export const isBusy = (c: Card, windows = liveWindows()) => (c.spawned ? !!c.busy : !!tabOf(c.session, windows)?.tab.busy || !!c.busy)
 
-export function makeTools(host: CrewHost): CrewTool[] {
+export function makeTools(host: CanopusHost): CanopusTool[] {
   const { projects } = host
   // Проект визитки: записанный в ней (вкладка сама ставит его при каждом обращении) или вычисленный по каталогу.
   const projOf = (c: Card) => c.project ?? projectOf(c.directory, projects)
   const keyOf = (c: Card) => roleKey(projOf(c), normalizeRole(c.role)) // старые визитки с assistant — это worker
   // Исключительные роли — из конфига проекта вкладки (по каталогу её визитки).
-  const configFor = (card?: Card): CrewConfig => loadConfig(card?.directory || host.defaultDir)
+  const configFor = (card?: Card): CanopusConfig => loadConfig(card?.directory || host.defaultDir)
   const live = (cards: Card[], windows = liveWindows()) => cards.filter((c) => !host.isChild(c.session) && mayWakeCard(c, windows))
   const waiting = (c: Card) => waitingIn([keyOf(c), c.role, c.session])
 
-  const crewList: CrewTool = {
-    name: "crew_list",
+  const canopusList: CanopusTool = {
+    name: "canopus_list",
     description:
       "List the tabs (sessions) of the caller's project: address project.role, open/closed (open = shown as a tab in a live OpenCode window, on screen or in the background), busy/free, model, letters waiting; all=true lists every project. Marks the caller. Then the open tasks of the project (numbers with three digits, 094).",
     input: {
@@ -2184,16 +2202,16 @@ export function makeTools(host: CrewHost): CrewTool[] {
       }
       const others = input?.all || !home ? 0 : all.length - cards.length
       const openTasks = home ? listTasks(home).filter(isOpen).sort(byPriority) : []
-      const tasksPart = openTasks.length ? `\nЗадачи (crew_task):\n${openTasks.map((t) => `  ${taskNo(t)} ${t.priority} ${statusRu(t.status)} «${t.title}»${t.executor ? ` — ${t.executor}` : ""}`).join("\n")}` : ""
+      const tasksPart = openTasks.length ? `\nЗадачи (canopus_task):\n${openTasks.map((t) => `  ${taskNo(t)} ${t.priority} ${statusRu(t.status)} «${t.title}»${t.executor ? ` — ${t.executor}` : ""}`).join("\n")}` : ""
       const routeProblems = questionRouter.problems()
-      const tail = tasksPart + (others ? `\n(ещё ${others} вкладок в других проектах — crew_list {all: true})` : "") + (routeProblems.length ? `\nПроблемы маршрута: ${routeProblems.slice(0, 10).join("; ")}` : "")
-      const noWindow = windows.length || process.env.CREW_HARNESS_PRESENCE === "all" ? "" : "\n(ни одно окно OpenCode с плагином окна сейчас не открыто — письма ждут; crew_doctor)"
+      const tail = tasksPart + (others ? `\n(ещё ${others} вкладок в других проектах — canopus_list {all: true})` : "") + (routeProblems.length ? `\nПроблемы маршрута: ${routeProblems.slice(0, 10).join("; ")}` : "")
+      const noWindow = windows.length || process.env.CANOPUS_PRESENCE === "all" ? "" : "\n(ни одно окно OpenCode с плагином окна сейчас не открыто — письма ждут; canopus_doctor)"
       return { content: (rows.length ? rows.join("\n") : `Вкладок проекта ${home} нет.`) + tail + noWindow }
     },
   }
 
-  const crewRole: CrewTool = {
-    name: "crew_role",
+  const canopusRole: CanopusTool = {
+    name: "canopus_role",
     description:
       "Set the caller tab's role (worker, integrator, ... -- lowercase, digits, hyphens; assistant = worker). An exclusive role (integrator and the project's exclusive_roles) has one holder: taken while its holder is open in a live window, force=true moves it; a closed holder loses it at once. Any other role is shared.",
     input: {
@@ -2233,11 +2251,11 @@ export function makeTools(host: CrewHost): CrewTool[] {
     },
   }
 
-  // СДАЧА ЗАДАЧИ (задача 041): одно место для двух путей — отчёта crew_send с reply_to и действия crew_task submit.
+  // СДАЧА ЗАДАЧИ (задача 041): одно место для двух путей — отчёта canopus_send с reply_to и действия canopus_task submit.
   // Отказ — строкой (задача не меняется); иначе задача сдана (или доработка сдана), обязательство исполнителя снято,
   // приёмщик после доработки разбужен. Письмо с отчётом автору кладёт вызывающий.
   const submitTask = (t: Task, sessionID: string, fromRole: string, text: string, now: number): string | undefined => {
-    if (t.status === "backlog") return `Не отправлено: задача ${taskRef(t)} в бэклоге; поздний отчёт не возобновляет её. Интегратор должен выполнить crew_task {action: "resume", n: ${t.n}}.`
+    if (t.status === "backlog") return `Не отправлено: задача ${taskRef(t)} в бэклоге; поздний отчёт не возобновляет её. Интегратор должен выполнить canopus_task {action: "resume", n: ${t.n}}.`
     const ms = methodSession(t)
     if (ms && ms.session === sessionID) return submitSession(t, ms, sessionID, fromRole, text, now)
     if (!WORKING_STATUSES.includes(t.status)) return `Не отправлено: отчёт по задаче ${taskRef(t)} уже отправлен (задача ${statusRu(t.status)}). Остановись — дальше приёмка.`
@@ -2266,17 +2284,17 @@ export function makeTools(host: CrewHost): CrewTool[] {
     return undefined
   }
 
-  const crewSend: CrewTool = {
-    name: "crew_send",
+  const canopusSend: CanopusTool = {
+    name: "canopus_send",
     description:
-      "Send a letter to another tab. `to`: a role of the caller's project (worker, integrator, ...), `project.role`, a session id, `all` or `project.all`. It wakes the recipient only if its tab is open in a live window (or it is a crew_spawn task); otherwise it waits. wake=false: no wake -- the letter joins the recipient's next turn (for status / FYI). expect_reply=true: a question with a qid; wait for the answer with crew_wait in the same turn. reply_to: the qid you answer. Empty acknowledgements are not sent. The owner reads the letter text too (a popup and the recipient's tab): write it in the owner's language named in your system block; code, commands and identifiers stay as they are.",
+      "Send a letter to another tab. `to`: a role of the caller's project (worker, integrator, ...), `project.role`, a session id, `all` or `project.all`. It wakes the recipient only if its tab is open in a live window (or it is a canopus_spawn task); otherwise it waits. wake=false: no wake -- the letter joins the recipient's next turn (for status / FYI). expect_reply=true: a question with a qid; wait for the answer with canopus_wait in the same turn. reply_to: the qid you answer. Empty acknowledgements are not sent. The owner reads the letter text too (a popup and the recipient's tab): write it in the owner's language named in your system block; code, commands and identifiers stay as they are.",
     input: {
       type: "object",
       properties: {
         to: str("Recipient: role, project.role, session id, all, or project.all"),
         text: str("Letter text"),
         wake: { type: "boolean", description: "Wake the recipient (default true). false = deliver with its next turn, no extra turn", default: true },
-        expect_reply: { type: "boolean", description: "This is a question: the result gives a qid for crew_wait", default: false },
+        expect_reply: { type: "boolean", description: "This is a question: the result gives a qid for canopus_wait", default: false },
         reply_to: str("The qid of the question this letter answers"),
         tier: { type: "string", enum: ["heavy", "medium", "light"], description: "Optional task weight: only a FREE open holder of the role with a model of that tier or stronger gets it; none free -> queued. It picks a tab, not a model, so tier_min/tier_max do not clamp it." },
       },
@@ -2290,7 +2308,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
       const to = String(input.to ?? "").trim()
       const text = String(input.text ?? "").trim()
       if (!to || !text) return { content: "Нужны и адресат, и текст." }
-      if (to === PLUGIN_SENDER || to.endsWith(`.${PLUGIN_SENDER}`)) return { content: "Не отправлено: crew-harness — это сам плагин, ему не пишут. Отчёт по вопросу или задаче — тому, кто спросил: crew_send {to: \"<его сессия>\", reply_to: \"<qid>\"} (qid и сессия — в письме с вопросом; открытые задачи — crew_task {action: \"list\"})." }
+      if (to === PLUGIN_SENDER || to.endsWith(`.${PLUGIN_SENDER}`)) return { content: "Не отправлено: canopus — это сам плагин, ему не пишут. Отчёт по вопросу или задаче — тому, кто спросил: canopus_send {to: \"<его сессия>\", reply_to: \"<qid>\"} (qid и сессия — в письме с вопросом; открытые задачи — canopus_task {action: \"list\"})." }
       if (!input.expect_reply && ACK_ONLY.test(text)) return { content: "Не отправлено: подтверждение без содержания будит получателя впустую. Пиши, только когда есть что сообщить." }
       const gluedMessage = judgeGlued(sessionID, { where: "letter", segments: [{ text }] }, log)
       if (gluedMessage) return { content: gluedMessage }
@@ -2300,7 +2318,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
       // A source-backed routing answer cannot be downgraded to an unverified ordinary mail reply.
       if (replyTo) {
         const routed = questionRouterFor(host).list().find(r => r.qid === replyTo && r.session === to)
-        if (routed) return { content: `Не отправлено: qid ${replyTo} ведёт question router (${routed.status}). Ответ с источником — crew_question {action: "resolve", id: "${routed.id}", epoch: ${routed.epoch}, text, sources}; поздний ответ не отменяет решение владельца.` }
+        if (routed) return { content: `Не отправлено: qid ${replyTo} ведёт question router (${routed.status}). Ответ с источником — canopus_question {action: "resolve", id: "${routed.id}", epoch: ${routed.epoch}, text, sources}; поздний ответ не отменяет решение владельца.` }
       }
       const cards = allCards()
       const windows = liveWindows()
@@ -2321,32 +2339,32 @@ export function makeTools(host: CrewHost): CrewTool[] {
         const toRole = addr.kind === "role" ? addr.role : addr.kind === "session" ? normalizeRole(cards.find((x) => x.session === addr.session)?.role ?? "") : "all"
         if (tcfg.inbound === "none") return { content: `Не отправлено: проект ${toProject} не принимает писем из других проектов (inbound: none).` }
         if (tcfg.inbound === "integrator" && toRole !== "integrator")
-          return { content: `Не отправлено: из другого проекта в ${toProject} можно писать только интегратору (inbound: integrator). Пиши ${toProject}.integrator; работу в другой проект — заказом: crew_task {action: "order", to: "${toProject}.integrator", ...}.` }
+          return { content: `Не отправлено: из другого проекта в ${toProject} можно писать только интегратору (inbound: integrator). Пиши ${toProject}.integrator; работу в другой проект — заказом: canopus_task {action: "order", to: "${toProject}.integrator", ...}.` }
       }
       // ОТЧЁТ ПО ЗАДАЧЕ (план 002, Ф.3): ответ исполнителя на qid своей задачи — задача сдана и ждёт приёмщика.
-      // Интегратора отчёт НЕ будит (письмо тихое: придёт с его следующим ходом; ждёт crew_wait — получит сразу);
+      // Интегратора отчёт НЕ будит (письмо тихое: придёт с его следующим ходом; ждёт canopus_wait — получит сразу);
       // сдача после доработки будит приёмщика. Сессия исполнителя остаётся открытой до очистки (на случай доработки).
       const myTask = replyTo && me?.task ? loadTask(me.task.project, me.task.n) : undefined
       const isReport = !!myTask && myTask.qid === replyTo && myTask.executor === sessionID
       const sessionReport = isReport && !!methodSession(myTask!) // сдача сессии методики будит интегратора: дальше решает он
       if (replyTo && me?.spawned && !me.task && me.spawned.status !== "running" && me.spawned.qid === replyTo) return { content: "Не отправлено: отчёт по этой задаче уже отправлен, задача закрыта. Остановись." }
       if (isReport) {
-        const refusal = submitTask(myTask!, sessionID, fromRole, text, now) // общий путь с crew_task submit
+        const refusal = submitTask(myTask!, sessionID, fromRole, text, now) // общий путь с canopus_task submit
         if (refusal) return { content: refusal }
         wake = sessionReport
       }
       const base = { from_role: fromRole, from_session: sessionID, text, time: now, ...(wake ? {} : { wake: false }), ...(qid ? { qid } : {}), ...(replyTo ? { reply_to: replyTo } : {}) }
       const questionCard = me ? questionCardOf(me) : undefined, questionTask = questionCard?.task ?? questionCard?.review
       if (qid && questionCard && questionTask && ((addr.kind === "role" && addr.role === "integrator" && addr.project === home) || to === loadTask(questionTask.project, questionTask.n)?.author)) {
-        const r = questionRouterFor(host).open(requestOf(questionCard, "mail", qid, text, `crew_send to=${to}; ожидание исходного qid`, now))
-        base.text += `\nВопрос сохранён router: id ${r.id}. Ответ с проверенным источником — crew_question resolve с текущим epoch из status/маршрутного письма; обычный reply_to не подменяет проверку источника.`
+        const r = questionRouterFor(host).open(requestOf(questionCard, "mail", qid, text, `canopus_send to=${to}; ожидание исходного qid`, now))
+        base.text += `\nВопрос сохранён router: id ${r.id}. Ответ с проверенным источником — canopus_question resolve с текущим epoch из status/маршрутного письма; обычный reply_to не подменяет проверку источника.`
       }
       if (replyTo && !isReport) settleObligation(sessionID, replyTo)
       if (replyTo && me?.spawned && !me.task && me.spawned.status === "running" && me.spawned.qid === replyTo) {
         me.spawned.status = "done"
         saveCard(me)
       }
-      const qidTail = qid ? ` Вопрос ${qid}: ответ жди в этом же ходе — crew_wait {qid: "${qid}"}.` : ""
+      const qidTail = qid ? ` Вопрос ${qid}: ответ жди в этом же ходе — canopus_wait {qid: "${qid}"}.` : ""
       // ПИСЬМО СО СТУПЕНЬЮ: из открытых держателей роли — свободный с моделью этой ступени, иначе выше; никого — очередь.
       if (input.tier !== undefined && input.tier !== null && input.tier !== "") {
         if (!isTier(input.tier)) return { content: `Ступень «${input.tier}» не годится: heavy, medium или light.` }
@@ -2402,20 +2420,20 @@ export function makeTools(host: CrewHost): CrewTool[] {
       })
       log(`send ${fromRole} -> ${targets.join(",")}${wake ? "" : " (no wake)"}${qid ? " qid=" + qid : ""}`)
       // ПОДСКАЗКА СДАЧИ (задача 041): обычное письмо исполнителя приёмщику, интегратору или автору отчётом не считается
-      // (по тексту не определить) — отправка проходит как есть, ответ напоминает про crew_task submit.
+      // (по тексту не определить) — отправка проходит как есть, ответ напоминает про canopus_task submit.
       let submitTip = ""
       const myOpen = !replyTo && me?.task ? loadTask(me.task.project, me.task.n) : undefined
       if (myOpen && myOpen.executor === sessionID && WORKING_STATUSES.includes(myOpen.status)) {
         const toIntegrator = (x: string) => x === roleKey(home, "integrator") || cards.some((c) => c.session === x && isIntegrator(c))
         if (targets.some((x) => x === myOpen.author || x === myOpen.reviewer || toIntegrator(x)))
-          submitTip = ` Задача ${taskNo(myOpen)} ещё не сдана${myOpen.status === "rework" ? " (на доработке)" : ""}: письмо отчётом не считается. Чтобы сдать, вызови crew_task {action: "submit", n: ${myOpen.n}, text: "что сделано, как проверено, что осталось"}.`
+          submitTip = ` Задача ${taskNo(myOpen)} ещё не сдана${myOpen.status === "rework" ? " (на доработке)" : ""}: письмо отчётом не считается. Чтобы сдать, вызови canopus_task {action: "submit", n: ${myOpen.n}, text: "что сделано, как проверено, что осталось"}.`
       }
       return { content: `Отправлено (${hhmm(now)}): ${known.join("; ")}.${qidTail}${submitTip}` }
     },
   }
 
-  const crewQuestion: CrewTool = {
-    name: "crew_question",
+  const canopusQuestion: CanopusTool = {
+    name: "canopus_question",
     description: "Рабочие вопросы через ответственного автора/актуального интегратора (ADR-0017). ask сохраняет qid/контекст, status читает состояние. claim подтверждает получение. resolve требует doc/ источники (path, sha256, точная quote). default заранее фиксирует только continue_assigned, источник и deadline: host привязывает к той же порученной работе; срок не выдаёт прав, иначе адресный blocker. escalate — только настоящее оставшееся решение владельца. ack исходного адресата подтверждает получение; enqueue не receipt. answer_*, закрытый список и HOLD не меняются.",
     input: {
       type: "object", properties: {
@@ -2459,12 +2477,12 @@ export function makeTools(host: CrewHost): CrewTool[] {
     },
   }
 
-  const crewWait: CrewTool = {
-    name: "crew_wait",
-    description: `Wait in this same turn for the answer to a question sent with crew_send {expect_reply: true} (its qid). Returns the answer as soon as it arrives -- no second wake. seconds: up to ${WAIT_MAX_S} (default 120). No answer in time -> it will come as an ordinary letter.`,
+  const canopusWait: CanopusTool = {
+    name: "canopus_wait",
+    description: `Wait in this same turn for the answer to a question sent with canopus_send {expect_reply: true} (its qid). Returns the answer as soon as it arrives -- no second wake. seconds: up to ${WAIT_MAX_S} (default 120). No answer in time -> it will come as an ordinary letter.`,
     input: {
       type: "object",
-      properties: { qid: str("The qid from crew_send"), seconds: { type: "number", description: `How long to wait, up to ${WAIT_MAX_S}`, default: 120 } },
+      properties: { qid: str("The qid from canopus_send"), seconds: { type: "number", description: `How long to wait, up to ${WAIT_MAX_S}`, default: 120 } },
       required: ["qid"],
       additionalProperties: false,
     },
@@ -2474,6 +2492,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
       const qid = String(input.qid ?? "").trim()
       const seconds = Math.min(WAIT_MAX_S, Math.max(1, Number(input.seconds ?? 120)))
       const until = Date.now() + seconds * 1000
+      ensureBaseDirs()
       const waitFile = path.join(WAITS, `${safeKey(sessionID)}.json`)
       mkdirSync(WAITS, { recursive: true })
       writeFileSync(waitFile, JSON.stringify({ qid, until: until + 2_000 }))
@@ -2497,7 +2516,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
     return p ? (p.rootPath ?? p.root) : undefined
   }
   const isIntegrator = (me: Card) => me.role === "integrator" && holdsExclusive(roleKey(projOf(me), "integrator"), me.session)
-  const notIntegrator = (me: Card) => ({ content: `Это может только интегратор проекта ${projOf(me)} (crew_role {role: "integrator"}).` })
+  const notIntegrator = (me: Card) => ({ content: `Это может только интегратор проекта ${projOf(me)} (canopus_role {role: "integrator"}).` })
   const taskInput = {
     title: str("Short title (it becomes the session title: 045 исп title)"),
     goal: str("Goal: what has to be true when the task is done"),
@@ -2508,11 +2527,11 @@ export function makeTools(host: CrewHost): CrewTool[] {
     result: str("Result and where it lands: the place where it acts (e.g. doc/canon/process.md, section «…») or «нет: результат — код: <what is delivered>». Required for a new task with a folder when message is absent"),
     links: str("Links to other tasks (task-sessions.md of the methodology): lines «Зависит от», «Блокирует», «Пересекается (файлы)», «Начинается после», tasks by their folder paths; absent - «нет: … не передано»"),
     priority: { type: "string", enum: [...PRIORITIES], description: "P0 emergency, P1 first queue, P2 normal (default from the project), P3 when hands are free" },
-    extra: { type: "object", description: "crew_spawn: values of the project's extra task fields {id: one line up to 300 characters}; the ids are declared by the project (task_extra_fields, see crew_config show). The legacy assign input accepts the field for compatibility but assignment is refused", additionalProperties: { type: "string" } },
+    extra: { type: "object", description: "canopus_spawn: values of the project's extra task fields {id: one line up to 300 characters}; the ids are declared by the project (task_extra_fields, see canopus_config show). The legacy assign input accepts the field for compatibility but assignment is refused", additionalProperties: { type: "string" } },
   }
-  // МАРШРУТ ЗАДАЧИ (задача 092): поля входа crew_spawn и crew_task route; имена зарезервированы в config-schema.ts (RESERVED_FIELD_IDS)
+  // МАРШРУТ ЗАДАЧИ (задача 092): поля входа canopus_spawn и canopus_task route; имена зарезервированы в config-schema.ts (RESERVED_FIELD_IDS)
   const routeInput = {
-    route: { type: "string", enum: ["full", "fast", "small"], description: "Маршрут задачи: full (по умолчанию), fast или small. fast требует полного task/message.md с нумерованными критериями, веткой и route_word («заводи» дословно с датой); инварианты не снимаются. small распознаёт оркестратор по фразам владельца «сделай X мгновенно»/«сделай X, супер быстро»: route_word дословно с датой, estimate = T, папка из трёх строк, формального приёмщика нет. По умолчанию приёмка — слово владельца на контуре (crew_task contour); явный documentary criterion/exact SHA сохраняется, технический просмотр не отменяет финальные owner gates и не требует выдумывать URL." },
+    route: { type: "string", enum: ["full", "fast", "small"], description: "Маршрут задачи: full (по умолчанию), fast или small. fast требует полного task/message.md с нумерованными критериями, веткой и route_word («заводи» дословно с датой); инварианты не снимаются. small распознаёт оркестратор по фразам владельца «сделай X мгновенно»/«сделай X, супер быстро»: route_word дословно с датой, estimate = T, папка из трёх строк, формального приёмщика нет. По умолчанию приёмка — слово владельца на контуре (canopus_task contour); явный documentary criterion/exact SHA сохраняется, технический просмотр не отменяет финальные owner gates и не требует выдумывать URL." },
     route_word: str("fast: the owner's word «заводи <number>» word for word with the date and the source, e.g. «заводи 093» (владелец, 2026-10-18, чат оркестратора); required, must contain «заводи». small: the owner's entry phrase word for word with the date and the source; the plugin does not parse its wording"),
     route_word_date: str("fast/small: the date of the word, ГГГГ-ММ-ДД; absent - taken from route_word"),
     route_word_at: str("small: the time of the owner's message (an ISO date or milliseconds); absent - the time the spawn is recorded, and the task's log carries the honest note «время слова — время записи, не сообщения»"),
@@ -2526,7 +2545,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
     delivery_compressed: { type: "boolean", description: "The delivery report in one paragraph (default false)" },
     sources_list: { type: "array", items: { type: "string" }, description: "The list of sources from the brief (default: «Перечень источников» of «Признаки маршрута»)" },
   }
-  const missingFields = (input: any, cfg: CrewConfig) => cfg.taskFields.filter((f) => !String(input[f] ?? "").trim())
+  const missingFields = (input: any, cfg: CanopusConfig) => cfg.taskFields.filter((f) => !String(input[f] ?? "").trim())
   /** Поля задания по образцу (задача 065): только непустые — запись задачи без них остаётся прежней. */
   const messageFieldsOf = (input: any) => Object.fromEntries((["owner_words", "result", "links"] as const).map((k) => [k, String(input[k] ?? "").trim()]).filter(([, v]) => v))
   const FIELD_RU: Record<string, string> = { goal: "цель (goal)", criteria: "критерии приёмки (criteria)", boundaries: "границы (boundaries)", open_questions: "открытые вопросы (open_questions)" }
@@ -2537,7 +2556,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
   // проверяющие сессии методики (С2, С4, С6 и их варианты) по умолчанию работают в своём дереве от ветки задачи (вопрос В-04)
   const REVIEW_CODE_RE = /^[СC][246]/
   /** Новая сессия задачи: запись в sessions (код, порядковый номер кода, номер запуска, место), прежняя сессия — передана или уже сдана. */
-  const startSession = (t: Task, code: string, goal: string, placeArg: string | undefined, cfg: CrewConfig, by: string): TaskSession => {
+  const startSession = (t: Task, code: string, goal: string, placeArg: string | undefined, cfg: CanopusConfig, by: string): TaskSession => {
     const sessions = t.sessions ?? (t.sessions = [])
     const k = sessions.filter((x) => x.code === code).length + 1
     const launch = nextLaunch(t)
@@ -2590,22 +2609,22 @@ export function makeTools(host: CrewHost): CrewTool[] {
     return `Задача ${taskRef(t)} принята и очищена (${note}). Интегратору ушла сводка без пробуждения; сессии задачи закроются.`
   }
 
-  /** Отказ crew_spawn проекта без определённых моделей: что не задано и что делать (задача 033). */
+  /** Отказ canopus_spawn проекта без определённых моделей: что не задано и что делать (задача 033). */
   const unconfiguredRefusal = (project: string, sessionModel: string | undefined) =>
     `Задача не поставлена: проект ${project} не настроен: не заданы модели для воркеров (нет включённого profile_set, spawn_models, явного model и allow_default_models). Без этого воркер взял бы модель по умолчанию (heavy — Opus) и тратил лимит молча.
 ` +
     `Спроси владельца инструментом question и дай варианты:
 ` +
-    `1) применить стандартный набор (рекомендую: codex, потолок light) — crew_config {action: "apply_template"}, затем закоммить файл в целевую ветку проекта и повтори crew_spawn;
+    `1) применить стандартный набор (рекомендую: codex, потолок light) — canopus_config {action: "apply_template"}, затем закоммить файл в целевую ветку проекта и повтори canopus_spawn;
 ` +
-    `2) использовать для воркеров модель этой сессии${sessionModel ? ` (${sessionModel})` : " (название модели сессии плагину неизвестно — спроси у владельца)"} — вызови crew_spawn ещё раз с явным model${sessionModel ? `: "${sessionModel}"` : ""};
+    `2) использовать для воркеров модель этой сессии${sessionModel ? ` (${sessionModel})` : " (название модели сессии плагину неизвестно — спроси у владельца)"} — вызови canopus_spawn ещё раз с явным model${sessionModel ? `: "${sessionModel}"` : ""};
 ` +
-    `3) выбрать иное — crew_config {action: "guide"} (вопросы по каждому ключу; allow_default_models: true оставляет модели по умолчанию осознанно).`
+    `3) выбрать иное — canopus_config {action: "guide"} (вопросы по каждому ключу; allow_default_models: true оставляет модели по умолчанию осознанно).`
 
   // ЗАДАЧА С ПАПКОЙ (задача 058). Новая задача — номер 1 + max по записям и папкам во всех деревьях и ветках, папка NNN-<slug>/
   // (task/message.md и log.md) коммитом плагина на ветке задачи; задача, чья папка уже есть, — запись с её номером без коммита папки;
   // сессия задачи — запись в sessions той же задачи; подзадача — новая задача со строкой «Часть задачи NNN «…».».
-  const spawnInFolder = async (a: { me: Card; project: string; cfg: CrewConfig; fm: { top: string; rel: string }; input: any; taskNum?: number; code: string; partOf?: number; role: string; model: string; recTier: Tier; tier: Tier; from?: Tier; chosen: any; title: string; extra?: Record<string, string> }): Promise<{ content: string }> => {
+  const spawnInFolder = async (a: { me: Card; project: string; cfg: CanopusConfig; fm: { top: string; rel: string }; input: any; taskNum?: number; code: string; partOf?: number; role: string; model: string; recTier: Tier; tier: Tier; from?: Tier; chosen: any; title: string; extra?: Record<string, string> }): Promise<{ content: string }> => {
     const { me, project, cfg, fm, input, taskNum, code, partOf, role, model, recTier, chosen, extra } = a
     const goal = String(input.goal ?? "").trim()
     const prio = isPriority(input.priority) ? input.priority : cfg.defaultPriority
@@ -2617,13 +2636,13 @@ export function makeTools(host: CrewHost): CrewTool[] {
     if (taskNum !== undefined) {
       const old = loadTask(project, taskNum)
       if (old?.status === "backlog")
-        return { content: `Не запущено: номер ${taskNum} занят задачей ${taskRef(old)} в бэклоге. Не создавай новую задачу и не переноси запись в legacy; интегратор должен явно выполнить crew_task {action: "resume", n: ${taskNum}}.` }
+        return { content: `Не запущено: номер ${taskNum} занят задачей ${taskRef(old)} в бэклоге. Не создавай новую задачу и не переноси запись в legacy; интегратор должен явно выполнить canopus_task {action: "resume", n: ${taskNum}}.` }
       if (old && isOpen(old) && !old.folder)
-        return { content: `Не запущено: номер ${taskNum} занят открытой записью «${old.title}» (${statusRu(old.status)}) — это другая работа, заведённая до задачи 058. Её закрывают или отменяют (crew_task {action: "cancel", n: ${taskNum}}) — решает владелец.` }
+        return { content: `Не запущено: номер ${taskNum} занят открытой записью «${old.title}» (${statusRu(old.status)}) — это другая работа, заведённая до задачи 058. Её закрывают или отменяют (canopus_task {action: "cancel", n: ${taskNum}}) — решает владелец.` }
       if (old && isOpen(old)) {
         if (!["idle", "running", "starting", "rework"].includes(old.status))
           return { content: `Сессия не запущена: задача ${taskRef(old)} ${statusRu(old.status)} — сессию добавляют до передачи на приёмку (deliver) или после возврата на доработку.` }
-        if (hasRouteInput(input)) return { content: `Сессия не запущена: маршрут (route и его поля) выбирается при постановке задачи, а у открытой задачи ${taskRef(old)} его меняют записью: crew_task {action: "route", n: ${old.n}, route: "full", text: "<причина>"} или с новым словом владельца.` }
+        if (hasRouteInput(input)) return { content: `Сессия не запущена: маршрут (route и его поля) выбирается при постановке задачи, а у открытой задачи ${taskRef(old)} его меняют записью: canopus_task {action: "route", n: ${old.n}, route: "full", text: "<причина>"} или с новым словом владельца.` }
         t = old
       } else {
         const hits = findFolder(fm.top, fm.rel, taskNum)
@@ -2728,30 +2747,30 @@ export function makeTools(host: CrewHost): CrewTool[] {
     const ref = sessionRef(t, s)
     const where = s.place === "own" ? `дерево ${s.worktree}, ветка ${s.branch}` : t.worktree ? `дерево ${t.worktree}, ветка ${t.branch}` : `ветка ${t.branch}`
     if (!r.session) return { content: `${made}${fresh ? ". " : ""}Сессия ${ref} (запуск №${s.launch}) записана, но не запущена: ${r.error ?? "неизвестная ошибка"}. Плагин повторит запуск сам (тем же id сессии — второй не будет).` }
-    const tail = `модель ${model}. Сдача придёт письмом${s.code === EXECUTOR_CODE ? ` ответом на ${t.qid} (crew_wait {qid: "${t.qid}"})` : "; дальше — следующая сессия crew_spawn {task, session, goal} или приёмка задачи crew_task {action: \"deliver\", n, text}"}. Управление — crew_task {n: ${t.n}, action: ...}.`
+    const tail = `модель ${model}. Сдача придёт письмом${s.code === EXECUTOR_CODE ? ` ответом на ${t.qid} (canopus_wait {qid: "${t.qid}"})` : "; дальше — следующая сессия canopus_spawn {task, session, goal} или приёмка задачи canopus_task {action: \"deliver\", n, text}"}. Управление — canopus_task {n: ${t.n}, action: ...}.`
     if (fresh) return { content: `${made}, сессия ${ref} запущена (${hhmm(Date.now())}): ${where}, ${tail}` }
     return { content: `${made}Сессия ${ref} (запуск №${s.launch}) запущена (${hhmm(Date.now())}): задача «${t.title}», ${where}, ${tail}` }
   }
 
-  const crewSpawn: CrewTool = {
-    name: "crew_spawn",
+  const canopusSpawn: CanopusTool = {
+    name: "canopus_spawn",
     description:
       [
-        "Integrator only: start a task in a new session (it runs in the OpenCode server even with no window). The report comes back as an answer to the task's qid: crew_wait {qid}. Manage tasks with crew_task. The owner reads title, goal and criteria too: write them in the owner's language named in your system block.",
+        "Integrator only: start a task in a new session (it runs in the OpenCode server even with no window). The report comes back as an answer to the task's qid: canopus_wait {qid}. Manage tasks with canopus_task. The owner reads title, goal and criteria too: write them in the owner's language named in your system block.",
         "One task, one number. In a project with task folders (tasks_dir, default doc/tasks, present in the target branch) the task number is the number of its folder NNN-<slug>/, shown as 045; without folders it is the plugin's number, shown the same way, 094 (every task of every project is shown with three digits and no hash, 1000 above 999: a hash with a number is a GitHub issue link). A new task: the plugin takes 1 + the largest number of the records and of the folders in every working tree and branch, writes the folder (task/message.md = message word for word, or a template from the fields when message is absent; log.md with its first line) on the task branch and commits it there; the main copy is never written. task: N - a task whose folder already exists (no folder commit; refused when no folder has that number).",
-        "A task session is a part of the task, not a task: session \"<code>\" (С1, С2, С3п, С4…; default исп = the executor) adds a session to task N: ident 045 С4-3 (code and its ordinal in the task) plus the launch number №n; the plugin writes the launch lines into progress.log and log.md of the folder. A method session submits to you (crew_task submit), with no plugin review; the plugin's review of the task starts once, after crew_task deliver. place: own (default for С2/С4/С6) - its own worktree and branch task/NNN-<code>-<k> from the task branch; task (default for the others) - the task worktree.",
+        "A task session is a part of the task, not a task: session \"<code>\" (С1, С2, С3п, С4…; default исп = the executor) adds a session to task N: ident 045 С4-3 (code and its ordinal in the task) plus the launch number №n; the plugin writes the launch lines into progress.log and log.md of the folder. A method session submits to you (canopus_task submit), with no plugin review; the plugin's review of the task starts once, after canopus_task deliver. place: own (default for С2/С4/С6) - its own worktree and branch task/NNN-<code>-<k> from the task branch; task (default for the others) - the task worktree.",
         "A sub-task (part_of: N) is a task of its own: own number and folder, the first line of its task/message.md is «Часть задачи NNN «…».», a line in the parent's log.md. The rule: an own acceptance or an own landing in main - a sub-task; the next step of the same work (a check, a fix by findings, a continuation, a handover) - a session.",
         "goal, criteria - required (the project may require more: boundaries, open_questions; task_fields). title? priority? P0..P3.",
-        "route? full (по умолчанию) | fast (092) | small (191) — данные записи: route, route_basis, route_source, route_proposal, route_word, route_word_date, clean_runs, ceiling, probes, delivery_compressed, sources_list. fast требует route_word («заводи <номер>» дословно с датой) и полной постановки с нумерованными критериями/веткой; иначе отказ. Минимумы clean_runs 1/probes 3 не снижаются, числа задаёт route_defaults; правка постановки помечает route_word_stale, crew_task route обновляет слово или возвращает full. small распознаёт оркестратор по фразам владельца «сделай X мгновенно»/«сделай X, супер быстро»: route_word дословно с датой, estimate=T, папка из трёх строк. criteria необязателен (по умолчанию слово владельца на контуре); явный documentary criterion/exact SHA сохраняется. Формального приёмщика/цикла нет; технический просмотр не отменяет финальные owner gates и не требует выдумывать URL.",
+        "route? full (по умолчанию) | fast (092) | small (191) — данные записи: route, route_basis, route_source, route_proposal, route_word, route_word_date, clean_runs, ceiling, probes, delivery_compressed, sources_list. fast требует route_word («заводи <номер>» дословно с датой) и полной постановки с нумерованными критериями/веткой; иначе отказ. Минимумы clean_runs 1/probes 3 не снижаются, числа задаёт route_defaults; правка постановки помечает route_word_stale, canopus_task route обновляет слово или возвращает full. small распознаёт оркестратор по фразам владельца «сделай X мгновенно»/«сделай X, супер быстро»: route_word дословно с датой, estimate=T, папка из трёх строк. criteria необязателен (по умолчанию слово владельца на контуре); явный documentary criterion/exact SHA сохраняется. Формального приёмщика/цикла нет; технический просмотр не отменяет финальные owner gates и не требует выдумывать URL.",
         "The task text of a new task with a folder (no task:, part_of included) follows one template: «# Задание: <title>», a header, then sections «Чего хочет владелец», «Что нужно», «Критерии приёмки», «Результат и куда он попадает», «Связи», «Границы» in this order; an empty section is «нет: <why>». Without message the plugin builds it from the fields: owner_words (required: the owner's words word for word with date and source, e.g. - «сделай X» (владелец, 2026-10-17, чат оркестратора)), goal (paragraphs and «- » lines become the numbered points of «Что нужно»), criteria, result (required: where the result lands, or «нет: результат — код: <what is delivered>»), links? (Зависит от / Блокирует / Пересекается (файлы) / Начинается после), boundaries?; absent links or boundaries become «нет: … не передано». Without owner_words with a date or without result - a refusal naming what to add; a message without the template's sections is refused too. A project without task folders and a session of a task (task: N) need none of these fields.",
-        "tier heavy|medium|light - picks the model: by default claude-code opus|sonnet|haiku, spawn_models of the project overrides; an enabled model-profile set (/crew-sets) overrides both for the stage it describes (the tier then picks the tier inside the set's family). model - explicit provider/id[#variant]; required when the project has no model settings (ask the owner first).",
-        "role? - role of the new session, default worker. extra {id: one line up to 300 characters} - the project's extra task fields (task_extra_fields; crew_config show lists them). parent \"project#N\" - the order of another project this task fulfils.",
+        "tier heavy|medium|light - picks the model: by default claude-code opus|sonnet|haiku, spawn_models of the project overrides; an enabled model-profile set (/canopus-sets) overrides both for the stage it describes (the tier then picks the tier inside the set's family). model - explicit provider/id[#variant]; required when the project has no model settings (ask the owner first).",
+        "role? - role of the new session, default worker. extra {id: one line up to 300 characters} - the project's extra task fields (task_extra_fields; canopus_config show lists them). parent \"project#N\" - the order of another project this task fulfils.",
         "Limits: the project caps running tasks per role (spawn_limits) and open tasks (inflight_limit). By default (accepted_slot: free) accepted tasks waiting for cleanup do not take a place in inflight_limit; cleanup_limit bounds them.",
         "kind: plan - a PLAN TASK: the executor writes no code, only a plan file. Steps:",
         "1. goal = the original task the plan must solve (criteria are not needed); plan_parent = number of the parent plan for a sub-plan.",
         "2. The plugin gives the executor a template, the next free plan number and the file name in plans_dir (default docs/plans) inside the task worktree; the executor writes the plan (phases, steps with 'where' and 'after', acceptance per step, open questions), commits it and reports. The plugin refuses a report whose plan form is wrong.",
-        "3. The reviewer rechecks the plan in rounds, each round a new session: crew_task review, check each step, then crew_task round with the numbers of remarks per grade. Blocking/significant remarks send the plan back; plan_clean_rounds clean rounds in a row (default 2) finish the recheck; plan_rounds_max (default 4) ends it anyway.",
-        "4. The task gets status approval (waiting for approval). Who approves is the project setting plan_approver: owner (default) - the owner sees a notice and decides in the window with /plans (approve / approve with shortcuts / return with remarks; the status is also in /crew); integrator - the task author (you) decides with crew_task plan_decide.",
+        "3. The reviewer rechecks the plan in rounds, each round a new session: canopus_task review, check each step, then canopus_task round with the numbers of remarks per grade. Blocking/significant remarks send the plan back; plan_clean_rounds clean rounds in a row (default 2) finish the recheck; plan_rounds_max (default 4) ends it anyway.",
+        "4. The task gets status approval (waiting for approval). Who approves is the project setting plan_approver: owner (default) - the owner sees a notice and decides in the window with /plans (approve / approve with shortcuts / return with remarks; the status is also in /canopus); integrator - the task author (you) decides with canopus_task plan_decide.",
         "5. After approval a new reviewer writes the decision into the plan, lands it (merge, accept, cleanup). Then, with plan_steps: auto (default), the plugin starts a task for every step by the plan's dependencies, 'where' conflicts and the limits; with manual you get the list of steps and start the tasks yourself. When all steps are closed you get a letter to close the plan.",
       ].join("\n"),
     input: {
@@ -2806,19 +2825,19 @@ export function makeTools(host: CrewHost): CrewTool[] {
       const limit = cfg.spawnLimits[role] ?? cfg.spawnLimits["*"] ?? DEFAULT_SPAWN_LIMIT
       const running = listTasks(project).filter((t) => t.kind === "spawn" && t.role === role && (t.status === "starting" || t.status === "running"))
       const prio = isPriority(input.priority) ? input.priority : cfg.defaultPriority
-      if (prio !== "P0" && running.length >= limit) return { content: `Лимит работающих задач роли ${role} в проекте — ${limit}, уже работают: ${running.map((t) => `${taskNo(t)}`).join(", ")}. Дождись сдачи или отмени (crew_task {action: "cancel"}); авария — priority P0.` }
+      if (prio !== "P0" && running.length >= limit) return { content: `Лимит работающих задач роли ${role} в проекте — ${limit}, уже работают: ${running.map((t) => `${taskNo(t)}`).join(", ")}. Дождись сдачи или отмени (canopus_task {action: "cancel"}); авария — priority P0.` }
       const inflight = listTasks(project).filter(isOpen)
       const counted = countedOpen(inflight, cfg.acceptedSlot) // accepted_slot: free — принятые, ждущие уборки, в счёт не идут
       if (prio !== "P0" && counted.length >= cfg.inflightLimit) {
         if (cfg.acceptedSlot === "free") return { content: `Лимит задач проекта в работе и на приёмке — ${cfg.inflightLimit} (inflight_limit), открыто: ${counted.map((t) => `${taskNo(t)} ${statusRu(t.status)}`).join(", ")}.${inflight.length > counted.length ? ` Принятые, но не очищенные, место не занимают (ждут уборки: ${inflight.length - counted.length}).` : ""} Дождись приёмки; авария — priority P0.` }
         // принятые, но не очищенные держат место молча (#9 nova — 11,5 ч): назвать их поимённо с возрастом
         const stale = inflight.filter((t) => t.status === "accepted").map((t) => `${taskNo(t)} принята ${ago(acceptedAt(t))}, не очищена (приёмщик ${t.reviewer ?? "?"})`)
-        return { content: `Лимит задач проекта в работе и на приёмке — ${cfg.inflightLimit} (inflight_limit), открыто: ${inflight.map((t) => `${taskNo(t)} ${statusRu(t.status)}`).join(", ")}.${stale.length ? ` Место держат принятые, но не очищенные: ${stale.join("; ")} — пусть приёмщик повторит crew_task {action: \"cleanup\"}.` : ""} Дождись приёмки; авария — priority P0.` }
+        return { content: `Лимит задач проекта в работе и на приёмке — ${cfg.inflightLimit} (inflight_limit), открыто: ${inflight.map((t) => `${taskNo(t)} ${statusRu(t.status)}`).join(", ")}.${stale.length ? ` Место держат принятые, но не очищенные: ${stale.join("; ")} — пусть приёмщик повторит canopus_task {action: \"cleanup\"}.` : ""} Дождись приёмки; авария — priority P0.` }
       }
       // accepted_slot: free — счёт «ждёт уборки»: принятых и не очищенных не меньше cleanup_limit (0 — без предела) — новая работа не ставится
       const waiting = waitingCleanup(inflight)
       if (prio !== "P0" && cfg.acceptedSlot === "free" && cfg.cleanupLimit > 0 && waiting.length >= cfg.cleanupLimit)
-        return { content: `Лимит ожидающих уборки — ${cfg.cleanupLimit} (cleanup_limit), принятых и не очищенных ${waiting.length}: ${waiting.map((t) => `${taskNo(t)} принята ${ago(acceptedAt(t))}, не очищена (приёмщик ${t.reviewer ?? "?"})`).join("; ")} — пусть приёмщик повторит crew_task {action: \"cleanup\"}. Новая работа не ставится, пока их не станет меньше; авария — priority P0.` }
+        return { content: `Лимит ожидающих уборки — ${cfg.cleanupLimit} (cleanup_limit), принятых и не очищенных ${waiting.length}: ${waiting.map((t) => `${taskNo(t)} принята ${ago(acceptedAt(t))}, не очищена (приёмщик ${t.reviewer ?? "?"})`).join("; ")} — пусть приёмщик повторит canopus_task {action: \"cleanup\"}. Новая работа не ставится, пока их не станет меньше; авария — priority P0.` }
       // МОДЕЛЬ ПО ВКЛЮЧЁННОМУ НАБОРУ (задача 003). Этап — по виду запуска; ступень: tier, присутствующий во входе, иначе ступень
       // клетки. Этап не описан или набора нет — spawn_models, как прежде; описан, а профиль не находится — отказ до записи задачи.
       const pst = profileState(me.directory)
@@ -2893,25 +2912,25 @@ export function makeTools(host: CrewHost): CrewTool[] {
       }
       const r = await host.startTask(t)
       if (!r.session) return { content: `Задача ${taskRef(t)} записана, но сессия не запущена: ${r.error ?? "неизвестная ошибка"}. Плагин повторит запуск сам (тем же id сессии — второй не будет).` }
-      return { content: `Задача ${taskNo(t)} запущена (${hhmm(Date.now())}): «${t.title}», сессия ${r.session}, роль ${roleKey(project, role)}, модель ${model}, приоритет ${t.priority}${t.worktree ? `, worktree ${t.worktree}, ветка ${t.branch}` : ""}. Отчёт придёт ответом на ${t.qid}: crew_wait {qid: "${t.qid}"} или обычным письмом. Управление — crew_task {n: ${t.n}, action: ...}.` }
+      return { content: `Задача ${taskNo(t)} запущена (${hhmm(Date.now())}): «${t.title}», сессия ${r.session}, роль ${roleKey(project, role)}, модель ${model}, приоритет ${t.priority}${t.worktree ? `, worktree ${t.worktree}, ветка ${t.branch}` : ""}. Отчёт придёт ответом на ${t.qid}: canopus_wait {qid: "${t.qid}"} или обычным письмом. Управление — canopus_task {n: ${t.n}, action: ...}.` }
     },
   }
 
-  const crewTask: CrewTool = {
-    name: "crew_task",
+  const canopusTask: CanopusTool = {
+    name: "canopus_task",
     description:
       [
         "Tasks of the caller's project, by number (three digits, 045 or 094, with a folder or without). One line per action: action - who may - parameters - what it does. Roles: integrator = the tab that plans and starts the project's tasks; executor = the session doing the task; reviewer = the tab that checks and lands a submitted task (a free worker tab, a session started for it, the acceptor role when the project says reviewer: acceptor, or the integrator). Texts that go to another tab (submit report, rework remarks, order, push and cancel texts) are read by the owner too: write them in the owner's language named in your system block.",
         "list - anyone - all? - open tasks by priority; all=true adds finished and cancelled ones.",
         "show - anyone - n - details and history of a task, with its steps, side branches and worktrees.",
-        "assign - integrator - session - refused: user conversations have no trusted owner receipt for session+assignment. owner_words, crew_role, idle and allow_self_assign cannot authorize capture. Use crew_spawn for a new executor, reassign for safe handoff to a new session. Existing assign records remain supported.",
+        "assign - integrator - session - refused: user conversations have no trusted owner receipt for session+assignment. owner_words, canopus_role, idle and allow_self_assign cannot authorize capture. Use canopus_spawn for a new executor, reassign for safe handoff to a new session. Existing assign records remain supported.",
         "order - integrator - to \"project.integrator\", goal, criteria, ... - order work from another project: its integrator does it with its own tasks; when its task is accepted the order is done (a quiet summary to you), when cancelled you get a call.",
         "push - integrator - n, text?, to? - queue a nudge; counters/stuck reset only after its correlated new assistant generation. to executor (default) or reviewer; admission is not execution.",
         "deliver - integrator - n, text - a task led by method sessions (status idle: the last session submitted to you) goes to the plugin's review once: text is the report for the reviewer (what is ready to land). A task with a single executor session goes to review on its submit, as before.",
         "reassign - integrator - n, text? - hand the task to a new session under the same number with a summary of what was done (a task session: the same code, the next ordinal and a new launch number; the old one is marked handed). text = a refinement of the goal: it goes into the new session's first letter as a block before the old goal, wins where they differ and stays in the task history (show). Refine the goal with this same call, never with a second letter after the handover: the new session would start on the old goal and report twice.",
         "cancel - integrator - n, text? - cancel the task; text goes to the executor. Releases the merge lock if the task held it.",
         "priority - integrator - n, priority P0..P3 - change the priority.",
-        "route - integrator - n, route full|fast|small, text (the reason, for full), route_word and route_word_date (fast: «заводи N»; small: the owner's entry phrase word for word) - change the route of an open task BY A RECORD (tasks 092, 191, 264). To full: the reason becomes the basis, the word is emptied, the series is zeroed. A new word (fast) renews a marked word. To small: as the small crew_spawn; on an already-small record an omitted route_word reuses the recorded phrase with its time. To small under review: the review cycle is lifted by the record (the reviewer released, the locks freed, the task reads as submitted again) — not an acceptance. A line «маршрут: …» goes to log.md.",
+        "route - integrator - n, route full|fast|small, text (the reason, for full), route_word and route_word_date (fast: «заводи N»; small: the owner's entry phrase word for word) - change the route of an open task BY A RECORD (tasks 092, 191, 264). To full: the reason becomes the basis, the word is emptied, the series is zeroed. A new word (fast) renews a marked word. To small: as the small canopus_spawn; on an already-small record an omitted route_word reuses the recorded phrase with its time. To small under review: the review cycle is lifted by the record (the reviewer released, the locks freed, the task reads as submitted again) — not an acceptance. A line «маршрут: …» goes to log.md.",
         "target - integrator - n, dir, remote?, branch?, word - bind the explicit RESULT repository of the task (task 257): the result lands or is already published not in the repository the task was posted in. dir is its local clone (checked: a git repository, not the task's own one, the remote and the branch on it exist); word is the owner's word with its date. The landing loop (precheck, base freshness, the merge gate, accept) then works against the bound repository; an already published candidate (an ancestor of the remote branch tip) finishes the precheck as published - no merge, accept with commit fixes the record. dir: \"\" lifts the binding.",
         "contour - executor of a small-route task - n, link - record the mark «ссылка на контур выдана» (task 191): the test contour URL given to the owner goes to log.md of the task with the relation to the 10 minute norm from the owner's word (route_word_ts). The acceptance of a small task: the integrator calls accept with text = the owner's word word for word with its date — no reviewer, no merge lock, no check steps; the landing in the target branch is still required.",
         "migrate - integrator - n, message (exact saved sent-letter text), source_id, source_session, source_to, source_qid, source_sha256, route_word, route_word_date - migrate an open folderless legacy record in place. Accepts only a strictly matched historical task-letter envelope; archive identity and exact UTF-8 text digest are required, never reconstruct the letter. Requires matching project/number/title/branch and the owner's explicit «заводи <number>» word. Edits no archive or external project files; preserves sessions, rounds, branch/worktree, history, precheck and evidence. A second migration is refused.",
@@ -2993,7 +3012,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
         if (target.spawned) return { content: "Это сессия задачи — у неё уже своя задача." }
         // В API нет доверенного receipt владельца. owner_words задаёт сам агент;
         // роль, auto и простой тоже не доказывают разрешения на захват беседы (256).
-        return { content: `Задача не поставлена: ${target.session} — пользовательская вкладка. assign запрещён: подтверждённого владельцем разрешения на эту сессию и назначение нет; owner_words, crew_role и allow_self_assign его не заменяют. Создай отдельного исполнителя: crew_spawn {...}; существующую задачу передай новой выделенной сессии через reassign.` }
+        return { content: `Задача не поставлена: ${target.session} — пользовательская вкладка. assign запрещён: подтверждённого владельцем разрешения на эту сессию и назначение нет; owner_words, canopus_role и allow_self_assign его не заменяют. Создай отдельного исполнителя: canopus_spawn {...}; существующую задачу передай новой выделенной сессии через reassign.` }
       }
       if (action === "order") {
         if (!isIntegrator(me)) return notIntegrator(me)
@@ -3002,7 +3021,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
         const cfg = configFor(me)
         const missing = missingFields(input, cfg)
         if (missing.length) return { content: `Заказ не отправлен: нет полей ${missing.map((f) => FIELD_RU[f] ?? f).join(", ")}.` }
-        if (input.extra !== undefined && input.extra !== null) return { content: "Заказ не отправлен: extra для заказа не поддерживается (дополнительные поля проекта задаёт crew_spawn своего проекта)." }
+        if (input.extra !== undefined && input.extra !== null) return { content: "Заказ не отправлен: extra для заказа не поддерживается (дополнительные поля проекта задаёт canopus_spawn своего проекта)." }
         const title = String(input.title ?? "").trim() || String(input.goal).split(/\r?\n/)[0].slice(0, 60)
         const t = createTask({
           project, title, goal: String(input.goal).trim(), criteria: input.criteria?.trim(), boundaries: input.boundaries?.trim(), open_questions: input.open_questions?.trim(),
@@ -3018,23 +3037,23 @@ export function makeTools(host: CrewHost): CrewTool[] {
             t.criteria ? `КРИТЕРИИ ПРИЁМКИ: ${t.criteria}` : "",
             t.boundaries ? `ГРАНИЦЫ: ${t.boundaries}` : "",
             t.open_questions ? `ОТКРЫТЫЕ ВОПРОСЫ: ${t.open_questions}` : "",
-            `Ставь задачу с parent: crew_spawn {..., parent: "${project}#${t.n}"} — тогда заказчик видит её ход сам: принята у тебя → заказ выполнен, отменена → заказчику вызов. Вопросы — crew_send {to: "${me.session}"}.`,
+            `Ставь задачу с parent: canopus_spawn {..., parent: "${project}#${t.n}"} — тогда заказчик видит её ход сам: принята у тебя → заказ выполнен, отменена → заказчику вызов. Вопросы — canopus_send {to: "${me.session}"}.`,
           ].filter(Boolean).join("\n"),
         })
         host.posted([to])
-        return { content: `Заказ ${taskNo(t)} «${t.title}» отправлен интегратору ${m[1]}. Его ход виден в crew_task {action: "show", n: ${t.n}}; выполнен — придёт сводка.` }
+        return { content: `Заказ ${taskNo(t)} «${t.title}» отправлен интегратору ${m[1]}. Его ход виден в canopus_task {action: "show", n: ${t.n}}; выполнен — придёт сводка.` }
       }
       const t = findTask(me, input.n)
       if (!t) return { content: `Задачи ${taskNo({ project, n: input.n })} в проекте ${project} нет.` }
       const hold = taskHold(t.project, t.n)
       if (hold && ((executionHeld(hold) && ["push", "reassign", "assign", "session", "resume", "rework"].includes(action)) || (gateHeld(hold) && ["review", "check", "precheck", "merge", "accept", "cleanup", "deliver", "plan_decide"].includes(action))))
-        return { content: `Действие ${action} задачи ${taskRef(t)} запрещено: ${hold.kind} — ${HOLD_SCOPE_RU[holdScope(hold)]}. Диагностика и отчёт разрешены; снять или уточнить метку может автор только по явному слову владельца (crew_step_note).` }
+        return { content: `Действие ${action} задачи ${taskRef(t)} запрещено: ${hold.kind} — ${HOLD_SCOPE_RU[holdScope(hold)]}. Диагностика и отчёт разрешены; снять или уточнить метку может автор только по явному слову владельца (canopus_step_note).` }
       if (action === "backlog") {
         if (!isIntegrator(me)) return notIntegrator(me)
-        if (!String(input.text ?? "").trim()) return { content: `Нужна причина в text: crew_task {action: "backlog", n: ${t.n}, text: "почему пауза"}.` }
+        if (!String(input.text ?? "").trim()) return { content: `Нужна причина в text: canopus_task {action: "backlog", n: ${t.n}, text: "почему пауза"}.` }
         if (t.status === "backlog") return { content: `Задача ${taskRef(t)} уже в бэклоге.` }
         if (t.status === "done" || t.status === "cancelled") return { content: `Задача ${taskRef(t)} уже ${statusRu(t.status)}: в бэклог переводят только открытую задачу.` }
-        if (mergeHolder(project)?.n === t.n) return { content: `Задача ${taskRef(t)} не переведена в бэклог: у неё ещё есть замок вливания. Сначала явно отпусти его: crew_task {action: "unlock", n: ${t.n}}.` }
+        if (mergeHolder(project)?.n === t.n) return { content: `Задача ${taskRef(t)} не переведена в бэклог: у неё ещё есть замок вливания. Сначала явно отпусти его: canopus_task {action: "unlock", n: ${t.n}}.` }
         t.backlog = { status: t.status, at: Date.now(), by: me.session }
         taskEvent(t, me.session, "backlog", String(input.text).trim())
         for (const session of new Set([t.author, t.executor, t.reviewer].filter((s): s is string => !!s))) {
@@ -3042,12 +3061,12 @@ export function makeTools(host: CrewHost): CrewTool[] {
           if (t.review_qid) settleObligation(session, t.review_qid)
         }
         host.posted([])
-        return { content: `Задача ${taskRef(t)} переведена в бэклог; запись, история, ветки и деревья сохранены. Возврат — crew_task {action: "resume", n: ${t.n}}.` }
+        return { content: `Задача ${taskRef(t)} переведена в бэклог; запись, история, ветки и деревья сохранены. Возврат — canopus_task {action: "resume", n: ${t.n}}.` }
       }
       if (action === "resume") {
         if (!isIntegrator(me)) return notIntegrator(me)
         if (t.status !== "backlog" || !t.backlog) return { content: `Задача ${taskRef(t)} не в бэклоге.` }
-        if (mergeHolder(project)?.n === t.n) return { content: `Задача ${taskRef(t)} не возвращена из бэклога: обнаружен замок вливания. Сначала проверь и явно отпусти его: crew_task {action: "unlock", n: ${t.n}}.` }
+        if (mergeHolder(project)?.n === t.n) return { content: `Задача ${taskRef(t)} не возвращена из бэклога: обнаружен замок вливания. Сначала проверь и явно отпусти его: canopus_task {action: "unlock", n: ${t.n}}.` }
         const previous = t.backlog.status
         // Accepted is a cleanup queue state, not a session state: preserve it verbatim, including its assigned
         // reviewer and evidence, without replaying review. Other active work resumes only with a live executor tab.
@@ -3164,7 +3183,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
         taskEvent(cur, me.session, undefined, line)
         const why = cur.folder ? taskLog(cur, "документ", line) : "у задачи нет папки"
         host.posted([])
-        return { content: `Репозиторий результата задачи ${taskRef(t)} привязан: ${dir} (${remote}/${branch}, ${url.out.trim()}), вершина ${tip.tip.slice(0, 7)}. Дальше контур идёт по нему: precheck назовёт вершину ${branch} этого репозитория; уже опубликованный результат (кандидат — предок вершины) заверши: crew_task {action: "precheck", n: ${t.n}, candidate: "<хеш>", result: "<факт публикации>"} — вливание не нужно, merge зафиксирует учёт, затем accept с commit.${why ? ` (В log.md задачи не записано: ${why}; запиши строку сам: log_line {kind: "документ", text: "${line.replace(/"/g, "'")}"}.)` : ""}` }
+        return { content: `Репозиторий результата задачи ${taskRef(t)} привязан: ${dir} (${remote}/${branch}, ${url.out.trim()}), вершина ${tip.tip.slice(0, 7)}. Дальше контур идёт по нему: precheck назовёт вершину ${branch} этого репозитория; уже опубликованный результат (кандидат — предок вершины) заверши: canopus_task {action: "precheck", n: ${t.n}, candidate: "<хеш>", result: "<факт публикации>"} — вливание не нужно, merge зафиксирует учёт, затем accept с commit.${why ? ` (В log.md задачи не записано: ${why}; запиши строку сам: log_line {kind: "документ", text: "${line.replace(/"/g, "'")}"}.)` : ""}` }
       }
       if (action === "migrate") {
         if (!isIntegrator(me)) return notIntegrator(me)
@@ -3232,11 +3251,11 @@ export function makeTools(host: CrewHost): CrewTool[] {
         host.posted([])
         return { content: `План ${t.plan.n}: ${DECISION_RU[decision as Decision]} — записано, плагин применит на ближайшем проходе.` }
       }
-      // СДАЧА (задача 041): исполнитель сдаёт работу сам, qid знать не нужно — то же, что отчёт crew_send с reply_to
+      // СДАЧА (задача 041): исполнитель сдаёт работу сам, qid знать не нужно — то же, что отчёт canopus_send с reply_to
       if (action === "submit") {
         if (t.executor !== me.session) return { content: `submit задачи ${taskRef(t)} — действие её исполнителя (${t.executor ?? "не назначен"}); ты не исполнитель.` }
         const text = String(input.text ?? "").trim()
-        if (!text) return { content: `Нужен text: отчёт — что сделано, как проверено, что осталось. crew_task {action: "submit", n: ${t.n}, text: "..."}.` }
+        if (!text) return { content: `Нужен text: отчёт — что сделано, как проверено, что осталось. canopus_task {action: "submit", n: ${t.n}, text: "..."}.` }
         const now = Date.now()
         const ms = methodSession(t)
         const refusal = submitTask(t, me.session, keyOf(me), text, now)
@@ -3244,7 +3263,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
         const cards = allCards()
         if (ms) {
           // сдача сессии методики (задача 058): интегратору с пробуждением — следующую сессию или приёмку задачи решает он
-          postLetter(t.author, { id: `${now}-${safeKey(me.session)}-${safeKey(t.author)}`, from_role: keyOf(me), from_session: me.session, to: t.author, time: now, reply_to: t.qid, text: `Сессия ${sessionRef(t, ms)} (запуск №${ms.launch}) сдана: ${text}\nДальше — твоё решение: следующая сессия crew_spawn {task: ${t.n}, session: "<код>", goal}; работа готова к вливанию — crew_task {action: "deliver", n: ${t.n}, text}.` })
+          postLetter(t.author, { id: `${now}-${safeKey(me.session)}-${safeKey(t.author)}`, from_role: keyOf(me), from_session: me.session, to: t.author, time: now, reply_to: t.qid, text: `Сессия ${sessionRef(t, ms)} (запуск №${ms.launch}) сдана: ${text}\nДальше — твоё решение: следующая сессия canopus_spawn {task: ${t.n}, session: "<код>", goal}; работа готова к вливанию — canopus_task {action: "deliver", n: ${t.n}, text}.` })
           closeAskedByLetter(me.session, [t.author], (s) => cards.filter((c) => c.session === s).map(keyOf), now)
           host.posted([t.author])
           log(`submit session ${keyOf(me)} -> ${t.author} task ${taskNo(t)} ${sesLabel(ms)}`)
@@ -3264,7 +3283,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
         if (t.route !== "small") return { content: `contour — метка малого маршрута; задача ${taskRef(t)} — маршрут ${ROUTE_RU[routeView(t).route]}.` }
         if (!isOpen(t)) return { content: `Задача ${taskRef(t)} ${statusRu(t.status)}: метку пишут по открытой задаче.` }
         const link = String(input.link ?? "").trim()
-        if (!link) return { content: `Нужен link: адрес тестового контура, который ты дал владельцу (http://127.0.0.1:8100/). crew_task {action: "contour", n: ${t.n}, link: "..."}.` }
+        if (!link) return { content: `Нужен link: адрес тестового контура, который ты дал владельцу (http://127.0.0.1:8100/). canopus_task {action: "contour", n: ${t.n}, link: "..."}.` }
         const now = Date.now()
         const line = contourMarkText(t.route_word_ts, link, now, t.route_word_ts_kind)
         taskEvent(t, me.session, undefined, line)
@@ -3332,7 +3351,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
             }
             const steps = cleanupSteps(t, tcfgs)
             if (!steps.length) return { content: finishCleaned(t, me, "очистка не нужна (cleanup: none)") }
-            return { content: `Задача ${taskRef(t)} принята словом владельца (${m.how}). Очистка по настройке проекта (cleanup: ${tcfgs.cleanup}):\n${steps.map((x) => `  ${x}`).join("\n")}\nСделал — crew_task {action: "cleanup", n: ${t.n}}.` }
+            return { content: `Задача ${taskRef(t)} принята словом владельца (${m.how}). Очистка по настройке проекта (cleanup: ${tcfgs.cleanup}):\n${steps.map((x) => `  ${x}`).join("\n")}\nСделал — canopus_task {action: "cleanup", n: ${t.n}}.` }
           }
         } else {
           // исполнитель свою работу не вливает и не принимает — отказ называет это прямо (план 002.7, п.4)
@@ -3344,13 +3363,13 @@ export function makeTools(host: CrewHost): CrewTool[] {
         // ПРАВА РОЛИ (план 002.7): при reviewer "acceptor" замок вливания, принятие и очистку держит роль acceptor (или
         // интегратор). Приёмщик, сменивший роль, их теряет: права у роли, а не у записи «приёмщик» в задаче.
         if (tcfg.reviewer === "acceptor" && ["merge", "unlock", "precheck", "accept", "cleanup"].includes(action) && normalizeRole(me.role) !== ACCEPTOR_ROLE && !isIntegrator(me))
-          return { content: `${action} в проекте ${project} — право роли ${ACCEPTOR_ROLE} (настройка reviewer: acceptor) или интегратора; у тебя роль ${keyOf(me)}. Вернуть роль — crew_role {role: "${ACCEPTOR_ROLE}"}.` }
+          return { content: `${action} в проекте ${project} — право роли ${ACCEPTOR_ROLE} (настройка reviewer: acceptor) или интегратора; у тебя роль ${keyOf(me)}. Вернуть роль — canopus_role {role: "${ACCEPTOR_ROLE}"}.` }
         const acc = acceptanceOf(t, tcfg) // задача-план — шаги перепроверки плана (план 004), иначе — приёмки проекта
         const now = Date.now()
         const quiet = (to: string, id: string, text: string) => postLetter(to, { id, from_role: keyOf(me), from_session: me.session, to, time: now, wake: false, text })
         if (action === "review") {
           if (t.status !== "submitted" && t.status !== "reviewing") {
-            const unsent = WORKING_STATUSES.includes(t.status) ? ` Исполнитель ещё не сдал${t.status === "rework" ? " доработку" : " работу"}: пусть вызовет crew_task {action: "submit", n: ${t.n}, text: "..."}.` : ""
+            const unsent = WORKING_STATUSES.includes(t.status) ? ` Исполнитель ещё не сдал${t.status === "rework" ? " доработку" : " работу"}: пусть вызовет canopus_task {action: "submit", n: ${t.n}, text: "..."}.` : ""
             return { content: `Задача ${taskRef(t)} ${statusRu(t.status)} — начинать приёмку нечего.${unsent}` }
           }
           t.steps = acc.map((a) => ({ id: a.id, text: a.text, ...(a.required ? { required: true } : {}) }))
@@ -3361,11 +3380,11 @@ export function makeTools(host: CrewHost): CrewTool[] {
             if (t.executor) host.posted([t.executor])
           }
           else saveTask(t)
-          return { content: `Задача ${taskRef(t)} на приёмке. Шаги приёмки: ${acc.map((a) => a.id).join(", ") || "критерии задачи"}. Каждый шаг — в окне владельца: crew_task {action: "check", n: ${t.n}, step} перед проверкой шага, {step, result} — после. Дальше — rework {text} или merge → accept.` }
+          return { content: `Задача ${taskRef(t)} на приёмке. Шаги приёмки: ${acc.map((a) => a.id).join(", ") || "критерии задачи"}. Каждый шаг — в окне владельца: canopus_task {action: "check", n: ${t.n}, step} перед проверкой шага, {step, result} — после. Дальше — rework {text} или merge → accept.` }
         }
         // шаг приёмки — по ходу проверки (2026-10-06): владелец видит прогресс в окне; accept засчитывает отмеченные
         if (action === "check") {
-          if (t.status !== "reviewing") return { content: `Сначала crew_task {action: "review", n: ${t.n}} (задача сейчас ${statusRu(t.status)}).` }
+          if (t.status !== "reviewing") return { content: `Сначала canopus_task {action: "review", n: ${t.n}} (задача сейчас ${statusRu(t.status)}).` }
           const step = String(input.step ?? "").trim()
           const result = String(input.result ?? "").trim()
           if (!acc.some((a) => a.id === step)) return { content: `Шага «${step}» в приёмке проекта нет. Шаги: ${acc.map((a) => a.id).join(", ")}.` }
@@ -3390,7 +3409,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
         if (action === "round") {
           if (t.plan?.approval && t.plan.approval.decision !== "no") return { content: `План ${t.plan.n} уже согласован владельцем — раундов больше нет; влей его: merge → accept.` }
           if (!t.plan) return { content: `Вердикт раунда — у задачи-плана; задача ${taskNo(t)} обычная (rework / merge / accept).` }
-          if (t.status !== "reviewing") return { content: `Сначала crew_task {action: "review", n: ${t.n}} (задача сейчас ${statusRu(t.status)}).` }
+          if (t.status !== "reviewing") return { content: `Сначала canopus_task {action: "review", n: ${t.n}} (задача сейчас ${statusRu(t.status)}).` }
           // градации — настройка проекта (plan_grades); числа — полями с id градаций или объектом grades
           const grades = tcfg.planForm.grades
           const raw = input.grades && typeof input.grades === "object" ? input.grades : input
@@ -3454,7 +3473,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
         if (action === "precheck") {
           if (tcfg.mergePrecheck !== "required") return { content: "Предпроверка в проекте выключена явным ключом merge_precheck: off: merge берёт замок без неё, precheck не нужен. Включить её (по умолчанию она включена) может интегратор проекта: убрать ключ или поставить merge_precheck: required." }
           if (t.plan && !(t.plan.approval && t.plan.approval.decision !== "no")) return { content: `Задача ${taskRef(t)} сейчас в раунде перепроверки плана ${t.plan.n}: вливания нет, предпроверка не нужна. Она действует на вливание согласованного плана (после решения, статус на приёмке).` }
-          if (t.status !== "reviewing") return { content: `Сначала crew_task {action: "review", n: ${t.n}} (задача сейчас ${statusRu(t.status)}).` }
+          if (t.status !== "reviewing") return { content: `Сначала canopus_task {action: "review", n: ${t.n}} (задача сейчас ${statusRu(t.status)}).` }
           const finishing = input.candidate !== undefined || input.result !== undefined
           const pre = finishing ? await finishPrecheck(t, me.session, tcfg.targetBranch, { candidate: input.candidate, result: input.result }) : await beginPrecheck(t, me.session, tcfg.targetBranch)
           const seen = finishing ? autoTrack(loadTask(t.project, t.n) ?? t, tcfg, me.session) : []
@@ -3463,12 +3482,12 @@ export function makeTools(host: CrewHost): CrewTool[] {
         }
         if (action === "unlock") return { content: unlockMerge(t, me.session) }
         if (action === "merge") {
-          if (t.status !== "reviewing") return { content: `Сначала crew_task {action: "review", n: ${t.n}} (задача сейчас ${statusRu(t.status)}).` }
+          if (t.status !== "reviewing") return { content: `Сначала canopus_task {action: "review", n: ${t.n}} (задача сейчас ${statusRu(t.status)}).` }
           if (tcfg.mergePrecheck === "required") {
             // ворота: замок выдаётся только на ту вершину главной ветки, на которой кандидат уже собран и проверен (задача 005)
             const g = await gateMerge(t, me.session, tcfg.targetBranch)
             if ("text" in g) return { content: g.text }
-            return { content: `Замок вливания проекта ${project} твой, выдан на вершину ${tcfg.targetBranch} ${g.granted}. ${landingLine(t, tcfg.targetBranch) || `Влей ${t.branch ? `ветку ${t.branch}` : "работу"} (кандидата, проверенного на этой вершине) в ${tcfg.targetBranch}, запушь`} Затем вызови crew_task {action: "accept", n: ${t.n}, checks: {...}${t.branch ? "" : ', commit: "<хэш>"'}}. ${LOCK_RULE}` }
+            return { content: `Замок вливания проекта ${project} твой, выдан на вершину ${tcfg.targetBranch} ${g.granted}. ${landingLine(t, tcfg.targetBranch) || `Влей ${t.branch ? `ветку ${t.branch}` : "работу"} (кандидата, проверенного на этой вершине) в ${tcfg.targetBranch}, запушь`} Затем вызови canopus_task {action: "accept", n: ${t.n}, checks: {...}${t.branch ? "" : ', commit: "<хэш>"'}}. ${LOCK_RULE}` }
           }
           const r = takeMergeLock(project, me.session, t.n, tcfg.mergeLockPerTask)
           if (!r.ok && r.holder.session === me.session) return { content: `Замок вливания проекта ${project} у тебя уже для задачи ${taskNo({ project, n: r.holder.n })}: сначала accept, rework или unlock по ней (в проекте merge_lock_per_task: on).` }
@@ -3482,7 +3501,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
             }
           }
           taskEvent(t, me.session, undefined, "замок вливания взят")
-          return { content: `Замок вливания проекта ${project} твой. Влей ${t.branch ? `ветку ${t.branch}` : "работу"} в ${tcfg.targetBranch}, запушь и вызови crew_task {action: "accept", n: ${t.n}, checks: {...}${t.branch ? "" : ', commit: "<хэш>"'}}. ${LOCK_RULE}` }
+          return { content: `Замок вливания проекта ${project} твой. Влей ${t.branch ? `ветку ${t.branch}` : "работу"} в ${tcfg.targetBranch}, запушь и вызови canopus_task {action: "accept", n: ${t.n}, checks: {...}${t.branch ? "" : ', commit: "<хэш>"'}}. ${LOCK_RULE}` }
         }
         if (action === "rework") {
           // sync: true — вернуть влить свежую целевую ветку (main ушёл вперёд, пока шёл CI): не доработка, круг в
@@ -3509,7 +3528,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
           }
           if (sync) return { content: `Задача ${taskRef(t)} возвращена влить свежую ${tcfg.targetBranch} (синхронизация ${t.syncs}, в rework_max не идёт). Исполнитель разбужен; сдаст — тебя разбудят.${lockNote}` }
           if ((t.rework ?? 0) > tcfg.reworkMax) {
-            postLetter(t.author, { id: `rework-max-${safeKey(project)}-${t.n}-${t.rework}`, from_role: PLUGIN_SENDER, from_session: PLUGIN_SENDER, to: t.author, time: now, text: `Задача ${taskNo(t)} «${t.title}» уходит на доработку ${t.rework}-й раз (предел проекта rework_max ${tcfg.reworkMax}). Похоже, задача поставлена неясно или не по силам исполнителю — спроси владельца: уточнить задачу, передать другой сессии (crew_task reassign) или отменить.` })
+            postLetter(t.author, { id: `rework-max-${safeKey(project)}-${t.n}-${t.rework}`, from_role: PLUGIN_SENDER, from_session: PLUGIN_SENDER, to: t.author, time: now, text: `Задача ${taskNo(t)} «${t.title}» уходит на доработку ${t.rework}-й раз (предел проекта rework_max ${tcfg.reworkMax}). Похоже, задача поставлена неясно или не по силам исполнителю — спроси владельца: уточнить задачу, передать другой сессии (canopus_task reassign) или отменить.` })
             host.posted([t.author])
           }
           return { content: `Задача ${taskRef(t)} на доработке (круг ${t.rework}). Исполнитель разбужен с замечаниями; сдаст — тебя разбудят.${lockNote}` }
@@ -3518,7 +3537,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
           if (t.status !== "reviewing") return { content: `Принять можно задачу на приёмке (сейчас ${statusRu(t.status)}).` }
           const lockNo = tcfg.mergeLockPerTask ? t.n : undefined // merge_lock_per_task: замок должен быть для этой задачи
           const viaLanded = !holdsMergeLock(project, me.session, lockNo) && landedFresh(t) // замок отпущен службой после слияния проверенного кандидата
-          if (!holdsMergeLock(project, me.session, lockNo) && !viaLanded) return { content: `Сначала замок вливания: crew_task {action: "merge", n: ${t.n}} — вливает один приёмщик за раз.` }
+          if (!holdsMergeLock(project, me.session, lockNo) && !viaLanded) return { content: `Сначала замок вливания: canopus_task {action: "merge", n: ${t.n}} — вливает один приёмщик за раз.` }
           const checks: Record<string, string> = { ...(t.checks ?? {}) } // отмеченные по ходу (check) засчитываются
           for (const [k, v] of Object.entries(input.checks ?? {})) if (String(v ?? "").trim()) checks[k] = String(v).trim()
           const missing = acc.filter((a) => a.required && !checks[a.id])
@@ -3571,7 +3590,7 @@ export function makeTools(host: CrewHost): CrewTool[] {
           const steps = cleanupSteps(t, tcfg)
           if (!steps.length) return { content: finishCleaned(t, me, "очистка не нужна (cleanup: none)") + warn + (lockFreed ? `
 ${LOCK_FREED_ACCEPT}` : "") }
-          return { content: `Задача ${taskRef(t)} принята (${m.how}). Очистка по настройке проекта (cleanup: ${tcfg.cleanup}):\n${steps.map((x) => `  ${x}`).join("\n")}\nСделал — crew_task {action: "cleanup", n: ${t.n}}.${warn}${lockFreed ? `
+          return { content: `Задача ${taskRef(t)} принята (${m.how}). Очистка по настройке проекта (cleanup: ${tcfg.cleanup}):\n${steps.map((x) => `  ${x}`).join("\n")}\nСделал — canopus_task {action: "cleanup", n: ${t.n}}.${warn}${lockFreed ? `
 ${LOCK_FREED_ACCEPT} Дальше уборка без замка, затем cleanup ${t.n}.` : ""}` }
         }
         // cleanup
@@ -3600,7 +3619,7 @@ ${LOCK_FREED_ACCEPT} Дальше уборка без замка, затем cle
           const brs = done.left.map((x) => /^локальная ветка (\S+) ещё есть$/.exec(x)?.[1]).filter(Boolean) as string[]
           const held = keptOnBranch(t, brs)
           const hint = held.map((h) => `\nВетка ${h.branch} выбрана в сохранённом дереве ${h.path}: git branch -D откажет. В этом дереве выполни git checkout --detach, затем удали ветку.`).join("")
-          return { content: `Очистка не закончена: ${[...side.failed, ...done.left].join("; ")}.${sideLine}${keptLine}${hint}${done.left.length ? `\nЕсли это побочная ветка или дерево этой задачи, которого плагин не знал, запиши его: crew_task {action: "track", n: ${t.n}, branch или worktree: "..."} и повтори cleanup (убрать можно и вручную).` : ""}` }
+          return { content: `Очистка не закончена: ${[...side.failed, ...done.left].join("; ")}.${sideLine}${keptLine}${hint}${done.left.length ? `\nЕсли это побочная ветка или дерево этой задачи, которого плагин не знал, запиши его: canopus_task {action: "track", n: ${t.n}, branch или worktree: "..."} и повтори cleanup (убрать можно и вручную).` : ""}` }
         }
         const stillHeld = mergeHolder(project)
         return { content: finishCleaned(t, me, `worktree и ветка удалены${side.done.length ? `; по записи убрано: ${side.done.length}` : ""}${keptNow.length ? `; сохранено: ${keptNow.join(", ")}` : ""}`) + sideLine + keptLine + (stillHeld?.session === me.session ? `
@@ -3626,18 +3645,18 @@ ${lockStillYours(stillHeld.n)}` : "") }
         const text = String(input.text ?? "").trim() || (whom === "reviewer" ? "продолжай приёмку." : "продолжай работу по задаче.")
         const how =
           whom === "reviewer"
-            ? `Продолжай приёмку: crew_task {action: "review" | "rework" | "merge" | "accept" | "cleanup", n: ${t.n}} (что дальше — в письме с приёмкой).`
-            : `Закончил — сдай: crew_task {action: "submit", n: ${t.n}, text: "..."}; упёрся — в том же отчёте напиши, что мешает.`
+            ? `Продолжай приёмку: canopus_task {action: "review" | "rework" | "merge" | "accept" | "cleanup", n: ${t.n}} (что дальше — в письме с приёмкой).`
+            : `Закончил — сдай: canopus_task {action: "submit", n: ${t.n}, text: "..."}; упёрся — в том же отчёте напиши, что мешает.`
         postLetter(target, { id: `push-${safeKey(project)}-${t.n}-${Date.now()}`, from_role: keyOf(me), from_session: me.session, to: target, time: Date.now(), wake_qid: targetQid, text: `Подталкивание по задаче ${taskNo(t)} «${t.title}»: ${text}\n${how}` })
         taskEvent(t, me.session, undefined, whom === "reviewer" ? "подталкивание приёмщика" : "подталкивание")
         host.posted([target])
-        return { content: `Задача ${taskRef(t)}: ${whom === "reviewer" ? "приёмщик" : "исполнитель"} ${target} — письмо поставлено в Crew-mailbox. Native acceptance и начало нового хода ещё не подтверждены; stuck сохранён до связанного старта. Диагностика — crew_task show и crew_doctor; предел подтверждения после native отправки — 120 секунд.` }
+        return { content: `Задача ${taskRef(t)}: ${whom === "reviewer" ? "приёмщик" : "исполнитель"} ${target} — письмо поставлено в Canopus-mailbox. Native acceptance и начало нового хода ещё не подтверждены; stuck сохранён до связанного старта. Диагностика — canopus_task show и canopus_doctor; предел подтверждения после native отправки — 120 секунд.` }
       }
       // ПРИЁМКА ЗАДАЧИ С СЕССИЯМИ МЕТОДИКИ (задача 058, REQ-09): одна на задачу, по действию интегратора
       if (action === "deliver") {
         if (t.status !== "idle") return { content: `deliver — для задачи между сессиями (последняя сессия сдана интегратору); задача ${taskRef(t)} сейчас ${statusRu(t.status)}.${WORKING_STATUSES.includes(t.status) ? " Дождись сдачи сессии." : ""}` }
         const text = String(input.text ?? "").trim()
-        if (!text) return { content: `Нужен text: что готово к вливанию — отчёт для приёмщика. crew_task {action: "deliver", n: ${t.n}, text: "..."}.` }
+        if (!text) return { content: `Нужен text: что готово к вливанию — отчёт для приёмщика. canopus_task {action: "deliver", n: ${t.n}, text: "..."}.` }
         t.report = text
         markPrecheckStale(t, "задача передана на приёмку заново")
         taskEvent(t, me.session, "submitted", "передана на приёмку интегратором (deliver)")
@@ -3722,16 +3741,16 @@ ${lockStillYours(stillHeld.n)}` : "") }
 
   // НАСТРОЙКИ ПРОЕКТА (план 002, Ф.6): опросник, показ, запись. Файл — в репозитории настроек (settings.ts);
   // set пишет рабочую копию, действует значение с коммита.
-  const crewConfig: CrewTool = {
-    name: "crew_config",
+  const canopusConfig: CanopusTool = {
+    name: "canopus_config",
     description:
       [
-        "The project's settings (.opencode/crew-harness.json in its settings repository). One line per action: action - who may - parameters - what it does.",
+        "The project's settings (.opencode/canopus.json in its settings repository). One line per action: action - who may - parameters - what it does.",
         "guide - anyone - questions for the owner on every key (current value, options, recommendation, why): ask them in text and record the answers.",
-        "show - anyone - effective values and where each comes from (default, the committed file, the local option of opencode.jsonc), plus uncommitted edits. Model profiles come first: model_profiles = families/tiers -> model, profile_sets = named sets of stages, profile_set = the enabled set (only a person changes it, /crew-sets use|off); the summary says 'sets in the file: N; enabled: name or none' - never answer 'no sets' from 'not enabled'; details: crew_help.",
+        "show - anyone - effective values and where each comes from (default, the committed file, the local option of opencode.jsonc), plus uncommitted edits. Model profiles come first: model_profiles = families/tiers -> model, profile_sets = named sets of stages, profile_set = the enabled set (only a person changes it, /canopus-sets use|off); the summary says 'sets in the file: N; enabled: name or none' - never answer 'no sets' from 'not enabled'; details: canopus_help.",
         "set - integrator - values {key: value; null removes a key} - checks every value and writes the working copy; it applies once committed to the settings branch. Keys changed by people only (profile_set, answer_mode, answer_max) are refused.",
         "apply_template - integrator - writes the standard template (families claude/codex/kimi, sets, profile_set codex, tier_max light, branch and worktree names) into the file; the project's own keys win; commit the file or the old state stays.",
-        "Planning keys (plan tasks: crew_spawn kind plan): plans_dir (folder of plan files in the repository, default docs/plans), plan_approver (owner = the owner decides with /plans in the window; integrator = the integrator decides with crew_task plan_decide), plan_acceptance (steps of the plan recheck: id, text, required), plan_grades (grades of remarks and which of them keep a round clean), plan_clean_rounds, plan_rounds_max, plan_steps (auto|manual: start the tasks of a landed plan's steps automatically). project_rules - English text appended to the end of every tab's system block. owner_language - the owner's language as an English name (default Russian): every tab writes what the owner reads in it, letters to other tabs included. compaction_summary - true by default: OpenCode tabs are asked for a short summary by the pattern of the Canon when their context is compacted (the session hook compaction); false leaves the summary to OpenCode.",
+        "Planning keys (plan tasks: canopus_spawn kind plan): plans_dir (folder of plan files in the repository, default docs/plans), plan_approver (owner = the owner decides with /plans in the window; integrator = the integrator decides with canopus_task plan_decide), plan_acceptance (steps of the plan recheck: id, text, required), plan_grades (grades of remarks and which of them keep a round clean), plan_clean_rounds, plan_rounds_max, plan_steps (auto|manual: start the tasks of a landed plan's steps automatically). project_rules - English text appended to the end of every tab's system block. owner_language - the owner's language as an English name (default Russian): every tab writes what the owner reads in it, letters to other tabs included. compaction_summary - true by default: OpenCode tabs are asked for a short summary by the pattern of the Canon when their context is compacted (the session hook compaction); false leaves the summary to OpenCode.",
       ].join("\n"),
     input: {
       type: "object",
@@ -3757,7 +3776,7 @@ ${lockStillYours(stillHeld.n)}` : "") }
       if (action === "apply_template") {
         if (!isIntegrator(me)) return notIntegrator(me)
         if (!p) return { content: outsideProject(me.directory).replace(/^./, (c) => c.toUpperCase()) + "." }
-        if (!p.dir) return { content: `Проект ${p.name} задан прежней формой опций: записать некуда. Переведи его на репозиторий настроек — в opencode.jsonc "project_settings": ["<папка с .opencode/crew-harness.json>"].` }
+        if (!p.dir) return { content: `Проект ${p.name} задан прежней формой опций: записать некуда. Переведи его на репозиторий настроек — в opencode.jsonc "project_settings": ["<папка с .opencode/canopus.json>"].` }
         const { values, added } = mergeTemplate(workingSettings(p.dir).raw)
         if (!added.length) return { content: `Шаблон ничего не добавил: все его ключи у проекта уже есть (файл не тронут).` }
         const file = writeSettings(p.dir, values)
@@ -3766,10 +3785,10 @@ ${lockStillYours(stillHeld.n)}` : "") }
       if (action === "set") {
         if (!isIntegrator(me)) return notIntegrator(me)
         if (!p) return { content: outsideProject(me.directory).replace(/^./, (c) => c.toUpperCase()) + "." }
-        if (!p.dir) return { content: `Проект ${p.name} задан прежней формой опций: записать некуда. Переведи его на репозиторий настроек — в opencode.jsonc "project_settings": ["<папка с .opencode/crew-harness.json>"].` }
+        if (!p.dir) return { content: `Проект ${p.name} задан прежней формой опций: записать некуда. Переведи его на репозиторий настроек — в opencode.jsonc "project_settings": ["<папка с .opencode/canopus.json>"].` }
         const values = input.values
         if (!values || typeof values !== "object" || Array.isArray(values) || !Object.keys(values).length) return { content: "Нужно values: {ключ: значение}." }
-        if (Object.prototype.hasOwnProperty.call(values, "profile_set")) return { content: "Не записано (файл не тронут):\n- profile_set: имя набора меняет человек (команда окна /crew-sets use либо правка файла); вызовом set его не записывают" }
+        if (Object.prototype.hasOwnProperty.call(values, "profile_set")) return { content: "Не записано (файл не тронут):\n- profile_set: имя набора меняет человек (команда окна /canopus-sets use либо правка файла); вызовом set его не записывают" }
         // остальные ключи «ставит человек» (answer_mode, answer_max): отказ тем же видом, фраза из схемы
         const human = Object.keys(values).map((k) => SCHEMA.find((x) => x.key === k)).filter((x) => x?.humanOnly)
         if (human.length) return { content: `Не записано (файл не тронут):\n${human.map((x) => `- ${x!.key}: ключ меняет человек (${x!.humanHow ?? "правка файла"}); вызовом set его не записывают`).join("\n")}` }
@@ -3788,14 +3807,14 @@ ${lockStillYours(stillHeld.n)}` : "") }
         const links = linkErrorsOfWrite(p.dir, values)
         if (links.length) return { content: `Не записано (файл не тронут):\n${links.map((e) => `- ${e}`).join("\n")}` }
         const file = writeSettings(p.dir, values)
-        return { content: `Записано в ${file}: ${Object.keys(values).join(", ")}. Действует после коммита в ветку ${p.branch} репозитория ${p.repo} (по методологии проекта); до коммита действуют прежние значения — crew_config {action: "show"} покажет незакоммиченное.` }
+        return { content: `Записано в ${file}: ${Object.keys(values).join(", ")}. Действует после коммита в ветку ${p.branch} репозитория ${p.repo} (по методологии проекта); до коммита действуют прежние значения — canopus_config {action: "show"} покажет незакоммиченное.` }
       }
       return { content: `Неизвестное действие «${action}».` }
     },
   }
 
-  const crewInbox: CrewTool = {
-    name: "crew_inbox",
+  const canopusInbox: CanopusTool = {
+    name: "canopus_inbox",
     description: "The caller tab's letters: letters still waiting are handed over right here, in this turn (no separate wake), then the recent delivered ones (newest last).",
     input: {
       type: "object",
@@ -3818,7 +3837,7 @@ ${lockStillYours(stillHeld.n)}` : "") }
         .slice(-Math.max(1, Number(input.limit ?? 10)))
       const body = letters.map((l) => `${hhmm(l.time)} от ${l.from_role} → ${l.to}${l.qid ? ` [вопрос ${l.qid}]` : ""}${l.reply_to ? ` [ответ на ${l.reply_to}]` : ""}: ${l.text}`).join("\n")
       // ЖДУЩИЕ ПИСЬМА — отдаются здесь же, в этом ходе (вкладка сама спросила почту — будить её потом незачем); тот же
-      // захват, что у доставки: письмо забирает кто-то один. Ответ, которого ждёт crew_wait, не трогается.
+      // захват, что у доставки: письмо забирает кто-то один. Ответ, которого ждёт canopus_wait, не трогается.
       const awaited = waitingFor(me.session)
       const claimed = keys.flatMap((k) => claimLetters(k, `inbox-${process.pid}-${Date.now()}`))
       const back = claimed.filter((c) => awaited && c.letter.reply_to === awaited)
@@ -3833,24 +3852,24 @@ ${lockStillYours(stillHeld.n)}` : "") }
     },
   }
 
-  const crewDoctor: CrewTool = {
-    name: "crew_doctor",
-    description: "Self-check of crew-harness: the OpenCode features it relies on, the window plugin (presence), the mailbox. Lists what is broken and what to do.",
+  const canopusDoctor: CanopusTool = {
+    name: "canopus_doctor",
+    description: "Self-check of canopus: the OpenCode features it relies on, the window plugin (presence), the mailbox. Lists what is broken and what to do.",
     input: { type: "object", properties: {}, additionalProperties: false },
     execute: async (_input: any, sessionID: string) => {
       const problems = [...(await host.doctor()), ...commonDoctor(sessionID), ...settingsProblems(projects, currentLocal), ...profileProblems()]
       const notes = [...settingsNotes(), ...(host.doctorNotes?.() ?? []), ...branchNotes(BASE), ...stepNotes(Date.now())] // справка низкой важности: не проблема, зелёный вердикт не отменяет
       const tail = notes.length ? `\nК сведению:\n${notes.map((p) => `- ${p}`).join("\n")}` : ""
-      return { content: (problems.length ? `crew_doctor — есть проблемы:\n${problems.map((p) => `- ${p}`).join("\n")}` : "crew_doctor: всё в порядке (окна отмечаются, ящик пишется, нужные возможности OpenCode на месте).") + tail }
+      return { content: (problems.length ? `canopus_doctor — есть проблемы:\n${problems.map((p) => `- ${p}`).join("\n")}` : "canopus_doctor: всё в порядке (окна отмечаются, ящик пишется, нужные возможности OpenCode на месте).") + tail }
     },
   }
 
   // ПРИЧИНА СМЕНЫ КАТАЛОГА ИЛИ ВЕТКИ (branch-guard.ts, задача 157): без записи команды, меняющие ветку или историю в основной копии,
   // в дереве чужой задачи или в своём дереве не на своей ветке, отклоняются; с записью проходят, а названная пара становится ожиданием окна.
-  const crewBranchNote: CrewTool = {
-    name: "crew_branch_note",
+  const canopusBranchNote: CanopusTool = {
+    name: "canopus_branch_note",
     description:
-      "Record WHY the folder or the branch of this window changes (or why a command that changes a branch or the history -- git checkout/switch/merge/cherry-pick/rebase/reset/commit/pull -- must run in the main copy, in a tree of another task, or off the window's own branch). The plugin refuses such commands until a reason is recorded: what, why, who allowed it (the owner's word with the date, or the orchestrator's decision). With the reason the commands pass in that folder for 30 minutes; with branch (or when the window stands off its place and the folder is its own) the named pair becomes what the window is expected to be until the role or the task changes. The record goes to the journal (visible in /crew, the side panel and crew_doctor) and to the history of the task. Reading (git status/log/diff), git -C <your own helper tree> and the way back to the window's own branch are never refused. To move the window itself to another folder use session_move.",
+      "Record WHY the folder or the branch of this window changes (or why a command that changes a branch or the history -- git checkout/switch/merge/cherry-pick/rebase/reset/commit/pull -- must run in the main copy, in a tree of another task, or off the window's own branch). The plugin refuses such commands until a reason is recorded: what, why, who allowed it (the owner's word with the date, or the orchestrator's decision). With the reason the commands pass in that folder for 30 minutes; with branch (or when the window stands off its place and the folder is its own) the named pair becomes what the window is expected to be until the role or the task changes. The record goes to the journal (visible in /canopus, the side panel and canopus_doctor) and to the history of the task. Reading (git status/log/diff), git -C <your own helper tree> and the way back to the window's own branch are never refused. To move the window itself to another folder use session_move.",
     input: {
       type: "object",
       properties: {
@@ -3872,8 +3891,8 @@ ${lockStillYours(stillHeld.n)}` : "") }
   }
 
   // СРОК ШАГА ЗАДАЧИ (idle-watch.ts, задача 161): ответ держателя на письмо «Шаг стоит N мин, срок вышел», решение владельца и метка HOLD/STOP.
-  const crewStepNote: CrewTool = {
-    name: "crew_step_note",
+  const canopusStepNote: CanopusTool = {
+    name: "canopus_step_note",
     description:
       "Ответ на письмо о сроке шага: reason + minutes (одно продление до step_extend_minutes) либо done. Повтор причины или молчание поднимает вопрос. Решение владельца пишет автор: decide wait|narrow|reassign|cancel + who. HOLD/STOP с who: hold_scope execution (пауза), external (wait_id, minutes как срок проверки результата) или gate (запрет приёмки/слияния); hold_gate сочетает внешний wait с gate. Без scope — legacy/неуточнённый, исполнение запрещено, автоматической миграции нет. Release/уточнение — только по явному слову владельца. Health работает независимо от срока/HOLD: wait_result + wait_id + reason фиксирует внешний terminal; health_blocker сохраняет ответственного и next-check, повтор не переносит срок, просрочка эскалирует. Ни terminal, ни диагностика не снимают gate/HOLD и не разрешают rerun. Без n — ответ на шаг этого окна.",
     input: {
@@ -3921,8 +3940,8 @@ ${lockStillYours(stillHeld.n)}` : "") }
   }
 
   // НАБЛЮДЕНИЯ (watch.ts): ожидание, которое переживает конец хода — фон Claude Code гибнет с ходом окна claude-code.
-  const crewWatch: CrewTool = {
-    name: "crew_watch",
+  const canopusWatch: CanopusTool = {
+    name: "canopus_watch",
     description:
       [
         `Wait for something long WITHOUT holding the turn: the plugin runs a command (Git Bash, in the tab's directory) in the OpenCode server, detached - it survives the end of your turn and a service restart - and when it exits wakes this tab with a letter: exit code, duration, output tail. Use it instead of Bash run_in_background / Monitor for anything that must outlive the turn (a gate's verdict, a long build): in a claude-code tab background tasks are killed when the turn ends and no notification ever comes. After calling it, end your turn - the letter wakes you.`,
@@ -3933,7 +3952,7 @@ ${lockStillYours(stillHeld.n)}` : "") }
         `machine - true only for heavy commands (build, tests, gate): wait for a slot in the project's machine queue (machine_slots at a time, default 1) so heavy runs of the windows do not pile up. Waiting for a remote CI (a gh polling loop with a pause) and anything light goes with machine false, otherwise it holds the only slot.`,
         `action cancel + id - cancel this tab's own watch: it leaves the queue or its process is stopped, the machine slot is freed (id: from the answer or the list).`,
         `Permissions: the command runs outside the window's permissions, so it is checked against the project's permissions.deny (.claude/settings.json): a command matching a denied Bash/PowerShell prefix (whole or any subcommand) or naming a file under a denied Read glob is refused, naming the rule.`,
-        `Environment of the command: CREW_SESSION_ID, CREW_ROLE, CREW_PROJECT, and CREW_REVIEW_N (a reviewer) / CREW_TASK_N (an executor).`,
+        `Environment of the command: CANOPUS_SESSION_ID, CANOPUS_ROLE, CANOPUS_PROJECT, and CANOPUS_REVIEW_N (a reviewer) / CANOPUS_TASK_N (an executor).`,
       ].join("\n"),
     input: {
       type: "object",
@@ -3954,7 +3973,7 @@ ${lockStillYours(stillHeld.n)}` : "") }
       const command = String(input.command ?? "").trim()
       if (!command) {
         const ws = watchesOf(me.session)
-        return { content: ws.length ? `Наблюдения вкладки (отмена — crew_watch {action: "cancel", id}):\n${ws.map((w) => `— ${w.id} ${w.note ? `«${w.note}» ` : ""}${w.status === "requested" ? `ждёт запуска${w.machine ? " в очереди машины" : ""} с ${hhmm(w.created)}` : `с ${hhmm(w.started ?? w.created)}`}, предел ${w.minutes} мин: ${w.command.slice(0, 200)}`).join("\n")}` : "Наблюдений нет." }
+        return { content: ws.length ? `Наблюдения вкладки (отмена — canopus_watch {action: "cancel", id}):\n${ws.map((w) => `— ${w.id} ${w.note ? `«${w.note}» ` : ""}${w.status === "requested" ? `ждёт запуска${w.machine ? " в очереди машины" : ""} с ${hhmm(w.created)}` : `с ${hhmm(w.started ?? w.created)}`}, предел ${w.minutes} мин: ${w.command.slice(0, 200)}`).join("\n")}` : "Наблюдений нет." }
       }
       const project = me.project ?? projOf(me)
       // тяжёлая по списку проекта (heavy_commands) — в очередь машины сама, даже без machine: true (план 004)
@@ -3968,13 +3987,13 @@ ${lockStillYours(stillHeld.n)}` : "") }
       const w = requestWatch({ session: me.session, command, cwd, note: String(input.note ?? "").trim() || undefined, minutes: input.minutes, machine, project, env: watchEnv(me, project) })
       const ahead = machine ? machineQueue(project).filter((x) => x.id !== w.id).length : 0
       const queueText = machine ? `${heavyBy && input.machine !== true ? ` Команда — тяжёлый прогон (heavy_commands: «${heavyBy}»), поэтому в очереди машины.` : ""} Команда грузит машину: стоит в очереди машины проекта${ahead ? `, перед ней ${ahead}` : ""} — запустится, когда освободится место (machine_slots).` : ""
-      return { content: `Наблюдение ${w.note ? `«${w.note}» ` : ""}${w.id} поставлено (${hhmm(w.created)}, предел ${w.minutes} мин от запуска; отмена — crew_watch {action: "cancel", id: "${w.id}"}).${queueText} Плагин запустит команду в сервере OpenCode и разбудит эту вкладку письмом с результатом. Заканчивай ход — ждать не нужно.` }
+      return { content: `Наблюдение ${w.note ? `«${w.note}» ` : ""}${w.id} поставлено (${hhmm(w.created)}, предел ${w.minutes} мин от запуска; отмена — canopus_watch {action: "cancel", id: "${w.id}"}).${queueText} Плагин запустит команду в сервере OpenCode и разбудит эту вкладку письмом с результатом. Заканчивай ход — ждать не нужно.` }
     },
   }
 
-  const crewTimer: CrewTool = {
-    name: "crew_timer",
-    description: `Timer: wake THIS tab with a letter after N minutes, without holding the turn (a watch whose command sleeps; it survives the end of your turn and a service restart). minutes: more than 0, less than ${WATCH_MAX_MIN}. note: a short label for the letter ("check the gate"). After calling it, end your turn -- the letter wakes you. Cancel like any watch: crew_watch {action: "cancel", id}.`,
+  const canopusTimer: CanopusTool = {
+    name: "canopus_timer",
+    description: `Timer: wake THIS tab with a letter after N minutes, without holding the turn (a watch whose command sleeps; it survives the end of your turn and a service restart). minutes: more than 0, less than ${WATCH_MAX_MIN}. note: a short label for the letter ("check the gate"). After calling it, end your turn -- the letter wakes you. Cancel like any watch: canopus_watch {action: "cancel", id}.`,
     input: {
       type: "object",
       properties: {
@@ -3992,21 +4011,21 @@ ${lockStillYours(stillHeld.n)}` : "") }
       const project = me.project ?? projOf(me)
       const note = String(input.note ?? "").trim() || `таймер ${Number(input.minutes)} мин`
       const w = requestWatch({ session: me.session, command: `sleep ${spec.seconds}`, cwd: me.directory || host.defaultDir, note, minutes: spec.limit, machine: false, project, env: watchEnv(me, project) })
-      return { content: `Таймер «${note}» ${w.id} поставлен (${hhmm(w.created)}): письмо придёт через ${Number(input.minutes)} мин. Отмена — crew_watch {action: "cancel", id: "${w.id}"}. Закончи ход: письмо разбудит эту вкладку.` }
+      return { content: `Таймер «${note}» ${w.id} поставлен (${hhmm(w.created)}): письмо придёт через ${Number(input.minutes)} мин. Отмена — canopus_watch {action: "cancel", id: "${w.id}"}. Закончи ход: письмо разбудит эту вкладку.` }
     },
   }
 
-  const crewHelp: CrewTool = {
-    name: "crew_help",
-    description: "Help for crew-harness: the tools with examples, addressing, roles, delivery and presence, questions and answers, tasks for the integrator.",
+  const canopusHelp: CanopusTool = {
+    name: "canopus_help",
+    description: "Help for canopus: the tools with examples, addressing, roles, delivery and presence, questions and answers, tasks for the integrator.",
     input: { type: "object", properties: {}, additionalProperties: false },
     execute: async (_input: any, sessionID: string) => ({ content: helpFor(readJson<Card>(cardFile(String(sessionID ?? "")))?.directory || host.defaultDir) }),
   }
 
   // РЕШЕНИЕ 51 КАК ДАННЫЕ (задача 092): постановка быстрого пути изменена после слова завода — запись помечена, предупреждение идёт в ответе list, show и
-  // каждого шага crew_task, пока слово не обновлено (crew_task route) или задача не возвращена на полный путь
-  const taskStep = crewTask.execute
-  crewTask.execute = async (input: any, sessionID: string) => {
+  // каждого шага canopus_task, пока слово не обновлено (canopus_task route) или задача не возвращена на полный путь
+  const taskStep = canopusTask.execute
+  canopusTask.execute = async (input: any, sessionID: string) => {
     const r = await taskStep(input, sessionID)
     try {
       const me = readJson<Card>(cardFile(String(sessionID ?? "")))
@@ -4021,16 +4040,16 @@ ${lockStillYours(stillHeld.n)}` : "") }
       }
       return warn.length ? { ...r, content: `${r.content}\n${warn.join("\n")}` } : r
     } catch (e: any) {
-      log(`crew_task route warning failed: ${e?.message ?? e}`)
+      log(`canopus_task route warning failed: ${e?.message ?? e}`)
       return r
     }
   }
 
-  return [crewList, crewRole, crewSend, crewQuestion, crewWait, crewWatch, crewTimer, crewSpawn, crewTask, crewConfig, crewInbox, crewDoctor, crewBranchNote, crewStepNote, crewHelp]
+  return [canopusList, canopusRole, canopusSend, canopusQuestion, canopusWait, canopusWatch, canopusTimer, canopusSpawn, canopusTask, canopusConfig, canopusInbox, canopusDoctor, canopusBranchNote, canopusStepNote, canopusHelp]
 }
 
 /** Шаги приёмки задачи: у задачи-плана — перепроверка плана (план 004), у остальных — приёмка проекта. */
-export const acceptanceOf = (t: Task, cfg: CrewConfig) => (t.plan ? (t.plan.approval && t.plan.approval.decision !== "no" ? cfg.planMergeAcceptance : cfg.planAcceptance) : cfg.acceptance)
+export const acceptanceOf = (t: Task, cfg: CanopusConfig) => (t.plan ? (t.plan.approval && t.plan.approval.decision !== "no" ? cfg.planMergeAcceptance : cfg.planAcceptance) : cfg.acceptance)
 
 /** Письмо с задачей исполнителю. */
 /** Письмо исполнителю задачи-плана (план 004): исходная задача, файл, шаблон, критерии, ход перепроверки. */
@@ -4038,7 +4057,7 @@ export function planTaskLetter(t: Task): string {
   const p = t.plan!
   const cfg = loadConfig(t.directory)
   const f = cfg.planForm
-  const approver = cfg.planApprover === "owner" ? "владелец (командой окна /plans)" : "интегратор (crew_task plan_decide)"
+  const approver = cfg.planApprover === "owner" ? "владелец (командой окна /plans)" : "интегратор (canopus_task plan_decide)"
   const strict = f.grades.filter((g) => !g.clean).map((g) => g.name)
   return [
     `ЗАДАЧА-ПЛАН ${taskNo(t)} «${t.title}» от ${t.author_role} (сессия ${t.author}), приоритет ${t.priority}. Составь план ${p.n}${p.parent ? ` — подплан плана ${p.parent}` : ""}. Код не пиши: результат — только файл плана.`,
@@ -4051,14 +4070,14 @@ export function planTaskLetter(t: Task): string {
     `ФОРМА (по этому шаблону: фазы «### ${f.prefix}.N — …», шаги «#### ${f.prefix}.N.M — …» с [P1] [после: …] [где: …], у шага «${f.whatLabel}:» и «**${f.criteriaLabel}:**»; отметки — как в шаблоне):\n${planTemplateFor(t, cfg)}`,
     `КРИТЕРИИ ПРИЁМКИ ПЛАНА — по ним идёт перепроверка:\n${cfg.planAcceptance.map((a) => `  ${a.id}: ${a.text}`).join("\n")}\nФорму (шапка, разделы, «${f.whatLabel}:» и «${f.criteriaLabel}» у каждого шага, вопросы четвёркой с «Блокирует», «после:» на существующие шаги без кругов) плагин проверит при сдаче — с ошибками формы отчёт не примет.`,
     `ДАЛЬШЕ: перепроверка раундами, каждый раунд — новая сессия.\n${roundRules(f.grades)}\nГотов — ${cfg.planCleanRounds} раунда подряд без замечаний градаций ${strict.join(", ")}; тогда план согласует ${approver}${f.modeQuestion ? ` (и ответит на «${f.sections.mode}»)` : ""}. Строку «**Перепроверка:**» в шапке обновляй после каждого раунда.`,
-    `СДАЧА: закоммить файл плана в ветку задачи и сдай: crew_task {action: "submit", n: ${t.n}, text: "план ${p.n}: файл, фазы и шаги кратко"}. Упрёшься — в том же отчёте напиши, что мешает.`,
+    `СДАЧА: закоммить файл плана в ветку задачи и сдай: canopus_task {action: "submit", n: ${t.n}, text: "план ${p.n}: файл, фазы и шаги кратко"}. Упрёшься — в том же отчёте напиши, что мешает.`,
   ]
     .filter(Boolean)
     .join("\n")
 }
 
 /** Шаблон плана: свой файл проекта (plan_template; {n} {title} {source}) или встроенный по форме проекта. */
-export function planTemplateFor(t: Task, cfg: CrewConfig): string {
+export function planTemplateFor(t: Task, cfg: CanopusConfig): string {
   const p = t.plan!
   if (cfg.planTemplate) {
     try {
@@ -4110,7 +4129,7 @@ export function formatTaskLetter(t: Task): string {
     t.handoff ? `СДЕЛАНО ПРЕЖНИМ ИСПОЛНИТЕЛЕМ (задача передана тебе):\n${t.handoff}` : "",
     t.plan_step ? `ШАГ ПЛАНА ${t.plan_step.plan}, ${t.plan_step.step} (файл ${t.plan_step.file}): закрыв шаг, отметь в его заголовке «${loadConfig(t.directory).planForm.marks.step_done} <дата>, коммит <hash>» тем же слиянием — без отметки в целевой ветке приёмка не пройдёт.` : "",
     acceptanceForExecutor(t),
-    `Когда закончишь — сдай работу: crew_task {action: "submit", n: ${t.n}, text: "что сделано, как проверено, что осталось"}. Упрёшься — в том же отчёте напиши, что мешает. Обычное письмо сдачей не считается. Пока работа не сдана, задача открыта: остановишься без сдачи — получишь напоминание.`,
+    `Когда закончишь — сдай работу: canopus_task {action: "submit", n: ${t.n}, text: "что сделано, как проверено, что осталось"}. Упрёшься — в том же отчёте напиши, что мешает. Обычное письмо сдачей не считается. Пока работа не сдана, задача открыта: остановишься без сдачи — получишь напоминание.`,
   ]
     .filter(Boolean)
     .join("\n")
@@ -4127,7 +4146,7 @@ export function sessionLetter(t: Task, s: TaskSession): string {
     tree,
     t.handoff ? `СДЕЛАНО ПРЕЖНЕЙ СЕССИЕЙ (сессия передана тебе):\n${t.handoff}` : "",
     `Строку запуска «${s.code} 0/0 […] запуск №${s.launch}» в progress.log и запись «пуск» в log.md уже записал плагин; первая твоя строка — старт (progress_line kind start).`,
-    `Когда закончишь — сдай сессию: crew_task {action: "submit", n: ${t.n}, text: "что сделано, как проверено, что осталось"}. Сдача уходит интегратору; приёмки плагина у сессии нет.`,
+    `Когда закончишь — сдай сессию: canopus_task {action: "submit", n: ${t.n}, text: "что сделано, как проверено, что осталось"}. Сдача уходит интегратору; приёмки плагина у сессии нет.`,
   ]
     .filter(Boolean)
     .join("\n")
@@ -4145,6 +4164,7 @@ export function releaseExecutor(t: Task, session: string, close = true) {
 
 /** Сводка сделанного прежним исполнителем: его последние письма автору задачи. */
 export function handoffOf(t: Task, old: string): string {
+  ensureBaseDirs()
   const keys = [t.author, t.author_role].map(safeKey)
   const letters: Letter[] = []
   for (const k of keys)
@@ -4174,7 +4194,7 @@ export function expectedLetters(t: Task): Letter[] {
   if (t.status === "rework" && t.executor && t.rework_note)
     out.push({ id: `rework-${p}-${t.n}-${rounds(t) || 1}`, from_role: reviewerRole, from_session: t.reviewer ?? PLUGIN_SENDER, to: t.executor, time: at, text: reworkLetter(t, t.rework_note, reviewerRole) })
   if (t.status === "submitted" && rounds(t) > 0 && t.reviewer && t.report)
-    out.push({ id: `review-again-${p}-${t.n}-${rounds(t)}`, from_role: t.executor_role ?? "исполнитель", from_session: t.executor ?? PLUGIN_SENDER, to: t.reviewer, time: at, text: `Доработка задачи ${taskNo(t)} «${t.title}» сдана (круг ${t.rework}):\n${t.report}\nПроверь снова: crew_task {action: "review", n: ${t.n}}, дальше rework или merge → accept.` })
+    out.push({ id: `review-again-${p}-${t.n}-${rounds(t)}`, from_role: t.executor_role ?? "исполнитель", from_session: t.executor ?? PLUGIN_SENDER, to: t.reviewer, time: at, text: `Доработка задачи ${taskNo(t)} «${t.title}» сдана (круг ${t.rework}):\n${t.report}\nПроверь снова: canopus_task {action: "review", n: ${t.n}}, дальше rework или merge → accept.` })
   if (t.status === "done") {
     const checks = Object.entries(t.checks ?? {}).map(([k, v]) => `${k}: ${v}`).join("; ")
     out.push({ id: `cleaned-${p}-${t.n}`, from_role: reviewerRole, from_session: t.reviewer ?? PLUGIN_SENDER, to: t.author, time: at, wake: false, text: `Задача ${taskNo(t)} «${t.title}» принята и влита (${t.commit ? `коммит ${t.commit}` : `ветка ${t.branch ?? "?"}`}), очищена. Приёмщик ${reviewerRole}. Шаги: ${checks || "—"}. Перепроверять не нужно.` })
@@ -4222,7 +4242,7 @@ export function propagateToParent(t: Task): string[] {
       id, from_role: PLUGIN_SENDER, from_session: PLUGIN_SENDER, to: order.author, time: Date.now(), ...(done ? { wake: false } : {}),
       text: done
         ? `Заказ ${taskNo(order)} «${order.title}» выполнен проектом ${t.project} (задача ${taskNo(t)} принята и влита${t.commit ? `, коммит ${t.commit}` : ""}).`
-        : `Заказ ${taskNo(order)} «${order.title}»: задачу ${t.project} ${taskNo(t)} отменили. Спроси интегратора ${t.project} (crew_send {to: "${t.project}.integrator"}) или отмени заказ (crew_task {action: "cancel", n: ${order.n}}).`,
+        : `Заказ ${taskNo(order)} «${order.title}»: задачу ${t.project} ${taskNo(t)} отменили. Спроси интегратора ${t.project} (canopus_send {to: "${t.project}.integrator"}) или отмени заказ (canopus_task {action: "cancel", n: ${order.n}}).`,
     })
     sent.push(order.author)
   }
@@ -4240,8 +4260,8 @@ export function commonDoctor(sessionID?: string): string[] {
     out.push(`ящик ${BASE} не пишется: ${e}`)
   }
   const windows = liveWindows()
-  if (!windows.length) out.push("ни одно окно OpenCode не отмечается: плагин окна не подключён или окна закрыты. Подключение: в ~/.config/opencode/cli.json, раздел plugins — путь к папке crew-harness; окна открыть заново")
-  else if (sessionID && !process.env.CREW_HARNESS_PRESENCE && !tabOf(sessionID, windows) && !readJson<Card>(cardFile(sessionID))?.spawned) out.push("эта вкладка не видна ни одному окну: она открыта в окне, запущенном до подключения плагина окна? Открой окно заново")
+  if (!windows.length) out.push("ни одно окно OpenCode не отмечается: плагин окна не подключён или окна закрыты. Подключение: в ~/.config/opencode/cli.json, раздел plugins — путь к папке canopus; окна открыть заново")
+  else if (sessionID && !process.env.CANOPUS_PRESENCE && !tabOf(sessionID, windows) && !readJson<Card>(cardFile(sessionID))?.spawned) out.push("эта вкладка не видна ни одному окну: она открыта в окне, запущенном до подключения плагина окна? Открой окно заново")
   out.push(...branchProblems(BASE)) // окна не на своей ветке или не в своём каталоге (задача 157)
   out.push(...stepProblems(Date.now())) // срок шага вышел, вопрос владельцу открыт (задача 161)
   out.push(...nativeProblems(Date.now()))

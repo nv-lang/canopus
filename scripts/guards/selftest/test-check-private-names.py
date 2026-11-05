@@ -38,7 +38,7 @@ def main():
 
     def with_list(patterns, **kw):
         path = stlib.names_file(base, patterns, **kw)
-        return dict(env0, CREW_PRIVATE_NAMES_FILE=path)
+        return dict(env0, CANOPUS_PRIVATE_NAMES_FILE=path)
 
     def check(repo, env, *args):
         return stlib.guard("check-private-names.py", repo, env, *args)
@@ -61,19 +61,19 @@ def main():
         path = os.path.join(base, "bom.txt")
         with open(path, "wb") as handle:
             handle.write(b"\xef\xbb\xbf" + (P1 + "\n").encode())
-        proc = check(repo, dict(env0, CREW_PRIVATE_NAMES_FILE=path))
+        proc = check(repo, dict(env0, CANOPUS_PRIVATE_NAMES_FILE=path))
         stlib.expect(proc, 1, "FAIL: check-private-names: 1 нарушений")
 
     def legit_env_wins():
         repo = fresh({"a.md": "has " + P1 + "\n"})
-        env = dict(with_list(["no-such-name-here"]), CREW_PRIVATE_NAMES="# c\n" + P1 + "\n")
+        env = dict(with_list(["no-such-name-here"]), CANOPUS_PRIVATE_NAMES="# c\n" + P1 + "\n")
         proc = check(repo, env)
         stlib.expect(proc, 1, "FAIL: check-private-names: 1 нарушений")
         assert stlib.has_line(proc, "образец №1"), proc.out
 
     def legit_env_multiline_crlf():
         repo = fresh({"a.md": "has " + P2 + "\n"})
-        env = dict(env0, CREW_PRIVATE_NAMES=P1 + "\r\n" + P2 + "\r\n")
+        env = dict(env0, CANOPUS_PRIVATE_NAMES=P1 + "\r\n" + P2 + "\r\n")
         proc = check(repo, env)
         assert stlib.has_line(proc, "FAIL a.md:1: forbidden-name: образец №2"), proc.out
 
@@ -119,17 +119,17 @@ def main():
 
     def red_no_file():
         repo = fresh({"a.md": "x\n"})
-        env = dict(env0, CREW_PRIVATE_NAMES_FILE=os.path.join(base, "нет-такого-файла.txt"))
+        env = dict(env0, CANOPUS_PRIVATE_NAMES_FILE=os.path.join(base, "нет-такого-файла.txt"))
         proc = check(repo, env)
         stlib.expect(proc, 1, "FAIL: предпосылка")
-        assert "CREW_PRIVATE_NAMES" in proc.out, "нет подсказки, как завести список"
+        assert "CANOPUS_PRIVATE_NAMES" in proc.out, "нет подсказки, как завести список"
 
     def red_empty_secret():
         repo = fresh({"a.md": "x\n"})
-        env = dict(env0, CREW_PRIVATE_NAMES="", CREW_PRIVATE_NAMES_FILE=os.path.join(base, "none.txt"))
+        env = dict(env0, CANOPUS_PRIVATE_NAMES="", CANOPUS_PRIVATE_NAMES_FILE=os.path.join(base, "none.txt"))
         proc = check(repo, env)
         stlib.expect(proc, 1, "FAIL: предпосылка")
-        assert "пусты" in proc.out and "CREW_PRIVATE_NAMES" in proc.out
+        assert "пусты" in proc.out and "CANOPUS_PRIVATE_NAMES" in proc.out
 
     def red_empty_list():
         repo = fresh({"a.md": "x\n"})
@@ -142,7 +142,7 @@ def main():
         path = os.path.join(base, "u16.txt")
         with open(path, "wb") as handle:
             handle.write((P1 + "\n").encode("utf-16"))
-        proc = check(repo, dict(env0, CREW_PRIVATE_NAMES_FILE=path))
+        proc = check(repo, dict(env0, CANOPUS_PRIVATE_NAMES_FILE=path))
         stlib.expect(proc, 1, "FAIL: предпосылка")
         assert "UTF-16" in proc.out
 

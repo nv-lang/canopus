@@ -300,9 +300,9 @@ export function thresholdsFromEnv(env: Record<string, string | undefined> = {}):
     return Number.isFinite(v) && v > 0 ? v : fallback
   }
   return {
-    staleMs: pick("CREW_HARNESS_PROGRESS_STALE_MS", DEFAULT_THRESHOLDS.staleMs),
-    doneMs: pick("CREW_HARNESS_PROGRESS_DONE_MS", DEFAULT_THRESHOLDS.doneMs),
-    abandonMs: pick("CREW_HARNESS_PROGRESS_ABANDON_MS", DEFAULT_THRESHOLDS.abandonMs),
+    staleMs: pick("CANOPUS_PROGRESS_STALE_MS", DEFAULT_THRESHOLDS.staleMs),
+    doneMs: pick("CANOPUS_PROGRESS_DONE_MS", DEFAULT_THRESHOLDS.doneMs),
+    abandonMs: pick("CANOPUS_PROGRESS_ABANDON_MS", DEFAULT_THRESHOLDS.abandonMs),
   }
 }
 
@@ -413,7 +413,7 @@ export function entryOf(session: Session, fileMtime: number, now: number, th: Th
   }
 }
 
-/** Виды сессий методики словами — единый перечень (задача 064, п. 7): панель «Ход работ» (sessionName) и панель «Crew» (status.ts sessionKind). */
+/** Виды сессий методики словами — единый перечень (задача 064, п. 7): панель «Ход работ» (sessionName) и панель «Canopus» (status.ts sessionKind). */
 export const SESSION_WORDS: Record<string, string> = {
   "С1": "спецификация",
   "С1п": "правка спецификации",
@@ -431,12 +431,12 @@ export const SESSION_WORDS: Record<string, string> = {
   "С9": "разбор обратной связи",
 }
 
-// СЛОВА ЭКРАНА /crew (задача 077; владелец, 2026-10-17: «в /crew нужно уменьшить количество текста до минимума, оставшийся сделай на
+// СЛОВА ЭКРАНА /canopus (задача 077; владелец, 2026-10-17: «в /canopus нужно уменьшить количество текста до минимума, оставшийся сделай на — дословно; guard-allow(legacy-name): дословное слово владельца 2026-10-17
 // анг.»). Подписи экрана — английские, короткие, ОДНИМ перечнем рядом со словами панели; содержимое, которое пишут вкладки и владелец
 // (названия задач, вопросы, цели сессий), не переводится. Русские слова панели (SESSION_WORDS выше, подписи боковой панели) не
 // меняются: панель узкая и считает ширину по своим словам.
-/** Состояние вкладки одним словом (status.ts stateText). Имя с CREW_: STATE_WORDS выше — слова таблицы «Ход работ», другое. */
-export const CREW_STATE_WORDS: Record<string, string> = {
+/** Состояние вкладки одним словом (status.ts stateText). Имя с CANOPUS_: STATE_WORDS выше — слова таблицы «Ход работ», другое. */
+export const CANOPUS_STATE_WORDS: Record<string, string> = {
   owner: "waiting you",
   dialog: "dialog, no record", // задача 120: диалог вопроса на экране, записи формы нет
   deadDialog: "dialog closed", // задача 120: вызов оборван, диалог мог остаться в окне - закрыть вручную
@@ -471,8 +471,8 @@ export const TASK_WORDS: Record<string, string> = {
 }
 /** Роль вкладки задачи (исполнитель, приёмщик). */
 export const ROLE_WORDS = { executor: "exec", reviewer: "rev" } as const
-/** Виды сессий методики по-английски для /crew — по перечню методики (task-runner.md: коды сессий; циклы spec, plan, review, delivery).
- *  Код вне перечня (С2м и подобные) /crew показывает целью сессии (status.ts sessionKind). */
+/** Виды сессий методики по-английски для /canopus — по перечню методики (task-runner.md: коды сессий; циклы spec, plan, review, delivery).
+ *  Код вне перечня (С2м и подобные) /canopus показывает целью сессии (status.ts sessionKind). */
 export const SESSION_KIND: Record<string, string> = {
   "С1": "spec",
   "С1п": "spec fix",

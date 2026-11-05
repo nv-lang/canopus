@@ -1,7 +1,7 @@
 // taskwt_test.nv - task 192r: the git operations of the tasks (`taskwt.nv`). Everything runs in temporary repositories: a main copy, a bare
 // "origin" beside it (a folder, never a network address) and, where needed, a second clone that plays another worker. Nothing here touches a
 // real repository.
-module crew_harness.server
+module canopus.server
 
 import std.fs.{Fs, read_text, write_text, create_dir_all, remove_dir_all, remove_file, try_exists, Path}
 import std.os.{Os, temp_dir, pid, cwd, env, remove_env, Command}
@@ -30,7 +30,7 @@ fn tt_rm(dir str) -> () {
 }
 
 fn tt_root(name str) -> str {
-    ro dir = tw_norm(temp_dir().join("crew-taskwt-${pid()}-${name}").display())
+    ro dir = tw_norm(temp_dir().join("canopus-taskwt-${pid()}-${name}").display())
     tt_rm(dir)
     ro made = create_dir_all(tt_path(dir))
     dir
@@ -72,13 +72,13 @@ fn tt_commit(dir str, file str, text str, msg str) Proc Os Fs -> () {
     tg(dir, ["commit", "-m", msg])
 }
 
-/// A main copy `<root>/crew-harness` with one commit (`README.md`, `a.txt`), pushed to the bare `<root>/origin.git`.
+/// A main copy `<root>/canopus` with one commit (`README.md`, `a.txt`), pushed to the bare `<root>/origin.git`.
 fn tt_world(name str) Proc Os Fs -> TwWorld {
     ro root = tt_root(name)
     ro origin = "${root}/origin.git"
-    ro main = "${root}/crew-harness"
+    ro main = "${root}/canopus"
     tg(root, ["init", "--bare", "-b", "main", "origin.git"])
-    tg(root, ["init", "-b", "main", "crew-harness"])
+    tg(root, ["init", "-b", "main", "canopus"])
     tt_identity(main)
     tt_write("${main}/README.md", "readme\n")
     tt_write("${main}/a.txt", "alpha\nbeta\ngamma\n")
@@ -138,13 +138,13 @@ fn tt_ok(r Result[str, str]) -> bool {
 }
 
 test "taskwt: the folder of the trees by the setting of the project: empty - beside the main copy, a name - a folder beside it, a path - that path" {
-    assert(worktrees_dir("C:/work/crew-harness", "") == "C:/work")
-    assert(worktrees_dir("C:\\work\\crew-harness\\", "  ") == "C:/work")
-    assert(worktrees_dir("C:/work/crew-harness", "worktrees") == "C:/work/worktrees")
+    assert(worktrees_dir("C:/work/canopus", "") == "C:/work")
+    assert(worktrees_dir("C:\\work\\canopus\\", "  ") == "C:/work")
+    assert(worktrees_dir("C:/work/canopus", "worktrees") == "C:/work/worktrees")
     assert(worktrees_dir("C:/work/repo/", "trees/x") == "C:/work/trees/x")
     assert(worktrees_dir("C:/repo", "worktrees") == "C:/worktrees")
-    assert(worktrees_dir("C:/work/crew-harness", "D:/trees") == "D:/trees")
-    assert(worktrees_dir("C:/work/crew-harness", "D:\\trees\\") == "D:/trees")
+    assert(worktrees_dir("C:/work/canopus", "D:/trees") == "D:/trees")
+    assert(worktrees_dir("C:/work/canopus", "D:\\trees\\") == "D:/trees")
     assert(worktrees_dir("/srv/app/repo", "/var/trees") == "/var/trees")
 }
 
@@ -219,7 +219,7 @@ test "taskwt tree: made beside the main copy, the main copy is not touched" {
     ro status0 = tg(w.main, ["status", "--porcelain"])
     ro tree = tt_task(w, "192", "demo")
     assert(tree.branch == "task/192-demo")
-    assert(tree.path == "${w.root}/worktrees/crew-harness-192-demo")
+    assert(tree.path == "${w.root}/worktrees/canopus-192-demo")
     assert(tree.base == "origin/main")
     assert(tree.created)
     assert(tw_exists("${tree.path}/a.txt"))
@@ -270,7 +270,7 @@ test "taskwt tree: not a git repository, a foreign folder, a bad name" {
         Err(e) => assert(e.contains("slug"))
     }
     // a folder that is there and is no tree of this repository
-    ro foreign = "${w.root}/worktrees/crew-harness-192-demo"
+    ro foreign = "${w.root}/worktrees/canopus-192-demo"
     tt_write("${foreign}/x.txt", "x")
     match task_tree_create(w.main, "192", "demo", "worktrees") {
         Ok(t) => panic("a foreign folder is not reused")
@@ -282,14 +282,14 @@ test "taskwt tree: not a git repository, a foreign folder, a bad name" {
 
 test "taskwt tree: a repository without origin is cut from main" {
     ro root = tt_root("noorigin")
-    ro main = "${root}/crew-harness"
-    tg(root, ["init", "-b", "main", "crew-harness"])
+    ro main = "${root}/canopus"
+    tg(root, ["init", "-b", "main", "canopus"])
     tt_identity(main)
     tt_commit(main, "a.txt", "a\n", "init")
     match task_tree_create(main, "7", "solo", "worktrees") {
         Ok(t) => {
             assert(t.base == "main")
-            assert(t.path == "${root}/worktrees/crew-harness-7-solo")
+            assert(t.path == "${root}/worktrees/canopus-7-solo")
             assert(t.note == "")
             assert(tw_exists("${t.path}/a.txt"))
         }
@@ -305,7 +305,7 @@ test "taskwt subtask: made from the head of the task, merged without a conflict,
     ro tree = tt_task(w, "192", "demo")
     ro s1 = tt_sub(tree, "192", "demo", 1)
     assert(s1.branch == "task/193-demo")
-    assert(s1.path == "${tw_parent(tree.path)}/crew-harness-193-demo")
+    assert(s1.path == "${tw_parent(tree.path)}/canopus-193-demo")
     assert(s1.created)
     assert(!tt_sub(tree, "192", "demo", 1).created)
     tt_commit(s1.path, "one.txt", "one\n", "subtask work")
@@ -680,7 +680,7 @@ test "taskwt publish: a tree of another repository than the main copy is refused
 test "taskwt: no push without publish - the log of git calls and the head of origin" {
     ro w = tt_world("nopush")
     ro logfile = "${w.root}/gitcalls.log"
-    ro set = env("CREW_GIT_LOG", logfile)
+    ro set = env("CANOPUS_GIT_LOG", logfile)
     ro head = tg(w.origin, ["rev-parse", "main"])
     ro tree = tt_task(w, "192", "demo")
     ro s1 = tt_sub(tree, "192", "demo", 1)
@@ -713,7 +713,7 @@ test "taskwt: no push without publish - the log of git calls and the head of ori
     assert(tt_count(log2, "| push ") == 1)
     assert(tt_count(log2, "| push origin HEAD:main") == 1)
     assert(!log2.contains("force"))
-    ro unset = remove_env("CREW_GIT_LOG")
+    ro unset = remove_env("CANOPUS_GIT_LOG")
     tt_rm(w.root)
 }
 
@@ -785,7 +785,7 @@ test "taskwt autocommit: what the agent left (a changed file, a new file, a dele
     assert(changed.contains("a.txt") && changed.contains("new file.txt") && changed.contains("README.md"))
     assert(!changed.contains("junk.tmp"))
     assert(tg(tree.path, ["status", "--porcelain"]).contains("junk.tmp"))
-    assert(!tw_exists("${tree.path}/crew-autocommit.lst"))
+    assert(!tw_exists("${tree.path}/canopus-autocommit.lst"))
     ro again = autocommit(tree.path, commit_subject("232", "fix-the-list"))
     assert(again.status == "none")
     tt_rm(w.root)
@@ -867,7 +867,7 @@ test "taskwt wip: a wip tree (detached head, no branch) is cut from a fresh orig
         Err(e) => panic("wip_tree_create: ${e}")
     }
     assert(tree.branch == "")
-    assert(tree.path == "${w.root}/worktrees/crew-harness-ab12")
+    assert(tree.path == "${w.root}/worktrees/canopus-ab12")
     assert(tree.base == "origin/main" && tree.created)
     assert(tw_exists("${tree.path}/news.txt"))
     assert(tw_current_branch(tree.path) == "" && !tt_branch_exists(w.main, "wip/ab12"))

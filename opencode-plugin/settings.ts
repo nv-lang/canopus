@@ -3,16 +3,16 @@
 // Проект бывает виртуальным: C:/work/nova — папка с многими репозиториями, сама не репозиторий. Поэтому
 // настройки проекта живут в РЕПОЗИТОРИИ НАСТРОЕК, а не в рабочей папке вкладки:
 //   opencode.jsonc:  "options": { "project_settings": ["C:/work/nova/nova-settings", "C:/work/tools"] }
-//   <папка>/.opencode/crew-harness.json:  { "project": "nova", "root": "..", ... }
+//   <папка>/.opencode/canopus.json:  { "project": "nova", "root": "..", ... }
 // Папка — любая внутри git-репозитория. Имя проекта — поле "project" (нет — имя папки); корень — "root" от папки
 // (нет — сама папка). Файл читается ЗАКОММИЧЕННЫМ из ветки по умолчанию (`git show <ветка>:<путь>`; другая ветка —
 // поле "branch"): незакоммиченная правка не действует, worktree и ветки кода на настройки не влияют.
 //
 // Ключ называется project_settings: он перечисляет папки настроек, а не проекты (задача 089). Прежнее имя `projects` — синоним:
-// читается, если project_settings не задан; заданы оба — действует project_settings, crew_doctor говорит о расхождении.
+// читается, если project_settings не задан; заданы оба — действует project_settings, canopus_doctor говорит о расхождении.
 //
 // Прежняя форма опций `{ "nova": "C:/work/nova" }` (только под именем `projects`) читается дальше: имя → корень, а настройки — по-старому
-// из `.opencode/crew-harness.json` вверх от каталога вкладки (рабочая копия). Старое имя nova-peers.json больше не
+// из `.opencode/canopus.json` вверх от каталога вкладки (рабочая копия). Старое имя nova-peers.json больше не
 // читается (решение №16 плана 002 выполнено: nv-lang перешёл на репозиторий настроек 2026-10-05).
 //
 // Машинно-зависимое (модели по ступеням) — необязательная поправка в опциях плагина:
@@ -24,10 +24,10 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFil
 import path from "node:path"
 import { log, safeKey } from "./core.ts"
 import { answerNotes } from "./answer-parse.ts"
-import { BASE } from "./paths.ts"
+import { BASE } from "./base.ts"
 import { configDivergence, divergenceProblem } from "./config-diverge.ts"
 
-export const SETTINGS_FILE = path.join(".opencode", "crew-harness.json")
+export const SETTINGS_FILE = path.join(".opencode", "canopus.json")
 /** прежнее имя файла настроек (до плана 005, 2026-10-06) */
 export const LEGACY_SETTINGS_NAME = ".opencode/opencode-peers.json"
 export const PROJECT_RE = /^[a-z0-9][a-z0-9-]{0,40}$/
@@ -57,7 +57,7 @@ export type Project = {
   repo?: string
   file?: string
   branch?: string
-  /** что не так с этим проектом (для crew_doctor) */
+  /** что не так с этим проектом (для canopus_doctor) */
   problems?: string[]
   /** настройки прочитаны из файла с прежним именем — переименовать */
   legacy?: string
@@ -103,7 +103,7 @@ const parseJson = (text: string | undefined): any => {
 }
 
 // Прочитанные файлы настроек — на несколько секунд (инструменты зовут настройки на каждое письмо, git — процесс).
-const CACHE_MS = Number(process.env.CREW_HARNESS_SETTINGS_TTL_MS) || 5_000
+const CACHE_MS = Number(process.env.CANOPUS_SETTINGS_TTL_MS) || 5_000
 const cache = new Map<string, { at: number; value: any }>()
 const good = new Map<string, any>() // последние настройки без проблем, по папке
 
@@ -123,10 +123,10 @@ function* settingsBody(dir: string): GitGen<Folder> {
   }
   if (repo) {
     const prefix = (yield [dir, ["rev-parse", "--show-prefix"]]).trim()
-    file = prefix + ".opencode/crew-harness.json" // путь в репозитории
+    file = prefix + ".opencode/canopus.json" // путь в репозитории
     branch = yield* defaultBranch(repo)
     let j = parseJson(yield* showCommitted(repo, branch, file))
-    // прежнее имя файла (до плана 005): читается, crew_doctor просит переименовать
+    // прежнее имя файла (до плана 005): читается, canopus_doctor просит переименовать
     if (j === undefined) {
       const oldFile = prefix + LEGACY_SETTINGS_NAME
       const o = parseJson(yield* showCommitted(repo, branch, oldFile))
@@ -143,10 +143,10 @@ function* settingsBody(dir: string): GitGen<Folder> {
     if (j === undefined) {
       // файл в рабочей копии есть, а в ветке нет — его просто не закоммитили (claude-limits, 2026-10-07: приёмка
       // проекта сутки не действовала, а самопроверка говорила только «нет файла»)
-      const local = [prefix + ".opencode/crew-harness.json", prefix + LEGACY_SETTINGS_NAME].find((f) => existsSync(path.join(repo!, f)))
+      const local = [prefix + ".opencode/canopus.json", prefix + LEGACY_SETTINGS_NAME].find((f) => existsSync(path.join(repo!, f)))
       problems.push(
         local
-          ? `${local} лежит в рабочей копии ${repo}, но не закоммичен в ${branch} — плагин его не читает, настройки по умолчанию; закоммить его в ${branch}${local.endsWith(LEGACY_SETTINGS_NAME) ? ` под именем .opencode/crew-harness.json` : ""}`
+          ? `${local} лежит в рабочей копии ${repo}, но не закоммичен в ${branch} — плагин его не читает, настройки по умолчанию; закоммить его в ${branch}${local.endsWith(LEGACY_SETTINGS_NAME) ? ` под именем .opencode/canopus.json` : ""}`
           : `в ветке ${branch} репозитория ${repo} нет ${file} — настройки по умолчанию`,
       )
     }
@@ -270,7 +270,7 @@ export function optionKeyLines(opt: any): { problems: string[]; notes: string[] 
       )
     else notes.push(`в опциях плагина заданы оба ключа, project_settings и projects, с одинаковыми записями: действует project_settings, projects игнорируется; убери projects из opencode.jsonc`)
   } else if (given(old) && Array.isArray(old)) notes.push(`ключ projects переименован в project_settings; прежнее имя работает`)
-  if (given(main) && !Array.isArray(main)) problems.push(`ключ project_settings — список папок настроек ["<папка с .opencode/crew-harness.json>"]; прежняя форма «имя → корень» работает только под прежним именем projects`)
+  if (given(main) && !Array.isArray(main)) problems.push(`ключ project_settings — список папок настроек ["<папка с .opencode/canopus.json>"]; прежняя форма «имя → корень» работает только под прежним именем projects`)
   return { problems, notes }
 }
 // Строки врача по последним разобранным опциям (их ставит parseProjects: плагин и MCP-сервер разбирают опции один раз при загрузке).
@@ -305,7 +305,7 @@ export function parseProjects(opt: any, log: (s: string) => void = () => {}): Pr
 }
 
 // ПРОЕКТ ВКЛАДКИ (задача 067, 2026-10-17). Папка вкладки — не проект: интегратор переезжает в рабочие деревья задач (session_move), а
-// дерево лежит вне корня проекта, и по префиксу корня проект не находился (`/crew-sets use` отвечал «задан прежней формой опций»).
+// дерево лежит вне корня проекта, и по префиксу корня проект не находился (`/canopus-sets use` отвечал «задан прежней формой опций»).
 // Проект ищется так: 1) по имени — карточка вкладки хранит поле project (плагин пишет его сам; у вкладки задачи или приёмки это
 // проект задачи, где бы ни лежало дерево); 2) по корню — самый длинный подходящий корень, как раньше; 3) по основной папке
 // репозитория: рабочее дерево знает, чьё оно — `git rev-parse --git-common-dir` указывает на `.git` основного репозитория
@@ -367,9 +367,9 @@ export function rawSettingsFor(dir: string, projects: Projects, local: Record<st
   return over && typeof over === "object" ? { ...raw, ...over } : raw
 }
 
-// Прежняя форма: `.opencode/crew-harness.json` вверх от каталога вкладки, рабочая копия.
+// Прежняя форма: `.opencode/canopus.json` вверх от каталога вкладки, рабочая копия.
 // Битый файл (не JSON) молча давал пустые настройки, и защитные ключи (merge_precheck: required и др.) выключались без
-// сообщения (задача 006): теперь берутся последние хорошие настройки этого файла, а о файле пишется в журнал и в crew_doctor.
+// сообщения (задача 006): теперь берутся последние хорошие настройки этого файла, а о файле пишется в журнал и в canopus_doctor.
 const legacyGood = new Map<string, any>()
 const legacyBroken = new Map<string, string>() // файл → когда замечен битым
 function legacyFile(dir: string): string | undefined {
@@ -398,7 +398,7 @@ function legacyWalk(dir: string): any {
     return last ?? {}
   }
 }
-/** Битые файлы настроек прежней формы (проекты без репозитория настроек): проверка на месте, для crew_doctor. */
+/** Битые файлы настроек прежней формы (проекты без репозитория настроек): проверка на месте, для canopus_doctor. */
 function legacyProblems(projects: Projects): string[] {
   const out: string[] = []
   for (const p of projects) {
@@ -414,7 +414,7 @@ function legacyProblems(projects: Projects): string[] {
   return out
 }
 
-/** Файл настроек в рабочей копии папки настроек (то, что правит crew_config set; действует после коммита). */
+/** Файл настроек в рабочей копии папки настроек (то, что правит canopus_config set; действует после коммита). */
 export function workingSettings(folder: string): { file: string; raw: any } {
   const file = path.join(path.resolve(folder), SETTINGS_FILE)
   let raw: any = {}
@@ -439,7 +439,7 @@ export function writeSettings(folder: string, values: Record<string, any>): stri
   return file
 }
 
-/** Проблемы настроек всех проектов (crew_doctor). Вложенные корни — не проблема: вложенный проект побеждает. */
+/** Проблемы настроек всех проектов (canopus_doctor). Вложенные корни — не проблема: вложенный проект побеждает. */
 /** Текст шага приёмки пересказывает порядок приёмки: «под замком» рядом с CI/land/посадка/гейт или «замок вливания» рядом с CI. */
 const describesAcceptanceOrder = (text: unknown) => {
   const t = typeof text === "string" ? text : ""
@@ -459,7 +459,7 @@ export function unconfiguredLine(name: string): string {
 
 export function settingsProblems(projects: Projects, local: Record<string, any> = {}): string[] {
   const out = [...optionLines.problems, ...projects.flatMap((p) => p.problems ?? [])]
-  for (const p of projects) if (p.legacy) out.push(`проект ${p.name}: настройки в файле с прежним именем ${p.legacy} — переименуй в .opencode/crew-harness.json (git mv) и закоммить`)
+  for (const p of projects) if (p.legacy) out.push(`проект ${p.name}: настройки в файле с прежним именем ${p.legacy} — переименуй в .opencode/canopus.json (git mv) и закоммить`)
   // настройка, которая не может сработать: ключ gate в answer_mode, режим agent, неверный answer_max (задача 007)
   for (const p of projects) {
     if (!p.dir) continue
@@ -470,7 +470,7 @@ export function settingsProblems(projects: Projects, local: Record<string, any> 
       out.push(`проект ${p.name}: шаги приёмки заданы и файлом Канона, и текстами в настройках: оставь один источник — acceptance_file`)
     // порядок приёмки задаёт плагин (merge_precheck); текст шага, пересказывающий старый порядок, устареет — только предупреждение
     if (raw?.merge_precheck !== "off" && Array.isArray(raw?.acceptance))
-      for (const a of raw.acceptance) if (a && typeof a.id === "string" && describesAcceptanceOrder(a.text)) out.push(`проект ${p.name}: шаг ${a.id} описывает порядок приёмки, он задаётся плагином (crew_help, ПРИЁМКА): оставь в шаге только проектные команды и критерии`)
+      for (const a of raw.acceptance) if (a && typeof a.id === "string" && describesAcceptanceOrder(a.text)) out.push(`проект ${p.name}: шаг ${a.id} описывает порядок приёмки, он задаётся плагином (canopus_help, ПРИЁМКА): оставь в шаге только проектные команды и критерии`)
   }
   // расхождение файла рабочей копии с целевой веткой (задача 029): предупреждение, действуют настройки ветки
   for (const p of projects) {
@@ -479,12 +479,12 @@ export function settingsProblems(projects: Projects, local: Record<string, any> 
     if (w) out.push(w)
   }
   out.push(...legacyProblems(projects))
-  // проект без определённых моделей: crew_spawn откажет (задача 033)
+  // проект без определённых моделей: canopus_spawn откажет (задача 033)
   for (const p of projects) {
     if (p.problems?.length) continue // нет читаемых настроек — об этом уже сказано выше
-    if (!modelsDefined(rawSettingsFor(p.rootPath ?? p.root, projects, local))) out.push(`${unconfiguredLine(p.name)} (нет profile_set, spawn_models и allow_default_models: crew_spawn откажет; crew_config {action: "apply_template"} или crew_config guide)`)
+    if (!modelsDefined(rawSettingsFor(p.rootPath ?? p.root, projects, local))) out.push(`${unconfiguredLine(p.name)} (нет profile_set, spawn_models и allow_default_models: canopus_spawn откажет; canopus_config {action: "apply_template"} или canopus_config guide)`)
   }
   const old = projects.filter((p) => !p.dir).map((p) => p.name)
-  if (old.length) out.push(`проекты ${old.join(", ")} заданы прежней формой опций (имя → корень); новая — список папок настроек: "project_settings": ["<папка с .opencode/crew-harness.json>"], файл называет проект и root (doc/archive/plans/002-tasks.md, «Где живут настройки проекта»)`)
+  if (old.length) out.push(`проекты ${old.join(", ")} заданы прежней формой опций (имя → корень); новая — список папок настроек: "project_settings": ["<папка с .opencode/canopus.json>"], файл называет проект и root (doc/archive/plans/002-tasks.md, «Где живут настройки проекта»)`)
   return [...new Set(out)]
 }

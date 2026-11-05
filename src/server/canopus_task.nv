@@ -1,0 +1,703 @@
+// canopus_task.nv - task 192.2: the agent recognises the real work (the tool `canopus_task`), the owner confirms it; the pure part.
+//
+// The owner's rule (2026-10-27): the messages of the owner are NOT a journal. A `message.N.md` is written when the agent recognises a real piece of work on the files of the project and the owner
+// confirms it (a card in the feed with the buttons, or the code word). The agent may also say that the work belongs to a task that is already there (`extend`). Nothing is created by the hub on its own.
+//
+// What is here (no disk, no sockets): the proposal of the agent (`Proposal`, from the arguments of the tool), the description of the tool, the code word, the memory of the answers
+// "this is not a task", the rules "does it overlap with a running subtask / is the limit reached", the text of the file of the subtask, the marker line of an agent that has no tools, the view for the page.
+// The hub side (the tool call, the answers of the page, the queue) is `canopus_task_hub.nv`.
+module canopus.server
+
+import std.encoding.json.{Json, JsonValue, JsonObject}
+import canopus.config.{render_prompt}
+
+/// The name of the tool.
+export const CANOPUS_TASK_TOOL = "canopus_task"
+
+/// A child task proposed together with an epic (task 192.13): the title, the summary, the files and the mode of execution of its own ("" - the one of the epic).
+export type KidSpec { title str, summary str, touches []str, mode str }
+
+/// The modes of execution the agent may propose (the names of the routes): interactive (the very fast one, up to 30 minutes), fast (6 steps), full (8 steps).
+export fn run_mode_ok(mode str) -> bool => mode == "interactive" || mode == "fast" || mode == "full"
+
+/// Proposal: what the agent recognised and the owner has not answered yet. `state`: `open` (confirm or refuse), `overlap` (the files overlap with a running subtask: wait or go in parallel),
+/// `limit` (the limit of the tasks in work is reached: over the limit or into the queue). `how` is the choice at the overlap ("wait", "parallel"), `over` the word "over the limit".
+/// `source` is the message of the owner the proposal is about, `images` the pictures of that message (paths and names).
+export type Proposal {
+    mode str,
+    reason str,
+    kids str,
+    id int,
+    kind str,
+    title str,
+    summary str,
+    extends int,
+    touches []str,
+    confidence str,
+    source str,
+    images []str,
+    image_names []str,
+    state str,
+    how str,
+    over bool,
+    with_n int,
+    with_files []str,
+    unknown bool,
+    listed bool,
+    choice str,
+    note str,
+    agent str,
+    parent int,
+    epic int
+}
+
+/// A proposal that is just made: open, no choices.
+export fn proposal_new(kind str, title str, summary str, extends int, touches []str, confidence str) -> Proposal => {
+    mode: "", reason: "", kids: "", id: 0, kind, title, summary, extends, touches, confidence, source: "", images: []str.new(), image_names: []str.new(),
+    state: "open", how: "", over: false, with_n: 0, with_files: []str.new(), unknown: false, listed: false, choice: "", note: "", agent: "", parent: 0, epic: 0
+}
+
+/// A copy of a proposal (the lists are shared, they are only read).
+export fn proposal_copy(p Proposal) -> Proposal => {
+    mode: p.mode, reason: p.reason, kids: p.kids, id: p.id, kind: p.kind, title: p.title, summary: p.summary, extends: p.extends, touches: p.touches, confidence: p.confidence, source: p.source,
+    images: p.images, image_names: p.image_names, state: p.state, how: p.how, over: p.over, with_n: p.with_n, with_files: p.with_files, unknown: p.unknown,
+    listed: p.listed, choice: p.choice, note: p.note, agent: p.agent, parent: p.parent, epic: p.epic
+}
+
+/// The proposal as an item of a list of the agent.
+export fn proposal_listed(p Proposal, note str) -> Proposal {
+    mut q = proposal_copy(p)
+    q.listed = true
+    q.note = note
+    q
+}
+
+// ----- the words of the owner -----
+
+const FOLD = "А:а Б:б В:в Г:г Д:д Е:е Ё:е Ж:ж З:з И:и Й:й К:к Л:л М:м Н:н О:о П:п Р:р С:с Т:т У:у Ф:ф Х:х Ц:ц Ч:ч Ш:ш Щ:щ Ъ:ъ Ы:ы Ь:ь Э:э Ю:ю Я:я ё:е й:й"
+const EDGE = ".,!?;:«»\"'()-–— \t\r\n"
+
+fn ct_fold_char(c str) -> str {
+    for pair in FOLD.split(" ") {
+        if pair.until(":") == c { return pair.after(":") }
+    }
+    c.to_ascii_lower()
+}
+
+/// The text in lower case (the Cyrillic too; `ё` is `е`) without the punctuation and the blanks at both ends: the form two words are compared in.
+export fn word_key(text str) -> str {
+    mut chars = []str.new()
+    for c in text.chars() { chars.push(ct_fold_char("${c}")) }
+    mut from = 0
+    while from < chars.len() && EDGE.contains(chars[from]) { from += 1 }
+    mut to = chars.len()
+    while to > from && EDGE.contains(chars[to - 1]) { to -= 1 }
+    mut out = []str.new()
+    mut i = from
+    while i < to {
+        out.push(chars[i])
+        i += 1
+    }
+    joined(out, "")
+}
+
+/// Is the message of the owner just the code word (`route_confirm_word`, `route_over_limit_word`)? An empty word is never matched.
+export fn is_code_word(text str, word str) -> bool {
+    ro key = word_key(word)
+    if key.byte_len() == 0 { return false }
+    word_key(text) == key
+}
+
+// ----- the tool -----
+
+/// The description of a tool (the text the agent reads) from its JSON.
+export fn tool_description(tool JsonValue) -> str {
+    match tool.object() {
+        Some(o) => match o.get("description") {
+            Some(d) => d.str() ?? ""
+            None => ""
+        }
+        None => ""
+    }
+}
+
+/// The tool with another description (a file `prompts/tool_<name>.md` of a layer); the rest of the JSON is as it was.
+export fn tool_with_description(tool JsonValue, description str) -> JsonValue {
+    match tool.object() {
+        Some(o) => {
+            mut out = JsonObject.new()
+            for (k, v) in o {
+                ro replaced = out.insert(k, if k == "description" { JsonValue.str(description) } else { v })
+            }
+            JsonValue.object(out)
+        }
+        None => JsonValue.null()
+    }
+}
+
+/// The description of the tool for `tools/list`.
+export fn canopus_task_tool_json() -> JsonValue {
+    ro text = "{\"name\":\"canopus_task\",\"description\":\"Call it when the message of the user is REAL WORK on the files of the project (code, documents, tests, settings): something is to be changed, written or built. Do NOT call it for a question, a talk, an explanation, a look at the code or a one-word answer. The hub then shows the user a card and the user confirms (new task) or refuses; do not touch the files until the hub tells the decision. If the work belongs to a task that is already in the list of the tasks of the session, say kind=extend and its number in extends: an addition to an OPEN task with confidence=high is applied by the hub AT ONCE, without a card (the owner can take it back with a button), so give confidence honestly and never use kind=extend for a question or a talk. Call it once per piece of work, at the very beginning, before the first change of a file. RULES: never call it for a question or a talk; if the work consists of several independent parts (front and back, different modules, more than about 30 minutes) propose ONE epic: kind=epic and children=[...], not one big task; propose the mode by the estimate (up to 30 minutes and reversible - interactive, up to a couple of hours - fast, big or risky - full) and always say why in reason; never call canopus_task_list on your own; never create doc/tasks folders or message.md yourself - the hub does it after the owner answers the card.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"kind\":{\"type\":\"string\",\"enum\":[\"new\",\"child\",\"epic\",\"extend\"],\"description\":\"new - a new task of its own (the default); child - the work is explicitly a child task of the epic in epic; epic - the work is a big one, an epic with child tasks; extend - the work belongs to an existing task of the list.\"},\"epic\":{\"type\":\"integer\",\"description\":\"For kind=child: the number of the epic (any open task of the list may be one).\"},\"title\":{\"type\":\"string\",\"description\":\"A short title of the work (up to 60 characters).\"},\"summary\":{\"type\":\"string\",\"description\":\"What is to be done, in a few lines: it becomes the text of message.md.\"},\"extends\":{\"type\":\"integer\",\"description\":\"For kind=extend: the number of the task of the list.\"},\"touches\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"The files and folders the work will change (paths in the project).\"},\"confidence\":{\"type\":\"string\",\"enum\":[\"high\",\"medium\",\"low\"],\"description\":\"How sure you are that it is real work and not a talk.\"},\"mode\":{\"type\":\"string\",\"enum\":[\"interactive\",\"fast\",\"full\"],\"description\":\"The mode of execution you propose: interactive (very fast, up to 30 minutes, reversible), fast (6 steps, up to a couple of hours), full (8 steps, big or risky work).\"},\"reason\":{\"type\":\"string\",\"description\":\"One sentence: why this mode and this way (shown to the owner on the card).\"},\"children\":{\"type\":\"array\",\"description\":\"For kind=epic: the child tasks (the independent parts: front and back, other modules).\",\"items\":{\"type\":\"object\",\"properties\":{\"title\":{\"type\":\"string\"},\"summary\":{\"type\":\"string\"},\"touches\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"mode\":{\"type\":\"string\",\"enum\":[\"interactive\",\"fast\",\"full\"],\"description\":\"The mode of this child task.\"}},\"required\":[\"title\"]}}},\"required\":[\"kind\",\"title\",\"summary\"]}}"
+    mparse(text)
+}
+
+fn ct_int(v JsonValue) -> int {
+    match v.int() {
+        Some(n) => n
+        None => match v.str() {
+            Some(t) => match t.trim_ascii().to_int() {
+                Ok(n) => n
+                Err(e) => 0
+            }
+            None => 0
+        }
+    }
+}
+
+/// The proposal from the arguments of a call of the tool, or the reason it is not good (the agent reads it and goes on).
+export fn proposal_of_arguments(arguments JsonValue) -> Result[Proposal, str] {
+    ro kind_raw = mtext_of(arguments, "kind").trim_ascii()
+    // task 192.5: the kinds are "new", "extend", "child" (a child task of the epic `epic`) and "epic"; the old words "subtask" and "epic_task" are read as "child"
+    ro kind = if kind_raw == "extend" || kind_raw == "epic" { kind_raw } else if kind_raw == "child" || kind_raw == "subtask" || kind_raw == "epic_task" { "child" } else { "new" }
+    ro title = mtext_of(arguments, "title").trim_ascii()
+    if title.byte_len() == 0 { return Err("canopus_task: the argument title is missing") }
+    ro summary_raw = mtext_of(arguments, "summary").trim_ascii()
+    ro summary = if summary_raw.byte_len() == 0 { title } else { summary_raw }
+    mut extends = 0
+    match mget(arguments, "extends") {
+        Some(v) => { extends = ct_int(v) }
+        None => ()
+    }
+    mut parent = 0
+    match mget(arguments, "parent") {
+        Some(v) => { parent = ct_int(v) }
+        None => ()
+    }
+    mut epic = 0
+    match mget(arguments, "epic") {
+        Some(v) => { epic = ct_int(v) }
+        None => ()
+    }
+    mut touches = []str.new()
+    match mget(arguments, "touches") {
+        Some(list) => match list.array() {
+            Some(items) => {
+                for item in items {
+                    match item.str() {
+                        Some(path) => { if path.trim_ascii().byte_len() > 0 { touches.push(path.trim_ascii()) } }
+                        None => ()
+                    }
+                }
+            }
+            None => ()
+        }
+        None => ()
+    }
+    mut made = proposal_new(kind, title, summary, extends, touches, mtext_of(arguments, "confidence"))
+    ro mode = mtext_of(arguments, "mode").trim_ascii()
+    made.mode = if run_mode_ok(mode) { mode } else { "" }
+    made.reason = mtext_of(arguments, "reason").trim_ascii()
+    // the children of an epic (task 192.13): at most 10, each with a title; an item without a title is skipped. Kept as the text of a JSON list (`kids`): a list of records inside a record is not allowed here.
+    if kind == "epic" {
+        mut rows = []JsonValue.new()
+        match mget(arguments, "children") {
+            Some(list) => match list.array() {
+                Some(items) => {
+                    for item in items {
+                        ro ct = mtext_of(item, "title").trim_ascii()
+                        if ct.byte_len() == 0 || rows.len() >= 10 { continue }
+                        ro cs = mtext_of(item, "summary").trim_ascii()
+                        mut ctouches = []str.new()
+                        match mget(item, "touches") {
+                            Some(tl) => match tl.array() {
+                                Some(ts) => {
+                                    for tv in ts {
+                                        match tv.str() {
+                                            Some(path) => { if path.trim_ascii().byte_len() > 0 { ctouches.push(path.trim_ascii()) } }
+                                            None => ()
+                                        }
+                                    }
+                                }
+                                None => ()
+                            }
+                            None => ()
+                        }
+                        ro cm = mtext_of(item, "mode").trim_ascii()
+                        mut r = JsonObject.new()
+                        mput(r, "title", JsonValue.str(ct))
+                        mput(r, "summary", JsonValue.str(if cs.byte_len() == 0 { ct } else { cs }))
+                        mput(r, "touches", ct_strings(ctouches))
+                        mput(r, "mode", JsonValue.str(if run_mode_ok(cm) { cm } else { "" }))
+                        rows.push(JsonValue.object(r))
+                    }
+                }
+                None => ()
+            }
+            None => ()
+        }
+        made.kids = if rows.len() == 0 { "" } else { JsonValue.array(rows).to_str() }
+    }
+    made.parent = parent
+    // an old agent names the task in `parent` (subtask) - for a child it is the same epic
+    made.epic = if epic > 0 { epic } else if kind == "child" { parent } else { 0 }
+    Ok(made)
+}
+
+fn ct_strings(items []str) -> JsonValue {
+    mut out = []JsonValue.new()
+    for x in items { out.push(JsonValue.str(x)) }
+    JsonValue.array(out)
+}
+
+/// The proposal in the form it travels from the MCP server to the hub (the arguments of the tool, checked).
+export fn proposal_arguments_text(p Proposal) -> str {
+    mut o = JsonObject.new()
+    mput(o, "kind", JsonValue.str(p.kind))
+    mput(o, "title", JsonValue.str(p.title))
+    mput(o, "summary", JsonValue.str(p.summary))
+    mput(o, "extends", JsonValue.int(p.extends))
+    mput(o, "epic", JsonValue.int(p.epic))
+    mput(o, "touches", ct_strings(p.touches))
+    mput(o, "confidence", JsonValue.str(p.confidence))
+    mput(o, "mode", JsonValue.str(p.mode))
+    mput(o, "reason", JsonValue.str(p.reason))
+    mput(o, "children", ct_children_view(p))
+    JsonValue.object(o).to_str()
+}
+
+/// The children of an epic as a JSON list (for the way to the hub and for the page).
+fn ct_children_view(p Proposal) -> JsonValue {
+    if p.kids.byte_len() == 0 { return JsonValue.array([]JsonValue.new()) }
+    match Json.parse(p.kids) {
+        Ok(v) => v
+        Err(e) => JsonValue.array([]JsonValue.new())
+    }
+}
+
+/// The children of the epic proposal.
+export fn proposal_children(p Proposal) -> []KidSpec {
+    mut out = []KidSpec.new()
+    for item in (ct_children_view(p).array() ?? []JsonValue.new()) {
+        mut touches = []str.new()
+        for tv in ((mget(item, "touches") ?? JsonValue.null()).array() ?? []JsonValue.new()) {
+            match tv.str() {
+                Some(path) => touches.push(path)
+                None => ()
+            }
+        }
+        out.push(KidSpec { title: mtext_of(item, "title"), summary: mtext_of(item, "summary"), touches, mode: mtext_of(item, "mode") })
+    }
+    out
+}
+
+/// The proposal from the text above (the hub side); a text that is not good gives the reason.
+export fn proposal_of_text(text str) -> Result[Proposal, str] {
+    match Json.parse(text) {
+        Ok(v) => proposal_of_arguments(v)
+        Err(e) => Err("canopus_task: the arguments are not JSON")
+    }
+}
+
+/// The tool the agent is told about in a prompt, for an agent that has no tools: the marker line `[[canopus_task]] {json}` in its answer is the same call.
+export fn proposal_of_marker(answer str) -> Option[Proposal] {
+    for line in answer.lines() {
+        ro t = line.trim_ascii()
+        if t.starts_with("[[canopus_task]]") {
+            match proposal_of_text(t["[[canopus_task]]".byte_len()..].trim_ascii()) {
+                Ok(p) => return Some(p)
+                Err(e) => ()
+            }
+        }
+    }
+    None
+}
+
+// ----- the addition applied at once (task 192.7) -----
+
+/// The owner's word (2026-10-27): an addition to an OPEN task is applied at once, always; there is no setting. The agent must be sure: only this confidence (or higher) applies, the rest is a card.
+export const AUTO_EXTEND_CONFIDENCE = "high"
+
+/// Is the proposal an addition the hub applies without a card (the checks of the target task are the hub's)?
+export fn auto_extend_ok(p Proposal) -> bool => auto_extend_ok_at(p, AUTO_EXTEND_CONFIDENCE)
+
+/// The same by the setting `auto_extend_confidence`: `high` (only high), `medium` (medium and high), `off` (nothing is applied at once, every addition is a card).
+export fn auto_extend_ok_at(p Proposal, level str) -> bool {
+    if p.kind != "extend" || p.extends <= 0 || level == "off" { return false }
+    ro c = word_key(p.confidence)
+    c == "high" || (level == "medium" && c == "medium")
+}
+
+/// The text without its LAST occurrence of `part`; None - `part` is not there (the file was changed by hand).
+export fn text_without_last(text str, part str) -> Option[str] {
+    if part.byte_len() == 0 { return None }
+    mut at = -1
+    mut from = 0
+    while from <= text.byte_len() {
+        match text[from..].find(part) {
+            Some(k) => {
+                at = from + k
+                from = at + 1
+                while from < text.byte_len() && !text.is_char_boundary(from) { from += 1 }
+            }
+            None => break
+        }
+    }
+    if at < 0 { return None }
+    Some("${text[..at]}${text[at + part.byte_len()..]}")
+}
+
+/// The short text of an addition for the grey line of the feed.
+export fn ext_brief(p Proposal) -> str {
+    ro text = if p.summary.trim_ascii().byte_len() > 0 { p.summary.trim_ascii() } else { p.title }
+    ro one = text.replace("\n", " ")
+    if one.byte_len() <= 140 { return one }
+    mut k = 140
+    while k > 0 && !one.is_char_boundary(k) { k -= 1 }
+    "${one[..k]}…"
+}
+
+/// The texts the hub says to the agents have names and can be replaced by files `prompts/<name>.md` (task 192.12, `config/prompts.nv`); these are the built-in ones, `{name}` is a value.
+/// The service turn to the agent of the task: a new requirement of the owner (`ext_applied`: number, brief, shown).
+export const EXT_APPLIED_TEXT = "[canopus] Новое требование владельца к твоей задаче {number}: {brief}; см. {shown}/message.md, раздел «Дополнение». Учти его и продолжай в рабочем каталоге."
+
+/// The service turn to the agent of the task: the requirement is taken back (`ext_withdrawn`: brief, shown).
+export const EXT_WITHDRAWN_TEXT = "[canopus] Требование отозвано: «{brief}» — раздел «Дополнение» убран из {shown}/message.md; не учитывай его."
+
+export fn ext_applied_note_t(template str, number str, brief str, shown str) -> str => render_prompt(template, ["number", number, "brief", brief, "shown", shown])
+export fn ext_withdrawn_note_t(template str, brief str, shown str) -> str => render_prompt(template, ["brief", brief, "shown", shown])
+export fn ext_applied_note(number str, brief str, shown str) -> str => ext_applied_note_t(EXT_APPLIED_TEXT, number, brief, shown)
+export fn ext_withdrawn_note(number str, brief str, shown str) -> str => ext_withdrawn_note_t(EXT_WITHDRAWN_TEXT, brief, shown)
+
+/// The additions applied at once, for the page: `extensions` - the newest last, each `{id, task, title, text, at, undone}`.
+export fn ext_view_extend(base str, exts []ExtRec) -> str {
+    mut o = match Json.parse(base) {
+        Ok(v) => v.object() ?? JsonObject.new()
+        Err(e) => JsonObject.new()
+    }
+    mut rows = []JsonValue.new()
+    for x in exts {
+        mut r = JsonObject.new()
+        mput(r, "id", JsonValue.int(x.id))
+        mput(r, "task", JsonValue.int(x.task))
+        mput(r, "title", JsonValue.str(x.title))
+        mput(r, "text", JsonValue.str(x.brief))
+        mput(r, "at", JsonValue.int(x.ms))
+        mput(r, "undone", JsonValue.bool(x.undone))
+        rows.push(JsonValue.object(r))
+    }
+    mput(o, "extensions", JsonValue.array(rows))
+    JsonValue.object(o).to_str()
+}
+
+// ----- the rules -----
+
+/// The words the agent is given as the answer of the tool when the card is shown.
+export const SHOWN_TEXT = "Предложение задачи показано владельцу карточкой. Файлы проекта пока не меняй: закончи ход одной короткой строкой (что понял), решение владельца хаб пришлёт следующим сообщением и ты продолжишь."
+
+/// The answers of the tool when the addition is applied at once (task 192.7): to the agent of another task, and to the agent of the task itself.
+export const AUTO_EXTEND_TEXT = "Дополнение применено сразу, без карточки: записано в message.md задачи и передано её агенту (владелец может отменить). Файлы по нему не меняй, закончи ход одной короткой строкой."
+export const AUTO_EXTEND_OWN_TEXT = "Дополнение записано в message.md твоей задачи без карточки (владелец может отменить). Продолжай работу с учётом нового требования."
+
+/// The answer of the tool for a work the owner already refused.
+export const REFUSED_TEXT = "Владелец уже ответил, что это не задача: не предлагай её снова, отвечай как обычно."
+
+/// The answer of the tool when the mode takes no proposals.
+export const NOT_NEEDED_TEXT = "В этом режиме задача ведётся без предложений: canopus_task не нужен, продолжай."
+
+fn ct_same_title(a str, b str) -> bool => word_key(a) == word_key(b)
+
+/// Was a work with this title refused by the owner (a card "this is not a task")?
+export fn was_refused(dismissed []str, title str) -> bool {
+    ro key = word_key(title)
+    for d in dismissed { if d == key { return true } }
+    false
+}
+
+/// Is there a card of the same work (the same title) already?
+export fn has_proposal(props []Proposal, title str) -> bool {
+    for p in props { if ct_same_title(p.title, title) { return true } }
+    false
+}
+
+/// The index of the last card that waits for the answer (-1 - none).
+export fn last_open(props []Proposal) -> int {
+    mut at = props.len() - 1
+    while at >= 0 && props[at].listed { at -= 1 }
+    at
+}
+
+/// The index of the card with this id, -1 - none.
+export fn proposal_at(props []Proposal, id int) -> int {
+    mut at = 0
+    for p in props {
+        if p.id == id { return at }
+        at += 1
+    }
+    -1
+}
+
+/// The subtasks that are in work now (the ones that neither are done nor wait): the number `n` and the files each says it touches.
+export type RunSub { n int, touches []str }
+
+/// The files two works share (by files and by folders), and whether it is unknown (the new work names no files while something else is running).
+export type Clash { with_n int, files []str, unknown bool }
+
+/// The clash of a new work with the running subtasks: none (`with_n` 0), the first overlap, or "unknown" when the proposal names no files and something is running.
+export fn clash_of(touches []str, running []RunSub) -> Clash {
+    if running.len() == 0 { return Clash { with_n: 0, files: []str.new(), unknown: false } }
+    if touches.len() == 0 { return Clash { with_n: running[0].n, files: []str.new(), unknown: true } }
+    for r in running {
+        ro shared = tk_overlap(touches, r.touches)
+        if shared.len() > 0 { return Clash { with_n: r.n, files: shared, unknown: false } }
+    }
+    Clash { with_n: 0, files: []str.new(), unknown: false }
+}
+
+/// Is the limit of the tasks in work reached? A limit of 0 is off.
+export fn limit_reached(active int, limit int) -> bool => limit > 0 && active >= limit
+
+// ----- the file of a subtask -----
+
+/// The text of `message.N.md` of a new subtask: the summary of the agent, then the message of the owner it is about.
+export fn canopus_message_text(n int, summary str, source str, ms int) -> str {
+    mut text = summary.trim_ascii()
+    if source.trim_ascii().byte_len() > 0 && source.trim_ascii() != text {
+        text = "${text}\n\n## Сообщение владельца\n\n${source.trim_ascii()}"
+    }
+    message_file_text(n, text, ms)
+}
+
+/// The addition to `message.K.md` when the work extends a subtask: the summary and the message of the owner, with the date.
+export fn canopus_addition_text(summary str, source str, ms int) -> str {
+    mut text = summary.trim_ascii()
+    if source.trim_ascii().byte_len() > 0 && source.trim_ascii() != text {
+        text = "${text}\n\n> ${source.trim_ascii().replace("\n", "\n> ")}"
+    }
+    message_addition_text(text, ms)
+}
+
+// ----- what the agent is told -----
+
+/// SubLine: a subtask of the session for the list the agent gets (the number, the title, the state).
+export type SubLine { n int, title str, state str, waits int, file str }
+
+/// The text of the note `tasks_hint` (`{rows}` is the list of the tasks).
+export const TASKS_HINT_TEXT = "[canopus] Задачи в работе (в canopus_task / canopus_task_list: kind=extend, extends=<номер> и честный confidence, если работа дополняет одну из них — при high дополнение открытой задачи применяется сразу, без карточки, не используй его для вопроса или обсуждения; kind=child и epic=<номер>, если она явно дочерняя задача такой задачи (любая открытая задача может быть эпиком); иначе kind=new — самостоятельная задача):\n{rows}"
+
+/// The short list of the tasks of the session for the hidden note before the message of the owner ("" - there are none). The agent uses it to say that a work belongs to a task that is there.
+export fn tasks_hint(task_shown str, lines []SubLine) -> str => tasks_hint_t(TASKS_HINT_TEXT, task_shown, lines)
+
+/// The same over the text of a layer.
+export fn tasks_hint_t(template str, task_shown str, lines []SubLine) -> str {
+    if lines.len() == 0 { return "" }
+    mut rows = []str.new()
+    for l in lines {
+        ro state = if l.waits > 0 { "ждёт подзадачу ${l.waits}" } else { l.state }
+        rows.push("${l.n}. «${l.title}» (${state}) — ${if l.file.byte_len() > 0 { l.file } else { "${task_shown}/message.${l.n}.md" }}")
+    }
+    render_prompt(template, ["rows", joined(rows, "\n")])
+}
+
+/// The notes for the agent after the owner answered the card: `decision_new` (n, title, shown), `decision_extend` (n, title, shown), `decision_queued` (n, title), `decision_no`.
+export const DECISION_NEW_TEXT = "[canopus] Владелец подтвердил задачу «{title}»: подзадача {n}, папка {shown}. Постановка — {shown}/message.{n}.md (в нём краткое изложение и сообщение владельца, картинки в images/). Прочитай её и выполни работу в рабочем каталоге; в конце коротко скажи, что сделано."
+export const DECISION_EXTEND_TEXT = "[canopus] Владелец подтвердил: работа дополняет подзадачу {n} «{title}». Новое — в конце {shown}/message.{n}.md, раздел «Дополнение». Прочитай его и продолжай в рабочем каталоге."
+export const DECISION_QUEUED_TEXT = "[canopus] Подзадача {n} «{title}» ждёт очереди и стартует сама; пока ничего по ней не делай."
+export const DECISION_NO_TEXT = "[canopus] Владелец ответил, что это не задача: никаких файлов задачи не заводи. Сделай, о чём просили, как обычная правка или ответ, и коротко скажи итог."
+
+/// The built-in text for the answer `what` (`new`, `extend`, `queued`, anything else is "not a task").
+export fn decision_text_of(what str) -> str {
+    if what == "new" { return DECISION_NEW_TEXT }
+    if what == "extend" { return DECISION_EXTEND_TEXT }
+    if what == "queued" { return DECISION_QUEUED_TEXT }
+    DECISION_NO_TEXT
+}
+
+/// The name of the prompt for the answer `what`.
+export fn decision_name_of(what str) -> str {
+    if what == "new" { return "decision_new" }
+    if what == "extend" { return "decision_extend" }
+    if what == "queued" { return "decision_queued" }
+    "decision_no"
+}
+
+/// The note over a text of a layer.
+export fn decision_note_t(template str, n int, title str, shown str) -> str => render_prompt(template, ["n", "${n}", "title", title, "shown", shown])
+
+/// The note for the agent after the owner answered the card.
+export fn decision_note(what str, n int, title str, shown str) -> str => decision_note_t(decision_text_of(what), n, title, shown)
+
+// ----- the view for the page -----
+
+fn ct_proposal_view(p Proposal, extends_title str) -> JsonValue {
+    mut o = JsonObject.new()
+    mput(o, "id", JsonValue.int(p.id))
+    mput(o, "kind", JsonValue.str(p.kind))
+    mput(o, "title", JsonValue.str(p.title))
+    mput(o, "summary", JsonValue.str(p.summary))
+    mput(o, "extends", JsonValue.int(p.extends))
+    mput(o, "extends_title", JsonValue.str(extends_title))
+    mput(o, "epic", JsonValue.int(p.epic))
+    mput(o, "touches", ct_strings(p.touches))
+    mput(o, "confidence", JsonValue.str(p.confidence))
+    mput(o, "state", JsonValue.str(p.state))
+    mput(o, "with_n", JsonValue.int(p.with_n))
+    mput(o, "with_files", ct_strings(p.with_files))
+    mput(o, "unknown", JsonValue.bool(p.unknown))
+    mput(o, "listed", JsonValue.bool(p.listed))
+    mput(o, "choice", JsonValue.str(p.choice))
+    mput(o, "note", JsonValue.str(p.note))
+    mput(o, "mode", JsonValue.str(p.mode))
+    mput(o, "reason", JsonValue.str(p.reason))
+    mput(o, "children", ct_children_view(p))
+    JsonValue.object(o)
+}
+
+/// The children the owner left ticked on the card: `picked` is "" (all of them), "-" (none) or the numbers from 0 separated by commas. The epic keeps only these.
+export fn children_picked(p Proposal, picked str) -> Proposal {
+    mut q = proposal_copy(p)
+    if picked.trim_ascii().byte_len() == 0 { return q }
+    mut keep = []JsonValue.new()
+    mut i = 0
+    for item in (ct_children_view(p).array() ?? []JsonValue.new()) {
+        mut on = false
+        for part in picked.split(",") {
+            match part.trim_ascii().to_int() {
+                Ok(n) => { if n == i { on = true } }
+                Err(e) => ()
+            }
+        }
+        if on { keep.push(item) }
+        i += 1
+    }
+    q.kids = if keep.len() == 0 { "" } else { JsonValue.array(keep).to_str() }
+    q
+}
+
+/// A child task of an epic as a proposal of its own (a child of the task `epic_no`), the mode of the epic when it has none.
+export fn child_proposal(c KidSpec, epic_no int, mode str, source str) -> Proposal {
+    mut q = proposal_new("child", c.title, c.summary, 0, c.touches, "")
+    q.epic = epic_no
+    q.mode = if run_mode_ok(c.mode) { c.mode } else { mode }
+    q.source = source
+    q
+}
+
+/// What the page needs for the cards and the panel, added to the state of the mode: `proposals`, `active` (the subtasks in work), `max_active` (the limit, 0 - none), the two code words.
+export fn canopus_view_extend(base str, props []Proposal, subs []SubLine, active int, max_active int, confirm_word str, over_word str) -> str {
+    mut o = match Json.parse(base) {
+        Ok(v) => v.object() ?? JsonObject.new()
+        Err(e) => JsonObject.new()
+    }
+    mut cards = []JsonValue.new()
+    for p in props {
+        mut shown = ""
+        for l in subs { if p.kind == "extend" && l.n == p.extends { shown = l.title } }
+        for l in subs { if p.kind == "child" && l.n == p.epic { shown = l.title } }
+        cards.push(ct_proposal_view(p, shown))
+    }
+    mput(o, "proposals", JsonValue.array(cards))
+    mut candidates = 0
+    for p in props { if p.listed && p.choice == "discuss" { candidates += 1 } }
+    mput(o, "candidates", JsonValue.int(candidates))
+    mput(o, "active", JsonValue.int(active))
+    mput(o, "max_active", JsonValue.int(max_active))
+    mput(o, "confirm_word", JsonValue.str(confirm_word))
+    mput(o, "over_word", JsonValue.str(over_word))
+    JsonValue.object(o).to_str()
+}
+
+/// The minutes without an event of the agent after which the page says "молчит" (the setting `agent_silent_minutes`, task 192.14), added to the state for the page.
+export fn silent_view_extend(base str, minutes int) -> str {
+    mut o = match Json.parse(base) {
+        Ok(v) => v.object() ?? JsonObject.new()
+        Err(e) => JsonObject.new()
+    }
+    mput(o, "silent_minutes", JsonValue.int(minutes))
+    JsonValue.object(o).to_str()
+}
+
+/// The service hints of the session for the panel "Машины" (task 192.5): `hints` - the newest last, each `{ms, kind, text}`.
+export fn hints_view_extend(base str, hints []HintRec, ctx_used int, ctx_size int, ctx_hist []CtxRec) -> str {
+    mut o = match Json.parse(base) {
+        Ok(v) => v.object() ?? JsonObject.new()
+        Err(e) => JsonObject.new()
+    }
+    mut rows = []JsonValue.new()
+    for h in hints {
+        mut r = JsonObject.new()
+        mput(r, "ms", JsonValue.int(h.ms))
+        mput(r, "kind", JsonValue.str(h.kind))
+        mput(r, "text", JsonValue.str(h.text))
+        rows.push(JsonValue.object(r))
+    }
+    mput(o, "hints", JsonValue.array(rows))
+    mut cx = JsonObject.new()
+    mput(cx, "used", JsonValue.int(ctx_used))
+    mput(cx, "size", JsonValue.int(ctx_size))
+    mut hist = []JsonValue.new()
+    for c in ctx_hist {
+        mut r = JsonObject.new()
+        mput(r, "ms", JsonValue.int(c.ms))
+        mput(r, "before", JsonValue.int(c.before))
+        mput(r, "after", JsonValue.int(c.after))
+        hist.push(JsonValue.object(r))
+    }
+    mput(cx, "compactions", JsonValue.array(hist))
+    mput(o, "context", JsonValue.object(cx))
+    JsonValue.object(o).to_str()
+}
+
+/// The list of the hints with one more at the end, at most `HINTS_MAX` of them (the oldest go).
+export const HINTS_MAX = 20
+
+export fn hints_added(hints []HintRec, ms int, kind str, text str) -> []HintRec {
+    mut out = []HintRec.new()
+    for h in hints { out.push(h) }
+    out.push(HintRec { ms, kind, text })
+    while out.len() > HINTS_MAX { out.remove(0) }
+    out
+}
+
+/// CtxScan: the result of `ctx_scan`: the last `used` and `size`, and `before` / `after` of the last compaction found (`before` 0 - none).
+export type CtxScan { used int, size int, before int, after int }
+
+fn ctx_num(line str, key str) -> int {
+    ro parsed = match Json.parse(line) {
+        Ok(v) => v.object() ?? JsonObject.new()
+        Err(e) => JsonObject.new()
+    }
+    ro input = (parsed.get("input") ?? JsonValue.null()).object() ?? JsonObject.new()
+    (input.get(key) ?? JsonValue.null()).int() ?? 0
+}
+
+fn ctx_kind(line str) -> str {
+    ro parsed = match Json.parse(line) {
+        Ok(v) => v.object() ?? JsonObject.new()
+        Err(e) => JsonObject.new()
+    }
+    (parsed.get("kind") ?? JsonValue.null()).str() ?? ""
+}
+
+/// Look through the new lines of the journal of a session: every `usage_update {used, size}` is compared with the one before it (`prev_used`, 0 - none yet); a fall by more than `drop_percent`
+/// percent is a compaction of the context of the agent. A change of the agent (`agent_switched`) or the start of the session forgets the old value, so it is not a compaction. `drop_percent` 0 - off.
+export fn ctx_scan(lines []str, prev_used int, prev_size int, drop_percent int) -> CtxScan {
+    mut prev = prev_used
+    mut size = prev_size
+    mut before = 0
+    mut after = 0
+    for line in lines {
+        ro kind = ctx_kind(line)
+        if kind == "agent_switched" || kind == "session_created" { prev = 0 }
+        if kind == "usage_update" {
+            ro used = ctx_num(line, "used")
+            ro sz = ctx_num(line, "size")
+            if sz > 0 { size = sz }
+            if drop_percent > 0 && prev > 0 && used * 100 < prev * (100 - drop_percent) {
+                before = prev
+                after = used
+            }
+            prev = used
+        }
+    }
+    CtxScan { used: prev, size, before, after }
+}

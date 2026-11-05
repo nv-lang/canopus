@@ -1,6 +1,6 @@
 # machines: machines written as data
 
-The machines of the product CrewHarness as tables of the language Alula (`*.alula.md`; the one extension, task 169; the format 0.28, the package `alula` 0.28.0, task 255), their compiled trees (`*.alula.json`, `machine/2`) and their scenarios
+The machines of the product Canopus as tables of the language Alula (`*.alula.md`; the one extension, task 169; the format 0.28, the package `alula` 0.28.0, task 255), their compiled trees (`*.alula.json`, `machine/2`) and their scenarios
 (`tests/*.alula.test.json`, `test/0`). They were samples inside the package `alula` until its version 0.3.2; since task 158 they belong to their owners and the package holds only the language and its own examples
 (`examples/` of [nv-lang/nova-alula](https://github.com/nv-lang/nova-alula)).
 
@@ -30,7 +30,7 @@ The tables were moved from 2.25 to 2.26 by the script of the package, `python <a
 
 The same scenarios and the tests of the machines (the tables equal the JSON, every row has a scenario, the journal codes are the table of the owner, the equality with the machine on Nova) run in the units of `src/`
 (`machine_chat`, `machine_dialog`, `machine_registry` and the `*_machines` units, see [src/README.md](../src/README.md));
-nothing of this folder is compiled into the programs (task 248): the module `crew_harness.machines` (`src/machines/`) reads these files from the disk of the tree for the tests (the library with `library_files()`), `crew_harness.product_machines` (`src/product_machines/`) reads the machines of the product: the hub from the folder `machines/product` beside it (the release kit, `scripts/package-release.sh`: `dialog.alula.json`, `dialog.alula.md`, `journal.md`, `libs/`; no `tests/`, no chat) or the folder of the setting `machines_dir`, and checks the alula_version and the hashes of the libraries when it reads them (`src/server/README.md`, "Where the machine comes from"); `scripts/guards/check-release-kit.py` checks the same in the tree and in a kit.
+nothing of this folder is compiled into the programs (task 248): the module `canopus.machines` (`src/machines/`) reads these files from the disk of the tree for the tests (the library with `library_files()`), `canopus.product_machines` (`src/product_machines/`) reads the machines of the product: the hub from the folder `machines/product` beside it (the release kit, `scripts/package-release.sh`: `dialog.alula.json`, `dialog.alula.md`, `journal.md`, `libs/`; no `tests/`, no chat) or the folder of the setting `machines_dir`, and checks the alula_version and the hashes of the libraries when it reads them (`src/server/README.md`, "Where the machine comes from"); `scripts/guards/check-release-kit.py` checks the same in the tree and in a kit.
 
 ## The library
 

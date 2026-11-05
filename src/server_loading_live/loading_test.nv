@@ -1,7 +1,7 @@
 // The attach completion is transport control, including for an empty hub.
-module crew_harness.server_loading_live
+module canopus.server_loading_live
 
-import crew_harness.server.{kit_files, rig_open, line_field}
+import canopus.server.{kit_files, rig_open, line_field}
 
 test "attach: an empty snapshot ends explicitly, only for the attached page" {
     mut rig = rig_open(kit_files("loading-empty", 30000))

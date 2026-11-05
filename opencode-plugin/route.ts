@@ -326,7 +326,7 @@ export function legacyTaskLetterFaults(message: string | undefined, expected: { 
   const worktree = /^WORKTREE ГОТОВ:[^\r\n]*ветка\s+([^\s.)]+)[^\r\n]*$/im.exec(text)?.[1]
   const handoffRe = /^СДЕЛАНО ПРЕЖНИМ ИСПОЛНИТЕЛЕМ \(задача передана тебе\):[ \t]*$/gim
   const handoffs = [...text.matchAll(handoffRe)]
-  const submitRe = /^Когда закончишь — сдай работу:\s*crew_task\s+\{action:\s*"submit",\s*n:\s*(\d+),\s*text:\s*"что сделано, как проверено, что осталось"\}\.([^\r\n]*)$/gim
+  const submitRe = /^Когда закончишь — сдай работу:\s*canopus_task\s+\{action:\s*"submit",\s*n:\s*(\d+),\s*text:\s*"что сделано, как проверено, что осталось"\}\.([^\r\n]*)$/gim
   const submits = [...text.matchAll(submitRe)]
   const faults: string[] = []
   if (!goal) faults.push("в старом письме нет непустой цели")
@@ -361,7 +361,7 @@ export function markStale(t: RouteFields & { history?: { at: number; by: string;
   t.route_word_stale = true
   t.route_stale_at = now
   t.clean_series = 0
-  ;(t.history ??= []).push({ at: now, by: "crew-harness", note: `${STALE_WARNING}; серия чистых заходов обнулена` })
+  ;(t.history ??= []).push({ at: now, by: "canopus", note: `${STALE_WARNING}; серия чистых заходов обнулена` })
   return true
 }
 
@@ -376,7 +376,7 @@ export function routeLogText(t: RouteFields): string {
   return `маршрут: ${ROUTE_RU[v.route]}, основание: ${v.basis.replace(/\s+/g, " ").trim() || "не записано"}, источник: ${SOURCE_RU[v.source]}${word}${tsNote}`
 }
 
-// ---- выбор маршрута при постановке задачи (crew_spawn) ----
+// ---- выбор маршрута при постановке задачи (canopus_spawn) ----
 
 export type RouteInput = {
   route?: unknown
@@ -453,7 +453,7 @@ export function planRoute(input: RouteInput, brief: string | undefined, settings
   return { ok: true, fields: { route, route_basis: basis, route_source: source, route_word: word, route_word_date: date, route_message_hash: messageHash(brief!), ...common } }
 }
 
-/** Смена маршрута записью (crew_task route): быстрый → полный — только записью route и пустого route_word с причиной; серия чистых заходов обнуляется,
+/** Смена маршрута записью (canopus_task route): быстрый → полный — только записью route и пустого route_word с причиной; серия чистых заходов обнуляется,
  *  трасса и номера заходов остаются. Полный → быстрый и новое слово завода — те же условия, что при постановке. Меняет запись на месте. */
 export function applyRouteChange(t: RouteFields & { history?: { at: number; by: string; note?: string }[] }, input: RouteInput & { text?: unknown }, brief: string | undefined, settings: RouteSettings, by: string, now: number = Date.now()): { ok: true; line: string } | { ok: false; refusal: string } {
   const to: Route | undefined = input.route === "full" || input.route === "fast" || input.route === "small" ? input.route : undefined

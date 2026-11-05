@@ -44,7 +44,7 @@ export function serviceKindOf(l: Pick<Letter, "id" | "from_session">): ServiceKi
 
 export const isOwnerAnswer = (l: Pick<Letter, "id">) => l.id.startsWith("owner-answer-")
 
-// The kind of a message that STANDS in the queue, by the first line of its body (the plugin writes `⚙  HH:MM · crew → … (служебное, не отвечай)` over every
+// The kind of a message that STANDS in the queue, by the first line of its body (the plugin writes `⚙  HH:MM · canopus → … (служебное, не отвечай)` over every
 // service letter; a letter of a person never has this mark, so a person's quote of "Не завершено" is no reminder).
 const BY_TEXT: [ServiceKind, RegExp][] = [
   ["nudge", /^Не завершено: /],

@@ -1,8 +1,8 @@
 // ack_test.nv - an event taken from `Link.receive` is the handler's until the engine acknowledges it after the commit.
 // The handler keeps the events it handed out ("taken") and, with an inbox file, hands them out again after a restart.
-module crew_harness.acp_live
+module canopus.acp_live
 
-import crew_harness.acp.{AcpConfig, AcpClient, open_client, acp_link}
+import canopus.acp.{AcpConfig, AcpClient, open_client, acp_link}
 import alula.engine.{Link, Incoming, EventKind}
 import std.fs.{Fs, real_fs, Path, remove_dir_all, create_dir_all, write_text, read_text}
 import std.os.{Os, real_os, temp_dir, pid}
@@ -11,7 +11,7 @@ import std.os.{Os, real_os, temp_dir, pid}
 fn inbox_file(name str) -> str {
     ro base = with Os = real_os() { temp_dir() }
     ro id = with Os = real_os() { pid() }
-    ro dir = base.join("crew-acp-inbox-${id}-${name}")
+    ro dir = base.join("canopus-acp-inbox-${id}-${name}")
     with Fs = real_fs() {
         ro removed = remove_dir_all(dir)
         ro made = create_dir_all(dir)

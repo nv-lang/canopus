@@ -5,14 +5,14 @@
 // It is ordinary code of the module and not a `_test.nv` file because two test units use it (the same scenarios run over the
 // files and over PostgreSQL: the results must be the same); nothing in the product calls it. The tests look for the root of the
 // repository upward from the working directory (the nearest folder with `nova.toml`).
-module crew_harness.server
+module canopus.server
 
-import crew_harness.product_machines.{dialog_machine_text, tree_machines_dir}
-import crew_harness.pgdb.{PgConfig}
-import crew_harness.config.{legacy_layout, layout_with_data_dir}
+import canopus.product_machines.{dialog_machine_text, tree_machines_dir}
+import canopus.pgdb.{PgConfig}
+import canopus.config.{legacy_layout, layout_with_data_dir}
 import std.encoding.json.{Json, JsonValue, JsonObject}
-import crew_harness.projects.{projects_create}
-import crew_harness.storage.{session_dir, session_file, session_images_dir, save_image, replace_file}
+import canopus.projects.{projects_create}
+import canopus.storage.{session_dir, session_file, session_images_dir, save_image, replace_file}
 import std.fs.{Fs, real_fs, Path, try_exists, remove_dir_all, read_dir, rename, read_text}
 import std.os.{Os, real_os, cwd, temp_dir, pid}
 
@@ -57,7 +57,7 @@ fn kit_agent(id str, extra str, marker str) -> AgentSpec {
 fn kit_data_dir(name str) -> str {
     ro base = with Os = real_os() { temp_dir() }
     ro id = with Os = real_os() { pid() }
-    ro dir = base.join("crew-server-test-${id}-${name}")
+    ro dir = base.join("canopus-server-test-${id}-${name}")
     with Fs = real_fs() {
         ro removed = remove_dir_all(dir)
     }
@@ -83,7 +83,7 @@ fn kit_settings(store str, name str, idle_ms int, pg PgConfig) -> ServerSettings
     }
 }
 
-fn kit_no_pg() -> PgConfig => { host: "127.0.0.1", port: 5432, database: "crew", user: "crew_app", password: "" }
+fn kit_no_pg() -> PgConfig => { host: "127.0.0.1", port: 5432, database: "crew", user: "canopus_app", password: "" }
 
 /// The settings of a hub over files in a folder of its own, with the fake agent and the idle term of a turn.
 export fn kit_files(name str, idle_ms int) -> ServerSettings => kit_settings("files", name, idle_ms, kit_no_pg())
@@ -676,17 +676,17 @@ export fn scenario_question_mcp(settings ServerSettings) Proc Detach Time Net Fs
     c.expect(request.starts_with("mcp-"), "the key of the question")
     c.expect(asked.contains("Какой формат?") && asked.contains("YAML"), "the question has its text and its options")
     c.expect(!rig.hub.takes_message("s-mcp"), "the turn waits for the owner")
-    // task 263: another session sees the blocker in crew_list (the session is not just «занята»)
+    // task 263: another session sees the blocker in canopus_list (the session is not just «занята»)
     rig.page(1, "session_created", "s-watch", "{\"name\":\"Наблюдатель\",\"agent\":\"opencode\"}")
     c.expect(rig.until("\"trace\":\"s-watch\"", 5000), "the second session is shown")
-    rig.page(1, "user_message", "s-watch", "{\"turn\":\"w1\",\"text\":\"ctl crew_list {}\"}")
-    c.expect(rig.until(KIT_DONE, 20000), "the crew_list turn ends")
+    rig.page(1, "user_message", "s-watch", "{\"turn\":\"w1\",\"text\":\"ctl canopus_list {}\"}")
+    c.expect(rig.until(KIT_DONE, 20000), "the canopus_list turn ends")
     mut wturn = ""
     for line in rig.lines_for(1) {
         if line_field(line, "trace") == "s-watch" && line_field(line, "kind") == "user_message" { wturn = line_input(line, "turn") }
     }
     ro listed = answer_of(rig.lines_for(1), wturn)
-    c.expect(listed.contains("s-mcp") && listed.contains("ждёт ответа владельца") && listed.contains("Какой формат?"), "crew_list names the blocker: ${cut_text(listed, 300)}")
+    c.expect(listed.contains("s-mcp") && listed.contains("ждёт ответа владельца") && listed.contains("Какой формат?"), "canopus_list names the blocker: ${cut_text(listed, 300)}")
     rig.page(1, "question_answer", "s-watch", "{\"request\":\"${request}\",\"skipped\":true}")
     rig.run(150)
     c.expect(rig.hub.mcp_waiting("s-mcp").contains("Какой формат?"), "a foreign session cannot consume the pending question")

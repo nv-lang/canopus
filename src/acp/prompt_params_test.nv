@@ -1,4 +1,4 @@
-module crew_harness.acp
+module canopus.acp
 
 test "image-only ACP prompt omits an empty text block without a harness note" {
     ro params = prompt_params("session", "", [image_block("image/png", "iVBORw0KGgo=")]).object().unwrap()

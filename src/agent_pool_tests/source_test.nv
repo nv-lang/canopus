@@ -3,7 +3,7 @@ module agent_pool_tests.source_test
 
 import std.text
 
-import crew_harness.config.{PoolEntry, PoolLevel, ModelPool, parse_model_pools, resolve_pool, resolve_pool_pinned, parse_preset, preset_pick, presets_json, builtin_roles}
+import canopus.config.{PoolEntry, PoolLevel, ModelPool, parse_model_pools, resolve_pool, resolve_pool_pinned, parse_preset, preset_pick, presets_json, builtin_roles}
 import std.encoding.json.{Json}
 
 test "269: exact candidates, deterministic entropy and no empty fallback" {

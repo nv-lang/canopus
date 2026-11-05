@@ -1,7 +1,7 @@
 // Optional trusted-host hand-off; there is deliberately NO JSON decoder for a
 // native binding or hook. A client/source JSON `verified:true` is not evidence.
 // The stock front has no same-context native observer and supplies None.
-module crew_harness.model_metadata
+module canopus.model_metadata
 
 import std.encoding.json.{Json, JsonValue, JsonObject}
 import std.crypto.sha256.{Sha256}

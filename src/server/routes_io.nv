@@ -1,6 +1,6 @@
 // routes_io.nv - task 192q: the disk and the processes under the modes of work: the files of the tasks (`message.N.md`, `progress.N.md`), the files of the modes, `git`.
 // The git operations of the tasks (trees, merges, publishing) are the module of task 192r (`taskwt.nv`); here is only what the hub needs of the plain disk.
-module crew_harness.server
+module canopus.server
 
 import std.fs.{Fs, real_fs, Path, read_text, write_text, create_dir_all, try_exists, read_dir, metadata, copy_file, remove_file}
 import std.os.{Command}

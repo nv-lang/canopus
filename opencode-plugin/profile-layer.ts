@@ -10,7 +10,7 @@
 import { createHash } from "node:crypto"
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
-import { BASE } from "./paths.ts"
+import { BASE } from "./base.ts"
 import { SETTINGS_FILE, legacyBase, outsideProject, projectFor, rawSettingsFor, workingSettings, writeSettings } from "./settings.ts"
 import { limitsText, log, projectOf, settingsContext } from "./core.ts"
 import * as P from "./profiles.ts"
@@ -210,7 +210,7 @@ export function logRefused(project: string, command: string, why: string) {
   log(`profile edit refused: ${project} ${command}: ${why}`)
 }
 
-/** Проблемы профилей проекта словами — для crew_doctor, check и уведомления (окна файлов добавляет profile-windows). */
+/** Проблемы профилей проекта словами — для canopus_doctor, check и уведомления (окна файлов добавляет profile-windows). */
 export function problemsOf(ps: PState): string[] {
   const out: string[] = []
   const row = ps.state.row
@@ -220,7 +220,7 @@ export function problemsOf(ps: PState): string[] {
   return out
 }
 
-// ---- показ и проверка связей для crew_config ---------------------------------------------------------------------------
+// ---- показ и проверка связей для canopus_config ---------------------------------------------------------------------------
 
 /** Итог по профилям одной строкой: сколько наборов в файле и какой включён (два разных случая: наборов нет / набор не включён). */
 export function profilesSummary(dir0: string, projectName?: string): string {
@@ -231,7 +231,7 @@ export function profilesSummary(dir0: string, projectName?: string): string {
   return `Профили моделей — наборов в файле: ${names.length}${names.length ? `: ${names.join(", ")}` : ""}; ${on}${tail ? ` (${tail})` : ""}.`
 }
 
-/** Блок «Профили моделей» для crew_config show и /crew-config (пусто, если у проекта нет профилей, наборов и имени). */
+/** Блок «Профили моделей» для canopus_config show и /canopus-config (пусто, если у проекта нет профилей, наборов и имени). */
 export function profilesShow(dir0: string, projectName?: string): string {
   const ps = profileState(dir0, projectName)
   const has = (v: any) => isObj(v) && Object.keys(v).length > 0
@@ -254,7 +254,7 @@ export function profilesShow(dir0: string, projectName?: string): string {
     lines.push("Наборы (этап -> семья/ступень; * — включённый):")
     for (const [n, s] of Object.entries(ps.data.sets!)) lines.push(`  ${n === ps.name ? "*" : " "} ${n}: ${P.cellsOf(s).map(([st, c]) => `${st} ${P.cellText(c)}`).join(", ") || "(клеток нет)"}`)
   }
-  lines.push(ps.name ? "Выключить набор может только человек: /crew-sets off; сменить — /crew-sets use <имя>." : "Включить набор может только человек: /crew-sets use <имя> (агент crew_config set набор не включает).")
+  lines.push(ps.name ? "Выключить набор может только человек: /canopus-sets off; сменить — /canopus-sets use <имя>." : "Включить набор может только человек: /canopus-sets use <имя> (агент canopus_config set набор не включает).")
   for (const p of problemsOf(ps)) lines.push(`  ! ${p}`)
   return lines.join("\n")
 }
@@ -284,8 +284,8 @@ export function syncTaskFile(t: Task): SyncReport {
   return syncTaskWindow(ps.project, t, windowPlanOf(ps.state))
 }
 
-/** Проблемы профилей всех проектов процесса — для crew_doctor и уведомления. */
-/** service — проход службы: о файле прежнего слоя сообщается один раз за процесс; иначе (crew_doctor) — каждый раз. */
+/** Проблемы профилей всех проектов процесса — для canopus_doctor и уведомления. */
+/** service — проход службы: о файле прежнего слоя сообщается один раз за процесс; иначе (canopus_doctor) — каждый раз. */
 export function profileProblems(service = false): string[] {
   const out: string[] = []
   for (const p of settingsContext().projects) {

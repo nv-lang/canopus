@@ -1,7 +1,7 @@
 // Shared set-up of the landing tests (task 005): a fake OpenCode host over the real plugin modules, a project that is a real git
 // repository with a local bare `origin` (a file path), a second clone that moves the origin, tabs of the integrator and the
 // reviewers, and helpers that build tasks on review. Not a test itself (no `.test.` in the name: `npm test` does not take it).
-// The plugin code comes from CREW_PLUGIN_DIR (a copy with stubs, task 005 AC-30) or from the folder above this one.
+// The plugin code comes from CANOPUS_PLUGIN_DIR (a copy with stubs, task 005 AC-30) or from the folder above this one.
 import { execFileSync, spawnSync } from "node:child_process"
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { DatabaseSync } from "node:sqlite"
@@ -9,7 +9,7 @@ import os from "node:os"
 import path from "node:path"
 import { pathToFileURL } from "node:url"
 
-export const PLUGIN = process.env.CREW_PLUGIN_DIR ?? path.join(import.meta.dirname, "..")
+export const PLUGIN = process.env.CANOPUS_PLUGIN_DIR ?? path.join(import.meta.dirname, "..")
 const load = (f) => import(pathToFileURL(path.join(PLUGIN, f)).href)
 
 /**
@@ -22,14 +22,14 @@ export async function harness(prefix, opts = {}) {
   const attach = opts.attach
   const tmp = attach ?? mkdtempSync(path.join(os.tmpdir(), `${prefix}-`))
   process.env.XDG_DATA_HOME = tmp
-  process.env.CREW_HARNESS_POLL_MS = "100"
-  process.env.CREW_HARNESS_STATUS_MS = "100"
-  process.env.CREW_HARNESS_FLOW_MS = "200"
-  process.env.CREW_HARNESS_LEFT_MS = "3600000"
-  process.env.CREW_HARNESS_SETTINGS_TTL_MS = "1"
-  process.env.CREW_HARNESS_DB = path.join(tmp, opts.db || attach ? "opencode.db" : "absent.db")
-  if (opts.db) process.env.CREW_HARNESS_PROCESS_START = String(Date.now()) // the turns that stopped before this moment were interrupted by a restart
-  delete process.env.CREW_HARNESS_PRESENCE
+  process.env.CANOPUS_POLL_MS = "100"
+  process.env.CANOPUS_STATUS_MS = "100"
+  process.env.CANOPUS_FLOW_MS = "200"
+  process.env.CANOPUS_LEFT_MS = "3600000"
+  process.env.CANOPUS_SETTINGS_TTL_MS = "1"
+  process.env.CANOPUS_DB = path.join(tmp, opts.db || attach ? "opencode.db" : "absent.db")
+  if (opts.db) process.env.CANOPUS_PROCESS_START = String(Date.now()) // the turns that stopped before this moment were interrupted by a restart
+  delete process.env.CANOPUS_PRESENCE
   const proj = path.join(tmp, "proj")
   const bare = path.join(tmp, "origin.git")
   const other = path.join(tmp, "other")
@@ -45,7 +45,7 @@ export async function harness(prefix, opts = {}) {
   let current = {}
   const settings = (more = {}) => {
     current = { ...more }
-    writeFileSync(path.join(proj, ".opencode", "crew-harness.json"), JSON.stringify({ spawn_limits: { worker: 20, reviewer: 0 }, stall_minutes: 600, inflight_limit: 50, accepted_reminder_min: 600, merge_precheck: "required", ...(opts.settings ?? {}), ...more }))
+    writeFileSync(path.join(proj, ".opencode", "canopus.json"), JSON.stringify({ spawn_limits: { worker: 20, reviewer: 0 }, stall_minutes: 600, inflight_limit: 50, accepted_reminder_min: 600, merge_precheck: "required", ...(opts.settings ?? {}), ...more }))
   }
   if (!attach) {
     settings()
@@ -120,7 +120,7 @@ export async function harness(prefix, opts = {}) {
     await hooks.context({ sessionID: sid, system: [], model: { id: "x", providerID: "y" } })
     await events["session.idle"]({ properties: { sessionID: sid } })
   }
-  if (!attach) await call("crew_role", "sesINTEG1", { role: "integrator" })
+  if (!attach) await call("canopus_role", "sesINTEG1", { role: "integrator" })
 
   let seq = 0
   const H = {

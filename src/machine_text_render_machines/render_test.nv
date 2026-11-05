@@ -1,14 +1,14 @@
 // render_test.nv - task 113: the reverse generator `render_machine(json, language)`: the canonical form of section 1b (the header, the eleven sections, the keys of a state in their order, the
 // tables with one space round the bar, the operators of the language), the circles "tree -> file -> tree" in both languages on every machine of the product, and "Russian -> English -> Russian".
 // The proofs on the agent step (its types, enumerations and functions) left the product with the methodology (task 249).
-module crew_harness.machine_text_render_machines
+module canopus.machine_text_render_machines
 
 import std.fs.{Path}
 import std.text
 import alula.machine.{text_of_file}
 import alula.machine_text_eq.{case_text}
 import alula.machine_text.{render_machine, render_machine_with, render, translate_report_with, render_type_in, render_expression_in, render_actions_in}
-import crew_harness.machines.{chat_table_text, dialog_table_text, table_files, translation_files, connects_library, part_mended}
+import canopus.machines.{chat_table_text, dialog_table_text, table_files, translation_files, connects_library, part_mended}
 
 fn chat_json() -> str => machine_json("chat.alula.json")
 

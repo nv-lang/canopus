@@ -1,11 +1,11 @@
 // v213_test.nv - task 149: the machines of the product are written at Alula 2.13 (format 2.14): the keys `Запрос:` and `Читает:`, `сигнал(…)`, the column `сигналы`, ASCII signs, the JSON names in brackets,
 // no section of the expansion of a fragment; every JSON is what `compile` makes of its file; the circles `compile -> render -> compile` and `convert ru -> en -> ru` give an equal tree in both languages,
 // the line of connection names the library beside the machine (the machines of the methodology with «Пауза» and `сигнал_остановки` left the product with task 249).
-module crew_harness.alula_eq_machines
+module canopus.alula_eq_machines
 
 import std.text
 import alula.machine.{text_of_file}
-import crew_harness.machines.{machine_files, table_files, connects_library}
+import canopus.machines.{machine_files, table_files, connects_library}
 
 fn all_tables() -> []str => ["chat.alula.md", "dialog.alula.md"]
 

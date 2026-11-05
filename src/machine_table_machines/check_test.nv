@@ -1,10 +1,10 @@
 // check_test.nv - the checks of a table: every check is red on a broken table and green on the good one.
-module crew_harness.machine_table_machines
+module canopus.machine_table_machines
 
 import std.fs.{Path}
 import alula.machine.{text_of_file}
 import std.text
-import crew_harness.machines.{product_registry, chat_machine_text, machine_files}
+import canopus.machines.{product_registry, chat_machine_text, machine_files}
 import alula.machine_table.{check_machine}
 
 fn wait_rows_with(go_value str) -> str {

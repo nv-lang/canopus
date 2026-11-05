@@ -1,8 +1,8 @@
 // config_test.nv - the connection settings as a value: a JSON text, the checks, no password in the text.
 // The settings file and the environment are in src/pg/conf.
-module crew_harness.pgdb
+module canopus.pgdb
 
-fn full_text() -> str => "{\"host\":\"localhost\",\"port\":55432,\"database\":\"crew_x\",\"user\":\"crew_login\",\"password\":\"file-test-pw\"}"
+fn full_text() -> str => "{\"host\":\"localhost\",\"port\":55432,\"database\":\"canopus_x\",\"user\":\"canopus_login\",\"password\":\"file-test-pw\"}"
 
 fn must_config(text str) -> PgConfig {
     match parse_pg_config(text) {
@@ -22,14 +22,14 @@ test "config: every key of the text is taken, a missing key has its default" {
     ro c = must_config(full_text())
     assert(c.host == "localhost")
     assert(c.port == 55432)
-    assert(c.database == "crew_x")
-    assert(c.user == "crew_login")
+    assert(c.database == "canopus_x")
+    assert(c.user == "canopus_login")
     assert(c.password == "file-test-pw")
     ro d = must_config("{\"password\":\"p\"}")
     assert(d.host == "127.0.0.1")
     assert(d.port == 5432)
-    assert(d.database == "crew")
-    assert(d.user == "crew_app")
+    assert(d.database == "canopus")
+    assert(d.user == "canopus_app")
 }
 
 test "config: a text that is not a JSON object, or a key of the wrong type, is an error" {
@@ -60,7 +60,7 @@ test "config: the check wants a password, a local host, a port in range and name
 
 test "config: localhost in its three spellings is local" {
     for host in ["127.0.0.1", "localhost", "::1"] {
-        ro c PgConfig = { host, port: 5432, database: "crew", user: "crew_app", password: "p" }
+        ro c PgConfig = { host, port: 5432, database: "canopus", user: "canopus_app", password: "p" }
         match c.check() {
             Ok(done) => ()
             Err(e) => assert(false)
@@ -71,9 +71,9 @@ test "config: localhost in its three spellings is local" {
 test "config: the description has the user, the host, the port and the database and never the password" {
     ro c = must_config(full_text())
     ro text = c.describe()
-    assert(text.contains("crew_login"))
+    assert(text.contains("canopus_login"))
     assert(text.contains("localhost"))
     assert(text.contains("55432"))
-    assert(text.contains("crew_x"))
+    assert(text.contains("canopus_x"))
     assert(!text.contains("file-test-pw"))
 }

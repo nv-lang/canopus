@@ -21,19 +21,19 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     env:
-      CREW_PRIVATE_NAMES_PROBE: ${{ secrets.CREW_PRIVATE_NAMES_PROBE }}
+      CANOPUS_PRIVATE_NAMES_PROBE: ${{ secrets.CANOPUS_PRIVATE_NAMES_PROBE }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Mask the probe values
-        run: sh scripts/guards/ci-mask.sh CREW_PRIVATE_NAMES_PROBE
+        run: sh scripts/guards/ci-mask.sh CANOPUS_PRIVATE_NAMES_PROBE
       - name: Print the probe values and the marker
         run: |
-          printf '%s\n' "$CREW_PRIVATE_NAMES_PROBE"
+          printf '%s\n' "$CANOPUS_PRIVATE_NAMES_PROBE"
           echo PROBE-MARKER
       - name: Names guard with the probe list
         env:
-          CREW_PRIVATE_NAMES: ${{ secrets.CREW_PRIVATE_NAMES_PROBE }}
+          CANOPUS_PRIVATE_NAMES: ${{ secrets.CANOPUS_PRIVATE_NAMES_PROBE }}
         run: python scripts/guards/check-private-names.py

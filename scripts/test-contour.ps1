@@ -1,7 +1,7 @@
 # test-contour.ps1 - a test contour of the console (пульт) from THIS worktree, for the owner's check of a small-route
 # task (task 191): the owner says «сделай X мгновенно» / «сделай X, супер быстро» (the orchestrator recognizes the entry),
 # the executor raises the contour and gives the owner the link;
-# the mark «ссылка на контур выдана» is crew_task {action: "contour", n, link}.
+# the mark «ссылка на контур выдана» is canopus_task {action: "contour", n, link}.
 #
 #   powershell -File scripts/test-contour.ps1            start the contour, print the link (a free port from 8100 up)
 #   powershell -File scripts/test-contour.ps1 -Port 8103 start on this port
@@ -25,7 +25,7 @@ Set-Location $tree
 
 $sha1 = [System.Security.Cryptography.SHA1]::Create()
 $hash = [System.BitConverter]::ToString($sha1.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($tree.ToLowerInvariant()))).Replace('-', '').Substring(0, 8).ToLowerInvariant()
-$dir = Join-Path $env:TEMP "crew-contour-$hash"
+$dir = Join-Path $env:TEMP "canopus-contour-$hash"
 $pidFile = Join-Path $dir 'contour.pid'
 
 if ($Stop) {
@@ -52,21 +52,21 @@ $serverChange = @(& git diff --name-only main...HEAD -- src/ | Where-Object { $_
 if ($LASTEXITCODE -ne 0) { [Console]::Error.WriteLine('git diff main...HEAD failed'); exit 1 }
 $buildHere = $Build -or $serverChange.Count -gt 0
 
-$front = Join-Path $tree 'target/crew-harness.exe'
-$hub = Join-Path $tree 'target/crew-hub.exe'
+$front = Join-Path $tree 'target/canopus.exe'
+$hub = Join-Path $tree 'target/canopus-hub.exe'
 if ($buildHere) {
     Write-Output ('building the server programs of THIS tree (' + ($(if ($Build) { '-Build' } else { 'src/ changed' })) + ')...')
-    & nova build src/crew_hub.nv -o target/crew-hub.exe
-    if ($LASTEXITCODE -ne 0) { [Console]::Error.WriteLine('nova build src/crew_hub.nv failed'); exit 1 }
-    & nova build src/crew_harness.nv -o target/crew-harness.exe
-    if ($LASTEXITCODE -ne 0) { [Console]::Error.WriteLine('nova build src/crew_harness.nv failed'); exit 1 }
+    & nova build src/canopus_hub.nv -o target/canopus-hub.exe
+    if ($LASTEXITCODE -ne 0) { [Console]::Error.WriteLine('nova build src/canopus_hub.nv failed'); exit 1 }
+    & nova build src/canopus.nv -o target/canopus.exe
+    if ($LASTEXITCODE -ne 0) { [Console]::Error.WriteLine('nova build src/canopus.nv failed'); exit 1 }
 } else {
-    $front = Join-Path $mainCopy 'target/crew-harness.exe'
-    $hub = Join-Path $mainCopy 'target/crew-hub.exe'
+    $front = Join-Path $mainCopy 'target/canopus.exe'
+    $hub = Join-Path $mainCopy 'target/canopus-hub.exe'
     if (-not ((Test-Path $front) -and (Test-Path $hub))) {
         [Console]::Error.WriteLine("The built programs of the main copy are not there ($front). Build them in the main copy:")
-        [Console]::Error.WriteLine('  nova build src/crew_hub.nv -o target/crew-hub.exe')
-        [Console]::Error.WriteLine('  nova build src/crew_harness.nv -o target/crew-harness.exe')
+        [Console]::Error.WriteLine('  nova build src/canopus_hub.nv -o target/canopus-hub.exe')
+        [Console]::Error.WriteLine('  nova build src/canopus.nv -o target/canopus.exe')
         exit 1
     }
 }
@@ -122,5 +122,5 @@ if ($proc.HasExited) {
 Set-Content $pidFile $proc.Id
 Set-Content (Join-Path $dir 'contour.port') $Port
 Write-Output "the test contour of this tree is up: http://127.0.0.1:$Port/"
-Write-Output "give the link to the owner and record the mark: crew_task {action: `"contour`", n: <N>, link: `"http://127.0.0.1:$Port/`"}"
+Write-Output "give the link to the owner and record the mark: canopus_task {action: `"contour`", n: <N>, link: `"http://127.0.0.1:$Port/`"}"
 Write-Output "stop: powershell -File scripts/test-contour.ps1 -Stop (data: $dir)"

@@ -4,7 +4,7 @@
 // меняет app.js; ключ здесь тот же, что THEME_KEY в state.js.
 (function applyStoredTheme() {
   try {
-    var value = window.localStorage.getItem('crew-console-theme');
+    var value = window.localStorage.getItem('canopus-console-theme');
     if (value === 'light' || value === 'dark') document.documentElement.setAttribute('data-theme', value);
   } catch (e) {
     // хранилище закрыто (приватное окно, запрет сайтов): остаётся тема системы

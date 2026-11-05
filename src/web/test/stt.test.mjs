@@ -100,8 +100,8 @@ test('настройки: выбор запоминается в хранили�
   const b = createVoiceSettings({ storage, fetchFn, page: 'ru-RU' });
   assert.deepEqual([b.state.saved, b.state.lang, b.state.mic], ['browser', 'de', 'dev-1']);
   b.setMic('');
-  assert.equal(storage.getItem('crew.voice.mic'), null);
-  const c = createVoiceSettings({ storage: store({ 'crew.voice.provider': 'cloud', 'crew.voice.lang': 'xx' }), fetchFn });
+  assert.equal(storage.getItem('canopus.voice.mic'), null);
+  const c = createVoiceSettings({ storage: store({ 'canopus.voice.provider': 'cloud', 'canopus.voice.lang': 'xx' }), fetchFn });
   assert.deepEqual([c.state.saved, c.state.lang], [null, 'auto']);
   // хранилище, которое бросает, и его отсутствие не ломают настройки
   const broken = { getItem() { throw new Error('closed'); }, setItem() { throw new Error('closed'); }, removeItem() { throw new Error('closed'); } };
@@ -112,7 +112,7 @@ test('настройки: выбор запоминается в хранили�
 });
 
 test('настройки: локальный выбран, но сервер не запущен — работает браузер, выбор сохранён', async () => {
-  const s = createVoiceSettings({ storage: store({ 'crew.voice.provider': 'local' }), fetchFn: async () => reply(200, { available: false }) });
+  const s = createVoiceSettings({ storage: store({ 'canopus.voice.provider': 'local' }), fetchFn: async () => reply(200, { available: false }) });
   await s.refreshStatus();
   assert.equal(s.state.available, false);
   assert.equal(s.provider(), 'browser');

@@ -1,11 +1,11 @@
 // data.nv - the machines of the product as data for the tests, read from the disk of the tree (`tree_text`, task 248: nothing is compiled in): the JSON `kind: machine`, the tables, the scenarios, the library and
 // the table of the journal codes of the product (`machines/product/`). The package `alula` knows only the language (one primitive, 35 codes, spec 7a); `product_registry()` is the language and the codes
 // of the product. The machines of the methodology left the product with task 249 (it closes task 159, their move): they live in the set of the methodology (its repository, `alula-machines/`).
-module crew_harness.machines
+module canopus.machines
 
 import std.fs.{Path}
 import alula.machine.{NamedText, Registry, text_of_file, load_host}
-import crew_harness.product_machines.{tree_text, tree_paths}
+import canopus.product_machines.{tree_text, tree_paths}
 
 /// The machines as JSON, by the name of the file (`chat.alula.json`).
 export fn machine_files() -> []NamedText => [

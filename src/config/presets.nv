@@ -1,12 +1,12 @@
 // presets.nv - the presets: a named table `role -> {family, model, effort}` (task 192.12, ADR-0016).
 //
 // A preset is the answer to "which agent does which role": the family (the id of an agent of the settings), the model and the effort. It lies in a file
-// `presets/<name>.json` of the user (`<home>/config/presets/`) or of the project (`.crew-harness/presets/`; the project wins by the name):
+// `presets/<name>.json` of the user (`<home>/config/presets/`) or of the project (`.canopus/presets/`; the project wins by the name):
 //   { "description": "...", "roles": { "dev": {"family": "codex", "model": "gpt-6.1-sol", "effort": "high"}, "dev_accept": {"family": "claude"} } }
 // The active preset is the setting `preset` (the user, the project, or a session: the signal `session_preset`); the built-in one is `default`.
 // The independent step of a mode of work (`independent`) takes the family of the role `dev_accept` from the active preset; `route_reviewer_order`
 // is the reserve order when the preset has none (or the family is the author, or is not an agent of the settings).
-module crew_harness.config
+module canopus.config
 
 import std.text
 import std.encoding.json.{Json, JsonValue, JsonObject}

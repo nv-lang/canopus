@@ -166,7 +166,7 @@ export function invalidCell(c: any, where: string): string | undefined {
 
 /**
  * Значение ключа профилей: текст ошибки или undefined. lenientStages — незнакомый ключ-этап читатель игнорирует (файл
- * из будущей версии), а не отвергает; команды и crew_config set проверяют строго.
+ * из будущей версии), а не отвергает; команды и canopus_config set проверяют строго.
  */
 export function invalidProfileKey(key: string, v: any, opts: { lenientStages?: boolean } = {}): string | undefined {
   if (key === "model_profiles") {

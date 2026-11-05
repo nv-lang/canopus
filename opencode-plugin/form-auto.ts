@@ -16,17 +16,17 @@
 // interrupted and every step after it is repeatable, so a death of the process between the changes gives neither a repeat nor a loss
 // (rules 13/34(e) of the methodology). The plugin never writes the keys answer_*: they are read only.
 // Store: answers/auto-<form>.json (the answer, one per form - the name is the "once" mark) and forms/auto/<form>.json (the marker: held for
-// the owner with the reason, or sent/applied/failed) - the counters of /crew and the doctor come from the markers.
+// the owner with the reason, or sent/applied/failed) - the counters of /canopus and the doctor come from the markers.
 import { existsSync, linkSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { loopOf } from "./answer-loop.ts"
 import { ANSWER_TYPES, type AnswerMap, modeFor, normalizeGateText } from "./answer-parse.ts"
 import { readJson, safeKey } from "./core.ts"
 import { FORMS, type PendingForm, waitingForms } from "./form-wait.ts"
-import { BASE } from "./paths.ts"
+import { BASE } from "./base.ts"
 
 const ANSWERS_DIR = path.join(BASE, "answers")
-/** The start of the reason of a refusal of the delivery when the form turned out to be the owner's (task 142); the marker and crew-answer show the rest. */
+/** The start of the reason of a refusal of the delivery when the form turned out to be the owner's (task 142); the marker and canopus-answer show the rest. */
 export const HELD_WHY = "удержана для владельца: "
 const DAY_MS = 24 * 3_600_000
 const MARK_KEEP_MS = 3 * DAY_MS
@@ -38,7 +38,7 @@ const MARK_KEEP_MS = 3 * DAY_MS
 // closed list (tag, release, deletion, push to main, widening of the rights). The first version (task 096) looked for the words anywhere in
 // the text and sent about 70 % of the questions to the owner, two thirds of them for a word of the description (measure of 2026-10-18).
 // A table, not logic: a rule is added by a line (id, why, patterns `act`, examples `yes` and `no`); every rule and every example has a
-// cell in test/crew-form-auto.test.mjs (`yes` must close by this rule, `no` must not).
+// cell in test/canopus-form-auto.test.mjs (`yes` must close by this rule, `no` must not).
 // The pattern (ClosedAct), the text is split into sentences and words (normalizeGateText of answer-parse.ts: lower case, no punctuation):
 //   v  verbs in a form that PROPOSES (infinitive, imperative, "we"): "запушить", "пушим", "approve". A noun ("удаление"), a participle
 //      ("утверждённый") and a past form ("слит") are not listed: they describe, they do not propose.
@@ -312,12 +312,12 @@ export const CLOSED_LIST: ClosedRule[] = [
           "прав(ить)", "править", "поправ(ить|им)", "измен(ить|им|ите|яем)", "мен(ять|яем)", "поменя(ть|ем)", "редактир(овать|уем)", "отредактир(овать|уем)", "записа(ть)", "запиш(ем|ите)", "постав(ить|им|ьте)", "выстав(ить|им|ьте)", "обнов(ить|им)", "добав(ить|им|ьте)", "включ(ить|им|ите)",
           "выключ(ить|им|ите)",
         ],
-        o: ["crew harness json", "opencode jsonc", "opencode json", "настройк* проект*", "crew config"],
+        o: ["canopus json", "opencode jsonc", "opencode json", "настройк* проект*", "canopus config"],
         w: 6,
       },
     ],
-    yes: ["Поправить .opencode/crew-harness.json?", "Изменить глобальный opencode.jsonc?", "Записать профиль в настройки проекта?"],
-    no: ["Файл crew-harness.json прочитан, ключей project_settings нет.", "Настройки проекта подгружены при старте."],
+    yes: ["Поправить .opencode/canopus.json?", "Изменить глобальный opencode.jsonc?", "Записать профиль в настройки проекта?"],
+    no: ["Файл canopus.json прочитан, ключей project_settings нет.", "Настройки проекта подгружены при старте."],
   },
   {
     id: "boundaries",
@@ -947,7 +947,7 @@ export const autoNote = (question: string, answer: string, type: string, id: str
   `ответ по настройке проекта (answer_mode: recommendations, тип ${type}) на форму «${question.slice(0, 150)}»: ${answer.slice(0, 200)} [answer ${id}]`
 
 // ---------------------------------------------------------------------------------------------------------------------
-// THE SHOW: the counters of /crew and of the side panel, the note of the doctor
+// THE SHOW: the counters of /canopus and of the side panel, the note of the doctor
 export type AutoStats = { answered: number; last?: number; held: Record<HoldReason, number>; heldTotal: number; /** held by the closed list, by rule (task 142) */ rules: Record<string, number> }
 const REASON_WORDS: Record<HoldReason, string> = { closed: "закрытый список", norec: "нет рекомендации", limit: "предел", doubt: "сомнение", fail: "сбой доставки" }
 const REASON_SHORT: Record<HoldReason, string> = { closed: "closed", norec: "no rec", limit: "limit", doubt: "doubt", fail: "failed" }
@@ -978,7 +978,7 @@ export function autoStats(project: string | undefined, now = Date.now(), formsDi
   return out
 }
 
-/** "closed 1, no rec 2": the reasons with a count, for the counter of /crew. */
+/** "closed 1, no rec 2": the reasons with a count, for the counter of /canopus. */
 export const heldShort = (s: AutoStats) => (Object.keys(REASON_SHORT) as HoldReason[]).filter((r) => s.held[r]).map((r) => `${REASON_SHORT[r]} ${s.held[r]}${r === "closed" ? rulesShort(s) : ""}`).join(", ")
 /** " (norms 1, rounds 2)": which rules of the closed list held the forms (task 142: the panel names the reason, not only the count). */
 const rulesShort = (s: AutoStats) => {

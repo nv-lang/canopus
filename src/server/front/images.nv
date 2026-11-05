@@ -4,10 +4,10 @@
 // Why the front and not the hub takes the bytes: the hub reads its stdin ONE byte at a time (item 31 of the workarounds), about 40 microseconds a byte,
 // so a screenshot of a megabyte in a line would stop the hub for 40 seconds. The page puts the file by HTTP (raw bytes, no base64, no line), then the
 // message names the picture by its number (`images: [{n, name}]`) and the hub, which shares the data folder, finds the file.
-// This file holds what needs no routes: the check of an upload, the answer, the read of a file. The files and the numbers are `crew_harness.storage` (images.nv there).
-module crew_harness.server.front
+// This file holds what needs no routes: the check of an upload, the answer, the read of a file. The files and the numbers are `canopus.storage` (images.nv there).
+module canopus.server.front
 
-import crew_harness.storage.{image_ext, image_number, save_image, find_image, read_image, valid_session_name}
+import canopus.storage.{image_ext, image_number, save_image, find_image, read_image, valid_session_name}
 import std.encoding.json.{JsonValue, JsonObject}
 import std.fs.{Fs, real_fs}
 

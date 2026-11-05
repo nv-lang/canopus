@@ -3,12 +3,12 @@
 //   node test/answer-scope.mjs --selfcheck   puts the word answerMode into a copy of approvals.ts: the check must fail ("scope selfcheck ok")
 // The text of the code is read, not run: the files of the approval of plans, of the review and the merge, of the task store, of the
 // panel and of the profiles do not mention the answer modes at all, and the bodies of applyApprovals, planSteps, flowWatch,
-// endsWithQuestion and statusOf and the branches plan_decide, merge, accept, cleanup, rework of crew_task do not either.
-// CREW_PLUGIN_DIR points to another copy of the code.
+// endsWithQuestion and statusOf and the branches plan_decide, merge, accept, cleanup, rework of canopus_task do not either.
+// CANOPUS_PLUGIN_DIR points to another copy of the code.
 import { readFileSync, readdirSync } from "node:fs"
 import path from "node:path"
 
-const plugin = process.env.CREW_PLUGIN_DIR ? path.resolve(process.env.CREW_PLUGIN_DIR) : path.join(import.meta.dirname, "..")
+const plugin = process.env.CANOPUS_PLUGIN_DIR ? path.resolve(process.env.CANOPUS_PLUGIN_DIR) : path.join(import.meta.dirname, "..")
 const WORDS = /answerMode|answer_(mode|max)|answerTurn|answer-parse|answer\.ts|\banswers\b/
 const read = (f) => readFileSync(path.join(plugin, f), "utf8")
 

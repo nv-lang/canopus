@@ -7,7 +7,7 @@ const sys = ev.system.map((x) => x.text).join("\n")
 console.log("system block chars:", sys.length)
 let d = 0, s = 0
 for (const [name, t] of Object.entries(H.tools)) {
-  if (!name.startsWith("crew_")) continue
+  if (!name.startsWith("canopus_")) continue
   const dl = t.description.length, sl = JSON.stringify(t.input).length
   d += dl; s += sl
   console.log(name.padEnd(14), "desc", dl, "schema", sl)
