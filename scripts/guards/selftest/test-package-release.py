@@ -87,6 +87,12 @@ def main():
                            "machines/product/work-mode.alula.md", "preparation-agent.mjs"], listed
         assert stlib.has_line(proc, "ок: осмотрено"), proc.out
 
+    def relative_kit():
+        repo = fresh(tree_files())
+        proc = package(repo, "relative-kit")
+        assert proc.returncode == 0, proc.out + proc.err
+        assert os.path.isfile(os.path.join(repo, "relative-kit", "crew-hub.exe"))
+
     def no_hub():
         proc = package(fresh(tree_files(hub=False)), kit_path())
         assert proc.returncode == 1 and stlib.has_line(proc, "нет target/crew-hub.exe"), proc.out
@@ -112,6 +118,7 @@ def main():
         assert proc.returncode == 1 and stlib.has_line(proc, name), proc.out
 
     pr.probe("законное", "комплект: две программы и машины диалога, без tests/, чата и чужих машин", legit)
+    pr.probe("иной-синтаксис", "относительный путь комплекта разрешается от рабочего каталога", relative_kit)
     pr.probe("красная", "нет target/crew-hub.exe", no_hub)
     pr.probe("красная", "папка комплекта не пуста", not_empty)
     pr.probe("красная", "хеш подключения не равен хешу библиотеки — страж красный", broken_hash)

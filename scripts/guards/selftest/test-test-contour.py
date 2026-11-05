@@ -62,12 +62,17 @@ def main():
         bad = ps_text.replace("-WindowStyle Hidden", "")
         assert faults(bad, PS_TOKENS), "копия ps1 с присоединённым front прошла проверку"
 
+    def missing_targets():
+        assert faults("", SH_TOKENS) == list(SH_TOKENS), "пустая мишень sh принята"
+        assert faults("", PS_TOKENS) == list(PS_TOKENS), "пустая мишень ps1 принята"
+
     pr.probe("законное", "sh -n принимает test-contour.sh", sh_syntax)
-    pr.probe("законное", "оба скрипта держат опорные свойства контура (data_dir по хешу дерева, порт 8100+, "
+    pr.probe("иной-синтаксис", "оба скрипта держат опорные свойства контура (data_dir по хешу дерева, порт 8100+, "
              "ссылка, стоп, бинарники основной копии, src/web дерева, метка contour)", props)
     pr.probe("красная", "копия sh без своего каталога данных — проверка свойств красная", red_no_data_dir)
     pr.probe("красная", "копия ps1 без печати ссылки — проверка свойств красная", red_no_link)
     pr.probe("красная", "копия ps1 с присоединённым front (без -WindowStyle Hidden) — проверка красная", red_attached_front)
+    pr.probe("мишень", "отсутствующие скрипты не проходят проверку свойств", missing_targets)
     sys.exit(pr.done())
 
 
