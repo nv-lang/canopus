@@ -4,7 +4,7 @@ import { writeFixtureFile } from "./fixture-settings.mjs"
 // project flag merge_lock_per_task: on it is refused with a reason. LT-4..5: rework/cancel of another task does not release the lock of
 // the held one (always). LT-6..7: a broken settings file in the legacy mode is reported (log, doctor line) and does not silently turn
 // the protection keys off (the last good settings are kept).
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync, readFileSync, writeFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { harness, reporter } from "./landing-harness.mjs"
@@ -41,20 +41,22 @@ const clear = () => review.releaseMergeLock("proj", holder()?.session ?? "")
   H.settings({})
 }
 
-// ---- legacyWalk: a broken file
+// ---- malformed selected configuration fails closed; policy is not loaded from retired files.
 {
-  const dir = mkdtempSync(path.join(os.tmpdir(), "lt-legacy-"))
-  const f = path.join(dir, ".canopus", "plugin", "config.json")
-  mkdirSync(path.dirname(f), { recursive: true })
-  const settings = await import("../settings.ts")
-  writeFixtureFile(f, JSON.stringify({ merge_precheck: "required", rework_max: 7 }))
-  const first = settings.rawSettingsFor(dir, [])
-  writeFixtureFile(f, "{ not json")
-  const broken = settings.rawSettingsFor(dir, [])
-  cell("LT-6 broken legacy file: the last good settings are kept (protection keys stay)", first.rework_max === 7 && broken.rework_max === 7 && broken.merge_precheck === "required", JSON.stringify(broken))
-  const probs = settings.settingsProblems([{ name: "leg", root: settings.normPath(dir), rootPath: dir }])
-  cell("LT-7 broken legacy file: canopus_doctor names the file", probs.some((p) => p.includes("config.json") && /не JSON/.test(p)), JSON.stringify(probs))
-  rmSync(dir, { recursive: true, force: true })
+  const {pluginConfigContext}=await import("../config-context.ts")
+  const settings=await import("../settings.ts")
+  const f=pluginConfigContext().file
+  const original=readFileSync(f,"utf8")
+  const before=H.core.loadConfig(H.proj)
+  let error
+  try {
+    writeFileSync(f,"{ not json")
+    try { settings.rawSettingsFor(H.proj,H.core.loadProjects()) } catch(e) { error=String(e) }
+    cell("LT-6 malformed selected config is refused rather than weakening protection", !!error && /JSON|json/.test(error), error)
+    cell("LT-7 refusal identifies the actual configuration source", !!error && error.includes(f), error)
+  } finally { writeFileSync(f,original) }
+  const after=H.core.loadConfig(H.proj)
+  cell("LT-8 restoration preserves the named merge policy", after.mergePrecheck === before.mergePrecheck && after.reworkMax === before.reworkMax, JSON.stringify(after.mergePrecheck))
 }
 
 done(H)

@@ -1,3 +1,4 @@
+const { INTERNAL_POLICY } = await import("../resolved-policy.ts")
 // Self-test of task 161, the guard against a volley of letters and questions at the first pass over OLD tasks (node >= 24):
 //   node test/canopus-idle-watch-burst.test.mjs
 // The acceptance of 161 counted on the real box: on the first pass 10 open tasks "stand" (from 1590 to 7943 minutes) - up to 10 letters
@@ -61,7 +62,7 @@ const note = (list, input, who, d, at) => iw?.noteStep?.(input, { session: who, 
 // ---- B-1 the settings
 {
   const ks = ["step_questions_max", "step_letters_per_pass", "step_old_minutes"].map((k) => schema.SCHEMA.find((x) => x.key === k))
-  cell("B-1a the schema has step_questions_max (2), step_letters_per_pass (3), step_old_minutes (300), group Подталкивание", ks[0]?.default === 2 && ks[1]?.default === 3 && ks[2]?.default === 300 && ks.every((k) => k?.kind?.type === "int" && k.group === "Подталкивание"), J(ks.map((k) => k?.key)))
+  cell("B-1a burst controls are named code policies, excluded from public configuration", ks.every(k => !k) && INTERNAL_POLICY.step_questions_max === 2 && INTERNAL_POLICY.step_letters_per_pass === 3 && INTERNAL_POLICY.step_old_minutes === 300, J(ks))
   const c = core.loadConfig(path.join(tmp, "nowhere"))
   cell("B-1b loadConfig reads them with the defaults 2 / 3 / 300", c.stepQuestionsMax === 2 && c.stepLettersPerPass === 3 && c.stepOldMin === 300, J([c.stepQuestionsMax, c.stepLettersPerPass, c.stepOldMin]))
 }

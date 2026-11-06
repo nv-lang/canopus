@@ -22,7 +22,7 @@ const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
 const settings = path.join(proj, ".canopus", "plugin", "config.json")
-const base = { root: "..", worktree_name: "{repo}-{n}-{slug}", branch_name: "task/{n}-{slug}", cleanup: "local", allow_default_models: true, inflight_limit: 20, spawn_limits: { worker: 20, reviewer: 0 } }
+const base = { worktrees: "", root: "..", worktree_name: "{repo}-{n}-{slug}", branch_name: "task/{n}-{slug}", cleanup: "local", allow_default_models: true, inflight_limit: 20, spawn_limits: { worker: 20, reviewer: 0 } }
 // before the settings name the folder of trees, the plugin makes no tree (task 061 started so: the tabs were moved by hand)
 const putSettings = (raw) => {
   writeFixtureFile(settings, JSON.stringify(raw))

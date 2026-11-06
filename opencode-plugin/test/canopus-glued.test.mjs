@@ -38,8 +38,8 @@ cell("one glued run in a long spaceless letter is rejected", gluedText("пере
 
 const tools = {}
 const ctx = {
-  location: { directory: process.cwd() },
-  session: { get: async ({ sessionID }) => ({ id: sessionID, title: sessionID, location: { directory: process.cwd() } }), prompt: async () => {}, synthetic: async () => {}, hook: async () => {} },
+  location: { directory: tmp },
+  session: { get: async ({ sessionID }) => ({ id: sessionID, title: sessionID, location: { directory: tmp } }), prompt: async () => {}, synthetic: async () => {}, hook: async () => {} },
   tool: { transform: async (fn) => fn({ add: (t) => (tools[t.name] = t) }) },
   command: { list: async () => [], transform: async (fn) => fn({ add: () => {} }) },
 }

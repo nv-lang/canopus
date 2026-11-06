@@ -20,7 +20,7 @@ mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.joi
 mkdirSync(path.join(proj, "docs", "plans"), { recursive: true })
 writeFixtureFile(path.join(proj, "docs", "plans", "7-old.md"), "# План 7 — старый\n")
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
-writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ worktrees: "wt", branch_name: "t{n}-{slug}", cleanup: "local", allow_default_models: true, merge_precheck: "off", accepted_slot: "hold", spawn_limits: { worker: 5, reviewer: 1 }, plan_clean_rounds: 2, plan_rounds_max: 4 }))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ tasks_dir: "docs/plans", worktrees: "wt", branch_name: "t{n}-{slug}", cleanup: "local", allow_default_models: true, merge_precheck: "off", accepted_slot: "hold", spawn_limits: { worker: 5, reviewer: 1 }, plan_clean_rounds: 2, plan_rounds_max: 4 }))
 git(proj, "init", "-q", "-b", "main")
 git(proj, "add", "-A")
 git(proj, "commit", "-q", "-m", "init")

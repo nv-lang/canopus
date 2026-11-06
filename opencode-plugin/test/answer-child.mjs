@@ -14,6 +14,7 @@ process.env.XDG_DATA_HOME = tmp
 const plugin = process.env.CANOPUS_PLUGIN_DIR ? path.resolve(process.env.CANOPUS_PLUGIN_DIR) : path.join(import.meta.dirname, "..")
 const load = (f) => import(pathToFileURL(path.join(plugin, f)).href)
 const core = await load("core.ts")
+core.loadProjects()
 const A = await load("answer.ts")
 const card = core.readJson(core.cardFile(session))
 const end = await core.turnEnd(session)

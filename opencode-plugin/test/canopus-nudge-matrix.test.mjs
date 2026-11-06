@@ -25,7 +25,7 @@ const dbPath = path.join(tmp, "opencode.db")
 ;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 
 // one directory per project: its own settings (reviewer, accepted_slot, plan_approver)
-const BASE_CFG = { push_empty_turns: 2, push_max: 3, stall_minutes: 0.01, accepted_reminder_min: 0.01, owner_reminder_min: 0.01, inflight_limit: 30, spawn_limits: { worker: 9, reviewer: 1, acceptor: 1 } }
+const BASE_CFG = { worktrees: "", push_empty_turns: 2, push_max: 3, stall_minutes: 0.01, accepted_reminder_min: 0.01, owner_reminder_min: 0.01, inflight_limit: 30, spawn_limits: { worker: 9, reviewer: 1, acceptor: 1 } }
 const dirs = {}
 const projectsOpt = {}
 const mkProject = (name, extra = {}) => {
@@ -444,7 +444,7 @@ cell("M07", "running, kind assign, the owner's tab is closed: reconcile records 
   const n = noticesFor(undefined).filter((x) => /ждёт согласования/.test(x.title))
   cell("M20", "approval, plan_approver owner: a notice with attention in the live windows (the repeat period is max(1, owner_reminder_min) minutes, not shortened here)", n.length >= 1 && n[0].attention === true, JSON.stringify(seenNotices.map((x) => x.title)))
   const l = lettersRe(AUTH.pn, /ждёт твоего согласования/)
-  cell("M21", "approval, plan_approver integrator: a letter to the author (plan_decide); no notice to the owner", l.length >= 1 && n.length === 1, JSON.stringify({ l: l.length, n: n.length }))
+  cell("M21", "approval, plan_approver integrator: a letter to the author (plan_decide); no notice to the owner", l.length >= 1 && !n.some(x => /План 21\b/.test(x.title)), JSON.stringify({ l: l.length, n: n.map(x=>x.title) }))
 }
 // M22/M23 done / cancelled
 {
@@ -505,10 +505,15 @@ await until(() => noticesFor("sesEX31").some((n) => /застряла/.test(n.ti
   const row = taskBlock(T.t1.n)
   cell("T1d", "stuck: '⚠ stuck <age>' is shown in /canopus on the tab of the task and 'застряла с ЧЧ:ММ' in the sidebar", /⚠ stuck/.test(row) && side().some((l) => /застряла с \d\d:\d\d/.test(l)), JSON.stringify({ row, side: side() }))
   await call("canopus_role", AUTH.pw, { role: "integrator" })
-  await call("canopus_task", AUTH.pw, { action: "push", n: T.t1.n, text: "доделай" })
+  const pushResult = await call("canopus_task", AUTH.pw, { action: "push", n: T.t1.n, text: "доделай" })
+  cell("T1e-mailbox", "push acknowledgement preserves stuck before a real working turn", /stuck сохранён/.test(pushResult) && !!oblig("sesEX31",T.t1.qid)?.stuck, JSON.stringify({pushResult,ob:oblig("sesEX31",T.t1.qid)}))
+  await until(() => sent("sesEX31", /Подталкивание по задаче/).length >= 1)
+  await turn("sesEX31", {tools:true})
   const t1Line = () => /⚠ stuck/.test(taskBlock(T.t1.n))
-  await until(() => !t1Line(), 60_000) // the status pass may take more than 4 s on a loaded machine (task 048 measure: 2.0-3.8 s)
-  cell("T1e", "canopus_task push clears the mark: the line is gone from /canopus", !t1Line(), view())
+  await until(() => !t1Line() && !oblig("sesEX31",T.t1.qid)?.stuck, 60_000)
+  const back = oblig("sesEX31",T.t1.qid)
+  cell("T1e", "delivered push followed by a real working turn clears the mark and resets obligation counters", !t1Line() && !!back && !back.stuck && !back.stuckAt && !back.empty && !back.nudges, JSON.stringify({pushResult,view:view(),back}))
+
 }
 // T2: reviewer, empty turns
 await turn("sesRV32")

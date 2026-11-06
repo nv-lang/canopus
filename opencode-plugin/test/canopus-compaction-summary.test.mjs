@@ -1,3 +1,4 @@
+const { INTERNAL_POLICY } = await import("../resolved-policy.ts")
 // Self-test of task 072 (node >= 24):  node test/canopus-compaction-summary.test.mjs
 // The summary that OpenCode writes at the compaction of a tab is short and by a pattern. OpenCode 2.0.26 gives a plugin the session hook
 // `compaction` (the same payload as the hook `context`: system, messages, tools, model, agent); the template of the summary is fixed in the
@@ -45,8 +46,8 @@ cell("CS-3c a request without a session id gets nothing and the hook does not th
 // ---- CS-4 the setting
 const schema = await import("../config-schema.ts")
 const k = schema.SCHEMA.find((s) => s.key === "compaction_summary")
-cell("CS-4a compaction_summary is in the schema: bool, true by default, with a question and a reason", !!k && k.kind.type === "bool" && k.default === true && k.question.length > 10 && k.why.length > 10, JSON.stringify(k))
-cell("CS-4b the schema checks the value: true and false pass, a string is refused", !!k && schema.invalid("compaction_summary", false) === undefined && schema.invalid("compaction_summary", true) === undefined && !!schema.invalid("compaction_summary", "no"), "")
+cell("CS-4a compaction_summary is named enabled code policy, excluded from public configuration", !k && INTERNAL_POLICY.compaction_summary === true, JSON.stringify(k))
+cell("CS-4b internal validator accepts booleans and rejects strings; public writes are refused", schema.invalidInternalPolicy("compaction_summary", false) === undefined && schema.invalidInternalPolicy("compaction_summary", true) === undefined && !!schema.invalidInternalPolicy("compaction_summary", "no") && !!schema.invalid("compaction_summary", true), "")
 cell("CS-4c loadConfig: true by default", H.cfg().compactionSummary === true, JSON.stringify(H.cfg().compactionSummary))
 H.settings({ compaction_summary: false })
 cell("CS-4d compaction_summary false: loadConfig reads it and the hook adds nothing", H.cfg().compactionSummary === false && added(await ask()) === "", JSON.stringify(H.cfg().compactionSummary))
@@ -56,7 +57,7 @@ H.settings({ owner_language: "English" })
 const en = added(await ask())
 cell("CS-4f owner_language English: the text says in English, not Russian", /in English/.test(en) && !/in Russian/.test(en), en)
 H.settings({})
-cell("CS-4g canopus_config names compaction_summary", /compaction_summary/.test(H.tools.canopus_config.description), "")
+cell("CS-4g canopus_config exposes only public settings", !/compaction_summary/.test(H.tools.canopus_config.description), "")
 
 // ---- CS-5 one pattern in the Canon; the code, the README and the Canon agree
 const processMd = read("doc/canon/process.md")

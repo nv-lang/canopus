@@ -5,14 +5,15 @@ import { writeFixtureFile } from "./fixture-settings.mjs"
 // letters sent through MCP are delivered by the plugin's timer, letters to the MCP window reach it too.
 // CANOPUS_MODULE / CANOPUS_MCP point at mutated copies for the red probes.
 import { spawn } from "node:child_process"
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { fileURLToPath } from "node:url"
+import { fileURLToPath, pathToFileURL } from "node:url"
 import { DatabaseSync } from "node:sqlite"
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-mcp-"))
+const pluginConfigFile = path.join(tmp, "opencode", "plugin", "config.json")
 process.env.XDG_DATA_HOME = tmp
 ;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 ;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
@@ -23,6 +24,15 @@ const root = path.join(tmp, "src")
 const dirs = { A: path.join(root, "nova", "repo-a"), B: path.join(root, "nova", "limits"), C: path.join(root, "nova", "repo-c"), D: path.join(root, "nova", "limits", "sub") }
 for (const d of Object.values(dirs)) mkdirSync(d, { recursive: true })
 const dirOf = { sesAAAAAA: dirs.A, sesBBBBBB: dirs.B, sesCCCCCC: dirs.C }
+
+const fixtureSettingsURL=pathToFileURL(path.join(here,"fixture-settings.mjs")).href
+const fixturePolicyDirs=[path.join(root,"nova"),...Object.values(dirs)]
+const fixtureSettings=await import(fixtureSettingsURL)
+for(const dir of fixturePolicyDirs)fixtureSettings.setFixturePolicy(dir,{worktrees:"",allow_default_models:true})
+const childPolicy=path.join(tmp,"mcp-fixture-policy.mjs")
+writeFileSync(childPolicy,`import {setFixtureRuntime,setFixturePolicy} from ${JSON.stringify(fixtureSettingsURL)};
+setFixtureRuntime("PRESENCE","all"); setFixtureRuntime("POLL_MS",100);
+for(const dir of ${JSON.stringify(fixturePolicyDirs)})setFixturePolicy(dir,{worktrees:"",allow_default_models:true});`)
 
 // opencode.db: the MCP server checks sessions there (read-only), as the plugin does through ctx.session.get.
 mkdirSync(path.join(tmp, "opencode"), { recursive: true })
@@ -50,6 +60,11 @@ const ctx = {
   },
   tool: { transform: async (fn) => fn({ add: (t) => (tools[t.name] = t) }) },
 }
+// Preserve the real HTTP owner transport while translating the legacy fixture
+// definition into the selected public global file before calling production setup.
+const {prepareFixturePluginContext}=await import("./fixture-settings.mjs")
+const fixtureCore=await import("../core.ts")
+prepareFixturePluginContext(fixtureCore,ctx)
 const nativeFixture=mod.nativeFixture(ctx)
 const {taskConfirmationIO}=await import("../task-confirmation-native.ts")
 const stop=await mod.createCanopusPlugin({get:nativeFixture.get,spacingMs:0,taskConfirmationIO:taskConfirmationIO({url:nativeOwner.url,password:"example"})}).setup(nativeFixture.ctx)
@@ -74,8 +89,10 @@ await tools.canopus_role.execute({ role: "integrator" }, { sessionID: "sesBBBBBB
 
 // MCP client over stdio
 function startMcp(session) {
-  const env = { ...nativeOwner.env, OPENCODE_CANOPUS_SESSION: session ?? "" }
-  const child = spawn(process.execPath, [process.env.CANOPUS_MCP ?? path.join(here, "..", "mcp.ts"),"--config",path.join(tmp,"opencode/plugin/config.json")], { env, cwd: dirs.C, stdio: ["pipe", "pipe", "pipe"] })
+  const env = { ...nativeOwner.env, OPENCODE_CANOPUS_SESSION: session ?? "", NODE_OPTIONS: `${nativeOwner.env.NODE_OPTIONS ?? ""} --import=${pathToFileURL(childPolicy).href}` }
+  if (session) env.OPENCODE_CANOPUS_CONFIG = pluginConfigFile
+  else delete env.OPENCODE_CANOPUS_CONFIG // standalone no-session probe uses its explicit --config only
+  const child = spawn(process.execPath, [process.env.CANOPUS_MCP ?? path.join(here, "..", "mcp.ts"),"--config",pluginConfigFile], { env, cwd: dirs.C, stdio: ["pipe", "pipe", "pipe"] })
   let buf = ""
   const waiting = new Map()
   child.stdout.on("data", (d) => {

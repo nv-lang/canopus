@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the window file in the task worktree (task 003; node >= 24):  node test/canopus-profiles-windows.test.mjs
 // The windows of the models of the enabled set are written as .opencode/opencode.json (with the mark of the plugin) into the
 // worktree of each task before the first turn, updated when the set or the data change, removed when the set is gone or
@@ -35,7 +36,13 @@ const SETS = {
 }
 const base = { allow_default_models: true, spawn_limits: { worker: 50, "*": 50, reviewer: 50 }, inflight_limit: 50, worktrees: "wt", cleanup: "none", branch_name: "p{n}-{slug}", merge_precheck: "off" }
 const settingsOf = (dir) => path.join(dir, ".canopus", "plugin", "config.json")
-const writeSettings = (dir, obj) => writeFileSync(settingsOf(dir), JSON.stringify({ ...base, ...obj }))
+const writeSettings = (dir, obj) => {
+  writeFixtureFile(settingsOf(dir), JSON.stringify({ ...base, ...obj }))
+  if (existsSync(path.join(dir,".git"))) {
+    git(dir,"add","--",".canopus/plugin/config.json")
+    git(dir,"commit","-q","-m","accepted profile catalog","--allow-empty")
+  }
+}
 const readSettings = (dir) => JSON.parse(readFileSync(settingsOf(dir), "utf8"))
 const mkRepo = (name, obj) => {
   const dir = path.join(tmp, name)
@@ -70,7 +77,7 @@ const atCreate = new Map()
 const dirOf = new Map()
 const ctx = {
   location: { directory: proj },
-  options: { projects: { proj, other } },
+  options: { projects: [proj, other] },
   session: {
     get: async ({ sessionID }) => ({ id: sessionID, title: sessionID, location: { directory: dirOf.get(sessionID) ?? proj }, time: {} }),
     prompt: async () => {},
@@ -99,13 +106,9 @@ const until = async (cond, ms = 20_000) => {
 }
 const call = async (name, sid, input = {}) => (await tools[name].execute(input, { sessionID: sid })).content
 const task = (project, n) => tasks.loadTask(project, n)
-// enabling a set = the name in the file of the project (ADR-0014: no local layer; the window commands write the same key)
+// Personal profile selection follows the same layer written by the window command.
 const use = (name, dir = proj) => {
-  const file = path.join(dir, ".canopus", "plugin", "config.json")
-  const o = JSON.parse(readFileSync(file, "utf8"))
-  if (name) o.profile_set = name
-  else delete o.profile_set
-  writeFileSync(file, JSON.stringify(o))
+  writeFileSync(path.join(dir,".canopus/plugin/local.json"),JSON.stringify({profile_set:name ?? false}))
 }
 const tab = async (sid, role, dir = proj) => {
   dirOf.set(sid, dir)

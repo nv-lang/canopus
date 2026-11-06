@@ -1,3 +1,4 @@
+const { INTERNAL_POLICY } = await import("../resolved-policy.ts")
 import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of task 063: an idle tab with an open task and no question to the owner is marked and woken (node >= 24):
 //   node test/canopus-idle-tab.test.mjs
@@ -206,7 +207,7 @@ const mkTask = (project, n, author, st, extra = {}) => ({
 // ---- IT-6 the setting
 {
   const k = schema.SCHEMA.find((x) => x.key === "idle_tab_minutes")
-  cell("IT-6a the schema has idle_tab_minutes: int, default 20, group Подталкивание, 0 switches it off", k?.kind?.type === "int" && k.default === 20 && k.group === "Подталкивание" && /0 — не/.test(k.question), JSON.stringify(k))
+  cell("IT-6a idle_tab_minutes is a named code policy, excluded from public configuration", !k && INTERNAL_POLICY.idle_tab_minutes === 20 && !!schema.invalid("idle_tab_minutes", 0), JSON.stringify(k))
   cell("IT-6b loadConfig reads it: default 20, the project value", core.loadConfig(path.join(tmp, "nowhere")).idleTabMin === 20 && core.loadConfig(proj).idleTabMin === 0.05, JSON.stringify([core.loadConfig(path.join(tmp, "nowhere")).idleTabMin, core.loadConfig(proj).idleTabMin]))
 }
 

@@ -1,7 +1,7 @@
 import { writeFixtureFile } from "./fixture-settings.mjs"
 // Flow test of the automatic answer to the forms of the built-in questionnaire, task 096 (node >= 24):  node test/canopus-form-auto-flow.test.mjs
 // The real plugin against a fake OpenCode host (as canopus-owner-answer): the project has `answer_mode: {default: recommendations}` and
-// `answer_delay_sec: 2` in the `local` block of the options. A form with one "(Recommended)" first option is closed by the plugin itself
+// `answer_delay_sec: 10` in the `local` block of the options. A form with one "(Recommended)" first option is closed by the plugin itself
 // after the delay (interrupt of the turn, a service letter "not the owner's word", a file in answers/ with the source plugin, an event of the
 // task, a log line); the owner's reply before the deadline wins; forms of the closed list, without a mark, and of a project without the key
 // are left to the owner as before; the settings file is never written by the plugin; /canopus and the doctor show the counters and reasons.
@@ -72,7 +72,7 @@ const ctx = {
   location: { directory: proj },
   options: {
     projects: { proj, plain },
-    local: { proj: { answer_mode: { default: "recommendations" }, answer_delay_sec: 2, answer_max: 3 } },
+    local: { proj: { answer_mode: { default: "recommendations" }, answer_delay_sec: 10, answer_max: 3 } },
   },
   session: {
     get: async ({ sessionID }) => ({ id: sessionID, title: sessionID, location: { directory: sessionID === P ? plain : proj }, time: {} }),
@@ -118,11 +118,11 @@ fw.handleFormEvent(form("frm_C", C, "Вливать в main?", ["Да (Recommend
 fw.handleFormEvent(form("frm_R", R, "Какой формат отчёта?", ["Короткий", "Длинный"]))
 fw.handleFormEvent(form("frm_P", P, "Какой формат отчёта?", ["Короткий (Recommended)", "Длинный"]))
 await wait(900)
-cell("delay: nothing is answered before answer_delay_sec", calls.length === 0 && !autoFile("frm_A") && Date.now() - t0 < 1_900, JSON.stringify([calls, autoFile("frm_A")]))
+cell("delay: nothing is answered before answer_delay_sec", calls.length === 0 && !autoFile("frm_A") && Date.now() - t0 < 9_900, JSON.stringify([calls, autoFile("frm_A")]))
 // the owner replies in the window to W before the deadline
 fw.handleFormEvent({ type: "form.replied", data: { id: "frm_W", sessionID: W } })
 const got = await until(() => autoFile("frm_A")?.status === "applied")
-cell("answered: the form with one first (Recommended) is closed after the delay", got && Date.now() - t0 >= 1_900, JSON.stringify(autoFile("frm_A")))
+cell("answered: the form with one first (Recommended) is closed after the delay", got && Date.now() - t0 >= 9_900, JSON.stringify(autoFile("frm_A")))
 const af = autoFile("frm_A")
 cell("answered: the file in answers/ names the source, the mode, the option and the answer", af?.source === "plugin" && af.mode === "recommendations" && af.type === "default" && af.answer === "Короткий (Recommended)" && af.option === "1" && af.project === "proj", JSON.stringify(af))
 cell("answered: the turn was interrupted once with resume", calls.filter((c) => c.sessionID === A).length === 1 && calls.find((c) => c.sessionID === A)?.resume === true, JSON.stringify(calls))

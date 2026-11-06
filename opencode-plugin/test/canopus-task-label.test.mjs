@@ -9,7 +9,7 @@ import { writeFixtureFile } from "./fixture-settings.mjs"
 //      title of a group, idle-tab texts, the merge-lock texts (lockWaitLine, precheckLines, unlockMerge), the live sessions of the profiles.
 // TL-4 no place glues "#" and a task number by hand: every "#${...n}" in the sources is a key "project#n" or goes through taskNo.
 import assert from "node:assert/strict"
-import { mkdtempSync, readdirSync, readFileSync, mkdirSync } from "node:fs"
+import { mkdtempSync, readdirSync, readFileSync, mkdirSync, writeFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"

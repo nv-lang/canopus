@@ -112,8 +112,9 @@ else {
 // 3. the watch outlives the process that started it (the service restart), writes `.exit`, and a later pass posts its letter
 {
   const helper = `
+    import path from "node:path"
     process.env.XDG_DATA_HOME = process.argv[1]
-;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./test/test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
     const w = await import(process.argv[2])
     const x = w.requestWatch({ session: "sesO", command: "sleep 4; echo survived", cwd: process.argv[1], note: "outlives" })
     w.pollWatches(() => {})

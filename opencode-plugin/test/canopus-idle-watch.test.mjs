@@ -1,3 +1,4 @@
+const { INTERNAL_POLICY } = await import("../resolved-policy.ts")
 import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of task 161: the watch of idle tasks - the term of a step, the ladder (letter -> answer -> second letter -> question to the
 // owner), the exceptions, the store in files (node >= 24):  node test/canopus-idle-watch.test.mjs
@@ -44,9 +45,9 @@ const cfg30 = { termMin: 30, byStep: {}, extendMin: 30, answerMin: 15 }
 {
   const keys = ["step_term_minutes", "step_term_by_step", "step_extend_minutes", "step_answer_minutes"]
   const ks = keys.map((k) => schema.SCHEMA.find((x) => x.key === k))
-  cell("W-1a the schema has the four keys of the watch, group Подталкивание", ks.every((k) => k && k.group === "Подталкивание"), J(ks.map((k) => k?.key)))
-  cell("W-1b step_term_minutes: int, default 30; 0 switches the watch off", ks[0]?.kind?.type === "int" && ks[0].default === 30 && /0 — не/.test(ks[0].question ?? ""), J(ks[0]))
-  cell("W-1c step_extend_minutes 30 and step_answer_minutes 15; step_term_by_step is a map of numbers", ks[2]?.default === 30 && ks[3]?.default === 15 && ks[1]?.kind?.type === "intMap", J(ks.slice(1)))
+  cell("W-1a watch controls are named code policies, excluded from public configuration", ks.every(k => !k) && keys.every(key => Object.hasOwn(INTERNAL_POLICY, key) && !!schema.invalid(key, INTERNAL_POLICY[key])), J(ks))
+  cell("W-1b step_term_minutes defaults to 30; internal off override remains valid", INTERNAL_POLICY.step_term_minutes === 30 && !schema.invalidInternalPolicy("step_term_minutes", 0), J(INTERNAL_POLICY.step_term_minutes))
+  cell("W-1c extension and answer defaults and map validation remain", INTERNAL_POLICY.step_extend_minutes === 30 && INTERNAL_POLICY.step_answer_minutes === 15 && !schema.invalidInternalPolicy("step_term_by_step", {review:90}), J(INTERNAL_POLICY.step_term_by_step))
   const dir = path.join(tmp, "cfgproj")
   mkdirSync(path.join(dir, ".opencode"), { recursive: true }); mkdirSync(path.join(dir, ".canopus", "plugin"), { recursive: true })
   writeFixtureFile(path.join(dir, ".canopus", "plugin", "config.json"), JSON.stringify({ step_term_minutes: 45, step_term_by_step: { review: 90 }, step_extend_minutes: 20, step_answer_minutes: 5 }))

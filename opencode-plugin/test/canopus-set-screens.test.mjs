@@ -165,16 +165,18 @@ cell("use when no set was enabled: no `(был …)`, the old side is `по spaw
 // ---- a tier bound of the project is named: it explains why the tiers collapsed ----
 {
   const raw = JSON.parse(readFileSync(file, "utf8"))
+  ;(await import("./fixture-settings.mjs")).setFixturePolicy(cfgDir,{tier_max:"light"})
   raw.tier_max = "light"
   writeFixtureFile(file, JSON.stringify(raw, null, 2))
-  git(cfgDir, "commit", "-q", "-a", "-m", "tier bound")
+  git(cfgDir, "commit", "-q", "-a", "-m", "tier bound", "--allow-empty")
   bump()
   await sets("use kimiset")
   r = await sets("use codexset")
-  cell("use with tier_max light: one name per stage (the bound cut the tiers) and a line naming the bound", lines(r)[1] === "Работа:   luna  (было k3-256k)" && lines(r)[2] === "Приёмка:  luna  (было те же)" && lines(r).includes("Ступени ограничены проектом: не выше light (tier_max).") && /Контекст модели: 525K, ввод 461K, вывод до 128K \(у «kimiset» было 220K, вывод до 131072\)\./.test(r), r)
+  cell("use with tier_max light: one name per stage (the bound cut the tiers) and a line naming the bound", lines(r)[1] === "Работа:   luna  (было k3-256k)" && lines(r)[2] === "Приёмка:  luna  (было те же)" && lines(r).includes("Ступени ограничены проектом: не выше light (tier_max) и не ниже light (tier_min).") && /Контекст модели: 525K, ввод 461K, вывод до 128K \(у «kimiset» было 220K, вывод до 131072\)\./.test(r), r)
+  ;(await import("./fixture-settings.mjs")).setFixturePolicy(cfgDir,{tier_max:"heavy"})
   delete raw.tier_max
   writeFixtureFile(file, JSON.stringify(raw, null, 2))
-  git(cfgDir, "commit", "-q", "-a", "-m", "tier bound off")
+  git(cfgDir, "commit", "-q", "-a", "-m", "tier bound off", "--allow-empty")
   bump()
 }
 

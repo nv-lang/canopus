@@ -21,6 +21,8 @@ const cell = R.cell
 const NL = String.fromCharCode(10)
 const H = await harness("canopus-answer-journal", { plugin: false, ownLog: true })
 const { core, tasks } = H
+;(await import("./fixture-settings.mjs")).prepareFixturePluginContext(core, {location:{directory:H.proj},options:{projects:{proj:H.proj}}})
+core.loadProjects()
 const A = await load("answer.ts")
 const A2 = await import(pathToFileURL(path.join(PLUGIN, "answer.ts")).href + "?instance=2")
 

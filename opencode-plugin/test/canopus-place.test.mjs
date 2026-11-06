@@ -111,14 +111,14 @@ cell("the author is told why, once", lettersTo("sesINTEG1").filter((l) => /003 .
 // (the plugin reads the settings folder COMMITTED, with a background refresh — commit the flip and wait for it)
 writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ root: "..", worktrees: "worktrees", worktree_name: "../escape-{n}-{slug}", branch_name: "t{n}-{slug}", cleanup: "local", allow_default_models: true, spawn_limits: { worker: 5, reviewer: 0 } }))
 git(proj, "add", ".canopus/plugin/config.json")
-git(proj, "commit", "-q", "-m", "escape template")
+git(proj, "commit", "-q", "-m", "escape template", "--allow-empty")
 await until(() => core.loadConfig(proj).worktreeName === "../escape-{n}-{slug}")
 const bad = await call("canopus_spawn", "sesINTEG1", { title: "Побег из папки", goal: "g", criteria: "c" })
 cell("canopus_spawn refuses a place outside the trees folder and names the rule", /Задача не поставлена: каталог дерева .* вне папки деревьев проекта .*владелец, 2026-10-26/.test(bad), bad)
 cell("no record is made", !task(4), JSON.stringify(task(4)))
 writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ root: "..", worktrees: "worktrees", worktree_name: "{repo}-{n}-{slug}", branch_name: "t{n}-{slug}", cleanup: "local", allow_default_models: true, spawn_limits: { worker: 5, reviewer: 0 } }))
 git(proj, "add", ".canopus/plugin/config.json")
-git(proj, "commit", "-q", "-m", "restore template")
+git(proj, "commit", "-q", "-m", "restore template", "--allow-empty")
 await until(() => core.loadConfig(proj).worktreeName === "{repo}-{n}-{slug}")
 
 // 4b. a tree made by hand outside the folder on the task branch: not adopted, not started, the author is told how to fix

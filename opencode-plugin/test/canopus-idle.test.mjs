@@ -15,7 +15,7 @@ process.env.XDG_DATA_HOME = tmp
 const cards = path.join(tmp, "opencode", "plugin", "data", "cards")
 mkdirSync(cards, { recursive: true })
 const card = (session, role, pid) =>
-  writeFixtureFile(path.join(cards, `${session}.json`), JSON.stringify({ session, role, auto: false, title: "", directory: process.cwd(), repo: "nova", pid, updated: Date.now() }))
+  writeFixtureFile(path.join(cards, `${session}.json`), JSON.stringify({ session, role, auto: false, title: "", directory: tmp, repo: "nova", pid, updated: Date.now() }))
 card("sesIDLE01", "carina", process.pid) // this process, plugin reloaded since
 card("sesDEAD01", "tester", 999999) // a process that no longer exists (server restart)
 card("sesFORGN1", "foreign", process.ppid) // a live foreign process: not ours to deliver
@@ -25,9 +25,9 @@ const hooks = {}
 const tools = {}
 const delivered = []
 const ctx = {
-  location: { directory: process.cwd() },
+  location: { directory: tmp },
   session: {
-    get: async ({ sessionID }) => ({ id: sessionID, location: { directory: process.cwd() } }),
+    get: async ({ sessionID }) => ({ id: sessionID, location: { directory: tmp } }),
     prompt: async ({ sessionID, text }) => delivered.push({ sessionID, text }),
     hook: async (name, cb) => (hooks[name] = cb),
   },

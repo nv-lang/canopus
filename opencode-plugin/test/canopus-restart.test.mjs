@@ -16,7 +16,7 @@ process.env.XDG_DATA_HOME = tmp
 ;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
-writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ spawn_limits: { reviewer: 2 } }))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ worktrees: "", spawn_limits: { reviewer: 2 } }))
 
 const titles = new Map()
 let goneTries = 0 // updates of a session that no longer exists in OpenCode

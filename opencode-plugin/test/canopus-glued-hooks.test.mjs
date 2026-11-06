@@ -134,8 +134,8 @@ const mod = await import("./fixture-plugin.mjs")
 const tools = {}
 const regs = { tool: {}, permission: {} }
 const ctx = {
-  location: { directory: process.cwd() },
-  session: { get: async ({ sessionID }) => ({ id: sessionID, title: sessionID, location: { directory: process.cwd() } }), prompt: async () => {}, synthetic: async () => {}, hook: async () => {} },
+  location: { directory: tmp },
+  session: { get: async ({ sessionID }) => ({ id: sessionID, title: sessionID, location: { directory: tmp } }), prompt: async () => {}, synthetic: async () => {}, hook: async () => {} },
   tool: { transform: async (fn) => fn({ add: (t) => (tools[t.name] = t) }), hook: async (name, f) => void (regs.tool[name] = f) },
   permission: { hook: async (name, f) => void (regs.permission[name] = f) },
   command: { list: async () => [], transform: async (fn) => fn({ add: () => {} }) },

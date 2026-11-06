@@ -17,7 +17,7 @@ process.env.XDG_DATA_HOME = tmp
 ;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const dirA = path.join(tmp, "alpha")
 mkdirSync(path.join(dirA, ".opencode"), { recursive: true }); mkdirSync(path.join(dirA, ".canopus", "plugin"), { recursive: true })
-writeFixtureFile(path.join(dirA, ".canopus", "plugin", "config.json"), JSON.stringify({}))
+writeFixtureFile(path.join(dirA, ".canopus", "plugin", "config.json"), JSON.stringify({ worktrees: "" }))
 
 const mod = await import("./fixture-plugin.mjs")
 const core = await import("../core.ts")

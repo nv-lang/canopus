@@ -8,7 +8,7 @@ import path from "node:path"
 import { harness, reporter } from "./landing-harness.mjs"
 
 const { cell, done } = reporter("canopus-landing-keep.test")
-const H = await harness("canopus-landing-keep", { settings: { worktrees: "wt", cleanup: "local" } })
+const H = await harness("canopus-landing-keep", { settings: { worktrees: "wt", cleanup: "local", branch_name: "t{n}-{slug}" } })
 const { call, git, gitTry, proj, tmp, review, core } = H
 const REV = "sesREV1"
 const norm = (p) => (existsSync(p) ? realpathSync.native(p) : path.resolve(p)).replace(/\\/g, "/").toLowerCase()

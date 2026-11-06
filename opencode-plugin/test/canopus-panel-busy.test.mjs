@@ -1,3 +1,4 @@
+const { INTERNAL_POLICY } = await import("../resolved-policy.ts")
 import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the busy rows of the side panel and of the busy flag of closed tasks (task 111; node >= 24):  node test/canopus-panel-busy.test.mjs
 // 1. A working session without a live task (role worker, reviewer, ...) is named by the title of its card (at most two rows, "..." at the
@@ -20,7 +21,7 @@ const dbPath = path.join(tmp, "opencode.db")
 ;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
-writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ spawn_limits: { worker: 8 }, inflight_limit: 8, spawn_models: { light: "kimi/k3" } }))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ worktrees: "", spawn_limits: { worker: 8 }, inflight_limit: 8, allow_default_models: true, spawn_models: { light: "kimi/k3" } }))
 
 const db = new DatabaseSync(dbPath)
 db.exec("create table session_v2 (id text primary key, directory text, title text, parent_id text, time_archived integer, time_idle integer, time_viewed integer, time_suspended integer)")
@@ -113,11 +114,11 @@ const panel = (s) => sidebarLines([s], now, "nova")
 
   // the setting
   const k = schema.SCHEMA.find((x) => x.key === "long_turn_minutes")
-  cell("111 AC-2 the schema has long_turn_minutes: int, default 360, group Подталкивание", k?.kind?.type === "int" && k.default === 360 && k.group === "Подталкивание", JSON.stringify(k))
+  cell("111 AC-2 long_turn_minutes is named code policy, excluded from public configuration", !k && INTERNAL_POLICY.long_turn_minutes === 360 && !!schema.invalid("long_turn_minutes", 0), JSON.stringify(k))
   cell("111 AC-2 the setting is read: default 360, 0 kept, a number kept", core.loadConfig(proj).longTurnMin === 360, String(core.loadConfig(proj).longTurnMin))
-  writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ spawn_limits: { worker: 8 }, inflight_limit: 8, spawn_models: { light: "kimi/k3" }, long_turn_minutes: 0 }))
+  writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ worktrees: "", spawn_limits: { worker: 8 }, inflight_limit: 8, allow_default_models: true, spawn_models: { light: "kimi/k3" }, long_turn_minutes: 0 }))
   cell("111 AC-2 long_turn_minutes 0 is read as 0 (off)", core.loadConfig(proj).longTurnMin === 0, String(core.loadConfig(proj).longTurnMin))
-  writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ spawn_limits: { worker: 8 }, inflight_limit: 8, spawn_models: { light: "kimi/k3" } }))
+  writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ worktrees: "", spawn_limits: { worker: 8 }, inflight_limit: 8, allow_default_models: true, spawn_models: { light: "kimi/k3" } }))
 }
 
 // 3. the busy flag of a closed task
@@ -129,6 +130,7 @@ const delivered = []
 let nextId = 1
 const ctx = {
   location: { directory: proj },
+  options: { projects: { proj } },
   session: {
     get: async ({ sessionID }) => ({ id: sessionID, title: sessionID, location: { directory: proj }, time: {} }),
     prompt: async ({ sessionID, text, resume }) => delivered.push({ sessionID, text, resume }),
