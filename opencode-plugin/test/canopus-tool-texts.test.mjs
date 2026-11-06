@@ -97,7 +97,7 @@ cell("TT-5a canopus_task: one action per line, 'action - who - params - what'", 
 cell("TT-5b canopus_task names plan_decide, round, cleanup and not the old cleaned", /plan_decide/.test(T) && /\bround\b/.test(T) && /\bcleanup\b/.test(T) && !/\bcleaned\b/.test(T), "")
 cell("TT-5c canopus_task enum has cleanup and the synonym", tools.canopus_task.input.properties.action.enum.includes("cleanup") && tools.canopus_task.input.properties.action.enum.includes("cleaned"), "")
 const S = tools.canopus_spawn.description
-cell("TT-5d canopus_spawn describes kind plan fully (plans_dir, rounds, who approves, /plans, plan_decide)", /kind: plan/.test(S) && /plans_dir/.test(S) && /\/plans/.test(S) && /plan_decide/.test(S) && /approval/.test(S), S)
+cell("TT-5d canopus_spawn describes kind plan fully (tasks_dir, rounds, who approves, /plans, plan_decide)", /kind: plan/.test(S) && /tasks_dir/.test(S) && /\/plans/.test(S) && /plan_decide/.test(S) && /approval/.test(S), S)
 const C = tools.canopus_config.description
 cell("TT-5e canopus_config names public choices and show, not retired plan policy knobs", /\bshow\b/.test(C) && !/\bview\b/.test(C) && /owner_language/.test(C) && /tasks_dir/.test(C) && !/plan_approver|plan_acceptance/.test(C) && C.split("\n").length >= 4, C)
 cell("TT-5f canopus_watch is line by line", tools.canopus_watch.description.split("\n").length >= 6, "")

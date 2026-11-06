@@ -111,7 +111,7 @@ export function setsEditVerb(dir: string, verb: string, args: string[]): { ok: b
       if (!st) return bad(`этап «${stageWord}» не годится: ${P.STAGES_TEXT} (или русские названия)`)
       if (!isObj(ps.data.sets?.[name])) return bad(`набора «${name}» нет (есть: ${listSets(ps.data)})`)
       if (!P.rawCell((ps.data.sets as any)[name], st)) return bad(`у набора «${name}» этап «${P.STAGE_RU[st]}» и так не описан`)
-      return applyEdit(dir, command, ({ draft, data }) => (L.dSetCell(draft, name, st, null), { what: `набор «${name}»: этап «${P.STAGE_RU[st]}» убран (модель — по spawn_models)`, from: P.cellText(P.rawCell((data.sets as any)[name], st)), to: undefined }))
+      return applyEdit(dir, command, ({ draft, data }) => (L.dSetCell(draft, name, st, null), { what: `набор «${name}»: этап «${P.STAGE_RU[st]}» убран (модель — по встроенной политике моделей)`, from: P.cellText(P.rawCell((data.sets as any)[name], st)), to: undefined }))
     }
     case "new": {
       if (!args.length || (args.length !== 1 && !(args.length === 3 && args[1] === "from"))) return bad("нужно: new <имя> [from <другой набор>]")
@@ -319,7 +319,7 @@ function reviewerWindowLine(root: string, model: string): string {
 function setGroups(ps: L.PState, n: string, shorts: Map<string, string>): { label: string; stages: string[] }[] {
   const out: { label: string; stages: string[] }[] = []
   for (const r of gridOf(ps, (ps.data.sets as any)[n]).filter((x) => (STAGE_ORDER as readonly string[]).includes(x.st))) {
-    const label = !r.eff || !r.cols ? "spawn_models" : [...new Set(r.cols.map((c) => (c.key ? shorts.get(c.key)! : "нет профиля")))].join("/")
+    const label = !r.eff || !r.cols ? "встроенная политика моделей" : [...new Set(r.cols.map((c) => (c.key ? shorts.get(c.key)! : "нет профиля")))].join("/")
     const g = out.find((x) => x.label === label)
     if (g) g.stages.push(P.STAGE_RU[r.st])
     else out.push({ label, stages: [P.STAGE_RU[r.st]] })
@@ -340,7 +340,7 @@ const groupsText = (g: { label: string; stages: string[] }[]): string[] => (g.le
 /** /canopus-sets ls (и команда без слов): набор в строке, ● у включённого, модели вместо «семья/режим», расшифровка коротких имён. */
 export function setsTable(ps: L.PState): string {
   const names = setNames(ps.data)
-  const lines = [`Наборы проекта ${ps.project}. Включён: ${ps.name ? `«${ps.name}».` : "нет (модели — по spawn_models)."}`]
+  const lines = [`Наборы проекта ${ps.project}. Включён: ${ps.name ? `«${ps.name}».` : "нет (модели — по встроенной политике моделей)."}`]
   if (!names.length) lines.push(`Наборов нет. Готовый пример файла (справочник и наборы) — в разделе README о профилях моделей:
 ${PROFILES_README_URL}
 Скопируйте пример в .canopus/plugin/config.json проекта (или передайте агенту: canopus_config set) и коммитьте файл.`)
@@ -434,7 +434,7 @@ export function showFamily(ps: L.PState, family?: string): string {
     return lines.join("\n")
   }
   lines.push(`Используют наборы: ${users.map((x) => `${x.n} (${x.st.join(", ")})`).join("; ")}.`)
-  if (!ps.name) lines.push("Набор не включён — модели по spawn_models.")
+  if (!ps.name) lines.push("Набор не включён — модели по встроенной политике моделей.")
   else {
     const set = (ps.data.sets as any)?.[ps.name]
     const eff = P.STAGES.map((st) => ({ st, e: P.effectiveCell(set, st, ps.data.profiles as any) })).filter((x) => x.e?.cell.family === family)
@@ -577,7 +577,7 @@ async function briefParts(ps: L.PState, n: string, deps: CmdDeps, opts: { extraK
     for (const r of rows) {
       const label = pad(P.STAGE_RU[r.st], w0)
       const src = asSrc(r)
-      if (!r.eff || !r.cols) table.push(`${label}не описан: по spawn_models`)
+      if (!r.eff || !r.cols) table.push(`${label}не описан: по встроенной политике моделей`)
       else if (src) table.push(`${label}как «${P.STAGE_RU[src.st]}»`)
       else table.push(`${label}${r.cols.map((c, i) => (i < 2 ? pad(nm(c), widths[i]) : nm(c))).join("")}`.trimEnd())
     }
@@ -642,7 +642,7 @@ function showSetFull(ps: L.PState, n: string, set: any, dir: string, only: P.Sta
     const eff = P.effectiveCell(set, st, ps.data.profiles as any)
     const cell = eff?.cell
     if (!eff || !cell) {
-      lines.push(`  ${P.STAGE_RU[st]}: не описан — модель по spawn_models`)
+      lines.push(`  ${P.STAGE_RU[st]}: не описан — модель по встроенной политике моделей`)
       continue
     }
     const how = eff.how === "inherited" ? ` (унаследован от «${P.STAGE_RU[eff.from!]}»${P.INHERIT[st]?.lower ? ", ступенью ниже" : ""})` : ""
@@ -750,7 +750,7 @@ const capital = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1)
 
 /** Модели этапа словами экрана: от малой ступени к большой, одинаковые схлопнуты; этапа нет — по spawn_models. */
 function stageText(r: Row | undefined, shorts: Map<string, string>): string {
-  if (!r?.cols) return "по spawn_models"
+  if (!r?.cols) return "по встроенной политике моделей"
   const names = [...new Set([...r.cols].reverse().map((c) => (c.key ? shorts.get(c.key)! : "нет профиля")))]
   return names.join(" / ") + (names.length > 1 ? " по размеру задачи" : "")
 }
@@ -887,7 +887,7 @@ function boundsLine(ps: L.PState, sets: any[]): string | undefined {
   if (!b || b.error || (!b.min && !b.max)) return undefined
   const cuts = sets.some((set) => P.cellsOf(set).some(([st, c]) => (STAGE_ORDER as readonly string[]).includes(st) && (c.tier === "task" ? P.PROFILE_TIERS : [c.tier as P.PTier]).some((t) => P.clampTier(t, b).from)))
   if (!cuts) return undefined
-  return `Ступени ограничены проектом: ${[b.max ? `не выше ${b.max} (tier_max)` : "", b.min ? `не ниже ${b.min} (tier_min)` : ""].filter(Boolean).join(" и ")}.`
+  return `Ступени ограничены встроенной политикой: ${[b.max ? `не выше ${b.max} (верхняя граница)` : "", b.min ? `не ниже ${b.min} (нижняя граница)` : ""].filter(Boolean).join(" и ")}.`
 }
 
 /** Служебная строка про файлы окон в рабочих деревьях задач: только если что-то записано, снято или не вышло. */
@@ -959,7 +959,7 @@ async function useSet(dir: string, name: string | undefined, deps: CmdDeps): Pro
 function offSet(dir: string): string {
   const ps = L.profileState(dir)
   const command = "canopus-sets off"
-  if (!ps.name) return `Набор и так не включён (profile_set в файле проекта нет). Модели новых сессий — по spawn_models. Данные не тронуты.`
+  if (!ps.name) return `Набор и так не включён (личный profile_set не включён). Модели новых сессий — по встроенной политике моделей. Данные не тронуты.`
   const draft = L.draftOf(ps)
   draft.name = undefined
   const w = L.writeDraft(ps, draft)
@@ -968,8 +968,8 @@ function offSet(dir: string): string {
   L.syncProjectFiles(dir)
   commitEdit(ps.project, command, "набор выключен", ps.name, undefined)
   return [
-    `Набор «${ps.name}» выключен; новые сессии пойдут по spawn_models, перезапуск не нужен.`,
-    "profile_set убран из файла проекта без коммита: если имя уже закоммичено, оно вернётся из коммита — закоммитьте файл.",
+    `Набор «${ps.name}» выключен; новые сессии пойдут по встроенной политике моделей, перезапуск не нужен.`,
+    "Выбор profile_set снят в личном файле проекта; коммит не нужен.",
     `Наборы и справочник на месте; включить снова: ${ref("/canopus-sets use <имя>", "use")}.`,
   ].join("\n")
 }
@@ -996,7 +996,7 @@ async function checkReport(dir: string, deps: CmdDeps): Promise<string> {
   for (const t of P.PROFILE_TIERS) {
     const p = (ps.data.profiles as any)?.claude?.[t]
     const want = cfg.spawnModels[t] ?? DEFAULT_SPAWN_MODELS[t]
-    if (isObj(p) && !P.isEmptyProfile(p) && P.baseModel(p) !== want) warn.push(`модель профиля claude/${t} (${p.model}) не равна spawn_models.${t} (${want}): набор с клетками claude/task изменит выбор моделей новых сессий`)
+    if (isObj(p) && !P.isEmptyProfile(p) && P.baseModel(p) !== want) warn.push(`модель профиля claude/${t} (${p.model}) не равна встроенной модели ступени ${t} (${want}): набор с клетками claude/task изменит выбор моделей новых сессий`)
   }
   const models = windowsOfActive(ps)
   for (const w of await windowWarnings(ps, models, dir, deps, true)) warn.push(w)

@@ -212,7 +212,7 @@ r = await sets("check")
 }
 await sets("use kimi-twin")
 r = await sets("off")
-cell("off: one summary line first", /^Набор «kimi-twin» выключен; новые сессии пойдут по spawn_models, перезапуск не нужен\./.test(r), r)
+cell("off: one summary line first", /^Набор «kimi-twin» выключен; новые сессии пойдут по встроенной политике моделей, перезапуск не нужен\./.test(r), r)
 
 await stop?.()
 rmSync(tmp, { recursive: true, force: true })

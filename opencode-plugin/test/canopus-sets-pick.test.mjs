@@ -86,7 +86,7 @@ const ROWS = (mark) => [
 ]
 const FOOT = "● — включённый. По этапам: show <имя>; включить: use <имя>."
 let r = await sets("ls")
-cell("ls: no set enabled - the rows with models (groups of stages with one model), the legend of the short names, the footer (snapshot)", same(r.split("\n"), ["Наборы проекта cmdproj. Включён: нет (модели — по spawn_models).", ...ROWS(), ...LEGEND, FOOT]), r)
+cell("ls: no set enabled - the rows with models (groups of stages with one model), the legend of the short names, the footer (snapshot)", same(r.split("\n"), ["Наборы проекта cmdproj. Включён: нет (модели — по встроенной политике моделей).", ...ROWS(), ...LEGEND, FOOT]), r)
 cell("the command without words and `list` give the same text as `ls`", (await sets("")) === r && (await sets("list")) === r, "")
 await sets("use kimi-only")
 r = await sets("ls")

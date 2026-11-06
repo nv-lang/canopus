@@ -1058,7 +1058,7 @@ export async function lastUserAt(sessionID: string): Promise<number> {
 }
 
 /** Ход открыт и живой: после последнего idle есть сообщения, обновлённые не раньше чем за fresh мс. */
-/** Путь worktree и ветка задачи по настройкам проекта (worktrees не задан — решает методология). Слаг — из записи задачи:
+/** Путь worktree и ветка задачи по вычисленным путям и именованной политике кода. Слаг — из записи задачи:
  *  вычислен один раз при постановке, путь в ответе canopus_spawn и созданный — одни и те же. */
 export function taskPlace(dir: string, cfg: CanopusConfig, n: number | string, slug: string, project: string): { worktree?: string; branch: string } {
   const v = { repo: repoNameOf(dir), n, slug, project }
@@ -1089,11 +1089,11 @@ export function insideDir(p: string, dir: string): boolean {
   return !!rel && !rel.startsWith("..") && !path.isAbsolute(rel)
 }
 /** Каталог дерева обязан лежать в папке деревьев проекта (владелец, 2026-10-26: деревья создаются только там). Текст отказа
- *  или undefined; корень — из настройки worktrees проекта, путей машины в репозитории нет (AGENTS.md, п. 15). */
+ *  или undefined; корень — из вычисленного места деревьев проекта, путей машины в репозитории нет (AGENTS.md, п. 15). */
 export function placeFault(worktree: string | undefined, cfg: CanopusConfig): string | undefined {
   if (!cfg.worktrees || !worktree) return undefined
   if (insideDir(worktree, cfg.worktrees)) return undefined
-  return `каталог дерева ${worktree} вне папки деревьев проекта ${cfg.worktrees} (деревья создаются только там — владелец, 2026-10-26); проверь настройки проекта worktrees и worktree_name`
+  return `каталог дерева ${worktree} вне папки деревьев проекта ${cfg.worktrees} (деревья создаются только там — владелец, 2026-10-26); выбери каталог внутри указанной папки`
 }
 /** Место задачи по настройкам с проверкой правила о папке деревьев: место вне её — бросок с меткой placeRefusal;
  *  обработчики постановки ловят его и отвечают отказом до записи задачи. */
@@ -1214,7 +1214,7 @@ export async function lastTurn(sessionID: string, since = 0): Promise<TurnFacts 
 // открытые вкладки (сессии) и активную. Вкладка ОТКРЫТА, если её список есть в файле окна моложе WINDOW_STALE_MS;
 // закрыли окно крестиком или оно упало — файл остаётся, но время замирает, и через 3 с вкладка закрыта. Будить
 // можно только открытую вкладку (фоновую тоже) и сессию, запущенную интегратором под задачу (canopus_spawn), пока
-// задача не закрыта. Окон без нашего плагина для писем нет. CANOPUS_PRESENCE=all — все открыты (самотесты).
+// задача не закрыта. Окон без нашего плагина для писем нет. Самотесты передают присутствие явной внутренней зависимостью.
 export const WINDOWS = path.join(BASE, "windows")
 export const NOTICES = path.join(BASE, "notices")
 /** Последняя самопроверка сервиса {at, problems}: её показывает команда окна /canopus-doctor (окну canopus_doctor не вызвать). */
@@ -1588,7 +1588,7 @@ export const SETS_VERB_HELP: VerbHelp[] = [
   { verb: "use", usage: "<имя>", what: "включить набор для всех этапов: имя записывается в profile_set файла проекта (без коммита)", example: "use cross-kimi" },
   { verb: "off", usage: "", what: "выключить набор личным profile_set:false; модели новых сессий снова по встроенной политике", example: "off", bare: true },
   { verb: "set", usage: "<имя> <этап> <семья>/<ступень>", what: "изменить клетку набора", example: "set cross-kimi develop_accept kimi/heavy" },
-  { verb: "unset", usage: "<имя> <этап>", what: "убрать клетку: этап вернётся к spawn_models", example: "unset cross-kimi develop_accept" },
+  { verb: "unset", usage: "<имя> <этап>", what: "убрать клетку: этап вернётся к встроенной политике моделей", example: "unset cross-kimi develop_accept" },
   { verb: "new", usage: "<имя> [from <имя>]", what: "новый набор: пустой или копия другого", example: "new my-set from default" },
   { verb: "rename", usage: "<а> <б>", what: "переименовать набор (включённое имя следует за ним)", example: "rename my-set my-set2" },
   { verb: "delete", usage: "<имя>", what: "удалить набор (включённый не удаляется)", example: "delete my-set2" },
@@ -1666,8 +1666,8 @@ export const HELP = `canopus — письма между вкладками Open
                                 исполнителя — новой задачей (canopus_spawn), передача — reassign в новую выделенную сессию.
   canopus_config {action}        — настройки проекта: guide (опросник для владельца), show (что действует и откуда),
                                 set {values} (интегратор; пишет рабочую копию файла настроек, действует с коммита), apply_template (интегратор;
-                                дописывает стандартный шаблон моделей: claude/codex/kimi, набор codex, потолок light; ключи проекта не трогает).
-                                Проект без моделей (нет profile_set, spawn_models, allow_default_models) отказывает canopus_spawn без явного model.
+                                дописывает стандартный шаблон моделей: claude/codex/kimi, набор codex; встроенные границы ступеней остаются неизменными).
+                                Без включённого profile_set canopus_spawn требует явный model; встроенный резерв сам по себе не означает согласия владельца.
   canopus_doctor                 — самопроверка: что сломано и что делать.
   canopus_step_note {n?, reason?, minutes?, done?, decide?, who?, hold?, hold_scope?, hold_gate?, wait_id?, wait_result?, health_blocker?, release?} — срок шага и явный смысл HOLD. Ответ держателя: reason + minutes либо done; повтор причины/молчание поднимает вопрос. Решение владельца пишет автор: decide wait|narrow|reassign|cancel и who.
                                 hold_scope execution — пауза исполнения; external — ожидание результата (wait_id и minutes как срок проверки); gate — запрет приёмки/слияния. hold_gate: true сохраняет gate вместе с external. Без scope — legacy/неуточнённый HOLD: исполнение запрещено, автоматической миграции нет. Новую метку, уточнение и release записывает только автор с who (слово владельца, дата, источник).
@@ -1682,9 +1682,9 @@ export const HELP = `canopus — письма между вкладками Open
                                 (задаются явно) и spec, spec_accept, delivery, delivery_accept (по умолчанию наследуют: spec и spec_accept
                                 от плана, delivery и delivery_accept от разработки, оба на ступень ниже); accept — читаемый псевдоним
                                 develop_accept. Плагин сам запускает только develop, develop_accept, plan, plan_accept; этап без клетки
-                                идёт по spawn_models. Настройки tier_min и tier_max (light, medium, heavy) ограничивают ступень снизу и
-                                сверху: любая ступень любого этапа и tier у canopus_spawn срезается в них (срез виден в /canopus-sets show и в
-                                записи задачи; tier_min выше tier_max — ошибка настройки, границы не применяются).
+                                идёт по встроенной политике моделей. Именованные константы границ ступеней ограничивают ступень снизу и
+                                сверху: ступень этапа и tier у canopus_spawn срезается в них (срез виден в /canopus-sets show и
+                                записи задачи); это политика кода, а не поля конфигурации проекта.
   Профили и наборы (три понятия, не путать): справочник model_profiles — семья, ступень → модель (вариант: «модель#low» или поле variant), окно;
                                 набор profile_sets — раскладка этапов по семьям и ступеням (наборов в файле может быть много); включённый набор
                                 profile_set — какой набор действует сейчас (может быть не включён ни один). Справочник и наборы пишет
@@ -1746,14 +1746,14 @@ acceptor — роль приёмщика (разделяемая) при нас�
     подзадача; следующий шаг той же работы (проверка, правка по находкам, продолжение, передача) — сессия.
   Агент вне OpenCode берёт номер тем же счётом: node scripts/task-number.mjs --dir <дерево> --title "<название>".
   canopus_spawn {title?, goal, criteria, owner_words, result, links?, boundaries?, open_questions?, tier?, priority?, role?, parent?} —
-    новая сессия: без цели и критериев приёмки задача не ставится (проект может требовать больше — task_fields); задание новой
+    новая сессия: без цели и критериев приёмки задача не ставится (обязательные поля задаёт именованная политика кода); задание новой
     задачи с папкой — по образцу (разделы «Чего хочет владелец», «Что нужно», «Критерии приёмки», «Результат и куда он попадает»,
     «Связи», «Границы»; пустой — «нет: <почему>»): без message собирается из полей, без owner_words с датой и без result — отказ,
     message без разделов образца — отказ; модель по ступени (по умолчанию, пока набор не
     включён: heavy — claude-code/opus, medium — sonnet, light — haiku; встроенная политика моделей задаёт резерв; включённый набор профилей
     моделей — /canopus-sets — переопределяет модель этапа, tier на входе выбирает ступень внутри семьи набора; ступень всегда в границах
-    проекта tier_min и tier_max, если они заданы); лимит работающих на роль —
-    spawn_limits (3). Если в настройках проекта задан worktrees — письмо с задачей называет папку worktree и ветку.
+    встроенной политики ступеней); лимит работающих на роль —
+    spawn_limits (3). Для репозитория письмо с задачей называет вычисленные папку worktree и ветку.
   priority: P0 авария (всё остальное ждёт), P1 первая очередь, P2 обычная работа (по умолчанию), P3 когда освободятся руки.
   canopus_task {action: "assign", session, ...} — запрещён для пользовательских вкладок: доверенного подтверждения владельца
     на конкретную сессию и назначение пока нет. owner_words, canopus_role, простой и allow_self_assign его не заменяют.
@@ -1771,7 +1771,7 @@ acceptor — роль приёмщика (разделяемая) при нас�
 
 ПЛАНИРОВАНИЕ (задача-план). Это задача, в которой исполнитель не пишет код, а составляет файл плана. Устройство по шагам:
   1. Интегратор: canopus_spawn {kind: "plan", goal: <исходная задача, которую план должен решить>, plan_parent?: <номер плана-родителя для подплана>}.
-  2. Плагин даёт исполнителю шаблон плана, следующий свободный номер и файл в plans_dir (по умолчанию docs/plans) внутри worktree задачи.
+  2. Плагин даёт исполнителю шаблон плана, следующий свободный номер и файл в tasks_dir (по умолчанию doc/tasks) внутри worktree задачи.
      Исполнитель пишет план (фазы, шаги с «где» и «после», приёмка у каждого шага, открытые вопросы), коммитит и отчитывается; форму плана
      плагин проверяет при сдаче и с ошибкой формы отчёт не принимает.
   3. Перепроверка раундами, каждый раунд — новая сессия приёмщика: canopus_task review, check по каждому шагу (plan_acceptance), затем
@@ -1802,7 +1802,7 @@ reviewer; места worker не занимает), и merge, accept, cleanup р
 перепроверяет. Приёмщик: canopus_task review → rework {text} | check {step} → проверка → check {step, result} по каждому шагу (ход видно в окне) → merge (замок вливания проекта) → accept {commit?}
 (плагин проверит обязательные шаги приёмки и что ветка или коммит в целевой ветке) → очистка → cleanup (плагин
 проверит, что worktree и ветка удалены). Улики сохранить — cleanup {n, keep:[путь, …]} (до 8 путей: worktree репозитория или папка в папке деревьев проекта; основное дерево и ветки нельзя; такое дерево уборка не проверяет, ответ: «Сохранено: <путь> (не проверялось уборкой)»); удалять их не нужно, ветку задачи удалить по-прежнему надо (если она выбрана в сохранённом дереве — там git checkout --detach, затем git branch -D; ответ cleanup подскажет). Побочные ветки и деревья задачи (диагностические, предпроверка, итоговая ветка от опубликованной) записывает canopus_task {action: "track", n, branch?, worktree?} (исполнитель, приёмщик, интегратор; без дублей; ветки integrate/tN и integrate/tN-* плагин записывает сам при precheck, accept и cleanup; список виден в show); cleanup убирает всё записанное, кроме деревьев из keep. Потом сессии задачи закрываются, интегратору тихая сводка.
-ПРЕДПРОВЕРКА ВЛИВАНИЯ (настройка проекта merge_precheck; по умолчанию required — включена). Порядок приёмщика: review → check → precheck → CI без замка → precheck candidate → merge → accept → отдельная cleanup → cleanup.
+ПРЕДПРОВЕРКА ВЛИВАНИЯ (встроенная политика required — включена). Порядок приёмщика: review → check → precheck → CI без замка → precheck candidate → merge → accept → отдельная cleanup → cleanup.
 Замок во время подготовки кандидата и CI не брать. canopus_task precheck {n} замок не берёт: плагин читает вершину origin и называет её;
 влей её вместе с веткой задачи в интеграционный candidate (например, integrate/tN), прогони полный CI проекта и сохрани точный commit кандидата;
 canopus_task precheck {n, candidate, result} фиксирует зелёный результат именно этого кандидата. Только после этого merge берёт замок:
@@ -2791,7 +2791,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
 ` +
     `Спроси владельца инструментом question и дай варианты:
 ` +
-    `1) применить стандартный набор (рекомендую: codex, потолок light) — canopus_config {action: "apply_template"}, затем закоммить файл в целевую ветку проекта и повтори canopus_spawn;
+    `1) применить стандартный набор (codex; границы ступеней задаёт встроенная политика) — canopus_config {action: "apply_template"}, затем закоммить файл в целевую ветку проекта и повтори canopus_spawn;
 ` +
     `2) использовать для воркеров модель этой сессии${sessionModel ? ` (${sessionModel})` : " (название модели сессии плагину неизвестно — спроси у владельца)"} — вызови canopus_spawn ещё раз с явным model${sessionModel ? `: "${sessionModel}"` : ""};
 ` +
@@ -2938,17 +2938,17 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
         "One task, one number. In a project with task folders (tasks_dir, default doc/tasks, present in the target branch) the task number is the number of its folder NNN-<slug>/, shown as 045; without folders it is the plugin's number, shown the same way, 094 (every task of every project is shown with three digits and no hash, 1000 above 999: a hash with a number is a GitHub issue link). A new task: the plugin takes 1 + the largest number of the records and of the folders in every working tree and branch, writes the folder (task/message.md = message word for word, or a template from the fields when message is absent; log.md with its first line) on the task branch and commits it there; the main copy is never written. task: N - a task whose folder already exists (no folder commit; refused when no folder has that number).",
         "A task session is a part of the task, not a task: session \"<code>\" (С1, С2, С3п, С4…; default исп = the executor) adds a session to task N: ident 045 С4-3 (code and its ordinal in the task) plus the launch number №n; the plugin writes the launch lines into progress.log and log.md of the folder. A method session submits to you (canopus_task submit), with no plugin review; the plugin's review of the task starts once, after canopus_task deliver. place: own (default for С2/С4/С6) - its own worktree and branch task/NNN-<code>-<k> from the task branch; task (default for the others) - the task worktree.",
         "A sub-task (part_of: N) is a task of its own: own number and folder, the first line of its task/message.md is «Часть задачи NNN «…».», a line in the parent's log.md. The rule: an own acceptance or an own landing in main - a sub-task; the next step of the same work (a check, a fix by findings, a continuation, a handover) - a session.",
-        "goal, criteria - required (the project may require more: boundaries, open_questions; task_fields). title? priority? P0..P3.",
-        "route? full (по умолчанию) | fast (092) | small (191) — данные записи: route, route_basis, route_source, route_proposal, route_word, route_word_date, clean_runs, ceiling, probes, delivery_compressed, sources_list. fast требует route_word («заводи <номер>» дословно с датой) и полной постановки с нумерованными критериями/веткой; иначе отказ. Минимумы clean_runs 1/probes 3 не снижаются, числа задаёт route_defaults; правка постановки помечает route_word_stale, canopus_task route обновляет слово или возвращает full. small распознаёт оркестратор по фразам владельца «сделай X мгновенно»/«сделай X, супер быстро»: route_word дословно с датой, estimate=T, папка из трёх строк. criteria необязателен (по умолчанию слово владельца на контуре); явный documentary criterion/exact SHA сохраняется. Формального приёмщика/цикла нет; технический просмотр не отменяет финальные owner gates и не требует выдумывать URL.",
+        "goal, criteria - required (named code policy may require more: boundaries, open_questions). title? priority? P0..P3.",
+        "route? full (по умолчанию) | fast (092) | small (191) — данные записи: route, route_basis, route_source, route_proposal, route_word, route_word_date, clean_runs, ceiling, probes, delivery_compressed, sources_list. fast требует route_word («заводи <номер>» дословно с датой) и полной постановки с нумерованными критериями/веткой; иначе отказ. Минимумы clean_runs 1/probes 3 не снижаются, числа задаёт именованная политика маршрута в коде; правка постановки помечает route_word_stale, canopus_task route обновляет слово или возвращает full. small распознаёт оркестратор по фразам владельца «сделай X мгновенно»/«сделай X, супер быстро»: route_word дословно с датой, estimate=T, папка из трёх строк. criteria необязателен (по умолчанию слово владельца на контуре); явный documentary criterion/exact SHA сохраняется. Формального приёмщика/цикла нет; технический просмотр не отменяет финальные owner gates и не требует выдумывать URL.",
         "The task text of a new task with a folder (no task:, part_of included) follows one template: «# Задание: <title>», a header, then sections «Чего хочет владелец», «Что нужно», «Критерии приёмки», «Результат и куда он попадает», «Связи», «Границы» in this order; an empty section is «нет: <why>». Without message the plugin builds it from the fields: owner_words (required: the owner's words word for word with date and source, e.g. - «сделай X» (владелец, 2026-10-17, чат оркестратора)), goal (paragraphs and «- » lines become the numbered points of «Что нужно»), criteria, result (required: where the result lands, or «нет: результат — код: <what is delivered>»), links? (Зависит от / Блокирует / Пересекается (файлы) / Начинается после), boundaries?; absent links or boundaries become «нет: … не передано». Without owner_words with a date or without result - a refusal naming what to add; a message without the template's sections is refused too. A project without task folders and a session of a task (task: N) need none of these fields.",
         "tier heavy|medium|light - picks the model: by default claude-code opus|sonnet|haiku, the named built-in model policy supplies defaults; an enabled model-profile set (/canopus-sets) overrides both for the stage it describes (the tier then picks the tier inside the set's family). model - explicit provider/id[#variant]; required when the project has no model settings (ask the owner first).",
         "role? - role of the new session, default worker. extra {id: one line up to 300 characters} - the project's extra task fields (task_extra_fields; canopus_config show lists them). parent \"project#N\" - the order of another project this task fulfils.",
         "Limits: the project caps running tasks per role (spawn_limits) and open tasks (inflight_limit). By default (accepted_slot: free) accepted tasks waiting for cleanup do not take a place in inflight_limit; cleanup_limit bounds them.",
         "kind: plan - a PLAN TASK: the executor writes no code, only a plan file. Steps:",
         "1. goal = the original task the plan must solve (criteria are not needed); plan_parent = number of the parent plan for a sub-plan.",
-        "2. The plugin gives the executor a template, the next free plan number and the file name in plans_dir (default docs/plans) inside the task worktree; the executor writes the plan (phases, steps with 'where' and 'after', acceptance per step, open questions), commits it and reports. The plugin refuses a report whose plan form is wrong.",
+        "2. The plugin gives the executor a template, the next free plan number and the file name in tasks_dir (default doc/tasks) inside the task worktree; the executor writes the plan (phases, steps with 'where' and 'after', acceptance per step, open questions), commits it and reports. The plugin refuses a report whose plan form is wrong.",
         "3. The reviewer rechecks the plan in rounds, each round a new session: canopus_task review, check each step, then canopus_task round with the numbers of remarks per grade. Blocking/significant remarks send the plan back; plan_clean_rounds clean rounds in a row (default 2) finish the recheck; plan_rounds_max (default 4) ends it anyway.",
-        "4. The task gets status approval (waiting for approval). Who approves is the project setting plan_approver: owner (default) - the owner sees a notice and decides in the window with /plans (approve / approve with shortcuts / return with remarks; the status is also in /canopus); integrator - the task author (you) decides with canopus_task plan_decide.",
+        "4. The task gets status approval (waiting for approval). Who approves is the named internal plan-approval policy: owner (default) - the owner sees a notice and decides in the window with /plans (approve / approve with shortcuts / return with remarks; the status is also in /canopus); integrator - the task author (you) decides with canopus_task plan_decide.",
         "5. After approval a new reviewer writes the decision into the plan, lands it (merge, accept, cleanup). Then, with plan_steps: auto (default), the plugin starts a task for every step by the plan's dependencies, 'where' conflicts and the limits; with manual you get the list of steps and start the tasks yourself. When all steps are closed you get a letter to close the plan.",
       ].join("\n"),
     input: {
@@ -2956,10 +2956,10 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
       properties: {
         ...taskInput,
         role: str("Role of the new session (default worker)"),
-        kind: { type: "string", enum: ["work", "plan"], description: "plan: the task writes a plan document (plans_dir), rechecked in rounds and approved by the owner; goal is the original task the plan must solve", default: "work" },
+        kind: { type: "string", enum: ["work", "plan"], description: "plan: the task writes a plan document (tasks_dir), rechecked in rounds and approved by the owner; goal is the original task the plan must solve", default: "work" },
         plan_parent: str("kind plan: the parent plan number for a sub-plan (e.g. 274)"),
         tier: { type: "string", enum: ["heavy", "medium", "light"], description: "Task weight -> model" },
-        model: str("Explicit model of the worker (provider/id[#variant]); needed when the project has no model settings (profile_set, spawn_models, allow_default_models) - ask the owner first"),
+        model: str("Explicit model of the worker (provider/id[#variant]); required when no profile_set is enabled - ask the owner first"),
         task: str("Number of a task with a folder (\"45\"): a session of that task, or the record of a folder made outside the plugin; any other text is the old name of goal"),
         session: str("Code of the task session: С1, С2, С3п, С4…; default исп (the executor)"),
         part_of: str("Number of the parent task: the new task is its sub-task (own number and folder)"),
@@ -2992,7 +2992,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
       if (taskNum !== undefined && partOf !== undefined) return { content: "Задача не поставлена: task (сессия задачи) и part_of (новая подзадача) вместе не бывают." }
       // сессия задачи с папкой: обязательна цель сессии; критерии — у задачи (task/message.md)
       const missing = taskNum !== undefined ? (String(input.goal ?? "").trim() ? [] : ["goal"]) : missingFields(input, cfg).filter((f) => !(input.kind === "plan" && f === "criteria") && !(input.route === "small" && f === "criteria")) // у задачи-плана критерии — приёмки плана; у малой задачи критерий — слово владельца на контуре (задача 191)
-      if (missing.length) return { content: `Задача не поставлена: нет полей ${missing.map((f) => FIELD_RU[f] ?? f).join(", ")} (настройка проекта task_fields). Работа не начинается без критериев приёмки.` }
+      if (missing.length) return { content: `Задача не поставлена: нет полей ${missing.map((f) => FIELD_RU[f] ?? f).join(", ")} (обязательные поля встроенной политики). Работа не начинается без критериев приёмки.` }
       const extra = parseExtra(input.extra, cfg)
       if ("error" in extra) return { content: `Задача не поставлена: ${extra.error}` }
       const role = normalizeRole(String(input.role ?? DEFAULT_ROLE).trim().toLowerCase() || DEFAULT_ROLE)
@@ -3135,13 +3135,13 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
         "review - reviewer - n - start reviewing a submitted task; the answer lists the acceptance steps. For a plan task the steps are the plan recheck steps.",
         "check - reviewer - n, step, then again with result - mark an acceptance step: first {n, step} before checking it, then {n, step, result: what proves it} after (the owner sees the progress in the window).",
         "round - reviewer of a plan task (a new session for every round) - n, text, blocking, significant, cosmetic (or grades {plan_grades id: count}) - the verdict of one plan recheck round, after review and all required check steps: how many remarks of each grade. text lists the remarks with grade and fix (required when there are any). Blocking or significant remarks: the plan goes back to the executor, the next round is a new session. Only cosmetic: a clean round. plan_clean_rounds clean rounds in a row (default 2): the plan goes to approval; plan_rounds_max rounds (default 4) without that: to approval anyway, with the last remarks.",
-        "precheck - reviewer - n, then {n, candidate, result} - on by default (project setting merge_precheck: required; merge_precheck: off returns the old order). First precheck {n}: the plugin reads the target branch tip on origin and names it. Then merge that tip with the task branch into a candidate branch (for example integrate/t<N>), run the full CI of the project without any lock, and record {n, candidate: branch or commit, result: the CI verdict} for that exact candidate.",
-        "merge - reviewer - n - take the project's merge lock (one task is landed at a time) and land that exact checked candidate: you fast-forward it into the target branch and push; the plugin merges and pushes nothing itself. With merge_precheck: required a merge without a green precheck is refused. If the target tip moved, never land the old candidate: rebuild and recheck. The lock is released by accept, also by rework and cancel; unlock {n} releases it when the merge is abandoned before accept; cleanup does not release it; the service releases it by itself when the checked candidate is already in the target tip on origin.",
+        "precheck - reviewer - n, then {n, candidate, result} - required by the named internal merge policy. First precheck {n}: the plugin reads the target branch tip on origin and names it. Then merge that tip with the task branch into a candidate branch (for example integrate/t<N>), run the full CI of the project without any lock, and record {n, candidate: branch or commit, result: the CI verdict} for that exact candidate.",
+        "merge - reviewer - n - take the project's merge lock (one task is landed at a time) and land that exact checked candidate: you fast-forward it into the target branch and push; the plugin merges and pushes nothing itself. The required merge policy refuses a merge without a green precheck. If the target tip moved, never land the old candidate: rebuild and recheck. The lock is released by accept, also by rework and cancel; unlock {n} releases it when the merge is abandoned before accept; cleanup does not release it; the service releases it by itself when the checked candidate is already in the target tip on origin.",
         "unlock - reviewer - unlock {n} - release the merge lock you hold for the task (the precheck record becomes stale).",
         "rework - приёмщик - n, text, sync? - вернуть замечания исполнителю; sync:true только для свежей целевой ветки, не круг rework_max; отпускает замок. Для small — только интегратор, submitted/reviewing, text и candidate (точный SHA из последнего отчёта): прежний исполнитель/границы, статус rework, без full цикла/автоприёмщика и ложного busy/started. Потолок и execution/legacy HOLD сохраняются; closed/accepted/cleanup не возвращаются автоматически.",
         "accept - reviewer - n, checks?, commit? - accept after landing: the plugin checks that the required steps are marked and that the task branch (or commit, when squashed) is in the target branch, releases the merge lock, and with accepted_slot: free the task stops taking a place in inflight_limit; the answer lists the cleanup steps. For a plan task the approval must exist first. commit: the commit in the target branch for a squash merge. Small route (task 191): the integrator accepts with text = the owner's word with its date (see contour).",
-        "cleanup - reviewer - n, keep? - after accept, remove the task's worktree, branch and recorded side branches/worktrees yourself, then call this; the plugin checks they are gone and the task becomes done. keep: up to 8 paths of worktrees to keep as evidence (a worktree of the repository or a folder in the project's worktree folder; absolute or from the repository root; not the main tree); the check skips them and the answer says \"Сохранено: <path> (не проверялось уборкой)\"; the task branch must still be deleted. cleanup_limit bounds the queue of accepted tasks waiting for cleanup.",
-        "With the project setting reviewer: acceptor, merge, unlock, precheck, accept and cleanup need the acceptor role (or the integrator). The executor never lands or accepts its own task. Reviewer order: review, check each step, precheck, merge, accept, cleanup.",
+        "cleanup - reviewer - n, keep? - after accept, remove the task's worktree, branch and recorded side branches/worktrees yourself, then call this; the plugin checks they are gone and the task becomes done. keep: up to 8 paths of worktrees to keep as evidence (a worktree of the repository or a folder in the project's worktree folder; absolute or from the repository root; not the main tree); the check skips them and the answer says \"Сохранено: <path> (не проверялось уборкой)\"; the task branch must still be deleted. The named internal cleanup limit bounds the queue of accepted tasks waiting for cleanup.",
+        "With the named internal reviewer policy set to acceptor, merge, unlock, precheck, accept and cleanup need the acceptor role (or the integrator). The executor never lands or accepts its own task. Reviewer order: review, check each step, precheck, merge, accept, cleanup.",
       ].join("\n"),
     input: {
       type: "object",
@@ -3590,7 +3590,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
             }
             const steps = cleanupSteps(t, tcfgs)
             if (!steps.length) return { content: finishCleaned(t, me, "очистка не нужна (cleanup: none)") }
-            return { content: `Задача ${taskRef(t)} принята словом владельца (${m.how}). Очистка по настройке проекта (cleanup: ${tcfgs.cleanup}):\n${steps.map((x) => `  ${x}`).join("\n")}\nСделал — canopus_task {action: "cleanup", n: ${t.n}}.` }
+            return { content: `Задача ${taskRef(t)} принята словом владельца (${m.how}). Очистка по встроенной политике (cleanup: ${tcfgs.cleanup}):\n${steps.map((x) => `  ${x}`).join("\n")}\nСделал — canopus_task {action: "cleanup", n: ${t.n}}.` }
           }
         } else {
           // исполнитель свою работу не вливает и не принимает — отказ называет это прямо (план 002.7, п.4)
@@ -3710,7 +3710,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
           return { content: `Раунд ${no} записан (${line}). Чистых подряд ${p.clean} из ${tcfg.planCleanRounds}; следующий раунд — новая сессия.` }
         }
         if (action === "precheck") {
-          if (tcfg.mergePrecheck !== "required") return { content: "Предпроверка в проекте выключена явным ключом merge_precheck: off: merge берёт замок без неё, precheck не нужен. Включить её (по умолчанию она включена) может интегратор проекта: убрать ключ или поставить merge_precheck: required." }
+          if (tcfg.mergePrecheck !== "required") return { content: "Предпроверка выключена внутренней политикой кода: merge берёт замок без неё. Публичного переключателя нет; стандартная встроенная политика требует предпроверку." }
           if (t.plan && !(t.plan.approval && t.plan.approval.decision !== "no")) return { content: `Задача ${taskRef(t)} сейчас в раунде перепроверки плана ${t.plan.n}: вливания нет, предпроверка не нужна. Она действует на вливание согласованного плана (после решения, статус на приёмке).` }
           if (t.status !== "reviewing") return { content: `Сначала canopus_task {action: "review", n: ${t.n}} (задача сейчас ${statusRu(t.status)}).` }
           const finishing = input.candidate !== undefined || input.result !== undefined
@@ -3829,7 +3829,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
           const steps = cleanupSteps(t, tcfg)
           if (!steps.length) return { content: finishCleaned(t, me, "очистка не нужна (cleanup: none)") + warn + (lockFreed ? `
 ${LOCK_FREED_ACCEPT}` : "") }
-          return { content: `Задача ${taskRef(t)} принята (${m.how}). Очистка по настройке проекта (cleanup: ${tcfg.cleanup}):\n${steps.map((x) => `  ${x}`).join("\n")}\nСделал — canopus_task {action: "cleanup", n: ${t.n}}.${warn}${lockFreed ? `
+          return { content: `Задача ${taskRef(t)} принята (${m.how}). Очистка по встроенной политике (cleanup: ${tcfg.cleanup}):\n${steps.map((x) => `  ${x}`).join("\n")}\nСделал — canopus_task {action: "cleanup", n: ${t.n}}.${warn}${lockFreed ? `
 ${LOCK_FREED_ACCEPT} Дальше уборка без замка, затем cleanup ${t.n}.` : ""}` }
         }
         // cleanup

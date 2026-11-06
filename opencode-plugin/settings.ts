@@ -407,7 +407,7 @@ function legacyProblems(projects: Projects): string[] {
     try {
       JSON.parse(readFileSync(f, "utf8").replace(/^﻿/, ""))
     } catch {
-      out.push(`проект ${p.name}: ${f} — не JSON; ${legacyGood.has(f) ? "действуют последние хорошие настройки" : "настройки по умолчанию, защитные ключи (merge_precheck и др.) не заданы"}; исправь файл`)
+      out.push(`проект ${p.name}: ${f} — не JSON; ${legacyGood.has(f) ? "действуют последние хорошие настройки" : "публичные настройки по умолчанию; встроенные защитные политики остаются включены"}; исправь файл`)
     }
   }
   return out

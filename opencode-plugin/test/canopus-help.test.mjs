@@ -42,15 +42,15 @@ if (drop) help = help.split(drop).join("")
 for (const t of ["canopus_list", "canopus_role", "canopus_send", "canopus_inbox", "canopus_wait", "canopus_spawn", "canopus_task", "canopus_config", "canopus_doctor"]) {
   cell(`help names ${t}`, help.includes(t), "missing")
 }
-for (const w of ["force", "all", "worker", "assistant — то же, что worker", ".canopus/plugin/config.json", "wake: false", "expect_reply", "reply_to", "через 3 с", "Open", "напоминанием", "spawn_limits", "#N", "P0", "assign", "reassign", "task_fields", "ДАННЫЕ ОТ СОСЕДА", "КОНТРОЛЬНЫЙ ВОПРОС", "кто тут integrator проекта X", "я integrator проекта X"]) {
+for (const w of ["force", "all", "worker", "assistant — то же, что worker", ".canopus/plugin/config.json", "wake: false", "expect_reply", "reply_to", "через 3 с", "Open", "напоминанием", "spawn_limits", "#N", "P0", "assign", "reassign", "обязательные поля задаёт именованная политика кода", "ДАННЫЕ ОТ СОСЕДА", "КОНТРОЛЬНЫЙ ВОПРОС", "кто тут integrator проекта X", "я integrator проекта X"]) {
   cell(`help mentions «${w}»`, help.includes(w), "missing")
 }
 
 // task 015/016, review 1 item 6: the help names the eight stages, the alias and the two bounds
-for (const w of ["develop_accept", "plan_accept", "spec_accept", "delivery_accept", "delivery", "spec", "tier_min", "tier_max", "accept — читаемый псевдоним"]) {
+for (const w of ["develop_accept", "plan_accept", "spec_accept", "delivery_accept", "delivery", "spec", "Именованные константы границ ступеней", "accept — читаемый псевдоним"]) {
   cell(`help names «${w}» (stages and tier bounds)`, help.includes(w), "missing")
 }
-cell("help says the bounds clamp the tier of canopus_spawn and a check stage without a cell goes by spawn_models", /tier у canopus_spawn срезается/.test(help) && /этап без клетки\s+идёт по spawn_models/.test(help), "missing")
+cell("help says the bounds clamp the tier of canopus_spawn and a check stage without a cell goes by spawn_models", /tier у canopus_spawn срезается/.test(help) && /этап без клетки\s+идёт по встроенной политике моделей/.test(help), "missing")
 
 // task 020: waiting for a remote CI does not load the machine and must not take the machine-queue slot
 cell("help says a remote-CI wait goes with machine: false and machine: true is for heavy commands", /удалённ\S* CI[^]*?machine: false/.test(help) && /machine: true[^]*?только для тяжёлых/.test(help), "missing")

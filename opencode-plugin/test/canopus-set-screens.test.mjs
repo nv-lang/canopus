@@ -160,7 +160,7 @@ cell("use of a set with a stage described apart: one line names it and points to
 // ---- no set enabled before ----
 await sets("off")
 r = await sets("use codexset")
-cell("use when no set was enabled: no `(был …)`, the old side is `по spawn_models`", lines(r)[0] === "Набор «codexset» включён" && lines(r)[1] === "Работа:   luna / sol / astra по размеру задачи  (было по spawn_models)" && lines(r)[2] === "Приёмка:  luna / sol / astra по размеру задачи  (было те же)" && !/\(у «/.test(r), r)
+cell("use when no set was enabled: no `(был …)`, the old side is `по встроенной политике моделей`", lines(r)[0] === "Набор «codexset» включён" && lines(r)[1] === "Работа:   luna / sol / astra по размеру задачи  (было по встроенной политике моделей)" && lines(r)[2] === "Приёмка:  luna / sol / astra по размеру задачи  (было те же)" && !/\(у «/.test(r), r)
 
 // ---- a tier bound of the project is named: it explains why the tiers collapsed ----
 {
@@ -172,7 +172,7 @@ cell("use when no set was enabled: no `(был …)`, the old side is `по spaw
   bump()
   await sets("use kimiset")
   r = await sets("use codexset")
-  cell("use with tier_max light: one name per stage (the bound cut the tiers) and a line naming the bound", lines(r)[1] === "Работа:   luna  (было k3-256k)" && lines(r)[2] === "Приёмка:  luna  (было те же)" && lines(r).includes("Ступени ограничены проектом: не выше light (tier_max) и не ниже light (tier_min).") && /Контекст модели: 525K, ввод 461K, вывод до 128K \(у «kimiset» было 220K, вывод до 131072\)\./.test(r), r)
+  cell("use with tier_max light: one name per stage (the bound cut the tiers) and a line naming the bound", lines(r)[1] === "Работа:   luna  (было k3-256k)" && lines(r)[2] === "Приёмка:  luna  (было те же)" && lines(r).includes("Ступени ограничены встроенной политикой: не выше light (верхняя граница) и не ниже light (нижняя граница).") && /Контекст модели: 525K, ввод 461K, вывод до 128K \(у «kimiset» было 220K, вывод до 131072\)\./.test(r), r)
   ;(await import("./fixture-settings.mjs")).setFixturePolicy(cfgDir,{tier_max:"heavy"})
   delete raw.tier_max
   writeFixtureFile(file, JSON.stringify(raw, null, 2))
@@ -201,7 +201,7 @@ r = await profs("show lone")
 cell("a family nobody uses: one line, no `включён набор`", lines(r).at(-1) === "Ни один набор эту семью не использует." && !/Включён набор/.test(r), r)
 await sets("off")
 r = await profs("show codex")
-cell("no set enabled: the closing line says the models come from spawn_models", lines(r).at(-1) === "Набор не включён — модели по spawn_models.", r)
+cell("no set enabled: the closing line says the models come from spawn_models", lines(r).at(-1) === "Набор не включён — модели по встроенной политике моделей.", r)
 r = await profs("show nosuch")
 cell("an unknown family names the existing ones", /nosuch/.test(r) && /claude, codex, kimi, lone/.test(r), r)
 r = await profs("delete codex")
