@@ -121,7 +121,7 @@ def convert(app, secrets, plugin, repo, home, policy):
                 for entry in value:
                     valid = isinstance(entry, str) and bool(entry)
                     if isinstance(entry, dict):
-                        valid = set(entry) == {'project', 'root'} and isinstance(entry['project'], str) and bool(re.fullmatch(r'[a-z][a-z0-9_-]*', entry['project'])) and isinstance(entry['root'], str) and os.path.isabs(entry['root'])
+                        valid = set(entry) == {'project', 'root'} and isinstance(entry['project'], str) and bool(re.fullmatch(r'[a-z0-9][a-z0-9-]{0,40}', entry['project'])) and isinstance(entry['root'], str) and os.path.isabs(entry['root'])
                     if not valid:
                         blockers.append('plugin.project_settings: invalid project registration')
                 out[key] = value

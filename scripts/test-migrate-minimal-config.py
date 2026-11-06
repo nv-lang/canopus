@@ -43,6 +43,10 @@ class MigrationTests(unittest.TestCase):
         self.assertTrue(any('expected an array' in item for item in blockers))
         _, blockers = self.convert(plugin={'project_settings': [{'project': 'fixture', 'root': 'relative'}]})
         self.assertEqual(len(blockers), 1)
+        _, blockers = self.convert(plugin={'project_settings': [{'project': 'bad_name', 'root': str(Path.cwd())}]})
+        self.assertEqual(len(blockers), 1)
+        _, blockers = self.convert(plugin={'project_settings': [{'project': '1-fixture', 'root': str(Path.cwd())}]})
+        self.assertEqual(blockers, [])
 
     def test_instance_marker_and_data_ownership_preflight(self):
         with tempfile.TemporaryDirectory() as folder:
