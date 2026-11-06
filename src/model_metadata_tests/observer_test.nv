@@ -7,7 +7,7 @@ import std.encoding.json.{Json}
 import canopus.model_metadata.{normalize_dir, launch_identity, launch_sha256, basic_auth_header, server_password_of, http_body_of, binding_of, envelope_text, default_opencode_program}
 
 test "the location of the binding compares with forward slashes on both sides" {
-    assert(normalize_dir("C:\\work\\crew") == "C:/work/canopus")
+    assert(normalize_dir("C:\\work\\canopus") == "C:/work/canopus")
     assert(normalize_dir("C:/work/canopus") == "C:/work/canopus")
 }
 

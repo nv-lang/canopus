@@ -105,6 +105,8 @@ const STT_DEFAULT_URL = "http://127.0.0.1:8178/inference"
 fn st_stt_url_ok(url str) -> bool => url.starts_with("http://127.0.0.1:") || url.starts_with("http://localhost:")
 
 fn st_stt_check(url str, language str) -> Result[(), str] {
+    // Empty is the resolved internal sentinel for the public voice:false switch.
+    if url.byte_len() == 0 { return Ok(()) }
     if !st_stt_url_ok(url) { return Err("the stt (voice) url must be http://127.0.0.1:<port>/... or http://localhost:<port>/...") }
     if language.byte_len() == 0 { return Err("the stt (voice) language must not be empty (auto, ru, en, ...)") }
     Ok(())
@@ -225,9 +227,13 @@ export fn parse_server_settings(text str) -> Result[ServerSettings, str] {
     ro voice_o = normalize_layer(o)
     match voice_o.get("voice") {
         Some(t) => {
-            ro to = st_object(t, "the setting voice")?
-            stt_url = st_text(to, "url", stt_url)?
-            stt_language = st_text(to, "language", stt_language)?
+            if t.bool() == Some(false) {
+                stt_url = ""
+            } else {
+                ro to = st_object(t, "the setting voice")?
+                stt_url = st_text(to, "url", stt_url)?
+                stt_language = st_text(to, "language", stt_language)?
+            }
         }
         None => ()
     }

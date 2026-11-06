@@ -23,6 +23,7 @@ export type SttReply { status int, body []u8 }
 
 /// The target of an address `http://<host>:<port>/<path>` (the port is required, the path is "/" when there is none).
 export fn stt_target(url str) -> Result[SttTarget, str] {
+    if url.byte_len() == 0 { return Err("voice disabled") }
     if !url.starts_with("http://") { return Err("the stt url must start with http://") }
     ro rest = url[7..]
     ro slash = rest.find("/") ?? rest.byte_len()

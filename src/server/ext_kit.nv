@@ -63,6 +63,12 @@ export fn scenario_route_auto_extend(settings ServerSettings) Proc Detach Time N
     c.expect(text.contains("## Дополнение") && text.contains("сделать: Ещё одно требование"), "the text is appended to message.md with the date: ${cut_text(text, 200)}")
     c.expect(ek_exts(rig, "s-e1").len() == 1 && !ek_undone(rig, "s-e1", 0), "the page gets the addition for the grey line")
     c.expect(ck_idle(rig, p1, 60000), "the agent of the task finishes the service turn")
+    // Verify actual delivery independently of the page's published hint list.
+    mut delivered = false
+    for line in rig.all_lines_for(1) {
+        if line_field(line, "trace") == p1 && line_field(line, "kind") == "agent_chunk" && line_input(line, "text").contains("Новое требование владельца") { delivered = true }
+    }
+    c.expect(delivered, "the actual agent received the extension note")
     c.expect(ek_hints(rig, p1).contains("Новое требование владельца"), "the agent of the task was told: ${cut_text(ek_hints(rig, p1), 200)}")
     c.expect(rk_array(ck_state(rig, 1, "s-e1"), "proposals").len() == 0, "and no card is left")
 

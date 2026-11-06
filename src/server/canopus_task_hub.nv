@@ -626,6 +626,8 @@ fn Hub mut @ct_pump(at int) Proc Detach Time -> () {
     if reason.byte_len() > 0 {
         @tell_error(0, me.id, me.engine.step_number(), "", "решение по задаче не передано агенту: ${reason}")
     }
+    // Publish the newly recorded service hint now, without waiting for the progress observer.
+    @route_broadcast(at, false)
 }
 
 // ----- the recognition by the button -----

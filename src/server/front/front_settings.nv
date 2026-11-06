@@ -201,7 +201,9 @@ fn fs_from_file(text str) -> FrontSettings {
         }
         None => base.reviewer_order
     }
-    { port, web_dir, hub_program, hub_args, agents, stt_url, stt_language, stt_managed: if o.get("voice").is_some() && o.get("voice").unwrap().bool() == Some(false) { false } else { stt_managed }, stt_dir, stt_model, data_dir, max_image_bytes, layout: base.layout, preset, reviewer_order }
+    ro voice_off = voice_o.get("voice").is_some() && voice_o.get("voice").unwrap().bool() == Some(false)
+    // Disabling voice also disables an external recognizer, not only child management.
+    { port, web_dir, hub_program, hub_args, agents, stt_url: if voice_off { "" } else { stt_url }, stt_language, stt_managed: if voice_off { false } else { stt_managed }, stt_dir, stt_model, data_dir, max_image_bytes, layout: base.layout, preset, reviewer_order }
 }
 
 // Default recognizer installation: tools/whisper under the resolved Canopus home.

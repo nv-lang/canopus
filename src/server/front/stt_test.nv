@@ -154,3 +154,11 @@ test "stt: the probe looks at the status line only" {
     assert(!stt_status_is_200("HTTP/1.1 20".bytes()))
     assert(!stt_status_is_200([]u8.new()))
 }
+
+
+test "voice disabled: no network target can be built" {
+    match stt_target("") {
+        Ok(t) => panic("disabled voice must not resolve a recognizer")
+        Err(e) => assert(e == "voice disabled")
+    }
+}

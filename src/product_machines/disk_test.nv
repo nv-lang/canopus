@@ -124,7 +124,8 @@ test "disk: the folder of the machines is the setting, else beside the program, 
         Ok(d) => panic("a folder without machines was taken: ${d}")
         Err(e) => {
             assert(e.contains("C:/work/nowhere/kit/machines/product"))
-            assert(e.contains("CANOPUS_SERVER_MACHINES_DIR"))
+            assert(e.contains("restore the machines/product folder of the installation"))
+            assert(!e.contains("CANOPUS_SERVER_MACHINES_DIR"))
         }
     }
 }

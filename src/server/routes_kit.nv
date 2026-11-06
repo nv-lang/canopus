@@ -649,8 +649,11 @@ export fn scenario_route_planning(settings ServerSettings) Proc Detach Time Net 
     rig.page(1, "session_agent", "s-r5", "{\"agent\":\"second\"}")
     rig.run(100)
     c.expect(rig.hub.sessions[rig.hub.find("s-r5")].clients.len() == 0, "switching the family cannot bypass fail-closed")
+    c.expect(rig.hub.sessions[rig.hub.find("s-r5")].agent == "opencode", "the forbidden family switch retains the chosen agent")
     rig.page(1, "user_message", "s-r5", "{\"turn\":\"t1\",\"text\":\"подготовь задание\"}")
-    c.expect(rig.until("ограниченный backend не подключён", 5000), "the unsupported backend is explicitly refused")
+    // A test executable has no installed restricted adapter; a real installation without
+    // a chosen model reaches the later missing-backend guard. Both must forbid ordinary ACP.
+    c.expect(rig.until("обычный ACP запрещён", 5000), "the unsupported backend explicitly forbids ordinary ACP: ${ck_errors(rig)}")
     rig.run(300)
     ro lines1 = rig.lines_for(1)
     ro echo = answer_of(lines1, line_input(first_of(lines1, "user_message", 0), "turn"))

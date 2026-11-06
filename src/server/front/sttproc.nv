@@ -301,6 +301,11 @@ fn stt_start(cfg SttConfig, port int, asks ChanRx[SttMgrAsk]) Proc Net Fs Time I
 
 /// The manager: runs for as long as the front, answers `asks` with the state word. Not managed: the word is `probe`.
 export fn stt_manage(cfg SttConfig, asks ChanRx[SttMgrAsk]) Proc Net Fs Time Io Detach -> () {
+    // voice:false must neither start/clean a child nor discover a foreign recognizer.
+    if cfg.url.byte_len() == 0 {
+        stt_serve_state(asks, "disabled")
+        return
+    }
     if !cfg.managed {
         stt_serve_state(asks, "probe")
         return

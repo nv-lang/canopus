@@ -44,7 +44,7 @@ test "front public config: voice can be disabled without a managed path override
     ro file = front_file("voice-off.json", "{\"voice\":false}")
     ro root = file.parent().unwrap().display()
     match with Os = mock_os(MockOs.new()), Fs = real_fs() { front_settings_selected("", root, []str.new(), file.display()) } {
-        Ok(cfg) => assert(!cfg.stt_managed)
+        Ok(cfg) => assert(!cfg.stt_managed && cfg.stt_url == "")
         Err(e) => assert(false)
     }
 }

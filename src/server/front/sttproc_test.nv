@@ -3,6 +3,7 @@
 module canopus.server.front
 
 import std.os.{Os, real_os, temp_dir, pid}
+import std.concurrency.nvchan.{Chan}
 import std.os.{Proc, real_proc}
 import std.fs.{Fs, real_fs, write_text, create_dir_all, try_exists, Path}
 
@@ -176,4 +177,21 @@ test "sttproc status: ready and foreign mean available, the rest says why not" {
     assert(stt_state_json("not_installed", "small") == "{\"available\":false,\"provider\":\"local\",\"model\":\"small\",\"reason\":\"not_installed\",\"hint\":\"scripts/install-stt.ps1\"}")
     assert(stt_state_json("failed", "medium") == "{\"available\":false,\"provider\":\"local\",\"model\":\"medium\",\"reason\":\"failed\"}")
     assert(stt_state_json("not_running", "small") == "{\"available\":false,\"provider\":\"local\",\"model\":\"small\",\"reason\":\"not_running\"}")
+}
+
+
+test "voice disabled: status never advertises external recognizer availability" {
+    assert(stt_state_json("disabled", "small") == "{\"available\":false,\"provider\":\"local\",\"model\":\"small\",\"reason\":\"disabled\"}")
+}
+
+
+test "voice disabled: the actual manager refuses foreign probing and child management" {
+    for managed in [false, true] {
+        ro asks = Chan[SttMgrAsk].new(1)
+        ro reply = Chan[str].new(1)
+        ro queued = asks.tx.send(SttMgrAsk { reply: reply.tx })
+        asks.tx.close()
+        stt_manage(SttConfig { managed, dir: "", model: "small", language: "auto", url: "", pid_file: "" }, asks.rx)
+        assert(reply.rx.recv() == Some("disabled"))
+    }
 }

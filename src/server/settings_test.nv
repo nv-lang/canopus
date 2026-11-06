@@ -315,3 +315,14 @@ test "public settings: database_url reaches PostgreSQL without leaking password"
     assert(cfg.pg.password == "placeholder" && cfg.pg.database == "canopus")
     assert(!cfg.describe().contains("placeholder"))
 }
+
+
+test "public settings: voice false disables the endpoint through the selected config" {
+    ro file = settings_file("voice-off.json", "{\"voice\":false}")
+    ro home = file.parent().unwrap().display()
+    match with Os = mock_os(MockOs.new()), Fs = real_fs() { server_settings_selected("", home, []str.new(), file.display()) } {
+        Ok(cfg) => assert(cfg.stt_url == "")
+        Err(e) => panic(e)
+    }
+    assert(is_error(parse_server_settings("{\"voice\":true}")))
+}

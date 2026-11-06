@@ -14,7 +14,7 @@ module canopus.server
 
 import std.text
 import std.fs.{Fs, read_text, write_text, try_exists, remove_dir, remove_file, canonicalize, Path}
-import std.os.{Os, Command, Stdio, Tree}
+import std.os.{Os, Command, Stdio, Tree, env}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 
 /// Time limits, in milliseconds: a local call, a call over the network.
@@ -240,6 +240,12 @@ fn tw_exec(dir str, args []str, timeout_ms int) Proc Os Fs -> GitOut {
     command.env("GIT_TERMINAL_PROMPT", "0")
     command.env("GIT_EDITOR", "true")
     command.env("GIT_MERGE_AUTOEDIT", "no")
+    // Command has an explicit child environment; forward Git's standard diagnostic
+    // variable as well. No Canopus setting or unredacted own logger is introduced.
+    match env("GIT_TRACE") {
+        Some(trace) => { command.env("GIT_TRACE", trace) }
+        None => ()
+    }
     command.tree(Tree.Group)
     mut res = GitOut { code: -1, out: "", err: "cannot run git" }
     ro finished = with Fail[TimeoutError] = |_e| { false } {

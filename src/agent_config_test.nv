@@ -22,7 +22,7 @@ fn ac_sample() -> str => [
     "    }",
     "  ],",
     "  \"provider\": {",
-    "    \"cc\": { \"settings\": { \"claudeConfigDir\": \"C:/acc\", \"timeStamp\": true, \"canopusMcp\": \"C:/work/canopus/opencode-plugin/mcp.ts\" } },",
+    "    \"cc\": { \"settings\": { \"claudeConfigDir\": \"C:/acc\", \"timeStamp\": true, \"crewMcp\": \"C:/work/canopus/opencode-plugin/mcp.ts\", \"canopusMcp\": \"C:/work/canopus/opencode-plugin/mcp.ts\" } },", // guard-allow(legacy-name): published external provider option in owner fixture
     "    \"k\": { \"models\": { \"m1\": {} } }",
     "  }",
     "}"
@@ -32,6 +32,7 @@ test "agent config: the plugin canopus is cut out of the list, the other plugins
     ro cut = config_for_hub(ac_sample())
     assert(!cut.contains("opencode-plugin"))
     assert(!cut.contains("canopusMcp"))
+    assert(cut.contains("\"crewMcp\": false")) // guard-allow(legacy-name): actual external provider disable contract
     assert(!cut.contains("a comment of the plugin"))
     assert(cut.contains("C:/work/plugins/windows-env"))
     assert(cut.contains("// a comment of the second one"))
@@ -102,6 +103,7 @@ test "agent config: retired keep-plugin env cannot bypass the default; explicit 
                 ro copy = read_text(Path.from_bytes("${xdg}/opencode/opencode.jsonc".bytes())) ?? ""
                 assert(copy.byte_len() > 0 && !copy.contains("opencode-plugin"))
                 assert(copy.contains("C:/work/plugins/guards"))
+                assert(copy.contains("\"crewMcp\": false")) // guard-allow(legacy-name): copied agent config must disable actual external provider MCP
                 assert((read_text(source.join("opencode.jsonc")) ?? "") == ac_sample())
             }
             Err(e) => panic("retired environment changed the internal default")
@@ -113,4 +115,51 @@ test "agent config: retired keep-plugin env cannot bypass the default; explicit 
         assert(!(try_exists(kept.join("agent-config")) ?? false))
         ro gone = remove_dir_all(root)
     }
+}
+
+
+test "agent config: actual provider option is false rather than absent, with comments and neighboring values preserved" {
+    ro key = "crewMcp" // guard-allow(legacy-name): independent literal of the published external provider option
+    for source in ["{\"${key}\":\"endpoint\"}", "{\"${key}\":\"endpoint\",\"other\":7}", "{\"other\":7,\"${key}\":\"endpoint\"}"] {
+        ro cut = config_for_hub(source)
+        match Json.parse(cut) {
+            Ok(value) => assert(value.object().unwrap().get(key).unwrap().bool() == Some(false))
+            Err(error) => panic("disabled provider configuration is not JSON")
+        }
+        if source.contains("other") { assert(cut.contains("\"other\":7")) }
+        assert(config_for_hub(cut) == cut)
+    }
+    ro already_disabled = "{\"${key}\":false,\"other\":7}"
+    assert(config_for_hub(already_disabled) == already_disabled)
+    ro commented = "{/* keep ${key} in this comment */ \"${key}\": /* endpoint */ \"endpoint\", \"other\":7}"
+    ro cut = config_for_hub(commented)
+    assert(cut == "{/* keep ${key} in this comment */ \"${key}\": /* endpoint */ false, \"other\":7}")
+}
+
+
+test "agent config: recognized native provider gets false even when absent or null; unrelated aliases stay intact" {
+    ro package = "aisdk:file:///C:/work/fixtures/opencode-claude-code-provider/index.js"
+    for map in ["providers", "provider"] {
+        for settings in ["{}", "{ /* keep */ \"timeStamp\":true, }", "{\"crewMcp\":null,\"x\":1}", "{\"crewMcp\":false}", "{\"crewMcp\":{\"nested\":[1,2]},\"x\":1}", "{\"crewMcp\":[1,{\"nested\":2}],\"x\":1}"] { // guard-allow(legacy-name): published external provider option
+            ro original = "{\"${map}\":{\"renamed-provider\":{\"package\":\"${package}\",\"settings\":${settings}},\"other\":{\"package\":\"@ai-sdk/other\",\"settings\":{\"x\":2}}}}"
+            ro cut = config_for_hub(original)
+            assert(cut.contains("\"crewMcp\":false")) // guard-allow(legacy-name): published external provider option
+            assert(cut.contains("\"other\":{\"package\":\"@ai-sdk/other\",\"settings\":{\"x\":2}}"))
+            if settings.contains("/* keep */") {
+                assert(cut.contains("/* keep */"))
+            } else {
+                match Json.parse(cut) {
+                    Ok(v) => assert(v.object().is_some())
+                    Err(e) => panic("the sanitized native provider is not valid JSON")
+                }
+            }
+            if settings.contains("\"x\":1") { assert(cut.contains("\"x\":1")) }
+            assert(config_for_hub(cut) == cut)
+        }
+    }
+    ro absent = "{\"providers\":{\"alias\":{\"package\":\"${package}\",\"models\":{}}}}"
+    assert(config_for_hub(absent).contains("\"settings\":{\"crewMcp\":false}")) // guard-allow(legacy-name): published external provider option
+    ro unrelated = "{\"providers\":{\"claude-code\":{\"package\":\"@ai-sdk/other\",\"settings\":{}}}}"
+    assert(config_for_hub(unrelated) == unrelated)
+    assert(config_for_hub("{\"providers\":{}}") == "{\"providers\":{}}")
 }

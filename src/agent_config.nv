@@ -173,8 +173,116 @@ export fn config_without_string_property(text str, key str) -> str {
     out
 }
 
-/// The whole cut: the plugin out of the list, the property `canopusMcp` out of the settings of the providers.
-export fn config_for_hub(text str) -> str => config_without_string_property(config_without_plugin(text), "canopusMcp")
+// The actual external provider consumes this published option. False disables discovery;
+// removing it would permit that provider's default sibling search.
+const CLAUDE_PROVIDER_MCP_OPTION = "crewMcp" // guard-allow(legacy-name): published external provider option; its API is not renamed here
+
+fn config_disable_string_property(text str, key str) -> str {
+    mut out = text
+    mut from = 0
+    while true {
+        ro found = find_key(out, key, from)
+        if found.at < 0 { break }
+        ro bytes = out.bytes()
+        ro value = skip_gap(bytes, found.after)
+        if value >= bytes.len() || bytes[value] != (34 as u8) { from = found.after; continue }
+        ro end = str_end(bytes, value)
+        out = "${out[..value]}false${out[end..]}"
+        from = value + 5
+    }
+    out
+}
+
+// Look only at properties of this object; nested model settings are not providers.
+fn direct_key(text str, key str, open int) -> KeyAt {
+    ro bytes = text.bytes()
+    mut i = open + 1
+    while i < bytes.len() {
+        i = skip_gap(bytes, i)
+        if i >= bytes.len() || bytes[i] == (125 as u8) { break }
+        if bytes[i] == (34 as u8) {
+            ro end = str_end(bytes, i)
+            ro colon = skip_gap(bytes, end)
+            if end - i - 2 == key.byte_len() && text[i + 1..end - 1] == key && colon < bytes.len() && bytes[colon] == (58 as u8) {
+                return KeyAt { at: i, after: colon + 1 }
+            }
+            i = end
+        } else if bytes[i] == (123 as u8) || bytes[i] == (91 as u8) {
+            ro nested = array_segments(text, i)
+            if nested.close < 0 { break }
+            i = nested.close + 1
+        } else { i += 1 }
+    }
+    KeyAt { at: -1, after: -1 }
+}
+
+// Add a first member, retaining every original byte, including comments/trailing commas.
+fn object_prepend(text str, open int, member str) -> str {
+    ro next = skip_gap(text.bytes(), open + 1)
+    ro comma = if next < text.byte_len() && text[next..next + 1] == "}" { "" } else { "," }
+    "${text[..open + 1]}${member}${comma}${text[open + 1..]}"
+}
+
+fn disable_provider_entry(part str) -> str {
+    ro bytes = part.bytes()
+    ro key = skip_gap(bytes, 0)
+    if key >= bytes.len() || bytes[key] != (34 as u8) { return part }
+    ro colon = skip_gap(bytes, str_end(bytes, key))
+    if colon >= bytes.len() || bytes[colon] != (58 as u8) { return part }
+    ro open = skip_gap(bytes, colon + 1)
+    if open >= bytes.len() || bytes[open] != (123 as u8) { return part }
+    ro package = direct_key(part, "package", open)
+    if package.at < 0 { return part }
+    ro start = skip_gap(bytes, package.after)
+    if start >= bytes.len() || bytes[start] != (34 as u8) { return part }
+    ro end = str_end(bytes, start)
+    ro value = part[start + 1..end - 1].replace("\\", "/")
+    // This is the actual published native package contract, not the owner's alias.
+    if !value.starts_with("aisdk:file:") || !value.ends_with("/opencode-claude-code-provider/index.js") { return part }
+    ro settings = direct_key(part, "settings", open)
+    if settings.at < 0 {
+        return object_prepend(part, open, "\"settings\":{\"${CLAUDE_PROVIDER_MCP_OPTION}\":false}")
+    }
+    ro settings_open = skip_gap(bytes, settings.after)
+    if settings_open >= bytes.len() || bytes[settings_open] != (123 as u8) { return part }
+    ro option = direct_key(part, CLAUDE_PROVIDER_MCP_OPTION, settings_open)
+    if option.at < 0 { return object_prepend(part, settings_open, "\"${CLAUDE_PROVIDER_MCP_OPTION}\":false") }
+    ro begin = skip_gap(bytes, option.after)
+    mut finish = begin
+    if begin < bytes.len() && bytes[begin] == (34 as u8) {
+        finish = str_end(bytes, begin)
+    } else if begin < bytes.len() && (bytes[begin] == (123 as u8) || bytes[begin] == (91 as u8)) {
+        ro composite = array_segments(part, begin)
+        if composite.close < 0 { return part }
+        finish = composite.close + 1
+    } else {
+        while finish < bytes.len() && bytes[finish] != (44 as u8) && bytes[finish] != (125 as u8) && !is_space(bytes[finish]) && comment_end(bytes, finish) == finish { finish += 1 }
+    }
+    if finish <= begin { return part }
+    "${part[..begin]}false${part[finish..]}"
+}
+
+fn config_disable_provider_mcp(text str) -> str {
+    ro open = skip_gap(text.bytes(), 0)
+    if open >= text.byte_len() || text[open..open + 1] != "{" { return text }
+    mut out = text
+    // Native v2 uses providers; the singular map is retained for copied old files.
+    for map_key in ["providers", "provider"] {
+        ro map = direct_key(out, map_key, open)
+        if map.at < 0 { continue }
+        ro start = skip_gap(out.bytes(), map.after)
+        if start >= out.byte_len() || out[start..start + 1] != "{" { continue }
+        ro entries = array_segments(out, start)
+        if entries.close < 0 { continue }
+        mut parts = []str.new()
+        for part in entries.parts { parts.push(disable_provider_entry(part)) }
+        out = "${out[..start + 1]}${parts.join(",")}${out[entries.close..]}"
+    }
+    out
+}
+
+/// Remove the plugin registration and retired path; block MCP discovery only for the actual recognized provider.
+export fn config_for_hub(text str) -> str => config_disable_provider_mcp(config_disable_string_property(config_without_string_property(config_without_plugin(text), "canopusMcp"), CLAUDE_PROVIDER_MCP_OPTION))
 
 // ----- the copy on the disk -----
 
