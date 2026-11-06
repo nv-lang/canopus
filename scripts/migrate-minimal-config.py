@@ -183,7 +183,9 @@ def apply_documents(paths, originals, converted):
     stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
     for path, raw in zip(paths, originals):
         if raw is not None:
-            backup = path.with_name(path.name + '.before-286-' + stamp)
+            backup_dir = path.parent / 'backups'
+            backup_dir.mkdir(exist_ok=True)
+            backup = backup_dir / (path.name + '.before-286-' + stamp)
             with backup.open('xb') as stream:
                 stream.write(raw)
             if hashlib.sha256(backup.read_bytes()).digest() != hashlib.sha256(raw).digest():

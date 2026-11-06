@@ -104,7 +104,7 @@ class MigrationTests(unittest.TestCase):
                 with self.assertRaises(OSError):
                     m.apply_documents(paths, originals, [{'changed': True}] * 3)
             self.assertEqual([p.read_bytes() for p in paths], originals)
-            self.assertEqual(len(list(Path(folder).glob('*.before-*'))), 3)
+            self.assertEqual(len(list(Path(folder).rglob('*.before-*'))), 3)
 
     def test_backup_write_and_optimistic_concurrency(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -116,12 +116,12 @@ class MigrationTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 m.apply_documents(paths, raw, [{}, {}, {}])
             self.assertEqual(paths[0].read_bytes(), raw[0])
-            self.assertEqual(list(Path(folder).glob('*.before-*')), [])
+            self.assertEqual(list(Path(folder).rglob('*.before-*')), [])
             paths[1].write_bytes(raw[1])
             m.apply_documents(paths, raw, [{'new': 2}, {}, {}])
             self.assertEqual(json.loads(paths[0].read_text()), {'new': 2})
-            self.assertEqual(len(list(Path(folder).glob('*.before-*'))), 3)
-            self.assertTrue(all(p.read_bytes() == raw[0] for p in Path(folder).glob('*.before-*')))
+            self.assertEqual(len(list(Path(folder).rglob('*.before-*'))), 3)
+            self.assertTrue(all(p.read_bytes() == raw[0] for p in Path(folder).rglob('*.before-*')))
 
 if __name__ == '__main__':
     unittest.main()
