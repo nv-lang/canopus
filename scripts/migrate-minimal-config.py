@@ -185,8 +185,8 @@ def main():
     args = parser.parse_args()
     try:
         paths = [args.config.resolve(), args.config.resolve().parent / 'secrets.json', args.plugin_config.resolve()]
-        if len(set(paths)) != 3:
-            raise ValueError('application, secrets and plugin files must be distinct')
+        if len(set(paths)) != 3 or paths[0].parent == paths[2].parent:
+            raise ValueError('application and plugin instances must have distinct roots')
         docs = [read_document(path) for path in paths]
         converted, blockers = convert(*(item[1] for item in docs), args.repo.resolve(), paths[0].parent, target_policy(args.policy_root or args.repo))
         # Never follow project_settings paths or touch foreign project files.
@@ -205,5 +205,6 @@ def main():
 
 if __name__ == '__main__':
     raise SystemExit(main())
+
 
 

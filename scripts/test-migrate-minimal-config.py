@@ -5,6 +5,9 @@ from pathlib import Path
 import tempfile
 import unittest
 import sys
+from unittest.mock import patch
+from contextlib import redirect_stdout
+from io import StringIO
 sys.path.insert(0, str(Path(__file__).parent))
 spec = importlib.util.spec_from_file_location('migration', Path(__file__).with_name('migrate-minimal-config.py'))
 m = importlib.util.module_from_spec(spec)
@@ -37,6 +40,48 @@ class MigrationTests(unittest.TestCase):
     def test_conflicting_connection_definitions_block(self):
         _, blockers = self.convert({'pg': {'port': 15432}}, {'database_url': m.dsn_from_fields({'port': 5432})})
         self.assertIn('conflicting', blockers[0])
+
+    def test_cli_dry_run_and_blocked_apply_do_not_write(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'plugin').mkdir()
+            app = root / 'config.json'
+            plugin = root / 'plugin/config.json'
+            app.write_text('{"port":8103}', encoding='utf-8')
+            plugin.write_text('{}', encoding='utf-8')
+            command = ['migration', '--config', str(app), '--plugin-config', str(plugin), '--repo', str(root)]
+            initial = {p: p.read_bytes() for p in (app, plugin)}
+            with patch.object(sys, 'argv', command), patch.object(m, 'target_policy', return_value=POLICY), redirect_stdout(StringIO()):
+                self.assertEqual(m.main(), 0)
+            self.assertEqual({p: p.read_bytes() for p in (app, plugin)}, initial)
+            self.assertFalse((root / 'secrets.json').exists())
+            app.write_text('{"unknown":"PRIVATE_VALUE"}', encoding='utf-8')
+            output = StringIO()
+            with patch.object(sys, 'argv', command + ['--apply']), patch.object(m, 'target_policy', return_value=POLICY), redirect_stdout(output):
+                self.assertEqual(m.main(), 2)
+            self.assertNotIn('PRIVATE_VALUE', output.getvalue())
+            self.assertEqual(list(root.rglob('*.before-*')), [])
+            self.assertEqual(plugin.read_bytes(), initial[plugin])
+
+    def test_failed_second_write_restores_first(self):
+        with tempfile.TemporaryDirectory() as folder:
+            paths = [Path(folder) / name for name in ('a.json', 'b.json', 'c.json')]
+            originals = [b'{"old":1}'] * 3
+            for path, raw in zip(paths, originals):
+                path.write_bytes(raw)
+            original_atomic = m.atomic
+            calls = 0
+            def failing_atomic(path, raw):
+                nonlocal calls
+                calls += 1
+                if calls == 2:
+                    raise OSError('simulated write failure')
+                return original_atomic(path, raw)
+            with patch.object(m, 'atomic', side_effect=failing_atomic):
+                with self.assertRaises(OSError):
+                    m.apply_documents(paths, originals, [{'changed': True}] * 3)
+            self.assertEqual([p.read_bytes() for p in paths], originals)
+            self.assertEqual(len(list(Path(folder).glob('*.before-*'))), 3)
 
     def test_backup_write_and_optimistic_concurrency(self):
         with tempfile.TemporaryDirectory() as folder:
