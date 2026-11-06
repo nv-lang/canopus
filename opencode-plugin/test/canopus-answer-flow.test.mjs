@@ -6,7 +6,8 @@ import { writeFixtureFile } from "./fixture-settings.mjs"
 // notices: the question is closed by its recommendation (a letter, a record "дан", no notice "ждёт вас"), or it stays with the owner
 // (one notice with the rest). The cells of the tab of the owner are here; the cells of the task sessions join in the next step.
 // Run alone, last. The code comes from CANOPUS_PLUGIN_DIR (a copy with stubs) or from the folder above.
-import { readFileSync, readdirSync } from "node:fs"
+import { readFileSync, readdirSync, existsSync, rmSync } from "node:fs"
+import { Worker } from "node:worker_threads"
 import path from "node:path"
 import { harness, load, reporter } from "./answer-harness.mjs"
 
@@ -288,16 +289,31 @@ const noWake = (sid) => H.letters(sid).filter((l) => /Не завершено/.t
 // ---- AC-15: the approval of plans is not touched by the modes ----------------------------------------------------------------
 {
   modes({ default: "recommendations" })
+  // A real TUI has its own event loop. Keep this fixture window alive independently
+  // of the service loop's synchronous Git/status work, rather than relaxing staleness.
+  const ownerPid = H.WPID + 100000
+  const presenceFile = path.join(core.WINDOWS, `${ownerPid}.json`)
+  const ownerNotices = () => {
+    const dir = path.join(core.NOTICES, String(ownerPid))
+    return existsSync(dir) ? readdirSync(dir).filter(f => f.endsWith(".json")).map(f => JSON.parse(readFileSync(path.join(dir, f), "utf8"))) : []
+  }
+  const ownerWindow = new Worker(`const {workerData}=require("node:worker_threads");const fs=require("node:fs");const beat=()=>{const value={pid:workerData.pid,beat:Date.now(),tabs:[{sessionID:workerData.session,active:true,busy:false}]};fs.writeFileSync(workerData.file+".tmp",JSON.stringify(value));fs.renameSync(workerData.file+".tmp",workerData.file)};beat();setInterval(beat,300)`, {eval:true,workerData:{file:presenceFile,pid:ownerPid,session:AUTHOR}})
+  try {
+  await H.until(() => core.liveWindows().some(w => w.pid === ownerPid), 10_000)
   const t = H.tasks.createTask({ project: "proj", title: "план 11: проверка", goal: "g", criteria: "c", priority: "P2", tier: "light", role: "worker", model: "claude-code/haiku", author: AUTHOR, author_role: "proj.integrator", qid: "q-plan11", status: "approval", kind: "spawn", directory: H.proj, plan: { n: "11", file: "docs/plans/11-x.md", source: "s", rounds: [], clean: 2 } })
   cell('AC-15 default plan approver remains owner', H.cfg().planApprover === 'owner', H.cfg().planApprover)
-  await H.until(() => H.notices().some((x) => /План 11 ждёт согласования/.test(x.title)), 60_000)
-  const ownerPlanNotice = H.notices().some(x => /План 11 ждёт согласования/.test(x.title))
+  await H.until(() => ownerNotices().some((x) => /План 11 ждёт согласования/.test(x.title)), 60_000)
+  const ownerPlanNotice = ownerNotices().some(x => /План 11 ждёт согласования/.test(x.title))
   if (!ownerPlanNotice) console.log('plan owner diagnostic:', readFileSync(path.join(H.tmp, 'opencode-plugins.log'), 'utf8').split('\n').filter(l => /applyApprovals|pass step|slow step/.test(l)).slice(-12).join('\n'), JSON.stringify({ windows: core.liveWindows(), task: H.tasks.loadTask('proj', t.n) }))
   const t1 = H.tasks.loadTask("proj", t.n)
   modes({ default: "recommendations" }, { plan_approver: "integrator" })
   const t2 = H.tasks.createTask({ project: "proj", title: "план 12: проверка", goal: "g", criteria: "c", priority: "P2", tier: "light", role: "worker", model: "claude-code/haiku", author: AUTHOR, author_role: "proj.integrator", qid: "q-plan12", status: "approval", kind: "spawn", directory: H.proj, plan: { n: "12", file: "docs/plans/12-x.md", source: "s", rounds: [], clean: 2 } })
   await H.until(() => toAuthor().some((l) => /^plan-approve-/.test(String(l.id))), 60_000)
   cell("AC-15 планы", ownerPlanNotice && t1.status === "approval" && !t1.plan.approval && toAuthor().some((l) => /^plan-approve-proj-\d+-12-|^plan-approve-proj-/.test(String(l.id))) && H.tasks.loadTask("proj", t2.n).status === "approval", JSON.stringify([ownerPlanNotice, H.notices().map((x) => x.title), toAuthor().map((l) => l.id), t1.status, t1.plan, H.cfg().planApprover]))
+  } finally {
+    await ownerWindow.terminate()
+    rmSync(presenceFile, {force:true})
+  }
 }
 
 R.done(H)

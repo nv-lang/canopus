@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 spec = importlib.util.spec_from_file_location('migration', Path(__file__).with_name('migrate-minimal-config.py'))
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
-POLICY = ({'idle_term_seconds': 900}, {'model_profiles', 'profile_set', 'machine_slots'}, {'tier_max': '(нет)', 'ask': True})
+POLICY = ({'idle_term_seconds': 900}, {'model_profiles', 'profile_set', 'machine_slots', 'worktrees'}, {'tier_max': '(нет)', 'ask': True})
 
 class MigrationTests(unittest.TestCase):
     def convert(self, app=None, secrets=None, plugin=None):
@@ -31,6 +31,15 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual(out[2]['local']['fixture']['profile_set'], 'chosen')
         self.assertNotIn('tier_max', out[2]['local']['fixture'])
         self.assertIn('tier_max', plugin['local']['fixture'])
+
+    def test_project_worktree_paths_survive_migration(self):
+        converted, blockers = self.convert(plugin={'defaults': {'worktrees': '../shared'}, 'local': {'fixture': {'worktrees': 'C:/work/custom-trees'}}})
+        self.assertEqual(blockers, [])
+        self.assertEqual(converted[2]['defaults']['worktrees'], '../shared')
+        self.assertEqual(converted[2]['local']['fixture']['worktrees'], 'C:/work/custom-trees')
+        self.assertIn('worktrees', m.target_policy(Path(__file__).resolve().parents[1])[1])
+        _, blockers = self.convert(plugin={'local': {'fixture': {'worktrees': False}}})
+        self.assertTrue(any('worktrees' in item for item in blockers))
 
     def test_nondefault_unknown_and_alias_conflicts_block_without_values(self):
         _, blockers = self.convert({'idle_term_seconds': 17, 'hidden': 'PRIVATE_VALUE'}, plugin={'projects': ['a'], 'project_settings': ['b'], 'defaults': {'ask': False}})

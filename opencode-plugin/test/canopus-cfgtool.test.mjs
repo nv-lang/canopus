@@ -27,7 +27,7 @@ try {
  for(const sessionID of ["sesINT","sesWRK"])await hooks.context({sessionID,system:[],model:{id:"x",providerID:"y"}})
  await tools.canopus_role.execute({role:"integrator"},{sessionID:"sesINT"})
  const guide=await call("sesWRK",{action:"guide"})
- cell("guide covers exactly the public schema",schema.SCHEMA_KEYS.length===10&&schema.SCHEMA_KEYS.every(key=>guide.includes(`- ${key}:`))&&!guide.includes("- cleanup:"),guide)
+ cell("guide covers exactly the public schema",schema.SCHEMA_KEYS.length===11&&schema.SCHEMA_KEYS.every(key=>guide.includes(`- ${key}:`))&&!guide.includes("- cleanup:"),guide)
  cell("guide preserves value/source and recommendations",/- inflight_limit:.*Сейчас: 6 \(project /.test(guide)&&guide.includes(file)&&guide.includes("Рекомендация:"),guide)
  const cfg=core.loadConfig(work)
  cell("real committed project and global personal override apply",cfg.inflightLimit===6&&cfg.ownerLanguage==="Russian"&&cfg.machineSlots===3,JSON.stringify({inflight:cfg.inflightLimit,language:cfg.ownerLanguage,slots:cfg.machineSlots}))

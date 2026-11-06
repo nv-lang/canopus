@@ -2,6 +2,7 @@
 // Keep named consumer keys here so an explicitly approved future version can expose them again.
 export const PROJECT_KEYS = Object.freeze([
   "tasks_dir",
+  "worktrees",
   "model_profiles",
   "profile_sets",
   "profile_set",
@@ -225,6 +226,8 @@ export const INTERNAL_POLICY = freeze({
 /** Unknown public keys fail before runtime work; values are never quoted. */
 export function validateProjectSettings(value: unknown, origin: string): asserts value is Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`Canopus ${origin}: expected a settings object`)
+  const fields = value as Record<string, unknown>
+  if ("worktrees" in fields && (typeof fields.worktrees !== "string" || fields.worktrees.includes("\0"))) throw new Error(`Canopus ${origin}: worktrees must be a directory string`)
   for (const key of Object.keys(value)) {
     if (!(PROJECT_KEYS as readonly string[]).includes(key)) throw new Error(`Canopus ${origin}: unsupported setting ${key}; run the explicit configuration transition`)
   }

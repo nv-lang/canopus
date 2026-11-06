@@ -1,7 +1,7 @@
 import { runtimeValue } from "./runtime-policy.ts"
 // Project settings are accepted from the canonical primary Git worktree's default branch.
 // Global project_settings accepts repository folders or explicit virtual {project, root} definitions.
-// Shared config contains ten public settings only; private local layers have higher precedence.
+// Shared config contains public project settings only; private local layers have higher precedence.
 // Registration selects a file; retired aliases and shared identity overrides are rejected.
 
 import { execFileSync } from "node:child_process"

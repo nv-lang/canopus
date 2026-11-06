@@ -113,7 +113,7 @@ await wait(50)
 const a1 = await call("canopus_config", "sesINTEG1", { action: "apply_template" })
 const f1 = JSON.parse(readFileSync(file, "utf8"))
 cell("apply_template: profiles, sets, codex and light written", f1.profile_set === "codex" && Object.values(f1.profile_sets ?? {}).every(set => Object.values(set).every(cell => cell.tier === "light")) && f1.model_profiles?.claude?.heavy && f1.profile_sets?.codex?.develop, JSON.stringify(f1).slice(0, 300))
-cell("apply_template: existing keys of the project win", f1.spawn_limits.worker === 10 && f1.branch_name === undefined && f1.worktrees === undefined && f1.task_fields === undefined, JSON.stringify(f1).slice(0, 300))
+cell("apply_template: existing keys of the project win", f1.spawn_limits.worker === 10 && f1.branch_name === undefined && f1.worktrees === "wt" && f1.task_fields === undefined, JSON.stringify(f1).slice(0, 300))
 cell("apply_template: no merge_precheck or answer_mode, and the commit reminder", f1.merge_precheck === undefined && f1.answer_mode === undefined && /закоммит/.test(a1), a1)
 f1.owner_language = "English"
 writeFixtureFile(file, JSON.stringify(f1))

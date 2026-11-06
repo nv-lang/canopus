@@ -23,7 +23,7 @@ def target_policy(repo):
     source = (repo / 'opencode-plugin/resolved-policy.ts').read_text(encoding='utf-8-sig')
     public = json.loads('[' + source.split('Object.freeze([', 1)[1].split('] as const)', 1)[0] + ']')
     internal = json.JSONDecoder().raw_decode(source.split('export const INTERNAL_POLICY = freeze(', 1)[1].lstrip())[0]
-    if len(app) < 40 or len(public) != 10 or not internal:
+    if len(app) < 40 or len(public) < 11 or "worktrees" not in public or not internal:
         raise ValueError('target policy registry is incomplete')
     return app, set(public), internal
 
@@ -51,7 +51,10 @@ def project_config(value, public, internal, blockers, prefix):
     result = {}
     for key, item in value.items():
         if key in public:
-            result[key] = copy.deepcopy(item)
+            if key == 'worktrees' and (not isinstance(item, str) or '\0' in item):
+                blockers.append(prefix + '.worktrees: expected directory string')
+            else:
+                result[key] = copy.deepcopy(item)
         elif key in internal and equal(item, internal[key]):
             pass
         elif key == 'tier_max' and item == 'heavy':

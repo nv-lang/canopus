@@ -65,7 +65,7 @@ cell("built-in landing policy is retained", d.acceptedSlot === "free" && d.clean
 const show = await call("sesWRK", { action: "show" })
 const guide = await call("sesWRK", { action: "guide" })
 cell("removed controls are absent from show and guide", NEW.every(key => !show.includes(`${key} =`) && !guide.includes(`- ${key}:`)), show)
-cell("guide covers only the public schema", schema.SCHEMA_KEYS.length === 10 && schema.SCHEMA_KEYS.every(key => guide.includes(`- ${key}:`)), guide)
+cell("guide covers only the public schema", schema.SCHEMA_KEYS.length === 11 && schema.SCHEMA_KEYS.every(key => guide.includes(`- ${key}:`)), guide)
 // The former validator implementation remains callable by an explicit code-policy dependency.
 cell("code-policy validation retains allowed values", !schema.invalidInternalPolicy("accepted_slot", "hold") && !schema.invalidInternalPolicy("cleanup_limit", 0) && !schema.invalidInternalPolicy("merge_precheck", "off"), "")
 cell("code-policy validation retains invalid-field protection", !!schema.invalidInternalPolicy("cleanup_limit", -1) && !!schema.invalidInternalPolicy("task_extra_fields", [{ id: "goal", label: "Goal" }]), "")
