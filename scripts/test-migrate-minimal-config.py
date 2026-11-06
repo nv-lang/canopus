@@ -64,6 +64,18 @@ class MigrationTests(unittest.TestCase):
             (plugin / 'data/sessions').mkdir(parents=True)
             self.assertTrue(m.instance_blockers(app, plugin))
 
+    def test_web_override_must_match_actual_installation_resource_choice(self):
+        with tempfile.TemporaryDirectory() as folder:
+            repo = Path(folder) / 'installation'
+            (repo / 'web').mkdir(parents=True)
+            (repo / 'src/web').mkdir(parents=True)
+            _, blockers = m.convert({'web_dir': str(repo / 'src/web')}, {}, {}, repo, Path(folder) / 'instance', POLICY)
+            self.assertTrue(any('app.web_dir' in item for item in blockers))
+            _, blockers = m.convert({'web_dir': str(repo / 'web')}, {}, {}, repo, Path(folder) / 'instance', POLICY)
+            self.assertEqual(blockers, [])
+            _, blockers = m.convert({'web_dir': 'web'}, {}, {}, repo, Path(folder) / 'instance', POLICY)
+            self.assertTrue(any('app.web_dir' in item for item in blockers), 'nondefault relative paths need explicit provenance')
+
     def test_conflicting_connection_definitions_block(self):
         _, blockers = self.convert({'pg': {'port': 15432}}, {'database_url': m.dsn_from_fields({'port': 5432})})
         self.assertIn('conflicting', blockers[0])

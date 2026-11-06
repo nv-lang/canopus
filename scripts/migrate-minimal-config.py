@@ -67,7 +67,7 @@ def convert(app, secrets, plugin, repo, home, policy):
     defaults, public, internal = policy
     blockers = []
     result = {}
-    derived = {'web_dir': repo / 'src/web', 'hub.program': repo / 'target/canopus-hub.exe',
+    derived = {'web_dir': repo / 'web' if (repo / 'web').is_dir() else repo / 'src/web', 'hub.program': repo / 'target/canopus-hub.exe',
                'data_dir': home / 'data', 'tools_dir': home / 'tools', 'voice.dir': home / 'tools/whisper'}
     pg = {}
     for key, value in flatten(app):
@@ -77,7 +77,7 @@ def convert(app, secrets, plugin, repo, home, policy):
             pg[key[3:]] = value
         elif key in defaults and equal(value, defaults[key]):
             pass
-        elif key in derived and isinstance(value, str) and os.path.normcase(os.path.abspath(value)) == os.path.normcase(str(derived[key].resolve())):
+        elif key in derived and isinstance(value, str) and Path(value).is_absolute() and os.path.normcase(str(Path(value).resolve())) == os.path.normcase(str(derived[key].resolve())):
             pass
         else:
             blockers.append('app.' + key + ': unsupported nondefault or unknown setting')
