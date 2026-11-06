@@ -19,6 +19,8 @@
 | Правила репозитория и машины | [AGENTS.md](../../AGENTS.md) — в корне, потому что агенты читают его оттуда при старте |
 | Решения (ADR) | [decisions/](decisions/README.md) |
 | Где что лежит (настройки и данные пульта) | [doc/README.md](../README.md), [ADR-0016](decisions/ADR-0016-config-layout.md) |
+| Конфигурация приложения и плагина | [configuration.md](configuration.md) |
+| Создание, пауза и отмена задач | [task-lifecycle.md](task-lifecycle.md) |
 | Правила использования языка Nova | [nova-conventions.md](nova-conventions.md) |
 | Документация частей | README корня и частей (`opencode-plugin/README.md` и т.д.) |
 
