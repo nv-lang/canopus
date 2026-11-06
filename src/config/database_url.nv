@@ -1,0 +1,106 @@
+// 286: PostgreSQL URI parsing shared by the front and hub. No database driver dependency.
+module canopus.config
+
+import std.encoding.json.{JsonObject, JsonValue}
+import std.encoding.url.{Url}
+
+const DATABASE_URL_DEFAULT_HOST = "127.0.0.1"
+const DATABASE_URL_DEFAULT_PORT = 5432
+const DATABASE_URL_DEFAULT_DATABASE = "canopus"
+const DATABASE_URL_DEFAULT_USER = "canopus_app"
+const DATABASE_URL_INVALID = "database_url must be a PostgreSQL URI with a valid host, port and UTF-8 components; query options and fragments are not supported"
+
+fn database_component(text str) -> Result[str, str] {
+    // The std helper is form-oriented; URI userinfo/path must preserve literal plus.
+    ro decoded = match Url.decode_query(text.replace("+", "%2B")) {
+        Ok(value) => value
+        Err(e) => return Err(DATABASE_URL_INVALID)
+    }
+    for byte in decoded.bytes() {
+        if byte == 0 { return Err(DATABASE_URL_INVALID) }
+    }
+    Ok(decoded)
+}
+
+fn database_port(text str) -> Result[int, str] {
+    if text.byte_len() == 0 { return Err(DATABASE_URL_INVALID) }
+    for byte in text.bytes() {
+        if byte < 48 || byte > 57 { return Err(DATABASE_URL_INVALID) }
+    }
+    match text.to_int() {
+        Ok(value) => if value > 0 && value <= 65535 { Ok(value) } else { Err(DATABASE_URL_INVALID) }
+        Err(e) => Err(DATABASE_URL_INVALID)
+    }
+}
+
+/// Decode a connection URI into the existing five connection fields. Errors never quote the URI.
+/// Network/local-host restrictions remain the responsibility of the existing PgConfig.check.
+export fn parse_database_url(text str) -> Result[JsonObject, str] {
+    for byte in text.bytes() {
+        if byte <= 32 || byte == 127 { return Err(DATABASE_URL_INVALID) }
+    }
+    ro (scheme, rest) = match text.split_once("://") {
+        Some(parts) => parts
+        None => return Err(DATABASE_URL_INVALID)
+    }
+    ro uri_scheme = scheme.to_ascii_lower()
+    if uri_scheme != "postgresql" && uri_scheme != "postgres" { return Err(DATABASE_URL_INVALID) }
+    if rest.contains("?") || rest.contains("#") { return Err(DATABASE_URL_INVALID) }
+    ro (authority, raw_database) = match rest.split_once("/") {
+        Some(parts) => parts
+        None => (rest, "")
+    }
+    if raw_database.contains("/") { return Err(DATABASE_URL_INVALID) }
+    mut user = DATABASE_URL_DEFAULT_USER
+    mut password = ""
+    mut endpoint = authority
+    match authority.split_once("@") {
+        Some((userinfo, hostinfo)) => {
+            if hostinfo.contains("@") { return Err(DATABASE_URL_INVALID) }
+            ro (raw_user, raw_password) = match userinfo.split_once(":") {
+                Some(parts) => parts
+                None => (userinfo, "")
+            }
+            user = database_component(raw_user)?
+            password = database_component(raw_password)?
+            if user.byte_len() == 0 { return Err(DATABASE_URL_INVALID) }
+            endpoint = hostinfo
+        }
+        None => ()
+    }
+    mut host = DATABASE_URL_DEFAULT_HOST
+    mut port = DATABASE_URL_DEFAULT_PORT
+    if endpoint.starts_with("[") {
+        ro close = match endpoint.find("]") { Some(at) => at, None => return Err(DATABASE_URL_INVALID) }
+        host = endpoint[1..close]
+        if !host.contains(":") || host.byte_len() == 0 { return Err(DATABASE_URL_INVALID) }
+        for byte in host.bytes() {
+            if !((byte >= 48 && byte <= 57) || (byte >= 65 && byte <= 70) || (byte >= 97 && byte <= 102) || byte == 58 || byte == 46) { return Err(DATABASE_URL_INVALID) }
+        }
+        ro tail = endpoint[close + 1..]
+        if tail.byte_len() > 0 {
+            if !tail.starts_with(":") { return Err(DATABASE_URL_INVALID) }
+            port = database_port(tail[1..])?
+        }
+    } else {
+        ro raw_host = match endpoint.split_once(":") {
+            Some((name, number)) => { port = database_port(number)?; name }
+            None => endpoint
+        }
+        if raw_host.byte_len() > 0 { host = database_component(raw_host)? }
+        for character in ["/", "\\", "?", "#", "@", "[", "]", ":", ","] {
+            if host.contains(character) { return Err(DATABASE_URL_INVALID) }
+        }
+        for byte in host.bytes() {
+            if byte <= 32 || byte >= 127 { return Err(DATABASE_URL_INVALID) }
+        }
+    }
+    ro database = if raw_database.byte_len() > 0 { database_component(raw_database)? } else { DATABASE_URL_DEFAULT_DATABASE }
+    mut out = JsonObject.new()
+    ro h = out.insert("host", JsonValue.str(host))
+    ro p = out.insert("port", JsonValue.int(port))
+    ro d = out.insert("database", JsonValue.str(database))
+    ro u = out.insert("user", JsonValue.str(user))
+    ro secret = out.insert("password", JsonValue.str(password))
+    Ok(out)
+}
