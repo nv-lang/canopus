@@ -56,7 +56,12 @@ class MigrationTests(unittest.TestCase):
             source.mkdir(parents=True)
             record = {"project": "old-project", "author_role": "old-project.integrator", "text": "old-project remains quoted", "id": "msg_old-project_receipt"}
             migration.write_json(source / "1.json", record)
-            migration.remap_project(root / "data", root / "backup", "old-project", "new-project")
+            (source / "empty.json").write_bytes(b"")
+            (source / "damaged.json").write_bytes(b"not json\xff")
+            opaque = migration.remap_project(root / "data", root / "backup", "old-project", "new-project")
+            self.assertEqual(len(opaque), 2)
+            self.assertEqual((root / "data/tasks/new-project/empty.json").read_bytes(), b"")
+            self.assertEqual((root / "data/tasks/new-project/damaged.json").read_bytes(), b"not json\xff")
             result = migration.read_json(root / "data/tasks/new-project/1.json")
             self.assertEqual(result["project"], "new-project")
             self.assertEqual(result["author_role"], "new-project.integrator")

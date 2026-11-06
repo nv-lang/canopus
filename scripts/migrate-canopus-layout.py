@@ -79,8 +79,14 @@ def remap_project(data, backup, old, new):
             if value == old: return new
             if value.startswith(old + "."): return new + value[len(old):]
         return value
+    opaque = []
     for path in data.rglob("*.json"):
-        before = read_json(path)
+        try:
+            before = read_json(path)
+        except (ValueError, UnicodeError):
+            # Preserve unreadable historical records byte-for-byte and report them.
+            opaque.append(str(path.relative_to(data)))
+            continue
         after = update(before)
         if after != before:
             copy_verified(path, backup / "project-records" / path.relative_to(data), [])
@@ -101,6 +107,7 @@ def remap_project(data, backup, old, new):
                 raise ValueError("Project records collide: " + str(destination))
         else:
             path.rename(destination)
+    return opaque
 
 
 def remap_paths(root, backup, mappings):
@@ -195,12 +202,13 @@ def migrate(args):
                 copy_verified(source, target, manifest)
         if args.plugin_config:
             write_json(stage / "plugin/config.json", read_json(args.plugin_config))
+        opaque_project_records = []
         for mapping in getattr(args, "rename_project", []):
             old, new = mapping.split("=", 1)
             import re
             if not all(re.fullmatch(r"[a-z0-9][a-z0-9-]*", name) for name in [old, new]):
                 raise ValueError("Invalid project rename")
-            remap_project(stage / "plugin/data", backup, old, new)
+            opaque_project_records.extend(remap_project(stage / "plugin/data", backup, old, new))
         if args.from_tools:
             # Only the actual installation belongs to tools; download residues stay backed up.
             copy_verified(args.from_tools / "whisper", stage / "tools/whisper", manifest)
@@ -211,7 +219,7 @@ def migrate(args):
         if mappings:
             remap_paths(stage, backup, mappings)
         target_manifest = [{"path": str(path.relative_to(stage)), "sha256": digest(path)} for path in stage.rglob("*") if path.is_file()]
-        write_json(backup / "manifest.json", {"sources": [str(p) for p in sources], "files": manifest, "targets": target_manifest})
+        write_json(backup / "manifest.json", {"sources": [str(p) for p in sources], "files": manifest, "targets": target_manifest, "opaque_project_records": opaque_project_records})
         # Restrict all staged files, including raw backup configurations, before publication.
         if os.name == "nt":
             import subprocess
