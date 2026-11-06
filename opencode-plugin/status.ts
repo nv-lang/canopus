@@ -165,7 +165,7 @@ export function waitLabel(phrase = ""): string {
 
 const hm = (t?: number) => (t ? new Date(t).toTimeString().slice(0, 5) : "?")
 const minutes = (from: number | undefined, now: number) => (from ? `${Math.max(0, Math.round((now - from) / 60_000))} мин` : "")
-const STATUS_RU: Record<string, string> = { starting: "запускается", running: "в работе", submitted: "сдана", reviewing: "на приёмке", rework: "на доработке", accepted: "принята", done: "влита", cancelled: "отменена", idle: "ждёт следующей сессии", backlog: "в бэклоге" }
+const STATUS_RU: Record<string, string> = { starting: "запускается", running: "в работе", submitted: "сдана", reviewing: "на приёмке", rework: "на доработке", accepted: "принята", done: "влита", cancelled: "отменена", idle: "ждёт следующей сессии", backlog: "в бэклоге", paused: "на паузе" }
 
 export type StatusInput = {
   card: Card
@@ -228,10 +228,10 @@ function statusOfAll(x: StatusInput): Status {
   const own: Task | undefined = ref ? loadTask(ref.project, ref.n) : undefined
   // сессия задачи с папкой (задача 058): у сессии методики своё состояние
   const ses = own && card.task ? sessionOf(own, card.session) : undefined
-  const authored = listTasks(card.project).filter((t) => t.author === card.session && isOpen(t))
+  const authored = listTasks(card.project).filter((t) => t.author === card.session && (isOpen(t) || t.status === "paused" || t.status === "backlog"))
   // УСТАРЕВШАЯ ПРИВЯЗКА (задача 064, п. 9; владелец, 2026-10-17, «по рекомендации»): вкладка, чья задача закрыта (отменена, влита), и вкладка
   // интегратора показываются по своей роли, а не как исполнитель задачи («#73 исп» у интегратора, подхватившего когда-то отменённую #73)
-  const shown = own && isOpen(own) && card.role !== "integrator" ? own : undefined
+  const shown = own && (isOpen(own) || own.status === "paused" || own.status === "backlog") && card.role !== "integrator" ? own : undefined
   // маршрут (задача 092): постановка быстрого пути изменена после слова завода — запись помечается здесь же, при показе
   if (shown?.route === "fast") refreshRouteStale(shown)
   const stuck = obligationsOf(card.session)
@@ -312,7 +312,7 @@ function statusOfAll(x: StatusInput): Status {
     return { ...base, state: "watch", since: w.started ?? w.created, detail: `ждёт наблюдения${w.note ? ` «${w.note}»` : ""} (${queued})${watches.length > 1 ? ` и ещё ${watches.length - 1}` : ""}` }
   }
   if (x.asked.length) return { ...base, state: "reply", since: x.asked[0].at, detail: `ждёт ответа от ${x.asked.map((a) => a.to).join(", ")} (с ${hm(x.asked[0].at)})` }
-  if (own && isOpen(own)) {
+  if (own && (isOpen(own) || own.status === "paused" || own.status === "backlog")) {
     const s = own.status
     // у задачи с папкой номер — в строке задачи над сессиями (задача 058); без папки — в начале, как раньше
     const no = own.folder ? "" : `${taskNo(own)} `

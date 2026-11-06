@@ -34,7 +34,7 @@ import { STALE_WARNING, SMALL_NORM_MIN, applyRouteChange, contourMarkText, exact
 import { acceptanceFromFile } from "./acceptance-file.ts"
 import { acceptWarning, acceptedTip, beginPrecheck, finishPrecheck, gateMerge, landedFresh, landingLine, markPrecheckStale, neighbourHints, originTip, precheckLines, runGit, unlockMerge } from "./precheck.ts"
 import { addSide, autoTrack, cleanupDone, removeSide, sideItems, cleanupSteps, fileAt, holdsMergeLock, isMerged, keptOnBranch, keptPaths, mergeHolder, pubKeyOf, releaseMergeLock, releaseTaskLocks, repoDir, resolveKeep, reworkLetter, sameFs, takeMergeLock, takePubLock } from "./review.ts"
-import { WATCH_DEFAULT_MIN, WATCH_MAX_MIN, cancelWatch, machineQueue, requestWatch, timerSpec, watchesOf } from "./watch.ts"
+import { WATCH_DEFAULT_MIN, WATCH_MAX_MIN, cancelWatch, killWatchTree, watchTreePids, watchById, machineQueue, requestWatch, timerSpec, watchesOf } from "./watch.ts"
 import { watchRefusal } from "./deny.ts"
 import { linkErrorsOfWrite, profileProblems, profileState, profilesShow } from "./profile-layer.ts"
 import { releaseTaskWindow } from "./profile-windows.ts"
@@ -42,6 +42,10 @@ import { type Bounds, type Resolved, boundsOf, clampTier, familyOfModel, resolve
 import { createQuestionRouting, digest as questionScopeDigest, requestOf, routingSummary, type QuestionFormIO } from "./question-routing.ts"
 import { QUESTION_ROUTING_HINT, smallHandoff } from "./question-policy.ts"
 import { QUESTION_ROUTE_TERM_MS, type QuestionObservation, type QuestionRequest } from "./question-router.ts"
+import { APPROVALS, CREATION_APPROVAL, canonical, confirmTaskOperation, applyApprovedCreation, applyApprovedStop, createReasonRefusal, creationDescription, readProposal, saveProposal, similarTasks, proposalProblems, type TaskConfirmationIO } from "./task-confirmation.ts"
+import { lazyTaskConfirmationIO } from "./task-confirmation-native.ts"
+import { preserveTaskContext, missingTaskContext } from "./task-context.ts"
+import { removeForm, pendingForms } from "./form-wait.ts"
 
 export const POLL_MS = Number(process.env.CANOPUS_POLL_MS) || 1_000 // переопределение — для самотеста
 export const LIVE_MS = 15 * 60_000
@@ -1997,6 +2001,7 @@ export type CanopusHost = {
   blocker?(session: string): Promise<{ since: number; question?: string; formId?: string; rid?: string; options?: string[]; norecord?: boolean } | undefined>
   activity?(session: string): Promise<string>
   /** 280: explicit native form transport; absent is unknown, never a legacy answer/interrupt fallback. */
+  taskConfirmationIO?: TaskConfirmationIO
   questionIO?: QuestionFormIO
   questionCanReply?(project: string, n: number): string | undefined
   questionInspectText?(request: QuestionRequest): Promise<QuestionObservation>
@@ -2153,6 +2158,134 @@ export const isBusy = (c: Card, windows = liveWindows()) => (c.spawned ? !!c.bus
 
 export function makeTools(host: CanopusHost): CanopusTool[] {
   const { projects } = host
+  const lifecycleIO = host.taskConfirmationIO ?? lazyTaskConfirmationIO()
+  const confirmedCreation = async (me: Card, input: any, entry: string, launch: any, create: (guarded: any) => Promise<any>, freshLaunch: () => boolean = () => true) => {
+    const refusal = createReasonRefusal(input)
+    if (refusal) return { content: `Задача не создана: ${refusal}.` }
+    const project = projOf(me), clean = { ...input }; delete clean.approval; delete clean.resubmit
+    const candidates = () => similarTasks(input, launch.title, listTasks(project))
+    const records = listTasks(project)
+    if (input.checked_tasks.some((n: number) => !records.some(t => t.n === n))) return { content: "checked_tasks ссылается на отсутствующую задачу; уточните проверенные номера" }
+    // A completed proposal replay returns its existing task even if other work appeared later.
+    for (const t of records) if (t.creation_approval) {
+      const previous = readProposal(t.creation_approval.id)
+      if (previous?.initiator.session === me.session && previous.scope.entry === entry && canonical(previous.scope.input) === canonical(clean)) return { content: `Подтверждение уже применено: задача ${taskRef(t)}. Новая запись/сессия не создаётся.` }
+    }
+    const scope = { entry, input: clean, launch, candidates: candidates() }
+    const gate = await confirmTaskOperation({ action: "create", project, initiator: { session: me.session, role: keyOf(me) }, scope, title: `Создать задачу «${launch.title}»?`, description: creationDescription(input, launch.title, candidates().map(t => ({ ...t, status: records.find(x => x.n === t.n)!.status }))), approval: input.approval, resubmit: input.resubmit }, lifecycleIO)
+    if (!gate.ok) return { content: gate.content }
+    const done = await applyApprovedCreation(gate.proposal, () => listTasks(project).find(t => t.creation_approval?.id === gate.proposal.id), source => create({ ...input, [CREATION_APPROVAL]: source }), APPROVALS, () => canonical(candidates()) === canonical(scope.candidates) && freshLaunch())
+    return done.result ?? { content: done.task ? `Подтверждение уже применено: задача ${taskRef(done.task)}; повторная задача/сессия не создана.` : done.busy ?? "Создание не завершено" }
+  }
+
+  const taskIdentity = (t: Task) => ({ project: t.project, n: t.n, created: t.created, qid: t.qid, title: t.title, goal: t.goal, status: t.status, branch: t.branch ?? null, worktree: t.worktree ?? null, executor: t.executor ?? null, reviewer: t.reviewer ?? null, sessions: (t.sessions ?? []).filter(s => s.status === "running").map(s => ({ session: s.session, code: s.code, launch: s.launch })).sort((a, b) => a.session.localeCompare(b.session)) })
+  const operateTask = async (me: Card, t: Task, input: any, action: "cancel" | "pause" | "resume" | "reopen") => {
+    const reason = String(input.text ?? "").trim()
+    if (!reason) return { content: "Нужна обязательная причина операции в text" }
+    if (action === "pause" && (t.status === "paused" || ["done", "cancelled", "backlog"].includes(t.status))) return { content: `Пауза не применима к состоянию ${statusRu(t.status)}; временная остановка не создаёт новую задачу.` }
+    if (action === "resume" && t.status !== "paused") return { content: "resume здесь применяется только к paused; для бэклога действует обычное возвращение" }
+    if (action === "reopen" && t.status !== "cancelled") return { content: "Повторно открывают только отменённую задачу; номер и история сохраняются" }
+    if (action === "cancel" && t.status === "done") return { content: "Завершённую задачу не отменяют" }
+    const repair = action === "cancel" && t.status === "cancelled"
+    if (repair && !input.repair) return { content: "Задача уже отменена. Чтобы закрыть оставшиеся вопросы без переписывания отмены: cancel с repair:true, причиной, заменой и новым подтверждением владельца. Чтобы продолжить работу — reopen с подтверждением, тот же номер." }
+    let replacement: { project: string; n: number } | { none: string } | undefined
+    if (action === "cancel") {
+      const value = String(input.replacement ?? "").trim()
+      if (value === "none") {
+        const why = String(input.no_replacement_reason ?? "").trim()
+        if (!why) return { content: "replacement:none требует no_replacement_reason — почему замены нет" }
+        replacement = { none: why }
+      } else {
+        const match = /^([a-z0-9][a-z0-9-]*):([1-9][0-9]*)$/.exec(value)
+        const other = match && loadTask(match[1], Number(match[2]))
+        if (!other || (other.project === t.project && other.n === t.n)) return { content: "Укажите существующую замену replacement:project:N либо none с пояснением; новая задача автоматически не создаётся" }
+        replacement = { project: other.project, n: other.n }
+      }
+    }
+    const sessions = action === "resume" || action === "reopen" ? [] : [...new Set([t.executor, t.reviewer, ...(t.sessions ?? []).filter(s => s.status === "running").map(s => s.session)].filter((x): x is string => !!x))].sort()
+    for (const session of sessions) {
+      const card = readJson<Card>(cardFile(session))
+      if ([card?.task, card?.review].some(ref => ref && (ref.project !== t.project || ref.n !== t.n))) return { content: `Остановка заблокирована: сессия ${session} уже связана с другой задачей; её вопросы и работу не трогаю` }
+    }
+    const identity = taskIdentity(t)
+    const clean = { ...input }; delete clean.approval; delete clean.resubmit
+    const scope = { entry: "task-operation", input: clean, target: identity, reason, replacement: replacement ?? null, repair, sessions }
+    const description = `Задача ${taskRef(t)} «${t.title}», состояние ${statusRu(t.status)}.\nИнициатор: ${keyOf(me)}, сессия ${me.session}.\nПричина: ${reason}.\n${replacement ? `Взамен: ${"none" in replacement ? `замены нет: ${replacement.none}` : `${replacement.project}:${pad3(replacement.n)}`}.\n` : ""}Будут закрыты открытые вопросы и остановлено native исполнение сессий: ${sessions.join(", ") || "исполнителей нет"}.\n${action === "cancel" ? "Отмена — отказ от работы, не временная остановка. Для временной остановки используйте pause; для продолжения ошибочно отменённой задачи — reopen, тот же номер." : action === "pause" ? "Пауза сохраняет номер и историю. Продолжение — resume с подтверждением владельца, без создания дубля." : "Номер, история и HOLD сохраняются. Автозапуска старой работы/приёмки не будет; после проверки состояния явно назначьте следующую сессию."}`
+    const gate = await confirmTaskOperation({ action, project: t.project, initiator: { session: me.session, role: keyOf(me) }, scope, title: `${action === "cancel" ? repair ? "Закрыть вопросы отменённой задачи" : "Отменить задачу" : action === "pause" ? "Поставить задачу на паузу" : action === "resume" ? "Продолжить задачу" : "Повторно открыть задачу"} ${taskNo(t)}?`, description, approval: input.approval, resubmit: input.resubmit }, lifecycleIO)
+    if (!gate.ok) return { content: gate.content }
+    const proposal = gate.proposal
+    if (proposal.state === "applied") return { content: "Подтверждённая операция уже выполнена; повторных действий нет" }
+    const source = proposal.source!
+    const latest = loadTask(t.project, t.n)
+    if (!latest || canonical(taskIdentity(latest)) !== canonical(identity)) return { content: "Задача изменилась после вопроса; прежнее подтверждение не применяется" }
+    const prepare = () => {
+      const fresh = loadTask(t.project, t.n)
+      if (!fresh || canonical(taskIdentity(fresh)) !== canonical(identity)) throw Error("Задача изменилась после подтверждения; операция не начинается")
+      if (fresh.operation_pending && fresh.operation_pending.id !== proposal.id) throw Error("У этой задачи ещё не завершена другая подтверждённая операция; повторите её, не перезаписывая решение")
+      const watch_ids = fresh.operation_pending?.watch_ids ?? sessions.flatMap(session => watchesOf(session).filter(w => w.status !== "done" && !w.cancelled && !w.dropped && (!w.env?.CANOPUS_TASK_N || Number(w.env.CANOPUS_TASK_N) === t.n)).map(w => ({ id: w.id, session })))
+      fresh.operation_pending = { id: proposal.id, action, reason, source, previous_status: fresh.status, requested: fresh.operation_pending?.requested ?? Date.now(), watch_ids }; saveTask(fresh)
+    }
+    const decisionInfo = `инициатор ${proposal.initiator.role} (${proposal.initiator.session}); причина: ${reason}${replacement ? `; взамен: ${"none" in replacement ? `нет — ${replacement.none}` : `${replacement.project}:${pad3(replacement.n)}`}` : ""}; подтвердил native_owner: ${source.session}, form ${source.form}, approval ${source.id}`
+    const finish = async () => {
+      const current = loadTask(t.project, t.n)
+      if (!current || canonical(taskIdentity(current)) !== canonical(identity) || current.operation_pending?.id !== proposal.id) throw Error("Задача изменилась во время остановки; требуется сверка, terminal status не поставлен")
+      for (const watch of current.operation_pending.watch_ids ?? []) {
+        const w = watchById(watch.id)
+        if (!w || w.session !== watch.session) throw Error("Связанное наблюдение не проверено; завершение операции запрещено")
+        if (w.status !== "done") cancelWatch(watch.id, watch.session, log)
+        else if (w.cancelled) killWatchTree(w, log)
+        const pids = watchTreePids(watch.id)
+        if (!pids || pids.length) throw Error("Остановка связанных процессов наблюдения не подтверждена; повторите операцию")
+      }
+      const previous = current.status
+      current.operations ??= []
+      if (!current.operations.some(x => x.approval.id === proposal.id)) current.operations.push({ action: repair ? "repair_cancelled_questions" : action, at: Date.now(), initiator: proposal.initiator, reason, ...(replacement ? { replacement } : {}), previous_status: previous, approval: source })
+      const audit = decisionInfo
+      for (const closed of readProposal(proposal.id)?.closed ?? proposal.closed ?? []) removeForm(closed.session, closed.form)
+      if (action === "cancel" || action === "pause") for (const session of sessions) {
+        const waiting = path.join(WAITS, `${safeKey(session)}.json`)
+        if (existsSync(waiting)) {
+          const archive = path.join(APPROVALS, "closed-waits", proposal.id); mkdirSync(archive, { recursive: true })
+          renameSync(waiting, path.join(archive, `${safeKey(session)}-${Date.now()}.json`))
+        }
+        for (const qid of [current.qid, current.review_qid]) if (qid) settleObligation(session, qid)
+      }
+      delete current.operation_pending
+      if (action === "cancel") {
+        if (!repair) {
+          const context = preserveTaskContext(current)
+          if (context && !(current.context_backups ?? []).some(x => x.ref === context.ref)) (current.context_backups ??= []).push(context)
+          markPrecheckStale(current, "задача отменена владельцем")
+          for (const s of current.sessions ?? []) if (s.status === "running") { s.status = "cancelled"; s.ended = Date.now() }
+          taskEvent(current, me.session, "cancelled", audit)
+          try { releaseTaskWindow(current.project, current) } catch (e) { log(`window release after cancellation failed: ${e}`) }
+          if (current.reviewer) releaseTaskLocks(current, current.reviewer, current.n)
+          if (current.executor) releaseExecutor(current, current.executor, false)
+          host.posted(propagateToParent(current))
+        } else taskEvent(current, me.session, undefined, `вопросы уже отменённой задачи закрыты; ${audit}`)
+      } else if (action === "pause") {
+        for (const session of current.sessions ?? []) if (session.status === "running") { session.status = "paused"; session.ended = Date.now() }
+        current.pause = { reason, by: me.session, previous_status: previous, approval: source, at: Date.now() }
+        taskEvent(current, me.session, "paused", audit)
+      } else {
+        // Never replay running/review/acceptance automatically, nor release HOLD.
+        if (current.executor && !current.executors.includes(current.executor)) current.executors.push(current.executor)
+        delete current.executor; delete current.reviewer
+        taskEvent(current, me.session, "idle", `${audit}; номер и история сохранены; следующая сессия назначается явно${current.worktree && !existsSync(current.worktree) ? "; прежнее дерево отсутствует: перед запуском нужен безопасный план его восстановления" : ""}`)
+      }
+      host.posted([])
+    }
+    const run = async () => {
+      const why = await applyApprovedStop(proposal, lifecycleIO, sessions, finish, APPROVALS, prepare)
+      return { content: why ? `Операция не завершена: ${why}. Задача не объявлена отменённой/приостановленной. Повторите тот же вызов с approval:${proposal.id}; уже закрытые формы повторно не отменяются.` : `Задача ${taskRef(t)}: ${action === "pause" ? "на паузе" : action === "resume" || action === "reopen" ? "возвращена в idle с тем же номером; история и HOLD сохранены, следующая сессия назначается явно" : repair ? "вопросы отменённой задачи закрыты" : "отменена"}. ${decisionInfo}` }
+    }
+    if (sessions.includes(me.session)) {
+      // Do not await our own execution drain from inside the very tool that must drain.
+      void run().catch(e => log(`owner task operation ${proposal.id}: ${e}`))
+      return { content: `Решение владельца сохранено, остановка выполняется отдельно от текущего вызова. До проверенного idle статус не terminal. Проверка: canopus_task show ${taskNo(t)}, approval ${proposal.id}.` }
+    }
+    return run()
+  }
   // Проект визитки: записанный в ней (вкладка сама ставит его при каждом обращении) или вычисленный по каталогу.
   const projOf = (c: Card) => c.project ?? projectOf(c.directory, projects)
   const keyOf = (c: Card) => roleKey(projOf(c), normalizeRole(c.role)) // старые визитки с assistant — это worker
@@ -2521,6 +2654,11 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
   const isIntegrator = (me: Card) => me.role === "integrator" && holdsExclusive(roleKey(projOf(me), "integrator"), me.session)
   const notIntegrator = (me: Card) => ({ content: `Это может только интегратор проекта ${projOf(me)} (canopus_role {role: "integrator"}).` })
   const taskInput = {
+    approval: str("Durable owner proposal id returned by the first call; never a model-supplied authorization"),
+    resubmit: str("Explicitly ask again after a declined/dismissed proposal; pass its id. Never automatic retry after refusal"),
+    creation_reason: str("Why a new task is needed; mandatory for an agent-created task"),
+    checked_tasks: { type: "array", items: { type: "integer", minimum: 1 }, description: "Existing task numbers actually checked; [] when no matching task was found" },
+    why_new: str("Why the work cannot be completed in the existing checked tasks; mandatory"),
     title: str("Short title (it becomes the session title: 045 исп title)"),
     goal: str("Goal: what has to be true when the task is done"),
     criteria: str("Acceptance criteria: what is run, what must be green, what proves it (and the 'feed it something wrong' probe)"),
@@ -2631,7 +2769,8 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
     const { me, project, cfg, fm, input, taskNum, code, partOf, role, model, recTier, chosen, extra } = a
     const goal = String(input.goal ?? "").trim()
     const prio = isPriority(input.priority) ? input.priority : cfg.defaultPriority
-    const common = { project, goal, boundaries: input.boundaries?.trim(), open_questions: input.open_questions?.trim(), ...messageFieldsOf(input), ...(extra ? { extra } : {}), priority: prio, tier: recTier, role, model, author: me.session, author_role: keyOf(me), qid: newQid(), status: "idle" as const, kind: "spawn" as const, directory: me.directory }
+    const common = {
+      creation_approval: input[CREATION_APPROVAL], creation_reason: input.creation_reason, checked_tasks: input.checked_tasks, why_new: input.why_new, project, goal, boundaries: input.boundaries?.trim(), open_questions: input.open_questions?.trim(), ...messageFieldsOf(input), ...(extra ? { extra } : {}), priority: prio, tier: recTier, role, model, author: me.session, author_role: keyOf(me), qid: newQid(), status: "idle" as const, kind: "spawn" as const, directory: me.directory }
     const placeOf = (n: number, slug: string) => checkedPlace(me.directory, cfg, pad3(n), slug, project)
     let t: Task
     let made = ""
@@ -2717,10 +2856,11 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
       try {
         sha = execFileSync("git", ["-C", fm.top, "rev-parse", "--short", base], { encoding: "utf8", windowsHide: true, stdio: ["ignore", "pipe", "ignore"] }).trim()
       } catch {}
-      const files = { [`${t.folder}/task/message.md`]: text, [`${t.folder}/log.md`]: firstLogLine(t, own.trim() ? "текст интегратора (поле message)" : small ? "малый маршрут: три строки (что; T; слова владельца)" : "шаблон из полей задачи", `${cfg.targetBranch} ${sha}`.trim()) + (t.route === "fast" || t.route === "small" ? routeLogLine(t) : "") }
+      const files = { [`${t.folder}/task/creation.json`]: JSON.stringify({ reason: input.creation_reason, checked_tasks: input.checked_tasks, why_new: input.why_new, approval: input[CREATION_APPROVAL] }, null, 2) + "\n", [`${t.folder}/task/message.md`]: text, [`${t.folder}/log.md`]: firstLogLine(t, own.trim() ? "текст интегратора (поле message)" : small ? "малый маршрут: три строки (что; T; слова владельца)" : "шаблон из полей задачи", `${cfg.targetBranch} ${sha}`.trim()) + (t.route === "fast" || t.route === "small" ? routeLogLine(t) : "") }
       const c = t.branch ? commitFiles(fm.top, t.branch, base, files, `Add task ${pad3(t.n)}: ${t.slug}`) : ({ ok: false, error: "у задачи нет ветки" } as const)
       if (!c.ok) {
-        taskEvent(t, me.session, "cancelled", `папка не заведена: ${c.error}`)
+        t.creation_failure = c.error
+        taskEvent(t, me.session, "idle", `ошибка уже подтверждённого создания: папка не заведена: ${c.error}; это не отмена владельцем`)
         return { content: `Задача ${taskRef(t)} не заведена: папку ${t.folder}/ не удалось записать на ветку ${t.branch} (${c.error}). Номер ${pad3(t.n)} остаётся пропуском.` }
       }
       taskEvent(t, me.session, undefined, `папка ${t.folder}/ заведена на ветке ${t.branch} (коммит ${c.commit.slice(0, 8)})`)
@@ -2759,7 +2899,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
     name: "canopus_spawn",
     description:
       [
-        "Integrator only: start a task in a new session (it runs in the OpenCode server even with no window). The report comes back as an answer to the task's qid: canopus_wait {qid}. Manage tasks with canopus_task. The owner reads title, goal and criteria too: write them in the owner's language named in your system block.",
+        "Integrator only: propose a new task, get native owner confirmation, then start its independent session. No task/number/folder/worktree/executor exists before confirmation. creation_reason, checked_tasks and why_new are mandatory for a new task; the backend also finds possible duplicates. Existing task sessions do not need another creation approval. It runs in the OpenCode server even with no window. The report comes back as an answer to the task's qid: canopus_wait {qid}. Manage tasks with canopus_task. The owner reads title, goal and criteria too: write them in the owner's language named in your system block.",
         "One task, one number. In a project with task folders (tasks_dir, default doc/tasks, present in the target branch) the task number is the number of its folder NNN-<slug>/, shown as 045; without folders it is the plugin's number, shown the same way, 094 (every task of every project is shown with three digits and no hash, 1000 above 999: a hash with a number is a GitHub issue link). A new task: the plugin takes 1 + the largest number of the records and of the folders in every working tree and branch, writes the folder (task/message.md = message word for word, or a template from the fields when message is absent; log.md with its first line) on the task branch and commits it there; the main copy is never written. task: N - a task whose folder already exists (no folder commit; refused when no folder has that number).",
         "A task session is a part of the task, not a task: session \"<code>\" (С1, С2, С3п, С4…; default исп = the executor) adds a session to task N: ident 045 С4-3 (code and its ordinal in the task) plus the launch number №n; the plugin writes the launch lines into progress.log and log.md of the folder. A method session submits to you (canopus_task submit), with no plugin review; the plugin's review of the task starts once, after canopus_task deliver. place: own (default for С2/С4/С6) - its own worktree and branch task/NNN-<code>-<k> from the task branch; task (default for the others) - the task worktree.",
         "A sub-task (part_of: N) is a task of its own: own number and folder, the first line of its task/message.md is «Часть задачи NNN «…».», a line in the parent's log.md. The rule: an own acceptance or an own landing in main - a sub-task; the next step of the same work (a check, a fix by findings, a continuation, a handover) - a session.",
@@ -2864,6 +3004,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
       }
       const model = explicitModel ?? (chosen ? chosen.model : (cfg.spawnModels[tier] ?? DEFAULT_SPAWN_MODELS[tier]))
       const recTier: Tier = chosen ? chosen.tier : tier // ступень записи при наборе — та, на которой реально запущена сессия
+      const launch = async (input: any) => {
       const title = String(input.title ?? "").trim() || String(input.goal).split(/\r?\n/)[0].slice(0, 60)
       if (fm) return await spawnInFolder({ me, project, cfg, fm, input, taskNum, code: sessionCode || EXECUTOR_CODE, partOf, role, model, recTier, tier, from: tierCut.from, chosen, title, extra: extra.value })
       // ЗАДАЧА-ПЛАН (план 004): результат — файл плана в репозитории; номер выдаёт плагин (после файлов папки планов
@@ -2891,6 +3032,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
       let t: Task
       try {
         t = createTask({
+          creation_approval: input[CREATION_APPROVAL], creation_reason: input.creation_reason, checked_tasks: input.checked_tasks, why_new: input.why_new,
           ...(rp?.ok ? rp.fields : {}),
           project, title: plan ? `план ${plan.n}: ${title}` : title, goal: String(input.goal).trim(), criteria: plan ? "критерии приёмки плана (план 004): А — против исходной задачи, Б — правильность составления" : input.criteria?.trim(), boundaries: input.boundaries?.trim(), open_questions: input.open_questions?.trim(),
           ...(extra.value ? { extra: extra.value } : {}),
@@ -2916,6 +3058,16 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
       const r = await host.startTask(t)
       if (!r.session) return { content: `Задача ${taskRef(t)} записана, но сессия не запущена: ${r.error ?? "неизвестная ошибка"}. Плагин повторит запуск сам (тем же id сессии — второй не будет).` }
       return { content: `Задача ${taskNo(t)} запущена (${hhmm(Date.now())}): «${t.title}», сессия ${r.session}, роль ${roleKey(project, role)}, модель ${model}, приоритет ${t.priority}${t.worktree ? `, worktree ${t.worktree}, ветка ${t.branch}` : ""}. Отчёт придёт ответом на ${t.qid}: canopus_wait {qid: "${t.qid}"} или обычным письмом. Управление — canopus_task {n: ${t.n}, action: ...}.` }
+      }
+      const existing = taskNum !== undefined ? loadTask(project, taskNum) : undefined
+      if (existing?.status === "paused" || existing?.status === "backlog" || existing?.operation_pending) return { content: "Задача припаркована или её остановка не завершена; сначала явное resume, новая задача не нужна" }
+      if (existing && isOpen(existing)) { const missing = missingTaskContext(existing); if (missing) return { content: missing }; return launch(input) }
+      const title = String(input.title ?? "").trim() || String(input.goal).split(/\r?\n/)[0].slice(0, 60)
+      const parent = partOf !== undefined ? loadTask(project, partOf) : undefined
+      if (parent && (["paused", "backlog", "cancelled"].includes(parent.status) || parent.operation_pending)) return { content: "Родитель приостановлен/отменён; новая подзадача не создаётся" }
+      const parentScope = parent ? taskIdentity(parent) : null
+      return confirmedCreation(me, input, "spawn", { title, role, model, tier: recTier, directory: me.directory, target: cfg.targetBranch, folder: fm ? { top: fm.top, rel: fm.rel } : null, parent: parentScope }, launch, () => partOf === undefined || ((current => canonical(current ? taskIdentity(current) : null) === canonical(parentScope))(loadTask(project, partOf))))
+
     },
   }
 
@@ -2931,7 +3083,11 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
         "push - integrator - n, text?, to? - queue a nudge; counters/stuck reset only after its correlated new assistant generation. to executor (default) or reviewer; admission is not execution.",
         "deliver - integrator - n, text - a task led by method sessions (status idle: the last session submitted to you) goes to the plugin's review once: text is the report for the reviewer (what is ready to land). A task with a single executor session goes to review on its submit, as before.",
         "reassign - integrator - n, text? - hand the task to a new session under the same number with a summary of what was done (a task session: the same code, the next ordinal and a new launch number; the old one is marked handed). text = a refinement of the goal: it goes into the new session's first letter as a block before the old goal, wins where they differ and stays in the task history (show). Refine the goal with this same call, never with a second letter after the handover: the new session would start on the old goal and report twice.",
-        "cancel - integrator - n, text? - cancel the task; text goes to the executor. Releases the merge lock if the task held it.",
+        "cancel - integrator - n, text (required reason), replacement project:N or none plus no_replacement_reason. A native owner question shows initiator, reason, replacement, state and stopped work. After confirmation questions close, execution/commands stop and idle is verified, then status becomes cancelled. The task/context/history stay reachable. repair:true closes leftovers of an already cancelled task only after a fresh owner confirmation.",
+        "pause - integrator - n, text - owner-confirmed temporary stop. Questions and related execution stop, then status paused; same task number and context remain. backlog is a queue, not a stop of running work.",
+        "resume - integrator - n, text - a paused task requires a new native owner confirmation; returns the same task to idle without replaying old execution/review/acceptance or releasing HOLD. For backlog, returns the existing queue item without creating a task.",
+        "reopen - integrator - n, text - native owner confirmation reopens a cancelled task as the same idle task; cancellation history remains. Missing old branch/context requires a safe recovery plan, never a new duplicate or default-branch restart.",
+        "questions - n - read-only native inspection of task questions, including cancelled tasks. Unknown transport is not evidence that questions are closed. approval is a durable proposal id; resubmit explicitly asks again after refusal/dismissal. In OpenCode one owner click resumes the original authorised operation automatically.",
         "priority - integrator - n, priority P0..P3 - change the priority.",
         "route - integrator - n, route full|fast|small, text (the reason, for full), route_word and route_word_date (fast: «заводи N»; small: the owner's entry phrase word for word) - change the route of an open task BY A RECORD (tasks 092, 191, 264). To full: the reason becomes the basis, the word is emptied, the series is zeroed. A new word (fast) renews a marked word. To small: as the small canopus_spawn; on an already-small record an omitted route_word reuses the recorded phrase with its time. To small under review: the review cycle is lifted by the record (the reviewer released, the locks freed, the task reads as submitted again) — not an acceptance. A line «маршрут: …» goes to log.md.",
         "target - integrator - n, dir, remote?, branch?, word - bind the explicit RESULT repository of the task (task 257): the result lands or is already published not in the repository the task was posted in. dir is its local clone (checked: a git repository, not the task's own one, the remote and the branch on it exist); word is the owner's word with its date. The landing loop (precheck, base freshness, the merge gate, accept) then works against the bound repository; an already published candidate (an ancestor of the remote branch tip) finishes the precheck as published - no merge, accept with commit fixes the record. dir: \"\" lifts the binding.",
@@ -2954,7 +3110,10 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
     input: {
       type: "object",
       properties: {
-        action: { type: "string", enum: ["list", "show", "assign", "order", "push", "reassign", "cancel", "backlog", "resume", "priority", "track", "plan_decide", "submit", "deliver", "review", "check", "round", "merge", "unlock", "precheck", "rework", "accept", "cleanup", "cleaned", "route", "migrate", "contour", "target"] },
+        action: { type: "string", enum: ["list", "show", "questions", "assign", "order", "push", "reassign", "cancel", "pause", "reopen", "backlog", "resume", "priority", "track", "plan_decide", "submit", "deliver", "review", "check", "round", "merge", "unlock", "precheck", "rework", "accept", "cleanup", "cleaned", "route", "migrate", "contour", "target"] },
+        replacement: str("cancel: replacement task project:N, or none with no_replacement_reason"),
+        no_replacement_reason: str("cancel: why there is no replacement task"),
+        repair: { type: "boolean", description: "cancelled task only: owner-confirmed repair of remaining native questions" },
         to: str("order: the other project's integrator, \"project.integrator\"; push: \"executor\" (default) or \"reviewer\""),
         keep: { type: "array", maxItems: 8, items: { type: "string" }, description: "cleanup: up to 8 worktree paths to keep as evidence" },
         checks: { type: "object", description: "accept: report per acceptance step {step id: what proves it}", additionalProperties: { type: "string" } },
@@ -3000,7 +3159,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
       if (String(input.action ?? "") === "view") return { content: VIEW_GONE }
       const action = ((a) => (a === "cleaned" ? "cleanup" : a))(String(input.action ?? ""))
       if (action === "list") {
-        const ts = listTasks(project).filter((t) => t.status !== "backlog" && (input.all || isOpen(t))).sort(byPriority)
+        const ts = listTasks(project).filter((t) => (input.all || isOpen(t) || t.status === "paused" || t.status === "backlog")).sort(byPriority)
         const backlog = listTasks(project).filter((t) => t.status === "backlog").sort(byPriority)
         // старые записи с номерами папок, перенесённые в legacy/ (задача 058), — в полном списке
         const old = input.all ? listLegacy(project) : []
@@ -3026,7 +3185,9 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
         if (missing.length) return { content: `Заказ не отправлен: нет полей ${missing.map((f) => FIELD_RU[f] ?? f).join(", ")}.` }
         if (input.extra !== undefined && input.extra !== null) return { content: "Заказ не отправлен: extra для заказа не поддерживается (дополнительные поля проекта задаёт canopus_spawn своего проекта)." }
         const title = String(input.title ?? "").trim() || String(input.goal).split(/\r?\n/)[0].slice(0, 60)
+        return confirmedCreation(me, input, "order", { title, to: m[1], directory: me.directory }, async guarded => {
         const t = createTask({
+          creation_approval: guarded[CREATION_APPROVAL], creation_reason: input.creation_reason, checked_tasks: input.checked_tasks, why_new: input.why_new,
           project, title, goal: String(input.goal).trim(), criteria: input.criteria?.trim(), boundaries: input.boundaries?.trim(), open_questions: input.open_questions?.trim(),
           priority: isPriority(input.priority) ? input.priority : cfg.defaultPriority, tier: "medium", role: "integrator",
           author: me.session, author_role: keyOf(me), qid: newQid(), status: "running", kind: "order", order_to: m[1], directory: me.directory,
@@ -3045,9 +3206,36 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
         })
         host.posted([to])
         return { content: `Заказ ${taskNo(t)} «${t.title}» отправлен интегратору ${m[1]}. Его ход виден в canopus_task {action: "show", n: ${t.n}}; выполнен — придёт сводка.` }
+        })
       }
       const t = findTask(me, input.n)
       if (!t) return { content: `Задачи ${taskNo({ project, n: input.n })} в проекте ${project} нет.` }
+      if (t.operation_pending && !["show", "questions", "cancel", "pause", "resume", "reopen"].includes(action)) return { content: `Операция ${t.operation_pending.action} ещё не завершена; исполнение/приёмка заблокированы. Диагностика — show; повтор с прежним approval.` }
+      if (["pause", "reopen"].includes(action) || (action === "resume" && t.status === "paused")) {
+        if (!isIntegrator(me)) return notIntegrator(me)
+        return operateTask(me, t, input, action as "pause" | "resume" | "reopen")
+      }
+      if (["reassign", "assign", "session", "rework", "review"].includes(action)) { const missing = missingTaskContext(t); if (missing) return { content: missing } }
+      if (action === "questions") {
+        const lines: string[] = []
+        const sessions = [...new Set([t.executor, t.reviewer, ...(t.sessions ?? []).map(s => s.session)].filter((x): x is string => !!x))]
+        for (const session of sessions) {
+          const card = readJson<Card>(cardFile(session))
+          if ([card?.task, card?.review].some(ref => ref && (ref.project !== t.project || ref.n !== t.n))) { lines.push(`${session}: уже на другой задаче, её вопросы не относятся к этой`); continue }
+          try {
+            const listed = await lifecycleIO.list(session)
+            if (!Array.isArray(listed?.data)) throw Error("schema")
+            let pending = 0
+            for (const info of listed.data) {
+              const f = (await lifecycleIO.get(session, info.id))?.data
+              if (f?.id !== info.id || f?.sessionID !== session || !["pending", "answered", "cancelled"].includes(f?.state?.status)) throw Error("correlation")
+              if (f.state.status === "pending") { pending++; lines.push(`${session}: ${f.id} — открыт`) }
+            }
+            if (!pending) lines.push(`${session}: открытых native вопросов нет`)
+          } catch { lines.push(`${session}: native состояние вопросов не проверено; отсутствием вопросов не считается`) }
+        }
+        return { content: `Вопросы задачи ${taskRef(t)} (${statusRu(t.status)}):\n${lines.join("\n") || "сессий нет"}\nУ отменённой задачи repair:true закрывает оставшиеся вопросы только после подтверждения владельца, не стирая историю отмены.` }
+      }
       const hold = taskHold(t.project, t.n)
       if (hold && ((executionHeld(hold) && ["push", "reassign", "assign", "session", "resume", "rework"].includes(action)) || (gateHeld(hold) && ["review", "check", "precheck", "merge", "accept", "cleanup", "deliver", "plan_decide"].includes(action))))
         return { content: `Действие ${action} задачи ${taskRef(t)} запрещено: ${hold.kind} — ${HOLD_SCOPE_RU[holdScope(hold)]}. Диагностика и отчёт разрешены; снять или уточнить метку может автор только по явному слову владельца (canopus_step_note).` }
@@ -3055,6 +3243,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
         if (!isIntegrator(me)) return notIntegrator(me)
         if (!String(input.text ?? "").trim()) return { content: `Нужна причина в text: canopus_task {action: "backlog", n: ${t.n}, text: "почему пауза"}.` }
         if (t.status === "backlog") return { content: `Задача ${taskRef(t)} уже в бэклоге.` }
+        if (t.status === "paused" || WORKING_STATUSES.includes(t.status) || t.status === "reviewing") return { content: "Активную работу временно останавливают через pause с проверенной остановкой исполнителя; backlog — очередь, он не заменяет паузу" }
         if (t.status === "done" || t.status === "cancelled") return { content: `Задача ${taskRef(t)} уже ${statusRu(t.status)}: в бэклог переводят только открытую задачу.` }
         if (mergeHolder(project)?.n === t.n) return { content: `Задача ${taskRef(t)} не переведена в бэклог: у неё ещё есть замок вливания. Сначала явно отпусти его: canopus_task {action: "unlock", n: ${t.n}}.` }
         t.backlog = { status: t.status, at: Date.now(), by: me.session }
@@ -3235,6 +3424,12 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
           hold ? `${hold.kind}: ${HOLD_SCOPE_RU[holdScope(hold)]}${hold.gate ? "; запрет приёмки/слияния" : ""}; ${hold.who}` : "",
           t.report ? `отчёт исполнителя: ${t.report.slice(0, 500)}` : "",
           t.checks ? `шаги приёмки: ${Object.entries(t.checks).map(([k, v]) => `${k}: ${v}`).join("; ")}` : "",
+          t.creation_reason ? `причина создания: ${t.creation_reason}; проверенные задачи: ${(t.checked_tasks ?? []).join(", ") || "нет"}; почему новая: ${t.why_new}` : "",
+          t.creation_approval ? `создание подтверждено владельцем: ${t.creation_approval.id}, native form ${t.creation_approval.form}` : "",
+          t.context_backups?.length ? `сохранённый контекст: ${t.context_backups.at(-1)!.ref}; дерево и невлитые коммиты не удаляются автоматически` : "",
+          t.creation_failure ? `ошибка создания: ${t.creation_failure}; новая задача/номер не нужны` : "",
+          t.operation_pending ? `операция ${t.operation_pending.action} не завершена; approval ${t.operation_pending.id}; причина ${t.operation_pending.reason}; ${readProposal(t.operation_pending.id)?.why ?? "проверка ещё идёт"}` : "",
+          t.status === "cancelled" ? 'Проверить оставшиеся native вопросы: canopus_task {action: "questions", n}; продолжить эту работу: reopen того же номера, не новая задача' : "",
           `история:\n${t.history.map((h) => `  ${hhmm(h.at)} ${h.status ? statusRu(h.status) : ""}${h.note ? ` — ${h.note}` : ""}`).join("\n")}`,
         ]
         return { content: lines.filter(Boolean).join("\n") }
@@ -3635,7 +3830,7 @@ ${lockStillYours(stillHeld.n)}` : "") }
         taskEvent(t, me.session, undefined, `приоритет ${input.priority}`)
         return { content: `Задача ${taskRef(t)}: приоритет ${t.priority}.` }
       }
-      if (!isOpen(t)) return { content: `Задача ${taskRef(t)} уже ${statusRu(t.status)}.` }
+      if (!isOpen(t) && action !== "cancel") return { content: `Задача ${taskRef(t)} уже ${statusRu(t.status)}.` }
       if (action === "push") {
         // кого толкать: исполнителя (по умолчанию) или приёмщика (to: "reviewer")
         const whom = String(input.to ?? "").trim().toLowerCase() || "executor"
@@ -3666,32 +3861,7 @@ ${lockStillYours(stillHeld.n)}` : "") }
         host.posted([])
         return { content: `Задача ${taskRef(t)} передана на приёмку (${hhmm(Date.now())}): ветка ${t.branch ?? "?"}; приёмщика назначит плагин, как после сдачи исполнителя.` }
       }
-      if (action === "cancel") {
-        const why = String(input.text ?? "").trim()
-        markPrecheckStale(t, "задача отменена")
-        for (const s of t.sessions ?? []) if (s.status === "running") {
-          s.status = "cancelled"
-          s.ended = Date.now()
-        }
-        taskEvent(t, me.session, "cancelled", why || undefined)
-        try {
-          releaseTaskWindow(t.project, t) // и у отменённой задачи (задача 003, REQ-22)
-        } catch (e) {
-          log(`window file release of ${taskNo(t)} failed: ${e}`)
-        }
-        host.posted(propagateToParent(t))
-        const lockHeld = !!t.reviewer && holdsMergeLock(project, t.reviewer, t.n)
-        if (t.reviewer) {
-          releaseTaskLocks(t, t.reviewer, t.n)
-          if (t.review_qid) settleObligation(t.reviewer, t.review_qid)
-        }
-        if (t.executor) {
-          releaseExecutor(t, t.executor, false)
-          postLetter(t.executor, { id: `cancel-${safeKey(project)}-${t.n}`, from_role: keyOf(me), from_session: me.session, to: t.executor, time: Date.now(), wake: false, text: `Задача ${taskNo(t)} «${t.title}» отменена${why ? `: ${why}` : ""}. Работу по ней прекрати, отчёт не нужен.` })
-          host.posted([t.executor])
-        }
-        return { content: `Задача ${taskRef(t)} отменена.${lockHeld ? ` ${LOCK_FREED}` : ""}` }
-      }
+      if (action === "cancel") return operateTask(me, t, input, "cancel")
       if (action === "reassign") {
         // модель по включённому набору на момент передачи (REQ-32): набор и профиль проверяются ДО снятия прежнего исполнителя,
         // чтобы отказ не оставил задачу без исполнителя; без набора — модель записи, как прежде
@@ -4268,6 +4438,15 @@ export function commonDoctor(sessionID?: string): string[] {
   out.push(...branchProblems(BASE)) // окна не на своей ветке или не в своём каталоге (задача 157)
   out.push(...stepProblems(Date.now())) // срок шага вышел, вопрос владельцу открыт (задача 161)
   out.push(...nativeProblems(Date.now()))
+  out.push(...proposalProblems())
+  for (const t of listTasks().filter(x => x.status === "cancelled")) {
+    for (const session of new Set([t.executor, t.reviewer, ...(t.sessions ?? []).map(s => s.session)].filter((x): x is string => !!x))) {
+      const card = readJson<Card>(cardFile(session))
+      if ([card?.task, card?.review].some(ref => ref && (ref.project !== t.project || ref.n !== t.n))) continue
+      const forms = pendingForms(session)
+      if (forms.length) out.push(`отменённая задача ${taskRef(t)}: остались вопросы ${forms.map(f => f.id).join(", ")}; native сверка — canopus_task questions, закрытие — owner-confirmed cancel repair:true`)
+    }
+  }
   for (const c of allCards()) {
     if (c.spawned?.status === "closed") continue
     const a = readWake(c.session)

@@ -151,6 +151,8 @@ import { dropWatch, openWatchesBySession, pollWatches, requestWatch, watchById, 
 import { type Status, endOfTurn, endsWithQuestion, markNotified, readStatuses, removeStatus, saveStatus, statusOf, withIdle } from "./status.ts"
 import { clearGate, GATE_LETTER, gateOf, markGateLetter, noteGate, WAIT_LETTER } from "./gate-stop.ts"
 import { type CleanupFact, type RunCtx, type SessionFact, clearIdle as clearIdleTab, holdIdle, idleBlockers, idleLetter, idleOf, idleWhat, newestWaiting, waitsOn } from "./idle-tab.ts" // clearIdle в setup — снятие занятости карточки
+import { APPROVALS, canonical, confirmTaskOperation, applyApprovedCreation, creationDescription, similarTasks, resumeTaskConfirmations, type TaskConfirmationIO } from "./task-confirmation.ts"
+import { lazyTaskConfirmationIO } from "./task-confirmation-native.ts"
 import { type Task, taskRef, acceptedAt, ago, byPriority, createTask, rounds, slugify, isOpen, letterExists, listTasks, loadTask, plannedSessionId, saveTask, statusRu, taskEvent, taskLetterId, tasksChanged } from "./tasks.ts"
 import { countedOpen, waitingCleanup, ACCEPTED_REMINDERS_MAX, acceptedReminderId, acceptedReminders, lastAcceptedReminder, letterTime } from "./tasks.ts"
 import { EXECUTOR_CODE, sesLabel, sessionOf, sessionRef, taskNo } from "./tasks.ts"
@@ -184,7 +186,7 @@ export { parseProjects, projectOf, parseAddr, HELP, helpFor } from "./core.ts"
 
 /** Transport injection keeps isolated tests on the same fail-closed production
  * reconciliation/receipt code; it does not invent a test-only idle policy. */
-export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: number; questionIO?: QuestionFormIO } = {}) {
+export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: number; questionIO?: QuestionFormIO; taskConfirmationIO?: TaskConfirmationIO } = {}) {
   let productionTransport: NativeGet | undefined
   const nativeTransport = boundedNativeGet(native.get ?? ((route, signal) => {
     if (!productionTransport) {
@@ -360,7 +362,11 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
     const delivering: Set<string> = ((globalThis as any).__canopusWakeDelivering ??= new Set<string>())
     const nativeFacts = new Map<string, NativeState>()
     const nativeReading = new Map<string, Promise<NativeState>>()
-    const executionPaused = (card: Card) => [card.task, card.review].some(r => r && executionHeld(taskHold(r.project, r.n)))
+    const executionPaused = (card: Card) => [card.task, card.review].some(r => {
+      if (!r) return false
+      const task = loadTask(r.project, r.n)
+      return executionHeld(taskHold(r.project, r.n)) || !!task?.operation_pending || !!task && ["paused", "backlog", "cancelled", "done"].includes(task.status)
+    })
     function nativeOf(card: Card): Promise<NativeState> {
       const existing = nativeReading.get(card.session)
       if (existing) return existing
@@ -966,9 +972,11 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
           // отчёт приёмки по шагам — в конце истории вкладки (владелец: «+ отчёт в конце»)
           const ids = t.steps?.length ? t.steps.map((a) => a.id) : Object.keys(t.checks ?? {})
           const passed = ids.filter((id) => t.checks?.[id]).length
+          const cancelRecord = [...(t.operations ?? [])].reverse().find(x => x.action === "cancel")
+          const cancelInfo = cancelRecord ? `\nИнициатор: ${cancelRecord.initiator.role} (${cancelRecord.initiator.session}); причина: ${cancelRecord.reason}; взамен: ${cancelRecord.replacement ? "none" in cancelRecord.replacement ? `замены нет — ${cancelRecord.replacement.none}` : `${cancelRecord.replacement.project}:${pad3(cancelRecord.replacement.n)}` : "не записано"}; подтвердил native_owner, form ${cancelRecord.approval.form}.` : ""
           const report = ids.length ? `\nОтчёт приёмки — шаги ${passed}/${ids.length}:\n${ids.map((id) => `${t.checks?.[id] ? "✓" : "–"} ${id}: ${t.checks?.[id] ?? "не отмечен (необязательный)"}`).join("\n")}` : ""
           try {
-            const note = { sessionID: sid, text: done ? `✓✓ Задача ${taskRef(t)} принята и влита. Сессия закрыта — письма больше не приходят.${report}` : `✗ Задача ${taskNo(t)} отменена. Сессия закрыта — письма больше не приходят.`, resume: false }
+            const note = { sessionID: sid, text: done ? `✓✓ Задача ${taskRef(t)} принята и влита. Сессия закрыта — письма больше не приходят.${report}` : `✗ Задача ${taskNo(t)} отменена. Сессия закрыта — письма больше не приходят.${cancelInfo}`, resume: false }
             await (typeof ctx.session.synthetic === "function" ? ctx.session.synthetic(note) : ctx.session.prompt(note)) // строка в историю, без хода
           } catch (e) {
             log(`final note failed ${sid}: ${e}`)
@@ -1014,6 +1022,7 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
     // spawn_limits.acceptor (без него — reviewer).
     const reviewStarting = new Set<string>()
     async function startReviewer(t0: Task): Promise<void> {
+      if (t0.operation_pending || t0.status === "paused" || t0.status === "backlog") return
       const key = `${t0.project}#${t0.n}`
       if (reviewStarting.has(key)) return
       reviewStarting.add(key)
@@ -1113,13 +1122,13 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
     }
     async function assignReviewers() {
       const windows = liveWindows()
-      const queue = listTasks().filter((t) => t.status === "submitted" && !t.reviewer && t.route !== "small").sort(byPriority) // малый маршрут (задача 191): приёмщика нет — приёмка словом владельца на контуре
+      const queue = listTasks().filter((t) => t.status === "submitted" && !t.operation_pending && !t.reviewer && t.route !== "small").sort(byPriority) // малый маршрут (задача 191): приёмщика нет — приёмка словом владельца на контуре
       const bud = stepBudget("assignReviewers", log)
       let qi = 0
       for (const t0 of queue) {
         if (await bud.stop(qi++, queue.length)) break
         const t = loadTask(t0.project, t0.n)
-        if (!t || t.status !== "submitted" || t.reviewer || t.route === "small") continue
+        if (!t || t.operation_pending || t.status !== "submitted" || t.reviewer || t.route === "small") continue
         if (gateHeld(taskHold(t.project, t.n))) continue
         const author = readJson<Card>(cardFile(t.author))
         if (author && author.pid !== process.pid && pidAlive(author.pid)) continue // назначает процесс автора
@@ -1937,6 +1946,19 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
             status: "starting" as const, kind: "spawn" as const, executor: plannedSessionId(), directory: pt.directory,
             plan_step: { project: pt.project, task: pt.n, plan: pt.plan.n, step: s.id, file: pt.plan.file },
           }
+          const recovered = listTasks(pt.project).filter(x => x.plan_step?.project === pt.project && x.plan_step?.task === pt.n && x.plan_step?.step === s.id)
+          if (recovered.length) {
+            if (recovered.length === 1) { pt.plan.spawned[s.id] = recovered[0].n; changed = true }
+            else log(`plan step ${pt.project}/${pt.n}/${s.id}: existing duplicate task records require reconciliation; no new task`)
+            continue
+          }
+          const childTitle = s.subplan ? `подплан шага ${s.id}: ${s.title}` : `${pt.plan.n} ${s.id} ${s.title}`
+          const proposalInput = { title: childTitle, goal: base.goal, criteria: base.criteria, creation_reason: `Отдельное выполнение шага ${s.id} плана ${pt.plan.n}`, checked_tasks: listTasks(pt.project).filter(x => x.plan_step?.task === pt.n).map(x => x.n), why_new: `Для шага ${s.id} ещё нет записи в plan.spawned. Требуется самостоятельный результат и приёмка шага; возможные совпадения показаны владельцу.` }
+          const candidates = () => similarTasks(proposalInput, childTitle, listTasks(pt.project))
+          const scope = { entry: "plan-step", input: proposalInput, parent: { project: pt.project, n: pt.n, created: pt.created, qid: pt.qid, status: pt.status, approval: pt.plan.approval?.decision }, step: s.id, model, tier: base.tier, candidates: candidates() }
+          const gate = await confirmTaskOperation({ action: "create", project: pt.project, initiator: { session: pt.author, role: pt.author_role }, scope, title: `Создать задачу «${childTitle}»?`, description: creationDescription(proposalInput, childTitle, candidates().map(x => ({ ...x, status: listTasks(pt.project).find(t => t.n === x.n)!.status }))) }, operationIO)
+          if (!gate.ok) continue
+          const made = await applyApprovedCreation(gate.proposal, () => listTasks(pt.project).find(x => x.creation_approval?.id === gate.proposal.id), async source => {
           let t: Task
           if (s.subplan) {
             let names: string[] = []
@@ -1944,8 +1966,12 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
               names = readdirSync(path.join(pt.worktree && existsSync(pt.worktree) ? pt.worktree : pt.directory, cfg.plansDir))
             } catch {}
             const n = nextPlanNumber(names, listTasks(pt.project).filter((x) => x.plan).map((x) => x.plan!.n), pt.plan.n)
-            t = createTask({ ...base, title: `план ${n}: ${s.title}`, plan: { n, file: path.posix.join(cfg.plansDir.replace(/\\/g, "/"), cfg.planName.replace(/\{n\}/g, n).replace(/\{slug\}/g, slugify(s.title))), source: `${s.what}\nКритерии шага ${s.id} плана ${pt.plan.n}:\n${s.criteria.join("\n")}`, parent: pt.plan.n, rounds: [], clean: 0 } }, (n2, slug) => taskPlace(pt.directory, cfg, n2, slug, pt.project))
-          } else t = createTask({ ...base, title: `${pt.plan.n} ${s.id} ${s.title}` }, (n2, slug) => taskPlace(pt.directory, cfg, n2, slug, pt.project))
+            t = createTask({ ...base, creation_approval: source, creation_reason: proposalInput.creation_reason, checked_tasks: proposalInput.checked_tasks, why_new: proposalInput.why_new, title: `план ${n}: ${s.title}`, plan: { n, file: path.posix.join(cfg.plansDir.replace(/\\/g, "/"), cfg.planName.replace(/\{n\}/g, n).replace(/\{slug\}/g, slugify(s.title))), source: `${s.what}\nКритерии шага ${s.id} плана ${pt.plan.n}:\n${s.criteria.join("\n")}`, parent: pt.plan.n, rounds: [], clean: 0 } }, (n2, slug) => taskPlace(pt.directory, cfg, n2, slug, pt.project))
+          } else t = createTask({ ...base, creation_approval: source, creation_reason: proposalInput.creation_reason, checked_tasks: proposalInput.checked_tasks, why_new: proposalInput.why_new, title: `${pt.plan.n} ${s.id} ${s.title}` }, (n2, slug) => taskPlace(pt.directory, cfg, n2, slug, pt.project))
+          return t
+          }, APPROVALS, () => { const parent = loadTask(pt.project, pt.n); return canonical(candidates()) === canonical(scope.candidates) && !!parent && parent.status === "done" && !parent.operation_pending && parent.created === pt.created && parent.qid === pt.qid && parent.plan?.approval?.decision === pt.plan?.approval?.decision })
+          const t = made.task
+          if (!t) continue
           if (stepChoice) stampProfile(t, "executor", t.executor!, stepChoice, !!t.worktree)
           else stampClamp(t, "executor", t.executor!, stageOfLaunch(t, "executor"), model, stepCut.tier, stepCut.from)
           pt.plan.spawned[s.id] = t.n
@@ -1953,7 +1979,7 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
           changed = true
           taskEvent(pt, PLUGIN_SENDER, undefined, `шаг ${s.id} плана ${pt.plan.n} — задача ${taskNo(t)}`)
           log(`plan ${pt.plan.n} (${pt.project}): step ${s.id} -> task ${taskNo(t)}`)
-          await startTask(t)
+          if (t.status === "starting") await startTask(t)
         }
         if (steps.length && steps.every((s) => done(s.id))) {
           pt.plan.finished = true
@@ -2088,7 +2114,7 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
         const id = `stall-left-${safeKey(t.project)}-${t.n}-${(h >>> 0).toString(36)}`
         if (letterExists(t.author, id)) return
         const what = t.status === "done" ? `принятой задачи ${taskNo(t)} «${t.title}» остались хвосты — убери их` : `отменённой задачи ${taskNo(t)} «${t.title}» осталась работа — убери её или сохрани, решаешь ты`
-        postLetter(t.author, { id, from_role: PLUGIN_SENDER, from_session: PLUGIN_SENDER, to: t.author, time: now(), text: `У ${what}:\n${left.map((x) => `— ${x}`).join("\n")}\n(git worktree remove, git branch -D, git push origin --delete — по правилам проекта.)` })
+        postLetter(t.author, { id, from_role: PLUGIN_SENDER, from_session: PLUGIN_SENDER, to: t.author, time: now(), text: `У ${what}:\n${left.map((x) => `— ${x}`).join("\n")}\n${t.status === "cancelled" ? `Контекст нужен для reopen той же задачи. Дерево и ветку не удаляйте без отдельного решения; сначала проверьте сохранённый ref ${t.context_backups?.at(-1)?.ref ?? "(ещё не сохранён)"}, невлитые коммиты и локальные изменения.` : "(git worktree remove, git branch -D, git push origin --delete — по правилам проекта.)"}` })
         log(`leftovers of ${t.project} ${taskNo(t)}: ${left.length}`)
       }, log)
     }
@@ -2113,7 +2139,7 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
         const t = loadTask(ref.project, ref.n)
         if (!t) continue
         if (!isOpen(t) && Date.now() - (t.updated ?? 0) > freshMs) continue // старая закрытая задача: название не трогаем
-        const MARK: Record<string, string> = { submitted: "✓", reviewing: "✓◐", rework: "↻", approval: "◇", accepted: "✓✓◐", done: "✓✓", cancelled: "✗" }
+        const MARK: Record<string, string> = { submitted: "✓", reviewing: "✓◐", rework: "↻", approval: "◇", accepted: "✓✓◐", done: "✓✓", cancelled: "✗", paused: "Ⅱ", backlog: "⋯" }
         const replaced = asReviewer ? t.reviewer !== c.session : t.executor !== c.session
         // сессия задачи (задача 058): своё состояние — сдана, передана; заголовок «045 С4-3 исп …»
         const ses = asReviewer ? undefined : sessionOf(t, c.session)
@@ -2164,6 +2190,7 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
       return undefined
     }
     async function startTask(t0: Task): Promise<{ session?: string; error?: string }> {
+      if (t0.status === "paused" || t0.status === "backlog" || t0.operation_pending) return { error: "задача приостановлена/в очереди или её остановка не завершена" }
       if (executionHeld(taskHold(t0.project, t0.n))) return { error: "HOLD/STOP запрещает исполнение; нужно явное решение владельца" }
       const key = `${t0.project}#${t0.n}`
       if (startingNow.has(key)) return { error: "запуск уже идёт" }
@@ -2283,6 +2310,14 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
     }
     // Задачи в статусе starting (запуск оборвался или задачу поставил MCP-сервер): запускает процесс, где живёт
     // вкладка автора (её визитка), или любой, если процесса автора уже нет.
+    async function resumeOwnerTasks() {
+      await resumeTaskConfirmations(operationIO, async (entry, input, session) => {
+        const tool = tools.find(t => t.name === (entry === "spawn" ? "canopus_spawn" : "canopus_task"))!
+        return (await tool.execute(entry === "order" ? { ...input, action: "order" } : input, session)).content
+      }, (r, text) => {
+        postLetter(r.initiator.session, { id: `owner-operation-${r.id}`, from_role: PLUGIN_SENDER, from_session: PLUGIN_SENDER, to: r.initiator.session, time: now(), wake: false, text })
+      })
+    }
     async function resumeTasks() {
       for (const t of listTasks()) {
         if (t.status !== "starting") continue
@@ -2410,6 +2445,7 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
           for (const w of liveWindows())
             for (const t of w.tabs ?? []) if (!existsSync(cardFile(t.sessionID)) && waitingIn([t.sessionID]) && (await sessionInfo(t.sessionID))) await touch(t.sessionID)
         })
+        await step("ownerTaskConfirmations", resumeOwnerTasks)
         await step("resumeTasks", resumeTasks)
         await step("applyApprovals", applyApprovals)
         await step("assignReviewers", assignReviewers)
@@ -2584,7 +2620,9 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
       return out
     }
 
+    const operationIO = native.taskConfirmationIO ?? lazyTaskConfirmationIO()
     const tools = makeTools({
+      taskConfirmationIO: operationIO,
       projects,
       defaultDir: String(ctx?.location?.directory ?? ""),
       touch: (sessionID) => touch(sessionID),

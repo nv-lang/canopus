@@ -13,6 +13,8 @@ import { INBOX, READ, type Priority, type Tier, readJson, safeKey } from "./core
 import { idsHas } from "./housekeeping.ts"
 import { BASE } from "./base.ts"
 import type { RouteFields } from "./route.ts"
+import type { ApprovalSource } from "./task-confirmation.ts"
+import type { TaskContext } from "./task-context.ts"
 
 // путь — из paths.ts (модуль без зависимостей: core и tasks импортируют друг друга, а BASE ядра здесь ещё не готов)
 export const TASKS = path.join(BASE, "tasks")
@@ -21,7 +23,7 @@ export const TASKS = path.join(BASE, "tasks")
 // reviewing — на приёмке; rework — на доработке; accepted — принята (влита), ждёт очистки; done — принята и убрана, всё
 // закрыто (в старых файлах это слово «cleaned»: читается как done, см. normTask); cancelled — отменена.
 // idle (задача 058) — задача с сессиями методики между сессиями: прежняя сессия сдана интегратору, следующей ещё нет; приёмки нет.
-export type TaskStatus = "starting" | "running" | "submitted" | "reviewing" | "rework" | "approval" | "accepted" | "done" | "cancelled" | "idle" | "backlog"
+export type TaskStatus = "starting" | "running" | "submitted" | "reviewing" | "rework" | "approval" | "accepted" | "done" | "cancelled" | "idle" | "backlog" | "paused"
 export const OPEN_STATUSES: TaskStatus[] = ["starting", "running", "submitted", "reviewing", "rework", "approval", "accepted", "idle"]
 /** статусы, в которых исполнитель работает (может сдавать отчёт) */
 export const WORKING_STATUSES: TaskStatus[] = ["starting", "running", "rework"]
@@ -46,7 +48,7 @@ export const taskRef = (t: { n: number | string; project?: string; title?: strin
 // журналах к нему добавляется номер запуска методики №n, сквозной в задаче (тот же, что в строке «запуск №n» журнала хода).
 export const EXECUTOR_CODE = "исп"
 /** running — работает; submitted — сдала интегратору (или работу задачи — у кода «исп»); handed — передана другой сессии; cancelled — задача отменена. */
-export type SessionStatus = "running" | "submitted" | "handed" | "cancelled"
+export type SessionStatus = "running" | "submitted" | "handed" | "cancelled" | "paused"
 export type TaskSession = {
   code: string
   /** порядковый номер кода в задаче: С4-1, С4-2… */
@@ -220,6 +222,16 @@ export type Task = RouteFields & {
   /** подзадача: номер задачи-родителя; у родителя — номера подзадач */
   part_of?: number
   parts?: number[]
+  creation_reason?: string
+  checked_tasks?: number[]
+  why_new?: string
+  creation_approval?: ApprovalSource
+  creation_failure?: string
+  context_backups?: TaskContext[]
+  context_missing?: string
+  operation_pending?: { id: string; action: string; reason: string; source: ApprovalSource; previous_status: TaskStatus; requested: number; watch_ids?: { id: string; session: string }[] }
+  pause?: { reason: string; by: string; previous_status: TaskStatus; approval: ApprovalSource; at: number }
+  operations?: { action: string; at: number; initiator: { session: string; role: string }; reason: string; replacement?: { project: string; n: number } | { none: string }; previous_status: TaskStatus; approval: ApprovalSource }[]
   history: TaskEvent[]
   created: number
   updated: number
@@ -239,6 +251,8 @@ export function normTask<T extends Task | undefined>(t: T): T {
 }
 export const loadTask = (project: string, n: number) => normTask(readJson<Task>(taskFile(project, n)))
 export const isOpen = (t?: Task) => !!t && OPEN_STATUSES.includes(t.status)
+export const isTerminal = (t?: Task) => !!t && (t.status === "done" || t.status === "cancelled")
+export const isParked = (t?: Task) => !!t && (t.status === "paused" || t.status === "backlog")
 
 // задача изменилась — сводка окна (status/) обновится на ближайшем проходе, а не через 15 с (шаги приёмки видно сразу)
 let changed = false
@@ -432,5 +446,5 @@ export function letterExists(key: string, id: string): boolean {
 const PRIORITY_RANK: Record<string, number> = { P0: 0, P1: 1, P2: 2, P3: 3 }
 export const byPriority = (a: Task, b: Task) => (PRIORITY_RANK[a.priority] ?? 9) - (PRIORITY_RANK[b.priority] ?? 9) || a.created - b.created
 
-const STATUS_RU: Record<TaskStatus, string> = { starting: "запускается", running: "в работе", submitted: "сдана", reviewing: "на приёмке", rework: "на доработке", approval: "на согласовании у владельца", accepted: "принята", done: "готова", cancelled: "отменена", idle: "ждёт следующей сессии", backlog: "в бэклоге" }
+const STATUS_RU: Record<TaskStatus, string> = { starting: "запускается", running: "в работе", submitted: "сдана", reviewing: "на приёмке", rework: "на доработке", approval: "на согласовании у владельца", accepted: "принята", done: "готова", cancelled: "отменена", idle: "ждёт следующей сессии", backlog: "в бэклоге", paused: "на паузе" }
 export const statusRu = (s: TaskStatus) => STATUS_RU[s] ?? s

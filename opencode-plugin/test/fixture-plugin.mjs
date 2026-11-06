@@ -7,6 +7,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 import { createCanopusPlugin } from "../index.ts"
+import { taskOwnerIO } from "./task-owner-harness.mjs"
 
 export * from "../index.ts"
 if (!process.env.XDG_DATA_HOME) throw new Error("fixture-plugin requires an isolated XDG_DATA_HOME")
@@ -18,7 +19,7 @@ const fixtureSettlers = new WeakMap()
 export const settleFixtureNative = (ctx, session) => fixtureSettlers.get(ctx)?.(session)
 
 export function nativeFixture(ctx) {
-  const projected = new Map(), ended = new Map(), admitted = new Map()
+  const projected = new Map(), ended = new Map(), admitted = new Map(), taskStopped = new Set()
   fixtureSettlers.set(ctx, session => { fixtureNativeActive.delete(session); ended.set(session, Date.now()) })
   const file = process.env.CANOPUS_DB
   const rows = session => {
@@ -34,6 +35,7 @@ export function nativeFixture(ctx) {
   const jsons = dir => !existsSync(dir) ? [] : readdirSync(dir).filter(f => f.endsWith(".json")).map(f => { try { return JSON.parse(readFileSync(path.join(dir, f), "utf8")) } catch { return undefined } }).filter(Boolean)
   const fact = session => {
     if (fixtureNativeActive.has(session)) return { active: true }
+    if (taskStopped.has(session)) return { active: false, idleAt: ended.get(session) ?? Date.now(), outcome: "cancelled" }
     const source = rows(session)
     if (!source.known) return { unknown: true }
     const messages = source.messages
@@ -69,6 +71,7 @@ export function nativeFixture(ctx) {
     return { data: { ...value, id: session, time: { created: 1, updated: state.idleAt || Date.now(), ...(state.idleAt ? { idle: state.idleAt } : {}) }, outcome: state.outcome } }
   }
   const prompt = async input => {
+    if (input.resume !== false) taskStopped.delete(input.sessionID)
     if (!input.id) return ctx.session.prompt(input)
     if (admitted.get(input.sessionID)?.has(input.id)) return admitted.get(input.sessionID).get(input.id)
     await ctx.session.prompt(input)
@@ -98,9 +101,24 @@ export function nativeFixture(ctx) {
     if ((result?.data?.interrupted ?? result?.interrupted) === true) ended.set(input.sessionID, Date.now())
     return result
   } : undefined
-  return { get, ctx: { ...ctx, session: { ...ctx.session, prompt, ...(synthetic ? { synthetic } : {}), ...(interrupt ? { interrupt } : {}) } } }
+  // Legacy tests concern other features. Explicit fake native owner input preserves their scope;
+  // owner-gate refusal/provenance tests use the controlled taskOwnerIO directly.
+  const owner = taskOwnerIO()
+  const taskConfirmationIO = { ...owner.io,
+    async create(session, form) { await owner.io.create(session, form); owner.confirm(form.id) },
+    async interrupt(session) { fixtureNativeActive.delete(session); taskStopped.add(session); ended.set(session, Date.now()) },
+    async idle(session) { return !fact(session).unknown && !fact(session).active },
+  }
+  let ownerRequest = 0
+  const tool = ctx.tool && { ...ctx.tool, transform: callback => ctx.tool.transform(editor => callback({ ...editor, add: t => editor.add({ ...t, execute: (input, context) => {
+    let value = input
+    if (t.name === "canopus_spawn" || (t.name === "canopus_task" && input?.action === "order")) value = { creation_reason: "isolated fixture owner requests this work", checked_tasks: [], why_new: `fixture owner confirmed separate request ${++ownerRequest}`, ...input }
+    if (t.name === "canopus_task" && ["cancel", "pause", "resume", "reopen"].includes(input?.action)) value = { text: "fixture owner decision", replacement: "none", no_replacement_reason: "isolated test cleanup", ...input }
+    return t.execute(value, context)
+  } }) })) }
+  return { get, taskConfirmationIO, ctx: { ...ctx, ...(tool ? { tool } : {}), session: { ...ctx.session, prompt, ...(synthetic ? { synthetic } : {}), ...(interrupt ? { interrupt } : {}) } } }
 }
 export default { async setup(ctx) {
   const fixture = nativeFixture(ctx)
-  return createCanopusPlugin({ get: fixture.get, spacingMs: 0 }).setup(fixture.ctx)
+  return createCanopusPlugin({ get: fixture.get, spacingMs: 0, taskConfirmationIO: fixture.taskConfirmationIO }).setup(fixture.ctx)
 } }

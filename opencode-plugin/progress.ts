@@ -468,6 +468,8 @@ export const TASK_WORDS: Record<string, string> = {
   done: "done",
   cancelled: "cancelled",
   idle: "between",
+  backlog: "backlog",
+  paused: "paused",
 }
 /** Роль вкладки задачи (исполнитель, приёмщик). */
 export const ROLE_WORDS = { executor: "exec", reviewer: "rev" } as const
