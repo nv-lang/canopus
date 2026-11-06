@@ -114,8 +114,22 @@ def convert(app, secrets, plugin, repo, home, policy):
             del plugin[old]
     out = {}
     for key, value in plugin.items():
-        if key in ('project_settings', 'retention_days'):
-            out[key] = value
+        if key == 'project_settings':
+            if not isinstance(value, list):
+                blockers.append('plugin.project_settings: expected an array; legacy project maps require explicit conversion')
+            else:
+                for entry in value:
+                    valid = isinstance(entry, str) and bool(entry)
+                    if isinstance(entry, dict):
+                        valid = set(entry) == {'project', 'root'} and isinstance(entry['project'], str) and bool(re.fullmatch(r'[a-z][a-z0-9_-]*', entry['project'])) and isinstance(entry['root'], str) and os.path.isabs(entry['root'])
+                    if not valid:
+                        blockers.append('plugin.project_settings: invalid project registration')
+                out[key] = value
+        elif key == 'retention_days':
+            if type(value) is not int or value < 0:
+                blockers.append('plugin.retention_days: expected a non-negative integer')
+            else:
+                out[key] = value
         elif key == 'defaults':
             out[key] = project_config(value, public, internal, blockers, 'plugin.defaults')
         elif key == 'local' and isinstance(value, dict):
@@ -144,6 +158,20 @@ def atomic(path, raw):
     finally:
         if os.path.exists(name):
             os.unlink(name)
+
+
+def instance_blockers(app_root, plugin_root):
+    blockers = []
+    for root, kind in ((app_root, 'app'), (plugin_root, 'plugin')):
+        marker = root / 'state/instance.kind'
+        if marker.exists():
+            if marker.read_bytes() != ('canopus-instance:' + kind + '\n').encode('utf-8'):
+                blockers.append(kind + ': wrong or unknown instance marker')
+        elif kind == 'app' and any((root / 'data' / name).exists() for name in ('cards', 'tasks', 'inbox')):
+            blockers.append('app: plugin coordination data in application root')
+        elif kind == 'plugin' and (root / 'data/sessions').exists():
+            blockers.append('plugin: application sessions in plugin root')
+    return blockers
 
 
 def apply_documents(paths, originals, converted):
@@ -189,6 +217,7 @@ def main():
             raise ValueError('application and plugin instances must have distinct roots')
         docs = [read_document(path) for path in paths]
         converted, blockers = convert(*(item[1] for item in docs), args.repo.resolve(), paths[0].parent, target_policy(args.policy_root or args.repo))
+        blockers.extend(instance_blockers(paths[0].parent, paths[2].parent))
         # Never follow project_settings paths or touch foreign project files.
         print(json.dumps({'mode': 'apply' if args.apply else 'dry-run', 'blockers': blockers,
                           'sections': [sorted(value) for value in converted]}, ensure_ascii=False))

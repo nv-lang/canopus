@@ -37,6 +37,29 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual(len(blockers), 4)
         self.assertNotIn('PRIVATE_VALUE', str(blockers))
 
+    def test_legacy_project_map_and_invalid_global_shapes_block(self):
+        _, blockers = self.convert(plugin={'projects': {'fixture': '/fixture'}, 'retention_days': True})
+        self.assertEqual(len(blockers), 2)
+        self.assertTrue(any('expected an array' in item for item in blockers))
+        _, blockers = self.convert(plugin={'project_settings': [{'project': 'fixture', 'root': 'relative'}]})
+        self.assertEqual(len(blockers), 1)
+
+    def test_instance_marker_and_data_ownership_preflight(self):
+        with tempfile.TemporaryDirectory() as folder:
+            app = Path(folder) / 'app'
+            plugin = Path(folder) / 'plugin'
+            (app / 'state').mkdir(parents=True)
+            (plugin / 'state').mkdir(parents=True)
+            marker = app / 'state/instance.kind'
+            marker.write_bytes(b'canopus-instance:plugin\n')
+            self.assertTrue(m.instance_blockers(app, plugin))
+            marker.write_bytes(b'unknown\n')
+            self.assertTrue(m.instance_blockers(app, plugin))
+            marker.write_bytes(b'canopus-instance:app\n')
+            self.assertEqual(m.instance_blockers(app, plugin), [])
+            (plugin / 'data/sessions').mkdir(parents=True)
+            self.assertTrue(m.instance_blockers(app, plugin))
+
     def test_conflicting_connection_definitions_block(self):
         _, blockers = self.convert({'pg': {'port': 15432}}, {'database_url': m.dsn_from_fields({'port': 5432})})
         self.assertIn('conflicting', blockers[0])
