@@ -30,6 +30,8 @@ db.exec("create table session_v2 (id text primary key, directory text, title tex
 for (const [id, dir] of Object.entries({ ...dirOf, sesDDDDDD: dirs.D })) db.prepare("insert into session_v2 values (?, ?, ?, null, null)").run(id, dir, id)
 db.close()
 
+const {taskOwnerHttp}=await import("./task-owner-http.mjs")
+const nativeOwner=await taskOwnerHttp(tmp)
 const mod = await import(process.env.CANOPUS_MODULE ?? "./fixture-plugin.mjs")
 const hooks = {}
 const tools = {}
@@ -47,7 +49,9 @@ const ctx = {
   },
   tool: { transform: async (fn) => fn({ add: (t) => (tools[t.name] = t) }) },
 }
-const stop = await mod.default.setup(ctx)
+const nativeFixture=mod.nativeFixture(ctx)
+const {taskConfirmationIO}=await import("../task-confirmation-native.ts")
+const stop=await mod.createCanopusPlugin({get:nativeFixture.get,spacingMs:0,taskConfirmationIO:taskConfirmationIO({url:nativeOwner.url,password:"example"})}).setup(nativeFixture.ctx)
 let fail = 0
 const cell = (name, ok, detail) => {
   console.log(`${ok ? "ok  " : "FAIL"} ${name}${ok ? "" : " :: " + detail}`)
@@ -69,8 +73,8 @@ await tools.canopus_role.execute({ role: "integrator" }, { sessionID: "sesBBBBBB
 
 // MCP client over stdio
 function startMcp(session) {
-  const env = { ...process.env, OPENCODE_CANOPUS_SESSION: session ?? "" }
-  const child = spawn(process.execPath, [process.env.CANOPUS_MCP ?? path.join(here, "..", "mcp.ts")], { env, cwd: dirs.C, stdio: ["pipe", "pipe", "pipe"] })
+  const env = { ...nativeOwner.env, OPENCODE_CANOPUS_SESSION: session ?? "" }
+  const child = spawn(process.execPath, [process.env.CANOPUS_MCP ?? path.join(here, "..", "mcp.ts"),"--config",path.join(tmp,"opencode/plugin/config.json")], { env, cwd: dirs.C, stdio: ["pipe", "pipe", "pipe"] })
   let buf = ""
   const waiting = new Map()
   child.stdout.on("data", (d) => {
@@ -202,8 +206,12 @@ try {
   await integ.rpc("initialize", { protocolVersion: "2025-06-18", capabilities: {} })
   const refused = (await integ.call("canopus_spawn", { goal: "без критериев" })).text
   cell("MCP canopus_spawn refuses a task without criteria", /нет полей критерии/.test(refused), refused)
-  const sp = (await integ.call("canopus_spawn", { title: "через mcp", goal: "проверить", criteria: "зелёное", tier: "light" })).text
-  cell("MCP canopus_spawn: the plugin starts the task", /Задача 001 запущена/.test(sp) && created.length === 1 && created[0].title === "001 исп через mcp", sp + JSON.stringify(created))
+  const sp = (await integ.call("canopus_spawn", { title: "через mcp", goal: "проверить", criteria: "зелёное", tier: "light",creation_reason:"MCP owner requests independent result",checked_tasks:[],why_new:"no existing task covers this result" })).text
+  cell("MCP canopus_spawn waits for native owner before resources",/подтверждени/.test(sp)&&created.length===0,sp)
+  const form=[...nativeOwner.forms.values()].find(f=>f.sessionID==="sesAAAAAA")
+  nativeOwner.confirm(form.metadata.proposal)
+  await until(()=>created.length===1)
+  cell("MCP canopus_spawn: one owner click lets plugin start the task",created.length===1&&created[0].title==="001 исп через mcp",sp+JSON.stringify(created))
   const list = (await integ.call("canopus_task", { action: "list" })).text
   cell("MCP canopus_task list shows the same journal", /001 P2 в работе «через mcp»/.test(list), list)
   const bad = (await integ.call("canopus_task", { action: "push", n: 99 })).text
@@ -215,6 +223,7 @@ try {
 }
 
 await stop?.()
+await nativeOwner.close()
 await wait(100)
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `canopus-mcp.test: FAIL ${fail}` : "canopus-mcp.test ok")

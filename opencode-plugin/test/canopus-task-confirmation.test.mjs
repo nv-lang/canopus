@@ -128,6 +128,14 @@ try {
  releaseCreate();await firstCreate;await new Promise(resolve=>setTimeout(resolve,550))
  await gate.resumeTaskConfirmations(fake.io,async(entry,input)=>{const q=queued.find(q=>q.id===input.approval);if(!q)return "unrelated";const result=await gate.applyApprovedCreation(q,()=>madeTasks.get(q.id),async source=>madeTasks.set(q.id,{project:"queued",n:2,creation_approval:source}),dir);return result.busy??"created"},()=>{},dir)
  assert.equal(madeTasks.size,2);assert.equal(gate.readProposal(queued[1].id,dir).state,"applied")
+ // A declined creation callback is not silently retried by the background owner loop.
+ const refusedCreate={...request,project:"invalidcreation",scope:{entry:"spawn",input:{title:"Invalid parameters"}}}
+ let refusalGate=await gate.confirmTaskOperation(refusedCreate,fake.io,dir);fake.confirm(refusalGate.proposal.form);refusalGate=await gate.confirmTaskOperation(refusedCreate,fake.io,dir)
+ const refusalResult=await gate.applyApprovedCreation(refusalGate.proposal,()=>undefined,async()=>({content:"invalid route parameters"}),dir)
+ assert.equal(refusalResult.result.content,"invalid route parameters");assert.equal(gate.readProposal(refusalGate.proposal.id,dir).state,"blocked")
+ let invalidRetries=0
+ await gate.resumeTaskConfirmations(fake.io,async()=>{invalidRetries++;return "must not repeat"},()=>{},dir)
+ assert.equal(invalidRetries,0,"manual in-flight/refused attempt is not background-replayed in the living owner process")
  assert.equal(gate.createReasonRefusal({}), "Нужна creation_reason: причина создания новой задачи агентом")
  assert.equal(gate.createReasonRefusal({ creation_reason: "r", checked_tasks: [], why_new: "w" }), undefined)
  console.log("task confirmation: native source, refusal/resubmit, replay/concurrency, partial stop, missing-form recovery and dead claims OK")

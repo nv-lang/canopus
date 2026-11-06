@@ -455,7 +455,7 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
       const recovery = a.letters.filter(l => /^question-recovery-[a-f0-9]{64}$/.test(l.id))
       const recoveryAllowed = !recovery.length || (!a.tries && await recoveryDeliveryAllowed(recovery))
       await advanceWake(a, {
-        state, now: now(), send: !executionPaused(card) && recoveryAllowed,
+        state, now: now(), send: (!executionPaused(card) || a.mode === "quiet-synthetic" || a.mode === "quiet-prompt") && recoveryAllowed,
         get: getNative,
         prompt: async input => {
           let timer: any
@@ -552,8 +552,9 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
       }
       if (state.state !== "idle" && !commandOnly) return // unknown/native active is NOT free
       fresh = readJson<Card>(cardFile(card.session)) ?? fresh
-      if (executionPaused(fresh)) return // legacy HOLD is never auto-reinterpreted
-      const open = mayWakeCard(fresh, windows)
+      const paused = executionPaused(fresh)
+      if (paused && !hasQuietIn(keys)) return // owner stop permits history-only delivery, never a new turn
+      const open = !paused && mayWakeCard(fresh, windows)
       if (!open && !hasQuietIn(keys)) {
         if (!held.has(card.session)) log(`hold letters for ${card.session} (${keyOf(card)}): tab not open`)
         held.add(card.session)

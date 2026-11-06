@@ -2253,6 +2253,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
       const watch_ids = fresh.operation_pending?.watch_ids ?? sessions.flatMap(session => watchesOf(session).filter(w => w.status !== "done" && !w.cancelled && !w.dropped && watchOwned(w)).map(w => ({ id: w.id, session })))
       fresh.operation_pending = { id: proposal.id, action, reason, source, previous_status: fresh.status, requested: fresh.operation_pending?.requested ?? Date.now(), watch_ids }; saveTask(fresh)
     }
+    const heldCancelLock = action === "cancel" && !!t.reviewer && holdsMergeLock(t.project, t.reviewer, t.n)
     const decisionInfo = `инициатор ${proposal.initiator.role} (${proposal.initiator.session}); причина: ${reason}${replacement ? `; взамен: ${"none" in replacement ? `нет — ${replacement.none}` : `${replacement.project}:${pad3(replacement.n)}`}` : ""}; подтвердил native_owner: ${source.session}, form ${source.form}, approval ${source.id}`
     const finish = async () => {
       const current = loadTask(t.project, t.n)
@@ -2283,12 +2284,16 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
         if (!repair) {
           const context = preserveTaskContext(current)
           if (context && !(current.context_backups ?? []).some(x => x.ref === context.ref)) (current.context_backups ??= []).push(context)
-          markPrecheckStale(current, "задача отменена владельцем")
+          markPrecheckStale(current, "задача отменена")
           for (const s of current.sessions ?? []) if (s.status === "running") { s.status = "cancelled"; s.ended = Date.now() }
           taskEvent(current, me.session, "cancelled", audit)
           try { releaseTaskWindow(current.project, current) } catch (e) { log(`window release after cancellation failed: ${e}`) }
           if (current.reviewer) releaseTaskLocks(current, current.reviewer, current.n)
-          if (current.executor) releaseExecutor(current, current.executor, false)
+          if (current.executor) {
+            releaseExecutor(current, current.executor, false)
+            postLetter(current.executor, { id: `cancel-${safeKey(current.project)}-${current.n}`, from_role: keyOf(me), from_session: me.session, to: current.executor, time: Date.now(), wake: false, text: `Задача ${taskNo(current)} «${current.title}» отменена: ${reason}. Работу по ней прекрати, отчёт не нужен. ${decisionInfo}` })
+            host.posted([current.executor])
+          }
           host.posted(propagateToParent(current))
         } else taskEvent(current, me.session, undefined, `вопросы уже отменённой задачи закрыты; ${audit}`)
       } else if (action === "pause") {
@@ -2305,7 +2310,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
     }
     const run = async () => {
       const why = await applyApprovedStop(proposal, lifecycleIO, sessions, finish, APPROVALS, prepare, verifyOwner)
-      return { content: why ? `Операция не завершена: ${why}. Задача не объявлена отменённой/приостановленной. Повторите тот же вызов с approval:${proposal.id}; уже закрытые формы повторно не отменяются.` : `Задача ${taskRef(t)}: ${action === "pause" ? "на паузе" : action === "resume" || action === "reopen" ? "возвращена в idle с тем же номером; история и HOLD сохранены, следующая сессия назначается явно" : repair ? "вопросы отменённой задачи закрыты" : "отменена"}. ${decisionInfo}` }
+      return { content: why ? `Операция не завершена: ${why}. Задача не объявлена отменённой/приостановленной. Повторите тот же вызов с approval:${proposal.id}; уже закрытые формы повторно не отменяются.` : `Задача ${taskRef(t)}: ${action === "pause" ? "на паузе" : action === "resume" || action === "reopen" ? "возвращена в idle с тем же номером; история и HOLD сохранены, следующая сессия назначается явно" : repair ? "вопросы отменённой задачи закрыты" : "отменена"}. ${decisionInfo}${heldCancelLock && !why ? ` ${LOCK_FREED}` : ""}` }
     }
     if (sessions.includes(me.session)) {
       // Do not await our own execution drain from inside the very tool that must drain.
@@ -3088,6 +3093,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
       return { content: `Задача ${taskNo(t)} запущена (${hhmm(Date.now())}): «${t.title}», сессия ${r.session}, роль ${roleKey(project, role)}, модель ${model}, приоритет ${t.priority}${t.worktree ? `, worktree ${t.worktree}, ветка ${t.branch}` : ""}. Отчёт придёт ответом на ${t.qid}: canopus_wait {qid: "${t.qid}"} или обычным письмом. Управление — canopus_task {n: ${t.n}, action: ...}.` }
       }
       const existing = taskNum !== undefined ? loadTask(project, taskNum) : undefined
+      if (existing?.status === "backlog") return { content: `Номер ${taskNo(existing)} занят задачей в бэклоге; сначала явное resume, новая запись не создаётся` }
       if (existing?.status === "paused" || existing?.status === "backlog" || existing?.operation_pending) return { content: "Задача припаркована или её остановка не завершена; сначала явное resume, новая задача не нужна" }
       if (existing && isOpen(existing)) { const missing = missingTaskContext(existing); if (missing) return { content: missing }; return launch(input) }
       const title = String(input.title ?? "").trim() || String(input.goal).split(/\r?\n/)[0].slice(0, 60)
@@ -3276,9 +3282,9 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
         if (!isIntegrator(me)) return notIntegrator(me)
         if (!String(input.text ?? "").trim()) return { content: `Нужна причина в text: canopus_task {action: "backlog", n: ${t.n}, text: "почему пауза"}.` }
         if (t.status === "backlog") return { content: `Задача ${taskRef(t)} уже в бэклоге.` }
+        if (mergeHolder(project)?.n === t.n) return { content: `Задача ${taskRef(t)} не переведена в бэклог: у неё ещё есть замок вливания. Сначала явно отпусти его: canopus_task {action: "unlock", n: ${t.n}}.` }
         if (t.status === "paused" || WORKING_STATUSES.includes(t.status) || t.status === "reviewing") return { content: "Активную работу временно останавливают через pause с проверенной остановкой исполнителя; backlog — очередь, он не заменяет паузу" }
         if (t.status === "done" || t.status === "cancelled") return { content: `Задача ${taskRef(t)} уже ${statusRu(t.status)}: в бэклог переводят только открытую задачу.` }
-        if (mergeHolder(project)?.n === t.n) return { content: `Задача ${taskRef(t)} не переведена в бэклог: у неё ещё есть замок вливания. Сначала явно отпусти его: canopus_task {action: "unlock", n: ${t.n}}.` }
         t.backlog = { status: t.status, at: Date.now(), by: me.session }
         taskEvent(t, me.session, "backlog", String(input.text).trim())
         for (const session of new Set([t.author, t.executor, t.reviewer].filter((s): s is string => !!s))) {

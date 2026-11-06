@@ -69,9 +69,16 @@ const warnings = (n) => H.history(n).filter((h) => /^предупреждени�
   const rc = await begin(c)
   cell("AC-22 идут зелёная: a neighbour with a green record is named as green", rc.includes(`${String(a.n).padStart(3, "0")} (зелёная на`) && rc.includes(`${String(b.n).padStart(3, "0")} (идёт на`), rc)
   const lone = H.reviewing()
-  await call("canopus_task", "sesINTEG1", { action: "cancel", n: a.n })
-  await call("canopus_task", "sesINTEG1", { action: "cancel", n: b.n })
-  await call("canopus_task", "sesINTEG1", { action: "cancel", n: c.n })
+  // These precheck-only fixture records reused one reviewer tab. Older pointers
+  // must not interrupt that tab after it has moved to another task.
+  for (const task of [a,b,c]) {
+    const current=T(task.n)
+    const reviewer=current.reviewer
+    if(reviewer) (current.reviewers??=[]).push(reviewer)
+    delete current.reviewer;delete current.executor;H.tasks.saveTask(current)
+    const cancelled=await call("canopus_task","sesINTEG1",{action:"cancel",n:task.n})
+    cell("AC-22 fixture precheck-only record cancellation is confirmed",T(task.n).status==="cancelled",cancelled)
+  }
   const rl = await begin(lone)
   cell("AC-22 никого: with no other open task with a record there is no hint", !/Параллельно/.test(rl), rl)
 }

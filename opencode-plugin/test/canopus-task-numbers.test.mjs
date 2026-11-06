@@ -97,17 +97,25 @@ cell("the temporary count of task 044 (docTaskNumbers) is gone", tasks.docTaskNu
 // AC-02: two processes take a number at once — different numbers, both folders made (the script of an agent outside OpenCode)
 const tree2 = path.join(tmp, "wt-race")
 git(proj, "worktree", "add", "-q", "-b", "race", tree2, "main")
-const run = (title) =>
-  new Promise((res) => {
-    const p = spawn(process.execPath, [script, "--dir", tree2, "--project", "race", "--title", title], { env: { ...process.env, XDG_DATA_HOME: tmp , CANOPUS_HOME: path.join(tmp , "opencode")}, windowsHide: true })
-    let out = ""
-    let err = ""
-    p.stdout.on("data", (d) => (out += d))
-    p.stderr.on("data", (d) => (err += d))
-    p.on("close", (code) => res({ code, out, err }))
-    p.on("error", (e) => res({ code: -1, out, err: String(e) }))
-  })
-const [r1, r2] = await Promise.all([run("Первая гонка"), run("Вторая гонка")])
+const {taskOwnerHttp}=await import("./task-owner-http.mjs")
+const native=await taskOwnerHttp(tmp)
+const run=async(title)=>{
+ const args=[script,"--config",path.join(tmp,"opencode/plugin/config.json"),"--dir",tree2,"--project","race","--title",title,"--session","ses_cli_race","--creation-reason","test independent number claim "+title,"--checked-tasks","none","--why-new","separate fixture result "+title]
+ const pending=await native.run(args)
+ if(pending.code!==2)return pending
+ const approval=JSON.parse(pending.out).approval
+ native.confirm(approval)
+ // A transient project claim can be held by the other approved external agent.
+ // Retry the SAME approval; never fabricate another answer or allocate another proposal.
+ for(let i=0;i<20;i++){
+  const result=await native.run([...args,"--approval",approval])
+  if(result.code===0||!/сейчас|выполняется|освобождения/.test(result.err))return result
+  await new Promise(resolve=>setTimeout(resolve,50))
+ }
+ return {code:1,out:"",err:"approved number claim did not drain"}
+}
+const [r1,r2]=await Promise.all([run("Первая гонка"),run("Вторая гонка")])
+await native.close()
 const j = (r) => {
   try {
     return JSON.parse(r.out.trim().split(/\r?\n/).at(-1))

@@ -205,6 +205,14 @@ cell("a cancelled task session is titled #N ✗", updates.some((u) => u.sessionI
 const b0 = await call("canopus_spawn", "sesINTEG1", { title: "в бэклоге", goal: "сохранить", ...FIELDS, tier: "light", priority: "P2" })
 const bn = Number(b0.match(/Задача (\d+)/)?.[1])
 let bt = tasks.loadTask("proj", bn)
+cell("backlog refuses to impersonate a real pause",/pause/.test(await call("canopus_task","sesINTEG1",{action:"backlog",n:bn,text:"temporarily stop"}))&&tasks.loadTask("proj",bn).status==="running","active task must use pause")
+const stoppedExecutor=bt.executor
+await call("canopus_task","sesINTEG1",{action:"pause",n:bn,text:"owner stops before parking queued work"})
+await call("canopus_task","sesINTEG1",{action:"resume",n:bn,text:"owner makes stopped work idle"})
+bt=tasks.loadTask("proj",bn)
+// A restored queued record can retain the pointer of an already stopped executor.
+// Exercise archival of that stale pointer without representing active work as backlog.
+bt.executor=stoppedExecutor;tasks.saveTask(bt)
 const branchBefore = bt?.branch
 const worktreeBefore = bt?.worktree
 const historyBefore = bt?.history.length

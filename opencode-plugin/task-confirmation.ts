@@ -169,10 +169,11 @@ export async function applyApprovedCreation<T extends { project: string; n: numb
     if (found) { current.result = { project: found.project, n: found.n }; current.state = "applied"; saveProposal(current, dir); return { task: found } }
     if (current.state !== "approved" || !current.source || current.source.digest !== r.digest) return { busy: "Нет проверенного разрешения владельца" }
     if (!fresh()) { current.state = "blocked"; current.why = "Изменился родительский контекст или появились новые возможные дубли; старое подтверждение не применяется"; saveProposal(current, dir); return { busy: current.why + "; повторите предложение без approval после проверки существующих задач" } }
-    current.state = "applying"; saveProposal(current, dir)
+    current.state = "applying"; current.autoAttempted = {pid:process.pid,at:Date.now()}; delete current.retryAt; saveProposal(current, dir)
     const result = await operation(current.source)
     const created = existing()
-    current.state = created ? "applied" : "approved"
+    current.state = created ? "applied" : "blocked"
+    if (!created) current.why = String(result?.content ?? "Подтверждённое создание отказало до публикации; повтор по решению оператора")
     if (created) current.result = { project: created.project, n: created.n }
     saveProposal(current, dir)
     return { result, ...(created ? { task: created } : {}) }
@@ -226,7 +227,7 @@ export async function applyApprovedStop(r: TaskProposal, io: TaskConfirmationIO,
     if (current.state === "applied") return
     if (!current.source || !["approved", "applying", "blocked"].includes(current.state)) return "Нет подтверждённого решения владельца"
     prepare()
-    current.state = "applying"; saveProposal(current, dir)
+    current.state = "applying"; current.autoAttempted = {pid:process.pid,at:Date.now()}; delete current.retryAt; saveProposal(current, dir)
     for (const session of sessions) {
       if (await verifyOwner(session) === "absent") continue
       // Close currently open questions first. DELETE acknowledgement alone is not settlement evidence.
