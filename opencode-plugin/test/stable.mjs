@@ -99,7 +99,6 @@ const queue = []
 for (let r = 0; r < runs; r++) for (const f of files) queue.push({ f, r })
 const red = new Map(files.map((f) => [f, 0]))
 const total = new Map(files.map((f) => [f, 0]))
-const reports = []
 const t0 = Date.now()
 
 const runOne = ({ f }) =>
@@ -122,7 +121,7 @@ const runOne = ({ f }) =>
       console.log(`stable finished ${f}: exit ${code}, ${Math.round((Date.now() - begun) / 1000)} s`)
       if (code !== 0) {
         red.set(f, red.get(f) + 1)
-        reports.push(`--- RED ${f} (exit ${code})\n${out}`)
+        console.log(`--- RED ${f} (exit ${code})\n${out}`)
       }
       resolve()
     })
@@ -133,7 +132,6 @@ const worker = async () => {
 }
 await Promise.all(Array.from({ length: Math.max(1, Math.min(jobs, queue.length)) }, worker))
 
-for (const r of reports) console.log(r)
 let bad = 0
 for (const f of files) {
   if (red.get(f)) bad += red.get(f)

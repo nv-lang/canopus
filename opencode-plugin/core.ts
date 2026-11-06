@@ -407,7 +407,8 @@ export function loadConfig(dir: string): CanopusConfig {
   for (const t of TIER_ORDER) if (typeof j.spawn_models?.[t] === "string") spawnModels[t] = j.spawn_models[t]
   const project = projectFor(dir, currentProjects)
   const root = project ? (project.rootPath ?? project.root) : undefined
-  const targetBranch = project?.branch ?? repositoryDefaultBranch(dir)
+  const policyTarget = typeof j.target_branch === "string" ? j.target_branch.trim() : ""
+  const targetBranch = policyTarget || project?.branch || repositoryDefaultBranch(dir)
   let acceptance: AcceptanceStep[] = Array.isArray(j.acceptance)
     ? j.acceptance.filter((a: any) => a && typeof a.id === "string" && typeof a.text === "string").map((a: any) => ({ id: a.id, text: a.text, required: a.required !== false }))
     : []
@@ -3155,7 +3156,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
         step: str("check: the acceptance step id"),
         result: str("check: what proves the step (omit when starting the step)"),
         commit: str("accept: the commit in the target branch (squash merge); without it the task branch must be merged"),
-        branch: str("track: side branch to record; target: the target branch in the result repository (default: the project's target_branch)"),
+        branch: str("track: side branch to record; target: the target branch in the result repository (default: the repository target branch)"),
         dir: str("target: the local clone of the result repository (absolute or from the caller's directory); empty string lifts the binding"),
         remote: str("target: the remote name in the result repository (default: origin)"),
         word: str("target: the owner's word word for word with its date and source — the basis of the result-repository binding"),
