@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from "node:fs"
 import path from "node:path"
-import { spawnSync } from "node:child_process"
+import { spawnSync, spawn } from "node:child_process"
 import { taskTestHome, taskOwnerIO } from "./task-owner-harness.mjs"
 const home = taskTestHome()
 const gate = await import("../task-confirmation.ts")
@@ -54,7 +54,7 @@ try {
  assert.equal(missing.proposal.form, sameID); assert.ok(fake.forms.has(sameID), "authoritative missing restores same native ID")
  const stopped = { ...request, action: "cancel", scope: { target: 1 }, title: "Cancel?" }
  let stop = await gate.confirmTaskOperation(stopped, fake.io, dir); fake.confirm(stop.proposal.form); stop = await gate.confirmTaskOperation(stopped, fake.io, dir)
- fake.forms.set("frm_worker", { id: "frm_worker", sessionID: "ses_worker", state: { status: "pending" } })
+ fake.forms.set("frm_worker", { id: "frm_worker", sessionID: "ses_worker", metadata: { kind: "question" }, state: { status: "pending" } })
  let terminal = 0; fake.failCancel(true)
  let why = await gate.applyApprovedStop(stop.proposal, fake.io, ["ses_worker"], async () => { terminal++ }, dir)
  assert.ok(why); assert.equal(terminal, 0); assert.equal(fake.forms.get("frm_worker").state.status, "pending")
@@ -90,6 +90,44 @@ try {
   }, dir)
   assert.equal(tasks.listTasks(project).length, 1); assert.equal(result.task.n, 1); assert.equal(retried, beforeRecord ? 1 : 0)
  }
+ // Two processes recover the same abandoned claim without stealing each other's live claim.
+ const rr={...request,project:"recoverrace",scope:{input:{title:"Recover race"}}}
+ let rp=await gate.confirmTaskOperation(rr,fake.io,dir);fake.confirm(rp.proposal.form);rp=await gate.confirmTaskOperation(rr,fake.io,dir)
+ writeFileSync(path.join(dir,rp.proposal.id+".json.lock"),JSON.stringify({pid:2147483647}))
+ const raceChild=path.join(home,"concurrent-recovery.mjs"), exclusive=path.join(home,"exclusive-placement")
+ writeFileSync(raceChild,`import{writeFileSync,rmSync}from'node:fs';import{readProposal,applyApprovedCreation}from ${JSON.stringify(new URL("../task-confirmation.ts",import.meta.url).href)};import{createTask,listTasks}from ${JSON.stringify(new URL("../tasks.ts",import.meta.url).href)};const p=readProposal(${JSON.stringify(rp.proposal.id)},${JSON.stringify(dir)});await applyApprovedCreation(p,()=>listTasks('recoverrace').find(t=>t.creation_approval?.id===p.id),async source=>{writeFileSync(${JSON.stringify(exclusive)},'held',{flag:'wx'});await new Promise(r=>setTimeout(r,200));const t=createTask({project:'recoverrace',title:'race',goal:'one',criteria:'one',priority:'P2',tier:'light',role:'worker',author:'ses_owner',author_role:'fixture.integrator',qid:'race',status:'idle',kind:'spawn',directory:${JSON.stringify(home)},creation_approval:source});rmSync(${JSON.stringify(exclusive)});return t},${JSON.stringify(dir)});`)
+ const launch=()=>new Promise((resolve,reject)=>{const c=spawn(process.execPath,[raceChild],{env:process.env,windowsHide:true,stdio:['ignore','pipe','pipe']});let errors='';c.stderr.on('data',b=>errors+=b);c.on('error',reject);c.on('close',code=>resolve({code,errors}))})
+ const concurrent=await Promise.all([launch(),launch()]);for(const c of concurrent)assert.equal(c.code,0,c.errors)
+ assert.equal(tasks.listTasks("recoverrace").length,1,"concurrent dead-claim recoverers publish exactly one result")
+ // Shared sessions do not grant ownership of another task's pending decision.
+ const foreignReq = { ...request, action: "pause", initiator: {session:"ses_worker",role:"sample.worker"}, scope: {target:{project:"sample",n:99,created:1}}, title:"Pause other task?" }
+ const foreign = await gate.confirmTaskOperation(foreignReq, fake.io, dir)
+ const ownedReq = { ...request, action: "cancel", scope: {target:{project:"sample",n:88,created:1}}, title:"Cancel target only?" }
+ let owned = await gate.confirmTaskOperation(ownedReq, fake.io, dir); fake.confirm(owned.proposal.form); owned = await gate.confirmTaskOperation(ownedReq, fake.io, dir)
+ assert.equal(await gate.applyApprovedStop(owned.proposal, fake.io, ["ses_worker"], async()=>{}, dir), undefined)
+ assert.equal(fake.forms.get(foreign.proposal.form).state.status,"pending","foreign owner proposal is neither closed nor blocking target")
+ assert.equal(gate.taskFormOwnership(fake.forms.get(foreign.proposal.form),"sample",88,dir),"foreign")
+ // Ownership can change while form detail awaits; fresh check must prevent DELETE and interrupt.
+ const raceReq = { ...ownedReq, scope:{target:{project:"sample",n:89,created:1}} }
+ let race = await gate.confirmTaskOperation(raceReq,fake.io,dir); fake.confirm(race.proposal.form); race=await gate.confirmTaskOperation(raceReq,fake.io,dir)
+ fake.forms.set("frm_owner_race",{id:"frm_owner_race",sessionID:"ses_switch",metadata:{kind:"question"},state:{status:"pending"}})
+ let switched=false
+ const raceIO={...fake.io,async get(session,id){const value=await fake.io.get(session,id);switched=true;return value}}
+ const beforeInterrupt=fake.calls.filter(x=>x[0]==="interrupt").length
+ const blocked=await gate.applyApprovedStop(race.proposal,raceIO,["ses_switch"],async()=>assert.fail("must not finish"),dir,()=>{},async()=>{if(switched)throw Error("session reassigned");return "owned"})
+ assert.match(blocked,/reassigned/);assert.equal(fake.forms.get("frm_owner_race").state.status,"pending")
+ assert.equal(fake.calls.filter(x=>x[0]==="interrupt").length,beforeInterrupt)
+ // A busy creation retries automatically after its claim is released, without a second owner click.
+ const queued=[]
+ for(const title of ["Queued one","Queued two"]){const req={...request,project:"queued",scope:{entry:"spawn",input:{title}}};let q=await gate.confirmTaskOperation(req,fake.io,dir);fake.confirm(q.proposal.form);q=await gate.confirmTaskOperation(req,fake.io,dir);queued.push(q.proposal)}
+ let releaseCreate, enteredCreate=false;const holdCreate=new Promise(resolve=>releaseCreate=resolve), madeTasks=new Map()
+ const firstCreate=gate.applyApprovedCreation(queued[0],()=>madeTasks.get(queued[0].id),async source=>{enteredCreate=true;await holdCreate;madeTasks.set(queued[0].id,{project:"queued",n:1,creation_approval:source})},dir)
+ while(!enteredCreate)await new Promise(resolve=>setTimeout(resolve,1))
+ await gate.resumeTaskConfirmations(fake.io,async(entry,input)=>{const q=queued.find(q=>q.id===input.approval);const result=await gate.applyApprovedCreation(q,()=>madeTasks.get(q.id),async source=>madeTasks.set(q.id,{project:"queued",n:2,creation_approval:source}),dir);return result.busy??"created"},()=>{},dir)
+ assert.ok(gate.readProposal(queued[1].id,dir).retryAt)
+ releaseCreate();await firstCreate;await new Promise(resolve=>setTimeout(resolve,550))
+ await gate.resumeTaskConfirmations(fake.io,async(entry,input)=>{const q=queued.find(q=>q.id===input.approval);if(!q)return "unrelated";const result=await gate.applyApprovedCreation(q,()=>madeTasks.get(q.id),async source=>madeTasks.set(q.id,{project:"queued",n:2,creation_approval:source}),dir);return result.busy??"created"},()=>{},dir)
+ assert.equal(madeTasks.size,2);assert.equal(gate.readProposal(queued[1].id,dir).state,"applied")
  assert.equal(gate.createReasonRefusal({}), "Нужна creation_reason: причина создания новой задачи агентом")
  assert.equal(gate.createReasonRefusal({ creation_reason: "r", checked_tasks: [], why_new: "w" }), undefined)
  console.log("task confirmation: native source, refusal/resubmit, replay/concurrency, partial stop, missing-form recovery and dead claims OK")

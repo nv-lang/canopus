@@ -13,6 +13,7 @@ export function taskOwnerIO() {
   const forms = new Map(), calls = []
   let failCancel = false, idle = true, unknownCreate = false
   const io = {
+    async owner() { return "owned" },
     async create(session, form) { calls.push(["create", session, form.id]); if (unknownCreate) throw Error("transport unknown"); if (forms.has(form.id)) throw Error("native conflict"); forms.set(form.id, { ...structuredClone(form), sessionID: session, state: { status: "pending" } }) },
     async get(session, id) { calls.push(["get", session, id]); const f = forms.get(id); if (!f) throw Object.assign(Error("missing"), { missingForm: id }); if (f.sessionID !== session) throw Error("wrong session"); return { data: structuredClone(f) } },
     async list(session) { return { data: [...forms.values()].filter(f => f.sessionID === session).map(f => ({ id: f.id, sessionID: session })) } },

@@ -62,7 +62,7 @@ const project = String(a.project ?? path.basename(mainRoot)).trim()
 const title = String(a.title).trim()
 const slug = a.slug ? tasks.slugify(String(a.slug)) : tasks.slugify(title)
 const message = a["message-file"] ? readFileSync(path.resolve(a["message-file"]), "utf8") : ""
-const { APPROVALS, canonical, confirmTaskOperation, applyApprovedCreation, createReasonRefusal, creationDescription, similarTasks, readProposal } = await load("task-confirmation.ts")
+const { APPROVALS, canonical, confirmTaskOperation, applyApprovedCreation, createReasonRefusal, creationDescription, similarTasks, readProposal, saveProposal } = await load("task-confirmation.ts")
 const { taskConfirmationIO } = await load("task-confirmation-native.ts")
 const session = String(a.session ?? "").trim()
 if (!session) fail("нужна --session: native сессия, в которой владелец подтвердит создание")
@@ -73,16 +73,38 @@ if (refusal) fail(refusal)
 const records = tasks.listTasks(project)
 if (input.checked_tasks.some(n => !records.some(t => t.n === n))) fail("--checked-tasks ссылается на отсутствующий номер")
 const candidates = () => similarTasks(input, title, tasks.listTasks(project))
-const scope = { entry: "cli", input, directory: top, tasks_dir: rel, slug, message, candidates: candidates() }
+const foundCandidates = candidates()
+const scope = { entry: "cli", input, directory: top, tasks_dir: rel, slug, message, candidates: foundCandidates }
+function placementError(t, proposal) {
+ try {
+  const folder = path.resolve(top, ...String(t.folder).split("/"))
+  const relative = path.relative(top, folder)
+  if (!relative || relative === ".." || relative.startsWith(".." + path.sep) || path.isAbsolute(relative)) return "папка за пределами дерева"
+  for (const f of ["task/message.md", "task/creation.json", "log.md"]) if (!existsSync(path.join(folder, f))) return `отсутствует ${f}`
+  const proof = JSON.parse(readFileSync(path.join(folder, "task/creation.json"), "utf8"))
+  if (proof.approval?.id !== proposal.id || proof.reason !== input.creation_reason || canonical(proof.checked_tasks) !== canonical(input.checked_tasks) || proof.why_new !== input.why_new) return "creation.json не соответствует подтверждению"
+ } catch { return "состав папки не удалось проверить" }
+}
+function partial(t, proposal, why) {
+ const detail = `задача ${tn.pad3(t.n)} уже сохранена, размещение не завершено: ${why}; новый номер не выделен, файлы не перезаписаны`
+ t.creation_failure = detail; tasks.saveTask(t)
+ proposal.state = "blocked"; proposal.why = detail; proposal.result = {project: t.project, n: t.n}; saveProposal(proposal)
+ fail(detail)
+}
 for (const previousTask of records) if (previousTask.creation_approval) {
  const previous = readProposal(previousTask.creation_approval.id)
  if (previous?.initiator.session === session && previous.scope.entry === "cli" && previous.scope.directory === top && previous.scope.message === message && previous.scope.tasks_dir === rel && previous.scope.slug === slug && canonical(previous.scope.input) === canonical(input)) {
+  const error = placementError(previousTask, previous)
+  if (error) partial(previousTask, previous, error)
+  await applyApprovedCreation(previous, () => previousTask, async () => { throw Error("Повторное размещение запрещено") })
+  if (previousTask.creation_failure) { delete previousTask.creation_failure; tasks.saveTask(previousTask) }
   process.stdout.write(JSON.stringify({ n: previousTask.n, number: tn.pad3(previousTask.n), folder: previousTask.folder, path: path.join(top, ...previousTask.folder.split("/")), approval: previous.id, existing: true }) + "\n"); process.exit(0)
  }
 }
-const gate = await confirmTaskOperation({ action: "create", project, initiator: { session, role: `${project}.external-cli` }, scope, title: `Создать задачу «${title}»?`, description: creationDescription(input, title, candidates().map(t => ({ ...t, status: records.find(x => x.n === t.n).status }))), approval: a.approval, resubmit: a.resubmit }, taskConfirmationIO())
+const gate = await confirmTaskOperation({ action: "create", project, initiator: { session, role: `${project}.external-cli` }, scope, title: `Создать задачу «${title}»?`, description: creationDescription(input, title, foundCandidates), approval: a.approval, resubmit: a.resubmit }, taskConfirmationIO())
 if (!gate.ok) { process.stdout.write(JSON.stringify({ state: gate.proposal?.state ?? "refused", approval: gate.proposal?.id, message: gate.content }) + "\n"); process.exit(2) }
-const made = await applyApprovedCreation(gate.proposal, () => tasks.listTasks(project).find(t => t.creation_approval?.id === gate.proposal.id), async source => {
+let made
+try { made = await applyApprovedCreation(gate.proposal, () => tasks.listTasks(project).find(t => t.creation_approval?.id === gate.proposal.id), async source => {
 const used = tn.usedNumbers(top, rel)
 const t = tasks.createTask(
   { project, title, slug, goal: title, priority: "P2", tier: "light", role: "worker", author: session, author_role: `${project}.external-cli`, qid: "", status: "backlog", backlog: { status: "idle", at: Date.now(), by: session }, kind: "external", directory: top, creation_approval: source, creation_reason: input.creation_reason, checked_tasks: input.checked_tasks, why_new: input.why_new },
@@ -91,7 +113,7 @@ const t = tasks.createTask(
 )
 
 const folder = path.join(top, ...t.folder.split("/"))
-if (existsSync(folder)) fail(`папка ${t.folder} уже есть (номер ${tn.pad3(t.n)} занят записью, папку не перезаписываю)`)
+if (existsSync(folder)) throw Error(`папка ${t.folder} уже есть (номер ${tn.pad3(t.n)} занят записью, папку не перезаписываю)`)
 mkdirSync(path.join(folder, "task"), { recursive: true })
 writeFileSync(path.join(folder, "task", "creation.json"), JSON.stringify({ reason: input.creation_reason, checked_tasks: input.checked_tasks, why_new: input.why_new, approval: source }, null, 2) + "\n")
 writeFileSync(path.join(folder, "task", "message.md"), message.trim() ? message : folders.templateMessage({ title, goal: title, author_role: `${project}.external` }))
@@ -103,7 +125,14 @@ writeFileSync(path.join(folder, "log.md"), folders.firstLogLine({ title }, messa
 tasks.taskEvent(t, "external", undefined, `номер выдан агенту вне OpenCode: папка ${t.folder}/ в дереве ветки ${git("rev-parse", "--abbrev-ref", "HEAD")}`)
 return t
 }, APPROVALS, () => canonical(candidates()) === canonical(scope.candidates))
+} catch (error) {
+ const saved = tasks.listTasks(project).find(t => t.creation_approval?.id === gate.proposal.id)
+ if (saved) partial(saved, readProposal(gate.proposal.id), String(error?.message ?? error))
+ fail(String(error?.message ?? error))
+}
 if (!made.task) fail(made.busy ?? "создание не завершено")
 const result = made.task
+const error = placementError(result, gate.proposal)
+if (error) partial(result, readProposal(gate.proposal.id), error)
 process.stdout.write(JSON.stringify({ n: result.n, number: tn.pad3(result.n), folder: result.folder, path: path.join(top, ...result.folder.split("/")), approval: gate.proposal.id, existing: !made.result }) + "\n")
 process.exit(0)

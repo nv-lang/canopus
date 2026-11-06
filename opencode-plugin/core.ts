@@ -33,7 +33,7 @@ import { firstLogLine, folderInfo, messageRefusal, nextLaunch, readFolderFile, r
 import { STALE_WARNING, SMALL_NORM_MIN, applyRouteChange, contourMarkText, exactMessageHash, hasRouteInput, legacyTaskLetterFaults, planRoute, routeLogText, routeSettingsOf, routeView, ROUTE_RU, wordDateOf, type RouteSettings } from "./route.ts"
 import { acceptanceFromFile } from "./acceptance-file.ts"
 import { acceptWarning, acceptedTip, beginPrecheck, finishPrecheck, gateMerge, landedFresh, landingLine, markPrecheckStale, neighbourHints, originTip, precheckLines, runGit, unlockMerge } from "./precheck.ts"
-import { addSide, autoTrack, cleanupDone, removeSide, sideItems, cleanupSteps, fileAt, holdsMergeLock, isMerged, keptOnBranch, keptPaths, mergeHolder, pubKeyOf, releaseMergeLock, releaseTaskLocks, repoDir, resolveKeep, reworkLetter, sameFs, takeMergeLock, takePubLock } from "./review.ts"
+import { addSide, autoTrack, cleanupDone, removeSide, sideItems, cleanupSteps, fileAt, holdsMergeLock, isMerged, keptOnBranch, keptPaths, mergeHolder, pubHolder, pubKeyOf, releaseMergeLock, releaseTaskLocks, repoDir, resolveKeep, reworkLetter, sameFs, takeMergeLock, takePubLock } from "./review.ts"
 import { WATCH_DEFAULT_MIN, WATCH_MAX_MIN, cancelWatch, killWatchTree, watchTreePids, watchById, machineQueue, requestWatch, timerSpec, watchesOf } from "./watch.ts"
 import { watchRefusal } from "./deny.ts"
 import { linkErrorsOfWrite, profileProblems, profileState, profilesShow } from "./profile-layer.ts"
@@ -42,7 +42,7 @@ import { type Bounds, type Resolved, boundsOf, clampTier, familyOfModel, resolve
 import { createQuestionRouting, digest as questionScopeDigest, requestOf, routingSummary, type QuestionFormIO } from "./question-routing.ts"
 import { QUESTION_ROUTING_HINT, smallHandoff } from "./question-policy.ts"
 import { QUESTION_ROUTE_TERM_MS, type QuestionObservation, type QuestionRequest } from "./question-router.ts"
-import { APPROVALS, CREATION_APPROVAL, canonical, confirmTaskOperation, applyApprovedCreation, applyApprovedStop, createReasonRefusal, creationDescription, readProposal, saveProposal, similarTasks, proposalProblems, type TaskConfirmationIO } from "./task-confirmation.ts"
+import { APPROVALS, CREATION_APPROVAL, canonical, confirmTaskOperation, applyApprovedCreation, applyApprovedStop, createReasonRefusal, creationDescription, readProposal, saveProposal, similarTasks, taskFormOwnership, proposalProblems, type TaskConfirmationIO } from "./task-confirmation.ts"
 import { lazyTaskConfirmationIO } from "./task-confirmation-native.ts"
 import { preserveTaskContext, missingTaskContext } from "./task-context.ts"
 import { removeForm, pendingForms } from "./form-wait.ts"
@@ -2171,8 +2171,9 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
       const previous = readProposal(t.creation_approval.id)
       if (previous?.initiator.session === me.session && previous.scope.entry === entry && canonical(previous.scope.input) === canonical(clean)) return { content: `Подтверждение уже применено: задача ${taskRef(t)}. Новая запись/сессия не создаётся.` }
     }
-    const scope = { entry, input: clean, launch, candidates: candidates() }
-    const gate = await confirmTaskOperation({ action: "create", project, initiator: { session: me.session, role: keyOf(me) }, scope, title: `Создать задачу «${launch.title}»?`, description: creationDescription(input, launch.title, candidates().map(t => ({ ...t, status: records.find(x => x.n === t.n)!.status }))), approval: input.approval, resubmit: input.resubmit }, lifecycleIO)
+    const foundCandidates = candidates()
+    const scope = { entry, input: clean, launch, candidates: foundCandidates }
+    const gate = await confirmTaskOperation({ action: "create", project, initiator: { session: me.session, role: keyOf(me) }, scope, title: `Создать задачу «${launch.title}»?`, description: creationDescription(input, launch.title, foundCandidates), approval: input.approval, resubmit: input.resubmit }, lifecycleIO)
     if (!gate.ok) return { content: gate.content }
     const done = await applyApprovedCreation(gate.proposal, () => listTasks(project).find(t => t.creation_approval?.id === gate.proposal.id), source => create({ ...input, [CREATION_APPROVAL]: source }), APPROVALS, () => canonical(candidates()) === canonical(scope.candidates) && freshLaunch())
     return done.result ?? { content: done.task ? `Подтверждение уже применено: задача ${taskRef(done.task)}; повторная задача/сессия не создана.` : done.busy ?? "Создание не завершено" }
@@ -2180,6 +2181,12 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
 
   const taskIdentity = (t: Task) => ({ project: t.project, n: t.n, created: t.created, qid: t.qid, title: t.title, goal: t.goal, status: t.status, branch: t.branch ?? null, worktree: t.worktree ?? null, executor: t.executor ?? null, reviewer: t.reviewer ?? null, sessions: (t.sessions ?? []).filter(s => s.status === "running").map(s => ({ session: s.session, code: s.code, launch: s.launch })).sort((a, b) => a.session.localeCompare(b.session)) })
   const operateTask = async (me: Card, t: Task, input: any, action: "cancel" | "pause" | "resume" | "reopen") => {
+    const checkPauseLock = () => {
+      if (action !== "pause") return
+      const pub = pubKeyOf(t), holder = pub ? pubHolder(pub) : undefined
+      if (mergeHolder(t.project)?.n === t.n || (holder?.project === t.project && holder?.n === t.n)) throw Error("Пауза заблокирована собственным замком вливания/публикации; сначала явно проверьте и освободите замок")
+    }
+    try { checkPauseLock() } catch (e: any) { return { content: e.message } }
     const reason = String(input.text ?? "").trim()
     if (!reason) return { content: "Нужна обязательная причина операции в text" }
     if (action === "pause" && (t.status === "paused" || ["done", "cancelled", "backlog"].includes(t.status))) return { content: `Пауза не применима к состоянию ${statusRu(t.status)}; временная остановка не создаёт новую задачу.` }
@@ -2218,11 +2225,32 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
     const source = proposal.source!
     const latest = loadTask(t.project, t.n)
     if (!latest || canonical(taskIdentity(latest)) !== canonical(identity)) return { content: "Задача изменилась после вопроса; прежнее подтверждение не применяется" }
+    const verifyOwner = async (session: string): Promise<"owned" | "absent"> => {
+      const card = readJson<Card>(cardFile(session))
+      if ([card?.task, card?.review].some(ref => ref && (ref.project !== t.project || ref.n !== t.n))) throw Error(`Сессия ${session} переназначена другой задаче; остановка запрещена`)
+      const current = loadTask(t.project, t.n)
+      if (!current || canonical(taskIdentity(current)) !== canonical(identity)) throw Error("Контекст задачи изменился во время остановки")
+      checkPauseLock()
+      if ([card?.task, card?.review].some(ref => ref?.project === t.project && ref?.n === t.n)) return "owned"
+      const native = await lifecycleIO.owner?.(session, t.project, t.n)
+      const after = readJson<Card>(cardFile(session))
+      if ([after?.task, after?.review].some(ref => ref && (ref.project !== t.project || ref.n !== t.n))) throw Error("Сессия переназначена во время проверки принадлежности")
+      if (native === "owned" || native === "absent") return native
+      throw Error("Принадлежность сессии задаче не проверена; остановка запрещена")
+    }
+    const watchOwned = (w: any) => w.env?.CANOPUS_PROJECT === t.project && (Number(w.env?.CANOPUS_TASK_N) === t.n || Number(w.env?.CANOPUS_REVIEW_N) === t.n)
     const prepare = () => {
+      for (const session of sessions) {
+        const card = readJson<Card>(cardFile(session))
+        if ([card?.task, card?.review].some(ref => ref && (ref.project !== t.project || ref.n !== t.n))) throw Error("Сессия переназначена после подтверждения")
+      }
+      checkPauseLock()
+      const activeWatches = sessions.flatMap(session => watchesOf(session)).filter(w => w.status !== "done" && !w.cancelled && !w.dropped)
+      if (activeWatches.some(w => !w.env?.CANOPUS_PROJECT || (!w.env?.CANOPUS_TASK_N && !w.env?.CANOPUS_REVIEW_N))) throw Error("Принадлежность активного наблюдения не проверена; неизвестные процессы не остановлены")
       const fresh = loadTask(t.project, t.n)
       if (!fresh || canonical(taskIdentity(fresh)) !== canonical(identity)) throw Error("Задача изменилась после подтверждения; операция не начинается")
       if (fresh.operation_pending && fresh.operation_pending.id !== proposal.id) throw Error("У этой задачи ещё не завершена другая подтверждённая операция; повторите её, не перезаписывая решение")
-      const watch_ids = fresh.operation_pending?.watch_ids ?? sessions.flatMap(session => watchesOf(session).filter(w => w.status !== "done" && !w.cancelled && !w.dropped && (!w.env?.CANOPUS_TASK_N || Number(w.env.CANOPUS_TASK_N) === t.n)).map(w => ({ id: w.id, session })))
+      const watch_ids = fresh.operation_pending?.watch_ids ?? sessions.flatMap(session => watchesOf(session).filter(w => w.status !== "done" && !w.cancelled && !w.dropped && watchOwned(w)).map(w => ({ id: w.id, session })))
       fresh.operation_pending = { id: proposal.id, action, reason, source, previous_status: fresh.status, requested: fresh.operation_pending?.requested ?? Date.now(), watch_ids }; saveTask(fresh)
     }
     const decisionInfo = `инициатор ${proposal.initiator.role} (${proposal.initiator.session}); причина: ${reason}${replacement ? `; взамен: ${"none" in replacement ? `нет — ${replacement.none}` : `${replacement.project}:${pad3(replacement.n)}`}` : ""}; подтвердил native_owner: ${source.session}, form ${source.form}, approval ${source.id}`
@@ -2231,7 +2259,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
       if (!current || canonical(taskIdentity(current)) !== canonical(identity) || current.operation_pending?.id !== proposal.id) throw Error("Задача изменилась во время остановки; требуется сверка, terminal status не поставлен")
       for (const watch of current.operation_pending.watch_ids ?? []) {
         const w = watchById(watch.id)
-        if (!w || w.session !== watch.session) throw Error("Связанное наблюдение не проверено; завершение операции запрещено")
+        if (!w || w.session !== watch.session || !watchOwned(w)) throw Error("Связанное наблюдение не проверено; завершение операции запрещено")
         if (w.status !== "done") cancelWatch(watch.id, watch.session, log)
         else if (w.cancelled) killWatchTree(w, log)
         const pids = watchTreePids(watch.id)
@@ -2276,7 +2304,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
       host.posted([])
     }
     const run = async () => {
-      const why = await applyApprovedStop(proposal, lifecycleIO, sessions, finish, APPROVALS, prepare)
+      const why = await applyApprovedStop(proposal, lifecycleIO, sessions, finish, APPROVALS, prepare, verifyOwner)
       return { content: why ? `Операция не завершена: ${why}. Задача не объявлена отменённой/приостановленной. Повторите тот же вызов с approval:${proposal.id}; уже закрытые формы повторно не отменяются.` : `Задача ${taskRef(t)}: ${action === "pause" ? "на паузе" : action === "resume" || action === "reopen" ? "возвращена в idle с тем же номером; история и HOLD сохранены, следующая сессия назначается явно" : repair ? "вопросы отменённой задачи закрыты" : "отменена"}. ${decisionInfo}` }
     }
     if (sessions.includes(me.session)) {
@@ -3225,13 +3253,18 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
           try {
             const listed = await lifecycleIO.list(session)
             if (!Array.isArray(listed?.data)) throw Error("schema")
-            let pending = 0
+            let pending = 0, unknown = 0
             for (const info of listed.data) {
               const f = (await lifecycleIO.get(session, info.id))?.data
               if (f?.id !== info.id || f?.sessionID !== session || !["pending", "answered", "cancelled"].includes(f?.state?.status)) throw Error("correlation")
-              if (f.state.status === "pending") { pending++; lines.push(`${session}: ${f.id} — открыт`) }
+              if (f.state.status === "pending") {
+                const owner = taskFormOwnership(f, t.project, t.n)
+                if (owner === "foreign") continue
+                if (owner === "unknown") { unknown++; lines.push(`${session}: ${f.id} — принадлежность не проверена`); continue }
+                pending++; lines.push(`${session}: ${f.id} — открыт`)
+              }
             }
-            if (!pending) lines.push(`${session}: открытых native вопросов нет`)
+            if (!pending && !unknown) lines.push(`${session}: открытых native вопросов нет`)
           } catch { lines.push(`${session}: native состояние вопросов не проверено; отсутствием вопросов не считается`) }
         }
         return { content: `Вопросы задачи ${taskRef(t)} (${statusRu(t.status)}):\n${lines.join("\n") || "сессий нет"}\nУ отменённой задачи repair:true закрывает оставшиеся вопросы только после подтверждения владельца, не стирая историю отмены.` }
@@ -4443,7 +4476,10 @@ export function commonDoctor(sessionID?: string): string[] {
     for (const session of new Set([t.executor, t.reviewer, ...(t.sessions ?? []).map(s => s.session)].filter((x): x is string => !!x))) {
       const card = readJson<Card>(cardFile(session))
       if ([card?.task, card?.review].some(ref => ref && (ref.project !== t.project || ref.n !== t.n))) continue
-      const forms = pendingForms(session)
+      const recorded = pendingForms(session)
+      const ownedSession = [card?.task, card?.review].some(ref => ref?.project === t.project && ref?.n === t.n)
+      const forms = recorded.filter(f => ownedSession && taskFormOwnership({ ...f, sessionID: session, metadata: {kind:f.kind} }, t.project, t.n) === "owned")
+      if (recorded.length > forms.length) out.push(`отменённая задача ${taskRef(t)}: принадлежность части форм не проверена; native сверка — canopus_task questions`)
       if (forms.length) out.push(`отменённая задача ${taskRef(t)}: остались вопросы ${forms.map(f => f.id).join(", ")}; native сверка — canopus_task questions, закрытие — owner-confirmed cancel repair:true`)
     }
   }

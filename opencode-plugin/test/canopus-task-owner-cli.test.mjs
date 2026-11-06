@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { createServer } from "node:http"
 import { spawn, execFileSync } from "node:child_process"
-import { mkdirSync, writeFileSync, readdirSync, rmSync, existsSync } from "node:fs"
+import { mkdirSync, writeFileSync, readdirSync, rmSync, existsSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { taskTestHome } from "./task-owner-harness.mjs"
@@ -45,8 +45,8 @@ const git = (...args) => execFileSync("git", ["-C", repo, ...args], { windowsHid
 git("init", "-q", "-b", "main"); git("config", "user.name", "Fixture"); git("config", "user.email", "fixture@example.com"); git("add", "--", ".canopus/plugin/config.json", "doc/tasks/.gitkeep"); git("commit", "-qm", "fixture"); git("worktree", "add", "-qb", "task/fixture", tree)
 const script = fileURLToPath(new URL("../../scripts/task-number.mjs", import.meta.url))
 const args = [script, "--dir", tree, "--project", "sample", "--title", "CLI approved task", "--session", "ses_cli", "--creation-reason", "new independent output", "--checked-tasks", "none", "--why-new", "no matching task exists"]
-const run = argv => new Promise((resolve, reject) => {
- const p = spawn(process.execPath, argv, { windowsHide: true, env: childEnv, stdio: ["ignore", "pipe", "pipe"] }); let stdout = "", stderr = ""; p.stdout.setEncoding("utf8"); p.stderr.setEncoding("utf8"); p.stdout.on("data", b => stdout += b); p.stderr.on("data", b => stderr += b); p.on("error", reject); p.on("close", code => resolve({ code, stdout, stderr }))
+const run = (argv, env = childEnv) => new Promise((resolve, reject) => {
+ const p = spawn(process.execPath, argv, { windowsHide: true, env, stdio: ["ignore", "pipe", "pipe"] }); let stdout = "", stderr = ""; p.stdout.setEncoding("utf8"); p.stderr.setEncoding("utf8"); p.stdout.on("data", b => stdout += b); p.stderr.on("data", b => stderr += b); p.on("error", reject); p.on("close", code => resolve({ code, stdout, stderr }))
 })
 try {
  let r = await run(args); assert.equal(r.code, 2, r.stderr); const pending = JSON.parse(r.stdout.trim())
@@ -56,6 +56,23 @@ try {
  r = await run([...args, "--approval", pending.approval]); assert.equal(r.code, 0, r.stderr); const made = JSON.parse(r.stdout.trim())
  assert.equal(made.n, 1); assert.equal(tasks.listTasks("sample").length, 1); assert.ok(existsSync(path.join(made.path, "task/creation.json"))); assert.equal(tasks.loadTask("sample", 1).status, "backlog")
  r = await run([...args, "--approval", pending.approval]); assert.equal(r.code, 0, r.stderr); assert.equal(JSON.parse(r.stdout).n, made.n); assert.equal(tasks.listTasks("sample").length, 1)
+ // Crash after record publication and directory creation must not become a false-success replay.
+ const crashArgs=[...args];crashArgs[crashArgs.indexOf("--title")+1]="CLI partially placed result"
+ let cr=await run(crashArgs);assert.equal(cr.code,2,cr.stderr);const cp=JSON.parse(cr.stdout)
+ forms.get(`frm_canopus_${cp.approval}`).state={status:"answered",answer:{decision:"confirm"}}
+ const crashPreload=path.join(home,"crash-placement.mjs")
+ writeFileSync(crashPreload,`import fs from 'node:fs';import{syncBuiltinESMExports}from'node:module';const original=fs.writeFileSync;fs.writeFileSync=function(file,...args){if(String(file).endsWith('creation.json'))process.exit(23);return original.call(this,file,...args)};syncBuiltinESMExports();`)
+ cr=await run([...crashArgs,"--approval",cp.approval],{...childEnv,NODE_OPTIONS:childEnv.NODE_OPTIONS+" --import "+pathToFileURL(crashPreload).href});assert.equal(cr.code,23,cr.stderr)
+ assert.equal(tasks.listTasks("sample").length,2)
+ const partial=tasks.listTasks("sample").find(t=>t.creation_approval?.id===cp.approval)
+ cr=await run([...crashArgs,"--approval",cp.approval]);assert.equal(cr.code,1,cr.stderr);assert.match(cr.stderr,/размещение не завершено/)
+ assert.equal(tasks.listTasks("sample").length,2);assert.ok(tasks.loadTask("sample",partial.n).creation_failure)
+ const confirmation=await import("../task-confirmation.ts");assert.equal(confirmation.readProposal(cp.approval).state,"blocked")
+ const partialFolder=path.join(tree,...partial.folder.split("/"))
+ writeFileSync(path.join(partialFolder,"task/creation.json"),JSON.stringify({reason:partial.creation_reason,checked_tasks:partial.checked_tasks,why_new:partial.why_new,approval:partial.creation_approval}))
+ writeFileSync(path.join(partialFolder,"task/message.md"),"operator repaired fixture");writeFileSync(path.join(partialFolder,"log.md"),"fixture restoration")
+ cr=await run([...crashArgs,"--approval",cp.approval]);assert.equal(cr.code,0,cr.stderr);assert.equal(JSON.parse(cr.stdout).n,partial.n)
+ assert.equal(confirmation.readProposal(cp.approval).state,"applied");assert.equal(readFileSync(path.join(partialFolder,"task/message.md"),"utf8"),"operator repaired fixture")
  const native = await import("../task-confirmation-native.ts")
  let tick = 0; const io = native.taskConfirmationIO(reg, fetch, () => tick, async ms => { tick += ms })
  assert.equal(await io.idle("ses_cli"), true, "MCP/CLI PID differs from native service PID and still proves idle")

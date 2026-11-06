@@ -1033,8 +1033,12 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
         // без модели от набора — spawn_models по ступени задачи, срезанной границами проекта (задача 016)
         const tierCut = clampTier(t.tier, cfg.tierBounds)
         const model = t.review_model ?? cfg.spawnModels[tierCut.tier] ?? DEFAULT_SPAWN_MODELS[tierCut.tier]
+        const freshBefore = loadTask(t.project, t.n)
+        if (!freshBefore || freshBefore.operation_pending || ["paused","backlog","cancelled","done"].includes(freshBefore.status) || freshBefore.reviewer !== t.reviewer) return
         await ctx.session.create({ id: t.reviewer, title: `${taskNo(t)} прм ${t.title}`, location: { directory: t.directory }, metadata: { canopusReview: { project: t.project, n: t.n } }, model: splitLaunchModel(model) })
         if (disposed) return
+        const freshAfter = loadTask(t.project, t.n)
+        if (!freshAfter || freshAfter.operation_pending || ["paused","backlog","cancelled","done"].includes(freshAfter.status) || freshAfter.reviewer !== t.reviewer) return
         const now = Date.now()
         // роль сессии приёмки — по настройке reviewer (план 002.7): acceptor несёт права вливания и принятия
         const card: Card = { session: t.reviewer, role: reviewerRole(cfg), auto: false, title: `${taskNo(t)} прм ${t.title}`, directory: t.directory, repo: repoLabel(t.directory), project: t.project, model, modelAt: now, modelFrom: "request", pid: process.pid, updated: now, spawned: { by: t.author, task: `приёмка ${taskNo(t)}`, tier: t.review_model ? t.tier : tierCut.tier, status: "running", at: now, qid: t.review_qid ?? "" }, review: { project: t.project, n: t.n } }
@@ -1955,8 +1959,9 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
           const childTitle = s.subplan ? `подплан шага ${s.id}: ${s.title}` : `${pt.plan.n} ${s.id} ${s.title}`
           const proposalInput = { title: childTitle, goal: base.goal, criteria: base.criteria, creation_reason: `Отдельное выполнение шага ${s.id} плана ${pt.plan.n}`, checked_tasks: listTasks(pt.project).filter(x => x.plan_step?.task === pt.n).map(x => x.n), why_new: `Для шага ${s.id} ещё нет записи в plan.spawned. Требуется самостоятельный результат и приёмка шага; возможные совпадения показаны владельцу.` }
           const candidates = () => similarTasks(proposalInput, childTitle, listTasks(pt.project))
-          const scope = { entry: "plan-step", input: proposalInput, parent: { project: pt.project, n: pt.n, created: pt.created, qid: pt.qid, status: pt.status, approval: pt.plan.approval?.decision }, step: s.id, model, tier: base.tier, candidates: candidates() }
-          const gate = await confirmTaskOperation({ action: "create", project: pt.project, initiator: { session: pt.author, role: pt.author_role }, scope, title: `Создать задачу «${childTitle}»?`, description: creationDescription(proposalInput, childTitle, candidates().map(x => ({ ...x, status: listTasks(pt.project).find(t => t.n === x.n)!.status }))) }, operationIO)
+          const foundCandidates = candidates()
+          const scope = { entry: "plan-step", input: proposalInput, parent: { project: pt.project, n: pt.n, created: pt.created, qid: pt.qid, status: pt.status, approval: pt.plan.approval?.decision }, step: s.id, model, tier: base.tier, candidates: foundCandidates }
+          const gate = await confirmTaskOperation({ action: "create", project: pt.project, initiator: { session: pt.author, role: pt.author_role }, scope, title: `Создать задачу «${childTitle}»?`, description: creationDescription(proposalInput, childTitle, foundCandidates) }, operationIO)
           if (!gate.ok) continue
           const made = await applyApprovedCreation(gate.proposal, () => listTasks(pt.project).find(x => x.creation_approval?.id === gate.proposal.id), async source => {
           let t: Task
@@ -2284,8 +2289,12 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
         // заголовок (задача 058): «045 С4-3 исп Название задачи» у сессии методики, «060 исп …» у исполнителя
         const ses0 = sessionOf(t, sid)
         const head = ses0 && ses0.code !== EXECUTOR_CODE ? `${sessionRef(t, ses0)} исп` : `${taskNo(t)} исп`
+        const freshBefore = loadTask(t.project, t.n)
+        if (!freshBefore || freshBefore.status !== "starting" || freshBefore.operation_pending || freshBefore.executor !== sid) return { error: "запуск остановлен изменением состояния задачи" }
         await ctx.session.create({ id: sid, title: `${head} ${t.title}`, location: { directory: dir }, metadata: { canopusTask: { project: t.project, n: t.n, attempt: t.attempt } }, ...(t.model ? { model: splitLaunchModel(String(t.model)) } : {}) })
         if (disposed) return { error: "экземпляр плагина снят; исход remote create не утверждается" }
+        const freshAfter = loadTask(t.project, t.n)
+        if (!freshAfter || freshAfter.status !== "starting" || freshAfter.operation_pending || freshAfter.executor !== sid) return { error: "задача остановлена во время native create; исполнение не запущено" }
         const now = Date.now()
         const prev = readJson<Card>(cardFile(sid))
         const card: Card = { ...(prev ?? {}), session: sid, role: t.role, auto: false, title: `${head} ${t.title}`, directory: dir, repo: repoLabel(dir), project: t.project, model: t.model, modelAt: now, modelFrom: "request", pid: process.pid, updated: now, spawned: { by: t.author, task: t.goal.slice(0, 300), tier: t.tier, status: "running", at: now, qid: t.qid }, task: { project: t.project, n: t.n } }

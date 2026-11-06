@@ -1,5 +1,5 @@
 // 287: durable owner gates for task creation/cancellation. A proposal is not a task or a reserved number.
-import { createHash } from "node:crypto"
+import { createHash, randomUUID } from "node:crypto"
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { BASE } from "./base.ts"
@@ -11,6 +11,7 @@ export type TaskConfirmationIO = {
   cancel(session: string, form: string, reason: string): Promise<void>
   interrupt(session: string): Promise<void>
   idle(session: string): Promise<boolean>
+  owner?(session: string, project: string, n: number): Promise<"owned" | "absent" | "unknown">
 }
 export type ApprovalSource = { id: string; digest: string; session: string; form: string; confirmed_by: "native_owner"; observed: number; evidence: string }
 export type TaskProposal = {
@@ -18,7 +19,7 @@ export type TaskProposal = {
   initiator: { session: string; role: string }; scope: any
   title: string; description: string; fields: any[]; form: string
   state: "pending" | "approved" | "declined" | "cancelled" | "applying" | "applied" | "blocked"
-  created: number; updated: number; autoAttempted?: { pid: number; at: number }; attempted?: number; why?: string; source?: ApprovalSource
+  created: number; updated: number; autoAttempted?: { pid: number; at: number }; retryAt?: number; attempted?: number; why?: string; source?: ApprovalSource
   result?: { project: string; n: number }; closed?: { session: string; form: string; state: string }[]
 }
 export const APPROVALS = path.join(BASE, "task-approvals")
@@ -40,20 +41,51 @@ export function saveProposal(r: TaskProposal, dir = APPROVALS) {
   const p = file(r.id, dir), tmp = `${p}.${process.pid}.tmp`
   writeFileSync(tmp, JSON.stringify(r, null, 2)); renameSync(tmp, p)
 }
+/** File-system bakery claims. Each claimant owns one non-reused file: recovery NEVER renames/deletes a shared lock path.
+ * Dead owners are ignored, ambiguous/corrupt owners block. A new contender sees the current ticket and cannot preempt it. */
+const busyClaims = new Set<string>()
 function lock(id: string, dir: string): (() => void) | undefined {
-  mkdirSync(dir, { recursive: true }); const p = file(id, dir) + ".lock"
-  try { writeFileSync(p, JSON.stringify({ pid: process.pid, at: Date.now() }), { flag: "wx" }); return () => rmSync(p) }
-  catch (e: any) {
-    if (e.code !== "EEXIST") throw e
-    try {
-      const owner = JSON.parse(readFileSync(p, "utf8"))
-      if (!Number.isInteger(owner.pid) || owner.pid <= 0) return
-      try { process.kill(owner.pid, 0); return } catch (failure: any) { if (failure.code !== "ESRCH") return }
-      // A dead process is positive evidence. Preserve the old claim, then race again with wx.
-      renameSync(p, `${p}.recovered-${process.pid}-${Date.now()}`)
-      return lock(id, dir)
-    } catch { return }
+  busyClaims.delete(id)
+  mkdirSync(dir, { recursive: true })
+  const base = file(id, dir), claimKey = randomUUID(), own = `${base}.claim-${claimKey}.json`
+  const remove = () => rmSync(own, { force: true })
+  const alive = (pid: number) => {
+    if (!Number.isInteger(pid) || pid <= 0) throw Error("unknown claim owner")
+    try { process.kill(pid, 0); return true } catch (e: any) { if (e.code === "ESRCH") return false; throw Error("claim ownership unknown") }
   }
+  const read = (p: string) => {
+    try { return JSON.parse(readFileSync(p, "utf8")) }
+    catch (e: any) { if (e.code === "ENOENT") return; throw Error("claim unreadable") }
+  }
+  const others = () => {
+    const claims: { claimKey: string; choosing: boolean; ticket: number }[] = []
+    // Preserve old abandoned claims for diagnostics; never perform racy path replacement.
+    const legacy = read(base + ".lock")
+    if (legacy && alive(legacy.pid)) claims.push({ claimKey: "legacy", choosing: false, ticket: 0 })
+    for (const name of readdirSync(dir).filter(n => n.startsWith(path.basename(base) + ".claim-") && n.endsWith(".json"))) {
+      const p = path.join(dir, name)
+      if (p === own) continue
+      const c = read(p)
+      if (!c || !alive(c.pid)) continue
+      if (typeof c.claimKey !== "string" || typeof c.choosing !== "boolean" || (!c.choosing && (!Number.isInteger(c.ticket) || c.ticket < 1))) throw Error("claim schema unknown")
+      claims.push({ claimKey: c.claimKey, choosing: c.choosing, ticket: c.ticket ?? 0 })
+    }
+    return claims
+  }
+  writeFileSync(own, JSON.stringify({ pid: process.pid, claimKey, choosing: true }), { flag: "wx" })
+  try {
+    const ticket = Math.max(0, ...others().map(c => c.ticket)) + 1
+    writeFileSync(own, JSON.stringify({ pid: process.pid, claimKey, choosing: false, ticket }))
+    if (others().some(c => c.choosing || c.ticket < ticket || c.ticket === ticket && c.claimKey < claimKey)) { busyClaims.add(id); remove(); return }
+    return remove
+  } catch { remove(); return }
+}
+function claimRetry(r: TaskProposal, claim: string, dir: string) {
+ const current = readProposal(r.id, dir)
+ if (current?.state !== "approved") return
+ if (busyClaims.has(claim)) current.retryAt = Date.now() + 500
+ else { current.state = "blocked"; current.why = "Принадлежность claim не проверена; требуется диагностика" }
+ saveProposal(current, dir)
 }
 export const proposalMessage = (r: TaskProposal) => `Операция ${r.action === "create" ? "создания" : r.action === "cancel" ? "отмены" : r.action === "pause" ? "паузы" : r.action === "resume" ? "продолжения" : "повторного открытия"} требует подтверждения владельца в native-вопросе. ${r.title}\n${r.description}\nПодтверждение: ${r.id}; native form ${r.form}; состояние ${r.state}${r.why ? `; ${r.why}` : ""}. Повторите исходный вызов с approval: "${r.id}" после ответа. owner_words/confirmed:true и ответ агента разрешением не являются.`
 export type GateResult = { ok: true; proposal: TaskProposal } | { ok: false; content: string; proposal?: TaskProposal }
@@ -126,10 +158,11 @@ export async function applyApprovedCreation<T extends { project: string; n: numb
   const old = existing()
   if (old) { r.result = { project: old.project, n: old.n }; r.state = "applied"; saveProposal(r, dir); return { task: old } }
   if (r.state === "applied") return { busy: "Подтверждение уже использовано; исходная задача не найдена, новый номер не выделен" }
-  const projectUnlock = lock(approvalDigest({ project: r.project, operation: "creation-sequence" }), dir)
-  if (!projectUnlock) return { busy: "Другая задача проекта создаётся сейчас; повторите после обновления поиска дублей" }
+  const projectClaim = approvalDigest({ project: r.project, operation: "creation-sequence" })
+  const projectUnlock = lock(projectClaim, dir)
+  if (!projectUnlock) { claimRetry(r, projectClaim, dir); return { busy: "Другая задача проекта создаётся сейчас; операция ожидает освобождения" } }
   const unlock = lock(r.id, dir)
-  if (!unlock) { projectUnlock(); return { busy: "Создание уже выполняется либо требует сверки после обрыва; повторный номер не выделен" } }
+  if (!unlock) { claimRetry(r, r.id, dir); projectUnlock(); return { busy: "Создание уже выполняется либо требует сверки после обрыва; повторный номер не выделен" } }
   try {
     const current = readProposal(r.id, dir)!
     const found = existing()
@@ -169,12 +202,25 @@ export function proposalProblems(dir = APPROVALS): string[] {
   return lines
 }
 
+/** Correlate owner forms by durable task identity, never by a shared session alone. */
+export function taskFormOwnership(form: any, project: string, n: number, dir = APPROVALS): "owned" | "foreign" | "unknown" {
+ if (form?.metadata?.kind === "question") return "owned"
+ if (form?.metadata?.kind !== "canopus-task-owner") return "unknown"
+ try {
+  const p = readProposal(form.metadata.proposal, dir)
+  if (!p || p.digest !== form.metadata.digest || p.form !== form.id || p.initiator.session !== form.sessionID || canonical(p.fields) !== canonical(form.fields)) return "unknown"
+  const target = p.scope.target ?? p.scope.parent ?? p.scope.launch?.parent
+  if (!target || typeof target.project !== "string" || !Number.isInteger(target.n)) return "foreign"
+  return target.project === project && target.n === n ? "owned" : "foreign"
+ } catch { return "unknown" }
+}
 /** All native calls happen before task terminal status. Partial completion is durable and safely retried. */
-export async function applyApprovedStop(r: TaskProposal, io: TaskConfirmationIO, sessions: string[], finish: () => Promise<void>, dir = APPROVALS, prepare: () => void = () => {}): Promise<string | undefined> {
-  const targetUnlock = lock(approvalDigest({ operation: "task-action", project: r.project, n: r.scope.target?.n ?? r.scope.target, created: r.scope.target?.created ?? 0 }), dir)
-  if (!targetUnlock) return "Другая операция этой задачи уже выполняется; статус не изменён"
+export async function applyApprovedStop(r: TaskProposal, io: TaskConfirmationIO, sessions: string[], finish: () => Promise<void>, dir = APPROVALS, prepare: () => void = () => {}, verifyOwner: (session: string) => Promise<"owned" | "absent"> = async () => "owned"): Promise<string | undefined> {
+  const targetClaim = approvalDigest({ operation: "task-action", project: r.project, n: r.scope.target?.n ?? r.scope.target, created: r.scope.target?.created ?? 0 })
+  const targetUnlock = lock(targetClaim, dir)
+  if (!targetUnlock) { claimRetry(r, targetClaim, dir); return "Другая операция этой задачи уже выполняется; статус не изменён" }
   const unlock = lock(r.id, dir)
-  if (!unlock) { targetUnlock(); return "Операция уже выполняется или её claim требует сверки после обрыва" }
+  if (!unlock) { claimRetry(r, r.id, dir); targetUnlock(); return "Операция уже выполняется или её claim требует сверки после обрыва" }
   try {
     const current = readProposal(r.id, dir)!
     if (current.state === "applied") return
@@ -182,6 +228,7 @@ export async function applyApprovedStop(r: TaskProposal, io: TaskConfirmationIO,
     prepare()
     current.state = "applying"; saveProposal(current, dir)
     for (const session of sessions) {
+      if (await verifyOwner(session) === "absent") continue
       // Close currently open questions first. DELETE acknowledgement alone is not settlement evidence.
       const listed = await io.list(session)
       if (!Array.isArray(listed?.data)) throw Error("Неизвестный native список форм")
@@ -189,7 +236,14 @@ export async function applyApprovedStop(r: TaskProposal, io: TaskConfirmationIO,
         if (typeof info?.id !== "string" || info.sessionID !== session) throw Error("Неверная корреляция native формы")
         let f = (await io.get(session, info.id))?.data
         if (!f || f.id !== info.id || f.sessionID !== session) throw Error("Native форма не проверена")
+        const ownership = taskFormOwnership(f, r.project, r.scope.target?.n ?? r.scope.target, dir)
+        if (ownership === "foreign") continue
+        if (ownership !== "owned") {
+          if (f.state?.status === "pending") throw Error("Принадлежность открытой формы задаче не проверена; форма не закрыта")
+          continue
+        }
         if (f.state?.status === "pending") {
+          await verifyOwner(session)
           try { await io.cancel(session, info.id, `Canopus ${r.action}; owner approval ${r.id}`) } catch { /* inspect even when the transport outcome is unknown */ }
           f = (await io.get(session, info.id))?.data
         }
@@ -198,16 +252,20 @@ export async function applyApprovedStop(r: TaskProposal, io: TaskConfirmationIO,
         if (!current.closed.some(x => x.session === session && x.form === info.id)) current.closed.push({ session, form: info.id, state: f.state.status })
         saveProposal(current, dir)
       }
+      await verifyOwner(session)
       await io.interrupt(session)
       if (!await io.idle(session)) throw Error("Остановка native исполнения не подтверждена; задача ещё не отменена/не поставлена на паузу")
       // Interruption/drain may expose another form. Require a fresh, fully reconciled empty pending set.
+      await verifyOwner(session)
       const after = await io.list(session)
       if (!Array.isArray(after?.data)) throw Error("Повторная проверка вопросов недоступна")
       for (const info of after.data) {
         const f = (await io.get(session, info.id))?.data
+        if (f?.state?.status === "pending" && taskFormOwnership(f, r.project, r.scope.target?.n ?? r.scope.target, dir) === "foreign") continue
         if (f?.sessionID !== session || f?.id !== info.id || !["answered", "cancelled"].includes(f?.state?.status)) throw Error("После остановки остался открытый/неизвестный вопрос")
       }
     }
+    for (const session of sessions) await verifyOwner(session)
     await finish()
     current.state = "applied"; delete current.why; saveProposal(current, dir)
   } catch (e) {
@@ -226,7 +284,7 @@ export function similarTasks(input: any, title: string, tasks: { n: number; titl
     if (normalized(t.title) === normalized(title) || normalized(t.goal) === normalized(String(input.goal))) return true
     const theirs = words(t.title + " " + t.goal), overlap = [...theirs].filter(w => proposed.has(w)).length
     return overlap >= 2 && overlap / Math.max(1, Math.min(theirs.size, proposed.size)) >= 0.4
-  }).map(t => ({ n: t.n, title: t.title, goal: t.goal })).sort((a, b) => a.n - b.n)
+  }).map(t => ({ n: t.n, title: t.title, goal: t.goal, status: t.status })).sort((a, b) => a.n - b.n)
 }
 export const CREATION_APPROVAL = Symbol("canopus creation approval")
 
@@ -238,13 +296,14 @@ export async function resumeTaskConfirmations(io: TaskConfirmationIO, execute: (
     try {
       r = readProposal(name.slice(0, -5), dir)
       if (!r || !["pending", "approved", "applying", "blocked"].includes(r.state) || !["spawn", "order", "task-operation"].includes(r.scope?.entry)) continue
-      if (r.autoAttempted) {
+      if (r.autoAttempted && !(r.state === "approved" && r.retryAt && r.retryAt <= Date.now())) {
         try { process.kill(r.autoAttempted.pid, 0); continue } catch (e: any) { if (e.code !== "ESRCH") continue }
       }
       const gate = await confirmTaskOperation({ action: r.action, project: r.project, initiator: r.initiator, scope: r.scope, title: r.title, description: r.description, approval: r.id }, io, dir)
       if (!gate.ok) continue
       r = gate.proposal
       if (r.state === "applied") continue
+      delete r.retryAt
       r.autoAttempted = { pid: process.pid, at: Date.now() }; saveProposal(r, dir)
       const text = await execute(r.scope.entry, { ...r.scope.input, approval: r.id }, r.initiator.session)
       outcome(r, text)

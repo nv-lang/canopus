@@ -12,11 +12,20 @@ export function taskConfirmationIO(reg = serviceReg(), transport: typeof fetch =
       let error: any
       try { error = await r.json() } catch {}
       if (method === "GET" && r.status === 404 && error?._tag === "FormNotFoundError" && typeof error.id === "string" && route.endsWith("/form/" + encodeURIComponent(error.id))) throw Object.assign(Error("Native form missing"), { missingForm: error.id })
+      if (method === "GET" && r.status === 404 && error?._tag === "SessionNotFoundError" && typeof error.sessionID === "string" && route === base(error.sessionID)) throw Object.assign(Error("Native session absent"), { absentSession: error.sessionID })
       throw Error(`Native ${method} HTTP ${r.status}`)
     }
     return r.status === 204 ? undefined : r.json()
   }
   return {
+    owner: async (s, project, n) => {
+      try {
+        const data = (await request(base(s)))?.data
+        if (data?.id !== s) return "unknown"
+        const refs = [data.metadata?.canopusTask, data.metadata?.canopusReview].filter(Boolean)
+        return refs.length && refs.every(ref => ref.project === project && ref.n === n) ? "owned" : "unknown"
+      } catch (e: any) { return e.absentSession === s ? "absent" : "unknown" }
+    },
     create: async (s, form) => { await request(`${base(s)}/form`, "POST", form) },
     get: (s, f) => request(`${base(s)}/form/${encodeURIComponent(f)}`),
     list: s => request(`${base(s)}/form`),
@@ -50,6 +59,7 @@ export function lazyTaskConfirmationIO(): TaskConfirmationIO {
   let instance: TaskConfirmationIO | undefined
   const current = () => instance ??= taskConfirmationIO()
   return {
+    owner: (s, p, n) => current().owner!(s, p, n),
     create: (s, f) => current().create(s, f), get: (s, f) => current().get(s, f), list: s => current().list(s),
     cancel: (s, f, why) => current().cancel(s, f, why), interrupt: s => current().interrupt(s), idle: s => current().idle(s),
   }

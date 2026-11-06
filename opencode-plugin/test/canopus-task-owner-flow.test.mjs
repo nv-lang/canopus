@@ -32,12 +32,21 @@ try {
  await call("canopus_spawn", { ...input, approval: proposal.id }); assert.equal(tasks.listTasks(project).length, 1); assert.equal(starts, 1, "replay does not launch again")
  const worker = t.executor
  core.saveCard({ session: worker, role: "worker", project, directory: root, auto: false, pid: process.pid, updated: Date.now(), task: { project, n: t.n } })
- fake.forms.set("frm_work_question", { id: "frm_work_question", sessionID: worker, state: { status: "pending" } })
+ fake.forms.set("frm_work_question", { id: "frm_work_question", sessionID: worker, metadata: { kind: "question" }, state: { status: "pending" } })
  const pause = { action: "pause", n: t.n, text: "owner temporarily stopped this work" }
+ const review = await import("../review.ts"), watches = await import("../watch.ts")
+ assert.equal(review.takeMergeLock(project,worker,t.n).ok,true)
+ const countBeforeLock=proposals().length
+ assert.match(await call("canopus_task",pause),/замком/);assert.equal(proposals().length,countBeforeLock,"pause with merge lock does not even ask")
+ review.releaseMergeLock(project,worker,t.n)
+ const foreignWatch=watches.requestWatch({session:worker,project:"foreign",cwd:root,command:"fixture never runs",env:{CANOPUS_PROJECT:"foreign",CANOPUS_TASK_N:String(t.n)}})
+ const reviewWatch=watches.requestWatch({session:worker,project,cwd:root,command:"fixture never runs",env:{CANOPUS_PROJECT:project,CANOPUS_REVIEW_N:String(t.n+100)}})
  await call("canopus_task", pause); assert.equal(tasks.loadTask(project, t.n).status, "running")
  proposal = latest("pause"); fake.confirm(proposal.form)
  await call("canopus_task", { ...pause, approval: proposal.id })
  assert.equal(tasks.loadTask(project, t.n).status, "paused"); assert.equal(fake.forms.get("frm_work_question").state.status, "cancelled")
+ assert.equal(watches.watchById(foreignWatch.id).cancelled,undefined,"foreign project watch untouched")
+ assert.equal(watches.watchById(reviewWatch.id).cancelled,undefined,"other review watch untouched")
  assert.equal(tasks.isOpen(tasks.loadTask(project, t.n)), false, "paused consumes no execution slot")
  assert.equal(tasks.isTerminal(tasks.loadTask(project, t.n)), false, "paused is not completion")
  assert.match(await call("canopus_spawn", { task: String(t.n), goal: "resume without consent", session: "С4" }), /припаркована|нет папок/)
@@ -58,12 +67,12 @@ try {
  await call("canopus_task", cancel); proposal = latest("cancel")
  assert.match(proposal.description, /Инициатор/); assert.match(proposal.description, /work abandoned/)
  const stale = await call("canopus_task", { ...cancel, text: "different reason", approval: proposal.id }); assert.match(stale, /не соответствует/)
- fake.confirm(proposal.form); fake.forms.set("frm_second", { id: "frm_second", sessionID: worker, state: { status: "pending" } }); fake.failCancel(true)
+ fake.confirm(proposal.form); fake.forms.set("frm_second", { id: "frm_second", sessionID: worker, metadata: { kind: "question" }, state: { status: "pending" } }); fake.failCancel(true)
  await call("canopus_task", { ...cancel, approval: proposal.id }); assert.equal(tasks.loadTask(project, t.n).status, "idle", "failed question close does not cancel")
  fake.failCancel(false); await call("canopus_task", { ...cancel, approval: proposal.id })
  current = tasks.loadTask(project, t.n); assert.equal(current.status, "cancelled"); assert.equal(current.operations.at(-1).initiator.session, caller); assert.equal(current.operations.at(-1).approval.confirmed_by, "native_owner")
  const cancellationEvents = current.history.filter(h => h.status === "cancelled").length
- fake.forms.set("frm_stale_cancelled", { id: "frm_stale_cancelled", sessionID: worker, state: { status: "pending" } })
+ fake.forms.set("frm_stale_cancelled", { id: "frm_stale_cancelled", sessionID: worker, metadata: { kind: "question" }, state: { status: "pending" } })
  assert.match(await call("canopus_task", { action: "questions", n: t.n }), /frm_stale_cancelled/)
  const repair = { ...cancel, repair: true, text: "close leftover question without rewriting cancellation" }
  await call("canopus_task", repair); proposal = latest("cancel"); fake.confirm(proposal.form)
