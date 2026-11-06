@@ -3,12 +3,12 @@
 #   powershell -File scripts/stop-stt.ps1            stops it; prints 0 when nothing is left
 #   powershell -File scripts/stop-stt.ps1 -DryRun    only names the processes
 #
-# It stops only the `whisper-server.exe` that listens on the port (CANOPUS_STT_PORT, default 8178) - never a process by name alone.
+# It stops only the `whisper-server.exe` that listens on the port (the fixed internal port 8178) - never a process by name alone.
 param(
     [switch]$DryRun
 )
 
-$port = if ($env:CANOPUS_STT_PORT) { [int]$env:CANOPUS_STT_PORT } else { 8178 }
+$port = 8178
 $owners = @(Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique)
 $mine = @()
 foreach ($id in $owners) {

@@ -1,25 +1,26 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of a plan task (plan 004; node >= 24):  node test/canopus-plan-task.test.mjs
 // canopus_spawn {kind: "plan"} -> the executor writes the plan file; a report with a bad form is refused; the plan is
 // rechecked in rounds, each by a new session; blocking/significant remarks return it to the author; two clean rounds
 // in a row send it to the owner for approval.
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { execFileSync } from "node:child_process"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-plantask-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-process.env.CANOPUS_PRESENCE = "all"
-process.env.CANOPUS_PLANSTEPS_MS = "200"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PLANSTEPS_MS", "200")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
 mkdirSync(path.join(proj, "docs", "plans"), { recursive: true })
-writeFileSync(path.join(proj, "docs", "plans", "7-old.md"), "# План 7 — старый\n")
+writeFixtureFile(path.join(proj, "docs", "plans", "7-old.md"), "# План 7 — старый\n")
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ worktrees: "wt", branch_name: "t{n}-{slug}", cleanup: "local", allow_default_models: true, merge_precheck: "off", accepted_slot: "hold", spawn_limits: { worker: 5, reviewer: 1 }, plan_clean_rounds: 2, plan_rounds_max: 4 }))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ worktrees: "wt", branch_name: "t{n}-{slug}", cleanup: "local", allow_default_models: true, merge_precheck: "off", accepted_slot: "hold", spawn_limits: { worker: 5, reviewer: 1 }, plan_clean_rounds: 2, plan_rounds_max: 4 }))
 git(proj, "init", "-q", "-b", "main")
 git(proj, "add", "-A")
 git(proj, "commit", "-q", "-m", "init")
@@ -52,7 +53,7 @@ const ctx = {
 }
 const WPID = 515151
 mkdirSync(core.WINDOWS, { recursive: true })
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: [] }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: [] }))
 beat()
 const heart = setInterval(beat, 300)
 const stop = await mod.default.setup(ctx)
@@ -87,7 +88,7 @@ const noFile = await report()
 cell("a report without the plan file is refused", /Не сдано: файла плана/.test(noFile) && task().status === "running", noFile)
 const file = path.join(t1.worktree, t1.plan.file)
 mkdirSync(path.dirname(file), { recursive: true })
-writeFileSync(file, "# План 8 — длина\n\n**Статус:** 🔴 ОТКРЫТ\n")
+writeFixtureFile(file, "# План 8 — длина\n\n**Статус:** 🔴 ОТКРЫТ\n")
 const badForm = await report()
 cell("a plan with a bad form is refused, naming the problems", /форма плана 8 не в порядке/.test(badForm) && /Источник/.test(badForm) && /Зачем/.test(badForm), badForm)
 const good = readFileSync(new URL("../plans.ts", import.meta.url), "utf8") && [
@@ -98,7 +99,7 @@ const good = readFileSync(new URL("../plans.ts", import.meta.url), "utf8") && [
   "### Ф.2 — проверка [P2] [после: Ф.1]", "#### Ф.2.1 — батарея фикстур [подплан]", "Что: батарея фикстур на длину", "**Приёмка:**", "- ⬜ батарея зелёная",
   "## Не делаем", "оракул", "## Открытые вопросы", "Открытых вопросов нет, проверено 2026-10-06", "## Решения владельца",
 ].join("\n")
-writeFileSync(file, good)
+writeFixtureFile(file, good)
 git(t1.worktree, "add", "-A")
 git(t1.worktree, "commit", "-q", "-m", "plan 8")
 await report()
@@ -180,7 +181,7 @@ await call("canopus_task", rm, { action: "merge", n: 1 })
 git(proj, "merge", "-q", "--no-edit", t1.branch)
 const noAnswer = await call("canopus_task", rm, { action: "accept", n: 1 })
 cell("accept is refused while the plan in main lacks the owner's answer", /Без упрощений: ДА/.test(noAnswer) && task().status === "reviewing", noAnswer)
-writeFileSync(file, readFileSync(file, "utf8").replace("Без упрощений: ❔ — вопрос владельцу", "Без упрощений: ДА — владелец, 2026-10-06"))
+writeFixtureFile(file, readFileSync(file, "utf8").replace("Без упрощений: ❔ — вопрос владельцу", "Без упрощений: ДА — владелец, 2026-10-06"))
 git(t1.worktree, "commit", "-q", "-am", "plan 8: the owner's answer")
 git(proj, "merge", "-q", "--no-edit", t1.branch)
 const acc = await call("canopus_task", rm, { action: "accept", n: 1 })
@@ -200,7 +201,7 @@ cell("the step task's letter asks for the done mark", got(s11.executor, "ШАГ 
 
 // 8. the step's acceptance requires «✅ СДЕЛАНО» of the step in the plan in main
 const sw = byStep("Ф.1.1").worktree
-writeFileSync(path.join(sw, "lex.nv"), "len\n")
+writeFixtureFile(path.join(sw, "lex.nv"), "len\n")
 git(sw, "add", "-A")
 git(sw, "commit", "-q", "-m", "lexer")
 await call("canopus_send", s11.executor, { to: "sesINTEG1", text: "лексер готов", reply_to: s11.qid })
@@ -212,7 +213,7 @@ git(proj, "merge", "-q", "--no-edit", s11.branch)
 const noMark = await call("canopus_task", sr, { action: "accept", n: s11.n })
 cell("accept of a step without «✅ СДЕЛАНО» in the plan is refused", /нет отметки «✅ СДЕЛАНО/.test(noMark) && byStep("Ф.1.1").status === "reviewing", noMark)
 const mainPlan = path.join(proj, t1.plan.file)
-writeFileSync(mainPlan, readFileSync(mainPlan, "utf8").replace("#### Ф.1.1 — лексер [где: lex.nv]", "#### Ф.1.1 — лексер ✅ СДЕЛАНО 2026-10-06, коммит \`abc\` [где: lex.nv]"))
+writeFixtureFile(mainPlan, readFileSync(mainPlan, "utf8").replace("#### Ф.1.1 — лексер [где: lex.nv]", "#### Ф.1.1 — лексер ✅ СДЕЛАНО 2026-10-06, коммит \`abc\` [где: lex.nv]"))
 git(proj, "commit", "-q", "-am", "plan 8: Ф.1.1 done")
 const okMark = await call("canopus_task", sr, { action: "accept", n: s11.n })
 cell("with the mark the step is accepted", byStep("Ф.1.1").status === "accepted", okMark)

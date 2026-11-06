@@ -14,7 +14,7 @@ from a plan to a merge, while the owner only approves and watches:
 - **flow control** — reminders, a stall watchdog, recovery after a service restart, a stale-window check;
 - **the machine** — long waits that outlive a turn (`canopus_watch`) and a queue for heavy runs;
 - **for the owner** — a side panel in the window, `/canopus`, "waiting for you" notices, acceptance reports;
-- **everything is a setting** — plan form, acceptance steps, grades, limits, who approves.
+- **small public configuration** — model choices, launch limits, owner language, answer policy and task directory; remaining policies are named code constants.
 
 A *window* is the OpenCode program in a terminal; a *tab* is a session inside it (one on screen, the rest in the
 background); a task session may run with no window at all. Formerly `opencode-peers` (renamed 2026-10-07, plan 005).
@@ -36,48 +36,13 @@ background); a task session may run with no window at all. Formerly `opencode-pe
   the settings folder of the main working folder of the project; the committed copy of the file in
   a task branch does not stand in for it. A tab in a folder that belongs to no project is refused
   with «папка вкладки … не относится к проекту», not with the old-form text;
-- **project settings live in a settings repository**, not in the tab's working copy (a project can
-  be a folder of many repositories, like `C:/work/nova`). The plugin option `project_settings` lists
-  settings folders (not projects) — any folder inside a git repository; the old name `projects` stays a
-  synonym: it is read when `project_settings` is not set (both set: `project_settings` acts, `projects` is
-  ignored and `canopus_doctor` names the entries that differ; only `projects` as a list: it works, `canopus_doctor`
-  adds one low-importance note «ключ projects переименован в project_settings; прежнее имя работает» below its
-  verdict, not a problem). The file `.canopus/plugin/config.json` there
-  names the project and its root (relative to the folder) and is read **committed** from the
-  default branch (`git show`; another branch: its `"branch"` field), never from the working copy:
-
-  ```jsonc
-  "plugins": [
-    { "package": "C:/work/canopus/opencode-plugin",
-      "options": { "project_settings": ["C:/work/nova/nova-settings", "C:/work/tools"],
-                   "local": { "nova": { "spawn_models": { "light": "kimi/k3" } } } } }
-  ]
-  ```
-
-  ```json
-  { "project": "nova", "root": "..", "task_fields": ["goal", "criteria", "boundaries"],
-    "worktrees": "worktrees", "branch_name": "p{n}-{slug}", "spawn_limits": { "worker": 3 } }
-  ```
-
-  The plugin option `retention_days` (default 7, `0` is off; formerly `keep_days`) makes a once-a-day pass remove delivered letters, empty mailbox folders and the cards and statuses of closed tabs older than that; open questions, undelivered letters, open tabs and task records are never touched.
-
-  `local` holds machine-specific values on top of the file. The old options form
-  `{ "nova": "C:/work/nova" }` (only under the old name `projects`) still works (settings are then walked up from the tab folder, or from the project root when the tab stands in a working tree outside it);
-  `canopus_doctor` suggests the new form. **`canopus_config`**: `guide` — a questionnaire for the owner on
-  every key (current value, options, recommendation, why; asked in text); `show` — what applies and
-  where from (default, the committed file, `local`), plus uncommitted edits; `set {values}` — the
-  integrator writes the working copy (every value checked, a wrong one writes nothing); it applies
-  once committed; `apply_template` — the integrator appends the standard model template (`config-template.ts`: families
-  `claude` / `codex` / `kimi`, sets, `profile_set: codex`, `tier_max: light`, branch and worktree name templates) to the
-  file, the project's own keys win, nothing is overwritten, and the file still has to be committed to the target branch.
-  **A project without model settings** (no enabled `profile_set`, no `spawn_models`, no `allow_default_models: true`)
-  refuses `canopus_spawn` without an explicit `model`: the refusal tells the integrator to ask the owner (`question`) —
-  apply the template, use the model of the calling session, or choose otherwise. `canopus_doctor` shows
-  «проект X не настроен: модели» for such projects (`/canopus` shows the counter `⚠ no models`). `allow_default_models: true` keeps the built-in defaults on purpose.
-  The keys: `config-schema.ts`;
+- **configuration** is independent of the app. Default: `~/.canopus/plugin/config.json`; native registration is the package alone or `{ "package": "C:/work/canopus/opencode-plugin", "options": { "config": "C:/work/instances/plugin/config.json" } }`. Its selected parent owns `data/`, `state/`, `cache/`. The same selection is passed to TUI and MCP as native context. Two parts must use separate instance folders.
+- Global keys: `project_settings`, `defaults`, `local`, `retention_days`. `project_settings` is an array of repository folders or global virtual `{project,root}` definitions. Ordinary repository identity is derived from its primary Git worktree, independent of the remote name. The old `projects` alias, map, and shared `project/root/branch` fields are refused.
+- The **ten public project keys** are `tasks_dir`, `model_profiles`, `profile_sets`, `profile_set`, `spawn_limits`, `inflight_limit`, `machine_slots`, `owner_language`, `answer_mode`, `acceptance_file`. Priority: built-in defaults < selected global defaults < committed project config < global `local[project]` < personal project `.canopus/plugin/local.json`. Objects merge; arrays replace; false/0 are retained. No user environment or registration override layer.
+- `canopus_config guide|show|set` exposes these ten fields. Model catalog/set edits are shared; the owner's selected `profile_set` is personal (`false` explicitly disables it). `apply_template` adds the public model catalog and sets without overwriting existing choices. Fixed internal bounds preserve the default template's light stage choices.
+- `INTERNAL_POLICY` and `RUNTIME_POLICY` preserve removed controls and their consumers as named built-in constants, not hidden advanced settings. The implementation notes below describe these fixed policies where applicable. Changing them through JSON, `CANOPUS_*` timer variables, or native registration options is refused. OS/provider authentication and native agent/session/task/watch context remain intact. Detailed contract: [configuration Canon](../doc/canon/configuration.md).
 - **roles**: a new tab is `worker` (shared: tabs within it differ by session id; `assistant` is an
-  alias). `integrator` is exclusive, one holder per project, plus the project's `exclusive_roles`
-  (and an optional `project_rules` text: English, appended to the end of the tab's system block). The
+  alias). `integrator` is exclusive, one holder per project, by the built-in exclusive-role policy. The
   `owner_language` setting (an English language name, default `Russian`) is the language of everything the owner
   reads — replies, questions, options, reasons, and letters to other tabs and task reports, which the owner sees in
   popups and in the recipient's tab; the system block takes it from the setting. An exclusive role
@@ -389,7 +354,7 @@ window, and among its open tasks one stands — between sessions (status `idle`)
 (marked stuck towards it, or its turn ended with a question) — while no other task goes, or some session waits for the tab. A
 task goes in `starting`, `running`, `rework` (the executor works), `submitted` (the plugin assigns a reviewer; the flow watch raises a
 long wait), `reviewing`, `accepted` (the reviewer) and `approval` (the plan waits for you in `/plans`). The stand starts at the end of
-the tab's last turn or at the last change of the standing tasks, whichever is later. Past `idle_tab_minutes` (20; 0 — off) the tab
+the tab's last turn or at the last change of the standing tasks, whichever is later. Past the built-in `idle_tab_minutes` constant (20) the tab
 gets ONE letter «Ты простаиваешь N мин: у задачи <…> нет идущей сессии … и нет вопроса владельцу. Сделай следующий шаг цикла или
 задай вопрос владельцу инструментом question», and the side panel shows `◷ простаивает с ЧЧ:ММ (N мин), вопроса владельцу
 нет: 061 между сессиями` and `/canopus` the row `◷ integrator  stalled 35m` (the tab does not count in "Ждут вас": it waits for nobody). An empty turn in answer to the letter keeps the
@@ -403,7 +368,7 @@ does not repeat the letter.
 plugin knows no live session of its executor (`сессии исполнителя нет`: no summary of the session and the card does not wake), or when the
 executor is **silent** — its turn ended, and it waits for nothing: no `canopus_watch`, no question to you, no own question, no letter in
 delivery, no going turn (`092 исполнитель молчит с 10:24`). The silence is counted from the end of the executor's last turn, the newest
-unread letter to it, or the last change of the task, whichever is later, and must last `idle_tab_minutes` too (one setting for both
+unread letter to it, or the last change of the task, whichever is later, and must last `idle_tab_minutes` too (one code constant for both
 rules). Unlike "between sessions", such a task is not excused by another task that goes: another task does not revive a dead one. An
 **order** into another project (`kind: order`) has no executor by construction, so it is not "a task without an executor": it goes while
 the integrator of the addressee took it (`child`) or works a turn now, and stands when nobody took it for `idle_tab_minutes` — named apart
@@ -443,7 +408,7 @@ longer than the term of the step, **whether or not the window is busy**. The fil
 - **The start of the step** is the latest of: a change of the status, a word of the holder in the record (a note of a session; not a note of the
   plugin, except «ответ владельца …», and not «подталкивание …»), a check of an acceptance step, the start or end of a session, the
   pre-check. The field `updated` of the task is not used: every record of the plugin («приёмка застряла», a reminder) moves it.
-- **The term** is `step_term_minutes` (default 30; 0 — the watch is off), per step `step_term_by_step` (`{"review": 90}`, keys `start, work,
+- **The term** is the code constant `step_term_minutes` (30), with internal per-step policy `step_term_by_step` (`{"review": 90}`, keys `start, work,
   review, plan, order, cleanup, between`). `step_extend_minutes` (30) is how long an answer extends the term, `step_answer_minutes` (15)
   how long the letter waits for the answer.
 - **The ladder.** (1) The term is out: ONE letter «Шаг стоит N мин, срок вышел: …» to the window of the holder that **asks for an answer by a
@@ -926,7 +891,7 @@ Recovery остаётся `answer_queued` до точного per-letter receipt
 ### Legacy recommendation path
 
 Вне рабочего question router прежний путь сохраняется: by default every question of a session waits for the owner. A project can hand some of them to the session's own
-recommendation with two keys of `.canopus/plugin/config.json`, which only a person sets (edit the file and commit; `canopus_config set`
+recommendation with `answer_mode` in `.canopus/plugin/config.json`, which only a person sets (edit the file and commit; `canopus_config set`
 refuses them) — [ADR-0010](../doc/canon/decisions/ADR-0010-question-answering-modes.md):
 
 - `answer_mode` — a map "type of the question → mode". Types: `requirements`, `plan`, `implementation` and `default` (for a type
@@ -934,8 +899,8 @@ refuses them) — [ADR-0010](../doc/canon/decisions/ADR-0010-question-answering-
   question closes it). The type `gate` is not accepted in the map, and the mode `agent` (another agent answers) is moved to a
   separate future task. The value that fits most projects: `{"implementation": "recommendations"}` — for `requirements` and `plan` the owner stays
   (для `requirements` и `plan` — `owner`: there the method leaves the decision to a person).
-- `allow_self_assign` (legacy setting, default `false`) does not bypass the user-session guard: `assign` is refused without a trusted owner receipt, which the API does not currently provide. Use `canopus_spawn` for a separate executor.
-- `answer_max` — how many answers in a row one session may get (3); the owner's word in the tab resets the count.
+- The built-in `allow_self_assign` constant (`false`) does not bypass the user-session guard: `assign` is refused without a trusted owner receipt, which the API does not currently provide. Use `canopus_spawn` for a separate executor.
+- The built-in `answer_max` constant bounds how many answers in a row one session may get (3); the owner's word in the tab resets the count.
 
 **The form of a question.** A session asks in text: a block `В-01 …?` with the lines `Тип: requirements|plan|implementation|gate`,
 `Рекомендация: …` and `Автоответ: допустим`, and «?» в конце строки with the question: the recommendation is one paragraph without blank lines (a blank line ends the value), the question ends the line and the fields stand on separate lines below it. In the words of the Canon: вопрос заканчивай знаком «?» в конце строки, поля — отдельными строками ниже. A question is closed only when all of this
@@ -963,8 +928,7 @@ closes a form by itself when ALL of this holds: the mode of the type of the ques
 the **closed list**; the limit `answer_max` of automatic answers in a row for the session is not spent (an answer of the owner or his word in the tab starts the
 count over); the form is open (not replaced, not stale, not cancelled with Esc, not in the repeat of a lost question) and the tab has a running turn; the form is
 at least `answer_delay_sec` seconds old. A doubt (a parse failure, an unknown type, more than one question, a multiple choice, a loop of task 078) is the owner too.
-- `answer_delay_sec` — seconds between the form and the answer (60; `0` — at once); a person sets it like `answer_mode` (`canopus_config set` refuses it, the plugin never writes
-  the keys `answer_*`). You answer first in the window, or write in the tab: your answer wins and no automatic answer is made.
+- `answer_delay_sec` is a named code constant: 60 seconds between the form and an automatic answer. It is not a file or environment setting.
 - The **closed list** (`CLOSED_LIST` in `form-auto.ts`; task 097). A form stays with the owner when the question **proposes an action** of the list, or the **recommended option** (label and
   description) contains such an action. A word of the list in the description of the situation closes nothing ("red on `main`", "found at the handover", a guard named `gate-…`):
   the first version looked for the words anywhere and sent about 70 % of the questions to the owner, two thirds of them for such a word (measure of 2026-10-18). The table is
@@ -1117,8 +1081,8 @@ task by its number; a session's title is `045 исп title`. The journal is
 - `canopus_spawn {title?, goal, criteria, owner_words?, result?, links?, boundaries?, open_questions?, message?, extra?, tier?, priority?, role?, parent?}` (the
   integrator only) starts task `NNN` in a new session, with or without a window. No task without a
   goal and acceptance criteria (the project may require more: `task_fields`); model by tier
-  (by default `claude-code/opus` / `sonnet` / `haiku`, `spawn_models` overrides; an enabled set of model profiles overrides both for the stages it describes — see [Model profiles](#model-profiles-sets-of-models-and-windows-by-stage)); a limit of running tasks per
-  role (`spawn_limits`, 3); priority `P0` (emergency) … `P3`, default `P2`. With `worktrees` set the
+  (the built-in model policy retains `claude-code/opus` / `sonnet` / `haiku`; an enabled set of model profiles chooses models for the stages it describes — see [Model profiles](#model-profiles-sets-of-models-and-windows-by-stage)); a limit of running tasks per
+  role (`spawn_limits`, 3); priority `P0` (emergency) … `P3`, default `P2`. With the built-in `worktrees` policy the
   plugin creates the task's worktree and branch (from the target branch) and starts the session in it, so the
   project's hooks see the task's branch, not the main copy ([plan 002.3](../doc/archive/plans/002.3-task-worktree.md)).
   The place has to lie inside the `worktrees` folder (the rule of the trees folder): a place that escapes it through
@@ -1211,7 +1175,7 @@ This updates the existing folderless task record at the same number; it does not
 - the brief (`task/message.md`, the text the plugin commits) has at least one point in «Критерии приёмки» and a line with the branch. *Divergences from the methodology:*
   the methodology asks for criteria `AC-N` and a line `Ветка: <имя>`; the plugin accepts a numbered point, a `-` point or `AC-N` as a point, and the project's own form
   «Репозиторий: …, ветка …» as the branch line (the template writes it), besides `Ветка: <имя>`. With a brief built from the fields the criteria are numbered by the plugin;
-- the numbers (`clean_runs`, `ceiling`, `probes`, `delivery_compressed` in the input, or the project's `route_defaults`) are not under the minimum of the methodology
+- the numbers (`clean_runs`, `ceiling`, `probes`, `delivery_compressed` in the input, or the built-in `route_defaults` policy) are not under the minimum of the methodology
   (`clean_runs` 1, `probes` 3) and the list of weakenings is empty. This holds on **both** routes: a number below the minimum is refused with its reason. The settings
   of the fast route under the minimum refuse the fast path (the task can still go the full route); the settings of the **full** route under the minimum stop every task
   until fixed (there is no safer route than the full one).
@@ -1247,8 +1211,9 @@ still required. `canopus_task route` moves a task to and from `small` by the sam
 **Display.** `canopus_task list` and `show` and `/canopus` mark a fast task with the word «быстрый» on the line of its title, the panel — on the heading («045 Название · быстрый»); a marked
 task has the warning line under it (in the panel two rows: «⚠ правка после слова завода», «↳ нужно новое слово владельца»). `show` prints the route line with the source, the basis, the word and the numbers.
 
-**The project's settings: `route_defaults`** in `.canopus/plugin/config.json` (a person or `canopus_config set`; the schema checks the shape, a value under the minimum can be written
-and is refused at the choice of the route). No key — the values of the methodology:
+**Built-in route policy: `route_defaults`.** The route thresholds are named constants in `resolved-policy.ts`,
+not keys accepted by `canopus_config set` or project JSON. The implementation still validates each operation against
+methodology minimums; the following structure documents the code policy, not a configuration file:
 
 ```json
 "route_defaults": {
@@ -1268,6 +1233,10 @@ Not covered, the engine is needed: 1, 2, 5–8, 11–13, 16 (the copy `spec.md` 
 
 ## Review and merge
 
+The shipped reviewer policy is `worker`. `reviewer`, `rework_max`, `cleanup`, `accepted_slot`, `cleanup_limit`,
+`merge_precheck` and `merge_lock_per_task` below name code constants, not public JSON keys. Internal alternatives
+are retained for future changes; `spawn_limits`, `inflight_limit` and `acceptance_file` remain public choices.
+
 The integrator stays free for the owner and does not re-check accepted work:
 
 - a submitted task gets a reviewer by priority (`P0` first): with `reviewer: "integrator"` the
@@ -1279,7 +1248,7 @@ The integrator stays free for the owner and does not re-check accepted work:
   over `rework_max` the integrator gets a call), `merge` (the project's merge lock: one merging
   reviewer at a time), `accept {checks, commit?}` — the plugin requires a report for every
   required acceptance step and checks that the task branch (or a squash commit) is in the target
-  branch; then the cleanup steps by the project setting `cleanup` (`git worktree remove`, `git branch -D`, `git push
+  branch; then the cleanup steps by the built-in `cleanup` policy (`git worktree remove`, `git branch -D`, `git push
   origin --delete`), and `canopus_task cleanup` — the plugin checks the worktree and the branch are gone;
   to keep a worktree as evidence call `cleanup {n, keep: [path, ...]}` (up to 8 paths, absolute, or relative to the repository root as `git rev-parse --show-toplevel` gives it from the task directory;
   each must be a worktree of the repository or an existing folder inside the project's worktree folder, never the main tree
@@ -1292,24 +1261,22 @@ The integrator stays free for the owner and does not re-check accepted work:
   accepted;
 - a task on rework does not hold a review session's place (`spawn_limits.reviewer`): the next submitted task gets
   it; the resubmission goes back to the same reviewer at once;
-- `reviewer: "acceptor"` — a separate acceptor role with its own rights ([plan 002.7](../doc/archive/plans/002.7-acceptor-role.md)):
+- Internal reviewer alternative `reviewer: "acceptor"` — a separate acceptor role with its own rights ([plan 002.7](../doc/archive/plans/002.7-acceptor-role.md)):
   only a free open tab of role `acceptor` becomes a reviewer (never a `worker` tab), a new review session is born
   with role `acceptor`, review sessions are bounded by `spawn_limits.acceptor` (without it `spawn_limits.reviewer`,
   then 2) and take no `worker` place; `merge`, `accept` and `cleanup` need the task's reviewer AND the `acceptor`
   (or `integrator`) role — a reviewer who changed role loses them; the executor of a task is refused by name. The
-  role is shared. The default stays `worker`;
+  role is shared. The shipped code policy stays `worker`;
 - `inflight_limit` (6) bounds the tasks running and in review; `P0` passes every limit;
-- `accepted_slot: "free"` (the default since the owner's decision of 2026-10-09; the explicit `hold` returns the previous
-  behaviour: the accepted task holds its place until `cleanup`): an accepted task that is not cleaned up yet waits for cleanup and
+- The built-in `accepted_slot: "free"` policy releases the accepted task's slot before `cleanup`: an accepted task that is not cleaned up yet waits for cleanup and
   no longer counts in `inflight_limit` (`canopus_spawn` and the steps of an auto plan count it separately); `cleanup_limit`
   (10, `0` — no limit) stops new work (not `P0`) when that many accepted tasks wait for cleanup, naming them. The tab of an
   accepted task is still woken and reminded (`accepted_reminder_min`; the reminder repeats every `accepted_reminder_min`, at most
   5 times per acceptance, then `/canopus` counts it: `uncleaned NNN Ч`, and the author's tab gets the idle mark `◷` when the reviewer
   does not lead the cleanup, task 076), `canopus_task list` and `show` mark it "ждёт уборки";
   `OPEN_STATUSES` and `isOpen` are not changed;
-- `merge_precheck: "required"` (the default since the owner's decision of 2026-10-09; the explicit `off` returns the previous
-  behaviour: `merge` takes the lock at once): `merge` without a green precheck is refused with text that names the next step
-  (`precheck {n}` without a lock, then `merge` on the checked tip, and the key that restores the old order), so reviewers
+- The built-in `merge_precheck: "required"` policy requires a green precheck: `merge` without a green precheck is refused with text that names the next step
+  (`precheck {n}` without a lock, then `merge` on the checked tip, and the checked candidate requirements), so reviewers
   move to the new order by themselves. **Do not take or hold the merge lock while building the candidate or waiting for CI.**
   Build the integrated candidate from the reported target tip, include the task changes, and run the full project CI before
   recording the green precheck. Save the exact candidate commit that CI checked. Only then call `merge`; it acquires the lock
@@ -1327,8 +1294,8 @@ The integrator stays free for the owner and does not re-check accepted work:
   still sees a held lock or a landed record, never "no lock and no mark", and a pass that died between them leaves the lock with a
   ready mark, which the next pass just removes (the note is written once).
   It does nothing when the tip cannot be read, the record is not green, or the lock is held for another task; `accept`
-  The lock knows its task: `accept`, `rework`, `cancel`, `unlock` release it only for the task they act on. With
-  `merge_lock_per_task: on` (default `off`, the previous behaviour) a `merge` of another task by the holder is refused until `accept`, `rework`
+  The lock knows its task: `accept`, `rework`, `cancel`, `unlock` release it only for the task they act on. With the internal
+  `merge_lock_per_task: on` variant (the shipped code constant is `off`) a `merge` of another task by the holder is refused until `accept`, `rework`
   or `unlock` of the first one (with `merge_precheck: required` the gate always does this). A reviewer refused with "lock busy" is
   recorded in its own card (`lock_wait`, gone with the tab); when the lock is released (or found abandoned) every such live reviewer of the
   project gets a letter "lock is free" (no queue, no reservation; the lock is still taken atomically by whoever calls `merge` first), and
@@ -1469,11 +1436,11 @@ Marks: plan `🔴 ОТКРЫТ / 🟡 В РАБОТЕ / ✅ ЗАКРЫТ / ❌ �
 | notes | Update the changelog       | no       |
 ```
 
-`id` is lowercase Latin letters, digits, `_`, `-`, unique; `required` is `yes` unless the cell says `no` / `нет` / `false` / `0` / `-` (an empty cell means required). Rows without an id (or with a bad or repeated one, or without text) are skipped with a warning in the log. If both `acceptance_file` and a non-empty `acceptance` are set, `canopus_doctor` reports an error and the file wins; if the file cannot be read (not in the branch, no table), the plugin falls back to `acceptance` and logs a warning. Without `acceptance_file` nothing changes. The order of acceptance is not written in the table: the plugin sets it (`canopus_help`, ACCEPTANCE). `plan_acceptance` and `plan_merge_acceptance` are separate and unchanged.
+`id` is lowercase Latin letters, digits, `_`, `-`, unique; `required` is `yes` unless the cell says `no` / `нет` / `false` / `0` / `-` (an empty cell means required). Rows without an id (or with a bad or repeated one, or without text) are skipped with a warning in the log. The internal `acceptance` constant supplies fallback steps. If `acceptance_file` is selected while that built-in list is non-empty, `canopus_doctor` reports an error and the file wins; if the file cannot be read (not in the branch, no table), the plugin falls back to `acceptance` and logs a warning. Without `acceptance_file` nothing changes. The order of acceptance is not written in the table: the plugin sets it (`canopus_help`, ACCEPTANCE). `plan_acceptance` and `plan_merge_acceptance` are separate and unchanged.
 
-**Everything is a setting.** The plan's form and process are project settings with nova's form as the default: `plan_sections`, `plan_header`, `plan_prefix`, `plan_labels`, `plan_marks`, `plan_mode_question`, `plan_acceptance`, `plan_merge_acceptance`, `plan_grades` (`{id, name, text, clean}`), `plan_approver` (owner / integrator — `canopus_task plan_decide`), `plan_steps` (auto / manual), `plan_template` (a template file in the repository). `canopus_config guide` asks about each.
+**Plan form and process are code policy.** The named constants in `resolved-policy.ts` retain the plan definitions: `plan_sections`, `plan_header`, `plan_prefix`, `plan_labels`, `plan_marks`, `plan_mode_question`, `plan_acceptance`, `plan_merge_acceptance`, `plan_grades` (`{id, name, text, clean}`), `plan_approver` (owner / integrator — `canopus_task plan_decide`), `plan_steps` (auto / manual), `plan_template` (a template file in the repository). They are not accepted as JSON keys and are not offered by `canopus_config guide`; future exposure requires an explicit schema change.
 
-**Heavy runs.** `heavy_commands` lists substrings of commands that load the machine (full gate,
+**Heavy runs.** The internal `heavy_commands` policy lists substrings of commands that load the machine (full gate,
 full build, full test run, benchmarks). `canopus_watch` with such a command goes to the machine queue
 by itself. Full design: [plan 004](../doc/archive/plans/004-plans.md).
 
@@ -1482,7 +1449,7 @@ by itself. Full design: [plan 004](../doc/archive/plans/004-plans.md).
 Which model runs a stage of work and how big its context window is are two settings of the project, kept as plain
 JSON in `.canopus/plugin/config.json` (any reader sees them without this plugin; the decision is
 [ADR-0008](../doc/canon/decisions/ADR-0008-model-profiles-layer-and-window-files.md)). Without these keys nothing changes:
-`spawn_models`, `tiers`, `reviewer` and the texts of the tools work as before.
+the named built-in model policy applies. `spawn_models`, `tiers` and `reviewer` remain internal constants, not public configuration keys.
 
 - **The table of profiles** — `model_profiles`: a family (`claude`, `kimi`, `codex` — any short name from lowercase Latin
   letters, digits and dashes, not `all`, `context`, `output`, `input`) and a tier (`heavy`, `medium`, `light`) give a
@@ -1497,25 +1464,18 @@ JSON in `.canopus/plugin/config.json` (any reader sees them without this plugin;
   `plan_accept`, `delivery` as `develop` and `delivery_accept` as `develop_accept`, the last two one tier lower (a `task` cell:
   the tier of the task, then one lower); the plugin stores and shows them, the sessions of the specification and delivery are
   still run by the orchestrator. A cell is `{"family": "claude", "tier": "heavy"}`; the tier `task` means «the tier of the
-  task» (the default behaviour). A stage without a cell (and nothing to inherit) keeps the model of `spawn_models`.
-  A check stage without a cell goes by `spawn_models` (the owner's decision of task 003). The old name `accept` stays a readable alias of `develop_accept` (the settings file of this repository still uses it; nothing rewrites it). A check on the same family as its author while another family exists is only warned about by `/canopus-sets show` with one ⚠ line (the rule «the
+  task» (the default behaviour). A stage without a cell (and nothing to inherit) keeps the model of the built-in `spawn_models` policy.
+  A check stage without a cell uses the built-in model policy (the owner's decision of task 003). The old name `accept` stays a readable alias of `develop_accept` (the settings file of this repository still uses it; nothing rewrites it). A check on the same family as its author while another family exists is only warned about by `/canopus-sets show` with one ⚠ line (the rule «the
   reviewer is on another model family», ADR-0013). Names of sets: lowercase Latin
   letters, digits, dashes, up to 40 characters, not a word of the commands or a word kept from the removed ones (`use`, `reset`, `all`, `list`, `show`, `set`,
   `unset`, `new`, `rename`, `delete`, `check`, `save`, `from`).
 - **The enabled set** — `profile_set`: the name, set by a person (`/canopus-sets use`, or editing the file);
-  `canopus_config set` refuses this key whatever the value. `use` writes the name into the file of the project, takes effect
+  `canopus_config set` refuses this key whatever the value. `use` writes the name into the personal project file `.canopus/plugin/local.json`, takes effect
   at once and needs no commit and no restart of the service.
-- **Tier bounds** — `tier_min` and `tier_max` (`light`, `medium`, `heavy`; no key — no bound), project settings in the same
-  file. Any tier of any stage (explicit, inherited, `task`, the `tier` of `canopus_spawn`) is clamped into them, so there is no
-  need for a separate set with explicit tiers to cap the cost. The clamp holds on every path that picks a model, with a set
-  and without one: `canopus_spawn`, the steps of an auto-plan, the review session started without a cell of the set (the tier of
-  the task record is clamped when the session starts) and `reassign` (without a set the model of the record stays while its
-  tier is inside the bounds). The `tier` of `canopus_send` picks a tab, not a model, and is not clamped. A clamp is written to the
-  log of the plugin and to the task event, and into the task record (`profiles`: `clamped_from`; without a set the set is
-  «(без набора)»), and `/canopus-sets show` prints the tier of the set and the tier after the clamp. If the clamp lands on a family
-  that has no profile of that tier, the session is refused and the text names the clamp as the cause (the nearest tier is not
-  searched). `tier_min` above `tier_max` is a settings error: `canopus_config set` refuses such a write (also against the other key
-  already in the file), and if it comes into the file by hand `canopus_doctor` says so and the bounds are not applied.
+- **Tier policy** — `tier_min` and `tier_max` are named constants in `resolved-policy.ts`, fixed at `light` and `heavy`.
+  They are not accepted in configuration files. The clamp implementation remains available for a future explicit policy
+  change; the current complete range leaves every task tier available. Model choice is configured through profiles and sets.
+
 
 The window is a property of the model **in a folder**, not of a stage or a session. The plugin writes the windows of the
 models of the enabled set (all three tiers of every family named in the set, because `tier` on the input of `canopus_spawn`
@@ -1540,8 +1500,7 @@ Reviewers on another family. With a cell that has an explicit tier (`develop_acc
 is taken only if its model is a model of that family (any of its three tiers; `openai/gpt-5.5#high` fits the profile
 `openai/gpt-5.5`, `openai/gpt-5.5-fast` does not); otherwise a new review session starts in the main folder on the model
 of the cell — when there is no free open tab of the role. With a `task` cell the model of an open tab is not checked, as
-without a set. With `reviewer: integrator` the reviewer is the integrator's tab on its own model and the set does not
-change that (the plugin never switches the model of an open tab). A reviewer on Kimi or Codex works with the same
+without a set. The built-in reviewer policy is `worker`. The internal integrator-review path remains implemented, but `reviewer` is not a public setting; the plugin never switches the model of an open tab. A reviewer on Kimi or Codex works with the same
 `canopus_*` tools; the rules of the repository's `.claude` act in a tab of another family only in part (the PreToolUse
 hooks of the shell, `permissions.deny` and `.claude/commands` through the guards plugin; `Write`, `Stop`,
 `SessionStart` and `PostToolUse` hooks do not).
@@ -1553,9 +1512,9 @@ Commands of the window (answers are shown in a dialog at once, no turn of the mo
 | `/canopus-sets ls` (also `list`, and the command without words) | the sets with `●` at the enabled one and the models in the cells (short names with a legend; stages with one model are grouped; a `task` cell shows the models of the three tiers `opus/sonnet/haiku`); in the window it is the pick described above |
 | `/canopus-sets show [name]` | a set in short: a table stage x tier (heavy, medium, light) with short model names (`luna`, `opus`), `как «stage»` for an inherited stage that does not differ, one line `all stages: …` when all are alike, a legend (full name, context, output; once per model), one ⚠ line per warning (the check on the same family as its author, a model out of the catalog, a missing profile), a hint; the enabled one if no name. Width of the window `/canopus`, no line is wrapped |
 | `/canopus-sets show [name] <stage>` / `show [name] all` | the detailed answer: everything the table hides — inheritance and its tier, the clamp by the tier bounds, the tiers of the task, the window of the profile in the worktree, the window of the review sessions with the number and the file, the errors and the full notes; `all` is the whole former text. A set named like a stage wins as the first word; `show <name> <stage>` is unambiguous |
-| `/canopus-sets use <name>` | enable a set (writes `profile_set` into the file of the project; Enter on a set in the pick does the same). The screen: the first line `Набор «kimi» включён (был «codex»)`; a line per group of stages — `Работа` (development and planning) and `Приёмка` (their checks), or each stage under its own word when they differ — with the model and `(было …)` (alike are collapsed: `(было те же)`, `(без изменений)`); the three tiers of a task are shown as «by the size of the task» (`luna / sol / astra по размеру задачи`), never as heavy/medium/light; a line when the tier bounds of the project cut something, and a line about the stages described apart; **the running sessions** that stay on the old models (`сейчас 2: 094, 098`, then a task, its title and the old model per line; counted from the status files of the plugin: the sessions of the open tasks of this project that work now — an executor in `starting`, `running` or `rework`, a reviewer in `submitted`, `reviewing` or `approval` — whose model is not in the new set; no status folder — no such line; the tabs of the owner and of the integrators are not counted) and where new sessions go (no restart); the window of the model (`Контекст модели: 220K, вывод до 131072 (у «codex» было 525K, ввод 461K, вывод до 128K)`); ⚠ lines (a smaller window is compacted on the next turn of a tab: the threshold is the context minus `compaction.reserved`, for a model with an input limit the input minus `reserved`; the check on the same family as its author; hand-written windows that win); `Не закоммичено — это локальная настройка проекта.`; a line about the window files of the task worktrees only when something was written, removed or failed. The short names with provider and legend, the review windows from the hand-written settings and the details of the stages are in `show` |
+| `/canopus-sets use <name>` | enable a set (writes `profile_set` into the personal project file; Enter on a set in the pick does the same). The screen: the first line `Набор «kimi» включён (был «codex»)`; a line per group of stages — `Работа` (development and planning) and `Приёмка` (their checks), or each stage under its own word when they differ — with the model and `(было …)` (alike are collapsed: `(было те же)`, `(без изменений)`); the three tiers of a task are shown as «by the size of the task» (`luna / sol / astra по размеру задачи`), never as heavy/medium/light; a line when the tier bounds of the project cut something, and a line about the stages described apart; **the running sessions** that stay on the old models (`сейчас 2: 094, 098`, then a task, its title and the old model per line; counted from the status files of the plugin: the sessions of the open tasks of this project that work now — an executor in `starting`, `running` or `rework`, a reviewer in `submitted`, `reviewing` or `approval` — whose model is not in the new set; no status folder — no such line; the tabs of the owner and of the integrators are not counted) and where new sessions go (no restart); the window of the model (`Контекст модели: 220K, вывод до 131072 (у «codex» было 525K, ввод 461K, вывод до 128K)`); ⚠ lines (a smaller window is compacted on the next turn of a tab: the threshold is the context minus `compaction.reserved`, for a model with an input limit the input minus `reserved`; the check on the same family as its author; hand-written windows that win); `Не закоммичено — это локальная настройка проекта.`; a line about the window files of the task worktrees only when something was written, removed or failed. The short names with provider and legend, the review windows from the hand-written settings and the details of the stages are in `show` |
 | `/canopus-sets set <name> <stage> <family>/<tier>` | change a cell (stages: `develop`, `develop_accept` (also `accept`), `plan`, `plan_accept`, `spec`, `spec_accept`, `delivery`, `delivery_accept` or Russian words) |
-| `/canopus-sets unset <name> <stage>` | remove a cell: the stage goes back to `spawn_models` |
+| `/canopus-sets unset <name> <stage>` | remove a cell: the stage goes back to the built-in model policy |
 | `/canopus-sets new <name> [from <other>]`, `rename <a> <b>`, `delete <name>` | create (empty or a copy), rename (the enabled name follows), delete (not the enabled one) |
 | `/canopus-profiles ls` (also `list`, and the command without words) | a table «family, tier → model, window»; in the window a pick of the families |
 | `/canopus-profiles show [<family>]` | without a name — the table in detail. With a family (also Enter on a family in the pick): the three tiers (the model without the provider, `контекст 525K, ввод 461K, вывод 128K`, `то же` when the window equals the one above), `Используют наборы:` — the sets that use the family with their stages by words (`codex (разработка, приёмка, …)`), and the last line — whether the enabled set uses the family now (`эта семья сейчас не используется`, or the stages that use it, the inherited ones apart). The provider is in `/canopus-profiles ls`; the cell `family/tier` of a stage — in `/canopus-sets show <set> <stage>` |
@@ -1565,17 +1524,18 @@ Commands of the window (answers are shown in a dialog at once, no turn of the mo
 
 The answers follow one pattern: the first line is the result in one sentence (`Готово: …` for an edit, with «was» for `set`; the set is on for `use`; the summary for `check`), below only what changed or what needs attention. `/canopus-sets show` is the place for the rest.
 
-Edits act at once, without a commit and without any layer between: every command rewrites the three keys (`model_profiles`,
-`profile_sets`, `profile_set`) of the file `.canopus/plugin/config.json` in the working copy of the settings folder, in one
-atomic write; the data in force are those keys of the working copy (the plugin does not commit — commit the file when you
-want the change to travel). An edit that would make the enabled set invalid or leave a dangling reference is refused whole
-and the file stays as it was. There is no `save` and no `reset`: the earlier local layer
-(`profiles/<project>.layer.json` in the mailbox of the plugin) is switched off — see [ADR-0014](../doc/canon/decisions/ADR-0008-model-profiles-layer-and-window-files.md);
-an old layer file is not read, the service and `check` name it once, and it can be deleted by hand. An invalid state that came not through the commands (a commit removed a profile) does not stop the running tabs:
-sessions go by the last valid state (the snapshot) with a warning in `/canopus-sets`, `canopus_doctor` and a notice in the
-window; a set that is gone and has no snapshot gives a refusal that names the set. Every edit leaves one line
-`profile edit: …` in the log of the plugin; a task keeps, per launched session, the stage, the set, the family, the tier
-and the model.
+Catalog edits act at once. For a repository, commands atomically write `model_profiles` and `profile_sets` into
+`.canopus/plugin/config.json` in the main worktree; commit that shared file when the catalog should travel.
+For a virtual project registered as `{project, root}`, the catalog is written into `global.local[project]` in the selected
+plugin configuration. A virtual project does not require a separate settings repository.
+
+Selecting a set writes only `profile_set` into the personal project file `.canopus/plugin/local.json` under the project root.
+It does not rewrite the shared catalog. The priority is built-in defaults → selected global `defaults` → shared project configuration → global `local[project]`
+→ personal project configuration. A worktree uses the main worktree's shared and personal project files.
+An edit that would invalidate the selected set or leave a dangling reference is refused without modifying the file.
+There is no extra profile-layer file. An invalid edit outside the commands leaves running sessions intact; a last valid
+snapshot supports diagnostics, while a selected set with no valid snapshot produces an explicit refusal.
+Every edit leaves one `profile edit: …` log entry; task records retain the stage, set, family, tier and model of each launch.
 
 An example of the two keys (invented numbers; `canopus_config set` takes it in one call, or copy it into the file; the default
 name is not part of it):
@@ -1629,7 +1589,7 @@ name is not part of it):
 ```
 
 `default` keeps the choice of models and of open reviewer tabs as it was **while the models of the `claude` profiles equal
-`spawn_models`** of the project (`check` warns when they differ); the file of windows in the worktree is still written with
+`spawn_models`** constants (`check` warns when they differ); the file of windows in the worktree is still written with
 the values of the table. A set with an explicit tier of `develop_accept` narrows the open reviewer tabs to its family. The other
 sets show what is possible. The windows of the models of one family may repeat a model on several tiers (Kimi has one model
 on all three) only with equal fields; two profiles of a set with different windows for the same model make `use` refuse,
@@ -1639,8 +1599,7 @@ is what the tabs in the main folder use — the plugin only names it.
 
 ## Other projects
 
-- **inbound** of the receiving project limits letters from other projects: `integrator` (default:
-  only to its integrator), `any`, `none`; a refused letter names the address to use;
+- The built-in **inbound** policy is `integrator`: letters from other projects go only to its integrator. The internal alternatives remain implemented; `inbound` is not a public configuration key. A refused letter names the address to use;
 - **an order**: `canopus_task {action: "order", to: "beta.integrator", goal, criteria, …}` records task
   `NNN` of kind order in the orderer's journal (no session, no title marks) and sends it to beta's
   integrator, who does it with its own tasks: `canopus_spawn {…, parent: "alpha#N"}`. The order follows
@@ -1675,10 +1634,10 @@ OPENCODE_CANOPUS_SESSION=<opencode session id> node mcp.ts   # node >= 24
 ```
 
 - it acts for the one OpenCode session in `OPENCODE_CANOPUS_SESSION` (the provider sets it per
-  request) and writes to the same mailbox (`XDG_DATA_HOME` as for OpenCode);
-- the project list is not repeated: the plugin writes its `project_settings` (or `projects`) and `local` options to
-  `<mailbox>/projects.json` at load (`OPENCODE_CANOPUS_PROJECTS`, JSON of the `project_settings` value,
-  overrides);
+  request); the host explicitly forwards the selected configuration through internal `OPENCODE_CANOPUS_CONFIG`. This is paired-process context, not an application settings layer;
+- the project list comes from the selected plugin configuration's `project_settings`, `defaults` and `local`.
+  A standalone MCP launch selects its configuration with `--config <file>`. Old project-list environment overrides
+  and published `projects.json` settings snapshots are not configuration sources;
 - delivery stays with the plugin (the letter goes into the OpenCode session); a task started from
   MCP is written to the journal and the plugin starts it on its next pass; a `canopus_watch` from MCP is
   a request file the plugin runs (the MCP server lives only as long as Claude Code's turn).
@@ -1744,8 +1703,7 @@ Renamed 2026-10-07 (plan 005): `nova-peers` → `opencode-peers` → Canopus (`c
 282): the previous product name → Canopus (`canopus`); the plugin id is
 `canopus`; the mailbox of the earliest name was moved to `canopus` by the one-shot explicit migration of task 284
 (no aliases, no links left; nothing is
-lost); the settings file is `.canopus/plugin/config.json` (`.opencode/opencode-peers.json` is still read, with a
-`canopus_doctor` note to rename it).
+lost); the settings file is `.canopus/plugin/config.json`. Old settings paths are not read as fallback sources.
 
 License: MIT OR Apache-2.0 (see [LICENSE](../LICENSE)).
 

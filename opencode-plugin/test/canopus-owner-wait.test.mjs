@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of task 064, items 9 and 10 (node >= 24):  node test/canopus-owner-wait.test.mjs
 // Item 9 (the owner, 2026-10-17, «по рекомендации»): a tab bound to a closed task (the card keeps task {n: 73}, the task was cancelled)
 //   is shown by its role, not as the task's executor, in the rows of the panel and in "Ждут вас"; an integrator tab is shown by its role
@@ -7,23 +8,23 @@
 //   ONE letter to the tab «задай вопрос инструментом question», the gate mark ⚠ «ждёт вашего решения, вопроса нет» instead of
 //   «ждёт вас»; an open question, the owner's word or a working turn clears it. A question in text («?» at the end) is a question: no
 //   letter. A phrase that waits for another tab (the integrator), and a task session, get nothing.
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-owner-wait-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_STATUS_MS = "100"
-process.env.CANOPUS_FORM_MS = "100"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("STATUS_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_MS", "100")
 const dbPath = path.join(tmp, "opencode.db")
-process.env.CANOPUS_DB = dbPath
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", dbPath)
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({}))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({}))
 
 let fail = 0
 const cell = (name, ok, detail = "") => {
@@ -45,7 +46,7 @@ const tasks = await import("../tasks.ts")
 const NOW = Date.now()
 const putTask = (project, n, st, extra = {}) => {
   mkdirSync(path.dirname(tasks.taskFile(project, n)), { recursive: true })
-  writeFileSync(tasks.taskFile(project, n), JSON.stringify({ n, project, title: `задача ${n}`, slug: `t${n}`, author: "sesAUTH", author_role: "integrator", qid: `q${n}`, status: st, kind: "assign", priority: "P2", executors: [], attempt: 1, directory: proj, history: [], created: NOW - 3_600_000, updated: NOW - 3_600_000, ...extra }))
+  writeFixtureFile(tasks.taskFile(project, n), JSON.stringify({ n, project, title: `задача ${n}`, slug: `t${n}`, author: "sesAUTH", author_role: "integrator", qid: `q${n}`, status: st, kind: "assign", priority: "P2", executors: [], attempt: 1, directory: proj, history: [], created: NOW - 3_600_000, updated: NOW - 3_600_000, ...extra }))
 }
 
 // ---- item 9: the status (pure)
@@ -98,7 +99,7 @@ const ctx = {
 const WPID = 646464
 mkdirSync(core.WINDOWS, { recursive: true })
 // dated 30 s ahead: a window of 3 s freshness would look closed when this process is slow on a loaded machine (task 088)
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now() + 30_000, tabs: SESS.map((sessionID) => ({ sessionID, active: true, busy: false })) }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now() + 30_000, tabs: SESS.map((sessionID) => ({ sessionID, active: true, busy: false })) }))
 beat()
 const heart = setInterval(beat, 300)
 

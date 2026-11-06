@@ -4,8 +4,8 @@
 // Build: nova build src/canopus_hub.nv -o target/canopus-hub.exe
 module canopus.canopus_hub
 
-import canopus.server.{server_settings_in, run_hub_stdio}
-import canopus.config.{split_cli_args, canopus_home, legacy_env_problem}
+import canopus.server.{server_settings_selected, run_hub_stdio}
+import canopus.config.{split_cli_args, canopus_home, legacy_env_problem, select_config, ConfigSelection, work_dir_now, claim_instance}
 import std.os.{args, exit_process}
 import std.io.{stderr}
 
@@ -17,14 +17,39 @@ fn main() Os Fs Proc Detach Time Net Io -> () {
         exit_process(2)
     }
     ro cli = split_cli_args(args())
-    ro file = if cli.rest.len() > 1 { cli.rest[1] } else { "" }
-    match server_settings_in(file, canopus_home(cli.home), cli.sets) {
+    if cli.error.byte_len() > 0 {
+        mut err = stderr()
+        ro written = err.write("canopus-hub: ${cli.error}\n".bytes())
+        exit_process(2)
+    }
+    ro selected = if cli.config.byte_len() > 0 {
+        match select_config(cli.config, work_dir_now(), "") {
+            Ok(s) => s
+            Err(reason) => {
+                mut err = stderr()
+                ro written = err.write("canopus-hub: ${reason}\n".bytes())
+                exit_process(2)
+                return
+            }
+        }
+    } else { ConfigSelection { file: "", root: canopus_home(cli.home) } }
+    ro file = if selected.file.byte_len() == 0 && cli.rest.len() > 1 { cli.rest[1] } else { "" }
+    match server_settings_selected(file, selected.root, cli.sets, selected.file) {
         Err(reason) => {
             mut err = stderr()
             ro written = err.write("canopus-hub: ${reason}\n".bytes())
             exit_process(2)
         }
         Ok(settings) => {
+            match claim_instance(selected.root, "app") {
+                Ok(done) => ()
+                Err(reason) => {
+                    mut err = stderr()
+                    ro written = err.write("canopus-hub: ${reason}\n".bytes())
+                    exit_process(2)
+                    return
+                }
+            }
             ro code = run_hub_stdio(settings)
             // ORACLE-WORKAROUND(19): an explicit exit: the fiber that reads stdin is parked until the front closes it, and a program with a parked fiber does not end by itself; return from `main` when item 19 is fixed
             exit_process(code)

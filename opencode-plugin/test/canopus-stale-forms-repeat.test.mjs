@@ -1,16 +1,17 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the extended replacement (task 073; node >= 24):  node test/canopus-stale-forms-repeat.test.mjs
 // Task 071 closes the old form only for the same text AND the same options. Here the one more safe case: the old form of a tab is in
 // the repeat state (the plugin itself asked the tab to ask again: woken at least once, or exhausted), and the tab then made a new
 // form with the SAME OPTIONS (same labels, same order, case and spacing ignored) but other words. The old form becomes "replaced"
 // (history, reason «повтор тем же набором вариантов»). Not covered, by design: a form that is not in the repeat state, a cancelled
 // form that was not yet woken, other options, a form that has no options, another tab, a new form made before the first wake.
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-stale-repeat-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 const fw = await import("../form-wait.ts")
 const core = await import("../core.ts")
 const oa = await import("../owner-answer.ts")
@@ -130,7 +131,7 @@ await safe("h", async () => {
   mkdirSync(fw.FORMS, { recursive: true })
   const mk = (id, at, question, options = OPTS, extra = {}) => ({ id, at, title: "Questions", question, options, kind: "question", session: "sesH", ...extra })
   // the live shape: the old form with three repeats (no first-wake time stored), the tab asked again in other words, later still once
-  writeFileSync(path.join(fw.FORMS, "sesH.json"), JSON.stringify([
+  writeFixtureFile(path.join(fw.FORMS, "sesH.json"), JSON.stringify([
     mk("frm_h1", T0, Q, OPTS, { cancelled: T0 + 60 * MIN, repeats: 3, wokeAt: T0 + 180 * MIN, exhausted: T0 + 240 * MIN }),
     mk("frm_h2", T0 + 62 * MIN, Q2),
     mk("frm_h3", T0 + 400 * MIN, "Ещё иначе?"),
@@ -141,7 +142,7 @@ await safe("h", async () => {
   cell("h: the second pass changes nothing", fw.settleDuplicates(fw.FORMS, T0 + 501 * MIN).length === 0, "")
 
   // a form made BEFORE the first wake is not a reaction to the wake: both stay
-  writeFileSync(path.join(fw.FORMS, "sesI.json"), JSON.stringify([
+  writeFixtureFile(path.join(fw.FORMS, "sesI.json"), JSON.stringify([
     { ...mk("frm_i1", T0, Q, OPTS, { cancelled: T0 + 60 * MIN, repeats: 1, wokeAt: T0 + 60 * MIN + 5000 }), session: "sesI" },
     { ...mk("frm_i2", T0 + 30 * MIN, Q2), session: "sesI" },
   ]))
@@ -149,7 +150,7 @@ await safe("h", async () => {
   cell("h: a new form made before the first wake does not replace the old one", open("sesI", T0 + 500 * MIN).join() === "frm_i1,frm_i2", open("sesI", T0 + 500 * MIN).join())
 
   // no options at all (a free-text question): never matched
-  writeFileSync(path.join(fw.FORMS, "sesJ.json"), JSON.stringify([
+  writeFixtureFile(path.join(fw.FORMS, "sesJ.json"), JSON.stringify([
     { id: "frm_j1", at: T0, title: "Questions", question: Q, kind: "question", session: "sesJ", cancelled: T0 + MIN, repeats: 1, wokeAt: T0 + MIN + 5000 },
     { id: "frm_j2", at: T0 + 10 * MIN, title: "Questions", question: Q2, kind: "question", session: "sesJ" },
   ]))

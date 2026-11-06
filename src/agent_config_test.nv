@@ -1,9 +1,11 @@
 // agent_config_test.nv - task 192.9: the configuration of OpenCode for the agents of the hub: the plugin canopus is cut out, everything else stays.
 module canopus.agent_config_test
 
-import canopus.agent_config.{config_for_hub, config_without_plugin, config_without_string_property}
+import canopus.agent_config.{config_for_hub, config_without_plugin, config_without_string_property, opencode_home_prepare, opencode_home_prepare_with_policy, OPENCODE_KEEP_PLUGIN}
 
 import std.encoding.json.{Json, JsonValue}
+import std.os.{Os, MockOs, mock_os, real_os, temp_dir, pid}
+import std.fs.{Fs, real_fs, Path, create_dir_all, write_text, read_text, try_exists, remove_dir_all}
 
 fn ac_sample() -> str => [
     "{",
@@ -73,4 +75,42 @@ test "agent config: the property canopusMcp is cut when it is first or alone too
     ro first = config_without_string_property("{ \"s\": { \"canopusMcp\": \"p\", \"t\": 1 } }", "canopusMcp")
     assert(first.replace(" ", "") == "{\"s\":{\"t\":1}}")
     assert(!config_without_string_property("{ \"s\": { \"canopusMcp\": \"p\" } }", "canopusMcp").contains("canopusMcp"))
+}
+
+
+test "agent config: retired keep-plugin env cannot bypass the default; explicit code policy retains the alternative" {
+    assert(!OPENCODE_KEEP_PLUGIN)
+    ro temp = with Os = real_os() { temp_dir() }
+    ro id = with Os = real_os() { pid() }
+    ro root = temp.join("canopus-agent-policy-${id}")
+    ro source = root.join("source")
+    ro data = root.join("data")
+    ro kept = root.join("kept")
+    with Fs = real_fs() {
+        ro old = remove_dir_all(root)
+        ro made = create_dir_all(source)
+        match write_text(source.join("opencode.jsonc"), ac_sample()) {
+            Ok(done) => ()
+            Err(e) => panic("cannot prepare agent configuration fixture")
+        }
+    }
+    mut state = MockOs.new()
+    state.put_env("CANOPUS_OPENCODE_KEEP_PLUGIN", "1")
+    with Fs = real_fs(), Os = mock_os(state) {
+        match opencode_home_prepare(data.display(), source.display()) {
+            Ok(xdg) => {
+                ro copy = read_text(Path.from_bytes("${xdg}/opencode/opencode.jsonc".bytes())) ?? ""
+                assert(copy.byte_len() > 0 && !copy.contains("opencode-plugin"))
+                assert(copy.contains("C:/work/plugins/guards"))
+                assert((read_text(source.join("opencode.jsonc")) ?? "") == ac_sample())
+            }
+            Err(e) => panic("retired environment changed the internal default")
+        }
+        match opencode_home_prepare_with_policy(kept.display(), source.display(), true) {
+            Err(why) => assert(why == "kept by code policy")
+            Ok(xdg) => panic("explicit keep policy unexpectedly made a copy")
+        }
+        assert(!(try_exists(kept.join("agent-config")) ?? false))
+        ro gone = remove_dir_all(root)
+    }
 }

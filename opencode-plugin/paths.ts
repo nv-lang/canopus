@@ -10,6 +10,7 @@ import { existsSync, lstatSync, realpathSync, renameSync, rmSync } from "node:fs
 import os from "node:os"
 import path from "node:path"
 import { pluginRoot } from "./plugin-config.ts"
+import { pluginConfigContext, selectPluginConfig } from "./config-context.ts"
 
 export function dataDir(): string {
   const xdg = process.env.XDG_DATA_HOME
@@ -39,7 +40,7 @@ export function canopusBase(root?: string): string {
   }
   const target = path.join(pluginRoot(), "data")
   const old = path.join(dataDir(), CANOPUS_DIR)
-  if (!process.env.CANOPUS_HOME && !existsSync(target) && existsSync(old)) throw new Error(`Canopus data migration required: ${old} -> ${target}; stop the service and run the explicit migration`)
+  if (pluginConfigContext().file === selectPluginConfig().file && !existsSync(target) && existsSync(old)) throw new Error(`Canopus data migration required: ${old} -> ${target}; stop the service and run the explicit migration`)
   return target
 }
 

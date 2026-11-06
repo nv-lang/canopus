@@ -1,3 +1,4 @@
+import { getFixtureRuntime } from "./fixture-settings.mjs"
 import assert from "node:assert/strict"
 import { mkdtempSync, rmSync } from "node:fs"
 import os from "node:os"
@@ -5,9 +6,9 @@ import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-native-state-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 process.env.XDG_STATE_HOME = tmp
-process.env.CANOPUS_DB = path.join(tmp, "fixture.db")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "fixture.db"))
 const { nativeState, boundedNativeGet } = await import("../native-state.ts")
 const sid = "sesFIXTURE"
 const server = { version: "2.0.26", pid: process.pid }
@@ -63,7 +64,7 @@ core.saveCard({ session: sid, role: "worker", directory: tmp, updated: Date.now(
 const { nativeFixture } = await import("./fixture-plugin.mjs")
 const fixture = nativeFixture({ session: { get: async () => ({ id: sid, location: { directory: tmp } }) } })
 assert.equal((await nativeState(sid, 0, fixture.get)).state, "idle"); checks++; console.log("ok legacy fixture explicitly models a new idle session")
-const db = new DatabaseSync(process.env.CANOPUS_DB)
+const db = new DatabaseSync(getFixtureRuntime("DB"))
 db.exec("create table session_message (id text, session_id text, type text, seq integer, time_created integer, time_updated integer, data text)")
 db.prepare("insert into session_message values (?, ?, ?, ?, ?, ?, ?)").run("msg_active", sid, "assistant", 1, Date.now(), Date.now(), "{}")
 assert.equal((await nativeState(sid, 0, fixture.get)).state, "active"); checks++; console.log("ok legacy fixture preserves newer active generations")

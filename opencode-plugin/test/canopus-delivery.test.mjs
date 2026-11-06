@@ -1,16 +1,17 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test: delivery in two steps, at-least-once (node >= 24):  node test/canopus-delivery.test.mjs
 // A letter is claimed into delivering/, moved to read/ only after session.prompt succeeds, released back to
 // the inbox when prompt fails, and a claim left behind by a crashed process comes back after CLAIM_MAX_MS.
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-delivery-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-process.env.CANOPUS_PRESENCE = "all"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
 const proj = path.join(tmp, "proj")
 mkdirSync(proj, { recursive: true })
 
@@ -72,10 +73,10 @@ cell("the next tick delivers it", delivered.some((d) => d.text.includes("fail-le
 const letter = (id, text) => JSON.stringify({ id, from_role: "x.sender", from_session: "sesSENDER", to: "sesRECEIVER", text, time: Date.now() })
 const young = path.join(base, "delivering", `999999-${Date.now()}`, "sesRECEIVER")
 mkdirSync(young, { recursive: true })
-writeFileSync(path.join(young, "1-young.json"), letter("1-young", "young-claim"))
+writeFixtureFile(path.join(young, "1-young.json"), letter("1-young", "young-claim"))
 const old = path.join(base, "delivering", `999998-${Date.now() - core.CLAIM_MAX_MS - 1000}`, "sesRECEIVER")
 mkdirSync(old, { recursive: true })
-writeFileSync(path.join(old, "2-old.json"), letter("2-old", "crashed-claim"))
+writeFixtureFile(path.join(old, "2-old.json"), letter("2-old", "crashed-claim"))
 await until(() => files("inbox", "sesRECEIVER").includes("2-old.json"))
 cell("a legacy stale claim without native provenance is preserved, not posted twice", !delivered.some((d) => d.text.includes("crashed-claim")) && files("inbox", "sesRECEIVER").includes("2-old.json"), JSON.stringify(delivered.map((d) => d.text.slice(-40))))
 cell("a young claim (another process mid-delivery) is left alone", !delivered.some((d) => d.text.includes("young-claim")) && existsSync(path.join(young, "1-young.json")), "touched")

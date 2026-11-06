@@ -1,3 +1,4 @@
+import { getFixtureRuntime } from "./fixture-settings.mjs"
 // Self-test of canopus window model (node >= 24):  node test/canopus-model.test.mjs
 // The model is the one of the REQUEST the window makes now (hook model.request); the database is only a
 // fallback and is printed with the time of the last turn. Red probe: CANOPUS_MODULE=<copy of the plugin that
@@ -9,13 +10,13 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-model-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_PRESENCE ??= "all" // every tab taken as open (presence has its own test)
-process.env.CANOPUS_DB = path.join(tmp, "opencode.db")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "opencode.db"))
 
 // A database whose last assistant turn of window Y ran on Kimi (the tab was switched afterwards).
 const turnAt = Date.parse("2026-10-04T02:24:37")
-const db = new DatabaseSync(process.env.CANOPUS_DB)
+const db = new DatabaseSync(getFixtureRuntime("DB"))
 db.exec("create table session_message (id text primary key, session_id text, type text, seq integer, time_created integer, time_updated integer, data text)")
 db.prepare("insert into session_message values (?,?,?,?,?,?,?)").run(
   "m1", "sesYYYYYY", "assistant", 1, turnAt, turnAt,

@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the route of a task (task 092, node >= 24):  node test/canopus-task-route.test.mjs
 // The methodology (task-runner-states.md «Маршруты», «Инварианты маршрута», «Проверки реализации»; task-runner.md «Параметры маршрута») makes the
 // route of a task DATA: «full» or «fast», with the numbers of the cycle (ceiling, clean runs in a row, probes in a clean run). The plugin does the
@@ -9,31 +10,31 @@
 // the acceptance by the integrator with the owner's word (no reviewer, no lock).
 // Tests of the methodology that this file covers (the data side only): 3 (first part), 4, 9, 10, 14, 15, 19, 21 and 23 (the data part), 22.
 import { execFileSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-task-route-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-process.env.CANOPUS_PRESENCE = "all"
-process.env.CANOPUS_SETTINGS_TTL_MS = "1"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("SETTINGS_TTL_MS", "1")
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
 const BASE = { root: "..", worktrees: "worktrees", worktree_name: "{repo}-{n}-{slug}", branch_name: "task/{n}-{slug}", cleanup: "local", allow_default_models: true, inflight_limit: 30, spawn_limits: { worker: 20, reviewer: 0 } }
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
 mkdirSync(path.join(proj, "doc", "tasks", "045-registry", "task"), { recursive: true })
-writeFileSync(path.join(proj, "doc", "tasks", "045-registry", "task", "message.md"), "# Задание: Реестры контрактов\n\nтекст\n")
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(BASE))
+writeFixtureFile(path.join(proj, "doc", "tasks", "045-registry", "task", "message.md"), "# Задание: Реестры контрактов\n\nтекст\n")
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(BASE))
 git(proj, "init", "-q", "-b", "main")
 git(proj, "config", "user.name", "Owner Test")
 git(proj, "config", "user.email", "owner@test")
-writeFileSync(path.join(proj, "a.txt"), "a\n")
+writeFixtureFile(path.join(proj, "a.txt"), "a\n")
 git(proj, "add", "-A")
 git(proj, "commit", "-q", "-m", "init")
-const settings = (extra = {}) => writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ ...BASE, ...extra }))
+const settings = (extra = {}) => writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ ...BASE, ...extra }))
 
 let fail = 0
 const cell = (name, ok, detail) => {
@@ -154,9 +155,9 @@ const own = rs({ fast: { ceiling: 3, clean_runs: 2 }, thresholds: { max_sources:
 cell("T92-11 the project's values override the methodology's one by one, the rest stays", own.fast?.ceiling === 3 && own.fast?.clean_runs === 2 && own.fast?.probes === 3 && own.thresholds?.max_sources === 5 && own.thresholds?.max_parts === 2 && own.full?.ceiling === 4, JSON.stringify(own))
 const schema = await import("../config-schema.ts")
 const k = schema.SCHEMA.find((s) => s.key === "route_defaults")
-cell("T92-11 route_defaults is in the schema with a question and a reason", !!k && !!k.question && !!k.why, JSON.stringify(k))
-cell("T92-11 the schema accepts the shape and refuses a wrong one", schema.invalid("route_defaults", { full: { ceiling: 5 }, fast: { clean_runs: 1, delivery_compressed: true, weakenings: [] }, thresholds: { max_sources: 4, max_parts: 2, max_risk: "medium" } }) === undefined && !!schema.invalid("route_defaults", { fast: { clean_runs: "x" } }) && !!schema.invalid("route_defaults", { speedy: {} }) && !!schema.invalid("route_defaults", { thresholds: { max_risk: "huge" } }) && !!schema.invalid("route_defaults", []), JSON.stringify(schema.invalid("route_defaults", { fast: { clean_runs: "x" } })))
-cell("T92-11 the schema lets a value under the minimum be written (it is refused at the choice of the route, test 3)", schema.invalid("route_defaults", { fast: { clean_runs: 0, probes: 2 } }) === undefined, String(schema.invalid("route_defaults", { fast: { clean_runs: 0, probes: 2 } })))
+const { INTERNAL_POLICY } = await import("../resolved-policy.ts")
+cell("T92-11 route defaults remain frozen code policy, not a public setting", !k && Object.isFrozen(INTERNAL_POLICY), JSON.stringify(k))
+cell("T92-11 public writes cannot change route defaults", !!schema.invalid("route_defaults", { fast: { clean_runs: 1 } }), String(schema.invalid("route_defaults", {})))
 cell("T92-11 the field names of the input are reserved against the extra fields of a project", ["route", "route_basis", "route_source", "route_proposal", "route_word", "route_word_date", "route_word_at", "clean_runs", "ceiling", "probes", "delivery_compressed", "sources_list"].every((f) => schema.RESERVED_FIELD_IDS.includes(f)), JSON.stringify(schema.RESERVED_FIELD_IDS))
 
 // ---- the tools ----
@@ -317,7 +318,7 @@ await wait(50)
 
 // ---- an old record read as is (test 14) ----
 const oldRec = { project: "proj", n: 880, title: "Старая запись", slug: "staraya", goal: "g", criteria: "c", priority: "P2", tier: "light", role: "worker", author: "sesINTEG1", author_role: "proj.integrator", qid: "qold", status: "running", kind: "spawn", executor: "sesOLD", executors: [], attempt: 1, directory: proj, history: [{ at: 1, by: "x", note: "поставлена" }], created: 1, updated: 1 }
-writeFileSync(path.join(store(), "880.json"), JSON.stringify(oldRec, null, 1))
+writeFixtureFile(path.join(store(), "880.json"), JSON.stringify(oldRec, null, 1))
 const showOld = await call("canopus_task", "sesINTEG1", { action: "show", n: 880 })
 const loaded = tasks.loadTask("proj", 880)
 cell("T92-17 (test 14) an old record is read without change: no route field appears, show works and does not call it fast", loaded && !("route" in loaded) && /Старая запись/.test(showOld) && !/быстр/.test(showOld), showOld)
@@ -335,7 +336,7 @@ const legacyMigration = {
   kept: [{ path: "evidence.txt", at: 4, by: "sesREVIEW" }], side: [{ branch: "evidence-branch", worktree: "evidence-tree", at: 5, by: "sesOLD" }],
   history: [{ at: 1, by: "sesOLD", status: "running", note: "legacy history" }], created: 1, updated: 1,
 }
-writeFileSync(path.join(store(), "881.json"), JSON.stringify(legacyMigration, null, 1))
+writeFixtureFile(path.join(store(), "881.json"), JSON.stringify(legacyMigration, null, 1))
 const migrationWord = "«заводи 881 на fast» (владелец, 2026-10-20, чат)"
 const migrate = (n, over = {}) => {
   const input = { action: "migrate", n, message: migrationBrief, source_id: "task-proj-881-3", source_session: "sesINTEG1", source_to: "sesLEGACY881", source_qid: "q881", route_word: migrationWord, route_word_date: "2026-10-20", ...over }
@@ -384,13 +385,13 @@ const editBrief = (t, fn) => {
   const tree = t.worktree && existsSync(path.join(t.worktree, ...t.folder.split("/"), "task", "message.md")) ? t.worktree : undefined
   if (tree) {
     const f = path.join(tree, ...t.folder.split("/"), "task", "message.md")
-    writeFileSync(f, fn(readFileSync(f, "utf8")))
+    writeFixtureFile(f, fn(readFileSync(f, "utf8")))
     return "tree"
   }
   const tmpTree = path.join(tmp, `edit-${t.n}`)
   git(proj, "worktree", "add", "-q", tmpTree, t.branch)
   const f = path.join(tmpTree, ...t.folder.split("/"), "task", "message.md")
-  writeFileSync(f, fn(readFileSync(f, "utf8")))
+  writeFixtureFile(f, fn(readFileSync(f, "utf8")))
   git(tmpTree, "commit", "-q", "-a", "-m", "edit the brief")
   git(proj, "worktree", "remove", "--force", tmpTree)
   return "branch"
@@ -600,7 +601,7 @@ const stuck264 = {
   reviewer: "sesREV882", review_kind: "spawn", review_letter: "review-proj-882-1", review_qid: "rq882", report: "отчёт исполнителя 882",
   history: [{ at: 1, by: "sesEX882", status: "submitted", note: "отчёт" }, { at: 2, by: "sesREV882", status: "reviewing", note: "приёмка начата" }], created: 1, updated: 1,
 }
-writeFileSync(path.join(store(), "882.json"), JSON.stringify(stuck264, null, 1))
+writeFixtureFile(path.join(store(), "882.json"), JSON.stringify(stuck264, null, 1))
 // активная сессия приёмки (spawn, running): она собирает и держит тестовый контур — смена маршрута не должна её прерывать
 core.saveCard({ session: "sesREV882", role: "worker", auto: false, title: "прм 882", directory: proj, repo: "proj", project: "proj", review: { project: "proj", n: 882 }, spawned: { by: "sesINTEG1", task: "приёмка 882", tier: "light", status: "running", at: Date.now(), qid: "rq882" }, pid: 1, updated: Date.now() })
 cell("T264-5 the old review lock of the stuck record is taken for the probe", reviewMod.takeMergeLock("proj", "sesREV882", 882, false).ok === true && reviewMod.mergeHolder("proj")?.session === "sesREV882", "")
@@ -624,7 +625,7 @@ delete noWord264.route_word
 delete noWord264.route_word_date
 delete noWord264.route_word_ts
 delete noWord264.route_word_ts_kind
-writeFileSync(path.join(store(), "883.json"), JSON.stringify(noWord264, null, 1))
+writeFixtureFile(path.join(store(), "883.json"), JSON.stringify(noWord264, null, 1))
 const rNoWord264 = await call("canopus_task", "sesINTEG1", { action: "route", n: 883, route: "small" })
 const s883 = tasks.loadTask("proj", 883)
 cell("T264-7 an already-small record without the owner's word: the repeat does not fill it in — refused, the record untouched (still reviewing)", /малый маршрут требует/.test(rNoWord264) && s883.status === "reviewing" && !s883.route_word && s883.history.length === 2, rNoWord264)

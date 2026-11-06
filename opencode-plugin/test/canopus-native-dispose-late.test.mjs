@@ -9,10 +9,10 @@ import path from "node:path"
 import { randomUUID } from "node:crypto"
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "canopus-dispose-late-"))
 process.env.XDG_DATA_HOME = process.env.XDG_STATE_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-process.env.CANOPUS_POLL_MS = "50"
-process.env.CANOPUS_STEP_MS = "100"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "50")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("STEP_MS", "100")
 const { createCanopusPlugin } = await import("../index.ts")
 const tasks = await import("../tasks.ts")
 const task = tasks.createTask({ project: "p", title: "late create", goal: "isolated", criteria: "no late I/O", priority: "P2", tier: "light", role: "worker", model: "fixture/haiku", author: "sesAUTHOR", author_role: "p.integrator", qid: "qLATE", status: "starting", kind: "spawn", directory: tmp })

@@ -1,20 +1,21 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the panel, the doctor, the hooks and the plugin around the control of the windows (task 157, node >= 24):  node test/canopus-branch-panel.test.mjs
 // /canopus and the side panel show "expected -> actual" of every controlled window (red at a drift, yellow for a change with a reason in
 // the last day); canopus_doctor names the drift; the hooks of OpenCode refuse a command through the permission check; and the plugin
 // itself puts one line into the system part of a turn of an integrator who stands in the folder of task 145.
 import { execFileSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { pathToFileURL } from "node:url"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-branch-panel-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-process.env.CANOPUS_PRESENCE = "all"
-process.env.CANOPUS_SETTINGS_TTL_MS = "1"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("SETTINGS_TTL_MS", "1")
 const plugin = process.env.CANOPUS_PLUGIN_DIR ? path.resolve(process.env.CANOPUS_PLUGIN_DIR) : path.join(import.meta.dirname, "..")
 let fail = 0
 let n = 0
@@ -41,9 +42,9 @@ const fw = (p) => p.replace(/\\/g, "/")
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
 const MAIN = path.join(tmp, "proj")
 mkdirSync(path.join(MAIN, ".opencode"), { recursive: true }); mkdirSync(path.join(MAIN, ".canopus", "plugin"), { recursive: true })
-writeFileSync(path.join(MAIN, ".canopus", "plugin", "config.json"), JSON.stringify({ project: "proj", allow_default_models: true }))
+writeFixtureFile(path.join(MAIN, ".canopus", "plugin", "config.json"), JSON.stringify({ project: "proj", allow_default_models: true }))
 git(MAIN, "init", "-q", "-b", "main")
-writeFileSync(path.join(MAIN, "a.txt"), "a\n")
+writeFixtureFile(path.join(MAIN, "a.txt"), "a\n")
 git(MAIN, "add", "-A")
 git(MAIN, "commit", "-q", "-m", "init")
 const T145 = path.join(tmp, "trees", "proj-145-orders")

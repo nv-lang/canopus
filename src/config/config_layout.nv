@@ -1,16 +1,12 @@
 // config_layout.nv - where the configuration and the data of the control panel lie, and how the layers of the settings are put together (task 192.12, ADR-0016).
 //
-// The root of an instance is `CANOPUS_HOME`: the argument `--home <folder>`, else the variable `CANOPUS_HOME`, else `<the home folder of the user>/.canopus`.
-// Inside the root the subfolders are fixed:
-//   root      what the user wrote: config.json, roles.json, presets/, modes/, secrets.json
-//   data/     what must not be lost: projects.json, sessions/<id>/ (the journal, the snapshot, acp.jsonl, inbox, images)
-//   state/    service files that can be deleted: stt.pid, last_dir.txt, the logs
-//   cache/    what can be made again: agents.json (the catalog of the families), agent-config/
-//   tools/    heavy installs (whisper); CANOPUS_TOOLS_DIR or the setting `voice.dir` move them
-// The folder `.canopus/` of a project has the same names: config.json (shared, in git), local.json (personal, absolute paths; ignored by git), modes/, presets/, roles.json.
-// The layers, lower ones are covered by upper ones: the defaults in the code -> `<home>/config.json` -> the server file (`serve <file>`, CANOPUS_SERVER_CONFIG)
-// -> `.canopus/config.json` of the project -> `.canopus/local.json` -> `<home>/secrets.json` -> the variables CANOPUS_* -> the arguments of the command line.
-// An old settings file with `data_dir` keeps working: the flat layout (sessions, projects.json, agents.json, stt.pid ... all in that folder), see `legacy_layout`.
+// The selected config file's parent is the instance root; default ~/.canopus/config.json.
+// Root resources: secrets.json, roles.json, presets/, modes/, prompts/; data/sessions holds durable records.
+// state/ contains process/log/diagnostic state, cache/ derived data, tools/ installed tools, backups/ safety copies.
+// File precedence: code defaults < selected global config < repository .canopus/config.json < personal .canopus/local.json.
+// secrets.json is adjacent to the selected global file and accepts only secret/infrastructure keys.
+// Runtime environment overrides, --home, --set, --file and positional server config are retired.
+// Pure legacy parse/layout helpers remain available to the explicit transition code, not as runtime fallback.
 //
 // This module holds `std` only: the front (Polaris), the hub (the PostgreSQL driver) and the commands of `canopus` all import it.
 module canopus.config
@@ -22,11 +18,11 @@ import std.os.{Os, env, home_dir, cwd}
 
 /// ConfigLayout: the folders of an instance. `legacy` - the folders come from an old `data_dir` (everything in one folder) and not from the root `home`.
 /// `sessions` is the folder with a folder per session; `data` holds projects.json; `project` is the `.canopus` folder of the project ("" - none).
-export type ConfigLayout { home str, config str, data str, sessions str, state str, cache str, tools str, project str, legacy bool }
+export type ConfigLayout { home str, config str, config_file str, data str, sessions str, state str, cache str, tools str, project str, legacy bool }
 
 /// The flat layout of an old `data_dir`: all five folders are that one (the stands that started before the layout keep their files where they are).
 export fn legacy_layout(dir str) -> ConfigLayout =>
-    { home: "", config: "", data: dir, sessions: dir, state: dir, cache: dir, tools: "", project: "", legacy: true }
+    { home: "", config: "", config_file: "", data: dir, sessions: dir, state: dir, cache: dir, tools: "", project: "", legacy: true }
 
 export fn ign(o Option[JsonValue]) -> () { }
 
@@ -42,14 +38,20 @@ fn trim_slash(p str) -> str {
 export fn layout_in(home str, project str) -> ConfigLayout {
     ro h = trim_slash(home)
     if h.byte_len() == 0 { return legacy_layout("") }
-    { home: h, config: h, data: "${h}/data", sessions: "${h}/data/sessions", state: "${h}/state", cache: "${h}/cache", tools: "${h}/tools", project, legacy: false }
+    { home: h, config: h, config_file: "${h}/config.json", data: "${h}/data", sessions: "${h}/data/sessions", state: "${h}/state", cache: "${h}/cache", tools: "${h}/tools", project, legacy: false }
+}
+
+/// The chosen global file may have any name; its parent remains the instance root.
+export fn layout_for_config(selection ConfigSelection, project str) -> ConfigLayout {
+    ro at = layout_in(selection.root, project)
+    { home: at.home, config: at.config, config_file: selection.file, data: at.data, sessions: at.sessions, state: at.state, cache: at.cache, tools: at.tools, project: at.project, legacy: at.legacy }
 }
 
 /// The layout when `data_dir` was named by the old settings: `data`, `sessions`, `state` and `cache` are that folder, `config` and `tools` stay under the root (when there is one).
 export fn layout_with_data_dir(home str, data_dir str, project str) -> ConfigLayout {
     ro h = trim_slash(home)
     ro d = trim_slash(data_dir)
-    { home: h, config: h, data: d, sessions: d, state: d, cache: d, tools: if h.byte_len() > 0 { "${h}/tools" } else { "" }, project, legacy: true }
+    { home: h, config: h, config_file: "${h}/config.json", data: d, sessions: d, state: d, cache: d, tools: if h.byte_len() > 0 { "${h}/tools" } else { "" }, project, legacy: true }
 }
 
 /// The root of the instance from the three sources, in the order of the rule: the argument, the variable, the folder of the user. "" - none of them is known.
@@ -67,22 +69,40 @@ fn cfg_env(key str) Os -> Option[str] {
     }
 }
 
-/// The root of the instance now: `arg_home` (the argument `--home`), else CANOPUS_HOME, else `~/.canopus`. Nothing is made on the disk.
+/// Default user instance root. arg_home is an explicit code dependency, never a public runtime flag.
 export fn canopus_home(arg_home str) Os -> str {
     ro user = match home_dir() {
         Some(p) => p.display()
         None => ""
     }
-    resolve_home(arg_home, cfg_env("CANOPUS_HOME") ?? "", user)
+    resolve_home(arg_home, "", user)
 }
 
-// ----- the command line: --home <folder>, --set key=value -----
+/// The chosen file and the root of its instance. Two files in one folder share the same root.
+export type ConfigSelection { file str, root str }
 
-/// CliArgs: the words of the command line after `--home` and `--set` are taken out of them. `sets` are the `key=value` words of `--set`; `error` is "" or why the line is wrong.
-export type CliArgs { home str, sets []str, rest []str, error str }
+/// Select a config without reading process overrides or touching the filesystem.
+/// Relative explicit files are based on the caller's cwd; the default stays under the user home.
+export fn select_config(config str, work str, user_home str) -> Result[ConfigSelection, str] {
+    if config.byte_len() == 0 && user_home.byte_len() == 0 { return Err("the user home is unknown; give --config <file>") }
+    ro raw = Path.from_bytes((if config.byte_len() > 0 { config } else { "${trim_slash(user_home)}/.canopus/config.json" }).bytes())
+    if !raw.is_absolute() && work.byte_len() == 0 { return Err("a relative --config needs a working directory") }
+    ro file = (if raw.is_absolute() { raw } else { Path.from_bytes(work.bytes()).join_path(raw) }).normalize()
+    ro parent = match file.parent() {
+        Some(p) => p
+        None => return Err("--config needs a file inside an instance folder")
+    }
+    Ok(ConfigSelection { file: slashes(file.display()), root: slashes(parent.display()) })
+}
 
-/// Take `--home <folder>` (or `--home=<folder>`) and `--set key=value` (or `--set=key=value`) out of the words (the first word, the name of the program, is kept in `rest`).
+// ----- the command line: --config <file>; old settings flags fail safely -----
+
+/// CliArgs retains the old internal shape; production parsing fills only config/rest/error.
+export type CliArgs { config str, home str, sets []str, rest []str, error str }
+
+/// Extract the sole configuration selector and preserve action arguments; never echo retired flag values.
 export fn split_cli_args(argv []str) -> CliArgs {
+    mut config = ""
     mut home = ""
     mut sets = []str.new()
     mut rest = []str.new()
@@ -92,20 +112,32 @@ export fn split_cli_args(argv []str) -> CliArgs {
         ro w = argv[i]
         if i == 0 {
             rest.push(w)
-        } else if w == "--home" {
-            if i + 1 < argv.len() { home = argv[i + 1]; i += 1 } else { error = "--home needs a folder" }
-        } else if w.starts_with("--home=") {
-            home = w[7..]
-        } else if w == "--set" {
-            if i + 1 < argv.len() { sets.push(argv[i + 1]); i += 1 } else { error = "--set needs key=value" }
-        } else if w.starts_with("--set=") {
-            sets.push(w[6..])
+        } else if w == "--config" {
+            if config.byte_len() > 0 { error = "--config must be given only once" }
+            if i + 1 >= argv.len() {
+                error = "--config needs a file"
+            } else if argv[i + 1].byte_len() == 0 || argv[i + 1].starts_with("--") {
+                error = "--config needs a file"
+            } else {
+                config = argv[i + 1]
+                i += 1
+            }
+        } else if w.starts_with("--config=") {
+            if config.byte_len() > 0 { error = "--config must be given only once" }
+            config = w[9..]
+            if config.byte_len() == 0 { error = "--config needs a file" }
+        } else if w == "--home" || w.starts_with("--home=") {
+            error = "--home is no longer supported; use --config <file>"
+        } else if w == "--set" || w.starts_with("--set=") {
+            error = "--set is no longer supported; edit the selected config file"
+        } else if w == "--file" || w.starts_with("--file=") {
+            error = "--file is no longer supported; use --config <file>"
         } else {
             rest.push(w)
         }
         i += 1
     }
-    { home, sets, rest, error }
+    { config, home, sets, rest, error }
 }
 
 // ----- the project folder -----
@@ -126,12 +158,19 @@ fn parent_of(p str) -> str {
 }
 
 /// The `.canopus` folder of the project that holds `start` (or a folder above it, up to 16 levels): the first one that is not the root of the instance. "" - none.
-export fn find_project_dir(start str, home str) Fs -> str {
+export fn find_project_dir(start str, home str) Os Fs -> str {
+    ro global = match home_dir() {
+        Some(p) => "${trim_slash(p.display())}/.canopus"
+        None => ""
+    }
     mut dir = trim_slash(start)
     mut level = 0
     while dir.byte_len() > 0 && level < 16 {
+        if dir == trim_slash(home) { return "" }
         ro candidate = if dir.ends_with("/") { "${dir}.canopus" } else { "${dir}/.canopus" }
-        if candidate != trim_slash(home) && is_dir(candidate) { return candidate }
+        // An instance boundary is never a project or a reason to inherit another user's ancestor config.
+        if candidate == trim_slash(home) || candidate == global { return "" }
+        if is_dir(candidate) { return candidate }
         ro up = parent_of(dir)
         if up == dir || up.byte_len() == 0 { return "" }
         dir = up
@@ -207,7 +246,7 @@ export fn read_layer(origin str, file str) Fs -> Result[Option[Layer], str] {
         Err(e) => return Err("${file}:${json_error_text(e)}")
     }
     match value.object() {
-        Some(o) => Ok(Some(Layer { origin, file, obj: normalize_layer(o), text: stripped }))
+        Some(o) => Ok(Some(Layer { origin, file, obj: o, text: stripped }))
         None => Err("${file}:1: the file must hold one JSON object")
     }
 }
@@ -396,6 +435,15 @@ export fn legacy_env_problem() Os -> str {
     out.join(", ")
 }
 
+/// Retired runtime inputs fail by name only; never quote a value or a secret.
+export fn retired_env_problem() Os -> str {
+    mut names = ["CANOPUS_HOME", "CANOPUS_SERVER_CONFIG", "CANOPUS_SERVER_AGENT", "CANOPUS_SERVER_HUB", "CANOPUS_PG_CONFIG", "CANOPUS_OPENCODE_KEEP_PLUGIN", "CANOPUS_PREPARATION_SERVICE_REGISTRATION", "CANOPUS_PREPARATION_MODEL", "CANOPUS_PREPARATION_VARIANT", "CANOPUS_PREPARATION_ADAPTER", "CANOPUS_GIT_LOG"]
+    for k in env_keys() { names.push(k.var) }
+    mut found = []str.new()
+    for name in names { if cfg_env(name).is_some() { found.push(name) } }
+    if found.len() == 0 { "" } else { "runtime environment settings are no longer supported: ${found.join(", ")}; use --config <file>" }
+}
+
 /// The layer of the words `key=value` of `--set`.
 export fn arg_layer(sets []str) -> Layer {
     mut o = JsonObject.new()
@@ -413,7 +461,7 @@ export fn arg_layer(sets []str) -> Layer {
 /// The files of the layers in order, for `canopus doctor`: (origin, file).
 export fn layer_files(layout ConfigLayout, server_file str) -> [](str, str) {
     mut out = [](str, str).new()
-    if layout.config.byte_len() > 0 { out.push(("user", "${layout.config}/config.json")) }
+    if layout.config.byte_len() > 0 { out.push(("user", layout.config_file)) }
     if server_file.byte_len() > 0 { out.push(("server", server_file)) }
     if layout.project.byte_len() > 0 {
         out.push(("project", "${layout.project}/config.json"))
@@ -428,7 +476,11 @@ export fn file_layers(layout ConfigLayout, server_file str) Fs -> Result[[]Layer
     mut out = []Layer.new()
     for (origin, file) in layer_files(layout, server_file) {
         match read_layer(origin, file)? {
-            Some(l) => out.push(l)
+            Some(l) => {
+                ro problems = validate_layer(l)
+                if problems.len() > 0 { return Err(problems.join("\n")) }
+                out.push(l)
+            }
             None => ()
         }
     }
@@ -437,10 +489,10 @@ export fn file_layers(layout ConfigLayout, server_file str) Fs -> Result[[]Layer
 
 /// All the layers over the code: the files, then the variables, then the arguments.
 export fn all_layers(layout ConfigLayout, server_file str, sets []str) Os Fs -> Result[[]Layer, str] {
-    mut layers = file_layers(layout, server_file)?
-    layers.push(env_layer())
-    layers.push(arg_layer(sets))
-    Ok(layers)
+    if server_file.byte_len() > 0 || sets.len() > 0 { return Err("runtime overrides are no longer supported; use --config <file>") }
+    ro problem = retired_env_problem()
+    if problem.byte_len() > 0 { return Err(problem) }
+    file_layers(layout, "")
 }
 
 /// The folders of the modes in order of priority: the project, the user ("" are left out).
@@ -468,4 +520,4 @@ export fn roles_files(layout ConfigLayout) -> []str {
 }
 
 /// The folder of the tools: CANOPUS_TOOLS_DIR, else the layout (`<home>/tools`); the setting `voice.dir` still moves the recognizer alone.
-export fn tools_dir_now(layout ConfigLayout) Os -> str => cfg_env("CANOPUS_TOOLS_DIR") ?? layout.tools
+export fn tools_dir_now(layout ConfigLayout) Os -> str => layout.tools

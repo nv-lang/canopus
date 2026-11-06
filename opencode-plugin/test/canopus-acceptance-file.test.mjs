@@ -1,22 +1,23 @@
+import { fixtureProjects, fixtureSetProjects, writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test (node >= 24):  node test/canopus-acceptance-file.test.mjs
 // acceptance_file: the acceptance steps come from a markdown table in a file of the project repository (read from the target
 // branch); both sources set -> doctor error and the file wins; file missing -> fallback to `acceptance` with a log warning;
 // no acceptance_file -> as before.
 import { execFileSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { pathToFileURL } from "node:url"
 
 const tmp = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), "canopus-acc-file-")))
 process.env.XDG_DATA_HOME = path.join(tmp, "data")
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 process.env.TEMP = process.env.TMP = process.env.TMPDIR = tmp // the plugin log lives in os.tmpdir(): a log of its own per run, not the one other parallel runs write (task 085)
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-process.env.CANOPUS_SETTINGS_TTL_MS = "1"
-process.env.CANOPUS_ACCEPTANCE_TTL_MS = "1"
-process.env.CANOPUS_PRESENCE = "all"
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("SETTINGS_TTL_MS", "1")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("ACCEPTANCE_TTL_MS", "1")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
 const plugin = process.env.CANOPUS_PLUGIN_DIR ? path.resolve(process.env.CANOPUS_PLUGIN_DIR) : path.join(import.meta.dirname, "..")
 const load = (f) => import(pathToFileURL(path.join(plugin, f)).href)
 const git = (cwd, ...a) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...a], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })
@@ -28,7 +29,7 @@ mkdirSync(path.join(work, "doc"), { recursive: true })
 git(cfgDir, "init", "-q", "-b", "main")
 git(work, "init", "-q", "-b", "main")
 const setSettings = (obj) => {
-  writeFileSync(path.join(cfgDir, ".canopus", "plugin", "config.json"), JSON.stringify({ project: "proj", root: "..", ...obj }, null, 2))
+  writeFixtureFile(path.join(cfgDir, ".canopus", "plugin", "config.json"), JSON.stringify({ project: "proj", root: "..", ...obj }, null, 2))
   git(cfgDir, "add", "-A")
   git(cfgDir, "commit", "-q", "--allow-empty", "-m", "s")
 }
@@ -43,7 +44,7 @@ const table = [
   "|  | строка без id |  да |",
   "| ci | повтор id | да |",
 ].join("\n")
-writeFileSync(path.join(work, "doc", "acceptance.md"), table)
+writeFixtureFile(path.join(work, "doc", "acceptance.md"), table)
 git(work, "add", "-A")
 git(work, "commit", "-q", "-m", "doc")
 
@@ -52,12 +53,12 @@ const settings = await load("settings.ts")
 let fail = 0
 const cell = (n, ok, d) => { console.log(`${ok ? "ok  " : "FAIL"} ${n}${ok ? "" : " :: " + d}`); if (!ok) fail++ }
 const ids = () => JSON.stringify(core.loadConfig(work).acceptance.map((a) => `${a.id}:${a.required ? 1 : 0}`))
-const problems = () => settings.settingsProblems(settings.parseProjects({ projects: [cfgDir] }))
+const problems = () => settings.settingsProblems(fixtureProjects(settings, { projects: [cfgDir] }))
 const logText = () => { try { return readFileSync(path.join(os.tmpdir(), "opencode-plugins.log"), "utf8") } catch { return "" } }
 const texts = [{ id: "old", text: "старый шаг" }]
 
 setSettings({ acceptance: texts })
-core.setProjects(settings.parseProjects({ projects: [cfgDir] }))
+fixtureSetProjects(core, fixtureProjects(settings, { projects: [cfgDir] }))
 cell("no acceptance_file: texts as before", ids() === '["old:1"]', ids())
 setSettings({ acceptance_file: "doc/acceptance.md" })
 cell("file: steps from the table, default required, dup and idless skipped", ids() === '["ci:1","docs:0","tests:1"]', ids())

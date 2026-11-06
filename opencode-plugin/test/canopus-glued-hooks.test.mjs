@@ -7,8 +7,8 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-glued-hooks-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_PRESENCE ??= "all"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
 const guard = await import("../glued-guard.ts")
 const { pieceOf, judge, isTextFile, registerGluedHooks, REFUSAL_WINDOW_MS } = guard
 

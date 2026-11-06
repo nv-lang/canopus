@@ -4,7 +4,7 @@
 // and the plugin gives it other tools and other habits (letters, tasks of a project): they are mixed up with the tools of the hub. The global configuration of the owner is not touched (the live
 // service uses it): the hub makes its own copy in `<data_dir>/agent-config/xdg/opencode/` without the plugin, and starts the agent with `XDG_CONFIG_HOME` on `<data_dir>/agent-config/xdg`.
 // The copy is made again at every start of such an agent, so it is never older than the original. The providers, the models, the other plugins, the rules and the agents stay. A secret in the files is
-// never read apart from being copied and never logged. `CANOPUS_OPENCODE_KEEP_PLUGIN=1` in the environment of the hub keeps the plugin (the copy is then not made).
+// never read apart from being copied and never logged. The internal `OPENCODE_KEEP_PLUGIN` policy keeps the plugin when enabled in code; its default is false.
 //
 // The part below is pure: it cuts the plugin out of the text of the configuration (JSONC with comments, or JSON) and does not parse it, so the comments and the layout stay.
 module canopus.agent_config
@@ -16,6 +16,9 @@ import canopus.storage.{replace_file}
 
 /// The mark of the plugin in a path or in a list of plugins: its folder, with the slashes of a path.
 export const CANOPUS_PLUGIN_MARK = "canopus/opencode-plugin"
+
+/// Internal launch policy; no environment or configuration override.
+export const OPENCODE_KEEP_PLUGIN = false
 
 // The index after the string that begins at `from` (a quote); the length of the text when it is not closed.
 fn str_end(bytes []u8, from int) -> int {
@@ -197,10 +200,14 @@ export fn opencode_config_source() Os -> str {
 }
 
 /// Make (again) the configuration of OpenCode for the agents of the hub and give the folder to put into `XDG_CONFIG_HOME`: `<data_dir>/agent-config/xdg`. "" - the copy is not made (no original, the folder cannot be written,
-/// or `CANOPUS_OPENCODE_KEEP_PLUGIN` is set): the agent then starts with the configuration of the owner as it is. `reason` of a failure is a word, never a text of the files.
+/// or the explicit internal keep-plugin policy is enabled): the agent then starts with the configuration of the owner as it is. `reason` of a failure is a word, never a text of the files.
 export fn opencode_home_prepare(data_dir str, source str) Fs Os -> Result[str, str] {
-    ro keep = env("CANOPUS_OPENCODE_KEEP_PLUGIN") ?? ""
-    if keep == "1" || keep == "true" { return Err("kept by CANOPUS_OPENCODE_KEEP_PLUGIN") }
+    opencode_home_prepare_with_policy(data_dir, source, OPENCODE_KEEP_PLUGIN)
+}
+
+/// Explicit code dependency for embedders and tests; never supplied by env or public config.
+export fn opencode_home_prepare_with_policy(data_dir str, source str, keep_plugin bool) Fs Os -> Result[str, str] {
+    if keep_plugin { return Err("kept by code policy") }
     if source.byte_len() == 0 { return Err("no original configuration") }
     ro xdg = "${data_dir.replace("\\", "/")}/agent-config/xdg"
     ro target = "${xdg}/opencode"

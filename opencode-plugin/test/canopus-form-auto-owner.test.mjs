@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of task 142: the automatic answer does not decide for the owner (node >= 24):  node test/canopus-form-auto-owner.test.mjs
 // Owner, 2026-10-21: "мне кажется, пока ты не работал, там могло произойти что-то нехорошее, надо проверить, что было сделано, оценить и если
 // работа была сделана неверно, исправить ее". The check of the orchestrator found that the automatic answer (answer_mode: recommendations)
@@ -10,16 +11,16 @@
 // delivery (owner-answer.ts), (4) the reason of the hold is shown (marker, counters, scripts/canopus-answer.mjs), (5) the README.
 // Red probe: the first run before the code (the rules of task 142 are missing in form-auto.ts).
 import { spawnSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-form-auto-owner-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 process.env.TEMP = process.env.TMP = process.env.TMPDIR = tmp
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
 const here = path.dirname(fileURLToPath(import.meta.url))
 
 let fail = 0
@@ -188,7 +189,7 @@ reset()
 put("frm_d1", "Для задачи 12 плагину требуется дословное слово «заводи 12». Подтверждаете?", "заводи 12", "Создать задачу.")
 put("frm_d2", "Какой формат отчёта выбрать?", "Короткий")
 mkdirSync(answersDir, { recursive: true })
-const pf = (id, form, option = "1") => writeFileSync(path.join(answersDir, `auto-${id}.json`), JSON.stringify({ id: `auto-${id}`, at: T0, source: "plugin", form, session: S, option, quote: "answer_mode: recommendations", mode: "recommendations", type: "default" }))
+const pf = (id, form, option = "1") => writeFixtureFile(path.join(answersDir, `auto-${id}.json`), JSON.stringify({ id: `auto-${id}`, at: T0, source: "plugin", form, session: S, option, quote: "answer_mode: recommendations", mode: "recommendations", type: "default" }))
 pf("frm_d1", "frm_d1")
 pf("frm_d2", "frm_d2")
 // the answer files exist already (made by an older judge): the tick only writes the markers "sent"
@@ -208,7 +209,7 @@ cell("delivery: an answer of the OWNER (no source) with the same words is delive
   calls.interrupt.length = calls.letter.length = calls.history.length = 0
   put("frm_o1", "Для задачи 12 плагину требуется дословное слово «заводи 12». Подтверждаете?", "заводи 12", "Создать задачу.")
   mkdirSync(answersDir, { recursive: true })
-  writeFileSync(path.join(answersDir, "o1.json"), JSON.stringify({ id: "o1", at: T0, form: "frm_o1", session: S, option: "1", quote: "заводи 12 (владелец, 2026-10-21)" }))
+  writeFixtureFile(path.join(answersDir, "o1.json"), JSON.stringify({ id: "o1", at: T0, form: "frm_o1", session: S, option: "1", quote: "заводи 12 (владелец, 2026-10-21)" }))
   await oa.answerTick(delivDeps(), T0 + 1_000, answersDir, formsDir)
   return core.readJson(path.join(answersDir, "o1.json"))?.status === "applied" && calls.interrupt.length === 1
 })(), "")
@@ -221,10 +222,10 @@ mkdirSync(cardsDir, { recursive: true })
 const baseForms = path.join(base, "forms")
 mkdirSync(path.join(baseForms, "auto"), { recursive: true })
 const NOW = Date.now()
-writeFileSync(path.join(cardsDir, "sesCA.json"), JSON.stringify({ session: "sesCA", project: "proj", role: "worker" }))
-writeFileSync(path.join(baseForms, "sesCA.json"), JSON.stringify([{ id: "frm_ca", at: NOW, born: NOW, title: "Questions", question: "Утверждаешь правило?", full: "Questions\nУтверждаешь правило?", options: ["Да (Recommended)", "Нет"], nq: 1, kind: "question", session: "sesCA" }]))
-writeFileSync(path.join(baseForms, "auto", "frm_ca.json"), JSON.stringify({ id: "frm_ca", session: "sesCA", project: "proj", type: "default", first: NOW, at: NOW, state: "held", reason: "closed", rule: "norms", why: "утверждение правил («утверждаешь»)" }))
-const run = spawnSync(process.execPath, [path.join(here, "..", "..", "scripts", "canopus-answer.mjs")], { env: { ...process.env, XDG_DATA_HOME: tmp , CANOPUS_HOME: path.join(tmp , "opencode")}, encoding: "utf8" })
+writeFixtureFile(path.join(cardsDir, "sesCA.json"), JSON.stringify({ session: "sesCA", project: "proj", role: "worker" }))
+writeFixtureFile(path.join(baseForms, "sesCA.json"), JSON.stringify([{ id: "frm_ca", at: NOW, born: NOW, title: "Questions", question: "Утверждаешь правило?", full: "Questions\nУтверждаешь правило?", options: ["Да (Recommended)", "Нет"], nq: 1, kind: "question", session: "sesCA" }]))
+writeFixtureFile(path.join(baseForms, "auto", "frm_ca.json"), JSON.stringify({ id: "frm_ca", session: "sesCA", project: "proj", type: "default", first: NOW, at: NOW, state: "held", reason: "closed", rule: "norms", why: "утверждение правил («утверждаешь»)" }))
+const run = spawnSync(process.execPath, [path.join(here, "..", "..", "scripts", "canopus-answer.mjs"), "--config", path.join(tmp, "opencode", "plugin", "config.json")], { env: { ...process.env, XDG_DATA_HOME: tmp }, encoding: "utf8" })
 cell("canopus-answer: the list of the open forms says «удержана для владельца» with the reason of the rule", /\[удержана для владельца: утверждение правил/.test(run.stdout), JSON.stringify([run.stdout, run.stderr]))
 
 // ---- the README ---------------------------------------------------------------------------------------------------------------------------

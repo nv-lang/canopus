@@ -1,28 +1,29 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test: the slot at acceptance (task 005, AC-02..AC-06; node >= 24):  node test/canopus-landing-slot.test.mjs
 // accepted_slot "free": an accepted, not cleaned up task does not count in inflight_limit (canopus_spawn and the steps of an auto
 // plan), it is counted by cleanup_limit instead ("waits for cleanup"), P0 passes both; the texts do not say that the accepted
 // tasks hold a place; the tab of the accepted task is still woken and reminded; "free" is the default since 2026-10-09, the explicit "hold" is as before.
 import { execFileSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-landing-slot-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_STATUS_MS = "100"
-process.env.CANOPUS_FLOW_MS = "200"
-process.env.CANOPUS_LEFT_MS = "3600000"
-process.env.CANOPUS_PLANSTEPS_MS = "200"
-process.env.CANOPUS_SETTINGS_TTL_MS = "1"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("STATUS_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FLOW_MS", "200")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("LEFT_MS", "3600000")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PLANSTEPS_MS", "200")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("SETTINGS_TTL_MS", "1")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
 mkdirSync(path.join(proj, "docs", "plans"), { recursive: true })
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
-const settings = (extra) => writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ allow_default_models: true, spawn_limits: { worker: 20, reviewer: 0 }, stall_minutes: 600, accepted_reminder_min: 0.01, ...extra }))
+const settings = (extra) => writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ allow_default_models: true, spawn_limits: { worker: 20, reviewer: 0 }, stall_minutes: 600, accepted_reminder_min: 0.01, ...extra }))
 settings({})
 const PLAN = [
   "# План 9 — демо", "", "**Статус:** 🟡 В РАБОТЕ", "**Источник:** задача 001", "**Зависимости:** —", "",
@@ -33,7 +34,7 @@ const PLAN = [
   "### Ф.3 — третья [P1]", "#### Ф.3.1 — шаг три [где: c.nv]", "Что: сделать три", "**Приёмка:**", "- ⬜ проверка три → зелёная",
   "## Не делаем", "лишнее", "## Открытые вопросы", "Открытых вопросов нет, проверено 2026-10-08", "## Решения владельца",
 ].join("\n")
-writeFileSync(path.join(proj, "docs", "plans", "9-demo.md"), PLAN)
+writeFixtureFile(path.join(proj, "docs", "plans", "9-demo.md"), PLAN)
 git(proj, "init", "-q", "-b", "main")
 git(proj, "add", "-A")
 git(proj, "commit", "-q", "-m", "init")
@@ -65,7 +66,7 @@ const ctx = {
 }
 const WPID = 919191
 mkdirSync(core.WINDOWS, { recursive: true })
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: [{ sessionID: "sesINTEG1", active: true, busy: false }] }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: [{ sessionID: "sesINTEG1", active: true, busy: false }] }))
 beat()
 const heart = setInterval(beat, 300)
 const stop = await mod.default.setup(ctx)

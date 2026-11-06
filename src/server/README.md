@@ -73,150 +73,47 @@ Polaris counts every open connection against `max_inflight` (16 by default): an 
 
 ## Run
 
-From a normal console window (**not** through `canopus_watch`: child processes of a window-less launch fail on Windows, task 100):
+Build the two current executables, then run `target/canopus.exe`. The ordinary launch starts the default instance. `canopus serve` is equivalent; `canopus --help` prints usage. `--config <file>` is the only configuration selector. For example:
 
 ```powershell
-. C:/work/nova/nova-oracle-0.1.0-windows-x86_64/setup-env.ps1
-cd C:/work/canopus
 nova build src/canopus_hub.nv -o target/canopus-hub.exe
 nova build src/canopus.nv -o target/canopus.exe
-copy src\server\server.example.json C:\work\canopus-server.json      # edit: port, data_dir, agents, store
-.\target\canopus.exe serve C:\work\canopus-server.json            # prints the address; Ctrl+C stops it
-# open http://127.0.0.1:8099/ , "New session", write
+.\target\canopus.exe --config C:/work/instances/demo/config.json
 ```
 
-`canopus` without `serve` prints the version and the usage and ends. The settings file is the argument or `CANOPUS_SERVER_CONFIG`;
-with neither the defaults apply (port 8099, files in `canopus-data`, the agent `opencode acp`, hub `target/canopus-hub.exe`).
-The hub alone (`target\canopus-hub.exe settings.json`) prints `ready` and then waits for lines; it is how the tests drive it.
-
-### Run on PostgreSQL with one command
-
-```powershell
-powershell -File src/server/run-pg.ps1          # from a console window, in the root of the repository; Ctrl+C stops the server
-```
-
-It starts (or finds) the permanent PostgreSQL in Docker (`src/pg/db.ps1 up`: the container `canopus-pg`, the volume with the data, the login
-`canopus_service`), says the two `nova build` commands above if `target/canopus-hub.exe` or `target/canopus.exe` is missing, writes
-`~/.canopus/config.json` once (`store: pg`, the `pg` block **without a password**; a file that exists is kept), puts the password
-from `~/.canopus/secrets.json` (outside the repository) into `CANOPUS_PG_PASSWORD` **of that process only** and runs `canopus serve`.
-The password is in no file of the repository, no line of the output and no command line. Docker not running: a message and exit code 1.
-`-ServerPort 8100` is another port of the page (`CANOPUS_SERVER_PORT`), `-Agent "node a.mjs --live"` another agent (`CANOPUS_SERVER_AGENT`),
-`-Config`, `-ServerConfig`, `-Port`, `-Database` name other files, the port of the database and another database. By hand it is
-`powershell -File src/pg/db.ps1 env -ShowPassword | Invoke-Expression`, then `.\target\canopus.exe serve src\server\server-pg.example.json`
-(the example file has the same keys as the written one). The sessions stay in the volume: they survive a restart of the server and `db.ps1 down` / `db.ps1 up`
-(`test/e2e.mjs --pg-docker` checks both).
+The selected file's parent owns `data/sessions`, `state`, `cache`, `tools`, `backups`, and `secrets.json`. The default file is `~/.canopus/config.json`. Runtime paths, hub executable and web resources are derived; they are not editable JSON keys. This release still has a hub implementation; removing it is outside task286.
 
 ## Settings
 
-A JSON file; every key is optional. The settings come in layers (see "Where things lie" below): the files, then the environment, then the arguments, key by key. Only test values are in the repository
-(`src/server/server.example.json`); a password lives in the environment or in a file outside the repository, and is in no log line
-and no error (`describe()` leaves it out).
+The complete public app schema is `port`, `store`, `agents`, `voice.language`, `voice.model`. `voice: false` disables voice. Values come from built-in defaults, selected global config, repository `.canopus/config.json`, then personal `.canopus/local.json`; later files override earlier ones. Objects merge; arrays replace. The instance folder cannot be discovered as a repository override.
 
-| Key | Environment | Default | Meaning |
-|---|---|---|---|
-| `port` | `CANOPUS_SERVER_PORT` | 8099 | the port on `127.0.0.1` (the server never listens on another address: no TLS yet) |
-| `data_dir` | `CANOPUS_SERVER_DATA_DIR` | with a root `<CANOPUS_HOME>/data/sessions`; without one `canopus-data` | the files of the file store, **and in both modes** the inbox files of the ACP client: a folder per session, see "Where the files of a session lie"; `projects.json` (the projects, task 192m) lies in it |
-| `store` | `CANOPUS_SERVER_STORE` | `files` | `files` (task 095) or `pg` (task 098) |
-| `pg` {`host`,`port`,`database`,`user`,`password`} | `CANOPUS_PG_HOST`, `_PORT`, `_DATABASE`, `_USER`, `_PASSWORD` | `127.0.0.1`, 5432, `canopus`, `canopus_app`, - | the PostgreSQL connection (local host only); the same keys as `src/pgconf` |
-| `agents` [{`id`,`label`,`program`,`args`}] | `CANOPUS_SERVER_AGENT` (one agent `opencode`, words separated by spaces) | `opencode.cmd acp` on Windows, `opencode acp` elsewhere | the agents the page can ask for by `id`; only `id` and `label` are exposed by the front at `/api/agents` |
-| `idle_term_seconds` | `CANOPUS_SERVER_IDLE_SECONDS` | 900 | the idle term of a turn: an agent silent that long ends the turn with `Timeout`. A request for permission waits for a human, so keep it long |
-| `workdir` | `CANOPUS_SERVER_WORKDIR` | the folder of the server | the folder the agents work in (`session/new` needs it) |
-| `web_dir` | `CANOPUS_SERVER_WEB_DIR` | `src/web` | the folder of the page |
-| `machines_dir` | `CANOPUS_SERVER_MACHINES_DIR` | `machines/product` beside the hub, else beside its folder | the folder of the machines of the product that the hub reads at its start (task 248, "Where the machine comes from" below) |
-| `acp_trace` | `CANOPUS_SERVER_ACP_TRACE` (`true`/`false`) | `true` | write the raw JSON-RPC exchange with the agent, both ways, to `<data_dir>/<session>/acp.jsonl` (`{"t": unix ms, "dir": "out"|"in", "line": "<the line as it is>"}`); over 50 MB the file becomes `acp.1.jsonl` in the same folder. **The file holds the full text of the talk and the output of the tools, nothing is cut out.** |
-| `ask_form` | `CANOPUS_SERVER_ASK_FORM` (`true`/`false`) | `true` | the agents may ask the owner a question with a choice (task 192i): the hub says at `initialize` that it shows forms and gives the agents that need it the MCP tool `ask_user_question`; `false` - nothing of it (an agent then cannot ask by a tool; Claude Code has no `AskUserQuestion` at all). See "Questions of the agent" |
-| `ask_timeout_seconds` | `CANOPUS_SERVER_ASK_TIMEOUT_SECONDS` | 1800 | how long a call of the MCP tool `ask_user_question` waits for the owner; then the agent gets "таймаут ожидания ответа" |
-| `agents[].ask` | - | `native` | how the agent asks: `native` (its own tool, over `elicitation/create`), `mcp` (the hub gives it the MCP tool and a note), `off` (nothing) |
-| `routes_dir` | `CANOPUS_SERVER_ROUTES_DIR` | - (by layers: `.canopus/modes`, `<CANOPUS_HOME>/config/modes`, `doc/routes`) | the folder of the files of the modes of work (relative to the working folder of the hub); read from the disk each time a step starts (task 192q, "The modes of work" below) |
-| `route_reviewer_order` | - | `["codex","claude","kimi","opencode"]` | the families (ids of `agents`) tried for the independent reviewer: the first that is not the agent of the session; else any other agent |
-| `route_task_limit`, `route_task_messages` | - | 12, 40 | over this many subtasks or messages in a task `route_state` says `suggest_new_task` (0 - off) |
-| `route_fix_attempts` | - | 2 | the tries of the agent to resolve a conflict (of a merge of a subtask, of the rebase before publishing) |
-| `context_drop_percent` | - | 40 | the fall of `used` between two `usage_update` of one session by more than this percent is taken for a compaction of the context of the agent (task 192.5); 0 - off |
-| `route_keep_days` | - | 30 | days without activity after which a session with a tree is marked stale (`task.stale`) and the page asks whether to delete the tree and the branch; 0 - no term; the hub deletes nothing by itself |
-| `route_worktree_ask`, `route_overlap_seconds` | - | `true`, 30 | a subtask marked parallel whose `Затрагивает:` files overlap with another running subtask asks the owner (`route_state.task.overlap`); after the seconds it takes a tree of its own |
-| `route_confirm_word`, `route_over_limit_word` | - | `задача`, `сверх` | task 192.2: the code words. An ordinary message that is just the word answers the last card of a single proposal of a task (and is not sent to the agent): "start" / "extend", at an overlap "wait", at the limit "queue"; the over-limit word starts the work over the limit |
-| `route_children` | - | `true` | a work taken "в работу" is a session of its own (child sessions, task 192.3); off - the old way, a subtask inside the session |
-| `route_wip` | - | `true` | a session with the switch "Worktree" on gets a tree on a detached head (no branch) at its first message (task 192.4); `false` - the sessions work as before: in the folder of the project until "В работу" |
-| `route_max_active` | - | 3 | the limit of the tasks in work at once in the whole hub (0 - none); over it the card asks for the over-limit word or puts the work in the queue; the queue starts by itself |
-| `route_tool` | - | `true` | the hub gives every agent that takes an HTTP MCP server the tools of the recognition of the tasks (`canopus_task_list`; `canopus_task` too with `route_auto_propose`) and the tools `canopus_*` of the plugin (task 250, "The tools `canopus_*` of the plugin in the product") |
-| `route_auto_propose` | - | `false` | `true` - the agent proposes a task by itself, one `canopus_task` and a card with the code word; `false` - in the mode interactive tasks appear only by the button "Распознать задачи" |
-| `voice` {`url`,`language`,`managed`,`dir`,`model`} (the old name `stt` is read too; STT = speech-to-text) | `CANOPUS_VOICE_URL`, `_LANGUAGE`, `_MANAGED`, `_DIR`, `_MODEL`, or the older `CANOPUS_SERVER_STT_URL`, `CANOPUS_SERVER_STT_LANGUAGE`, `CANOPUS_SERVER_STT_MANAGED`, `CANOPUS_SERVER_STT_DIR`, `CANOPUS_SERVER_STT_MODEL` | `http://127.0.0.1:8178/inference`, `auto`, `true`, see "The voice" in "Where things lie", `small` | the local speech recognizer (whisper.cpp `whisper-server`) that the front sends the voice to and, with `managed`, starts and ends itself (below); the address must be a plain `http://127.0.0.1:<port>/...` or `http://localhost:<port>/...` (the audio never leaves the machine); `language` is the default of `POST /api/stt`; `dir` holds `bin/whisper-server.exe` and `models/ggml-<model>.bin` |
-| `max_image_bytes` | `CANOPUS_SERVER_MAX_IMAGE_BYTES` | 10485760 (10 MB) | the largest picture of a message (1024 to 104857600); the front and the hub both refuse a larger one |
-| `hub` {`program`,`args`} | `CANOPUS_SERVER_HUB` (words separated by spaces) | `target/canopus-hub.exe` | how the front starts the hub |
-| `preset` | `CANOPUS_PRESET` | `default` | the active preset (roles and presets below); a session may choose its own |
-| `auto_extend_confidence` | - | `high` | the confidence of the agent at which an addition to an open task is applied at once (`high`, `medium`, `off`) |
-| `task_scope` | - | `session` | the tasks the agent may extend: those of the session and its relatives (no other value) |
-| `wip_timeout_seconds`, `agent_start_timeout_seconds` | - | 300, 60 | the wait for the work tree to be ready; the wait for the agent to start |
-| - | `CANOPUS_HOME`, `CANOPUS_TOOLS_DIR` | `~/.canopus`, `<home>/tools` | the root of the instance and the folder of the tools (above) |
-| - | `CANOPUS_SERVER_CONFIG` | - | the settings file, when no argument names it |
+```json
+{"port":8099,"store":"files","voice":{"language":"auto","model":"small"}}
+```
 
-The file store needs no database. For `store: pg` the easy way is the permanent database in Docker (`run-pg.ps1` above, [`src/pg/README.md`](../pg/README.md),
-"The permanent database in Docker"); by hand: start a database and migrate it (`psql -f src/pg/schema.sql` as the owner, a login that
-is a member of `canopus_app`). A server that restarts finds its sessions with `canopus.list_sessions()`. An example with `store: pg` and no password:
-`src/server/server-pg.example.json` (the password comes from `CANOPUS_PG_PASSWORD`).
+Agent launch definitions preserve their own arguments and environment. Authentication remains in the agent/provider's native storage. For `store: pg`, put `database_url` in the neighboring `secrets.json`; never in public config or a command line. Infrastructure PostgreSQL administration keeps its separate `postgres` secrets section. Configuration transition does not start Docker or change the chosen backend/database.
 
-## Where things lie: the root `CANOPUS_HOME`, the layers, the commands (task 192.12, [ADR-0016](../../doc/canon/decisions/ADR-0016-config-layout.md))
+`CANOPUS_HOME`, `CANOPUS_SERVER_*`, settings environment variables, positional JSON, `--home`, `--set`, and `--file` are retired and refused. There is no implicit `.env` layer. Named internal defaults in `policy_keys()` preserve the old policies and implementations for possible future public exposure. Internal session/task/watch context and OS/provider environment are separate protocols, not a settings layer.
 
-The root of an instance is **`CANOPUS_HOME`**: the argument `--home <folder>`, else the variable `CANOPUS_HOME`, else `<the home folder of the user>/.canopus` (on Windows `C:/Users/<name>/.canopus`). There is no portable mode.
-
-| Folder | What lies in it | Can it be deleted |
-|---|---|---|
-| root | what the user wrote: `config.json`, `roles.json`, `presets/<name>.json`, `modes/<mode>.md` (the modes of work and the tables of Alula of the user), `prompts/<name>.md`, `secrets.json` | no |
-| `data/` | what must not be lost: `projects.json`, `sessions/<id>/` (`journal`, `snapshot`, `acp.jsonl`, `inbox`, `images/`, the tasks outside a repository) | no |
-| `state/` | service files: `serve.*.log`, `stt.pid`, `last_dir.txt`, the backups and reports of `migrate` | yes |
-| `cache/` | made again: `agents.json` (the catalog of the families), `agent-config/` (the copy of the configuration of OpenCode without the plugin) | yes |
-| `tools/` | heavy installs: `whisper/` (the recognizer); `CANOPUS_TOOLS_DIR` or `voice.dir` move it | yes (installed again by `scripts/install-stt.ps1`) |
-
-The **folder of a project** in its repository, `.canopus/`, has the same names: `config.json` (shared, in git), `local.json` (personal, absolute paths; the repository ignores it: the line `.canopus/local.json` in `.gitignore`), `modes/`, `presets/`, `prompts/`, `roles.json`. The task folder is configured by `tasks_dir` (default `doc/tasks`). The hub finds the folder from its working folder upwards.
-
-**The layers** of the settings, the lower ones are covered by the upper ones:
-
-1. the defaults in the code;
-2. `<CANOPUS_HOME>/config.json`;
-3. **the server file** (`canopus serve <file>` or `CANOPUS_SERVER_CONFIG`; the old way keeps working; it is put AFTER the user's file and BEFORE the project's, so a project can still cover it);
-4. `.canopus/config.json` of the project;
-5. `.canopus/local.json`;
-6. `<CANOPUS_HOME>/secrets.json` (outside the repository, the rights for the owner only);
-7. the variables `CANOPUS_*` (`CANOPUS_SERVER_*` and `CANOPUS_STT_*` stay, `CANOPUS_VOICE_*` are synonyms; `CANOPUS_HOME`, `CANOPUS_TOOLS_DIR`, `CANOPUS_PRESET` are new);
-8. the arguments of the command line: `--home <folder>`, `--set key=value` (a dotted key, `--set voice.language=en`; `true`, `false` and whole numbers are typed).
-
-The **modes of work** (the tables of Alula, `modes`): `routes_dir` of the settings alone when it is set; else `.canopus/modes/`, `<CANOPUS_HOME>/modes/`, and last `doc/routes/` of the working folder of the hub (the texts of the product; Nova 0.1.0 cannot build a folder into the program, so the product still wants `doc/routes` beside the working folder unless the user puts the files into a layer). The code and the folder keep the name `routes`. **Roles and presets** (below) and **prompts** (below) use the same layers by name.
-
-**An old `data_dir`** (a settings file or `CANOPUS_SERVER_DATA_DIR`) keeps the flat layout in that folder: `sessions`, `projects.json`, `agents.json`, `stt.pid`, `last_dir.txt` and `agent-config/` all lie in it, as before; the stands that started earlier work without a change. The hub writes a line "the old layout" to its log. No root known (no `CANOPUS_HOME`, no home folder) and no `data_dir`: the old default `canopus-data` in the working folder.
-
-**The commands** of `canopus`:
-
-| Command | What it does |
-|---|---|
-| `config list [--show-origin]` | all keys with the values in force; with the origin each line is `key=value<TAB>origin[<TAB>file]`, the origin is `default`, `user`, `server`, `project`, `local`, `secret`, `env` or `arg` |
-| `config get <key> [--show-origin]` | one value (a string without quotes) |
-| `config set <key> <value> [--project\|--local]` | writes the key into `<home>/config.json` (or `.canopus/config.json`, or `local.json`), the other keys stay; a secret key, a list and an unknown key are refused |
-| `doctor` | the paths and whether they exist, the layer files checked against the schema (`file:line: reason`), the rights of `secrets.json`, the old places; the exit code is 1 when a problem is found |
-| `migrate [--from <data_dir>] [--dry-run]` | moves the old flat folder into `data/`, `state/`, `cache/`; the small files are copied to `state/migrate-backup-<stamp>/` first, the sessions are moved by a rename, nothing that is there is overwritten, the report is printed and kept in `state/migrate-report-<stamp>.txt`; **nothing moves without the command**, `--dry-run` only lists; stop the server first |
-
-`--file <settings.json>` names the server file for `config`, `doctor` and `migrate` (else `CANOPUS_SERVER_CONFIG`). A broken file of a layer stops the start with `file:line: reason`; the text of the file is never quoted. Unknown keys and a value of the wrong kind are reported by `doctor`.
-
-**Secrets** are not in `config.json`: only the environment (`CANOPUS_PG_PASSWORD`) or `<CANOPUS_HOME>/secrets.json` (the same keys as the settings: `{"pg":{"password":"..."}}`). A value of a secret key (a password, a token, a key) is never printed: `config list` shows `***`, `describe()` and the errors leave it out. `doctor` warns about a secret in a file that is not `secrets.json`.
-
-**The voice** (`voice`, was `stt`; STT is speech-to-text, the recognition of speech): the key `stt` is still read, `voice` is over it; the variables `CANOPUS_VOICE_URL`, `_LANGUAGE`, `_MANAGED`, `_DIR`, `_MODEL` are the synonyms of `CANOPUS_SERVER_STT_*` (the new name wins); the folder of the recognizer is `voice.dir`, else `CANOPUS_VOICE_DIR` / `CANOPUS_STT_DIR`, else an older install in `%LOCALAPPDATA%/canopus/stt` that is still there, else `CANOPUS_TOOLS_DIR/whisper`, else `<CANOPUS_HOME>/tools/whisper`.
+`canopus config list|get|set` exposes only the five fields; `canopus doctor` diagnoses files and computed paths without printing secrets. See the authoritative [configuration Canon](../../doc/canon/configuration.md) for exact instance and plugin semantics. The historical directory mover remains explicit (`scripts/migrate-canopus-layout.py`); new schema migration is explicit, reviewed and backed up.
 
 ### Roles and presets (task 192.12)
 
 A **role** is a place in the process, not a model (`src/config/roles.nv`): `dev` (the executor of a task), `dev_accept` (the acceptor, not the author), `plan`, `plan_accept`, `spec`, `spec_accept`, `delivery`, `delivery_accept` (the stages of the plugin of the owner in short form) and `integrator`. `roles.json` of a layer changes them field by field or adds new ones: `{"dev": {"title": "...", "rule": "...", "independent": false}}`; `independent: true` means the holder must not be the author. A **preset** is a named table `role -> {family, model, effort}` in `presets/<name>.json` (`{"description": "...", "roles": {"dev": {"family": "codex", "model": "...", "effort": "high"}, "dev_accept": {"family": "claude"}}}`); the project's file covers the user's file of the same name. The built-in preset `default`: `dev` and `dev_accept` are the first two families of `route_reviewer_order`. The sets and profiles of the plugin of the owner are not copied here.
 
-The active preset is the setting `preset` (user, project, `CANOPUS_PRESET`, or the choice of a session). A session chooses by the select under the field of a new session (`session_created` carries `preset`) or later by the message `session_preset {preset}` (the journal keeps it; the page gets the event `session_preset`; an unknown name is refused with a line to the owner; `""` returns to the preset of the settings). **The independent step** of a mode (`independent`) takes the family of the role `dev_accept` of the preset of the session; `route_reviewer_order` is the reserve when the preset has none, the family is the author, or it is not an agent of the settings. `GET /api/presets` gives `{"active", "presets":[{name, description, origin, roles}], "roles":[...]}` (a broken file adds `"error": "file:line: reason"` and leaves the built-in preset).
+The built-in active preset is `default`; a session may choose its own. A session chooses by the select under the field of a new session (`session_created` carries `preset`) or later by the message `session_preset {preset}` (the journal keeps it; the page gets the event `session_preset`; an unknown name is refused with a line to the owner; `""` returns to the preset of the settings). **The independent step** of a mode (`independent`) takes the family of the role `dev_accept` of the preset of the session; `route_reviewer_order` is the reserve when the preset has none, the family is the author, or it is not an agent of the settings. `GET /api/presets` gives `{"active", "presets":[{name, description, origin, roles}], "roles":[...]}` (a broken file adds `"error": "file:line: reason"` and leaves the built-in preset).
 
 ### The texts of the hub in files: `prompts/<name>.md` (task 192.12)
 
-The texts that the hub says to the agents are files by layers: `.canopus/prompts/<name>.md`, then `<CANOPUS_HOME>/config/prompts/<name>.md`, then the built-in text in the code (so the product works with no file). The hub reads the file at every use (a changed text acts at once). `{name}` is replaced by the value of that name; an unknown `{...}` stays as written. An empty file or a file that is not text is not used: the built-in text is, and a line goes to the log of the hub. The names (the values in braces): `tool_<tool>` (the description of a tool of the MCP server `canopus`: `tool_ask_user_question`, `tool_canopus_task`, `tool_canopus_task_list` and the other `tool_canopus_*`; the file holds the description only), `recognize_request` (the note "Распознать задачи"), `route_reminder` (`{route}`, `{step}`, `{place}`), `tasks_hint` (`{rows}`), `ask_hint` and `task_hint` (the notes about the tools), `ext_applied` (`{number}`, `{brief}`, `{shown}`), `ext_withdrawn` (`{brief}`, `{shown}`), `auto_extend`, `auto_extend_own`, `decision_new` / `decision_extend` (`{n}`, `{title}`, `{shown}`), `decision_queued` (`{n}`, `{title}`), `decision_no`.
+The texts that the hub says to the agents are files by layers: `.canopus/prompts/<name>.md`, then `<instance>/prompts/<name>.md`, then the built-in text in the code (so the product works with no file). The hub reads the file at every use (a changed text acts at once). `{name}` is replaced by the value of that name; an unknown `{...}` stays as written. An empty file or a file that is not text is not used: the built-in text is, and a line goes to the log of the hub. The names (the values in braces): `tool_<tool>` (the description of a tool of the MCP server `canopus`: `tool_ask_user_question`, `tool_canopus_task`, `tool_canopus_task_list` and the other `tool_canopus_*`; the file holds the description only), `recognize_request` (the note "Распознать задачи"), `route_reminder` (`{route}`, `{step}`, `{place}`), `tasks_hint` (`{rows}`), `ask_hint` and `task_hint` (the notes about the tools), `ext_applied` (`{number}`, `{brief}`, `{shown}`), `ext_withdrawn` (`{brief}`, `{shown}`), `auto_extend`, `auto_extend_own`, `decision_new` / `decision_extend` (`{n}`, `{title}`, `{shown}`), `decision_queued` (`{n}`, `{title}`), `decision_no`.
 
-### Thresholds in the settings (task 192.12)
+### Internal policy constants
 
-`auto_extend_confidence` (`high` by default; `medium` also applies an addition of medium confidence at once; `off` - every addition is a card), `task_scope` (`session`: the tasks of the session and its relatives; no other value without the word of the owner), `context_drop_percent`, `route_keep_days`, `route_max_active`, `route_confirm_word`, `route_over_limit_word`, `wip_timeout_seconds`, `agent_start_timeout_seconds` are keys of `config.json` of any layer with the defaults of the code; all are in `config list --show-origin`.
+Route thresholds, timeouts, confirmation words, trace policy and resource limits remain named built-in values in `policy_keys()`. They are absent from public JSON and configuration forms. Runtime behavior still uses the same consumers; future releases can explicitly reopen selected controls.
 
 ### The catalog of the families: `agents.json`, `/api/agent-catalog` (task 192o)
 
-The hub keeps, for every agent (family), the last lists of models, efforts and modes that the agent gave and its current values, in `<cache>/agents.json` (`<CANOPUS_HOME>/cache/agents.json`; in the flat layout `<data_dir>/agents.json`)
+The hub keeps, for every agent (family), the last lists of models, efforts and modes that the agent gave and its current values, in `<cache>/agents.json` (`<instance>/cache/agents.json`; in the flat layout `<data_dir>/agents.json`)
 (`{"agents":{"<id>":{"updated":<ms>,"model","model_id","models":[{id,name}],"effort","effort_name","efforts":[{id,name}],"mode","modes":[{id,name,description}]}}}`).
 Every `agent_model` of a session (the answer to `session/new`, `config_option_update`, `current_mode_update`) is merged into the record of the agent of that session
 (`catalog.nv`: a list the summary lacks stays the last one given; nothing changed - nothing is told or written). A changed record is told to every page at once as the event
@@ -235,10 +132,11 @@ The front turns a recording into text with a local recognizer (task 192f); nothi
 
 Whisper is a part of the control panel: the front starts it and ends it with itself. The files (whisper.cpp with CUDA, 685 MB, and the model `small`, 488 MB) are not in the repository (the public repository takes no file over 100 MB); `tools/stt/manifest.json` lists the addresses, sizes and SHA256.
 
-- **Install, one command:** `powershell -File scripts/install-stt.ps1` downloads the files of the manifest, checks the size and SHA256 (a mismatch stops it and the file is deleted), and unpacks them into the tool folder: `CANOPUS_STT_DIR`, else `%LOCALAPPDATA%/canopus/stt`. A second run downloads nothing when everything is in place. `-Model medium` installs the larger model (then set `stt.model` to `medium`); `-Check` only says whether everything is there.
+- **Install, one command:** `powershell -File scripts/install-stt.ps1` downloads the files of the manifest, checks the size and SHA256 (a mismatch stops it and the file is deleted), and unpacks them into the tool folder: `tools/whisper` beside the selected app config (`-Config <file>` selects an instance). A second run downloads nothing when everything is in place. `-Model medium` installs the larger model (then set `voice.model` to `medium`); `-Check` only says whether everything is there.
 - **Autostart:** with `stt.managed` (the default `true`) the front, at its start, (1) ends an orphan of ours left by a front that died (`<state>/stt.pid` names a live `whisper-server`); (2) if something already answers at `stt.url`, uses it and never touches or ends it; (3) else, if `stt.dir` holds `bin/whisper-server.exe` and `models/ggml-<model>.bin`, starts `whisper-server` hidden on `127.0.0.1` at the port of `stt.url` and waits up to 30 s for `GET /` to answer 200 (the status is `starting` meanwhile); (4) else the status says `not_installed` and the log names `scripts/install-stt.ps1`. The front never fails because of the recognizer.
 - **Autostop:** the recognizer is a child of the front in a Job Object (`Tree.Group`), so it ends with the front however the front ends (Ctrl+C, a kill, a crash). The pid file is the second line of defence: if a recognizer of ours is somehow left, the next start ends it and starts a new one.
-- **Variables:** `CANOPUS_STT_DIR` (the folder of the installer and the default of `stt.dir`), `CANOPUS_SERVER_STT_DIR`, `CANOPUS_SERVER_STT_MODEL`, `CANOPUS_SERVER_STT_URL`, `CANOPUS_SERVER_STT_MANAGED=false` (the recognizer is yours: nothing is started or ended), `CANOPUS_SERVER_STT_LANGUAGE`.
+- **Selection:** `voice.language` and `voice.model` in the selected app config; `voice: false` disables the managed recognizer. Tool paths and loopback endpoint are computed. No STT environment override.
+
 - **Check:** `curl http://127.0.0.1:<port>/api/stt/status` gives `"available":true`; `curl -X POST --data-binary @voice.wav -H "Content-Type: audio/wav" "http://127.0.0.1:<port>/api/stt?lang=en"` gives `{"text":"..."}`.
 - **By hand (emergency):** `scripts/start-stt.ps1` and `scripts/stop-stt.ps1` start and stop a recognizer on `127.0.0.1:8178` outside the front (the front then uses it as a foreign one).
 - Tests: `powershell -File scripts/tests/test-install-stt.ps1` (the installer), `nova test src/server/front/sttproc_test.nv` (the plan, the pid file, the orphan, the status).
@@ -353,7 +251,7 @@ its global configuration (`~/.config/opencode/opencode.jsonc` and `cli.json`, `X
 The global files of the owner are not touched (his live service uses them). At every start of an agent whose id or program is `opencode` the hub makes `<data_dir>/agent-config/xdg/opencode/` (`agent_config.nv`): the same files without the entries
 of the `plugins` that name `canopus/opencode-plugin` and without the property `canopusMcp` (the path to the MCP of the plugin in the settings of the claude-code provider); the providers, the models, the other plugins and the rules stay,
 the text is cut, not parsed, so the comments stay. The agent is started with `XDG_CONFIG_HOME=<data_dir>/agent-config/xdg` (over the variables of the project); the data of OpenCode (`XDG_DATA_HOME`, the sign-in) are shared as before.
-`CANOPUS_OPENCODE_KEEP_PLUGIN=1` in the environment of the hub keeps the configuration of the owner as it is. The names of the tools of the hub do not clash with the plugin's ones in the agent any more (the plugin has its own `canopus_task`, the tool of
+The named `OPENCODE_KEEP_PLUGIN` code constant is `false`; this policy is not selected through the environment. The internal explicit-policy function retains the alternate behaviour for tests and future schema changes. The names of the tools of the hub do not clash with the plugin's ones in the agent any more (the plugin has its own `canopus_task`, the tool of
 the integrator for the tasks of a project: `show`, `assign`, `submit`...; the `canopus_task` of the hub proposes one task to the owner).
 
 ### The tools `canopus_*` of the plugin in the product (task 250, ADR-0015)
@@ -431,7 +329,7 @@ The texts - the instruction for the agent and the steps with their prompts - are
 - **Signals of the page:** `session_route`, `route_run`, `route_skip {step}`, `route_stop`, `route_new_task`, `route_subtask_new`, `route_subtask_same`, `route_subtask_worktree {n}`, `route_subtask_done {n}`, `route_subtask_parallel {n,on}`, `route_subtask_choose {n,tree}`, `route_merge`, `route_tests_run`, `route_tree_drop {force}`, `route_diff`, `session_worktree {on}`. Signals of the journal: `route_set`, `route_task`, `route_step`, `route_note`, `route_review`.
 - **Ограниченный backend 271:** `ensure_client` выбирает только встроенный `preparation-agent.mjs`, без fallback на обычный ACP. Adapter использует stateless `/api/experimental/generate/text` существующего OpenCode 2.2.5, не создаёт OpenCode session/CLI, не предоставляет tools/MCP/shell и не передаёт native permissions. Ответ содержит только `reply` и необязательный `statement`. Модель не выбирает путь: statement пишется в `<data_dir>/<session>/tasks/draft/task/message.md`, история — в `tasks/draft/history.json`; карточки постановок по-прежнему сохраняются отдельно в `task/drafts/<slug>/task/message.md`. Это доверенный host с узкой файловой целью, не OS sandbox произвольного provider/драйвера.
 
-- **Источник транспорта/модели:** существующий `service.json` из `$XDG_STATE_HOME/opencode` либо `~/.local/state/opencode`; URL/password читаются только adapter в память, Basic auth отправляется только проверенному loopback, redirect запрещён. Служба не запускается автоматически. Модель берётся из сохранённого выбора назначенной семьи или её существующего `dev`-пресета в формате `provider/model`; неизвестный ref явно отклоняется. Для отдельной fixture registration разрешён `CANOPUS_PREPARATION_SERVICE_REGISTRATION`, а model/variant DI — только с этой явной ссылкой и без существующего выбора. `CANOPUS_PREPARATION_ADAPTER` необязательно задаёт расположение встроенного asset; иначе он ищется в исходниках и рядом с бинарником. Нужен Node с builtin fetch. Личные настройки не меняются.
+- **Источник транспорта/модели:** существующий `service.json` из `$XDG_STATE_HOME/opencode` либо `~/.local/state/opencode`; URL/password читаются только adapter в память, Basic auth отправляется только проверенному loopback, redirect запрещён. Служба не запускается автоматически. Модель берётся из сохранённого выбора назначенной семьи или её существующего `dev`-пресета в формате `provider/model`; неизвестный ref явно отклоняется. Прежние параметры подготовки сохранены как именованные `PREPARATION_*` константы кода; переменные окружения их не переопределяют. Изолированные тесты используют явную доверенную инъекцию, связанную с конкретной сессией. Встроенный adapter находится относительно установки — в исходниках или рядом с бинарником; модель и усилие берутся из существующего выбора и пресета. Нужен Node с builtin fetch. Личные настройки не меняются.
 
 - **Закрытая граница:** смена режима закрывает старый клиент, смена модели во время хода запрещена до его завершения/отмены, ограниченная сводка не перезаписывает общий каталог семьи. Широкий native mode и неизвестные ACP fs/terminal/tool methods не расширяют возможностей. При неизвестной регистрации/версии/модели отказ относится к конкретной генерации, не разрешает обычный ACP и не блокирует Интерактивный. Минимальный backend текстовый: картинки/embedded parts отклоняются явно.
 

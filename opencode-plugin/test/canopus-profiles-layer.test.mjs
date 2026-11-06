@@ -10,12 +10,12 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-profiles-layer-"))
 process.env.XDG_DATA_HOME = path.join(tmp, "data")
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 process.env.TEMP = process.env.TMP = process.env.TMPDIR = tmp // the plugin log lives in os.tmpdir(): a log of its own per run, not the one other parallel runs write (task 085)
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-process.env.CANOPUS_SETTINGS_TTL_MS = "600000" // a state read costs ~6 git processes: the cache is dropped by hand after every change
-process.env.CANOPUS_PRESENCE = "all"
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("SETTINGS_TTL_MS", "600000")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
 
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })
 const prof = (model, context, output, input) => ({ model, context, output, ...(input ? { input } : {}) })
@@ -34,7 +34,7 @@ const innerRoot = path.join(projRoot, "inner")
 const soloRoot = path.join(tmp, "solo")
 for (const d of [projRoot, innerRoot, soloRoot]) mkdirSync(d, { recursive: true })
 const mkSettings = (name, folder, obj) => {
-  const dir = path.join(tmp, folder)
+  const dir = name === "proj" ? projRoot : name === "inner" ? innerRoot : soloRoot
   mkdirSync(path.join(dir, ".opencode"), { recursive: true }); mkdirSync(path.join(dir, ".canopus", "plugin"), { recursive: true })
   git(dir, "init", "-q", "-b", "main")
   writeFileSync(path.join(dir, ".canopus", "plugin", "config.json"), JSON.stringify(obj, null, 2))
@@ -42,9 +42,9 @@ const mkSettings = (name, folder, obj) => {
   git(dir, "commit", "-q", "-m", "settings")
   return dir
 }
-const projSettings = mkSettings("proj", "proj-settings", { project: "proj", root: "../proj", model_profiles: FAM, profile_sets: SETS })
-const innerSettings = mkSettings("inner", "inner-settings", { project: "inner", root: "../proj/inner" })
-const soloSettings = mkSettings("solo", "solo-settings", { project: "solo", root: "../solo" })
+const projSettings = mkSettings("proj", "proj-settings", { model_profiles: FAM, profile_sets: SETS })
+const innerSettings = mkSettings("inner", "inner-settings", {})
+const soloSettings = mkSettings("solo", "solo-settings", {})
 const file = path.join(projSettings, ".canopus", "plugin", "config.json")
 const sha = (f) => createHash("sha256").update(readFileSync(f)).digest("hex")
 const commit = (msg) => {
@@ -63,7 +63,7 @@ const core = await import("../core.ts")
 const L = await import("../profile-layer.ts")
 const { writeSettings } = await import("../settings.ts")
 const P = await import("../profiles.ts")
-core.setProjects(core.parseProjects({ projects: [projSettings, innerSettings, soloSettings] }), {})
+core.setProjects(core.parseProjects({ project_settings: [projSettings, innerSettings, soloSettings] }), {})
 
 let fail = 0
 const cell = (name, ok, detail) => {
@@ -138,7 +138,7 @@ const before = readFileJson()
 const wr = L.writeDraft(s, draft)
 bump()
 const w = readFileJson()
-cell("the draft lands in the working copy: edit, deletion, unset, new set, name", wr.ok && w.model_profiles.claude.heavy.context === 500000 && !w.model_profiles.claude.light && !w.profile_sets["cross-kimi"].plan_accept && w.profile_sets.mine.develop.family === "kimi" && w.profile_set === "mine", JSON.stringify(wr))
+cell("the draft lands in the working copy: edit, deletion, unset, new set, name", wr.ok && w.model_profiles.claude.heavy.context === 500000 && !w.model_profiles.claude.light && !w.profile_sets["cross-kimi"].plan_accept && w.profile_sets.mine.develop.family === "kimi" && JSON.parse(readFileSync(path.join(projSettings, ".canopus/plugin/local.json"), "utf8")).profile_set === "mine", JSON.stringify(wr))
 cell("the other keys of the file are kept as they were", w.project === before.project && w.root === before.root, JSON.stringify([w.project, w.root]))
 cell("the plugin does not commit: git log did not grow, the file is modified", commits() === log0 && git(projSettings, "status", "--porcelain").includes(".canopus/plugin/config.json"), String(commits()))
 cell("no temporary file is left next to the file", !existsSync(`${file}.${process.pid}.tmp`), "tmp left")
@@ -152,24 +152,22 @@ const keep = readFileSync(file, "utf8")
 writeFileSync(file, "{ not json")
 cached = undefined // not bump(): the settings cache is dropped by rewriting the file, and a rewrite would repair it
 const bad = L.writeDraft(st(), L.draftOf(st()))
-cell("a working file that is not JSON is refused, not overwritten", bad.ok === false && /не JSON/.test(bad.error ?? "") && readFileSync(file, "utf8") === "{ not json", JSON.stringify(bad))
+cell("a working file that is not JSON is refused, not overwritten", bad.ok === false && /not JSON|не JSON/.test(bad.error ?? "") && readFileSync(file, "utf8") === "{ not json", JSON.stringify(bad))
 writeFileSync(file, keep)
 bump()
-// a key set by the "local" option of the plugin is stronger than the file: the write is refused, not silently useless
-core.setProjects(core.parseProjects({ projects: [projSettings, innerSettings, soloSettings] }), { proj: { profile_set: "default" } })
+// A stronger public catalog layer cannot be silently shadowed by an ineffective shared edit.
+const pluginConfig = await import("../plugin-config.ts")
+const globalFile = path.join(pluginConfig.pluginRoot(), "config.json")
+writeFileSync(globalFile, JSON.stringify({ local: { proj: { model_profiles: FAM } } }))
 cached = undefined
-const shadow = L.writeDraft(st(), L.draftOf(st()))
-core.setProjects(core.parseProjects({ projects: [projSettings, innerSettings, soloSettings] }), {})
+const shadowDraft = L.draftOf(st())
+L.dSetProfile(shadowDraft, "claude", "heavy", prof("x/y", 100, 20))
+const shadow = L.writeDraft(st(), shadowDraft)
+cell("stronger global catalog causes an explicit refusal of a shared edit", shadow.ok === false && /global local/.test(shadow.error ?? ""), JSON.stringify(shadow))
+writeFileSync(globalFile, "{}")
+rmSync(path.join(projSettings, ".canopus/plugin/local.json"), { force: true })
 cached = undefined
-cell("a key set by the local option of the plugin overrides the file: the write is refused with the reason", shadow.ok === false && /profile_set/.test(shadow.error ?? "") && /local/.test(shadow.error ?? ""), JSON.stringify(shadow))
-cell("an old-form project: nowhere to write", (() => {
-  core.setProjects(core.parseProjects({ projects: { oldform: path.join(tmp, "oldform") } }), {})
-  mkdirSync(path.join(tmp, "oldform"), { recursive: true })
-  const ps = L.profileState(path.join(tmp, "oldform"))
-  const r = L.writeDraft(ps, L.draftOf(ps))
-  core.setProjects(core.parseProjects({ projects: [projSettings, innerSettings, soloSettings] }), {})
-  return r.ok === false && /писать некуда/.test(r.error ?? "")
-})(), "saved")
+cell("retired project map is rejected", (() => { try { core.parseProjects({ projects: { oldform: path.join(tmp,"oldform") } }); return false } catch { return true } })(), "accepted")
 writeFileJson({ ...readFileJson(), profile_set: undefined })
 commit("back to no name")
 

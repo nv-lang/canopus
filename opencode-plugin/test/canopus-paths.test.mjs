@@ -1,10 +1,11 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the mailbox name (plan 005; node >= 24):  node test/canopus-paths.test.mjs
 // The mailbox is <OpenCode data>/canopus. Earlier names (the previous product name until task 284, 2026-11-02;
 // opencode-peers until plan 005; nova-peers until 2026-10-05) are NOT aliased and NOT junction-linked: an
 // existing earlier mailbox blocks the plugin with a clear refusal until the one-shot explicit migrateBase()
 // (switch manifest of task 284, service stopped) moves it to the new name; rollbackBase() puts it back by the
 // receipt.
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
@@ -21,7 +22,7 @@ const OLD3 = "nova-peers"
 
 // a fresh install: the new name, no old names made
 process.env.XDG_DATA_HOME = tmp // изоляция от ящика машины до импорта модуля: BASE считается при импорте
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 const fresh = path.join(tmp, "fresh")
 mkdirSync(fresh)
 const { canopusBase, migrateBase, rollbackBase } = await import("../paths.ts")
@@ -32,7 +33,7 @@ cell("a new install: nothing to migrate", migrateBase(fresh) === undefined, "rec
 // appears, migrateBase moves it whole and reports a receipt, the data is intact at the new name
 const root = path.join(tmp, "opencode")
 mkdirSync(path.join(root, OLD, "tasks", "nova"), { recursive: true })
-writeFileSync(path.join(root, OLD, "tasks", "nova", "1.json"), '{"n":1}')
+writeFixtureFile(path.join(root, OLD, "tasks", "nova", "1.json"), '{"n":1}')
 const neu = path.join(root, "canopus")
 let refused = ""
 try {
@@ -59,7 +60,7 @@ cell("rollback again: nothing to do", rollbackBase(root) === undefined, "second 
 // an even older name (nova-peers, possibly via opencode-peers) is recognized the same way
 const r2 = path.join(tmp, "r2")
 mkdirSync(path.join(r2, OLD3), { recursive: true })
-writeFileSync(path.join(r2, OLD3, "x.json"), "{}")
+writeFixtureFile(path.join(r2, OLD3, "x.json"), "{}")
 let refused2 = ""
 try {
   canopusBase(r2)
@@ -73,7 +74,7 @@ cell(`migrate from ${OLD3} works`, receipt2?.to === path.join(r2, "canopus") && 
 // the live state of the owner's machine: the real data in the oldest name, the newer names junction-links to it
 const r4 = path.join(tmp, "r4")
 mkdirSync(path.join(r4, OLD3, "tasks"), { recursive: true })
-writeFileSync(path.join(r4, OLD3, "tasks", "1.json"), '{"n":1}')
+writeFixtureFile(path.join(r4, OLD3, "tasks", "1.json"), '{"n":1}')
 symlinkSync(path.join(r4, OLD3), path.join(r4, OLD2), "junction")
 symlinkSync(path.join(r4, OLD3), path.join(r4, OLD), "junction")
 let refused4 = ""

@@ -1,21 +1,22 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of picking up after a restart (plan 002, Ph.4; node >= 24):  node test/canopus-restart.test.mjs
 // The previous OpenCode process died between writing a task's status and the next step. On disk: a task whose
 // session was never created, a submitted task whose tab reviewer got neither its mark nor its letter, a task sent to
 // rework without the letter to the executor, a cleaned-up task without its summaries, a review session recorded but not
 // created. A new plugin finishes each step exactly once; a second restart adds nothing.
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-restart-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ spawn_limits: { reviewer: 2 } }))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ spawn_limits: { reviewer: 2 } }))
 
 const titles = new Map()
 let goneTries = 0 // updates of a session that no longer exists in OpenCode
@@ -61,7 +62,7 @@ base(7, { status: "done", executor: "sesGONE7", reviewer: "sesREVTAB", review_ki
 const WPID = 919191
 mkdirSync(core.WINDOWS, { recursive: true })
 const tabs = ["sesINTEG1", "sesREVTAB", "sesREV3"].map((sessionID) => ({ sessionID, active: false, busy: false }))
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs }))
 beat()
 const heart = setInterval(beat, 300)
 

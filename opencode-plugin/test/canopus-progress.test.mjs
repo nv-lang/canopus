@@ -1,10 +1,11 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the progress panel (task 004; node >= 24):  node test/canopus-progress.test.mjs
 // The journal `progress.log` of the background sessions: line and time forms, keywords, sessions, states, the choice of a copy per
 // session, the scan of working trees, the cache and its budget, the texts of the panel and of /canopus-progress. All data are
 // made up and created here in a temp folder with real git trees; nothing of the owner's settings, mailbox or service is touched.
 // Cells are named from the acceptance scenario (AC-07 ...), so the plan's DoD finds them by number.
 import cp from "node:child_process"
-import { closeSync, ftruncateSync, mkdirSync, mkdtempSync, openSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync, writeSync } from "node:fs"
+import { closeSync, ftruncateSync, mkdirSync, mkdtempSync, openSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeSync } from "node:fs"
 import { syncBuiltinESMExports } from "node:module"
 import os from "node:os"
 import path from "node:path"
@@ -20,7 +21,7 @@ syncBuiltinESMExports()
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-progress-"))
 process.env.XDG_DATA_HOME = path.join(tmp, "xdg-data")
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 process.env.XDG_CONFIG_HOME = path.join(tmp, "xdg-config")
 process.env.XDG_STATE_HOME = path.join(tmp, "xdg-state")
 const P = await import("../progress.ts")
@@ -461,21 +462,21 @@ const S = await import("../progress-scan.ts")
 const SCAN_SRC = readFileSync(new URL("../progress-scan.ts", import.meta.url), "utf8")
 const PROG_SRC = readFileSync(new URL("../progress.ts", import.meta.url), "utf8")
 const gitConfig = path.join(tmp, "gitconfig")
-writeFileSync(gitConfig, "[user]\n\tname = Test\n\temail = test@example.com\n[commit]\n\tgpgsign = false\n[core]\n\tautocrlf = false\n[init]\n\tdefaultBranch = main\n")
+writeFixtureFile(gitConfig, "[user]\n\tname = Test\n\temail = test@example.com\n[commit]\n\tgpgsign = false\n[core]\n\tautocrlf = false\n[init]\n\tdefaultBranch = main\n")
 const genv = { ...process.env, GIT_CONFIG_GLOBAL: gitConfig, GIT_CONFIG_NOSYSTEM: "1", GIT_TERMINAL_PROMPT: "0" }
 const git = (cwd, ...a) => cp.execFileSync("git", a, { cwd, env: genv, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })
 const jfile = (root, folder) => path.join(root, "doc", "tasks", folder, "progress.log")
 const jwrite = (root, folder, lines, mtimeMs) => {
   const f = jfile(root, folder)
   mkdirSync(path.dirname(f), { recursive: true })
-  writeFileSync(f, lines.length ? lines.join("\n") + "\n" : "")
+  writeFixtureFile(f, lines.length ? lines.join("\n") + "\n" : "")
   if (mtimeMs) utimesSync(f, mtimeMs / 1000, mtimeMs / 1000)
   return f
 }
 const mwrite = (root, folder, title) => {
   const f = path.join(root, "doc", "tasks", folder, "task", "message.md")
   mkdirSync(path.dirname(f), { recursive: true })
-  writeFileSync(f, `# Задание: ${title}\n\nТекст задания.\n`)
+  writeFixtureFile(f, `# Задание: ${title}\n\nТекст задания.\n`)
 }
 let repoNo = 0
 // a throwaway repository with one commit; trees are added by the test
@@ -488,7 +489,7 @@ const makeRepo = (tasks = {}) => {
     mwrite(main, folder, t.title)
     jwrite(main, folder, t.lines ?? ["С1 0/1 старт", "С1 1/1 готово"])
   }
-  if (!Object.keys(tasks).length) writeFileSync(path.join(main, "README.md"), "demo\n")
+  if (!Object.keys(tasks).length) writeFixtureFile(path.join(main, "README.md"), "demo\n")
   git(main, "add", "--", ".")
   git(main, "commit", "-q", "-m", "init")
   return { base, main }
@@ -529,8 +530,8 @@ const sec = (h, m) => at(h, m) // seconds-exact times, so the order of files is 
   const treeGit = path.join(tree, ".git")
   const entry = path.join(repo.main, ".git", "worktrees", "task-x")
   overwrite(treeGit, `gitdir: ${path.relative(tree, entry).split(path.sep).join("/")}\n`)
-  writeFileSync(path.join(entry, "gitdir"), `${path.relative(entry, treeGit).split(path.sep).join("/")}\n`)
-  writeFileSync(path.join(entry, "commondir"), "../..\n")
+  writeFixtureFile(path.join(entry, "gitdir"), `${path.relative(entry, treeGit).split(path.sep).join("/")}\n`)
+  writeFixtureFile(path.join(entry, "commondir"), "../..\n")
   const rel = S.createScanner().scanAll(tree, NOW)
   const relMain = S.createScanner().scanAll(repo.main, NOW)
   cell("AC-06 relative gitdir and commondir are resolved from the folder of the file", real(rel.repo) === real(r.repo) && rel.trees.length === 2 && relMain.trees.length === 2 && real(S.findRepoRoot(tree)?.commonGit) === real(S.findRepoRoot(repo.main)?.commonGit), show({ repo: rel.repo, t: rel.trees.length, tm: relMain.trees.length }))
@@ -653,11 +654,11 @@ const sec = (h, m) => at(h, m) // seconds-exact times, so the order of files is 
   const w3 = sc.scan(repo.main, t0 + 2 * S.WALK_MS)
   cell("AC-11 a walk with nothing changed parses nothing", sc.stats.parses === 8 && sc.stats.lastParsed.length === 0 && w3.tasks.length === 8, show({ p: sc.stats.parses }))
   const f4 = jfile(repo.main, "004-job")
-  writeFileSync(f4, "С5 0/3 старт\nС5 1/3 а\nС5 2/3 б\n")
+  writeFixtureFile(f4, "С5 0/3 старт\nС5 1/3 а\nС5 2/3 б\n")
   utimesSync(f4, sec(11, 0) / 1000, sec(11, 0) / 1000)
   const w4 = sc.scan(repo.main, t0 + 3 * S.WALK_MS)
   cell("AC-11 one changed journal is parsed again (pair time + size), the others are not", sc.stats.parses === 9 && w4.tasks.find((t) => t.folder === "004-job").copies[0].lines.length === 3, show({ p: sc.stats.parses }))
-  writeFileSync(f4, "С5 0/3 старт\nС5 1/3 а\nС5 2/3 б\nС5 3/3 в\n")
+  writeFixtureFile(f4, "С5 0/3 старт\nС5 1/3 а\nС5 2/3 б\nС5 3/3 в\n")
   utimesSync(f4, sec(11, 0) / 1000, sec(11, 0) / 1000) // same time, another size
   const w5 = sc.scan(repo.main, t0 + 4 * S.WALK_MS)
   cell("AC-11 the size alone makes a file change visible (time unchanged)", w5.tasks.find((t) => t.folder === "004-job").copies[0].lines.length === 4, show({ p: sc.stats.parses }))
@@ -974,7 +975,7 @@ procs.n = 0 // the fixtures are built, from here every started process is counte
   let seen = 0
   for (let run = 0; run < 5; run++) {
     const f = heavyFiles[run]
-    writeFileSync(f, readFileSync(f, "utf8") + `С5 14/14 [11:5${run}] пересборка ${run}\n`)
+    writeFixtureFile(f, readFileSync(f, "utf8") + `С5 14/14 [11:5${run}] пересборка ${run}\n`)
     utimesSync(f, (HNOW + 1000 * run) / 1000, (HNOW + 1000 * run) / 1000)
     // a block of the loop longer than the limit repeats in every try if it is the code's; a pause of the machine does not (up to TRIES tries per run)
     let top = Infinity
@@ -1020,7 +1021,7 @@ procs.n = 0 // the fixtures are built, from here every started process is counte
   const kRow = (rows) => rows.find((x) => x.text.includes("С5 реализация"))?.text
   const seenAt = []
   V.progressPanel(repo.main, t0)
-  writeFileSync(f, "С5 0/3 старт\nС5 1/3 [11:00] а\nС5 2/3 [11:02] б\n")
+  writeFixtureFile(f, "С5 0/3 старт\nС5 1/3 [11:00] а\nС5 2/3 [11:02] б\n")
   utimesSync(f, (t0 + 500) / 1000, (t0 + 500) / 1000)
   for (const dt of [2_000, 4_000, 6_000, 8_000, 10_000]) seenAt.push([dt, kRow(V.progressPanel(repo.main, t0 + dt)) ?? ""])
   const first = seenAt.find(([, text]) => text.includes("2/3"))
@@ -1034,11 +1035,11 @@ procs.n = 0 // the fixtures are built, from here every started process is counte
   procs.n = 0 // the throwaway repository is built
   const row4 = (now) => V.progressPanel(repo.main, now).map((r) => r.text)[4]
   const base = row4(sec(12, 0))
-  process.env.CANOPUS_PROGRESS_STALE_MS = String(20 * 60_000)
+  ;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PROGRESS_STALE_MS", String(20 * 60_000))
   const lifted = row4(sec(12, 5))
-  process.env.CANOPUS_PROGRESS_STALE_MS = "abc"
+  ;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PROGRESS_STALE_MS", "abc")
   const bad = row4(sec(12, 10))
-  delete process.env.CANOPUS_PROGRESS_STALE_MS
+  ;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PROGRESS_STALE_MS")
   cell("AC-25 the window's entry takes the thresholds from the environment (11 min is silence by default, not with 20 min; a non-number is the default)", base === "    ⚠ нет вестей 11м" && lifted === "    идёт 11:49 · 16м назад" && bad === "    ⚠ нет вестей 21м", show({ base, lifted, bad }))
   cell("AC-25 the processes started by all the window's entries in this test stay 0", procs.n === 0, show(procs))
 }
@@ -1124,7 +1125,7 @@ procs.n = 0 // the fixtures are built, from here every started process is counte
   utimesSync(path.join(repo.main, ".git", "logs", "HEAD"), sec(9, 0) / 1000, sec(9, 0) / 1000)
   const session = "ses_progress_demo"
   mkdirSync(path.dirname(Core.cardFile(session)), { recursive: true })
-  writeFileSync(Core.cardFile(session), JSON.stringify({ session, directory: repo.main }))
+  writeFixtureFile(Core.cardFile(session), JSON.stringify({ session, directory: repo.main }))
   procs.n = 0
   const out = {}
   const stop = Tui.default.setup(mkApi(session, out))
@@ -1156,7 +1157,7 @@ procs.n = 0 // the fixtures are built, from here every started process is counte
   const copy = path.join(tmp, "plugin-copy")
   mkdirSync(copy, { recursive: true })
   for (const f of readdirSync(pluginDir)) if (f.endsWith(".ts") || f === "package.json") copyFileSync(path.join(pluginDir, f), path.join(copy, f))
-  writeFileSync(path.join(copy, "progress-view.ts"), "export const broken = ;\n")
+  writeFixtureFile(path.join(copy, "progress-view.ts"), "export const broken = ;\n")
   const Bad = await import(pathToFileURL(path.join(copy, "tui.ts")).href)
   const out3 = {}
   const stop3 = Bad.default.setup(mkApi(session, out3))

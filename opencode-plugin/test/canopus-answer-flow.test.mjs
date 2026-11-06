@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the whole flow of the question-answering modes in the running plugin (task 007; node >= 24):
 //   node test/canopus-answer-flow.test.mjs
 // The heaviest of the answer tests: the real plugin (index.ts) over a real sqlite database of turns, a fake OpenCode host and one
@@ -5,7 +6,7 @@
 // notices: the question is closed by its recommendation (a letter, a record "дан", no notice "ждёт вас"), or it stays with the owner
 // (one notice with the rest). The cells of the tab of the owner are here; the cells of the task sessions join in the next step.
 // Run alone, last. The code comes from CANOPUS_PLUGIN_DIR (a copy with stubs) or from the folder above.
-import { readFileSync, readdirSync, writeFileSync } from "node:fs"
+import { readFileSync, readdirSync } from "node:fs"
 import path from "node:path"
 import { harness, load, reporter } from "./answer-harness.mjs"
 
@@ -149,14 +150,14 @@ const PACK3 = [block({ n: "01", q: "Первый вопрос?", type: "implemen
     const f = path.join(A.ANSWERS, `${rest.id}.json`)
     const j = JSON.parse(readFileSync(f, "utf8"))
     j.remindedAt = Date.now() - 2 * 60_000 // two minutes ago: the repeat is due (owner_reminder_min is 1)
-    writeFileSync(f, JSON.stringify(j))
+    writeFixtureFile(f, JSON.stringify(j))
     await H.until(() => noticesOf(sid).length >= 2, 60_000)
     const repeated = noticesOf(sid).length
     H.ownerSays(sid, "отвечаю сам", Date.now())
     await H.until(() => recsOf(sid, "r")[0]?.state === "снято: владелец написал", 60_000) // the lift is awaited; the pause below is for "no new notice"
     const lifted = recsOf(sid, "r")[0]
     const afterLift = noticesOf(sid).length
-    writeFileSync(f, JSON.stringify({ ...JSON.parse(readFileSync(f, "utf8")), remindedAt: Date.now() - 2 * 60_000 }))
+    writeFixtureFile(f, JSON.stringify({ ...JSON.parse(readFileSync(f, "utf8")), remindedAt: Date.now() - 2 * 60_000 }))
     await H.wait(1200)
     cell("AC-30 б", first.length === 1 && /В-02/.test(first[0].message) && /В-03/.test(first[0].message) && /ждёт вас$/.test(first[0].title) && repeated === 2 && lifted?.state === "снято: владелец написал" && noticesOf(sid).length === afterLift, JSON.stringify([first.length, repeated, lifted?.state, afterLift, noticesOf(sid).length]))
   }

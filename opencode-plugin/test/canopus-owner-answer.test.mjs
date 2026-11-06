@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the owner answer to a question form from outside the window, tasks 059 and 263 (node >= 24):  node test/canopus-owner-answer.test.mjs
 // Task 263: the answer file (scripts/canopus-answer.mjs) settles the waiting `question` call by the service reply
 // (POST /api/session/{sid}/form/{fid}/reply, form-reply.ts) - no interrupt, no detour letter, the model gets the answer
@@ -7,7 +8,7 @@
 // an "applying" record is finished after a restart by the same reply; a multi-question form is refused to the window;
 // the pure resolveAnswer.
 import { createServer } from "node:http"
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { allowNativeEndpoint, allowNativeRegistry } from "./native-isolation.mjs"
@@ -15,21 +16,21 @@ import { DatabaseSync } from "node:sqlite"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-owner-answer-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 process.env.XDG_STATE_HOME = tmp // service.json of the fake OpenCode service lives here (form-reply.ts)
 process.env.TEMP = process.env.TMP = process.env.TMPDIR = tmp // the plugin log lives in os.tmpdir(): a log of its own per run, not the one other parallel runs write (task 085)
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_STATUS_MS = "100"
-process.env.CANOPUS_FORM_MS = "100"
-process.env.CANOPUS_FORM_GONE_MS = "300"
-process.env.CANOPUS_FORM_REPEAT_GAP_MS = "300"
-process.env.CANOPUS_FORM_RESTART_GRACE_MS = "100"
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("STATUS_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_GONE_MS", "300")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_REPEAT_GAP_MS", "300")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_RESTART_GRACE_MS", "100")
 const dbPath = path.join(tmp, "opencode.db")
-process.env.CANOPUS_DB = dbPath
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", dbPath)
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({}))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({}))
 const db = new DatabaseSync(dbPath)
 db.exec("create table session_v2 (id text primary key, directory text, title text, parent_id text, time_archived integer, time_idle integer, time_viewed integer, time_suspended integer)")
 db.exec("create table session_message (id text primary key, session_id text, type text, seq integer, time_created integer, time_updated integer, data text)")
@@ -66,7 +67,7 @@ const srv = createServer((req, res) => {
 })
 await new Promise((r) => srv.listen(0, "127.0.0.1", r))
 mkdirSync(path.join(tmp, "opencode"), { recursive: true })
-writeFileSync(path.join(tmp, "opencode", "service.json"), JSON.stringify({ url: `http://127.0.0.1:${srv.address().port}`, password: "pw" }))
+writeFixtureFile(path.join(tmp, "opencode", "service.json"), JSON.stringify({ url: `http://127.0.0.1:${srv.address().port}`, password: "pw" }))
 allowNativeRegistry(path.join(tmp, "opencode", "service.json"))
 allowNativeEndpoint(`http://127.0.0.1:${srv.address().port}`)
 
@@ -90,7 +91,7 @@ fw.handleFormEvent(form("frm_R", R))
 fw.handleFormEvent(form("frm_M", M, [{ key: "q1", description: "Комментарий?", options: [{ label: "x" }] }]))
 mkdirSync(core.WINDOWS, { recursive: true })
 const WPID = 595959
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: [A, N, R, S, M].map((sessionID) => ({ sessionID, active: true, busy: true })) }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: [A, N, R, S, M].map((sessionID) => ({ sessionID, active: true, busy: true })) }))
 beat()
 const heart = setInterval(beat, 300)
 
@@ -125,7 +126,7 @@ const fresh = () => logText().slice(mark)
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 const filesIn = (dir) => (existsSync(dir) ? readdirSync(dir, { recursive: true }).map((n) => path.join(dir, String(n))).filter((f) => f.endsWith(".json")) : [])
 const lettersTo = (id) => [...filesIn(path.join(core.INBOX, core.safeKey(id))), ...filesIn(path.join(core.READ, core.safeKey(id)))].map((f) => readFileSync(f, "utf8"))
-const put = (name, a) => (mkdirSync(oa.ANSWERS, { recursive: true }), writeFileSync(path.join(oa.ANSWERS, `${name}.json`), JSON.stringify({ id: name, at: Date.now(), ...a })))
+const put = (name, a) => (mkdirSync(oa.ANSWERS, { recursive: true }), writeFixtureFile(path.join(oa.ANSWERS, `${name}.json`), JSON.stringify({ id: name, at: Date.now(), ...a })))
 const got = (name) => core.readJson(path.join(oa.ANSWERS, `${name}.json`))
 
 let fail = 0

@@ -7,9 +7,9 @@ import os from "node:os"
 import path from "node:path"
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-wake-recovery-"))
 process.env.XDG_DATA_HOME = process.env.XDG_STATE_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-process.env.CANOPUS_POLL_MS = "50"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "50")
 const core = await import("../core.ts")
 const { newWake, saveWake, readWakeForLetter, readWakeById } = await import("../wake-delivery.ts")
 const { createCanopusPlugin } = await import("../index.ts")

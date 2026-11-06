@@ -55,42 +55,87 @@
       }
     }
   },
-  "merge_precheck": "required",
-  "spawn_limits": { "worker": 5, "reviewer": 4 },
+  "spawn_limits": {
+    "worker": 5,
+    "reviewer": 4
+  },
   "inflight_limit": 100,
-  "owner_system_notify": true,
-  "accepted_slot": "free",
-  "cleanup_limit": 10,
-  "answer_mode": { "implementation": "recommendations" },
+  "answer_mode": {
+    "implementation": "recommendations"
+  },
   "profile_set": "codex-kimi",
-  "tier_max": "light",
-  "branch_name": "task/{n}-{slug}",
-  "worktrees": "../worktrees",
-  "worktree_name": "{repo}-{n}-{slug}",
   "profile_sets": {
     "claude": {
-      "develop": { "family": "claude", "tier": "task" },
-      "accept": { "family": "claude", "tier": "task" },
-      "plan": { "family": "claude", "tier": "task" },
-      "plan_accept": { "family": "claude", "tier": "task" }
+      "develop": {
+        "family": "claude",
+        "tier": "task"
+      },
+      "accept": {
+        "family": "claude",
+        "tier": "task"
+      },
+      "plan": {
+        "family": "claude",
+        "tier": "task"
+      },
+      "plan_accept": {
+        "family": "claude",
+        "tier": "task"
+      }
     },
     "codex": {
-      "develop": { "family": "codex", "tier": "task" },
-      "accept": { "family": "codex", "tier": "task" },
-      "plan": { "family": "codex", "tier": "task" },
-      "plan_accept": { "family": "codex", "tier": "task" }
+      "develop": {
+        "family": "codex",
+        "tier": "task"
+      },
+      "accept": {
+        "family": "codex",
+        "tier": "task"
+      },
+      "plan": {
+        "family": "codex",
+        "tier": "task"
+      },
+      "plan_accept": {
+        "family": "codex",
+        "tier": "task"
+      }
     },
     "codex-kimi": {
-      "develop": { "family": "codex", "tier": "task" },
-      "plan": { "family": "codex", "tier": "task" },
-      "accept": { "family": "kimi", "tier": "task" },
-      "plan_accept": { "family": "kimi", "tier": "task" }
+      "develop": {
+        "family": "codex",
+        "tier": "task"
+      },
+      "plan": {
+        "family": "codex",
+        "tier": "task"
+      },
+      "accept": {
+        "family": "kimi",
+        "tier": "task"
+      },
+      "plan_accept": {
+        "family": "kimi",
+        "tier": "task"
+      }
     },
     "kimi": {
-      "develop": { "family": "kimi", "tier": "task" },
-      "plan": { "family": "kimi", "tier": "task" },
-      "accept": { "family": "kimi", "tier": "task" },
-      "plan_accept": { "family": "kimi", "tier": "task" }
+      "develop": {
+        "family": "kimi",
+        "tier": "task"
+      },
+      "plan": {
+        "family": "kimi",
+        "tier": "task"
+      },
+      "accept": {
+        "family": "kimi",
+        "tier": "task"
+      },
+      "plan_accept": {
+        "family": "kimi",
+        "tier": "task"
+      }
     }
   }
 }

@@ -680,7 +680,8 @@ test "taskwt publish: a tree of another repository than the main copy is refused
 test "taskwt: no push without publish - the log of git calls and the head of origin" {
     ro w = tt_world("nopush")
     ro logfile = "${w.root}/gitcalls.log"
-    ro set = env("CANOPUS_GIT_LOG", logfile)
+    ro old_trace = env("GIT_TRACE")
+    ro set = env("GIT_TRACE", logfile)
     ro head = tg(w.origin, ["rev-parse", "main"])
     ro tree = tt_task(w, "192", "demo")
     ro s1 = tt_sub(tree, "192", "demo", 1)
@@ -700,7 +701,7 @@ test "taskwt: no push without publish - the log of git calls and the head of ori
     assert(log1.contains("worktree add"))
     assert(log1.contains("merge --no-ff"))
     assert(log1.contains("fetch origin"))
-    assert(tt_count(log1, "| push ") == 0)
+    assert(tt_count(log1, "built-in: git push ") == 0)
     assert(tg(w.origin, ["rev-parse", "main"]) == head)
     // a green publish is the one call that pushes - once, without force
     ro s3 = subtask_merge_abort(tree.path)
@@ -710,15 +711,15 @@ test "taskwt: no push without publish - the log of git calls and the head of ori
         Published { sha, main_copy, cleanup } => assert(tg(w.origin, ["rev-parse", "main"]) == sha)
         Blocked { reason, step, conflict_files } => panic("blocked at ${step}: ${reason}")
     }
-    assert(tt_count(log2, "| push ") == 1)
-    assert(tt_count(log2, "| push origin HEAD:main") == 1)
+    assert(tt_count(log2, "built-in: git push ") == 1)
+    assert(tt_count(log2, "built-in: git push origin HEAD:main") == 1)
     assert(!log2.contains("force"))
-    ro unset = remove_env("CANOPUS_GIT_LOG")
+    match old_trace { Some(value) => { ro restored = env("GIT_TRACE", value) }, None => { ro unset = remove_env("GIT_TRACE") } }
     tt_rm(w.root)
 }
 
 test "taskwt source: the word push stands in one function, which only the end of publish calls; no force anywhere" {
-    ro text = tt_read("${tw_norm(cwd().unwrap().display())}/src/server/taskwt.nv")
+    ro text = tt_read("${tw_norm(cwd().unwrap().display())}/src/server/taskwt.nv").replace("\r\n", "\n")
     assert(text.contains("fn tw_push("))
     // the argument "push" of git (a list that begins with it): once
     assert(tt_count(text, "[\"push\",") == 1)

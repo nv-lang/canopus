@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test: the texts of the base do not change (task 007, AC-01; node >= 24):  node test/canopus-answer-golden.test.mjs
 // test/answer-golden.mjs collects the texts the plugin shows (the notice "waits for you" of the owner's tab and its repeat, the
 // forwarded question of a task session, /canopus and the side panel, canopus_config guide and show, canopus_help, formatLetters) on a
@@ -6,7 +7,7 @@
 // texts. The control: a snapshot with one line spoiled must differ. The cells that must stay green on the base too (AC-04
 // endsWithQuestion, AC-18 прежние письма, AC-19 статус, AC-21 пять текстов) join this file in the later steps of the plan.
 import { execFileSync } from "node:child_process"
-import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { copyFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -89,7 +90,7 @@ copyFileSync(path.join(here, "answer-golden.json"), spoiled)
 const snap = JSON.parse(readFileSync(spoiled, "utf8"))
 const key = Object.keys(snap).find((k) => k.startsWith("forward:") && snap[k].includes("Решить без владельца"))
 snap[key] = snap[key].replace("Решить без владельца", "Решить без хозяина")
-writeFileSync(spoiled, JSON.stringify(snap, null, 1))
+writeFixtureFile(spoiled, JSON.stringify(snap, null, 1))
 const ctl = run(["--check"], { ANSWER_GOLDEN_FILE: spoiled })
 cell("AC-01 control", ctl.code === 1 && /golden differs: forward:/.test(ctl.out), ctl.out.slice(0, 600))
 

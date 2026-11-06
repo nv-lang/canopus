@@ -1,11 +1,12 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of one task number (task 058, node >= 24):  node test/canopus-task-numbers.test.mjs
 // In a project with task folders (tasks_dir, default doc/tasks) the number of a new task is 1 + the largest of the task
 // records of the project and of the folder numbers NNN in every working tree of the repository and in every local and origin
 // branch (AC-01); the number is taken by the atomic creation of the record file, so two processes taking a number at the same
 // time get different numbers and both folders are made (AC-02, the script scripts/task-number.mjs of an agent outside
 // OpenCode). A project without task folders counts its records from 1 as before (AC-09).
-import { execFileSync, spawn } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { execFileSync } from "node:child_process"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -14,7 +15,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const script = path.resolve(here, "..", "..", "scripts", "task-number.mjs")
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-task-numbers-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 let fail = 0
 const cell = (name, ok, detail) => {
   console.log(`${ok ? "ok  " : "FAIL"} ${name}${ok ? "" : " :: " + detail}`)
@@ -38,17 +39,17 @@ for (let i = 1; i <= 58; i++) {
   if (i === 57) continue
   const d = path.join(proj, "doc", "tasks", `${String(i).padStart(3, "0")}-t${i}`)
   mkdirSync(d, { recursive: true })
-  writeFileSync(path.join(d, "log.md"), "x\n")
+  writeFixtureFile(path.join(d, "log.md"), "x\n")
 }
 mkdirSync(path.join(proj, "doc", "tasks", "notes"), { recursive: true })
-writeFileSync(path.join(proj, "doc", "tasks", "notes", "a.md"), "x\n")
+writeFixtureFile(path.join(proj, "doc", "tasks", "notes", "a.md"), "x\n")
 git(proj, "add", "-A")
 git(proj, "commit", "-q", "-m", "init")
 git(proj, "branch", "other")
 const other = path.join(tmp, "wt-other")
 git(proj, "worktree", "add", "-q", other, "other")
 mkdirSync(path.join(other, "doc", "tasks", "057-elsewhere"), { recursive: true })
-writeFileSync(path.join(other, "doc", "tasks", "057-elsewhere", "log.md"), "x\n")
+writeFixtureFile(path.join(other, "doc", "tasks", "057-elsewhere", "log.md"), "x\n")
 git(other, "add", "-A")
 git(other, "commit", "-q", "-m", "057")
 git(proj, "worktree", "remove", "--force", other) // 057 now lives only in the branch "other"
@@ -76,7 +77,7 @@ if (tn) {
   git(tmp, "clone", "-q", origin, oc)
   git(oc, "checkout", "-q", "-b", "far")
   mkdirSync(path.join(oc, "doc", "tasks", "061-remote"), { recursive: true })
-  writeFileSync(path.join(oc, "doc", "tasks", "061-remote", "log.md"), "x\n")
+  writeFixtureFile(path.join(oc, "doc", "tasks", "061-remote", "log.md"), "x\n")
   git(oc, "add", "-A")
   git(oc, "commit", "-q", "-m", "061")
   git(oc, "push", "-q", "origin", "far")

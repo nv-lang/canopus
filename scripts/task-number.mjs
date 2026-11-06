@@ -41,6 +41,7 @@ const fail = (text) => {
 }
 
 const a = args(process.argv.slice(2))
+if (a.config) (await load("config-context.ts")).initializePluginConfig({ config: path.resolve(a.config) })
 if (!a.dir || !a.title) fail("нужны --dir <дерево задачи> и --title <название>")
 const tn = await load("task-numbers.ts")
 const tasks = await load("tasks.ts")

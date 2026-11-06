@@ -2,6 +2,7 @@
 // зачем), проверка canopus_config set (значение не той формы — отказ, файл не тронут), показ canopus_config show. Тест
 // сверяет, что опросник покрывает все ключи схемы, а loadConfig (core.ts) читает те же ключи.
 
+import { PROJECT_KEYS } from "./resolved-policy.ts"
 import { PROFILES_README_URL } from "./paths.ts"
 import { invalidProfileKey } from "./profiles.ts"
 import { answerModeError } from "./answer-parse.ts"
@@ -31,14 +32,14 @@ export type Setting = { key: string; kind: Kind; default: any; question: string;
 const TIERS = ["heavy", "medium", "light"]
 /** Встроенные поля задачи и входа canopus_spawn / canopus_task: id полей проекта (task_extra_fields) с ними не совпадает. Список живёт
  *  здесь, а не в core.ts: core.ts импортирует эту схему, обратный импорт образовал бы цикл; тест сверяет его с полями входа. */
-export const RESERVED_FIELD_IDS = ["title", "goal", "criteria", "boundaries", "open_questions", "owner_words", "result", "links", "route", "route_basis", "route_source", "route_proposal", "route_word", "route_word_date", "route_word_at", "clean_runs", "ceiling", "probes", "delivery_compressed", "sources_list", "estimate", "link", "priority", "tier", "role", "model", "kind", "parent", "plan_parent", "task", "session", "part_of", "place", "message", "n", "action", "extra", "__proto__", "constructor", "prototype"]
+export const RESERVED_FIELD_IDS = ["title", "goal", "criteria", "boundaries", "open_questions", "owner_words", "result", "links", "route", "route_basis", "route_source", "route_proposal", "route_word", "route_word_date", "route_word_at", "clean_runs", "ceiling", "probes", "delivery_compressed", "sources_list", "estimate", "link", "priority", "tier", "role", "model", "kind", "parent", "plan_parent", "task", "session", "part_of", "place", "message", "n", "action", "extra", "approval", "resubmit", "creation_reason", "checked_tasks", "why_new", "replacement", "no_replacement_reason", "repair", "__proto__", "constructor", "prototype"]
 export const EXTRA_FIELDS_MAX = 8
 export const EXTRA_ID_RE = /^[a-z0-9_]{1,31}$/
 /** Язык владельца (задача 054): английское имя языка — оно встаёт в английский системный блок вкладки; не предложение,
  *  чтобы в блок не попал посторонний текст. Умолчание — Russian: так было зашито до настройки. */
 export const OWNER_LANGUAGE_RE = /^[A-Za-z]+(?:[ -][A-Za-z]+){0,3}$/
 export const DEFAULT_OWNER_LANGUAGE = "Russian"
-export const SCHEMA: Setting[] = [
+const ALL_SCHEMA: Setting[] = [
   { key: "project", group: "Проект", kind: { type: "string" }, default: "(имя папки настроек)", question: "Как называется проект (адрес вкладок «проект.роль»)?", why: "строчные латинские буквы, цифры, дефис", recommend: "короткое имя, например nova" },
   { key: "root", group: "Проект", kind: { type: "string" }, default: ".", question: "Где корень проекта — относительно папки настроек?", why: "вкладки под корнем относятся к проекту; «..» — папка выше (виртуальный проект из многих репозиториев)", recommend: ".. для папки со многими репозиториями, . для одного репозитория" },
   { key: "branch", group: "Проект", kind: { type: "string" }, default: "(ветка по умолчанию)", question: "Из какой ветки читать этот файл настроек?", why: "читается закоммиченное; другая ветка — только если настройки живут не в main", recommend: "не задавать" },
@@ -106,13 +107,14 @@ export const SCHEMA: Setting[] = [
   { key: "worktrees", group: "Worktree", kind: { type: "string", allowEmpty: true }, default: "", question: "В какой папке (от корня проекта) создавать worktree задач?", why: "пусто — решает методология проекта; задано — письмо с задачей называет точный путь", recommend: "worktrees" },
   { key: "worktree_name", group: "Worktree", kind: { type: "string" }, default: "{repo}-{n}-{slug}", question: "Как называть папку worktree?", why: "{repo} репозиторий, {n} номер задачи, {slug} название латиницей, {project}", recommend: "{repo}-{n}-{slug}" },
   { key: "branch_name", group: "Worktree", kind: { type: "string" }, default: "t{n}-{slug}", question: "Как называть ветку задачи?", why: "те же подстановки", recommend: "t{n}-{slug} или как принято в проекте" },
-  { key: "answer_mode", group: "Ответы на вопросы", kind: { type: "answerMap" }, default: "owner", question: "Кто отвечает на вопросы сессий каждого типа (requirements, plan, implementation, default): owner — владелец, recommendations — рекомендация самой сессии?", why: "recommendations закрывает вопрос рекомендацией без владельца, только если сессия сама объявила тип и «Автоответ: допустим», слов ворот нет, предел не исчерпан; ворота (утверждения, пуши, слияния, удаления, перезапуск) остаются за владельцем при любом значении", recommend: '{"implementation": "recommendations"}, для `requirements` и `plan` — `owner`', humanOnly: true, humanHow: "правка файла настроек и коммит" },
-  { key: "answer_delay_sec", group: "Ответы на вопросы", kind: { type: "int" }, default: 60, question: "Через сколько секунд после появления формы встроенного вопросника плагин сам ответит на неё рекомендацией (0 — сразу), если answer_mode разрешает это для типа вопроса?", why: "владелец успевает ответить сам; его ответ главнее и снимает автоответ; форма с одной пометкой «(Recommended)» у первого варианта, без слов закрытого списка (ворота методики, tag и выпуск, force, пароль, ключ, токен, деньги, слово владельца, ключи answer_*, снятие запретов и границ) и в пределах answer_max закрывается без владельца", recommend: "60", humanOnly: true, humanHow: "правка файла настроек и коммит" },
-  { key: "answer_max", group: "Ответы на вопросы", kind: { type: "int" }, default: 3, question: "Сколько ответов по рекомендации подряд может получить одна сессия, прежде чем вопрос уйдёт владельцу (целое ≥ 1)?", why: "слово владельца в диалоге вкладки обнуляет счёт; предел не даёт сессии бесконечно отвечать самой себе", recommend: "3", humanOnly: true, humanHow: "правка файла настроек и коммит" },
+  { key: "answer_mode", group: "Ответы на вопросы", kind: { type: "answerMap" }, default: "owner", question: "Кто отвечает на вопросы сессий каждого типа (requirements, plan, implementation, default): owner — владелец, recommendations — рекомендация самой сессии?", why: "recommendations закрывает вопрос рекомендацией без владельца, только если сессия сама объявила тип и «Автоответ: допустим», слов ворот нет, предел не исчерпан; ворота (утверждения, пуши, слияния, удаления, перезапуск) остаются за владельцем при любом значении", recommend: '{"implementation": "recommendations"}, для `requirements` и `plan` — `owner`', humanOnly: true, humanHow: "правка личного local.json или global local" },
+  { key: "answer_delay_sec", group: "Ответы на вопросы", kind: { type: "int" }, default: 60, question: "Через сколько секунд после появления формы встроенного вопросника плагин сам ответит на неё рекомендацией (0 — сразу), если answer_mode разрешает это для типа вопроса?", why: "владелец успевает ответить сам; его ответ главнее и снимает автоответ; форма с одной пометкой «(Recommended)» у первого варианта, без слов закрытого списка (ворота методики, tag и выпуск, force, пароль, ключ, токен, деньги, слово владельца, ключи answer_*, снятие запретов и границ) и в пределах answer_max закрывается без владельца", recommend: "60", humanOnly: true, humanHow: "правка личного local.json или global local" },
+  { key: "answer_max", group: "Ответы на вопросы", kind: { type: "int" }, default: 3, question: "Сколько ответов по рекомендации подряд может получить одна сессия, прежде чем вопрос уйдёт владельцу (целое ≥ 1)?", why: "слово владельца в диалоге вкладки обнуляет счёт; предел не даёт сессии бесконечно отвечать самой себе", recommend: "3", humanOnly: true, humanHow: "правка личного local.json или global local" },
   { key: "owner_language", group: "Прочее", kind: { type: "string" }, default: DEFAULT_OWNER_LANGUAGE, question: "На каком языке вкладки пишут всё, что читает владелец: ответы, вопросы, варианты, доводы, письма другим вкладкам и отчёты задач (имя языка по-английски: Russian, English, German)?", why: "письма между вкладками владелец видит во всплывающем уведомлении и во вкладке получателя, поэтому и они на его языке; имя встаёт в английский системный блок каждой вкладки (код, команды и идентификаторы остаются как есть); смена значения один раз заново оплачивает историю вкладок", recommend: "Russian" },
   { key: "compaction_summary", group: "Прочее", kind: { type: "bool" }, default: true, question: "Просить ли у вкладок OpenCode короткую сводку по образцу при сжатии контекста (владелец, открытые вопросы, что идёт, где документы, что нельзя)?", why: "без этого OpenCode пишет длинную сводку со всем подряд: хеши, номера сессий, процессные оговорки, состояние, которое владелец уже изменил; правило идёт в запрос сжатия (хук compaction), образец — в Каноне проекта; вкладки Claude Code сжимает сам Claude Code, их это не касается", recommend: "true" },
   { key: "project_rules", group: "Прочее", kind: { type: "string", allowEmpty: true }, default: "", question: "Какие правила проекта (по-английски, коротко) дописывать в конец системного блока каждой вкладки?", why: "блок уходит в каждый запрос, поэтому коротко и по-английски: правила, которых нет больше нигде в виде текста для вкладки (когда заводить задачи, что не задача, где методология); изменение текста один раз заново оплачивает историю вкладок", recommend: "пусто; или 2–4 предложения по-английски" },
 ]
+export const SCHEMA: Setting[] = ALL_SCHEMA.filter(setting => (PROJECT_KEYS as readonly string[]).includes(setting.key))
 export const SCHEMA_KEYS = SCHEMA.map((s) => s.key)
 
 const ROLE_RE = /^[a-z][a-z0-9-]{0,40}$/
@@ -152,7 +154,13 @@ function routeDefaultsError(key: string, v: any): string | undefined {
 
 /** Проверить значение ключа; вернуть текст ошибки или undefined. */
 export function invalid(key: string, v: any): string | undefined {
-  const s = SCHEMA.find((x) => x.key === key)
+  return invalidSetting(SCHEMA.find(x => x.key === key), key, v)
+}
+/** Validate explicitly supplied code policy without reopening a file/CLI setting. */
+export function invalidInternalPolicy(key: string, value: any): string | undefined {
+  return invalidSetting(ALL_SCHEMA.find(x => x.key === key), key, value)
+}
+function invalidSetting(s: Setting | undefined, key: string, v: any): string | undefined {
   if (!s) return `неизвестный ключ «${key}»; ключи: ${SCHEMA_KEYS.join(", ")}`
   // answer_max: целое ≥ 1 (вид int принимает 0)
   if (key === "answer_max") return Number.isInteger(v) && v >= 1 ? undefined : `${key}: целое число ≥ 1`

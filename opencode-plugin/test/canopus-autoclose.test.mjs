@@ -7,7 +7,7 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-autoclose-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 const core = await import("../core.ts")
 const tasks = await import("../tasks.ts")
 const old = Date.now() - 10 * 60_000
@@ -18,7 +18,7 @@ const mk = async (n, status, updated) => {
   const f = path.join(tasks.TASKS, "proj", `${n}.json`)
   const j = JSON.parse((await import("node:fs")).readFileSync(f, "utf8"))
   j.updated = updated
-  ;(await import("node:fs")).writeFileSync(f, JSON.stringify(j))
+  ;await (await import("node:fs")).writeFileSync(f, JSON.stringify(j))
 }
 await mk(1, "done", old)
 await mk(2, "done", old)

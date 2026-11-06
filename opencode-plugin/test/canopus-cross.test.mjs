@@ -1,24 +1,25 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of work across projects (plan 002, Ph.5; node >= 24):  node test/canopus-cross.test.mjs
 // - inbound of the receiving project: integrator (default: from another project only to its integrator), any, none;
 //   a refused letter names the address to use;
 // - an order: alpha's integrator orders work from beta's integrator (canopus_task order); beta takes it with its own
 //   task (canopus_spawn {parent: "alpha#N"}); the order follows that task: cleanup -> the order is done (a quiet summary
 //   to alpha's integrator), cancelled -> a call; no session and no title marks for the order.
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-cross-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-process.env.CANOPUS_SETTINGS_TTL_MS = "1"
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("SETTINGS_TTL_MS", "1")
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const dirA = path.join(tmp, "alpha")
 const dirB = path.join(tmp, "beta")
 for (const d of [dirA, dirB]) { mkdirSync(path.join(d, ".opencode"), { recursive: true }); mkdirSync(path.join(d, ".canopus", "plugin"), { recursive: true }) }
-const inbound = (v) => writeFileSync(path.join(dirB, ".canopus", "plugin", "config.json"), JSON.stringify(v ? { inbound: v, allow_default_models: true } : { allow_default_models: true }))
+const inbound = (v) => writeFixtureFile(path.join(dirB, ".canopus", "plugin", "config.json"), JSON.stringify(v ? { inbound: v, allow_default_models: true } : { allow_default_models: true }))
 inbound(undefined)
 
 const mod = await import("./fixture-plugin.mjs")
@@ -56,7 +57,7 @@ const call = async (name, sid, input = {}) => (await tools[name].execute(input, 
 const WPID = 727272
 const tabs = Object.keys(dirOf).map((sessionID) => ({ sessionID, active: false, busy: false }))
 mkdirSync(core.WINDOWS, { recursive: true })
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs }))
 beat()
 const heart = setInterval(beat, 300)
 for (const s of Object.keys(dirOf)) {

@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of task folders, task sessions and sub-tasks (task 058, node >= 24):  node test/canopus-task-folders.test.mjs
 // A project with task folders (tasks_dir, doc/tasks in the target branch): canopus_spawn makes the folder NNN-<slug>/ on the task
 // branch (task/message.md word for word, log.md with one dated line), committed by the plugin with a sign-off, the main copy
@@ -7,26 +8,26 @@
 // (AC-06); a sub-task is a task of its own with the first line «Часть задачи NNN «…».» and a line in the parent's log.md
 // (AC-07); a closed old record with the number of a folder moves unchanged to legacy/, an open one refuses (AC-10).
 import { createHash } from "node:crypto"
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { execFileSync } from "node:child_process"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-task-folders-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-process.env.CANOPUS_PRESENCE = "all"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ root: "..", worktrees: "worktrees", worktree_name: "{repo}-{n}-{slug}", branch_name: "task/{n}-{slug}", cleanup: "local", allow_default_models: true, inflight_limit: 20, spawn_limits: { worker: 9, reviewer: 0 } }))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ root: "..", worktrees: "worktrees", worktree_name: "{repo}-{n}-{slug}", branch_name: "task/{n}-{slug}", cleanup: "local", allow_default_models: true, inflight_limit: 20, spawn_limits: { worker: 9, reviewer: 0 } }))
 const folder = (name, files) => {
   for (const [f, text] of Object.entries(files)) {
     const p = path.join(proj, "doc", "tasks", name, f)
     mkdirSync(path.dirname(p), { recursive: true })
-    writeFileSync(p, text)
+    writeFixtureFile(p, text)
   }
 }
 folder("013-old-runner", { "log.md": "2026-10-01 10:00 документ: задание заведено\n" })
@@ -36,7 +37,7 @@ folder("058-existing", { "task/message.md": "# Задание: Уже завед
 git(proj, "init", "-q", "-b", "main")
 git(proj, "config", "user.name", "Owner Test")
 git(proj, "config", "user.email", "owner@test")
-writeFileSync(path.join(proj, "a.txt"), "a\n")
+writeFixtureFile(path.join(proj, "a.txt"), "a\n")
 git(proj, "add", "-A")
 git(proj, "commit", "-q", "-m", "init")
 const mainTip = git(proj, "rev-parse", "main")
@@ -46,8 +47,8 @@ const wtRoot = path.join(tmp, "worktrees")
 const store = path.join(tmp, "opencode", "plugin", "data", "tasks", "proj")
 mkdirSync(store, { recursive: true })
 const oldRec = (n, status, title) => JSON.stringify({ project: "proj", n, title, slug: "old", goal: "g", priority: "P2", tier: "light", role: "worker", author: "sesOLD", author_role: "proj.integrator", qid: "qOld", status, kind: "spawn", executors: [], attempt: 1, directory: proj, history: [], created: 1, updated: 1 }, null, 1)
-writeFileSync(path.join(store, "13.json"), oldRec(13, "done", "старая закрытая"))
-writeFileSync(path.join(store, "14.json"), oldRec(14, "running", "живая старая"))
+writeFixtureFile(path.join(store, "13.json"), oldRec(13, "done", "старая закрытая"))
+writeFixtureFile(path.join(store, "14.json"), oldRec(14, "running", "живая старая"))
 const hash = (f) => createHash("sha256").update(readFileSync(f)).digest("hex")
 const hash13 = hash(path.join(store, "13.json"))
 const hash14 = hash(path.join(store, "14.json"))

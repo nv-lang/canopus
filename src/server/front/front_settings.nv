@@ -1,12 +1,7 @@
-// front_settings.nv - the part of the settings that the front needs: the port, the folder of the page, the command of the hub.
-//
-// The front reads only these; the hub reads and checks all the settings (the same file, the same environment) and says so on its
-// stderr when they are wrong. The front cannot use `canopus.server.ServerSettings`: that module holds the hub, which holds the
-// PostgreSQL driver (see the mark 30 below).
-// The keys and the variables are those of src/server/settings.nv: port / CANOPUS_SERVER_PORT, web_dir / CANOPUS_SERVER_WEB_DIR,
-// hub {program, args} / CANOPUS_SERVER_HUB, stt {url, language} / CANOPUS_SERVER_STT_URL, CANOPUS_SERVER_STT_LANGUAGE, the file by the argument or CANOPUS_SERVER_CONFIG;
-// the recognizer as a part of the panel (task 192l): stt {managed, dir, model} / CANOPUS_SERVER_STT_MANAGED, CANOPUS_SERVER_STT_DIR, CANOPUS_SERVER_STT_MODEL, data_dir / CANOPUS_SERVER_DATA_DIR (the pid file).
-// pictures (task 192): max_image_bytes / CANOPUS_SERVER_MAX_IMAGE_BYTES (`/api/session-image`).
+// Runtime settings: five public fields, layered files and adjacent secrets.json.
+// Named internal defaults preserve the full resolved structure and its consumers.
+// Pure parsers accept explicit resolved input for internal callers; runtime files reject removed keys.
+// The selected config parent owns data and tools. No environment/--set/positional-file runtime layer.
 // ORACLE-WORKAROUND(30): the front reads its own part of the settings, because the module of the settings holds the hub, which holds the PostgreSQL driver, and the driver and Polaris cannot be in one program; use `ServerSettings` when item 30 is fixed
 module canopus.server.front
 
@@ -14,7 +9,7 @@ import std.text
 import std.encoding.json.{Json, JsonValue, JsonObject}
 import std.fs.{Fs, read_text, Path}
 import std.os.{Os, env}
-import canopus.config.{ConfigLayout, legacy_layout, layout_in, layout_with_data_dir, canopus_home, work_dir_now, find_project_dir, file_layers, env_layer, arg_layer, merge_layers, normalize_layer, file_text as cfg_file_text, tools_dir_now}
+import canopus.config.{ConfigLayout, Layer, ConfigSelection, install_paths, layout_for_config, legacy_layout, layout_in, layout_with_data_dir, canopus_home, work_dir_now, find_project_dir, file_layers, policy_layer, retired_env_problem, env_layer, arg_layer, merge_layers, normalize_layer, file_text as cfg_file_text, tools_dir_now}
 
 /// FrontSettings: where to listen, where the page is, how to start the hub, where the recognizer of the voice listens (`stt_url`, a local http address) and its default language.
 /// `program` of an agent is its configured program (the catalog observer starts the same native server); "" - the platform default.
@@ -206,7 +201,7 @@ fn fs_from_file(text str) -> FrontSettings {
         }
         None => base.reviewer_order
     }
-    { port, web_dir, hub_program, hub_args, agents, stt_url, stt_language, stt_managed, stt_dir, stt_model, data_dir, max_image_bytes, layout: base.layout, preset, reviewer_order }
+    { port, web_dir, hub_program, hub_args, agents, stt_url, stt_language, stt_managed: if o.get("voice").is_some() && o.get("voice").unwrap().bool() == Some(false) { false } else { stt_managed }, stt_dir, stt_model, data_dir, max_image_bytes, layout: base.layout, preset, reviewer_order }
 }
 
 // Default recognizer installation: tools/whisper under the resolved Canopus home.
@@ -215,19 +210,24 @@ fn fs_default_stt_dir(layout ConfigLayout) Os Fs -> str {
     ""
 }
 
-/// The settings of the front in the root of the instance named by CANOPUS_HOME (or the folder of the user): see `front_settings_in`.
+/// Default instance settings; explicit file selection uses the selected variant below.
 export fn front_settings(file str) Os Fs -> Result[FrontSettings, str] => front_settings_in(file, canopus_home(""), []str.new())
 
-/// The settings of the front by the same layers as the hub (task 192.12, `server_settings_in` of src/server/settings.nv): the defaults, `<home>/config.json`, the server file `file`
-/// (or CANOPUS_SERVER_CONFIG), `.canopus/config.json` and `local.json` of the project, secrets.json, the variables CANOPUS_*, the words `key=value` of `sets` (the arguments `--set`).
-export fn front_settings_in(file str, home str, sets []str) Os Fs -> Result[FrontSettings, str] {
-    ro name = if file.byte_len() > 0 { file } else { fs_env("CANOPUS_SERVER_CONFIG") ?? "" }
+/// Compatibility code API: positional file and sets are rejected; the selected file determines the instance.
+export fn front_settings_in(file str, home str, sets []str) Os Fs -> Result[FrontSettings, str] => front_settings_selected(file, home, sets, "")
+
+export fn front_settings_selected(file str, home str, sets []str, config_file str) Os Fs -> Result[FrontSettings, str] {
+    if file.byte_len() > 0 || sets.len() > 0 { return Err("runtime overrides are no longer supported; use --config <file>") }
+    ro old_env = retired_env_problem()
+    if old_env.byte_len() > 0 { return Err(old_env) }
+    ro name = ""
     if name.byte_len() > 0 && cfg_file_text(name).is_none() { return Err("the settings file ${name} cannot be read") }
     ro project = find_project_dir(work_dir_now(), home)
-    ro at = layout_in(home, project)
-    mut layers = file_layers(at, name)?
-    layers.push(env_layer())
-    layers.push(arg_layer(sets))
+    if config_file.byte_len() > 0 && cfg_file_text(config_file).is_none() { return Err("the config file ${config_file} cannot be read") }
+    ro at = if config_file.byte_len() > 0 { layout_for_config(ConfigSelection { file: config_file, root: home }, project) } else { layout_in(home, project) }
+    mut layers = []Layer.new()
+    layers.push(policy_layer())
+    for layer in file_layers(at, name)? { layers.push(layer) }
     ro merged = merge_layers(layers)
     ro base = fs_from_file(JsonValue.object(merged).to_str())
     ro data_set = match merged.get("data_dir") {
@@ -235,18 +235,11 @@ export fn front_settings_in(file str, home str, sets []str) Os Fs -> Result[Fron
         None => false
     }
     ro layout = if data_set { layout_with_data_dir(home, base.data_dir, project) } else if home.byte_len() > 0 { at } else { legacy_layout(base.data_dir) }
-    // a variable with a wrong number is named, as the hub does
-    match fs_env("CANOPUS_SERVER_PORT") {
-        Some(text) => match text.to_int() {
-            Ok(n) => ()
-            Err(e) => return Err("CANOPUS_SERVER_PORT must be a whole number")
-        }
-        None => ()
-    }
     if base.port < 1 || base.port > 65535 { return Err("the port must be 1 to 65535") }
-    ro hub_program = base.hub_program
+    ro installed = install_paths()
+    ro hub_program = installed.hub
     ro hub_args = base.hub_args
     ro tools = match merged.get("tools_dir") { Some(v) => v.str() ?? "", None => "" }
     ro stt_dir = if base.stt_dir.byte_len() > 0 { base.stt_dir } else if tools.byte_len() > 0 { "${tools}/whisper" } else { fs_default_stt_dir(layout) }
-    Ok({ port: base.port, web_dir: base.web_dir, hub_program, hub_args, agents: base.agents, stt_url: base.stt_url, stt_language: base.stt_language, stt_managed: base.stt_managed, stt_dir, stt_model: base.stt_model, data_dir: layout.sessions, max_image_bytes: base.max_image_bytes, layout, preset: base.preset, reviewer_order: base.reviewer_order })
+    Ok({ port: base.port, web_dir: installed.web, hub_program, hub_args, agents: base.agents, stt_url: base.stt_url, stt_language: base.stt_language, stt_managed: base.stt_managed, stt_dir, stt_model: base.stt_model, data_dir: layout.sessions, max_image_bytes: base.max_image_bytes, layout, preset: base.preset, reviewer_order: base.reviewer_order })
 }

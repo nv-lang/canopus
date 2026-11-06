@@ -4,4 +4,10 @@
 // состоянии «прежний ящик есть, нового нет».
 import { canopusBase } from "./paths.ts"
 
+import { freezePluginConfigContext } from "./config-context.ts"
+import { freezePolicySource } from "./resolved-policy.ts"
+import { freezeRuntimeSource } from "./runtime-policy.ts"
+freezeRuntimeSource()
+freezePolicySource()
+freezePluginConfigContext()
 export const BASE = canopusBase()

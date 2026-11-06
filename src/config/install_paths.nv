@@ -1,0 +1,61 @@
+// Internal installation layout; none of these paths is a user override.
+module canopus.config
+import std.os.{Os, args, env}
+import std.fs.{Fs, Path, metadata}
+export const HUB_EXECUTABLE = "canopus-hub.exe"
+export const WEB_RESOURCE_FOLDER = "web"
+export const DEV_WEB_RESOURCE_FOLDER = "src/web"
+export const PRODUCT_MACHINES_FOLDER = "machines/product"
+export type InstallPaths { bin str, root str, web str, hub str, machines str }
+fn install_dir(path str) Fs -> bool {
+    match metadata(Path.from_bytes(path.bytes())) { Ok(m) => m.is_dir(), Err(e) => false }
+}
+fn install_file(path Path) Fs -> bool {
+    match metadata(path) { Ok(m) => m.is_file(), Err(e) => false }
+}
+
+// argv[0] is the invoked name, not necessarily an absolute executable path.
+// OS PATH locates the installation; it is not a Canopus settings override.
+fn resolve_install_program(program str, current str, search str, windows bool) Fs -> Path {
+    ro base = Path.from_bytes(current.bytes())
+    ro raw = Path.from_bytes(program.bytes())
+    if raw.is_absolute() { return raw.normalize() }
+    if program.contains("/") || program.contains("\\") { return base.join_path(raw).normalize() }
+    ro local = base.join_path(raw).normalize()
+    if windows {
+        if install_file(local) { return local }
+        if !program.to_ascii_lower().ends_with(".exe") {
+            ro exe = base.join("${program}.exe").normalize()
+            if install_file(exe) { return exe }
+        }
+    }
+    ro separator = if windows { ";" } else { ":" }
+    for item in search.split(separator) {
+        mut folder = item
+        if windows && folder.byte_len() >= 2 && folder.starts_with("\"") && folder.ends_with("\"") {
+            folder = folder[1..folder.byte_len() - 1]
+        }
+        ro entry = Path.from_bytes(folder.bytes())
+        ro directory = if folder == "" { base } else { if entry.is_absolute() { entry } else { base.join_path(entry) } }
+        ro candidate = directory.join_path(raw).normalize()
+        if install_file(candidate) { return candidate }
+        if windows && !program.to_ascii_lower().ends_with(".exe") {
+            ro exe = directory.join("${program}.exe").normalize()
+            if install_file(exe) { return exe }
+        }
+    }
+    local
+}
+
+export fn install_paths() Os Fs -> InstallPaths {
+    ro argv = args()
+    ro program = if argv.len() > 0 { argv[0] } else { "target/canopus.exe" }
+    ro search = env("PATH") ?? ""
+    ro windows = (env("OS") ?? "").to_ascii_lower() == "windows_nt" || search.contains(";") || program.to_ascii_lower().ends_with(".exe")
+    ro absolute = resolve_install_program(program, work_dir_now(), search, windows)
+    ro bin = match absolute.parent() { Some(p) => p, None => Path.from_bytes(work_dir_now().bytes()) }
+    ro bin_s = bin.display().replace("\\", "/")
+    ro root = if bin_s.ends_with("/target") { match bin.parent() { Some(p) => p.display().replace("\\", "/"), None => bin_s } } else { bin_s }
+    ro web = if install_dir("${root}/${WEB_RESOURCE_FOLDER}") { "${root}/${WEB_RESOURCE_FOLDER}" } else { "${root}/${DEV_WEB_RESOURCE_FOLDER}" }
+    { bin: bin_s, root, web, hub: "${bin_s}/${HUB_EXECUTABLE}", machines: "${root}/${PRODUCT_MACHINES_FOLDER}" }
+}

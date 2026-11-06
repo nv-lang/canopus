@@ -5,8 +5,8 @@ import os from 'node:os'
 import path from 'node:path'
 const tmp = mkdtempSync(path.join(os.tmpdir(), 'canopus-question-default-'))
 for (const k of ['XDG_DATA_HOME', 'XDG_STATE_HOME', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'TEMP', 'TMP', 'TMPDIR']) process.env[k] = tmp
-process.env.CANOPUS_HOME = path.join(tmp, "opencode")
-process.env.CANOPUS_DB = path.join(tmp, 'absent.db')
+;await (await import("./test-home.mjs")).configureTestHome(path.join(tmp, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, 'absent.db'))
 globalThis.fetch = async () => { throw new Error('unexpected real transport') }
 try {
   const { QuestionRouter, QUESTION_ROUTE_TERM_MS } = await import('../question-router.ts')

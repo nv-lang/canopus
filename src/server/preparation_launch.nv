@@ -2,10 +2,16 @@ module canopus.server
 
 import canopus.acp.{AcpConfig}
 import canopus.storage.{valid_session_name, ensure_session_dir}
-import std.os.{Os, real_os, env, args}
+import std.os.{Os, real_os}
 import std.fs.{Fs, real_fs}
-import canopus.config.{load_presets, preset_named, preset_pick}
+import canopus.config.{load_presets, preset_named, preset_pick, install_paths}
 import std.encoding.json.{JsonObject}
+
+// Removed public controls remain named code policy, ready for explicit future exposure.
+const PREPARATION_SERVICE_REGISTRATION = ""
+const PREPARATION_DEFAULT_MODEL = ""
+const PREPARATION_DEFAULT_VARIANT = ""
+const PREPARATION_ADAPTER_FILE = "preparation-agent.mjs"
 
 // Trusted host/test DI only; no browser, model response or ACP method can set it.
 type PreparationFixture { session str, registration str, model str, variant str, adapter str }
@@ -43,7 +49,7 @@ export fn preparation_launch(registration str, model str, variant str, adapter s
 
 fn Hub @preparation_config(s Dialog) -> Result[AcpConfig, str] {
     if s.agent != "codex" && s.agent != "opencode" { return Err("Подготовка: нужен уже выбранный Codex AgentRef или его пресет") }
-    // Exact-session trusted injection returns before any production env or preset discovery.
+    // Exact-session trusted injection returns before production preset and installation discovery.
     for fixture in @preparation_fixtures {
         if fixture.session == s.id {
             if fixture.registration.byte_len() == 0 || !path_there(fixture.adapter) {
@@ -52,10 +58,9 @@ fn Hub @preparation_config(s Dialog) -> Result[AcpConfig, str] {
             return @preparation_config_at(s, fixture.registration, fixture.model, fixture.variant, fixture.adapter)
         }
     }
-    // D454: boundary override inside non-test code, see module-conventions
-    ro registration = with Os = real_os() { env("CANOPUS_PREPARATION_SERVICE_REGISTRATION") ?? "" }
-    mut model = ""
-    mut variant = ""
+    ro registration = PREPARATION_SERVICE_REGISTRATION
+    mut model = PREPARATION_DEFAULT_MODEL
+    mut variant = PREPARATION_DEFAULT_VARIANT
     for pick in presets_for(s.chosen, s.agent) {
         if pick.setting == "model" { model = pick.value }
         if pick.setting == "effort" { variant = pick.value }
@@ -75,20 +80,11 @@ fn Hub @preparation_config(s Dialog) -> Result[AcpConfig, str] {
             Err(reason) => ()
         }
     }
-    // Explicit fixture registration permits DI without reading the owner's registry or changing a session model.
-    if model.byte_len() == 0 && registration.byte_len() > 0 {
-        // D454: boundary override inside non-test code, see module-conventions
-        model = with Os = real_os() { env("CANOPUS_PREPARATION_MODEL") ?? "" }
-        // D454: boundary override inside non-test code, see module-conventions
-        variant = with Os = real_os() { env("CANOPUS_PREPARATION_VARIANT") ?? "" }
-    }
-    // D454: boundary override inside non-test code, see module-conventions
-    ro explicit = with Os = real_os() { env("CANOPUS_PREPARATION_ADAPTER") ?? "" }
-    // D454: boundary override inside non-test code, see module-conventions
-    ro argv = with Os = real_os() { args() }
-    ro local = "${@settings.routes_dir}/../../src/server/preparation-agent.mjs"
-    ro packaged = if argv.len() > 0 { "${tw_parent(argv[0])}/preparation-agent.mjs" } else { "" }
-    ro adapter = if explicit.byte_len() > 0 { explicit } else if path_there(local) { local } else { packaged }
+    // D454: existing Hub adapter boundary; installation discovery inherits these handlers.
+    ro installed = with Os = real_os() { with Fs = real_fs() { install_paths() } }
+    ro local = "${installed.root}/src/server/${PREPARATION_ADAPTER_FILE}"
+    ro packaged = "${installed.bin}/${PREPARATION_ADAPTER_FILE}"
+    ro adapter = if path_there(local) { local } else { packaged }
     if !path_there(adapter) { return Err("Подготовка задачи недоступна: встроенный адаптер не найден; обычный ACP запрещён") }
     @preparation_config_at(s, registration, model, variant, adapter)
 }

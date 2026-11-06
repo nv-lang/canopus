@@ -1,0 +1,38 @@
+// Internal format marker prevents different components from sharing one data directory.
+module canopus.config
+import std.fs.{Fs, Path, File, create_dir_all, read_text, try_exists}
+
+fn kind_check(file Path, kind str) Fs -> Result[(), str] {
+    ro text = match read_text(file) { Ok(s) => s, Err(e) => return Err("the instance marker cannot be read") }
+    if text != "canopus-instance:${kind}\n" { return Err("the config folder belongs to another component; application and plugin need separate instance folders") }
+    Ok(())
+}
+
+export fn claim_instance(root str, kind str) Fs -> Result[(), str] {
+    ro state = Path.from_bytes("${root}/state".bytes())
+    ro file = state.join("instance.kind")
+    if (try_exists(file) ?? false) { return kind_check(file, kind) }
+    if kind == "app" {
+        for name in ["cards", "tasks", "inbox"] {
+            if (try_exists(Path.from_bytes("${root}/data/${name}".bytes())) ?? false) { return Err("the application instance contains plugin coordination data; select a separate config folder") }
+        }
+    }
+    match create_dir_all(state) { Ok(done) => (), Err(e) => return Err("the instance state folder cannot be created") }
+    match File.create_new(file) {
+        Err(e) => kind_check(file, kind)
+        Ok(consume opened) => {
+            ro bytes = "canopus-instance:${kind}\n".bytes()
+            mut done = 0
+            while done < bytes.len() {
+                match opened.write(bytes[done..]) {
+                    Ok(n) => if n > 0 { done += n } else { ro closed = opened.close(); return Err("the instance marker cannot be written") }
+                    Err(e) => { ro closed = opened.close(); return Err("the instance marker cannot be written") }
+                }
+            }
+            ro synced = opened.sync_all()
+            ro closed = opened.close()
+            if synced.is_err() || closed.is_err() { return Err("the instance marker cannot be saved") }
+            Ok(())
+        }
+    }
+}

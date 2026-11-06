@@ -1,31 +1,32 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the flow watchdog (plan 002.4; node >= 24):  node test/canopus-flowwatch.test.mjs
 // A task session whose turn ends with a question is not told "continue": the question goes to whoever set the task.
 // A merge lock held longer than stall_minutes and a submitted task waiting for a reviewer longer than that are raised
 // to the task's author once. A turn OpenCode itself continued (no delivery, no busy mark) counts as working.
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-flowwatch-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_STATUS_MS = "100"
-process.env.CANOPUS_FLOW_MS = "200"
-process.env.CANOPUS_LEFT_MS = "200"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("STATUS_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FLOW_MS", "200")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("LEFT_MS", "200")
 const dbPath = path.join(tmp, "opencode.db")
-process.env.CANOPUS_DB = dbPath
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", dbPath)
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
 // stall after 0.01 min (0.6 s); no review sessions, so a submitted task waits for a reviewer
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ stall_minutes: 0.01, accepted_reminder_min: 0.01, inflight_limit: 3, accepted_slot: "hold", heavy_commands: ["scripts/gate.sh"], spawn_limits: { reviewer: 0 }, branch_name: "t{n}-{slug}", cleanup: "local" }))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ stall_minutes: 0.01, accepted_reminder_min: 0.01, inflight_limit: 3, accepted_slot: "hold", heavy_commands: ["scripts/gate.sh"], spawn_limits: { reviewer: 0 }, branch_name: "t{n}-{slug}", cleanup: "local" }))
 // the project is a git repository: task 003 was accepted, but its branch and a diagnostic branch stayed
 const { execFileSync } = await import("node:child_process")
 const g = (...a) => execFileSync("git", ["-C", proj, "-c", "user.name=t", "-c", "user.email=t@t", ...a], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })
 g("init", "-q", "-b", "main")
-writeFileSync(path.join(proj, "a.txt"), "a")
+writeFixtureFile(path.join(proj, "a.txt"), "a")
 g("add", "-A")
 g("commit", "-q", "-m", "init")
 g("branch", "t3-feat")
@@ -56,7 +57,7 @@ card("sesREV01", { spawned: { by: "sesINTEG1", task: "приёмка 001", tier:
 core.addObligation("sesREV01", { qid: "rq1", from_session: "sesINTEG1", from_role: "proj.integrator", at: Date.now(), nudges: 0, task: "приёмка 001" })
 review.takeMergeLock("proj", "sesREV01", 1)
 const lockFile = path.join(core.ROLES, "proj_merge.json")
-writeFileSync(lockFile, JSON.stringify({ ...JSON.parse(readFileSync(lockFile, "utf8")), at: Date.now() - 600_000 }))
+writeFixtureFile(lockFile, JSON.stringify({ ...JSON.parse(readFileSync(lockFile, "utf8")), at: Date.now() - 600_000 }))
 // 002: submitted 10 min ago, no reviewer (no places)
 const t2 = base(2, { status: "submitted", executor: "sesEX2", report: "сделал 2" })
 t2.history.push({ at: Date.now() - 600_000, by: "sesEX2", status: "submitted", note: "отчёт" })
@@ -115,7 +116,7 @@ const letters = (to) => ["inbox", "read"].flatMap((d) => {
 })
 const WPID = 616161
 mkdirSync(core.WINDOWS, { recursive: true })
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: [{ sessionID: "sesINTEG1", active: true, busy: false }] }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: [{ sessionID: "sesINTEG1", active: true, busy: false }] }))
 beat()
 const heart = setInterval(beat, 300)
 const stop = await mod.default.setup(ctx)

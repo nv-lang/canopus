@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of "service messages do not pile up in the queue behind a waiting question", task 080 (node >= 24):  node test/canopus-no-queue-behind-question.test.mjs
 // Source: 2026-10-17 the tab of task #94 sat in a `question` turn for an hour. The plugin judged the tab idle and queued three repeats of
 // "ask again" into the queue of the OpenCode server (delivery "queue"); at the end of every hour-long turn it queued one more reminder
@@ -11,7 +12,7 @@
 //   3. a service message of a kind that already stands in the queue is not queued again;
 //   4. letters of people and tabs and the answer of the owner are never held (but by the end of the current turn, as before).
 // Red probe: the first run before the code (every "queue" cell red, the borders green).
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
@@ -19,21 +20,21 @@ import { legacyAnswerPass } from "./legacy-answer-fixture.mjs"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-no-queue-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 process.env.XDG_STATE_HOME = tmp
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_STATUS_MS = "200"
-process.env.CANOPUS_FORM_MS = "100"
-process.env.CANOPUS_FORM_GONE_MS = "300"
-process.env.CANOPUS_FORM_CANCEL_GONE_MS = "300"
-process.env.CANOPUS_FORM_REPEAT_GAP_MS = "300"
-process.env.CANOPUS_FORM_RESTART_GRACE_MS = "100"
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("STATUS_MS", "200")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_GONE_MS", "300")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_CANCEL_GONE_MS", "300")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_REPEAT_GAP_MS", "300")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_RESTART_GRACE_MS", "100")
 const dbPath = path.join(tmp, "opencode.db")
-process.env.CANOPUS_DB = dbPath
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", dbPath)
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ push_empty_turns: 50, push_max: 50 }))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ push_empty_turns: 50, push_max: 50 }))
 
 const db = new DatabaseSync(dbPath)
 db.exec("create table session_v2 (id text primary key, directory text, title text, parent_id text, time_archived integer, time_idle integer, time_viewed integer, time_suspended integer)")
@@ -84,7 +85,7 @@ const P = mkTab("P") // border: a letter with the owner's answer is not held by 
 mkdirSync(core.WINDOWS, { recursive: true })
 const WPID = 717171
 const open = new Set([AUTH, ...names])
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: [...open].map((sessionID) => ({ sessionID, active: sessionID === AUTH, busy: !!busyOf[sessionID] })) }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: [...open].map((sessionID) => ({ sessionID, active: sessionID === AUTH, busy: !!busyOf[sessionID] })) }))
 beat()
 const heart = setInterval(beat, 300)
 
@@ -140,7 +141,7 @@ const REPEAT = "не получил ответа"
 const REMIND = "Не завершено"
 /** the server takes the oldest queued message of the tab into a turn */
 const consume = (s) => db.prepare("delete from session_inbox where id = (select id from session_inbox where session_id = ? order by enqueued_seq limit 1)").run(s)
-const put = (name, a) => (mkdirSync(oa.ANSWERS, { recursive: true }), writeFileSync(path.join(oa.ANSWERS, `${name}.json`), JSON.stringify({ id: name, at: Date.now(), ...a })))
+const put = (name, a) => (mkdirSync(oa.ANSWERS, { recursive: true }), writeFixtureFile(path.join(oa.ANSWERS, `${name}.json`), JSON.stringify({ id: name, at: Date.now(), ...a })))
 const result = (name) => core.readJson(path.join(oa.ANSWERS, `${name}.json`))
 // These are genuine owner permission gates, not missing working facts (ADR-0017).
 const created = (id, session, question, options) => ({ type: "form.created", data: { form: { id, sessionID: session, title: "Questions", metadata: { kind: "question" }, fields: [{ key: "q0", description: `Тип: gate\n${question}`, options: options.map((label) => ({ label })) }] } } })

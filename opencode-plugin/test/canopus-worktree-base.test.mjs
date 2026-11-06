@@ -1,9 +1,10 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the task worktree base (task 022; node >= 24):  node test/canopus-worktree-base.test.mjs
 // The task branch starts from the published target branch (origin/<target>), not from a stale local one; no remote ->
 // the local base with a warning; a local branch that differs from the published one -> one line with the numbers,
 // the local branch is never moved.
 import { execFileSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { ensureWorktree } from "../review.ts"
@@ -16,7 +17,7 @@ const cell = (name, ok, extra = "") => {
 }
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
 const commit = (dir, name) => {
-  writeFileSync(path.join(dir, name), name)
+  writeFixtureFile(path.join(dir, name), name)
   git(dir, "add", "--", name)
   git(dir, "commit", "-q", "-m", name)
 }

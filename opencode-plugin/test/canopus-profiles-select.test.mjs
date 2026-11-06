@@ -1,3 +1,5 @@
+import { writeFixtureFile, setFixturePolicy } from "./fixture-settings.mjs"
+import { execFileSync } from "node:child_process"
 // Self-test of the model choice by the enabled set (task 003; node >= 24):  node test/canopus-profiles-select.test.mjs
 // canopus_spawn, the plan task, reassign: the model comes from the enabled set by the stage and the tier; without keys
 // everything is as before; a described stage whose profile is missing refuses and creates nothing. The choice for the
@@ -9,14 +11,14 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-profiles-select-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-process.env.CANOPUS_SETTINGS_TTL_MS = "1"
-process.env.CANOPUS_PRESENCE = "all"
-process.env.CANOPUS_PROFILES_MS = "150"
-process.env.CANOPUS_PLANSTEPS_MS = "200"
-delete process.env.CANOPUS_STATUS_MS
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("SETTINGS_TTL_MS", "1")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PROFILES_MS", "150")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PLANSTEPS_MS", "200")
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("STATUS_MS")
 
 const prof = (model, context, output, input) => ({ model, context, output, ...(input ? { input } : {}) })
 const c = (family, tier) => ({ family, tier })
@@ -32,18 +34,27 @@ const SETS = {
   "kimi-only": { develop: c("kimi", "heavy"), plan: c("kimi", "heavy"), accept: c("kimi", "heavy"), plan_accept: c("kimi", "heavy") },
   "dev-only": { develop: c("kimi", "heavy") },
 }
-const base = { allow_default_models: true, spawn_limits: { worker: 50, "*": 50, reviewer: 50 }, inflight_limit: 50, plans_dir: "plans" }
+const base = { worktrees: "", allow_default_models: true, spawn_limits: { worker: 50, "*": 50, reviewer: 50 }, inflight_limit: 50, tasks_dir: "plans" }
 const mk = (name, extra = {}) => {
   const dir = path.join(tmp, name)
   mkdirSync(path.join(dir, ".opencode"), { recursive: true }); mkdirSync(path.join(dir, ".canopus", "plugin"), { recursive: true })
-  writeFileSync(path.join(dir, ".canopus", "plugin", "config.json"), JSON.stringify({ ...base, ...extra }))
+  writeFixtureFile(path.join(dir, ".canopus", "plugin", "config.json"), JSON.stringify({ ...base, ...extra }))
+  execFileSync("git", ["-C",dir,"init","-q","-b","main"])
+  execFileSync("git", ["-C",dir,"add","."])
+  execFileSync("git", ["-C",dir,"-c","user.name=t","-c","user.email=t@t","commit","-qm","settings"])
+  setFixturePolicy(dir, { allow_default_models: true, worktrees: "" })
   return dir
 }
 const proj = mk("proj", { model_profiles: TABLE, profile_sets: SETS })
 const plain = mk("plain") // a project without any profile key
 const innerRoot = path.join(proj, "inner") // a nested root: its own project, no keys
 mkdirSync(path.join(innerRoot, ".opencode"), { recursive: true }); mkdirSync(path.join(innerRoot, ".canopus", "plugin"), { recursive: true })
-writeFileSync(path.join(innerRoot, ".canopus", "plugin", "config.json"), JSON.stringify(base))
+writeFixtureFile(path.join(innerRoot, ".canopus", "plugin", "config.json"), JSON.stringify(base))
+setFixturePolicy(innerRoot, { allow_default_models: true, worktrees: "" })
+execFileSync("git",["-C",innerRoot,"init","-q","-b","main"])
+execFileSync("git",["-C",innerRoot,"add","."])
+execFileSync("git",["-C",innerRoot,"-c","user.name=t","-c","user.email=t@t","commit","-qm","settings"])
+
 
 const mod = await import("./fixture-plugin.mjs")
 const core = await import("../core.ts")
@@ -59,7 +70,7 @@ let failCreate = false
 const dirOf = new Map()
 const ctx = {
   location: { directory: proj },
-  options: { projects: { proj, plain, inner: innerRoot } },
+  options: { project_settings: [proj, plain, innerRoot] },
   session: {
     get: async ({ sessionID }) => ({ id: sessionID, title: sessionID, location: { directory: dirOf.get(sessionID) ?? proj }, time: {} }),
     prompt: async ({ sessionID, text, resume }) => delivered.push({ sessionID, text, resume }),
@@ -99,15 +110,8 @@ const use = (name, dir = proj) => {
   writeFileSync(file, JSON.stringify(o))
 }
 // task 016: the bounds of the project are two plain settings of the same file
-const setBounds = (b = {}, dir = proj) => {
-  const file = path.join(dir, ".canopus", "plugin", "config.json")
-  const o = JSON.parse(readFileSync(file, "utf8"))
-  delete o.tier_min
-  delete o.tier_max
-  if (b.min) o.tier_min = b.min
-  if (b.max) o.tier_max = b.max
-  writeFileSync(file, JSON.stringify(o))
-}
+const setBounds = (b = {}, dir = proj) => setFixturePolicy(dir, { tier_min: b.min ?? "light", tier_max: b.max ?? "heavy" })
+
 const tab = async (sid, role, dir = proj) => {
   dirOf.set(sid, dir)
   await hooks.context({ sessionID: sid, system: [], model: { id: "x", providerID: "y" } })
@@ -225,7 +229,7 @@ const sessionsBefore = creates.length
   // the set `dev-only` lacks accept; a table without kimi makes the described stage refuse
   const f = JSON.parse(readFileSync(path.join(proj, ".canopus", "plugin", "config.json"), "utf8"))
   delete f.model_profiles.kimi
-  writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(f))
+  writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(f))
   use("dev-only")
   L.dropSnapshot("proj")
   await until(() => L.profileState(proj).state.row !== 2, 30_000)
@@ -235,7 +239,7 @@ const sessionsBefore = creates.length
   cell("AC-06(а) a plan task: the stage plan is not described in dev-only, so spawn_models applies and there is no refusal", !/Задача не поставлена/.test(planR) && tasks.listTasks("proj").length === before + 1, planR)
   // restore
   f.model_profiles.kimi = TABLE.kimi
-  writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(f))
+  writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(f))
   use(undefined)
 }
 
@@ -282,14 +286,14 @@ use(undefined)
 // =====================================================================================================================
 // Part 2: the reviewer, the open tabs, the auto-plan steps (step 7 of the plan)
 // =====================================================================================================================
-delete process.env.CANOPUS_PRESENCE // from now on a tab is open only if a window beat lists it
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const WPID = 616161
 mkdirSync(core.WINDOWS, { recursive: true })
 const tabsNow = []
 // The beat is dated 30 s ahead: a window counts as live for WINDOW_STALE_MS (3 s) after its beat, and this process stops its own timer
 // while it runs git synchronously (seconds on a loaded machine), so the fake window went stale between two beats and an open tab was
 // "not open" for the choice of a reviewer (task 085). Nothing here tests the staleness of a window.
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now() + 30_000, tabs: tabsNow }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now() + 30_000, tabs: tabsNow }))
 const heart = setInterval(beat, 300)
 const openTab = async (sid, role, model, dir = proj) => {
   dirOf.set(sid, dir)
@@ -423,7 +427,7 @@ const planText = [
   const g = (...a) => git("git", ["-C", proj, "-c", "user.name=t", "-c", "user.email=t@t", ...a], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })
   g("init", "-q", "-b", "main")
   mkdirSync(path.join(proj, "docs", "plans"), { recursive: true })
-  writeFileSync(path.join(proj, "docs", "plans", "8-dlina.md"), planText)
+  writeFixtureFile(path.join(proj, "docs", "plans", "8-dlina.md"), planText)
   g("add", "docs")
   g("commit", "-q", "-m", "plan 8")
 }
@@ -462,7 +466,7 @@ cell("016 review-1 003: that step's record says clamped_from medium", stD?.profi
 {
   const git = (await import("node:child_process")).execFileSync
   const g = (...a) => git("git", ["-C", proj, "-c", "user.name=t", "-c", "user.email=t@t", ...a], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })
-  writeFileSync(path.join(proj, "docs", "plans", "9-podplan.md"), planText.replace("# План 8 — длина фрагмента", "# План 9 — подплан").replace("#### Ф.1.1 — лексер [где: lex.nv]", "#### Ф.1.1 — лексер [подплан] [где: lex.nv]"))
+  writeFixtureFile(path.join(proj, "docs", "plans", "9-podplan.md"), planText.replace("# План 8 — длина фрагмента", "# План 9 — подплан").replace("#### Ф.1.1 — лексер [где: lex.nv]", "#### Ф.1.1 — лексер [подплан] [где: lex.nv]"))
   g("add", "docs")
   g("commit", "-q", "-m", "plan 9")
 }
@@ -491,7 +495,7 @@ await until(() => snapName() === "cross-kimi", 60_000)
 {
   const f = JSON.parse(readFileSync(path.join(proj, ".canopus", "plugin", "config.json"), "utf8"))
   delete f.model_profiles.kimi
-  writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(f))
+  writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(f))
   await until(() => L.profileState(proj).state.row === 3, 60_000)
   const nH = await submit({})
   const tH = await reviewed(nH)
@@ -510,7 +514,7 @@ await until(() => snapName() === "cross-kimi", 60_000)
   const doc = await call("canopus_doctor", "sesINTEG")
   cell("AC-06(б) canopus_doctor has the line: submitted, no reviewer, with the reason", new RegExp(`задача ${String(nI).padStart(3, "0")} .*сдана, приёмщика нет`).test(doc), doc.slice(0, 400))
   f.model_profiles.kimi = TABLE.kimi
-  writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(f))
+  writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(f))
   const tI2 = await reviewed(nI, 60_000)
   cell("AC-06(б) the data is repaired: the reviewer is assigned by itself on the next pass, on the model of the set", !!tI2.reviewer && modelOf(tI2.reviewer) === "kimi-code-plan-global/k3-256k", JSON.stringify([tI2.reviewer, tI2.status]))
 }
@@ -522,7 +526,7 @@ use(undefined)
   const f = JSON.parse(readFileSync(path.join(proj, ".canopus", "plugin", "config.json"), "utf8"))
   f.reviewer = "integrator"
   f.profile_sets["with-extra"] = { ...SETS["cross-kimi"], coordination: c("claude", "heavy") }
-  writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(f))
+  writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(f))
   use("with-extra")
   const before = creates.length
   const nJ = await submit({})
@@ -532,7 +536,7 @@ use(undefined)
   cell("DNC-09 a set with an unknown stage (coordination) is read, the stage is ignored, the set is valid", L.profileState(proj).state.row === 2 && L.profileState(proj).data.sets["with-extra"].coordination !== undefined, String(L.profileState(proj).state.row))
   f.reviewer = "worker"
   delete f.profile_sets["with-extra"]
-  writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(f))
+  writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(f))
 }
 use(undefined)
 
@@ -543,7 +547,7 @@ use(undefined)
   for (const t of tasks.listTasks("proj").filter(tasks.isOpen)) await call("canopus_task", "sesINTEG", { action: "cancel", n: t.n })
   f.reviewer = "acceptor"
   f.spawn_limits = { ...f.spawn_limits, acceptor: 1 }
-  writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(f))
+  writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(f))
   use("cross-kimi")
   const nK = await submit({})
   const tK = await reviewed(nK)
@@ -555,7 +559,7 @@ use(undefined)
   const merge = await call("canopus_task", tK.executor, { action: "merge", n: nK })
   cell("DNC-08 merge stays with the reviewer (role acceptor): the executor of the task does not get the merge lock", !/Замок вливания .* твой/.test(String(merge)), String(merge).slice(0, 200))
   f.reviewer = "worker"
-  writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(f))
+  writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(f))
 }
 use(undefined)
 clearInterval(heart)

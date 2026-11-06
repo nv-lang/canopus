@@ -1,29 +1,30 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of canopus_task {action: "submit"} (task 041; node >= 24):  node test/canopus-submit.test.mjs
 // The executor submits the work without knowing the qid: the same as a report with reply_to (first submission,
 // after rework, after a sync, a plan task with the form check); only the executor; the second submit is refused;
 // no text is refused; an ordinary letter of the executor to the author gets a hint; the refusal of review in
 // rework names `canopus_task submit`; the letters to the executor name submit as the main way.
 import { execFileSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-submit-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
 mkdirSync(path.join(proj, "docs", "plans"), { recursive: true })
-writeFileSync(path.join(proj, "docs", "plans", "7-old.md"), "# План 7 — старый\n")
+writeFixtureFile(path.join(proj, "docs", "plans", "7-old.md"), "# План 7 — старый\n")
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
-writeFileSync(
+writeFixtureFile(
   path.join(proj, ".canopus", "plugin", "config.json"),
   JSON.stringify({ allow_default_models: true, worktrees: "wt", branch_name: "p{n}-{slug}", cleanup: "local", merge_precheck: "off", accepted_slot: "hold", rework_max: 5, spawn_limits: { worker: 5, reviewer: 1 } }),
 )
-writeFileSync(path.join(proj, "a.txt"), "a\n")
+writeFixtureFile(path.join(proj, "a.txt"), "a\n")
 git(proj, "init", "-q", "-b", "main")
 git(proj, "add", "-A")
 git(proj, "commit", "-q", "-m", "init")
@@ -77,7 +78,7 @@ const WPID = 828282
 const tabs = ["sesINTEG1", "sesREVIEW1"].map((sessionID, i) => ({ sessionID, active: i === 0, busy: false }))
 mkdirSync(core.WINDOWS, { recursive: true })
 // dated 30 s ahead: a window of 3 s freshness would look closed when this process is slow on a loaded machine (task 088)
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now() + 30_000, tabs }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now() + 30_000, tabs }))
 beat()
 const heart = setInterval(beat, 300)
 for (const t of tabs) await turnEnds(t.sessionID)

@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Задача 257: результат задачи живёт в ДРУГОМ репозитории с независимой историей (постановка в одном репозитории,
 // пакет результата — в другом). Первые ячейки — красная проба дефекта (без привязки контур смотрит только в репозиторий
 // постановки: «нет в локальном репозитории задачи», с подтянутыми объектами — «не содержит основу»). Дальше — модель
@@ -6,7 +7,7 @@
 // репозиторию результата, чужой SHA привязанную задачу не удовлетворяет, сдвиг main пакета — «сдвинулась», уже
 // опубликованный кандидат (предок вершины) закрывается без вливания, снятие привязки возвращает прежний контур.
 //   node test/canopus-landing-crossrepo.test.mjs
-import { mkdirSync, writeFileSync } from "node:fs"
+import { mkdirSync } from "node:fs"
 import path from "node:path"
 import { harness, reporter } from "./landing-harness.mjs"
 
@@ -21,7 +22,7 @@ const pkg = path.join(tmp, "pkg")
 mkdirSync(pkg, { recursive: true })
 git(tmp, "init", "-q", "--bare", "-b", "main", pkgBare)
 git(pkg, "init", "-q", "-b", "main")
-writeFileSync(path.join(pkg, "pkg.txt"), "package v1\n")
+writeFixtureFile(path.join(pkg, "pkg.txt"), "package v1\n")
 git(pkg, "add", "-A")
 git(pkg, "commit", "-q", "-m", "package v1")
 git(pkg, "remote", "add", "origin", pkgBare)
@@ -74,7 +75,7 @@ cell("precheck после привязки: основа — вершина main
 const third = path.join(tmp, "third")
 mkdirSync(third, { recursive: true })
 git(third, "init", "-q", "-b", "main")
-writeFileSync(path.join(third, "x.txt"), "x\n")
+writeFixtureFile(path.join(third, "x.txt"), "x\n")
 git(third, "add", "-A")
 git(third, "commit", "-q", "-m", "third")
 const thirdTip = git(third, "rev-parse", "HEAD")
@@ -87,7 +88,7 @@ await bind(t3, { dir: pkg, word: WORD })
 await call("canopus_task", REV, { action: "precheck", n: t3.n })
 const rFin3 = await call("canopus_task", REV, { action: "precheck", n: t3.n, candidate: pkgTip, result: "пакет опубликован: main" })
 cell("привязанная задача: кандидат, равный основе пакета, — зелёная запись", T(t3.n).precheck?.state === "green" && T(t3.n).precheck.candidate === pkgTip, rFin3)
-const move1 = (() => { writeFileSync(path.join(pkg, "v2.txt"), "v2\n"); git(pkg, "add", "-A"); git(pkg, "commit", "-q", "-m", "v2"); git(pkg, "push", "-q", "origin", "main"); return git(pkg, "rev-parse", "HEAD") })()
+const move1 = (() => { writeFixtureFile(path.join(pkg, "v2.txt"), "v2\n"); git(pkg, "add", "-A"); git(pkg, "commit", "-q", "-m", "v2"); git(pkg, "push", "-q", "origin", "main"); return git(pkg, "rev-parse", "HEAD") })()
 const rMergeStale = await call("canopus_task", REV, { action: "merge", n: t3.n })
 cell("устаревшая база: main пакета сдвинулась после зелёной — замок не выдан (запись остаётся зелёной до повторной предпроверки)", /сдвинулась/.test(rMergeStale) && !H.holder() && T(t3.n).precheck.state === "green", rMergeStale)
 

@@ -1,23 +1,24 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test: a hung OpenCode call does not stop the plugin (node >= 24):  node test/canopus-stuck.test.mjs
 // Live 2026-10-05: one call inside the plugin's pass never returned, the pass stayed "busy" and every next pass
 // returned at once -- no delivery, no reminders, no watchdog for 47 minutes, silently. Here session.create never
 // returns (a task waits to start): letters to an open tab must still go out, and the hung step is logged.
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-stuck-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 process.env.TEMP = process.env.TMP = process.env.TMPDIR = tmp // the plugin log lives in os.tmpdir(): a log of its own per run, not the one other parallel runs write (task 085)
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_STEP_MS = "300"
-process.env.CANOPUS_PASS_STUCK_MS = "800"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("STEP_MS", "300")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PASS_STUCK_MS", "800")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), "{}")
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), "{}")
 
 const core = await import("../core.ts")
 const tasks = await import("../tasks.ts")
@@ -49,7 +50,7 @@ const cell = (name, ok, detail) => {
 const wait = (ms = 400) => new Promise((r) => setTimeout(r, ms))
 const WPID = 727272
 mkdirSync(core.WINDOWS, { recursive: true })
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: [{ sessionID: "sesTAB01", active: true, busy: false }] }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: [{ sessionID: "sesTAB01", active: true, busy: false }] }))
 beat()
 const heart = setInterval(beat, 300)
 const stop = await mod.default.setup(ctx)

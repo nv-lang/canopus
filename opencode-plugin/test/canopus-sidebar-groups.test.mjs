@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the task grouping and the visible status in the sidebar (task 262; node >= 24):  node test/canopus-sidebar-groups.test.mjs
 // The owner (2026-10-30): "ДА, супер быстро" on the recommendation "начать с группировки и явного статуса у названия". The "Canopus"
 // panel groups the tasks of the project: "В работе · N" (a tab of the task is working), "На приёмке · N" (submitted/reviewing),
@@ -6,13 +7,13 @@
 // "▶ 033 нужен ответ · …", "‖ 022 пауза · …"), never the colour alone. A HOLD task is never shown as working, even if a stale
 // status card still says working; a task without a running turn is not called "в работе". The order is deterministic: inside a
 // section the tasks that need an answer come first, then by the task number; the counters count the groups actually shown.
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-sidebar-groups-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 const { sidebarLines, sideText, SIDE_WIDTH } = await import("../status.ts")
 const { WATCH_DIR } = await import("../idle-watch.ts")
 const { TASKS } = await import("../tasks.ts")
@@ -27,12 +28,12 @@ const st = (session, state, extra = {}) => ({ session, project: "nova", role: "w
 const putTask = (n, status, title) => {
   const dir = path.join(TASKS, "nova")
   mkdirSync(dir, { recursive: true })
-  writeFileSync(path.join(dir, `${n}.json`), JSON.stringify({ project: "nova", n, title, status, slug: "t", goal: "", priority: "P2", tier: "medium", role: "worker", author: "a", author_role: "integrator", qid: "q", kind: "spawn", executors: [], attempt: 1, directory: ".", history: [], created: now, updated: now }))
+  writeFixtureFile(path.join(dir, `${n}.json`), JSON.stringify({ project: "nova", n, title, status, slug: "t", goal: "", priority: "P2", tier: "medium", role: "worker", author: "a", author_role: "integrator", qid: "q", kind: "spawn", executors: [], attempt: 1, directory: ".", history: [], created: now, updated: now }))
 }
 const putHold = (n, kind) => {
   const dir = path.join(WATCH_DIR, "nova")
   mkdirSync(dir, { recursive: true })
-  writeFileSync(path.join(dir, `${n}.json`), JSON.stringify({ project: "nova", n, hold: { kind, who: "владелец, 2026-10-29", at: now - 60_000 } }))
+  writeFixtureFile(path.join(dir, `${n}.json`), JSON.stringify({ project: "nova", n, hold: { kind, who: "владелец, 2026-10-29", at: now - 60_000 } }))
 }
 putTask(146, "running", "Старое дерево")
 putTask(147, "rework", "Перенос архива")

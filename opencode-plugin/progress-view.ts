@@ -1,3 +1,4 @@
+import { runtimeValue } from "./runtime-policy.ts"
 // ХОД РАБОТ — ТЕКСТЫ ПАНЕЛИ И КОМАНДЫ /canopus-progress (задача 004). Из сводки `ProgressTask` (progress.ts) строит строки блока
 // «Ход работ» (до 32 знаков) и текст диалога команды (до 72 знаков). Окна и OpenCode здесь нет: модуль под Node проверяется
 // самотестом. Окно подгружает его через import() с защитой (progress-sidebar.tsx, tui.ts): не загрузился — блок пуст.
@@ -166,7 +167,7 @@ const scanner = createScanner()
 export function progressPanel(dir: string | undefined, now: number = Date.now(), rel?: string): PanelRow[] {
   try {
     if (!dir) return []
-    const th = thresholdsFromEnv(process.env)
+    const th = thresholdsFromEnv({ CANOPUS_PROGRESS_STALE_MS: String(runtimeValue("PROGRESS_STALE_MS")), CANOPUS_PROGRESS_DONE_MS: String(runtimeValue("PROGRESS_DONE_MS")), CANOPUS_PROGRESS_ABANDON_MS: String(runtimeValue("PROGRESS_ABANDON_MS")) })
     return panelLines(summarizeTasks(scanner.scan(dir, now, rel), now, th), now)
   } catch {
     return []
@@ -178,5 +179,5 @@ export function progressDialog(dir: string | undefined, now: number = Date.now()
   if (!dir) return OUTSIDE_TEXT
   const scan = scanner.scanAll(dir, now, rel)
   if (!scan.repo) return OUTSIDE_TEXT
-  return dialogText(summarizeTasks(scan, now, thresholdsFromEnv(process.env)), now, { trees: scan.trees.length, journals: scan.journals })
+  return dialogText(summarizeTasks(scan, now, thresholdsFromEnv({ CANOPUS_PROGRESS_STALE_MS: String(runtimeValue("PROGRESS_STALE_MS")), CANOPUS_PROGRESS_DONE_MS: String(runtimeValue("PROGRESS_DONE_MS")), CANOPUS_PROGRESS_ABANDON_MS: String(runtimeValue("PROGRESS_ABANDON_MS")) })), now, { trees: scan.trees.length, journals: scan.journals })
 }

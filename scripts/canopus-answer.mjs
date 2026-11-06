@@ -11,17 +11,21 @@
 // Использование:
 //   node scripts/canopus-answer.mjs                       — открытые вопросники: проект, вкладка, вопрос, варианты
 //   node scripts/canopus-answer.mjs <форма|сессия|проект.роль> (--option <номер|подпись> | --text "<свой ответ>") --quote "<слово владельца>" [--no-wait]
-// Папка данных — общий resolver плагина: <CANOPUS_HOME>/plugin/data.
+// Папка данных — общий resolver плагина: <selected config folder>/data.
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs"
 import { canopusBase } from "../opencode-plugin/paths.ts"
+import { initializePluginConfig, takeConfigArgument } from "../opencode-plugin/config-context.ts"
 import path from "node:path"
 
+const selectedConfig = takeConfigArgument(process.argv.slice(2))
+if (selectedConfig.config) initializePluginConfig({ config: path.resolve(selectedConfig.config) })
 const base = canopusBase()
 const FORMS = path.join(base, "forms")
 const CARDS = path.join(base, "cards")
 const ANSWERS = path.join(base, "answers")
 // 2026-10-20: было 12 часов, и вопросы, ждавшие владельца дольше (удержанные по закрытому списку: слияние, приёмка), пропадали из списка; теперь 14 суток
-const TTL = Number(process.env.CANOPUS_ANSWER_TTL_H ?? 24 * 14) * 3_600_000
+const ANSWER_RETENTION_HOURS = 24 * 14
+const TTL = ANSWER_RETENTION_HOURS * 3_600_000
 const safeKey = (k) => k.replace(/[^A-Za-z0-9_-]/g, "_")
 const read = (f) => {
   try {
@@ -92,7 +96,7 @@ function addHeld(out) {
   }
 }
 
-const args = process.argv.slice(2)
+const args = selectedConfig.rest
 const opt = (name) => {
   const i = args.indexOf(name)
   return i >= 0 ? args[i + 1] : undefined

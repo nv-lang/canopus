@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the automatic answer to the forms of the built-in questionnaire, task 096 (node >= 24):  node test/canopus-form-auto.test.mjs
 // Owner, 2026-10-19: "answer_mode: recommendations only works for text questions of one kind - I was sure these were automatic answers to
 // the questionnaires". A form (a record of forms/, kind question, with options) is closed by the plugin itself when ALL of this holds: the
@@ -8,15 +9,15 @@
 // replaced, stale, cancelled or in the repeat. The answer is put no sooner than `answer_delay_sec` after the form appeared. Delivery is the
 // answer file of task 059 (owner-answer.ts) with the source "plugin". This file: the pure rules and the tick with fake dependencies, and the
 // "death between changes" of the delivery (rule 13/34(e) of the methodology). Red probe: the first run before the code (form-auto.ts is missing).
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-form-auto-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 process.env.TEMP = process.env.TMP = process.env.TMPDIR = tmp
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
 
 let fail = 0
 const cell = (name, ok, detail) => {
@@ -257,7 +258,7 @@ cell("tick: at the delay one answer file is put, source plugin, option 1, form a
 await fa.autoTick(mkDeps(), T0 + 66_000, formsDir, answersDir)
 await fa.autoTick(mkDeps(), T0 + 72_000, formsDir, answersDir)
 cell("tick: a repeated tick does not answer twice (idempotent)", dirFiles(answersDir).length === 1, JSON.stringify(dirFiles(answersDir)))
-writeFileSync(path.join(answersDir, "auto-frm_1.json"), JSON.stringify({ ...af, status: "applied", done: T0 + 61_000 }))
+writeFixtureFile(path.join(answersDir, "auto-frm_1.json"), JSON.stringify({ ...af, status: "applied", done: T0 + 61_000 }))
 await fa.autoTick(mkDeps(), T0 + 80_000, formsDir, answersDir)
 cell("tick: an applied answer is not repeated either", dirFiles(answersDir).length === 1, JSON.stringify(dirFiles(answersDir)))
 cell("tick: the log says who answered and why", logLines.some((l) => /frm_1/.test(l) && /answer_mode|recommend/i.test(l)), logLines.join(" | "))
@@ -327,7 +328,7 @@ await fa.autoTick(mkDeps(), T0 + 3_000, formsDir, answersDir)
 cell("held: a repeated tick does not change the markers (still three, one each)", dirFiles(path.join(formsDir, "auto")).length === 3, JSON.stringify(dirFiles(path.join(formsDir, "auto"))))
 
 // the limit answer_max and its reset
-const rec = (id, done, extra = {}) => (mkdirSync(answersDir, { recursive: true }), writeFileSync(path.join(answersDir, `${id}.json`), JSON.stringify({ id, at: done - 100, session: S, form: id, option: "1", quote: "q", status: "applied", done, ...extra })))
+const rec = (id, done, extra = {}) => (mkdirSync(answersDir, { recursive: true }), writeFixtureFile(path.join(answersDir, `${id}.json`), JSON.stringify({ id, at: done - 100, session: S, form: id, option: "1", quote: "q", status: "applied", done, ...extra })))
 reset()
 for (let i = 1; i <= 3; i++) rec(`auto-old${i}`, T0 + i * 1_000, { source: "plugin" })
 put({ id: "frm_lim" })
@@ -378,7 +379,7 @@ cell("limit: refused answers are not counted", existsSync(path.join(answersDir, 
 // a loop on the question (task 078) is a doubt
 reset()
 mkdirSync(path.join(formsDir, "loops"), { recursive: true })
-writeFileSync(path.join(formsDir, "loops", `${core.safeKey(S)}.json`), JSON.stringify({ session: S, asks: [{ form: "x", at: 1 }], loop: { since: 1, n: 3, question: "q", forms: ["x"] } }))
+writeFixtureFile(path.join(formsDir, "loops", `${core.safeKey(S)}.json`), JSON.stringify({ session: S, asks: [{ form: "x", at: 1 }], loop: { since: 1, n: 3, question: "q", forms: ["x"] } }))
 put({ id: "frm_loop" })
 await fa.autoTick(mkDeps(), T0 + 100_000, formsDir, answersDir)
 cell("loop: a tab that loops on its question is not answered again (doubt)", !existsSync(path.join(answersDir, "auto-frm_loop.json")) && mk("frm_loop")?.reason === "doubt", JSON.stringify(mk("frm_loop")))
@@ -389,8 +390,8 @@ put({ id: "frm_a" })
 put({ id: "frm_b" })
 await fa.autoTick(mkDeps(), T0 + 61_000, formsDir, answersDir)
 cell("marker: sent after the file is put", mk("frm_a")?.state === "sent" && mk("frm_b")?.state === "sent", JSON.stringify([mk("frm_a"), mk("frm_b")]))
-writeFileSync(path.join(answersDir, "auto-frm_a.json"), JSON.stringify({ ...answerFile("frm_a"), status: "applied", done: T0 + 62_000 }))
-writeFileSync(path.join(answersDir, "auto-frm_b.json"), JSON.stringify({ ...answerFile("frm_b"), status: "refused", why: "the turn was not interrupted: interrupted=false", done: T0 + 62_000 }))
+writeFixtureFile(path.join(answersDir, "auto-frm_a.json"), JSON.stringify({ ...answerFile("frm_a"), status: "applied", done: T0 + 62_000 }))
+writeFixtureFile(path.join(answersDir, "auto-frm_b.json"), JSON.stringify({ ...answerFile("frm_b"), status: "refused", why: "the turn was not interrupted: interrupted=false", done: T0 + 62_000 }))
 await fa.autoTick(mkDeps(), T0 + 63_000, formsDir, answersDir)
 cell("marker: applied / failed follow the answer file", mk("frm_a")?.state === "applied" && mk("frm_b")?.state === "failed", JSON.stringify([mk("frm_a"), mk("frm_b")]))
 const st2 = fa.autoStats("proj", T0 + 64_000, formsDir, answersDir)
@@ -401,7 +402,7 @@ cell("notes: the doctor line names the count, the last closing and the reasons",
 reset()
 put({ id: "frm_first" })
 await fa.autoTick(mkDeps(), T0 + 61_000, formsDir, answersDir)
-writeFileSync(path.join(answersDir, "auto-frm_first.json"), JSON.stringify({ ...answerFile("frm_first"), status: "refused", why: "already answered (answer o9)", done: T0 + 62_000 }))
+writeFixtureFile(path.join(answersDir, "auto-frm_first.json"), JSON.stringify({ ...answerFile("frm_first"), status: "refused", why: "already answered (answer o9)", done: T0 + 62_000 }))
 await fa.autoTick(mkDeps(), T0 + 63_000, formsDir, answersDir)
 cell("marker: our answer lost to the owner (already answered) -> state owner, counted nowhere", mk("frm_first")?.state === "owner" && fa.autoStats("proj", T0 + 64_000, formsDir, answersDir).heldTotal === 0 && fa.autoStats("proj", T0 + 64_000, formsDir, answersDir).answered === 0, JSON.stringify(mk("frm_first")))
 
@@ -493,7 +494,7 @@ reset()
 clear()
 put({ id: "frm_o" })
 mkdirSync(answersDir, { recursive: true })
-writeFileSync(path.join(answersDir, "o1.json"), JSON.stringify({ id: "o1", at: T0, form: "frm_o", session: S, option: "2", quote: "нет" }))
+writeFixtureFile(path.join(answersDir, "o1.json"), JSON.stringify({ id: "o1", at: T0, form: "frm_o", session: S, option: "2", quote: "нет" }))
 await oa.answerTick(delivDeps(), T0 + 1_000, answersDir, formsDir)
 const o1 = core.readJson(path.join(answersDir, "o1.json"))
 cell("owner file: applied as before, the letter is the owner's word", o1?.status === "applied" && /по слову владельца/.test(calls.letter[0]?.text ?? "") && !/answer_mode/.test(calls.letter[0]?.text ?? ""), JSON.stringify([o1, calls.letter[0]?.text]))

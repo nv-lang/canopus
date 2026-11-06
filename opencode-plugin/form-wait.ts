@@ -1,3 +1,4 @@
+import { runtimeValue } from "./runtime-policy.ts"
 // Waiting for the owner by the built-in OpenCode questionnaire (task 026, step 1). The bus event form.created with
 // metadata.kind "question" opens a wait, form.replied closes it. No model involved. Every event comes in copies
 // (several windows, several subscriptions), so all writes are idempotent by form id.
@@ -31,15 +32,15 @@ export const DEAD_WHY = "диалог закрыт (вызов question заве
 /** Repeats of a lost question (the times can be shortened by CANOPUS_FORM_*_MS, for self-tests), the pause between them, the reminder of the owner, the time a tab must be quiet before the
  *  question counts as gone, and the time the windows get to recover after a restart of the service. */
 export const FORM_MAX_REPEATS = 3
-export const FORM_REPEAT_GAP_MS = Number(process.env.CANOPUS_FORM_REPEAT_GAP_MS) || 2 * 60_000
-export const FORM_REMIND_MS = Number(process.env.CANOPUS_FORM_REMIND_MS) || 30 * 60_000
-export const FORM_GONE_MS = Number(process.env.CANOPUS_FORM_GONE_MS) || 20_000
+export const FORM_REPEAT_GAP_MS = runtimeValue("FORM_REPEAT_GAP_MS")
+export const FORM_REMIND_MS = runtimeValue("FORM_REMIND_MS")
+export const FORM_GONE_MS = runtimeValue("FORM_GONE_MS")
 /** TASK 069: a question closed WITHOUT an answer (Esc, a window that took the keys) is known at once from form.cancelled, so the tab waits only for the end of
  *  its turn (FORM_CANCEL_GONE_MS) and not for the long time of a question that vanished unseen; while such a question waits to be returned the service looks
  *  every FORM_HOT_LOOK_MS instead of the usual time. */
-export const FORM_CANCEL_GONE_MS = Number(process.env.CANOPUS_FORM_CANCEL_GONE_MS) || 3_000
+export const FORM_CANCEL_GONE_MS = runtimeValue("FORM_CANCEL_GONE_MS")
 export const FORM_HOT_LOOK_MS = 1_000
-export const FORM_RESTART_GRACE_MS = Number(process.env.CANOPUS_FORM_RESTART_GRACE_MS) || 3 * 60_000
+export const FORM_RESTART_GRACE_MS = runtimeValue("FORM_RESTART_GRACE_MS")
 /** A model request this soon after the question is the question itself, not a new turn. */
 const FORM_SELF_MS = 3_000
 

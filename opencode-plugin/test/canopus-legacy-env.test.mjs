@@ -38,7 +38,7 @@ const os = await import("node:os")
 const path = await import("node:path")
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-legacy-env-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 const OLD = "CREW_" + "HOME" // guard-allow(legacy-name): негативная проба старого имени
 process.env[OLD] = "/old"
 process.env.UNRELATED_PERSONAL_282 = "keep-me"

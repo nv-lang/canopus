@@ -1,3 +1,6 @@
+import { writeGlobalProjectSettings } from "./plugin-config.ts"
+import { runtimeValue } from "./runtime-policy.ts"
+import { resolveProjectPolicy } from "./resolved-policy.ts"
 import { globalConfig, pluginState, pluginCache } from "./plugin-config.ts"
 // Ядро canopus: ящик, визитки, адреса, проекты, ступени и САМИ ИНСТРУМЕНТЫ (canopus_list, canopus_role,
 // canopus_send, canopus_inbox, canopus_help). Его делят плагин OpenCode (index.ts) и MCP-сервер (mcp.ts) для окон
@@ -16,7 +19,7 @@ import path from "node:path"
 import { BASE as CANOPUS_BASE } from "./base.ts"
 import { dataDir } from "./paths.ts"
 import { rotateLog } from "./housekeeping.ts"
-import { type Projects, outsideProject, parseProjects as parseProjectsWith, projectFor, rawSettingsFor, readSettingsFolder, workingSettings, writeSettings } from "./settings.ts"
+import { type Projects, outsideProject, parseProjects as parseProjectsWith, projectFor, rawSettingsFor, settingsForWithOrigins, repositoryDefaultBranch, readSettingsFolder, workingSettings, writeSettings } from "./settings.ts"
 import { SCHEMA, guideText, invalid } from "./config-schema.ts"
 import { type AnswerMap, answerNotes, normalizeAnswerDelay, normalizeAnswerMax, normalizeAnswerMode } from "./answer-parse.ts"
 import { EXTRA_FIELDS_MAX, EXTRA_ID_RE, RESERVED_FIELD_IDS, OWNER_LANGUAGE_RE, DEFAULT_OWNER_LANGUAGE } from "./config-schema.ts"
@@ -38,7 +41,7 @@ import { WATCH_DEFAULT_MIN, WATCH_MAX_MIN, cancelWatch, killWatchTree, watchTree
 import { watchRefusal } from "./deny.ts"
 import { linkErrorsOfWrite, profileProblems, profileState, profilesShow } from "./profile-layer.ts"
 import { releaseTaskWindow } from "./profile-windows.ts"
-import { type Bounds, type Resolved, boundsOf, clampTier, familyOfModel, resolveStageProfile, stageOfLaunch } from "./profiles.ts"
+import { type Bounds, type Resolved, boundsOf, clampTier, familyOfModel, linkProblems as profileLinkProblems, resolveStageProfile, stageOfLaunch } from "./profiles.ts"
 import { createQuestionRouting, digest as questionScopeDigest, requestOf, routingSummary, type QuestionFormIO } from "./question-routing.ts"
 import { QUESTION_ROUTING_HINT, smallHandoff } from "./question-policy.ts"
 import { QUESTION_ROUTE_TERM_MS, type QuestionObservation, type QuestionRequest } from "./question-router.ts"
@@ -47,14 +50,14 @@ import { lazyTaskConfirmationIO } from "./task-confirmation-native.ts"
 import { preserveTaskContext, missingTaskContext } from "./task-context.ts"
 import { removeForm, pendingForms } from "./form-wait.ts"
 
-export const POLL_MS = Number(process.env.CANOPUS_POLL_MS) || 1_000 // переопределение — для самотеста
+export const POLL_MS = runtimeValue("POLL_MS") // переопределение — для самотеста
 export const LIVE_MS = 15 * 60_000
 const STALE_CARD_MS = 7 * 24 * 3600_000
 export const ROLE_RE = /^[a-z][a-z0-9-]{0,40}$/
 const LOG = path.join(os.tmpdir(), "opencode-plugins.log")
 
 // журнал общий для плагинов окружения; больше LOG_MAX_BYTES — в .1 (проверка раз в 200 строк)
-const LOG_MAX_BYTES = Number(process.env.CANOPUS_LOG_MAX) || 5_000_000
+const LOG_MAX_BYTES = runtimeValue("LOG_MAX")
 let logWrites = 0
 export function log(line: string) {
   if (++logWrites % 200 === 0) rotateLog(LOG, LOG_MAX_BYTES)
@@ -103,10 +106,10 @@ export const settingsContext = (): { projects: Projects; local: Record<string, a
 export function configShowText(dir: string, fallbackName = "?", compact = false): string {
   // fallbackName — имя проекта из карточки вкладки: по нему проект находится, даже если вкладка стоит в рабочем дереве вне корня
   const p = projectFor(dir, currentProjects, fallbackName)
-  const committed = p?.dir ? readSettingsFolder(p.dir).raw : rawSettingsFor(dir, currentProjects, {}, fallbackName)
-  const local = (p && currentLocal[p.name]) || {}
-  const effective = { ...committed, ...local }
-  const sourceOf = (k: string) => (k in local ? "local в opencode.jsonc" : k in committed ? (p?.dir ? `файл, ветка ${p.branch}` : "файл (прежняя форма)") : "по умолчанию")
+  const committed = p?.dir ? readSettingsFolder(p.dir).raw : {}
+  const resolved = settingsForWithOrigins(dir, currentProjects, currentLocal, fallbackName)
+  const effective = resolved.values
+  const sourceOf = (key: string) => resolved.origins[key] ?? "по умолчанию"
   // compact — для окна: у списков с id — число и имена, длинное обрезается (полное — canopus_config show у модели)
   const shown = (v: any) => {
     if (compact && Array.isArray(v) && v.length && v.every((x) => x && typeof x === "object" && "id" in x)) return `${v.length}: ${v.map((x) => x.id).join(", ")}`
@@ -122,7 +125,7 @@ export function configShowText(dir: string, fallbackName = "?", compact = false)
   const head = p?.dir
     ? `Проект ${p.name}: настройки ${path.join(p.dir, ".canopus", "plugin", "config.json")}, читается ветка ${p.branch} (${p.repo}).`
     : p
-      ? `Проект ${p.name}: прежняя форма опций — настройки из рабочей копии вверх от каталога вкладки.`
+      ? `Проект ${p.name}: глобальное определение; настройки из выбранного глобального, принятого проектного и личного файлов.`
       : `Папка вкладки ${dir.replace(/\\/g, "/")} не относится к проекту плагина (ни корень, ни рабочее дерево репозитория проекта): настройки — из файла вверх от этой папки, если он есть, иначе по умолчанию.`
   let pending = ""
   if (p?.dir) {
@@ -384,9 +387,15 @@ function warnOnce(key: string, line: string) {
   warned.set(key, now)
   log(line)
 }
+/** Internal code policy is resolved separately from serializable public configuration. */
+export function resolveSettingsPolicy(dir: string, raw: Record<string, unknown>): Record<string, any> {
+  const project = projectFor(dir, currentProjects)
+  return resolveProjectPolicy(raw, project?.dir ?? project?.rootPath ?? dir)
+}
 /** Настройки проекта каталога dir (с умолчаниями). */
 export function loadConfig(dir: string): CanopusConfig {
-  const j = rawSettingsFor(dir, currentProjects, currentLocal) ?? {}
+  const policyProject = projectFor(dir, currentProjects)
+  const j = resolveProjectPolicy(rawSettingsFor(dir, currentProjects, currentLocal) ?? {}, policyProject?.dir ?? policyProject?.rootPath ?? dir)
   const roles = Array.isArray(j.exclusive_roles) ? j.exclusive_roles.map((r: any) => String(r)) : []
   const tiers = { ...DEFAULT_TIERS }
   for (const t of TIER_ORDER) if (Array.isArray(j.tiers?.[t])) tiers[t] = j.tiers[t].map((x: any) => String(x).toLowerCase())
@@ -398,12 +407,13 @@ export function loadConfig(dir: string): CanopusConfig {
   for (const t of TIER_ORDER) if (typeof j.spawn_models?.[t] === "string") spawnModels[t] = j.spawn_models[t]
   const project = projectFor(dir, currentProjects)
   const root = project ? (project.rootPath ?? project.root) : undefined
+  const targetBranch = project?.branch ?? repositoryDefaultBranch(dir)
   let acceptance: AcceptanceStep[] = Array.isArray(j.acceptance)
     ? j.acceptance.filter((a: any) => a && typeof a.id === "string" && typeof a.text === "string").map((a: any) => ({ id: a.id, text: a.text, required: a.required !== false }))
     : []
   // шаги приёмки из документа Канона проекта (задача 027): файл целевой ветки главнее текстов в настройках; нет файла — откат к ним
   if (typeof j.acceptance_file === "string" && j.acceptance_file.trim()) {
-    const target = typeof j.target_branch === "string" && j.target_branch ? j.target_branch : "main"
+    const target = targetBranch
     const file = j.acceptance_file.trim()
     const got = acceptanceFromFile(dir, target, file)
     const note = `${project?.name ?? dir}:${file}`
@@ -427,7 +437,7 @@ export function loadConfig(dir: string): CanopusConfig {
     worktrees: typeof j.worktrees === "string" && j.worktrees && root ? path.resolve(root, j.worktrees) : undefined,
     worktreeName: typeof j.worktree_name === "string" && j.worktree_name ? j.worktree_name : "{repo}-{n}-{slug}",
     branchName: typeof j.branch_name === "string" && j.branch_name ? j.branch_name : "t{n}-{slug}",
-    targetBranch: typeof j.target_branch === "string" && j.target_branch ? j.target_branch : "main",
+    targetBranch,
     cleanup: oneOf(j.cleanup, ["none", "local", "local+remote"] as const, "local+remote"),
     reviewer: oneOf(j.reviewer, ["worker", "integrator", "acceptor"] as const, "worker"),
     acceptance,
@@ -448,7 +458,7 @@ export function loadConfig(dir: string): CanopusConfig {
     stepOldMin: num(j.step_old_minutes, 300),
     longTurnMin: num(j.long_turn_minutes, 360),
     acceptedReminderMin: num(j.accepted_reminder_min, 30),
-    plansDir: typeof j.plans_dir === "string" && j.plans_dir.trim() ? j.plans_dir.trim() : "docs/plans",
+    plansDir: typeof j.tasks_dir === "string" ? j.tasks_dir.trim() : "doc/tasks",
     tasksDir: typeof j.tasks_dir === "string" ? j.tasks_dir.trim() : "doc/tasks",
     planName: typeof j.plan_name === "string" && j.plan_name.includes("{n}") ? j.plan_name : "{n}-{slug}.md",
     planRoundsMax: num(j.plan_rounds_max, 4),
@@ -522,7 +532,7 @@ export function pickHolder(holders: Card[], tier: Tier, cfg: CanopusConfig, now 
 // печатается с меткой «последний ход HH:MM». Замер владельца: окно на Haiku показывалось как Kimi.
 export const MODEL_TTL_MS = 20_000
 const MODEL_FRESH_MS = 5 * 60_000
-export const dbFile = () => process.env.CANOPUS_DB || path.join(dataDir(), "opencode.db")
+export const dbFile = () => runtimeValue("DB") || path.join(dataDir(), "opencode.db")
 
 export function fmtModel(m: any): string {
   if (!m) return ""
@@ -1094,12 +1104,12 @@ export function checkedPlace(dir: string, cfg: CanopusConfig, n: number | string
 }
 
 /** Старт процесса сервера (не загрузки плагина: OpenCode грузит его заново в том же процессе на каждую папку). */
-export const PROCESS_START = Number(process.env.CANOPUS_PROCESS_START) || Date.now() - process.uptime() * 1000
+export const PROCESS_START = Number(runtimeValue("PROCESS_START")) || Date.now() - process.uptime() * 1000
 // Замер 2026-10-13 по базе за 7 дней (doc/tasks/036-hung-turn-detection/task/analysis.md): тишина между строками внутри закрытых
 // ходов — медиана 0,05 с, 95-й процентиль 1,8 с, 99-й 62 с, 99,9-й 194 с, максимум 81 мин (один ход с долгим инструментом).
 // Окно открытого хода 45 мин, порог «завис» 15 мин.
-const OPEN_TURN_MAX_MS = Number(process.env.CANOPUS_OPEN_TURN_MAX_MS) || 45 * 60_000
-export const HUNG_MS = Number(process.env.CANOPUS_HUNG_MS) || 15 * 60_000
+const OPEN_TURN_MAX_MS = runtimeValue("OPEN_TURN_MAX_MS")
+export const HUNG_MS = runtimeValue("HUNG_MS")
 
 /** Ход сессии идёт: по базе (сессия задачи без окна, ход начат не через плагин).
  *  — последнее сообщение новее последнего idle и обновлялось за fresh;
@@ -1230,7 +1240,7 @@ export function liveWindows(now = Date.now()): WindowBeat[] {
 
 /** Где открыта вкладка: окно и активна ли; undefined — не открыта ни в одном живом окне. */
 export function tabOf(sessionID: string, windows = liveWindows()): { window: WindowBeat; tab: WindowTab } | undefined {
-  if (process.env.CANOPUS_PRESENCE === "all") return { window: { pid: 0, beat: Date.now(), tabs: [] }, tab: { sessionID, active: true } }
+  if (runtimeValue("PRESENCE") === "all") return { window: { pid: 0, beat: Date.now(), tabs: [] }, tab: { sessionID, active: true } }
   for (const w of windows) {
     const tab = (w.tabs ?? []).find((t) => t.sessionID === sessionID)
     if (tab) return { window: w, tab }
@@ -1575,7 +1585,7 @@ export const SETS_VERB_HELP: VerbHelp[] = [
   { verb: "ls", usage: "", what: "список наборов: ● у включённого, модели в строке; в окне — выбор стрелками, Enter включает набор (list — то же)", example: "ls", bare: true },
   { verb: "show", usage: "[имя] [этап|all]", what: "набор кратко: таблица этапов и ступеней с короткими именами моделей; этап или all — подробно; без имени — включённый", example: "show cross-kimi приёмка", bare: true },
   { verb: "use", usage: "<имя>", what: "включить набор для всех этапов: имя записывается в profile_set файла проекта (без коммита)", example: "use cross-kimi" },
-  { verb: "off", usage: "", what: "выключить набор: убрать profile_set из файла проекта; модели новых сессий снова по spawn_models", example: "off", bare: true },
+  { verb: "off", usage: "", what: "выключить набор личным profile_set:false; модели новых сессий снова по встроенной политике", example: "off", bare: true },
   { verb: "set", usage: "<имя> <этап> <семья>/<ступень>", what: "изменить клетку набора", example: "set cross-kimi develop_accept kimi/heavy" },
   { verb: "unset", usage: "<имя> <этап>", what: "убрать клетку: этап вернётся к spawn_models", example: "unset cross-kimi develop_accept" },
   { verb: "new", usage: "<имя> [from <имя>]", what: "новый набор: пустой или копия другого", example: "new my-set from default" },
@@ -1739,7 +1749,7 @@ acceptor — роль приёмщика (разделяемая) при нас�
     задачи с папкой — по образцу (разделы «Чего хочет владелец», «Что нужно», «Критерии приёмки», «Результат и куда он попадает»,
     «Связи», «Границы»; пустой — «нет: <почему>»): без message собирается из полей, без owner_words с датой и без result — отказ,
     message без разделов образца — отказ; модель по ступени (по умолчанию, пока набор не
-    включён: heavy — claude-code/opus, medium — sonnet, light — haiku; проект меняет spawn_models; включённый набор профилей
+    включён: heavy — claude-code/opus, medium — sonnet, light — haiku; встроенная политика моделей задаёт резерв; включённый набор профилей
     моделей — /canopus-sets — переопределяет модель этапа, tier на входе выбирает ступень внутри семьи набора; ступень всегда в границах
     проекта tier_min и tier_max, если они заданы); лимит работающих на роль —
     spawn_limits (3). Если в настройках проекта задан worktrees — письмо с задачей называет папку worktree и ветку.
@@ -1776,7 +1786,7 @@ acceptor — роль приёмщика (разделяемая) при нас�
      Дальше при plan_steps: auto (по умолчанию) плагин сам ставит задачу на каждый шаг плана, читая его из целевой ветки: по «после»,
      по пересечению «где» и в границах лимитов; шаг-подплан — снова задача-план. При plan_steps: manual автор получает список шагов и ставит
      задачи сам (canopus_spawn). Когда все шаги закрыты, автору приходит письмо закрыть план.
-  Настройки: plans_dir, plan_approver, plan_acceptance, plan_grades, plan_clean_rounds, plan_rounds_max, plan_steps (canopus_config guide).
+  Форма, сроки и порядок приёмки планов — встроенная именованная политика; документы находятся в tasks_dir.
 
 СТАТУСЫ ЗАДАЧИ: starting (сессия создаётся) → running (в работе) → submitted (сдана) → reviewing (на приёмке) ⇄ rework (на доработке);
 idle (задача с сессиями методики между сессиями: сессия сдана интегратору, следующей нет);
@@ -1870,8 +1880,7 @@ export function saveProjects(opt: any) {
 export function loadProjects(): Projects {
   const env = process.env.OPENCODE_CANOPUS_PROJECTS
   let opt: any = globalConfig()
-  const fromGlobal = Object.keys(opt).length > 0
-  if (!fromGlobal) opt = readJson<any>(PROJECTS_FILE) ?? {}
+
   if (env) {
     try {
       opt = { ...opt, project_settings: JSON.parse(env), projects: undefined }
@@ -1880,7 +1889,7 @@ export function loadProjects(): Projects {
     }
   }
   const projects = parseProjects(opt)
-  setProjects(projects, fromGlobal ? {} : opt.local)
+  setProjects(projects, {})
   return projects
 }
 
@@ -2374,7 +2383,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
       const tasksPart = openTasks.length ? `\nЗадачи (canopus_task):\n${openTasks.map((t) => `  ${taskNo(t)} ${t.priority} ${statusRu(t.status)} «${t.title}»${t.executor ? ` — ${t.executor}` : ""}`).join("\n")}` : ""
       const routeProblems = questionRouter.problems()
       const tail = tasksPart + (others ? `\n(ещё ${others} вкладок в других проектах — canopus_list {all: true})` : "") + (routeProblems.length ? `\nПроблемы маршрута: ${routeProblems.slice(0, 10).join("; ")}` : "")
-      const noWindow = windows.length || process.env.CANOPUS_PRESENCE === "all" ? "" : "\n(ни одно окно OpenCode с плагином окна сейчас не открыто — письма ждут; canopus_doctor)"
+      const noWindow = windows.length || runtimeValue("PRESENCE") === "all" ? "" : "\n(ни одно окно OpenCode с плагином окна сейчас не открыто — письма ждут; canopus_doctor)"
       return { content: (rows.length ? rows.join("\n") : `Вкладок проекта ${home} нет.`) + tail + noWindow }
     },
   }
@@ -2785,7 +2794,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
 
   /** Отказ canopus_spawn проекта без определённых моделей: что не задано и что делать (задача 033). */
   const unconfiguredRefusal = (project: string, sessionModel: string | undefined) =>
-    `Задача не поставлена: проект ${project} не настроен: не заданы модели для воркеров (нет включённого profile_set, spawn_models, явного model и allow_default_models). Без этого воркер взял бы модель по умолчанию (heavy — Opus) и тратил лимит молча.
+    `Задача не поставлена: проект ${project} не настроен: не заданы модели для воркеров (нет включённого profile_set и явного model). Без этого воркер взял бы модель по умолчанию (heavy — Opus) и тратил лимит молча.
 ` +
     `Спроси владельца инструментом question и дай варианты:
 ` +
@@ -2793,7 +2802,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
 ` +
     `2) использовать для воркеров модель этой сессии${sessionModel ? ` (${sessionModel})` : " (название модели сессии плагину неизвестно — спроси у владельца)"} — вызови canopus_spawn ещё раз с явным model${sessionModel ? `: "${sessionModel}"` : ""};
 ` +
-    `3) выбрать иное — canopus_config {action: "guide"} (вопросы по каждому ключу; allow_default_models: true оставляет модели по умолчанию осознанно).`
+    `3) выбрать иное — canopus_config {action: "guide"} (выбор профилей и публичных настроек проекта).`
 
   // ЗАДАЧА С ПАПКОЙ (задача 058). Новая задача — номер 1 + max по записям и папкам во всех деревьях и ветках, папка NNN-<slug>/
   // (task/message.md и log.md) коммитом плагина на ветке задачи; задача, чья папка уже есть, — запись с её номером без коммита папки;
@@ -2939,7 +2948,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
         "goal, criteria - required (the project may require more: boundaries, open_questions; task_fields). title? priority? P0..P3.",
         "route? full (по умолчанию) | fast (092) | small (191) — данные записи: route, route_basis, route_source, route_proposal, route_word, route_word_date, clean_runs, ceiling, probes, delivery_compressed, sources_list. fast требует route_word («заводи <номер>» дословно с датой) и полной постановки с нумерованными критериями/веткой; иначе отказ. Минимумы clean_runs 1/probes 3 не снижаются, числа задаёт route_defaults; правка постановки помечает route_word_stale, canopus_task route обновляет слово или возвращает full. small распознаёт оркестратор по фразам владельца «сделай X мгновенно»/«сделай X, супер быстро»: route_word дословно с датой, estimate=T, папка из трёх строк. criteria необязателен (по умолчанию слово владельца на контуре); явный documentary criterion/exact SHA сохраняется. Формального приёмщика/цикла нет; технический просмотр не отменяет финальные owner gates и не требует выдумывать URL.",
         "The task text of a new task with a folder (no task:, part_of included) follows one template: «# Задание: <title>», a header, then sections «Чего хочет владелец», «Что нужно», «Критерии приёмки», «Результат и куда он попадает», «Связи», «Границы» in this order; an empty section is «нет: <why>». Without message the plugin builds it from the fields: owner_words (required: the owner's words word for word with date and source, e.g. - «сделай X» (владелец, 2026-10-17, чат оркестратора)), goal (paragraphs and «- » lines become the numbered points of «Что нужно»), criteria, result (required: where the result lands, or «нет: результат — код: <what is delivered>»), links? (Зависит от / Блокирует / Пересекается (файлы) / Начинается после), boundaries?; absent links or boundaries become «нет: … не передано». Without owner_words with a date or without result - a refusal naming what to add; a message without the template's sections is refused too. A project without task folders and a session of a task (task: N) need none of these fields.",
-        "tier heavy|medium|light - picks the model: by default claude-code opus|sonnet|haiku, spawn_models of the project overrides; an enabled model-profile set (/canopus-sets) overrides both for the stage it describes (the tier then picks the tier inside the set's family). model - explicit provider/id[#variant]; required when the project has no model settings (ask the owner first).",
+        "tier heavy|medium|light - picks the model: by default claude-code opus|sonnet|haiku, the named built-in model policy supplies defaults; an enabled model-profile set (/canopus-sets) overrides both for the stage it describes (the tier then picks the tier inside the set's family). model - explicit provider/id[#variant]; required when the project has no model settings (ask the owner first).",
         "role? - role of the new session, default worker. extra {id: one line up to 300 characters} - the project's extra task fields (task_extra_fields; canopus_config show lists them). parent \"project#N\" - the order of another project this task fulfils.",
         "Limits: the project caps running tasks per role (spawn_limits) and open tasks (inflight_limit). By default (accepted_slot: free) accepted tasks waiting for cleanup do not take a place in inflight_limit; cleanup_limit bounds them.",
         "kind: plan - a PLAN TASK: the executor writes no code, only a plan file. Steps:",
@@ -3022,7 +3031,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
       if (chosen && "refuse" in chosen) return { content: `Задача не поставлена: ${chosen.refuse}.` }
       // МОДЕЛЬ НЕ ОПРЕДЕЛЕНА (задача 033): ни набора, ни spawn_models, ни явного model, ни allow_default_models — отказ, а не молчаливая
       // модель по умолчанию (ступень heavy — Opus и расход лимита Claude); задача не записывается
-      if (!explicitModel && !chosen && !modelsDefined(pst.raw)) {
+      if (!explicitModel && !chosen && !modelsDefined({ ...pst.raw, allow_default_models: resolveSettingsPolicy(me.directory, pst.raw).allow_default_models })) {
         // настройки читаются «из кеша сразу, обновление в фоне» (задача 034): отказывать по устаревшему значению нельзя —
         // перед отказом одно свежее чтение (без фонового режима), иначе сразу после записи шаблона и коммита приходит ложный отказ
         const prevBg = background.on
@@ -3033,7 +3042,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
         } finally {
           background.on = prevBg
         }
-        if (!modelsDefined(freshRaw)) return { content: unconfiguredRefusal(project, me.model) }
+        if (!modelsDefined({ ...freshRaw, allow_default_models: resolveSettingsPolicy(me.directory, freshRaw).allow_default_models })) return { content: unconfiguredRefusal(project, me.model) }
       }
       const model = explicitModel ?? (chosen ? chosen.model : (cfg.spawnModels[tier] ?? DEFAULT_SPAWN_MODELS[tier]))
       const recTier: Tier = chosen ? chosen.tier : tier // ступень записи при наборе — та, на которой реально запущена сессия
@@ -3959,10 +3968,10 @@ ${lockStillYours(stillHeld.n)}` : "") }
       [
         "The project's settings (.canopus/plugin/config.json in its settings repository). One line per action: action - who may - parameters - what it does.",
         "guide - anyone - questions for the owner on every key (current value, options, recommendation, why): ask them in text and record the answers.",
-        "show - anyone - effective values and where each comes from (default, the committed file, the local option of opencode.jsonc), plus uncommitted edits. Model profiles come first: model_profiles = families/tiers -> model, profile_sets = named sets of stages, profile_set = the enabled set (only a person changes it, /canopus-sets use|off); the summary says 'sets in the file: N; enabled: name or none' - never answer 'no sets' from 'not enabled'; details: canopus_help.",
-        "set - integrator - values {key: value; null removes a key} - checks every value and writes the working copy; it applies once committed to the settings branch. Keys changed by people only (profile_set, answer_mode, answer_max) are refused.",
-        "apply_template - integrator - writes the standard template (families claude/codex/kimi, sets, profile_set codex, tier_max light, branch and worktree names) into the file; the project's own keys win; commit the file or the old state stays.",
-        "Planning keys (plan tasks: canopus_spawn kind plan): plans_dir (folder of plan files in the repository, default docs/plans), plan_approver (owner = the owner decides with /plans in the window; integrator = the integrator decides with canopus_task plan_decide), plan_acceptance (steps of the plan recheck: id, text, required), plan_grades (grades of remarks and which of them keep a round clean), plan_clean_rounds, plan_rounds_max, plan_steps (auto|manual: start the tasks of a landed plan's steps automatically). project_rules - English text appended to the end of every tab's system block. owner_language - the owner's language as an English name (default Russian): every tab writes what the owner reads in it, letters to other tabs included. compaction_summary - true by default: OpenCode tabs are asked for a short summary by the pattern of the Canon when their context is compacted (the session hook compaction); false leaves the summary to OpenCode.",
+        "show - anyone - effective values and where each comes from (default, the committed file, the personal file or global local layer), plus uncommitted edits. Model profiles come first: model_profiles = families/tiers -> model, profile_sets = named sets of stages, profile_set = the enabled set (only a person changes it, /canopus-sets use|off); the summary says 'sets in the file: N; enabled: name or none' - never answer 'no sets' from 'not enabled'; details: canopus_help.",
+        "set - integrator - values {key: value; null removes a key} - checks every value and writes the working copy; it applies once committed to the settings branch. Keys changed by people only (profile_set, answer_mode) are refused.",
+        "apply_template - integrator - writes the standard template (families claude/codex/kimi, explicit light-tier sets and profile_set codex) into the file; the project's own keys win; commit the file or the old state stays.",
+        "Public project keys: tasks_dir, model_profiles, profile_sets, profile_set, spawn_limits, inflight_limit, machine_slots, owner_language, answer_mode, acceptance_file. Internal timing, routing, forms, cleanup and branch policies are fixed named code constants, not editable settings.",
       ].join("\n"),
     input: {
       type: "object",
@@ -3979,8 +3988,9 @@ ${lockStillYours(stillHeld.n)}` : "") }
       const p = projectFor(me.directory, projects, me.project) // проект — по карточке вкладки и по репозиторию, не только по её папке (задача 067)
       const committed = p?.dir ? readSettingsFolder(p.dir).raw : rawSettingsFor(me.directory, projects, {}, me.project)
       const local = (p && currentLocal[p.name]) || {}
-      const effective = { ...committed, ...local }
-      const sourceOf = (k: string) => (k in local ? "local в opencode.jsonc" : k in committed ? (p?.dir ? `файл, ветка ${p.branch}` : "файл (прежняя форма)") : "по умолчанию")
+      const resolvedSettings = settingsForWithOrigins(me.directory, projects, currentLocal, me.project)
+      const effective = resolvedSettings.values
+      const sourceOf = (key: string) => resolvedSettings.origins[key] ?? "по умолчанию"
       if (String(input.action ?? "") === "view") return { content: VIEW_GONE }
       const action = String(input.action ?? "")
       if (action === "guide") return { content: guideText(effective, sourceOf) }
@@ -3988,16 +3998,15 @@ ${lockStillYours(stillHeld.n)}` : "") }
       if (action === "apply_template") {
         if (!isIntegrator(me)) return notIntegrator(me)
         if (!p) return { content: outsideProject(me.directory).replace(/^./, (c) => c.toUpperCase()) + "." }
-        if (!p.dir) return { content: `Проект ${p.name} задан прежней формой опций: записать некуда. Переведи его на репозиторий настроек — в opencode.jsonc "project_settings": ["<папка с .canopus/plugin/config.json>"].` }
-        const { values, added } = mergeTemplate(workingSettings(p.dir).raw)
+        const { values, added } = mergeTemplate(p.dir ? workingSettings(p.dir).raw : globalConfig().local?.[p.name] ?? {})
         if (!added.length) return { content: `Шаблон ничего не добавил: все его ключи у проекта уже есть (файл не тронут).` }
-        const file = writeSettings(p.dir, values)
+        const file = p.dir ? writeSettings(p.dir, values) : writeGlobalProjectSettings(p.name, values)
+        if (!p.dir) return { content: `Стандартный шаблон записан в ${file}, local[${p.name}]; добавлены ключи: ${added.join(", ")}. Действует сразу.` }
         return { content: `Стандартный шаблон записан в ${file}; добавлены ключи: ${added.join(", ")}; уже заданные ключи проекта не тронуты. Файл нужно закоммитить в ветку ${p.branch} репозитория ${p.repo}, иначе действует прежнее состояние (проект остаётся не настроенным).` }
       }
       if (action === "set") {
         if (!isIntegrator(me)) return notIntegrator(me)
         if (!p) return { content: outsideProject(me.directory).replace(/^./, (c) => c.toUpperCase()) + "." }
-        if (!p.dir) return { content: `Проект ${p.name} задан прежней формой опций: записать некуда. Переведи его на репозиторий настроек — в opencode.jsonc "project_settings": ["<папка с .canopus/plugin/config.json>"].` }
         const values = input.values
         if (!values || typeof values !== "object" || Array.isArray(values) || !Object.keys(values).length) return { content: "Нужно values: {ключ: значение}." }
         if (Object.prototype.hasOwnProperty.call(values, "profile_set")) return { content: "Не записано (файл не тронут):\n- profile_set: имя набора меняет человек (команда окна /canopus-sets use либо правка файла); вызовом set его не записывают" }
@@ -4016,9 +4025,12 @@ ${lockStillYours(stillHeld.n)}` : "") }
           if (be) return { content: `Не записано (файл не тронут):\n- ${be}` }
         }
         // связи между ключами профилей: рабочая копия плюс вносимое (два вызова подряд — справочник, затем наборы — проходят)
-        const links = linkErrorsOfWrite(p.dir, values)
+        const virtualBase = globalConfig().local?.[p.name] ?? {}
+        const virtualMerged = { ...virtualBase, ...values }
+        const links = p.dir ? linkErrorsOfWrite(p.dir, values) : profileLinkProblems({ profiles: virtualMerged.model_profiles, sets: virtualMerged.profile_sets }).map(item => item.text)
         if (links.length) return { content: `Не записано (файл не тронут):\n${links.map((e) => `- ${e}`).join("\n")}` }
-        const file = writeSettings(p.dir, values)
+        const file = p.dir ? writeSettings(p.dir, values) : writeGlobalProjectSettings(p.name, values)
+        if (!p.dir) return { content: `Записано в ${file}, local[${p.name}]: ${Object.keys(values).join(", ")}. Действует сразу; личные проектные поправки сохраняют приоритет.` }
         return { content: `Записано в ${file}: ${Object.keys(values).join(", ")}. Действует после коммита в ветку ${p.branch} репозитория ${p.repo} (по методологии проекта); до коммита действуют прежние значения — canopus_config {action: "show"} покажет незакоммиченное.` }
       }
       return { content: `Неизвестное действие «${action}».` }
@@ -4473,7 +4485,7 @@ export function commonDoctor(sessionID?: string): string[] {
   }
   const windows = liveWindows()
   if (!windows.length) out.push("ни одно окно OpenCode не отмечается: плагин окна не подключён или окна закрыты. Подключение: в ~/.config/opencode/cli.json, раздел plugins — путь к папке canopus; окна открыть заново")
-  else if (sessionID && !process.env.CANOPUS_PRESENCE && !tabOf(sessionID, windows) && !readJson<Card>(cardFile(sessionID))?.spawned) out.push("эта вкладка не видна ни одному окну: она открыта в окне, запущенном до подключения плагина окна? Открой окно заново")
+  else if (sessionID && !runtimeValue("PRESENCE") && !tabOf(sessionID, windows) && !readJson<Card>(cardFile(sessionID))?.spawned) out.push("эта вкладка не видна ни одному окну: она открыта в окне, запущенном до подключения плагина окна? Открой окно заново")
   out.push(...branchProblems(BASE)) // окна не на своей ветке или не в своём каталоге (задача 157)
   out.push(...stepProblems(Date.now())) // срок шага вышел, вопрос владельцу открыт (задача 161)
   out.push(...nativeProblems(Date.now()))

@@ -1,23 +1,24 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of stale asked questions (task 032, node >= 24):  node test/canopus-asked-stale.test.mjs
 // A question (canopus_send expect_reply) is an obligation of the addressee; it used to close only by reply_to. Now it also
 // closes by any letter of the addressee to the author, by a closed addressee session, and one older than ASKED_STALE_MIN
 // stops holding the "reply" state (it is shown as a separate "stale" line of /canopus).
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-asked-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_STATUS_MS = "100"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("STATUS_MS", "100")
 const dbPath = path.join(tmp, "opencode.db")
-process.env.CANOPUS_DB = dbPath
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", dbPath)
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({}))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({}))
 
 const db = new DatabaseSync(dbPath)
 db.exec("create table session_v2 (id text primary key, directory text, title text, parent_id text, time_archived integer, time_idle integer, time_viewed integer, time_suspended integer)")
@@ -59,7 +60,7 @@ const WPID = 525252
 // the addressee D3 has no tab: its session is closed (a spawned card marked closed, below)
 const tabs = S.filter((s) => s !== "sesD3").map((sessionID, i) => ({ sessionID, active: i === 0, busy: false }))
 mkdirSync(core.WINDOWS, { recursive: true })
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs }))
 beat()
 const heart = setInterval(beat, 300)
 

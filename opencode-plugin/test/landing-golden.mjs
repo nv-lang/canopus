@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Golden texts of the base for the faster-landing task (005; node >= 24).
 //   node test/landing-golden.mjs --write            record the snapshot test/landing-golden.json (once, BEFORE the core is changed)
 //   node test/landing-golden.mjs --check --legacy   collect the texts again with the OLD behaviour set explicitly (accepted_slot: hold,
@@ -12,7 +13,7 @@
 // accepted. The temp folder and the clock are replaced by markers. LANDING_GOLDEN_FILE points to another snapshot file
 // (the control: a snapshot with one line spoiled must differ).
 import { execFileSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
@@ -30,13 +31,13 @@ if (!mode || (mode === "check" && keysMode !== "legacy") || (mode === "write" &&
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-golden-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_STATUS_MS = "100"
-process.env.CANOPUS_FLOW_MS = "200"
-process.env.CANOPUS_LEFT_MS = "3600000"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("STATUS_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FLOW_MS", "200")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("LEFT_MS", "3600000")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
@@ -55,10 +56,10 @@ const settings = {
   ...(keysMode === "legacy" ? { accepted_slot: "hold", cleanup_limit: 10, merge_precheck: "off", task_extra_fields: [] } : {}),
   ...(keysMode === "new" ? { accepted_slot: "free", cleanup_limit: 10, merge_precheck: "required", task_extra_fields: [] } : {}),
 }
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(settings))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(settings))
 const git = (...a) => execFileSync("git", ["-C", proj, "-c", "user.name=t", "-c", "user.email=t@t", ...a], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })
 git("init", "-q", "-b", "main")
-writeFileSync(path.join(proj, "a.txt"), "a")
+writeFixtureFile(path.join(proj, "a.txt"), "a")
 git("add", "-A")
 git("commit", "-q", "-m", "init")
 
@@ -86,7 +87,7 @@ const ctx = {
 }
 const WPID = 717171
 mkdirSync(core.WINDOWS, { recursive: true })
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: [{ sessionID: "sesINTEG1", active: true, busy: false }] }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: [{ sessionID: "sesINTEG1", active: true, busy: false }] }))
 beat()
 const heart = setInterval(beat, 300)
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -163,12 +164,12 @@ try {
 } catch {}
 
 if (mode === "write") {
-  writeFileSync(SNAPSHOT, JSON.stringify(result, null, 1) + "\n")
+  writeFixtureFile(SNAPSHOT, JSON.stringify(result, null, 1) + "\n")
   console.log(`golden written: ${Object.keys(result).length} texts -> ${path.basename(SNAPSHOT)}`)
   process.exit(0)
 }
 if (mode === "dump") {
-  writeFileSync(process.argv[dumpAt + 1], JSON.stringify(result, null, 1) + "\n")
+  writeFixtureFile(process.argv[dumpAt + 1], JSON.stringify(result, null, 1) + "\n")
   console.log(`golden dumped: ${Object.keys(result).length} texts`)
   process.exit(0)
 }

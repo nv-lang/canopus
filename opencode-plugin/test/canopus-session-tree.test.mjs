@@ -1,22 +1,23 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the tree of a task session (task 079, node >= 24):  node test/canopus-session-tree.test.mjs
 // The scenario of task 061: the task branch has a tree made by hand, the integrator recorded it with canopus_task track, then a session
 // of the task is started (canopus_spawn {task, session, place: task}). The plugin takes the tree that already stands on the branch (the
 // record of the task and the session agree on its path) and never runs a second `git worktree add` on a busy branch. Borders: a tree
 // made by the plugin as before; a branch held by the main copy or by the tree of another task is a refusal naming that path; a
 // recorded path whose folder is gone is made again; a session of its own (place own) takes a tree made by hand for its branch.
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { execFileSync } from "node:child_process"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-session-tree-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-process.env.CANOPUS_PRESENCE = "all"
-process.env.CANOPUS_START_RETRY_MS = "60000"
-process.env.CANOPUS_SETTINGS_TTL_MS = "1" // the settings are read from the committed file: a change is committed and read at once
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("START_RETRY_MS", "60000")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("SETTINGS_TTL_MS", "1")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
@@ -24,7 +25,7 @@ const settings = path.join(proj, ".canopus", "plugin", "config.json")
 const base = { root: "..", worktree_name: "{repo}-{n}-{slug}", branch_name: "task/{n}-{slug}", cleanup: "local", allow_default_models: true, inflight_limit: 20, spawn_limits: { worker: 20, reviewer: 0 } }
 // before the settings name the folder of trees, the plugin makes no tree (task 061 started so: the tabs were moved by hand)
 const putSettings = (raw) => {
-  writeFileSync(settings, JSON.stringify(raw))
+  writeFixtureFile(settings, JSON.stringify(raw))
   if (!existsSync(path.join(proj, ".git"))) return
   git(proj, "add", "--", ".canopus/plugin/config.json")
   git(proj, "commit", "-q", "-m", "settings", "--allow-empty")
@@ -43,11 +44,11 @@ const settingsTrees = async () => {
 }
 putSettings(base)
 mkdirSync(path.join(proj, "doc", "tasks", "000-seed"), { recursive: true })
-writeFileSync(path.join(proj, "doc", "tasks", "000-seed", "log.md"), "2026-10-01 10:00 документ: задание заведено\n")
+writeFixtureFile(path.join(proj, "doc", "tasks", "000-seed", "log.md"), "2026-10-01 10:00 документ: задание заведено\n")
 git(proj, "init", "-q", "-b", "main")
 git(proj, "config", "user.name", "Owner Test")
 git(proj, "config", "user.email", "owner@test")
-writeFileSync(path.join(proj, "a.txt"), "a\n")
+writeFixtureFile(path.join(proj, "a.txt"), "a\n")
 git(proj, "add", "-A")
 git(proj, "commit", "-q", "-m", "init")
 const wtRoot = path.join(tmp, "worktrees")

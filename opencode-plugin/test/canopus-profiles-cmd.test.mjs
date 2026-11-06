@@ -1,3 +1,4 @@
+import { setFixturePolicy } from "./fixture-settings.mjs"
 // Self-test of the window commands /canopus-sets and /canopus-profiles (task 003, ADR-0014: edits go straight into the file; node >= 24):
 //   node test/canopus-profiles-cmd.test.mjs
 // The commands are called as the window calls them (the registered slash command with prompt.text): tables, show, use with
@@ -14,13 +15,13 @@ const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-profiles-cmd-"))
 process.env.TEMP = tmp // the plugin log lives in os.tmpdir(): this keeps the lines of this test apart from the live service
 process.env.TMP = tmp
 process.env.XDG_DATA_HOME = path.join(tmp, "data")
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 process.env.XDG_CONFIG_HOME = path.join(tmp, "xdgcfg")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_PROFILES_MS = "100000"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-process.env.CANOPUS_SETTINGS_TTL_MS = "600000"
-process.env.CANOPUS_PRESENCE = "all"
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PROFILES_MS", "100000")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("SETTINGS_TTL_MS", "600000")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
 
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
 const sha = (f) => createHash("sha256").update(readFileSync(f)).digest("hex")
@@ -38,14 +39,17 @@ const SETS = {
   "cross-codex": { develop: c("claude", "medium"), plan: c("claude", "heavy"), accept: c("codex", "heavy"), plan_accept: c("codex", "heavy") },
   "kimi-only": { develop: c("kimi", "heavy"), plan: c("kimi", "heavy"), accept: c("kimi", "heavy"), plan_accept: c("kimi", "heavy") },
 }
-const root = path.join(tmp, "proj")
-const cfgDir = path.join(root, "proj-settings")
+const root = path.join(tmp, "cmdproj")
+const cfgDir = root
 mkdirSync(path.join(cfgDir, ".opencode"), { recursive: true }); mkdirSync(path.join(cfgDir, ".canopus", "plugin"), { recursive: true })
 const file = path.join(cfgDir, ".canopus", "plugin", "config.json")
-const base = { project: "cmdproj", root: ".." }
+const base = {}
 git(cfgDir, "init", "-q", "-b", "main")
 const writeFileJson = (obj) => writeFileSync(file, JSON.stringify(obj, null, 2))
 const readFileJson = () => JSON.parse(readFileSync(file, "utf8"))
+const personalFile = path.join(cfgDir, ".canopus/plugin/local.json")
+const readPersonal = () => existsSync(personalFile) ? JSON.parse(readFileSync(personalFile,"utf8")) : {}
+
 writeFileJson({ ...base, model_profiles: TABLE, profile_sets: SETS })
 git(cfgDir, "add", "-A")
 git(cfgDir, "commit", "-q", "-m", "settings")
@@ -71,7 +75,7 @@ let catalogFails = false
 const ctx = {
   location: { directory: root },
   app: { name: "opencode", version: "2.0.23-test" },
-  options: { projects: [cfgDir] },
+  options: { project_settings: [cfgDir] },
   command: { list: async () => ({ data: [] }), transform: async (fn) => fn({ add: (cmd) => (commands[cmd.name] = cmd) }) },
   model: { list: async () => { if (catalogFails) throw new Error("catalog down"); return { data: catalog } } },
   session: {
@@ -106,7 +110,7 @@ const profs = (t) => run("canopus-profiles", t)
 const bump = () => writeSettings(cfgDir, {}) // drops the settings cache of the folder (rewrites the same working file)
 const commit = (msg) => {
   git(cfgDir, "add", "-A")
-  git(cfgDir, "commit", "-q", "-m", msg)
+  git(cfgDir, "commit", "-q", "--allow-empty", "-m", msg)
   bump()
 }
 const logPath = path.join(tmp, "opencode-plugins.log")
@@ -136,7 +140,7 @@ cell("AC-17 a refused edit leaves one `profile edit refused` line and no `profil
 r = await sets("use cross-kimi")
 cell("AC-07 use (task 075): the first line is the result, restart is not needed, the stages by words, no service words (the reviewer window is in the detailed view)", /^Набор «cross-kimi» включён$/m.test(r) && /^Новые сессии пойдут на модели набора, перезапуск не нужен\.$/m.test(r) && /^Приёмка:\s+k3-256k\s+\(было те же\)$/m.test(r) && /^Не закоммичено — это локальная настройка проекта\.$/m.test(r) && !/рукописным настройкам|Приёмка и приёмка плана: контекст профиля здесь не применяется|файлы окон/.test(r), r)
 cell("AC-07 the details of the reviewer window (the number of the hand-written settings) are in the detailed view of the stage", await (async () => { const d = await sets("show приёмка"); return /контекст профиля здесь не применяется/.test(d) && /модель kimi-code-plan-global\/k3-256k берёт контекст из рукописных и глобальных настроек: контекст 262144 · вывод до 131072/.test(d) })(), "")
-cell("AC-21 use writes profile_set into the working copy of the file at once, atomically, without a commit; the data in force are the file", sha(file) !== hashFile0 && readFileJson().profile_set === "cross-kimi" && st().name === "cross-kimi" && commits() === commits0 && JSON.parse(git(cfgDir, "show", "HEAD:.canopus/plugin/config.json")).profile_set === undefined, st().name)
+cell("AC-21 use writes profile_set into the working copy of the file at once, atomically, without a commit; the data in force are the file", sha(file) === hashFile0 && readPersonal().profile_set === "cross-kimi" && st().name === "cross-kimi" && commits() === commits0 && JSON.parse(git(cfgDir, "show", "HEAD:.canopus/plugin/config.json")).profile_set === undefined, st().name)
 cell("AC-21 the write left no temporary file and no layer file", !existsSync(`${file}.${process.pid}.tmp`) && !existsSync(L.layerFile("cmdproj")), "left")
 cell("AC-17 use leaves exactly one line of the log", editLines().length === 1 && /canopus-sets use include|canopus-sets use/.test(editLines()[0]), JSON.stringify(editLines()))
 r = await sets("")
@@ -155,7 +159,7 @@ cell("reset of /canopus-profiles is gone the same way", /Команды reset б
 r = await sets("save")
 cell("save is gone: nothing to save, the file is untouched", /Команды save больше нет/.test(r) && /сохранять и сбрасывать нечего/.test(r) && sha(file) === hashBeforeGone, r)
 // a person takes the name out of the file by hand: the set is not applied (row 1), as before
-writeFileJson({ ...readFileJson(), profile_set: undefined })
+writeFileSync(personalFile,JSON.stringify({profile_set:false}))
 bump()
 cell("the name taken out of the file by hand: no set enabled", st().name === undefined && st().state.row === 1, String(st().name))
 cell("AC-07 no turn of the model: every answer is a service message", prompts.length === 0 && replies.length > 0, String(prompts.length))
@@ -219,10 +223,10 @@ rmSync(explicitFile)
 // ---- task 016: tier bounds are an ordinary committed setting: shown and clamp; min above max is a problem and is not applied ----
 {
   const raw = readFileJson()
-  raw.tier_max = "medium"
+  setFixturePolicy(cfgDir, { tier_min: "light", tier_max: "medium" })
   writeFileJson(raw)
   git(cfgDir, "add", "-A")
-  git(cfgDir, "commit", "-q", "-m", "tier bounds")
+  git(cfgDir, "commit", "-q", "--allow-empty", "-m", "tier bounds")
   writeSettings(cfgDir, {})
   const rClamp = await sets("show cross-codex all")
   cell("016 show: an explicit heavy cell is shown with the clamp to the bound", /планирование: claude\/heavy → claude-code\/sonnet — срез границами ступеней: heavy → medium/.test(rClamp), rClamp)
@@ -243,19 +247,18 @@ rmSync(explicitFile)
   if (prevName === undefined) delete raw2.profile_set
   else raw2.profile_set = prevName
   writeFileJson(raw2)
-  raw.tier_min = "heavy"
+  setFixturePolicy(cfgDir, { tier_min: "heavy", tier_max: "medium" })
   writeFileJson(raw)
   git(cfgDir, "add", "-A")
-  git(cfgDir, "commit", "-q", "-m", "tier bounds")
+  git(cfgDir, "commit", "-q", "--allow-empty", "-m", "tier bounds")
   writeSettings(cfgDir, {})
   const rBadB = L.problemsOf(st())
   const rNoClamp = await sets("show cross-codex all")
   cell("016 min above max is a problem line and the bounds are not applied", rBadB.some((x) => /tier_min \(heavy\) выше tier_max \(medium\)/.test(x)) && /планирование: claude\/heavy → claude-code\/opus/.test(rNoClamp) && !/срез границами/.test(rNoClamp), JSON.stringify(rBadB) + rNoClamp)
-  delete raw.tier_min
-  delete raw.tier_max
+  setFixturePolicy(cfgDir, { tier_min: "light", tier_max: "heavy" })
   writeFileJson(raw)
   git(cfgDir, "add", "-A")
-  git(cfgDir, "commit", "-q", "-m", "tier bounds")
+  git(cfgDir, "commit", "-q", "--allow-empty", "-m", "tier bounds")
   writeSettings(cfgDir, {})
 }
 
@@ -280,7 +283,7 @@ cell("AC-27 the set `mine` is enabled in a state where it has only the develop s
 r = await sets("delete mine")
 cell("AC-27 delete of the enabled set is refused", /Не сделано/.test(r) && /включён/.test(r) && !!st().data.sets.mine, r)
 r = await sets("rename mine mine2")
-cell("AC-27 rename of the enabled set moves the name to the new one (profile_set of the file)", /Готово/.test(r) && st().name === "mine2" && readFileJson().profile_set === "mine2" && !st().data.sets.mine && !!st().data.sets.mine2, JSON.stringify([st().name, Object.keys(st().data.sets)]))
+cell("AC-27 rename of the enabled set moves the name to the new one (profile_set of the file)", /Готово/.test(r) && st().name === "mine2" && readPersonal().profile_set === "mine2" && !st().data.sets.mine && !!st().data.sets.mine2, JSON.stringify([st().name, Object.keys(st().data.sets)]))
 const fileBefore27 = sha(file)
 r = await sets("set mine2 develop nofamily/heavy")
 cell("AC-27/AC-28 an edit that breaks the enabled set (a dangling link) is refused whole; the file is byte for byte the same", /Не сделано/.test(r) && /nofamily/.test(r) && sha(file) === fileBefore27, r)
@@ -335,7 +338,7 @@ cell("AC-26/AC-28 and use of that set then refuses with the windows", /Не сд
   const keepF = readFileSync(file, "utf8")
   writeFileSync(file, "{ broken")
   r = await sets("new zzz")
-  cell("a working file that is not JSON: the command is refused whole, the file is not overwritten", /Не сделано/.test(r) && /не JSON/.test(r) && readFileSync(file, "utf8") === "{ broken", r)
+  cell("a working file that is not JSON: the command is refused whole, the file is not overwritten", /Не сделано/.test(r) && /not JSON|не JSON/.test(r) && readFileSync(file, "utf8") === "{ broken", r)
   writeFileSync(file, keepF)
   bump()
 }
@@ -352,7 +355,7 @@ await sets("new saved")
 await sets("set saved develop claude/heavy")
 {
   const wc = readFileJson()
-  cell("AC-29 the edits are in the working copy at once: the name, the profile, the new set; git log did not grow, the file is modified", wc.profile_set === "cross-kimi" && wc.model_profiles.claude.heavy.context === 650000 && !!wc.profile_sets.saved && commits() === commitsA && git(cfgDir, "status", "--porcelain").includes(".canopus/plugin/config.json"), JSON.stringify(Object.keys(wc)))
+  cell("AC-29 the edits are in the working copy at once: the name, the profile, the new set; git log did not grow, the file is modified", readPersonal().profile_set === "cross-kimi" && wc.model_profiles.claude.heavy.context === 650000 && !!wc.profile_sets.saved && commits() === commitsA && git(cfgDir, "status", "--porcelain").includes(".canopus/plugin/config.json"), JSON.stringify(Object.keys(wc)))
 }
 const fileBeforeCheck = sha(file)
 catalogFails = false
@@ -382,12 +385,12 @@ cell("AC-29 check: the catalog is down -> `not checked`, the work does not depen
 catalogFails = false
 {
   const f = readFileJson()
-  f.spawn_models = { heavy: "claude-code/opus", medium: "other/mid", light: "claude-code/haiku" }
+  setFixturePolicy(cfgDir, { spawn_models: { heavy: "claude-code/opus", medium: "other/mid", light: "claude-code/haiku" } })
   writeFileJson(f)
   commit("spawn_models differs")
   r = await sets("check")
   cell("AC-38/AC-29 check warns when a claude profile is not equal to spawn_models of the same tier", /модель профиля claude\/medium \(claude-code\/sonnet\) не равна spawn_models\.medium \(other\/mid\)/.test(r), r)
-  delete f.spawn_models
+  setFixturePolicy(cfgDir, { spawn_models: { heavy: "claude-code/opus", medium: "claude-code/sonnet", light: "claude-code/haiku" } })
   writeFileJson(f)
   commit("spawn_models back")
 }
@@ -404,7 +407,7 @@ cell("save force is gone too: no log line", editLines().length === linesBeforeGo
   if (!prevName) await sets("use cross-kimi")
   const linesBefore = editLines().length
   r = await sets("off")
-  cell("task 010 off: the enabled set is switched off, profile_set is gone from the file, sets and table stay, one log line", /Набор «[a-z-]+» выключен/.test(r) && readFileJson().profile_set === undefined && st().name === undefined && !!readFileJson().profile_sets && editLines().length === linesBefore + 1, r)
+  cell("task 010 off: the enabled set is switched off, profile_set is gone from the file, sets and table stay, one log line", /Набор «[a-z-]+» выключен/.test(r) && readPersonal().profile_set === false && st().name === undefined && !!readFileJson().profile_sets && editLines().length === linesBefore + 1, r)
   r = await sets("off")
   cell("task 010 off with nothing enabled: says so, no change, no log line", /и так не включён/.test(r) && editLines().length === linesBefore + 1, r)
   r = await sets("off now")

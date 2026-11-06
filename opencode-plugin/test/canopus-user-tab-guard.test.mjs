@@ -1,22 +1,23 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of task 256 (node >= 24):  node test/canopus-user-tab-guard.test.mjs
 // A user tab (no spawned provenance, regardless of auto or canopus_role) is not assigned a task by
 // canopus_task assign, even with a forged owner's word; the automatic reviewer pick skips such
 // tabs the same way; a card with a task but no spawned session is never renamed by syncTitles. The legitimate paths
 // stay: a program-created reviewer pool, a new spawned reviewer, reassignment of legacy records.
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-utab-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-process.env.CANOPUS_SETTINGS_TTL_MS = "1"
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("SETTINGS_TTL_MS", "1")
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const dirA = path.join(tmp, "alpha")
 mkdirSync(path.join(dirA, ".opencode"), { recursive: true }); mkdirSync(path.join(dirA, ".canopus", "plugin"), { recursive: true })
-writeFileSync(path.join(dirA, ".canopus", "plugin", "config.json"), JSON.stringify({}))
+writeFixtureFile(path.join(dirA, ".canopus", "plugin", "config.json"), JSON.stringify({}))
 
 const mod = await import("./fixture-plugin.mjs")
 const core = await import("../core.ts")
@@ -63,7 +64,7 @@ const setBusy = (sid, busy) => {
   beat()
 }
 mkdirSync(core.WINDOWS, { recursive: true })
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now() + 30_000, tabs }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now() + 30_000, tabs }))
 beat()
 const heart = setInterval(beat, 300)
 for (const s of tabIds) {

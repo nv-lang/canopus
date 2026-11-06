@@ -1,16 +1,19 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
+import { getFixtureRuntime } from "./fixture-settings.mjs"
 // 280: actual plugin/tool entry, orphaned historical call, current native form=[] and known idle.
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync } from "node:fs"
 import os from 'node:os'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 const tmp = mkdtempSync(path.join(os.tmpdir(), 'canopus-question-recovery-'))
 for (const k of ['XDG_DATA_HOME', 'XDG_STATE_HOME', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'TEMP', 'TMP', 'TMPDIR']) process.env[k] = tmp
-process.env.CANOPUS_HOME = path.join(tmp, "opencode")
-process.env.CANOPUS_DB = path.join(tmp, 'fixture.db')
-process.env.CANOPUS_PRESENCE = 'all'
-process.env.CANOPUS_POLL_MS = process.env.CANOPUS_FORM_MS = '50'
-process.env.CANOPUS_SYNC_GIT = '1'
+;await (await import("./test-home.mjs")).configureTestHome(path.join(tmp, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, 'fixture.db'))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", 'all')
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", '50')
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_MS", '50')
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("SYNC_GIT", '1')
 globalThis.fetch = async () => { throw new Error('unexpected real transport') }
 let stop, db
 try {
@@ -21,14 +24,14 @@ try {
   const root = path.join(tmp, 'repo'); mkdirSync(path.join(root, 'doc'), { recursive: true })
   const sha = 'd'.repeat(40), worker = 'ses_recovery_worker', author = 'ses_recovery_integrator', denied = 'ses_recovery_no_permission'
   const text = `Текущий ответственный подтвердил: exact SHA ${sha} передать на независимый просмотр в той же порученной цепочке. Это не новое разрешение на публикацию.`
-  writeFileSync(path.join(root, 'doc', 'source.md'), text)
+  writeFixtureFile(path.join(root, 'doc', 'source.md'), text)
   const task = tasks.createTask({ project: 'sample', title: 'recovery fixture', goal: `Передать exact SHA ${sha} на просмотр`, boundaries: 'Тот же SHA/scope; без публикации', criteria: 'c', priority: 'P2', tier: 'light', role: 'worker', author, author_role: 'sample.integrator', qid: 'q_original_assignment', status: 'running', kind: 'assign', directory: root, executor: worker })
   for (const [session, role] of [[worker, 'worker'], [denied, 'worker'], [author, 'integrator']]) core.saveCard({ session, role, project: 'sample', auto: false, title: 'fixture', repo: 'fixture', directory: root, pid: process.pid, updated: Date.now(), ...(session === worker ? { task: { project: 'sample', n: task.n } } : {}) })
   core.takeExclusive('sample.integrator', 'integrator', author, false)
   const deniedTask = tasks.createTask({ ...task, n: undefined, executor: denied, qid: 'q_no_permission', title: 'no permission fixture', history: [] })
   core.saveCard({ ...core.readJson(core.cardFile(denied)), task: { project: 'sample', n: deniedTask.n } })
   const at = Date.now() - 60_000
-  db = new DatabaseSync(process.env.CANOPUS_DB)
+  db = new DatabaseSync(getFixtureRuntime("DB"))
   db.exec('create table session_v2 (id text primary key, directory text, title text, parent_id text, time_archived integer, time_idle integer, time_viewed integer, time_suspended integer); create table session_message (id text primary key, session_id text, type text, seq integer, time_created integer, time_updated integer, data text)')
   const history = JSON.stringify({ content: [{ type: 'tool', id: 'historical_question', name: 'question', input: {}, time: { created: at }, state: { status: 'running' } }] })
   for (const s of [worker, denied]) {
@@ -78,7 +81,7 @@ try {
   const { WATCH_DIR } = await import('../idle-watch.ts')
   mkdirSync(path.join(WATCH_DIR, 'sample'), { recursive: true })
   const holdFile = path.join(WATCH_DIR, 'sample', `${task.n}.json`)
-  writeFileSync(holdFile, JSON.stringify({ project: 'sample', n: task.n, hold: { kind: 'HOLD', scope: 'execution', at, who: 'fixture owner pause' } }))
+  writeFixtureFile(holdFile, JSON.stringify({ project: 'sample', n: task.n, hold: { kind: 'HOLD', scope: 'execution', at, who: 'fixture owner pause' } }))
   unknown = false
   await claim()
   assert.equal(router.get(original.id).recovery, undefined, 'execution HOLD is not released by an orphaned form')

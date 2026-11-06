@@ -10,23 +10,23 @@ import { pathToFileURL } from "node:url"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-answer-config-"))
 process.env.XDG_DATA_HOME = path.join(tmp, "data")
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-process.env.CANOPUS_SETTINGS_TTL_MS = "1"
-process.env.CANOPUS_SYNC_GIT = "1" // settings are read at once, not from the background cache (task 034): this test commits and reads back
-process.env.CANOPUS_PRESENCE = "all"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("SETTINGS_TTL_MS", "1")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("SYNC_GIT", "1")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
 const plugin = process.env.CANOPUS_PLUGIN_DIR ? path.resolve(process.env.CANOPUS_PLUGIN_DIR) : path.join(import.meta.dirname, "..")
 const load = (f) => import(pathToFileURL(path.join(plugin, f)).href)
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })
 const root = path.join(tmp, "proj")
 const cfgDir = path.join(root, "proj-settings")
-const work = path.join(root, "repo")
+const work = cfgDir
 mkdirSync(path.join(cfgDir, ".opencode"), { recursive: true }); mkdirSync(path.join(cfgDir, ".canopus", "plugin"), { recursive: true })
 mkdirSync(work, { recursive: true })
 const file = path.join(cfgDir, ".canopus", "plugin", "config.json")
 const commit = (obj) => {
-  writeFileSync(file, JSON.stringify({ project: "proj", root: "..", ...obj }, null, 2))
+  writeFileSync(file, JSON.stringify(obj, null, 2))
   git(cfgDir, "add", "-A")
   git(cfgDir, "commit", "-q", "--allow-empty", "-m", "settings")
 }
@@ -41,7 +41,7 @@ const hooks = {}
 const tools = {}
 const ctx = {
   location: { directory: work },
-  options: { projects: [cfgDir] },
+  options: { project_settings: [cfgDir] },
   session: {
     get: async ({ sessionID }) => ({ id: sessionID, title: sessionID, location: { directory: work }, time: {} }),
     prompt: async () => {},
@@ -62,68 +62,26 @@ await tools.canopus_role.execute({ role: "integrator" }, { sessionID: "sesINT" }
 const modeOf = () => JSON.stringify(core.loadConfig(work).answerMode ?? null)
 const maxOf = () => core.loadConfig(work).answerMax
 
-// AC-08: set refuses both keys; the file stays; the questionnaire has both, without the window commands of the profile sets
+// answer_mode remains a personal public choice; answer_max/delay are fixed code policies.
 const before = readFileSync(file, "utf8")
-const s1 = await call("sesINT", { action: "set", values: { answer_mode: { implementation: "recommendations" } } })
-cell("AC-08 set answer_mode", /Не записано/.test(s1) && /answer_mode/.test(s1) && /человек/.test(s1) && readFileSync(file, "utf8") === before, s1)
-const s2 = await call("sesINT", { action: "set", values: { answer_max: 5 } })
-cell("AC-08 set answer_max", /Не записано/.test(s2) && /answer_max/.test(s2) && /человек/.test(s2) && readFileSync(file, "utf8") === before, s2)
+const setMode = await call("sesINT", { action: "set", values: { answer_mode: { implementation: "recommendations" } } })
+cell("agent cannot change personal answer_mode", /Не записано/.test(setMode) && /человек/.test(setMode) && readFileSync(file, "utf8") === before, setMode)
+for (const key of ["answer_max", "answer_delay_sec"]) {
+  const refused = await call("sesINT", { action: "set", values: { [key]: 1 } })
+  cell(`removed ${key} is refused`, /Не записано/.test(refused) && refused.includes(key) && readFileSync(file, "utf8") === before, refused)
+}
 const guide = await call("sesWRK", { action: "guide" })
-const lines = (k) => guide.split("\n").filter((l) => l.startsWith(`- ${k}:`))
-const ok8 = ["answer_mode", "answer_max"].every((k) => {
-  const l = lines(k)[0] ?? ""
-  return l && /Сейчас:/.test(l) && /Рекомендация: \S/.test(l) && /Зачем: \S/.test(l) && /Ставит человек/.test(l) && !/canopus-sets/.test(l)
-})
-const am = lines("answer_mode")[0] ?? ""
-cell("AC-08 guide", ok8 && /\{"implementation": "recommendations"\}/.test(am) && /owner/.test(am) && /recommendations/.test(am), lines("answer_mode").concat(lines("answer_max")).join("\n"))
-const prof = await call("sesINT", { action: "set", values: { profile_set: "x" } })
-cell("AC-08 profile_set refusal text is unchanged", prof === "Не записано (файл не тронут):\n- profile_set: имя набора меняет человек (команда окна /canopus-sets use либо правка файла); вызовом set его не записывают", prof)
-
-const parse2 = await load("answer-parse.ts")
-const err = (k, v) => schema.invalid(k, v) ?? ""
-
-// task 096: answer_delay_sec (seconds before the automatic answer to a form of the questionnaire) belongs to the person as well
-const delayOf = () => core.loadConfig(work).answerDelaySec
-const s4 = await call("sesINT", { action: "set", values: { answer_delay_sec: 0 } })
-cell("096 set answer_delay_sec is refused, the file stays", /Не записано/.test(s4) && /answer_delay_sec/.test(s4) && /человек/.test(s4) && readFileSync(file, "utf8") === before, s4)
-const dl = lines("answer_delay_sec")[0] ?? ""
-cell("096 guide names answer_delay_sec (value, recommendation, reason, the person sets it)", /Сейчас: 60/.test(dl) && /Рекомендация: \S/.test(dl) && /Зачем: \S/.test(dl) && /Ставит человек/.test(dl) && !/canopus-sets/.test(dl), dl)
-cell("096 default of answer_delay_sec is 60", delayOf() === 60, String(delayOf()))
-commit({ answer_delay_sec: 0 })
-cell("096 answer_delay_sec 0 is read as 0 (at once)", delayOf() === 0 && err("answer_delay_sec", 0) === "" && err("answer_delay_sec", 90) === "", delayOf() + " | " + err("answer_delay_sec", 0))
-commit({ answer_delay_sec: -5 })
-cell("096 a negative answer_delay_sec is read as 60 and named by invalid", delayOf() === 60 && /answer_delay_sec/.test(err("answer_delay_sec", -5)) && /answer_delay_sec/.test(err("answer_delay_sec", 1.5)), delayOf() + " | " + err("answer_delay_sec", -5))
-cell("096 doctor names a bad answer_delay_sec", settings.settingsProblems(settings.parseProjects({ projects: [cfgDir] })).some((p) => /answer_delay_sec/.test(p)), "")
-commit({})
-cell("096 parse: normalizeAnswerDelay", parse2.normalizeAnswerDelay(undefined) === 60 && parse2.normalizeAnswerDelay(0) === 0 && parse2.normalizeAnswerDelay(30) === 30 && parse2.normalizeAnswerDelay(-1) === 60 && parse2.normalizeAnswerDelay("5") === 60 && parse2.normalizeAnswerDelay(1.5) === 60, "")
-
-// AC-07: the key gate is not accepted
-const s3 = await call("sesINT", { action: "set", values: { answer_mode: { gate: "recommendations" } } })
-cell("AC-07 set", /Не записано/.test(s3) && readFileSync(file, "utf8") === before, s3)
+cell("guide exposes answer_mode and omits internal limits", guide.includes("- answer_mode:") && !guide.includes("- answer_max:") && !guide.includes("- answer_delay_sec:"), guide)
+cell("built-in answer budgets remain", core.loadConfig(work).answerMax === 3 && core.loadConfig(work).answerDelaySec === 60, "")
+commit({ answer_mode: { implementation: "recommendations" } })
+cell("committed public answer_mode is applied", core.loadConfig(work).answerMode.implementation === "recommendations", modeOf())
 commit({ answer_mode: { gate: "recommendations", plan: "recommendations" } })
-cell("AC-07 игнорируется", modeOf() === JSON.stringify({ plan: "recommendations" }), modeOf())
-const show = await call("sesWRK", { action: "show" })
-cell("AC-07 show", /answer_mode/.test(show) && show.split("\n").some((l) => /gate/.test(l) && /не принимается/.test(l)), show)
-const problems = settings.settingsProblems(settings.parseProjects({ projects: [cfgDir] }))
-cell("AC-07 doctor", problems.some((p) => /answer_mode/.test(p) && /gate/.test(p)), JSON.stringify(problems))
+cell("unsafe gate mode is ignored and diagnosed", modeOf() === JSON.stringify({ plan: "recommendations" }) && !!schema.invalid("answer_mode", { gate: "recommendations" }), modeOf())
+commit({ answer_mode: { plan: "agent", requirements: "recommendations" } })
+cell("unsupported agent mode is omitted without losing supported choices", core.loadConfig(work).answerMode.requirements === "recommendations" && !("plan" in core.loadConfig(work).answerMode), modeOf())
 commit({})
-const clean = settings.settingsProblems(settings.parseProjects({ projects: [cfgDir] }))
-cell("AC-07 doctor control: no key, no problem", !clean.some((p) => /answer_/.test(p)), JSON.stringify(clean))
-
-// AC-09: values of a wrong form are read as absent; invalid names the error
-commit({ answer_mode: { plan: "auto" } })
-cell("AC-09 a", modeOf() === "{}" && /answer_mode/.test(err("answer_mode", { plan: "auto" })), modeOf() + " | " + err("answer_mode", { plan: "auto" }))
-commit({ answer_mode: { plan: "agent" } })
-cell("AC-09 b", modeOf() === "{}" && /не поддерживается в этой версии/.test(err("answer_mode", { plan: "agent" })) && /не поддерживается в этой версии/.test(await call("sesWRK", { action: "show" })), modeOf() + " | " + err("answer_mode", { plan: "agent" }))
-commit({ answer_max: -1 })
-cell("AC-09 c", maxOf() === 3 && /answer_max/.test(err("answer_max", -1)), maxOf() + " | " + err("answer_max", -1))
-commit({ answer_max: 0 })
-cell("AC-09 d", maxOf() === 3 && /answer_max/.test(err("answer_max", 0)) && err("answer_max", 1) === "" && err("answer_max", 7) === "", maxOf() + " | " + err("answer_max", 0))
-commit({ answer_mode: { requirements: "recommendations", plan: "agent" } })
-const e1 = modeOf()
-commit({ answer_mode: { requirements: "recommendations", plan: "agent", default: "recommendations" } })
-const cfg = core.loadConfig(work)
-cell("AC-09 e", e1 === JSON.stringify({ requirements: "recommendations" }) && cfg.answerMode.requirements === "recommendations" && !("plan" in cfg.answerMode) && cfg.answerMode.default === "recommendations", e1 + " | " + modeOf())
+const parse2 = await load("answer-parse.ts")
+cell("explicit code normalizer retains delay semantics", parse2.normalizeAnswerDelay(undefined) === 60 && parse2.normalizeAnswerDelay(0) === 0 && parse2.normalizeAnswerDelay(30) === 30 && parse2.normalizeAnswerDelay(-1) === 60 && parse2.normalizeAnswerDelay("5") === 60 && parse2.normalizeAnswerDelay(1.5) === 60, "")
 
 // REQ-01: the mode of a type: the type, then default, then owner
 const parse = await load("answer-parse.ts")

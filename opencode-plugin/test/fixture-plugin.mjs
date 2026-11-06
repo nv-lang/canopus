@@ -1,3 +1,6 @@
+import * as fixtureCore from "../core.ts"
+import { prepareFixturePluginContext } from "./fixture-settings.mjs"
+import { getFixtureRuntime } from "./fixture-settings.mjs"
 // Legacy integration fixtures now model the V2 native surface explicitly.
 // Transport is injected into the REAL plugin; no service.json/credentials/live
 // network is read. These tests model immediate admission AND execution; receipt
@@ -21,7 +24,7 @@ export const settleFixtureNative = (ctx, session) => fixtureSettlers.get(ctx)?.(
 export function nativeFixture(ctx) {
   const projected = new Map(), ended = new Map(), admitted = new Map(), taskStopped = new Set()
   fixtureSettlers.set(ctx, session => { fixtureNativeActive.delete(session); ended.set(session, Date.now()) })
-  const file = process.env.CANOPUS_DB
+  const file = getFixtureRuntime("DB")
   const rows = session => {
     if (!file || !existsSync(file)) return { messages: [], known: true }
     let db
@@ -119,6 +122,7 @@ export function nativeFixture(ctx) {
   return { get, taskConfirmationIO, ctx: { ...ctx, ...(tool ? { tool } : {}), session: { ...ctx.session, prompt, ...(synthetic ? { synthetic } : {}), ...(interrupt ? { interrupt } : {}) } } }
 }
 export default { async setup(ctx) {
+  prepareFixturePluginContext(fixtureCore, ctx)
   const fixture = nativeFixture(ctx)
   return createCanopusPlugin({ get: fixture.get, spacingMs: 0, taskConfirmationIO: fixture.taskConfirmationIO }).setup(fixture.ctx)
 } }

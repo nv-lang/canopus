@@ -1,3 +1,4 @@
+import { runtimeValue } from "./runtime-policy.ts"
 // ОКНО ПЛАГИНА НЕ ОСТАЁТСЯ ОТКРЫТЫМ, КОГДА ЕГО КЛАВИШИ ЗАБРАЛ ДРУГОЙ РЕЖИМ (задача 069). Источник: владелец открыл окно плагина
 // (/canopus-sets use ...), под ним пришёл вопрос встроенного вопросника, Esc «закрыть окно» отменил вопрос («The user dismissed this
 // question»), вкладка осталась без ответа.
@@ -18,8 +19,8 @@
 const MODAL = "modal"
 
 /** The look of the guard and the time the stack of dialogs needs to push its own mode after show() (env: for self-tests). */
-export const GUARD_MS = Number(process.env.CANOPUS_DIALOG_GUARD_MS) || 50
-export const GRACE_MS = Number(process.env.CANOPUS_DIALOG_GRACE_MS) || 300
+export const GUARD_MS = runtimeValue("DIALOG_GUARD_MS")
+export const GRACE_MS = runtimeValue("DIALOG_GRACE_MS")
 
 export const HIJACK_NOTICE = {
   title: "canopus",

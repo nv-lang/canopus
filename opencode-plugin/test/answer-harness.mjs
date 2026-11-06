@@ -1,9 +1,11 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
+import { getFixtureRuntime } from "./fixture-settings.mjs"
 // Shared set-up of the question-answering tests (task 007; node >= 24): a throwaway project, a real sqlite database of OpenCode with
 // the tables `session_v2` and `session_message` (as much as the plugin reads), a fake OpenCode host over the real plugin modules,
 // one window with the tabs of the sessions, and helpers that write the turns of a session as OpenCode records them.
 // Not a test itself (no `.test.` in the name: `npm test` does not take it). The plugin code comes from CANOPUS_PLUGIN_DIR (a copy with
 // stubs, the proof of red) or from the folder above this one; the modules are loaded by file URL (a bare Windows path is not loadable).
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs"
 import { DatabaseSync } from "node:sqlite"
 import os from "node:os"
 import path from "node:path"
@@ -25,23 +27,23 @@ export const load = (f) => import(pathToFileURL(path.join(PLUGIN, f)).href)
 export async function harness(prefix, opts = {}) {
   const tmp = mkdtempSync(path.join(os.tmpdir(), `${prefix}-`))
   process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
   if (opts.ownLog) process.env.TEMP = process.env.TMP = process.env.TMPDIR = tmp
-  process.env.CANOPUS_POLL_MS = "100"
-  process.env.CANOPUS_STATUS_MS = "100"
-  process.env.CANOPUS_FLOW_MS = "200"
-  process.env.CANOPUS_LEFT_MS = "3600000"
-  process.env.CANOPUS_SETTINGS_TTL_MS = "1"
-  process.env.CANOPUS_DB = path.join(tmp, "opencode.db")
-  delete process.env.CANOPUS_PRESENCE
+  ;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+  ;await (await import("./fixture-settings.mjs")).setFixtureRuntime("STATUS_MS", "100")
+  ;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FLOW_MS", "200")
+  ;await (await import("./fixture-settings.mjs")).setFixtureRuntime("LEFT_MS", "3600000")
+  ;await (await import("./fixture-settings.mjs")).setFixtureRuntime("SETTINGS_TTL_MS", "1")
+  ;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "opencode.db"))
+  ;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
   const proj = path.join(tmp, "proj")
   mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
   const settingsFile = path.join(proj, ".canopus", "plugin", "config.json")
-  const setSettings = (s) => writeFileSync(settingsFile, JSON.stringify(s))
+  const setSettings = (s) => writeFixtureFile(settingsFile, JSON.stringify(s))
   setSettings(opts.settings ?? {})
 
   const sids = opts.sessions ?? ["sesOWNER1", "sesTASK01", "sesTASK02", "sesREV001"]
-  const db = new DatabaseSync(process.env.CANOPUS_DB)
+  const db = new DatabaseSync(getFixtureRuntime("DB"))
   db.exec("create table session_v2 (id text primary key, directory text, title text, parent_id text, time_archived integer, time_idle integer, time_viewed integer, time_suspended integer)")
   db.exec("create table session_message (id text primary key, session_id text, type text, seq integer, time_created integer, time_updated integer, data text)")
   for (const s of sids) db.prepare("insert into session_v2 values (?, ?, ?, null, null, null, null, null)").run(s, proj, s)
@@ -79,7 +81,7 @@ process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
   const WPID = 700000 + Math.floor(Math.random() * 90000)
   const tabIds = opts.window === false ? [] : (opts.window ?? sids)
   mkdirSync(core.WINDOWS, { recursive: true })
-  const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: tabIds.map((sessionID, i) => ({ sessionID, active: i === 0, busy: false })) }))
+  const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: tabIds.map((sessionID, i) => ({ sessionID, active: i === 0, busy: false })) }))
   if (tabIds.length) beat()
   const heart = tabIds.length ? setInterval(beat, 300) : undefined
 

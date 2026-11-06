@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of "the record of a question form lives while the dialog is open, the panel counts a dialog without a record", task 120 (node >= 24):
 //   node test/canopus-form-record.test.mjs
 // Source: 2026-10-20 two dialogs "Questions" (acceptance of tasks 105 and 107, held for the owner by the closed list) hung in the window for 18-19 hours,
@@ -13,20 +14,20 @@
 //   5. the panel counts a dialog without a record (and a dead one) as waiting for the owner, with its age;
 //   6. canopus-answer applies to a restored form; for a dead dialog it is refused "dialog closed, close the tab by hand" and the form leaves the list.
 // Red probe: the first run on the code of origin/main (every cell that needs the new code is red, the borders are green).
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-form-record-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 process.env.TEMP = process.env.TMP = process.env.TMPDIR = tmp
-process.env.CANOPUS_FORM_GONE_MS = "1"
-process.env.CANOPUS_FORM_CANCEL_GONE_MS = "1"
-process.env.CANOPUS_FORM_RESTART_GRACE_MS = "1"
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_GONE_MS", "1")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_CANCEL_GONE_MS", "1")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_RESTART_GRACE_MS", "1")
 const dbPath = path.join(tmp, "opencode.db")
-process.env.CANOPUS_DB = dbPath
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", dbPath)
 const db = new DatabaseSync(dbPath)
 db.exec("create table session_v2 (id text primary key, directory text, title text, parent_id text, time_archived integer, time_idle integer, time_viewed integer, time_suspended integer)")
 db.exec("create table session_message (id text primary key, session_id text, type text, seq integer, time_created integer, time_updated integer, data text)")
@@ -84,7 +85,7 @@ const deps = (over = {}) => ({
 })
 const mark = (id, session, extra = {}) => {
   mkdirSync(path.join(fw.FORMS, "auto"), { recursive: true })
-  writeFileSync(path.join(fw.FORMS, "auto", `${id}.json`), JSON.stringify({ id, session, project: "p", type: "default", question: QUESTION.slice(0, 200), first: T0, at: T0, state: "held", reason: "closed", rule: "merge", why: "слияние", ...extra }))
+  writeFixtureFile(path.join(fw.FORMS, "auto", `${id}.json`), JSON.stringify({ id, session, project: "p", type: "default", question: QUESTION.slice(0, 200), first: T0, at: T0, state: "held", reason: "closed", rule: "merge", why: "слияние", ...extra }))
 }
 
 // ---- 1. the call `question` in the database
@@ -268,7 +269,7 @@ const answerDeps = (over = {}) => {
   }
 }
 const ANS = path.join(tmp, "answers")
-const put = (name, a) => (mkdirSync(ANS, { recursive: true }), writeFileSync(path.join(ANS, `${name}.json`), JSON.stringify({ id: name, at: NOW, ...a })))
+const put = (name, a) => (mkdirSync(ANS, { recursive: true }), writeFixtureFile(path.join(ANS, `${name}.json`), JSON.stringify({ id: name, at: NOW, ...a })))
 const got = (name) => core.readJson(path.join(ANS, `${name}.json`))
 {
   const a = answerDeps()

@@ -1,17 +1,18 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the control of the folder and the branch of the windows (task 157, node >= 24):  node test/canopus-branch-guard.test.mjs
 // The integrator stands in the main copy of the project on its target branch; an executor stands in the tree of its task on its branch;
 // a reviewer stands in the main copy or in any tree of the repository (a detached HEAD on a candidate is allowed); the orchestrator and
 // the windows of the owner are not controlled. A check at every turn compares the folder from session.get and the HEAD of the folder
 // with that pair; a command that changes the branch or the history in the main copy or in the tree of someone else's task is refused
 // until the reason is recorded (canopus_branch_note); a reason lets it pass and moves the expectation.
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync, existsSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, existsSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { pathToFileURL } from "node:url"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-branch-guard-"))
 process.env.XDG_DATA_HOME = path.join(tmp, "data")
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 const plugin = process.env.CANOPUS_PLUGIN_DIR ? path.resolve(process.env.CANOPUS_PLUGIN_DIR) : path.join(import.meta.dirname, "..")
 let fail = 0
 let n = 0
@@ -40,19 +41,19 @@ mkdirSync(base, { recursive: true })
 const heads = new Map() // tree -> HEAD file
 const mkMain = (dir, branch = "main") => {
   mkdirSync(path.join(dir, ".git"), { recursive: true })
-  writeFileSync(path.join(dir, ".git", "HEAD"), `ref: refs/heads/${branch}\n`)
+  writeFixtureFile(path.join(dir, ".git", "HEAD"), `ref: refs/heads/${branch}\n`)
   heads.set(dir, path.join(dir, ".git", "HEAD"))
 }
 const mkTree = (dir, name, branch) => {
   const gd = path.join(MAIN, ".git", "worktrees", name)
   mkdirSync(gd, { recursive: true })
   mkdirSync(dir, { recursive: true })
-  writeFileSync(path.join(gd, "HEAD"), branch.length === 40 && /^[0-9a-f]+$/.test(branch) ? `${branch}\n` : `ref: refs/heads/${branch}\n`)
-  writeFileSync(path.join(gd, "commondir"), "../..\n")
-  writeFileSync(path.join(dir, ".git"), `gitdir: ${fw(gd)}\n`)
+  writeFixtureFile(path.join(gd, "HEAD"), branch.length === 40 && /^[0-9a-f]+$/.test(branch) ? `${branch}\n` : `ref: refs/heads/${branch}\n`)
+  writeFixtureFile(path.join(gd, "commondir"), "../..\n")
+  writeFixtureFile(path.join(dir, ".git"), `gitdir: ${fw(gd)}\n`)
   heads.set(dir, path.join(gd, "HEAD"))
 }
-const setBranch = (dir, branch) => writeFileSync(heads.get(dir), `ref: refs/heads/${branch}\n`)
+const setBranch = (dir, branch) => writeFixtureFile(heads.get(dir), `ref: refs/heads/${branch}\n`)
 mkMain(MAIN)
 const T145 = path.join(tmp, "trees", "145")
 const T157 = path.join(tmp, "trees", "157")
@@ -225,17 +226,17 @@ cell("the orchestrator may write anywhere", w(orchestrator, MAIN, "write", { fil
 // ---- (acceptance 4.1) a stopped rebase in the tree of an executor is not a drift, and its way out is never refused
 const gitdirOf = (dir) => path.dirname(heads.get(dir))
 const sha40 = "89abcdef0123456789abcdef0123456789abcdef"
-writeFileSync(heads.get(T157), `${sha40}\n`)
+writeFixtureFile(heads.get(T157), `${sha40}\n`)
 cell("without the rebase marker a bare hash in the own tree is a drift", at(exec157, T157)?.status === "drift", J(at(exec157, T157)))
 mkdirSync(path.join(gitdirOf(T157), "rebase-merge"), { recursive: true })
-writeFileSync(path.join(gitdirOf(T157), "rebase-merge", "head-name"), "refs/heads/task/157-branch-guard\n")
+writeFixtureFile(path.join(gitdirOf(T157), "rebase-merge", "head-name"), "refs/heads/task/157-branch-guard\n")
 const rb = at(exec157, T157)
 cell("a stopped rebase on the own branch (rebase-merge/head-name): ok, no warning", rb?.status === "ok" && turnWarning(rb) === undefined, J(rb))
 cell("rebase --continue, --skip, --abort and the commit of the resolved conflict pass", ["git rebase --continue", "git rebase --skip", "git rebase --abort", "git add -A && git commit -m resolved"].every((c) => allowed(bash(exec157, T157, c))), J(bash(exec157, T157, "git rebase --continue")))
-cell("but a stopped rebase of another branch is still a drift", (writeFileSync(path.join(gitdirOf(T157), "rebase-merge", "head-name"), "refs/heads/other\n"), at(exec157, T157)?.status === "drift"), "")
+cell("but a stopped rebase of another branch is still a drift", (writeFixtureFile(path.join(gitdirOf(T157), "rebase-merge", "head-name"), "refs/heads/other\n"), at(exec157, T157)?.status === "drift"), "")
 rmSync(path.join(gitdirOf(T157), "rebase-merge"), { recursive: true, force: true })
 mkdirSync(path.join(gitdirOf(T157), "rebase-apply"), { recursive: true })
-writeFileSync(path.join(gitdirOf(T157), "rebase-apply", "head-name"), "refs/heads/task/157-branch-guard\n")
+writeFixtureFile(path.join(gitdirOf(T157), "rebase-apply", "head-name"), "refs/heads/task/157-branch-guard\n")
 cell("a stopped rebase (rebase-apply/head-name): ok, and --continue passes even when the window is off its branch", at(exec157, T157)?.status === "ok" && allowed(bash(exec157, T157, "git rebase --continue")), "")
 rmSync(path.join(gitdirOf(T157), "rebase-apply"), { recursive: true, force: true })
 setBranch(T157, "main")
@@ -245,9 +246,9 @@ at(exec157, T157)
 
 // ---- (acceptance 4.2) git checkout <file> without "--" is a restore of a file
 mkdirSync(path.join(MAIN, "src"), { recursive: true })
-writeFileSync(path.join(MAIN, "src", "foo.ts"), "x")
+writeFixtureFile(path.join(MAIN, "src", "foo.ts"), "x")
 mkdirSync(path.join(MAIN, ".git", "refs", "heads"), { recursive: true })
-writeFileSync(path.join(MAIN, ".git", "refs", "heads", "main"), "0123456789abcdef0123456789abcdef01234567\n")
+writeFixtureFile(path.join(MAIN, ".git", "refs", "heads", "main"), "0123456789abcdef0123456789abcdef01234567\n")
 cell("integrator: git checkout src/foo.ts (a file, not a branch) is not refused", allowed(bash(integrator, MAIN, "git checkout src/foo.ts")), J(bash(integrator, MAIN, "git checkout src/foo.ts")))
 cell("integrator: git checkout of a branch in the main copy is still refused", denied(bash(integrator, MAIN, "git checkout feature/x")), "")
 

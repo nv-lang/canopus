@@ -4,7 +4,7 @@ import path from "node:path"
 import os from "node:os"
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-hold-semantics-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 const iw = await import("../idle-watch.ts")
 const MIN = 60_000, now = 1_000_000
 let checks = 0

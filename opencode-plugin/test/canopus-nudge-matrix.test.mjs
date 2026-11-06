@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Matrix test "task status x conditions -> whom and how the plugin wakes" (task 042; node >= 24):  node test/canopus-nudge-matrix.test.mjs
 // The rows follow doc/tasks/042-nudge-matrix/analysis.md (row ids M01...). Every row runs on the real plugin: tasks are written to the
 // journal, the loop passes (reconcile, resumeTasks, assignReviewers, flow watchdog, reminders) and the turn ends of the sessions
@@ -6,22 +7,22 @@
 // A row without an implementation is a KNOWN HOLE: it states the behavior that is wanted and passes only while the plugin does NOT do
 // it ("HOLE" in the output). When a hole gets closed the row fails with "hole closed": turn it into a normal row.
 // Task 043 closed T3 (L1), L3, T7b, M18a, T11/M04a and the text of the "review stuck" letter: those rows are normal now.
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-nudge-matrix-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_STATUS_MS = "200"
-process.env.CANOPUS_FLOW_MS = "200"
-process.env.CANOPUS_LEFT_MS = "3600000"
-process.env.CANOPUS_START_RETRY_MS = "1000"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("STATUS_MS", "200")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FLOW_MS", "200")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("LEFT_MS", "3600000")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("START_RETRY_MS", "1000")
 const dbPath = path.join(tmp, "opencode.db")
-process.env.CANOPUS_DB = dbPath
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", dbPath)
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 
 // one directory per project: its own settings (reviewer, accepted_slot, plan_approver)
 const BASE_CFG = { push_empty_turns: 2, push_max: 3, stall_minutes: 0.01, accepted_reminder_min: 0.01, owner_reminder_min: 0.01, inflight_limit: 30, spawn_limits: { worker: 9, reviewer: 1, acceptor: 1 } }
@@ -30,7 +31,7 @@ const projectsOpt = {}
 const mkProject = (name, extra = {}) => {
   const dir = path.join(tmp, name)
   mkdirSync(path.join(dir, ".opencode"), { recursive: true }); mkdirSync(path.join(dir, ".canopus", "plugin"), { recursive: true })
-  writeFileSync(path.join(dir, ".canopus", "plugin", "config.json"), JSON.stringify({ ...BASE_CFG, ...extra }))
+  writeFixtureFile(path.join(dir, ".canopus", "plugin", "config.json"), JSON.stringify({ ...BASE_CFG, ...extra }))
   dirs[name] = dir
   projectsOpt[name] = dir
 }
@@ -148,7 +149,7 @@ reviewerCard("sesRV17", T.m17)
 review.takeMergeLock("pw", "sesRV17", T.m17.n)
 const ageLock = (project) => {
   const lockFile = path.join(core.ROLES, `${project}_merge.json`)
-  writeFileSync(lockFile, JSON.stringify({ ...JSON.parse(readFileSync(lockFile, "utf8")), at: Date.now() - 600_000 }))
+  writeFixtureFile(lockFile, JSON.stringify({ ...JSON.parse(readFileSync(lockFile, "utf8")), at: Date.now() - 600_000 }))
 }
 ageLock("pw")
 // T7c on review in the project whose author's tab is closed: the reviewer has held the merge lock too long
@@ -292,7 +293,7 @@ const tabNames = [...Object.values(AUTH).filter((s) => s !== AUTH.pc), "sesFT", 
 // The beat is dated 30 s ahead: a window counts as live for WINDOW_STALE_MS (3 s) after its beat, and this process stops its own timer
 // while it runs git or the database synchronously (seconds on a loaded machine), so the fake window went stale between two beats and an
 // open tab looked closed. This test does not check the freshness of a window (task 088, as in canopus-profiles-select).
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now() + 30_000, tabs: tabNames.map((sessionID, i) => ({ sessionID, active: i === 0, busy: false })) }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now() + 30_000, tabs: tabNames.map((sessionID, i) => ({ sessionID, active: i === 0, busy: false })) }))
 beat()
 const heart = setInterval(beat, 300)
 const seenNotices = []

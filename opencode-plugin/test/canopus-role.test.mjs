@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of canopus role handover (node >= 24):  node test/canopus-role.test.mjs
 // Two sessions in one process: A holds `integrator`, B takes it with force. After A's next
 // turn A must NOT hold `integrator` again, and a letter to `integrator` must reach B only.
@@ -7,13 +8,13 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-test-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_PRESENCE ??= "all" // every tab taken as open (presence has its own test)
-import { mkdirSync, writeFileSync } from "node:fs"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
+import { mkdirSync } from "node:fs"
 // Project config: integrator is exclusive here (the plugin itself names no role).
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ exclusive_roles: ["integrator"] }))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ exclusive_roles: ["integrator"] }))
 const mod = await import("./fixture-plugin.mjs")
 
 const hooks = {}

@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync, rmSync, readdirSync, readFileSync } from "nod
 import path from "node:path"
 import { execFileSync } from "node:child_process"
 import { taskTestHome, taskOwnerIO } from "./task-owner-harness.mjs"
-const home = taskTestHome("canopus-owner-flow-")
+const home = await taskTestHome("canopus-owner-flow-")
 const root = path.join(home, "repo"); mkdirSync(path.join(root, ".canopus", "plugin"), { recursive: true })
 writeFileSync(path.join(root, ".canopus", "plugin", "config.json"), JSON.stringify({ tasks_dir: "" }))
 const git = (...args) => execFileSync("git", ["-C", root, ...args], { encoding: "utf8", windowsHide: true, stdio: ["ignore", "pipe", "pipe"] }).trim()

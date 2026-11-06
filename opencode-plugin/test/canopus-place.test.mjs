@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of a task's place (plan 002.6, defect 3; node >= 24):  node test/canopus-place.test.mjs
 // The worktree and branch are written with the task itself (not by a second save a server pass could miss), the
 // path in the canopus_spawn answer is the path created, and a task session is never opened in the main copy: a task
@@ -6,23 +7,23 @@
 // a place escaping it through the settings template is refused before the record is made (canopus_spawn), and a tree
 // made by hand outside the folder on the task branch is not adopted. The short (8.3) and the long form of one folder
 // compare equal (insideDir): the TEMP of the service process may come short — the full run of 2026-10-26 caught it.
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { execFileSync } from "node:child_process"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-place-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-process.env.CANOPUS_PRESENCE = "all"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ root: "..", worktrees: "worktrees", worktree_name: "{repo}-{n}-{slug}", branch_name: "t{n}-{slug}", cleanup: "local", allow_default_models: true, spawn_limits: { worker: 5, reviewer: 0 } }))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ root: "..", worktrees: "worktrees", worktree_name: "{repo}-{n}-{slug}", branch_name: "t{n}-{slug}", cleanup: "local", allow_default_models: true, spawn_limits: { worker: 5, reviewer: 0 } }))
 git(proj, "init", "-q", "-b", "main")
-writeFileSync(path.join(proj, "a.txt"), "a\n")
+writeFixtureFile(path.join(proj, "a.txt"), "a\n")
 git(proj, "add", "-A")
 git(proj, "commit", "-q", "-m", "init")
 const wtRoot = path.join(tmp, "worktrees") // root ".." from the settings folder + "worktrees"
@@ -108,14 +109,14 @@ cell("the author is told why, once", lettersTo("sesINTEG1").filter((l) => /003 .
 // 4. the rule of the trees folder (the owner, 2026-10-26: trees are made only there)
 // 4a. a settings template whose name escapes the folder: canopus_spawn refuses before the record is made
 // (the plugin reads the settings folder COMMITTED, with a background refresh — commit the flip and wait for it)
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ root: "..", worktrees: "worktrees", worktree_name: "../escape-{n}-{slug}", branch_name: "t{n}-{slug}", cleanup: "local", allow_default_models: true, spawn_limits: { worker: 5, reviewer: 0 } }))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ root: "..", worktrees: "worktrees", worktree_name: "../escape-{n}-{slug}", branch_name: "t{n}-{slug}", cleanup: "local", allow_default_models: true, spawn_limits: { worker: 5, reviewer: 0 } }))
 git(proj, "add", ".canopus/plugin/config.json")
 git(proj, "commit", "-q", "-m", "escape template")
 await until(() => core.loadConfig(proj).worktreeName === "../escape-{n}-{slug}")
 const bad = await call("canopus_spawn", "sesINTEG1", { title: "Побег из папки", goal: "g", criteria: "c" })
 cell("canopus_spawn refuses a place outside the trees folder and names the rule", /Задача не поставлена: каталог дерева .* вне папки деревьев проекта .*владелец, 2026-10-26/.test(bad), bad)
 cell("no record is made", !task(4), JSON.stringify(task(4)))
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ root: "..", worktrees: "worktrees", worktree_name: "{repo}-{n}-{slug}", branch_name: "t{n}-{slug}", cleanup: "local", allow_default_models: true, spawn_limits: { worker: 5, reviewer: 0 } }))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ root: "..", worktrees: "worktrees", worktree_name: "{repo}-{n}-{slug}", branch_name: "t{n}-{slug}", cleanup: "local", allow_default_models: true, spawn_limits: { worker: 5, reviewer: 0 } }))
 git(proj, "add", ".canopus/plugin/config.json")
 git(proj, "commit", "-q", "-m", "restore template")
 await until(() => core.loadConfig(proj).worktreeName === "{repo}-{n}-{slug}")

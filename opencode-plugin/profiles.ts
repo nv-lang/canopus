@@ -201,6 +201,7 @@ export function invalidProfileKey(key: string, v: any, opts: { lenientStages?: b
     return undefined
   }
   if (key === "profile_set") {
+    if (v === false) return undefined
     if (typeof v !== "string") return `${key}: имя набора — строка`
     return invalidSetName(v)
   }

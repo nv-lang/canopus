@@ -48,10 +48,11 @@ test "home: the argument, then the variable, then the folder of the user" {
     assert(resolve_home("", "", "") == "")
 }
 
-test "home: canopus_home reads CANOPUS_HOME and the home of the user from the system" {
+test "home: runtime home ignores retired environment and uses the user folder" {
     mut state = MockOs.new()
     state.put_env("CANOPUS_HOME", "C:/work/inst")
-    assert(with Os = mock_os(state) { canopus_home("") } == "C:/work/inst")
+    state.set_home_str("C:/work/user-default")
+    assert(with Os = mock_os(state) { canopus_home("") } == "C:/work/user-default/.canopus")
     assert(with Os = mock_os(state) { canopus_home("C:/work/arg2") } == "C:/work/arg2")
     mut plain = MockOs.new()
     plain.set_home_str("C:/work/me2")
@@ -72,14 +73,40 @@ test "layout: an old data_dir is flat and keeps everything in one folder" {
     assert(flat.config == "" && flat.sessions == "x")
 }
 
-test "args: --home and --set are taken out of the words" {
-    ro a = split_cli_args(["canopus", "serve", "--home", "C:/work/h", "f.json", "--set", "port=8131", "--set=store=files"])
-    assert(a.error == "" && a.home == "C:/work/h")
-    assert(a.sets.len() == 2 && a.sets[0] == "port=8131" && a.sets[1] == "store=files")
-    assert(a.rest.len() == 3 && a.rest[1] == "serve" && a.rest[2] == "f.json")
-    ro b = split_cli_args(["canopus", "--home=C:/work/x"])
-    assert(b.home == "C:/work/x" && b.rest.len() == 1)
-    assert(split_cli_args(["p", "--home"]).error.byte_len() > 0)
+test "args: retired overrides fail without echoing values" {
+    assert(split_cli_args(["canopus", "serve", "--home", "C:/work/h"]).error.contains("--config"))
+    ro secret = split_cli_args(["canopus", "--set=pg.password=not-printed-value"])
+    assert(secret.error.contains("--set") && !secret.error.contains("not-printed-value"))
+    assert(split_cli_args(["canopus", "doctor", "--file", "x.json"]).error.contains("--config"))
+}
+
+test "args: one explicit config survives extraction and missing or duplicate values fail" {
+    ro a = split_cli_args(["canopus", "serve", "--config", "C:/work/instance/config.json"])
+    assert(a.error == "" && a.config == "C:/work/instance/config.json")
+    assert(a.rest.len() == 2 && a.rest[1] == "serve")
+    ro b = split_cli_args(["canopus", "--config=C:/work/instance/custom.json", "doctor"])
+    assert(b.error == "" && b.config.ends_with("/custom.json") && b.rest[1] == "doctor")
+    assert(split_cli_args(["canopus", "--config"]).error.byte_len() > 0)
+    assert(split_cli_args(["canopus", "--config="]).error.byte_len() > 0)
+    assert(split_cli_args(["canopus", "--config", "--home", "x"]).error.byte_len() > 0)
+    assert(split_cli_args(["canopus", "--config=a.json", "--config=b.json"]).error.byte_len() > 0)
+}
+
+test "config selection: explicit path chooses its parent and does not move the default instance" {
+    match select_config("", "C:/work/repo", "C:/work/test-user") {
+        Ok(s) => assert(s.file == "C:/work/test-user/.canopus/config.json" && s.root == "C:/work/test-user/.canopus")
+        Err(e) => assert(false)
+    }
+    match select_config("../instance/./custom.json", "C:/work/repo", "C:/work/test-user") {
+        Ok(s) => assert(s.file == "C:/work/instance/custom.json" && s.root == "C:/work/instance")
+        Err(e) => assert(false)
+    }
+    match select_config("C:/work/instance/second.json", "C:/work/elsewhere", "C:/work/test-user") {
+        Ok(s) => assert(s.root == "C:/work/instance")
+        Err(e) => assert(false)
+    }
+    assert(select_config("", "C:/work/repo", "").is_err())
+    assert(select_config("relative.json", "", "C:/work/test-user").is_err())
 }
 
 test "json: the error names the line and does not quote the text" {
@@ -130,8 +157,8 @@ test "layers: the files are read in the order user, server, project, local, and 
     ro root = tmp_root("layers")
     put(root, "inst/config.json", "{\"port\":1,\"store\":\"files\"}")
     put(root, "srv.json", "{\"port\":2}")
-    put(root, "repo/.canopus/config.json", "{\"port\":3,\"workdir\":\"w\"}")
-    put(root, "repo/.canopus/local.json", "{\"workdir\":\"mine\"}")
+    put(root, "repo/.canopus/config.json", "{\"port\":3,\"voice\":{\"language\":\"ru\"}}")
+    put(root, "repo/.canopus/local.json", "{\"voice\":{\"model\":\"medium\"}}")
     ro layout = layout_in("${root}/inst", "${root}/repo/.canopus")
     match with Fs = real_fs() { file_layers(layout, "${root}/srv.json") } {
         Err(e) => assert(false)
@@ -140,7 +167,7 @@ test "layers: the files are read in the order user, server, project, local, and 
             assert(layers[0].origin == "user" && layers[1].origin == "server" && layers[2].origin == "project" && layers[3].origin == "local")
             ro m = merge_layers(layers)
             assert(m.get("port").unwrap().int() == Some(3))
-            assert(m.get("workdir").unwrap().str() == Some("mine"))
+            assert(m.get("voice").unwrap().object().unwrap().get("model").unwrap().str() == Some("medium"))
             assert(m.get("store").unwrap().str() == Some("files"))
         }
     }
@@ -166,25 +193,36 @@ test "layers: a broken file is an error file:line: reason, a file that is not an
     tmp_drop(root)
 }
 
-test "layers: the variables are over the files and the arguments over the variables" {
+test "layers: removed environment and set overrides fail instead of shadowing files" {
     ro root = tmp_root("envarg")
-    put(root, "inst/config.json", "{\"port\":1,\"voice\":{\"model\":\"small\"}}")
     ro layout = layout_in("${root}/inst", "")
     mut state = MockOs.new()
-    state.put_env("CANOPUS_SERVER_PORT", "7")
-    state.put_env("CANOPUS_VOICE_MODEL", "medium")
-    state.put_env("CANOPUS_SERVER_ACP_TRACE", "false")
-    match with Os = mock_os(state), Fs = real_fs() { all_layers(layout, "", ["port=9", "voice.language=en"]) } {
-        Err(e) => assert(false)
-        Ok(layers) => {
-            ro m = merge_layers(layers)
-            assert(m.get("port").unwrap().int() == Some(9))
-            ro v = m.get("voice").unwrap().object().unwrap()
-            assert(v.get("model").unwrap().str() == Some("medium"))
-            assert(v.get("language").unwrap().str() == Some("en"))
-            assert(m.get("acp_trace").unwrap().bool() == Some(false))
+    state.put_env("CANOPUS_SERVER_PORT", "8123")
+    match with Os = mock_os(state), Fs = real_fs() { all_layers(layout, "", []str.new()) } {
+        Ok(layers) => assert(false)
+        Err(e) => assert(e.contains("CANOPUS_SERVER_PORT") && !e.contains("8123"))
+    }
+    assert(with Os = mock_os(MockOs.new()), Fs = real_fs() { all_layers(layout, "", ["port=8131"]) }.is_err())
+    tmp_drop(root)
+}
+
+test "config selection: a custom basename replaces the global file and owns config writes" {
+    ro root = tmp_root("selected-file")
+    put(root, "instance/config.json", "{\"port\":1}")
+    put(root, "instance/custom.json", "{\"port\":2}")
+    ro selected = ConfigSelection { file: "${root}/instance/custom.json", root: "${root}/instance" }
+    ro layout = layout_for_config(selected, "")
+    with Fs = real_fs() {
+        match file_layers(layout, "") {
+            Ok(layers) => {
+                assert(layers.len() == 1 && layers[0].file == selected.file)
+                assert(merge_layers(layers).get("port").unwrap().int() == Some(2))
+            }
+            Err(e) => assert(false)
         }
     }
+    assert(set_target(layout, "user", root).unwrap() == selected.file)
+    assert(layout.data == "${root}/instance/data" && layout.state == "${root}/instance/state")
     tmp_drop(root)
 }
 
@@ -193,9 +231,22 @@ test "project folder: found in a folder above, the root of the instance is not a
     put(root, "repo/.canopus/config.json", "{}")
     put(root, "repo/src/deep/x.txt", "x")
     put(root, "inst/.canopus/config.json", "{}")
-    with Fs = real_fs() {
+    with Os = real_os(), Fs = real_fs() {
         assert(find_project_dir("${root}/repo/src/deep", "${root}/inst/.canopus") == "${root}/repo/.canopus")
         assert(find_project_dir("${root}/inst", "${root}/inst/.canopus") == "")
+    }
+    tmp_drop(root)
+}
+
+test "project folder: the default user instance is not inherited by an explicit different instance" {
+    ro root = tmp_root("project-boundary")
+    put(root, "user/.canopus/config.json", "{\"port\":9876}")
+    put(root, "user/work/repo/.canopus/config.json", "{}")
+    mut state = MockOs.new()
+    state.set_home_str("${root}/user")
+    with Os = mock_os(state), Fs = real_fs() {
+        assert(find_project_dir("${root}/user/work", "${root}/other-instance") == "")
+        assert(find_project_dir("${root}/user/work/repo/src", "${root}/other-instance") == "${root}/user/work/repo/.canopus")
     }
     tmp_drop(root)
 }
@@ -211,4 +262,25 @@ test "legacy env: a set old name is a refusal with the new name, a clean environ
     mut fresh = MockOs.new()
     fresh.put_env("CANOPUS_HOME", "C:/work/inst")
     assert(with Os = mock_os(fresh) { legacy_env_problem() } == "")
+}
+
+test "instance marker keeps app and plugin data separate" {
+    ro root = tmp_root("instance-kind")
+    with Fs = real_fs() {
+        assert(claim_instance(root, "app").is_ok())
+        assert(claim_instance(root, "app").is_ok())
+        assert(claim_instance(root, "plugin").is_err())
+        assert((read_text(Path.from_bytes("${root}/state/instance.kind".bytes())) ?? "") == "canopus-instance:app\n")
+    }
+    tmp_drop(root)
+}
+
+test "application refuses an unmarked legacy plugin data root" {
+    ro root = tmp_root("plugin-data-kind")
+    put(root, "data/cards/one.json", "{}")
+    with Fs = real_fs() {
+        assert(claim_instance(root, "app").is_err())
+        assert((read_text(Path.from_bytes("${root}/data/cards/one.json".bytes())) ?? "") == "{}")
+    }
+    tmp_drop(root)
 }

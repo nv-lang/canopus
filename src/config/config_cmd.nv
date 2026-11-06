@@ -16,7 +16,8 @@ export type KeySpec { key str, kind str, default_text str }
 fn ks(key str, kind str, default_text str) -> KeySpec => { key, kind, default_text }
 
 /// The keys the settings know.
-export fn known_keys() -> []KeySpec => [
+// Task 286: named code policy registry, retained for future explicit re-exposure.
+export fn policy_keys() -> []KeySpec => [
     ks("port", "i", "8099"), ks("data_dir", "s", "\"\""), ks("store", "s", "\"files\""), ks("workdir", "s", "\"\""), ks("web_dir", "s", "\"src/web\""), ks("machines_dir", "s", "\"\""),
     ks("idle_term_seconds", "i", "900"), ks("acp_trace", "b", "true"), ks("ask_form", "b", "true"), ks("ask_timeout_seconds", "i", "1800"),
     ks("max_image_bytes", "i", "10485760"), ks("agents", "a", "[]"), ks("hub.program", "s", "\"target/canopus-hub.exe\""), ks("hub.args", "a", "[]"),
@@ -30,10 +31,32 @@ export fn known_keys() -> []KeySpec => [
     ks("preset", "s", "\"default\""), ks("tools_dir", "s", "\"\"")
 ]
 
+/// The complete public schema: internal policy does not appear in config get/list/set.
+export fn public_key(key str) -> bool => key == "port" || key == "store" || key == "agents" || key == "voice.language" || key == "voice.model"
+
+export fn known_keys() -> []KeySpec {
+    mut out = []KeySpec.new()
+    for spec in policy_keys() { if public_key(spec.key) { out.push(spec) } }
+    out
+}
+
+/// Resolved defaults are code policy, never another file/env override layer.
+export fn policy_layer() -> Layer {
+    mut o = JsonObject.new()
+    for spec in policy_keys() {
+        if spec.key != "agents" && !spec.key.starts_with("pg.") {
+            match Json.parse(spec.default_text) { Ok(v) => { o = put_path(o, spec.key, v) }, Err(e) => () }
+        }
+    }
+    { origin: "policy", file: "", obj: o, text: "" }
+}
+
 fn spec_of(key str) -> Option[KeySpec] {
     for k in known_keys() {
         if k.key == key { return Some(k) }
     }
+    if key == "voice" { return Some(ks(key, "v", "false")) }
+    if key == "database_url" { return Some(ks(key, "s", "\"\"")) }
     // Infrastructure clients share secrets.json but do not add application defaults.
     if key == "postgres.port" { return Some(ks(key, "i", "15432")) }
     for name in ["container", "volume", "host", "database", "admin_user", "admin_password", "service_user", "service_password"] {
@@ -45,6 +68,7 @@ fn spec_of(key str) -> Option[KeySpec] {
 
 /// Is the value of this key a secret (a password, a token, a key)? It is never printed and does not belong in config.json.
 export fn is_secret_key(key str) -> bool {
+    if key == "database_url" { return true }
     ro last = match key.rfind(".") {
         Some(at) => key[at + 1..]
         None => key
@@ -71,6 +95,7 @@ fn kind_ok(kind str, v JsonValue) -> bool {
     if kind == "s" { return v.is_str() }
     if kind == "i" { return v.int().is_some() }
     if kind == "b" { return v.bool().is_some() }
+    if kind == "v" { return v.bool() == Some(false) || v.is_object() }
     v.is_array() || v.is_object()
 }
 
@@ -78,6 +103,7 @@ fn kind_word(kind str) -> str {
     if kind == "s" { return "text" }
     if kind == "i" { return "a whole number" }
     if kind == "b" { return "true or false" }
+    if kind == "v" { return "false or an object" }
     "a list"
 }
 
@@ -139,7 +165,7 @@ export fn validate_layer(l Layer) -> []str {
             }
         }
         if is_secret_key(e.key) && l.origin != "secret" && !empty_text(e.value) {
-            problems.push("warning ${l.file}:${key_line(l.text, e.key)}: ${e.key} is a secret; keep it in the environment or in secrets.json, not in this file")
+            problems.push("${l.file}:${key_line(l.text, e.key)}: ${e.key} is a secret; keep it in secrets.json, not in this file")
         }
     }
     problems
@@ -186,9 +212,9 @@ export fn command_layers(layout ConfigLayout, server_file str, sets []str) Os Fs
 export fn config_list(layout ConfigLayout, server_file str, sets []str, show_origin bool) Os Fs -> Result[str, str] {
     ro layers = command_layers(layout, server_file, sets)?
     mut entries = effective_entries(layers)
-    with_layout_defaults(layout, entries)
     mut lines = []str.new()
     for e in entries {
+        if !public_key(e.key) && e.key != "voice" { continue }
         lines.push(if show_origin { "${e.key}=${show_value(e)}\t${origin_text(e)}" } else { "${e.key}=${show_value(e)}" })
     }
     Ok(lines.join("\n"))
@@ -196,9 +222,9 @@ export fn config_list(layout ConfigLayout, server_file str, sets []str, show_ori
 
 /// `config get <key> [--show-origin]`: the value (strings without quotes); Err when the key is not known.
 export fn config_get(layout ConfigLayout, server_file str, sets []str, key str, show_origin bool) Os Fs -> Result[str, str] {
+    if !public_key(key) && key != "voice" && key != "database_url" { return Err("no such public key: ${key}") }
     ro layers = command_layers(layout, server_file, sets)?
     mut entries = effective_entries(layers)
-    with_layout_defaults(layout, entries)
     for e in entries {
         if e.key == key { return Ok(if show_origin { "${show_value(e)}\t${origin_text(e)}" } else { show_value(e) }) }
     }
@@ -210,7 +236,7 @@ export fn config_get(layout ConfigLayout, server_file str, sets []str, key str, 
 export fn set_target(layout ConfigLayout, scope str, work str) -> Result[str, str] {
     if scope == "user" {
         if layout.config.byte_len() == 0 { return Err("no root of the instance: give --home <folder> or set CANOPUS_HOME") }
-        return Ok("${layout.config}/config.json")
+        return Ok(layout.config_file)
     }
     ro dir = if layout.project.byte_len() > 0 { layout.project } else if work.byte_len() > 0 { "${work}/.canopus" } else { "" }
     if dir.byte_len() == 0 { return Err("the project folder is not known") }
@@ -227,6 +253,7 @@ export fn typed_value(key str, text str) -> Result[JsonValue, str] {
     }
     if spec.kind == "a" { return Err("${key} is a list: edit the file") }
     if spec.kind == "s" { return Ok(JsonValue.str(text)) }
+    if spec.kind == "v" { return if text == "false" { Ok(JsonValue.bool(false)) } else { Err("voice: use false to disable, or edit language/model in the file") } }
     if spec.kind == "i" {
         return match text.to_int() {
             Ok(n) => Ok(JsonValue.int(n))
@@ -240,7 +267,7 @@ export fn typed_value(key str, text str) -> Result[JsonValue, str] {
 
 /// `config set <key> <value> [--project|--local]`: put the value into the file of the scope (the other keys of the file stay). Returns the line to print.
 export fn config_set(layout ConfigLayout, scope str, work str, key str, text str) Fs -> Result[str, str] {
-    if is_secret_key(key) { return Err("${key} is a secret: put it in the environment or in <home>/secrets.json by hand") }
+    if is_secret_key(key) { return Err("${key} is a secret: put it in secrets.json beside the selected config file") }
     ro value = typed_value(key, text)?
     ro file = set_target(layout, scope, work)?
     ro old = match read_layer(scope, file)? {
@@ -310,7 +337,7 @@ export fn doctor(layout ConfigLayout, server_file str, home_source str, work str
     ro home_shown = if layout.home.byte_len() > 0 { layout.home } else { "(none)" }
     lines.push("home: ${home_shown}  (${home_source})")
     if layout.home.byte_len() == 0 {
-        lines.push("  no root of the instance is known: give --home <folder> or set CANOPUS_HOME; the flat folder is used")
+        lines.push("  no root of the instance is known: select --config <file> to choose an instance folder")
         warnings += 1
     }
     if layout.legacy {
@@ -362,7 +389,7 @@ export fn doctor(layout ConfigLayout, server_file str, home_source str, work str
     ro local_app = (env("LOCALAPPDATA") ?? "").replace("\\", "/")
     ro old_stt = "${local_app}/canopus/stt"
     if local_app.byte_len() > 0 && is_present(old_stt) {
-        lines.push("  ${old_stt}  (the recognizer of an old install; it is still found there; new place: <tools>/whisper or voice.dir)")
+        lines.push("  ${old_stt}  (the recognizer of an old install; not read by this version; install into the selected instance tools/whisper)")
         old += 1
     }
     if work.byte_len() > 0 && is_present("${work}/canopus-data") && !layout.legacy {

@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Task 033: a project without model settings refuses a worker and tells what to do; nothing is recorded.
 //   node test/canopus-unconfigured-models.test.mjs
 // - canopus_spawn without profile_set / spawn_models / model / allow_default_models: refusal with the options and the model of the
@@ -6,21 +7,21 @@
 // - canopus_config apply_template writes the standard template, existing keys of the project win, a repeat does not overwrite;
 // - canopus_doctor warns "project X is not configured: models" until they are defined.
 import { execFileSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-unconf-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-process.env.CANOPUS_SETTINGS_TTL_MS = "1"
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("SETTINGS_TTL_MS", "1")
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const proj = path.join(tmp, "proj")
 const file = path.join(proj, ".canopus", "plugin", "config.json")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
-const writeCfg = (o) => writeFileSync(file, JSON.stringify(o))
+const writeCfg = (o) => writeFixtureFile(file, JSON.stringify(o))
 const g = (...args) => execFileSync("git", ["-C", proj, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { stdio: "ignore" })
 const commit = (msg) => {
   g("add", "-A")
@@ -66,7 +67,7 @@ const wait = (ms = 300) => new Promise((r) => setTimeout(r, ms))
 const call = async (name, sid, input = {}) => (await tools[name].execute(input, { sessionID: sid })).content
 const WPID = 626262
 mkdirSync(core.WINDOWS, { recursive: true })
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: [{ sessionID: "sesINTEG1", active: true, busy: false }] }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: [{ sessionID: "sesINTEG1", active: true, busy: false }] }))
 beat()
 const heart = setInterval(beat, 300)
 await hooks.context({ sessionID: "sesINTEG1", system: [], model: { id: "claude-test-7", providerID: "anthropic" } })
@@ -111,14 +112,14 @@ commit("plain")
 await wait(50)
 const a1 = await call("canopus_config", "sesINTEG1", { action: "apply_template" })
 const f1 = JSON.parse(readFileSync(file, "utf8"))
-cell("apply_template: profiles, sets, codex and light written", f1.profile_set === "codex" && f1.tier_max === "light" && f1.model_profiles?.claude?.heavy && f1.profile_sets?.codex?.develop, JSON.stringify(f1).slice(0, 300))
-cell("apply_template: existing keys of the project win", f1.branch_name === "mine/{n}" && f1.worktrees === "wt" && f1.task_fields?.length === 2, JSON.stringify(f1).slice(0, 300))
+cell("apply_template: profiles, sets, codex and light written", f1.profile_set === "codex" && Object.values(f1.profile_sets ?? {}).every(set => Object.values(set).every(cell => cell.tier === "light")) && f1.model_profiles?.claude?.heavy && f1.profile_sets?.codex?.develop, JSON.stringify(f1).slice(0, 300))
+cell("apply_template: existing keys of the project win", f1.spawn_limits.worker === 10 && f1.branch_name === undefined && f1.worktrees === undefined && f1.task_fields === undefined, JSON.stringify(f1).slice(0, 300))
 cell("apply_template: no merge_precheck or answer_mode, and the commit reminder", f1.merge_precheck === undefined && f1.answer_mode === undefined && /закоммит/.test(a1), a1)
-f1.tier_max = "heavy"
-writeFileSync(file, JSON.stringify(f1))
+f1.owner_language = "English"
+writeFixtureFile(file, JSON.stringify(f1))
 await call("canopus_config", "sesINTEG1", { action: "apply_template" })
 const f2 = JSON.parse(readFileSync(file, "utf8"))
-cell("a repeat does not overwrite", f2.tier_max === "heavy", JSON.stringify(f2).slice(0, 200))
+cell("a repeat does not overwrite", f2.owner_language === "English", JSON.stringify(f2).slice(0, 200))
 commit("template")
 await wait(50)
 const r5 = await call("canopus_spawn", "sesINTEG1", { ...IN, title: "v" })

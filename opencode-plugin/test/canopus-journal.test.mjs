@@ -1,18 +1,19 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the task journal tools (node >= 24):  node test/canopus-journal.test.mjs
 // progress_line appends ONE line '<code> k/N [YYYY-MM-DD HH:MM] <signature>' with the machine date and time to a file named progress.log inside the
 // project folder; since task 049 it builds the line by kind (start, step, done, stop, launch) and checks it against the session: the red probes
 // are the lines agents stumbled on in tasks 031 and 045; log_line appends ONE entry 'YYYY-MM-DD HH:MM <kind>: <text>' to log.md; usage_line appends ONE JSON line (format version v:1) with the accounting of the session to usage.log next to
 // a progress.log of the same task folder. Both: no shell, append only, fixed file names, path inside the project folder, the
 // refusal of the file system is returned as a refusal, history is never rewritten. Exit 1 on any failed cell.
-import { mkdtempSync, writeFileSync, readFileSync, chmodSync, mkdirSync, existsSync, rmSync } from "node:fs"
+import { mkdtempSync, readFileSync, chmodSync, mkdirSync, existsSync, rmSync } from "node:fs"
 import { execFileSync } from "node:child_process"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-journal-"))
 process.env.XDG_DATA_HOME = path.join(tmp, "data")
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_PRESENCE ??= "all"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
 const plugin = (await import("./fixture-plugin.mjs")).default
 const { progressLine, logLine, usageLine, noteLoopLag, maxLoopLagSince, resetLoopLagForTest, isLauncherCard } = await import("../journal.ts")
 const { parseLine, keywordOf, stopKind, sessionsOf, entryOf, DEFAULT_THRESHOLDS } = await import("../progress.ts")
@@ -31,7 +32,7 @@ mkdirSync(dir, { recursive: true })
 const log = path.join(dir, "progress.log")
 const ulog = path.join(dir, "usage.log")
 const HISTORY = "С5д 0/13 [02:00] старт\nС5д 3/13 [02:04] историческая строка\n"
-writeFileSync(log, HISTORY)
+writeFixtureFile(log, HISTORY)
 const rel = "doc/tasks/007-x/progress.log"
 const urel = "doc/tasks/007-x/usage.log"
 const at = (h, m) => new Date(2026, 9, 9, h, m, 0)
@@ -78,7 +79,7 @@ const isoLocalOf = (d) => {
 
   const ro = path.join(dir, "ro", "progress.log")
   mkdirSync(path.dirname(ro), { recursive: true })
-  writeFileSync(ro, "С1 0/2 [01:00] старт\n")
+  writeFixtureFile(ro, "С1 0/2 [01:00] старт\n")
   chmodSync(ro, 0o444)
   const snap = read(ro)
   const denied = progressLine({ file: ro, code: "С1", unit: "1/2", text: "x" }, base, at(3, 9))
@@ -165,7 +166,7 @@ const isoLocalOf = (d) => {
   const f = "doc/tasks/050-c/progress.log"
   const abs = path.join(tdir, "progress.log")
   const put = (input, h = 9, m = 0) => progressLine({ file: f, ...input }, base, at(h, m))
-  const hand = (line) => writeFileSync(abs, (exists(abs) ? read(abs) : "") + line + "\n")
+  const hand = (line) => writeFixtureFile(abs, (exists(abs) ? read(abs) : "") + line + "\n")
   const no = (name, input, why) => {
     const snapshot = exists(abs) ? read(abs) : null
     const x = put(input)
@@ -268,7 +269,7 @@ const isoLocalOf = (d) => {
   const f = "doc/tasks/053-m/progress.log"
   const abs = path.join(tdir, "progress.log")
   const put = (input, h = 14, m = 0) => progressLine({ file: f, ...input }, base, at(h, m))
-  const hand = (line) => writeFileSync(abs, (exists(abs) ? read(abs) : "") + line + "\n")
+  const hand = (line) => writeFixtureFile(abs, (exists(abs) ? read(abs) : "") + line + "\n")
   const no = (name, input, why) => {
     const snapshot = exists(abs) ? read(abs) : null
     const x = put(input)
@@ -353,7 +354,7 @@ const isoLocalOf = (d) => {
     const ldir = path.join(base, "doc", "tasks", "053-l")
     mkdirSync(ldir, { recursive: true })
     const lf = path.join(ldir, "log.md")
-    writeFileSync(lf, "2026-10-09 10:00 документ: задание\n")
+    writeFixtureFile(lf, "2026-10-09 10:00 документ: задание\n")
     const snap = read(lf)
     const x = logLine({ file: "doc/tasks/053-l/log.md", kind: "пуск", text: "запуск №3 С5 [2026-10-09 10:01]" }, base, at(10, 1))
     cell("053 refused: a launch record in log.md from the agent", x.ok === false && read(lf) === snap && /запуск.*не пишет/.test(x.reason), JSON.stringify(x))
@@ -413,7 +414,7 @@ const isoLocalOf = (d) => {
   cell("launcher: the record «запуск №1 С5 [time]» is written into log.md of the folder", exists(lmd) && rd(lmd) === "2026-10-09 18:00 пуск: запуск №1 С5 [2026-10-09 18:00]\n", exists(lmd) ? rd(lmd) : "no log.md")
   const st = progressLine({ file: f, code: "С5", kind: "start", n: 2 }, base, at(18, 1))
   cell("launcher: the agent of the session then writes its start", st.ok && st.line.startsWith("С5 0/2 "), JSON.stringify(st))
-  writeFileSync(lmd, rd(lmd) + "2026-10-09 18:02 пуск: запуск №5 С6 [2026-10-09 18:02]\n")
+  writeFixtureFile(lmd, rd(lmd) + "2026-10-09 18:02 пуск: запуск №5 С6 [2026-10-09 18:02]\n")
   const l6 = progressLine({ file: f, code: "С6", kind: "launch" }, base, at(18, 3), L)
   cell("launcher: the number is 1 + the largest launch number in progress.log and log.md", l6.ok && l6.line === "С6 0/0 [2026-10-09 18:03] запуск №6" && rd(lmd).endsWith("2026-10-09 18:03 пуск: запуск №6 С6 [2026-10-09 18:03]\n"), JSON.stringify([l6, rd(lmd)]))
   const snapP = rd(abs)
@@ -439,7 +440,7 @@ const isoLocalOf = (d) => {
   const ldir = path.join(base, "doc", "tasks", "049-l")
   mkdirSync(ldir, { recursive: true })
   const lf = path.join(ldir, "log.md")
-  writeFileSync(lf, "Методика: x @ abc") // no newline at the end
+  writeFixtureFile(lf, "Методика: x @ abc") // no newline at the end
   const r = logLine({ file: "doc/tasks/049-l/log.md", kind: "решение владельца", text: "владелец, 2026-10-15, чат: «по рекомендации»" }, base, at(16, 1))
   cell("log: one entry with the machine date and time, the missing newline of the file is added first", r.ok && read(lf) === "Методика: x @ abc\n2026-10-09 16:01 решение владельца: владелец, 2026-10-15, чат: «по рекомендации»\n", JSON.stringify([r, read(lf)]))
   const LOG_ENTRY = /^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2} (решение владельца|заседание|ворота|документ|пуск|слияние|находка): /
@@ -463,7 +464,7 @@ const isoLocalOf = (d) => {
 // ---- usage_line ----
 const repo = path.join(base, "repo")
 mkdirSync(path.join(repo, "t"), { recursive: true })
-writeFileSync(path.join(repo, "t", "progress.log"), "С5д 0/0 [01:00] запуск\n")
+writeFixtureFile(path.join(repo, "t", "progress.log"), "С5д 0/0 [01:00] запуск\n")
 let head = ""
 try {
   const git = (...a) => execFileSync("git", ["-C", repo, "-c", "user.name=t", "-c", "user.email=t@example.com", ...a], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })
@@ -534,9 +535,9 @@ const now = new Date(Date.UTC(2026, 9, 9, 10, 30, 0))
   // read-only file: the OS refuses
   const rodir = path.join(dir, "rou")
   mkdirSync(rodir, { recursive: true })
-  writeFileSync(path.join(rodir, "progress.log"), "С1 0/0 [01:00] запуск\n")
+  writeFixtureFile(path.join(rodir, "progress.log"), "С1 0/0 [01:00] запуск\n")
   const rou = path.join(rodir, "usage.log")
-  writeFileSync(rou, '{"v":1}\n')
+  writeFixtureFile(rou, '{"v":1}\n')
   chmodSync(rou, 0o444)
   const denied = usageLine({ file: rou, code: "С1", result: "x" }, base, { session: "s", card, now, commit: () => "" })
   cell("usage: file access denial is respected", denied.ok === false && /отказал|EPERM|EACCES/.test(denied.reason) && read(rou) === '{"v":1}\n', JSON.stringify(denied))

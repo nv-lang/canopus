@@ -1,3 +1,4 @@
+import { getFixtureRuntime } from "./fixture-settings.mjs"
 // P1 279: a common author's read on B must never close A's health episode.
 import assert from "node:assert/strict"
 import { DatabaseSync } from "node:sqlite"
@@ -6,11 +7,11 @@ import os from "node:os"
 import path from "node:path"
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-health-correlation-"))
 process.env.XDG_DATA_HOME = process.env.XDG_STATE_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_DB = path.join(tmp, "native.db")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "native.db"))
 const core = await import("../core.ts")
 const iw = await import("../idle-watch.ts")
-const db = new DatabaseSync(process.env.CANOPUS_DB)
+const db = new DatabaseSync(getFixtureRuntime("DB"))
 db.exec("create table session_v2 (id text primary key, directory text); create table session_message (id text, session_id text, type text, seq integer, time_created integer, time_updated integer, data text)")
 db.prepare("insert into session_v2 values (?, ?)").run("sesAUTHOR", tmp)
 const now = 1_000_000, MIN = 60_000

@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the acceptor role (plan 002.7; node >= 24):  node test/canopus-acceptor.test.mjs
 // reviewer: "acceptor": a submitted task gets a free open tab of role acceptor (never a worker tab) or a new review
 // session born with role acceptor; review sessions are bounded by spawn_limits.acceptor (not .reviewer) and take no
@@ -6,24 +7,24 @@
 // (CANOPUS_* in its environment, fixed when the watch is put, not when it starts) and refuses a command matching the
 // project's permissions.deny.
 import { execFileSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-acceptor-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
 mkdirSync(path.join(proj, ".claude"), { recursive: true })
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
 // the deny list of the nova project (copied, not read from nova)
 const NOVA_DENY = ["Read(./**/.env*)", "Read(./**/*.pem)", "Read(./**/*.key)", "Read(./**/*.p12)", "Read(./**/*.pfx)", "Read(./**/id_rsa*)", "Read(./**/id_ed25519*)", "Bash(git reset --hard:*)", "Bash(git clean -fd:*)", "PowerShell(git reset --hard:*)", "PowerShell(git clean -fd:*)"]
-writeFileSync(path.join(proj, ".claude", "settings.json"), JSON.stringify({ permissions: { deny: NOVA_DENY } }))
-writeFileSync(
+writeFixtureFile(path.join(proj, ".claude", "settings.json"), JSON.stringify({ permissions: { deny: NOVA_DENY } }))
+writeFixtureFile(
   path.join(proj, ".canopus", "plugin", "config.json"),
   JSON.stringify({
     allow_default_models: true,
@@ -39,7 +40,7 @@ writeFileSync(
   }),
 )
 git(proj, "init", "-q", "-b", "main")
-writeFileSync(path.join(proj, "a.txt"), "a\n")
+writeFixtureFile(path.join(proj, "a.txt"), "a\n")
 git(proj, "add", "-A")
 git(proj, "commit", "-q", "-m", "init")
 
@@ -98,7 +99,7 @@ const tabs = [
   { sessionID: "sesACC1", active: false, busy: true },
 ]
 mkdirSync(core.WINDOWS, { recursive: true })
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs }))
 beat()
 const heart = setInterval(beat, 300)
 for (const t of tabs) await turnEnds(t.sessionID)
@@ -114,7 +115,7 @@ cell("the default reviewer stays worker without the key", core.loadConfig(path.j
 await call("canopus_spawn", "sesINTEG1", { title: "фича", goal: "сделать фичу", criteria: "тест зелёный" })
 const ex1 = task(1).executor
 await wait(300)
-writeFileSync(path.join(task(1).worktree, "f.txt"), "feature\n")
+writeFixtureFile(path.join(task(1).worktree, "f.txt"), "feature\n")
 git(task(1).worktree, "add", "-A")
 git(task(1).worktree, "commit", "-q", "-m", "feature")
 await call("canopus_send", ex1, { to: "sesINTEG1", text: "фича готова", reply_to: task(1).qid })
@@ -145,7 +146,7 @@ cell("canopus_watch refuses a command reading a denied file", /не постав
 cell("a refused command is not queued", !watch.watchesOf(ex2).length && !watch.watchesOf(rv1).length, JSON.stringify([...watch.watchesOf(ex2), ...watch.watchesOf(rv1)]))
 
 // 3. 002 submitted: the acceptor tab busy, one review session already open = spawn_limits.acceptor -> 002 waits
-writeFileSync(path.join(task(2).worktree, "g.txt"), "g\n")
+writeFixtureFile(path.join(task(2).worktree, "g.txt"), "g\n")
 git(task(2).worktree, "add", "-A")
 git(task(2).worktree, "commit", "-q", "-m", "g")
 await call("canopus_send", ex2, { to: "sesINTEG1", text: "готово 2", reply_to: task(2).qid })

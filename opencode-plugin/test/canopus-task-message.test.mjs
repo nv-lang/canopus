@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the one template of task/message.md (task 065, node >= 24):  node test/canopus-task-message.test.mjs
 // The Canon gives one template of the task text (doc/canon/process.md, «Задание task/message.md»): a title «# Задание: …», a
 // header, then the sections «Чего хочет владелец», «Что нужно», «Критерии приёмки», «Результат и куда он попадает», «Связи»,
@@ -7,17 +8,17 @@
 // without the sections is refused too. Old calls stay valid where the template is not involved: a project without task
 // folders and a session of an existing task need no new fields. The guard of the same rules is check-task-docs.py
 // (message-title, message-section, message-owner).
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { execFileSync } from "node:child_process"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-task-message-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-process.env.CANOPUS_PRESENCE = "all"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
 const settings = { root: "..", worktrees: "worktrees", worktree_name: "{repo}-{n}-{slug}", branch_name: "task/{n}-{slug}", cleanup: "local", allow_default_models: true, inflight_limit: 20, spawn_limits: { worker: 9, reviewer: 0 } }
 // proj — a project with task folders (doc/tasks in main); flat — a project without them (the old way, #N)
@@ -25,16 +26,16 @@ const proj = path.join(tmp, "proj")
 const flat = path.join(tmp, "flat")
 for (const [dir, folders] of [[proj, true], [flat, false]]) {
   mkdirSync(path.join(dir, ".opencode"), { recursive: true }); mkdirSync(path.join(dir, ".canopus", "plugin"), { recursive: true })
-  writeFileSync(path.join(dir, ".canopus", "plugin", "config.json"), JSON.stringify(settings))
+  writeFixtureFile(path.join(dir, ".canopus", "plugin", "config.json"), JSON.stringify(settings))
   if (folders) {
     mkdirSync(path.join(dir, "doc", "tasks", "045-registry", "task"), { recursive: true })
-    writeFileSync(path.join(dir, "doc", "tasks", "045-registry", "task", "message.md"), "# Задание: Реестры контрактов\n\nтекст\n")
-    writeFileSync(path.join(dir, "doc", "tasks", "045-registry", "log.md"), "2026-10-15 10:00 документ: задание заведено\n")
+    writeFixtureFile(path.join(dir, "doc", "tasks", "045-registry", "task", "message.md"), "# Задание: Реестры контрактов\n\nтекст\n")
+    writeFixtureFile(path.join(dir, "doc", "tasks", "045-registry", "log.md"), "2026-10-15 10:00 документ: задание заведено\n")
   }
   git(dir, "init", "-q", "-b", "main")
   git(dir, "config", "user.name", "Owner Test")
   git(dir, "config", "user.email", "owner@test")
-  writeFileSync(path.join(dir, "a.txt"), "a\n")
+  writeFixtureFile(path.join(dir, "a.txt"), "a\n")
   git(dir, "add", "-A")
   git(dir, "commit", "-q", "-m", "init")
 }

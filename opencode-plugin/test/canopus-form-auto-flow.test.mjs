@@ -1,32 +1,33 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Flow test of the automatic answer to the forms of the built-in questionnaire, task 096 (node >= 24):  node test/canopus-form-auto-flow.test.mjs
 // The real plugin against a fake OpenCode host (as canopus-owner-answer): the project has `answer_mode: {default: recommendations}` and
 // `answer_delay_sec: 2` in the `local` block of the options. A form with one "(Recommended)" first option is closed by the plugin itself
 // after the delay (interrupt of the turn, a service letter "not the owner's word", a file in answers/ with the source plugin, an event of the
 // task, a log line); the owner's reply before the deadline wins; forms of the closed list, without a mark, and of a project without the key
 // are left to the owner as before; the settings file is never written by the plugin; /canopus and the doctor show the counters and reasons.
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-form-auto-flow-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 process.env.TEMP = process.env.TMP = process.env.TMPDIR = tmp
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_STATUS_MS = "100"
-process.env.CANOPUS_FORM_MS = "100"
-process.env.CANOPUS_FORM_GONE_MS = "300"
-process.env.CANOPUS_FORM_REPEAT_GAP_MS = "300"
-process.env.CANOPUS_FORM_RESTART_GRACE_MS = "100"
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("STATUS_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_GONE_MS", "300")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_REPEAT_GAP_MS", "300")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_RESTART_GRACE_MS", "100")
 const dbPath = path.join(tmp, "opencode.db")
-process.env.CANOPUS_DB = dbPath
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", dbPath)
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const proj = path.join(tmp, "proj")
 const plain = path.join(tmp, "plain")
 for (const d of [proj, plain]) {
   mkdirSync(path.join(d, ".opencode"), { recursive: true }); mkdirSync(path.join(d, ".canopus", "plugin"), { recursive: true })
-  writeFileSync(path.join(d, ".canopus", "plugin", "config.json"), JSON.stringify({}))
+  writeFixtureFile(path.join(d, ".canopus", "plugin", "config.json"), JSON.stringify({}))
 }
 const settingsFile = path.join(proj, ".canopus", "plugin", "config.json")
 const settingsBefore = readFileSync(settingsFile, "utf8")
@@ -62,7 +63,7 @@ core.saveCard({ ...core.readJson(core.cardFile(T)), task: { project: "proj", n: 
 const form = (id, s, question, options) => ({ type: "form.created", data: { form: { id, sessionID: s, title: "Questions", metadata: { kind: "question" }, fields: [{ key: "q0", description: question, options: options.map((label) => ({ label })) }] } } })
 mkdirSync(core.WINDOWS, { recursive: true })
 const WPID = 585858
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: [A, C, R, W, P, L, T].map((sessionID) => ({ sessionID, active: true, busy: true })) }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: [A, C, R, W, P, L, T].map((sessionID) => ({ sessionID, active: true, busy: true })) }))
 beat()
 const heart = setInterval(beat, 300)
 

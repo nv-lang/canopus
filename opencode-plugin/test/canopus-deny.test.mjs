@@ -1,16 +1,17 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the project's deny rules for canopus_watch (plan 002.7, item 6; node >= 24):  node test/canopus-deny.test.mjs
 // canopus_watch runs its command in the OpenCode server, outside the window's permissions; so the command is checked
 // against permissions.deny of the project's .claude/settings.json (from the tab's directory up to the git root).
 // Bash(prefix:*) / PowerShell(prefix:*) -- a command prefix, checked on the whole command and on every subcommand
 // (&&, ||, ;, |, newline, the body of bash -c / sh -c, $(...)); Read(glob) -- a command naming a matching file.
 // Harmless commands pass. No settings file -- no check; an unreadable one -- refusal.
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-deny-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 const d = await import("../deny.ts")
 let fail = 0
 const cell = (name, ok, detail) => {
@@ -25,7 +26,7 @@ const sub = path.join(repo, "scripts", "deep")
 mkdirSync(path.join(repo, ".git"), { recursive: true })
 mkdirSync(path.join(repo, ".claude"), { recursive: true })
 mkdirSync(sub, { recursive: true })
-writeFileSync(path.join(repo, ".claude", "settings.json"), JSON.stringify({ permissions: { allow: ["Bash(git status:*)"], deny: NOVA_DENY } }))
+writeFixtureFile(path.join(repo, ".claude", "settings.json"), JSON.stringify({ permissions: { allow: ["Bash(git status:*)"], deny: NOVA_DENY } }))
 
 // 1. harmless commands pass
 for (const c of ["bash scripts/gate.sh", "gh run list", "git status", "until [ -f x ]; do sleep 30; done", "git log --oneline -3 2>&1 | tail -1", "cat notes.env README.md", "git -C ../wt diff --stat", "echo hard reset"])
@@ -70,12 +71,12 @@ cell("the walk stops at the git root (a nested repository does not see the outer
 const broken = path.join(tmp, "broken")
 mkdirSync(path.join(broken, ".git"), { recursive: true })
 mkdirSync(path.join(broken, ".claude"), { recursive: true })
-writeFileSync(path.join(broken, ".claude", "settings.json"), "{ not json")
+writeFixtureFile(path.join(broken, ".claude", "settings.json"), "{ not json")
 cell("an unreadable settings file refuses (silently skipping it would drop every rule)", /не читается/.test(d.watchRefusal("git status", broken) ?? ""), d.watchRefusal("git status", broken))
 const all = path.join(tmp, "all")
 mkdirSync(path.join(all, ".git"), { recursive: true })
 mkdirSync(path.join(all, ".claude"), { recursive: true })
-writeFileSync(path.join(all, ".claude", "settings.json"), JSON.stringify({ permissions: { deny: ["Bash", "WebFetch(domain:example.com)"] } }))
+writeFixtureFile(path.join(all, ".claude", "settings.json"), JSON.stringify({ permissions: { deny: ["Bash", "WebFetch(domain:example.com)"] } }))
 cell("a bare Bash rule denies every command", /«Bash»/.test(d.watchRefusal("git status", all) ?? ""), d.watchRefusal("git status", all))
 
 // 4. the pattern forms

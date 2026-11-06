@@ -1,3 +1,4 @@
+import { runtimeValue } from "./runtime-policy.ts"
 // НАБЛЮДЕНИЯ (провайдер claude-code, план 002, 2026-10-05): долгое ожидание, которое переживает конец хода.
 //
 // Фоновая работа Claude Code (Bash run_in_background, Monitor) в окне claude-code гибнет с концом хода: процесс
@@ -202,7 +203,7 @@ function start(w: Watch, now: number, log: (s: string) => void): Watch {
   const exit = forBash(file(w.id, ".exit"))
   const script = `timeout ${w.minutes * 60} bash -c ${quote(w.command)} > ${quote(out)} 2>&1; echo $? > ${quote(exit + ".tmp")} && mv ${quote(exit + ".tmp")} ${quote(exit)}`
   try {
-    if (process.platform === "win32" && !process.env.CANOPUS_WATCH_NO_CONSOLE) {
+    if (process.platform === "win32" && !runtimeValue("WATCH_NO_CONSOLE")) {
       const pid = startWithConsole(w, script)
       if (!pid) log(`watch ${w.id}: pid внутреннего bash не появился за 10 с`)
       return { ...w, status: "running", ...(pid ? { pid } : {}), started: now }

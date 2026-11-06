@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the task journal (plan 002, Ph.1; node >= 24):  node test/canopus-tasks.test.mjs
 // - numbers #N are unique when two processes create tasks at once (atomic file creation);
 // - the session id is written to the journal before session.create, so a start cut off after create is retried
@@ -8,19 +9,19 @@
 //   priority, list by priority, show; only the integrator manages;
 // - session titles come from the journal: #N title, #N ↷ for a replaced session, #N ✗ for a cancelled one.
 import { execFileSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-tasks-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ task_fields: ["goal", "criteria", "boundaries"], spawn_limits: { worker: 5 }, worktrees: "wt", branch_name: "p{n}-{slug}", allow_default_models: true }))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ task_fields: ["goal", "criteria", "boundaries"], spawn_limits: { worker: 5 }, worktrees: "wt", branch_name: "p{n}-{slug}", allow_default_models: true }))
 // a git repository: the plugin creates the task's worktree in it (a session is never opened in the main copy, plan 002.6)
 const g = (...args) => execFileSync("git", ["-C", proj, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { stdio: "ignore" })
 g("init", "-q", "-b", "main")
@@ -78,7 +79,7 @@ const FIELDS = { criteria: "тест зелёный", boundaries: "ничего 
 const WPID = 616161
 const tabs = ["sesINTEG1", "sesOWNER1", "sesWORKR2"].map((sessionID, i) => ({ sessionID, active: i === 0, busy: false }))
 mkdirSync(core.WINDOWS, { recursive: true })
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs }))
 beat()
 const heart = setInterval(beat, 300)
 for (const t of tabs) await turnEnds(t.sessionID)
@@ -235,8 +236,8 @@ cell("backlog: repeated entry refused without duplicate history", /уже в б�
 cell("backlog: late executor submit does not revive", /в бэклоге/.test(await call("canopus_task", bt.executor, { action: "submit", n: bn, text: "поздний отчёт" })) && tasks.loadTask("proj", bn).status === "backlog", tasks.loadTask("proj", bn).status)
 const folder = path.join(proj, "doc", "tasks", `${String(bn).padStart(3, "0")}-same-number`)
 mkdirSync(path.join(folder, "task"), { recursive: true })
-writeFileSync(path.join(folder, "task", "message.md"), "# Задача\n")
-writeFileSync(path.join(folder, "log.md"), "старт\n")
+writeFixtureFile(path.join(folder, "task", "message.md"), "# Задача\n")
+writeFixtureFile(path.join(folder, "log.md"), "старт\n")
 g("add", "doc/tasks")
 g("commit", "-q", "-m", "Add same-number task folder")
 const beforeSpawn = JSON.stringify(tasks.loadTask("proj", bn))
@@ -262,13 +263,13 @@ cell("backlog: done cannot enter backlog", /готова/.test(await call("canop
 cell("backlog: cancelled cannot enter backlog", /отменена/.test(await call("canopus_task", "sesINTEG1", { action: "backlog", n: cancelBacklog.n, text: "x" })) && tasks.loadTask("proj", cancelBacklog.n).history.length === cancelHistory, "accepted or mutated")
 const locked = tasks.createTask({ project: "proj", title: "замок", goal: "не трогать", priority: "P2", tier: "light", role: "worker", author: "sesINTEG1", author_role: "proj.integrator", qid: "qlock", status: "reviewing", kind: "external", directory: proj, reviewer: "sesWORKR2" })
 const mergeLock = path.join(core.ROLES, "proj_merge.json")
-writeFileSync(mergeLock, JSON.stringify({ session: "sesWORKR2", n: locked.n, at: Date.now() }))
+writeFixtureFile(mergeLock, JSON.stringify({ session: "sesWORKR2", n: locked.n, at: Date.now() }))
 const lockHistory = tasks.loadTask("proj", locked.n).history.length
 cell("backlog: active merge lock blocks pause before mutation", /замок вливания/.test(await call("canopus_task", "sesINTEG1", { action: "backlog", n: locked.n, text: "пауза" })) && tasks.loadTask("proj", locked.n).status === "reviewing" && tasks.loadTask("proj", locked.n).history.length === lockHistory, JSON.stringify(tasks.loadTask("proj", locked.n)))
 const lockedBacklog = tasks.createTask({ project: "proj", title: "бэклог с замком", goal: "не будить", priority: "P2", tier: "light", role: "worker", author: "sesINTEG1", author_role: "proj.integrator", qid: "qbacklock", status: "backlog", kind: "external", directory: proj })
 lockedBacklog.backlog = { status: "reviewing", at: Date.now(), by: "sesINTEG1" }
 tasks.saveTask(lockedBacklog)
-writeFileSync(mergeLock, JSON.stringify({ session: "sesWORKR2", n: lockedBacklog.n, at: Date.now() }))
+writeFixtureFile(mergeLock, JSON.stringify({ session: "sesWORKR2", n: lockedBacklog.n, at: Date.now() }))
 const lockedBacklogHistory = lockedBacklog.history.length
 cell("resume: unknown merge lock blocks resume without state mutation", /замок вливания/.test(await call("canopus_task", "sesINTEG1", { action: "resume", n: lockedBacklog.n })) && tasks.loadTask("proj", lockedBacklog.n).status === "backlog" && tasks.loadTask("proj", lockedBacklog.n).history.length === lockedBacklogHistory, JSON.stringify(tasks.loadTask("proj", lockedBacklog.n)))
 rmSync(mergeLock, { force: true })
@@ -298,8 +299,8 @@ cell("accepted resume: evidence and resources survive unchanged", resumedAccepte
 cell("accepted resume: no new executor, reviewer or wakeup", sessions.size === acceptedSessionsBefore && delivered.length === acceptedLettersBefore && resumedAccepted.executor === acceptedTask.executor && resumedAccepted.reviewer === acceptedTask.reviewer, `${sessions.size}/${acceptedSessionsBefore}, ${delivered.length}/${acceptedLettersBefore}`)
 const acceptedPath = path.join(proj, "doc", "tasks", `${String(acceptedTask.n).padStart(3, "0")}-accepted-resume`)
 mkdirSync(path.join(acceptedPath, "task"), { recursive: true })
-writeFileSync(path.join(acceptedPath, "task", "message.md"), "# Принятая задача\n")
-writeFileSync(path.join(acceptedPath, "log.md"), "старт\n")
+writeFixtureFile(path.join(acceptedPath, "task", "message.md"), "# Принятая задача\n")
+writeFixtureFile(path.join(acceptedPath, "log.md"), "старт\n")
 g("add", "doc/tasks")
 g("commit", "-q", "-m", "Add accepted same-number folder")
 const acceptedBeforeSpawn = JSON.stringify(tasks.loadTask("proj", acceptedTask.n))

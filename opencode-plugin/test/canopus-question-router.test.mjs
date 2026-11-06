@@ -1,13 +1,14 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // 280: isolated durable routing; no SDK, service registration, credentials or native state.
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs"
 import os from 'node:os'
 import path from 'node:path'
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), 'canopus-question-router-'))
 for (const k of ['XDG_DATA_HOME', 'XDG_STATE_HOME', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'TEMP', 'TMP', 'TMPDIR']) process.env[k] = tmp
-process.env.CANOPUS_HOME = path.join(tmp, "opencode")
-process.env.CANOPUS_DB = path.join(tmp, 'absent.db')
+;await (await import("./test-home.mjs")).configureTestHome(path.join(tmp, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, 'absent.db'))
 globalThis.fetch = async () => { throw new Error('unexpected real transport') }
 let cells = 0
 const cell = async (name, fn) => { await fn(); cells++; console.log(`ok ${name}`) }
@@ -111,7 +112,7 @@ try {
     const x = router.open(request('crash'))
     await router.tick(137)
     const record = router.get(x.id)
-    writeFileSync(path.join(dir, `${x.id}.json`), JSON.stringify({ ...record, status: 'applying', attempted: 138, answer: 'проверенная команда', sources: [source] }))
+    writeFixtureFile(path.join(dir, `${x.id}.json`), JSON.stringify({ ...record, status: 'applying', attempted: 138, answer: 'проверенная команда', sources: [source] }))
     const reboot = new QuestionRouter(dir, deps)
     await reboot.tick(139)
     assert.equal(reboot.get(x.id).status, 'unknown')
@@ -187,7 +188,7 @@ try {
   await cell('unknown durable version is retained, visible and never treated as pending', async () => {
     const x = router.open(request('unknown-version'))
     const file = path.join(dir, `${x.id}.json`)
-    writeFileSync(file, JSON.stringify({ ...router.get(x.id), v: 99 }))
+    writeFixtureFile(file, JSON.stringify({ ...router.get(x.id), v: 99 }))
     assert.throws(() => router.get(x.id), /unknown/)
     assert.equal(JSON.parse(readFileSync(file, 'utf8')).v, 99)
     assert.ok(router.problems().some(p => p.includes(x.id)))

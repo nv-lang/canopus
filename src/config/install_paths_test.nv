@@ -1,0 +1,58 @@
+// Installation lookup must follow the invoked program, never the project cwd.
+module canopus.config
+import std.os.{Os, real_os, temp_dir, pid}
+import std.fs.{Fs, real_fs, Path, create_dir_all, write_text, remove_dir_all}
+
+fn install_test_root() Os Fs -> Path {
+    ro root = temp_dir().join("canopus-install-${pid()}")
+    ro gone = remove_dir_all(root)
+    ro made = create_dir_all(root)
+    root
+}
+
+fn install_test_file(root Path, relative str) Fs -> () {
+    ro file = root.join(relative)
+    match file.parent() { Some(p) => { ro made = create_dir_all(p) }, None => () }
+    ro written = write_text(file, "fixture")
+}
+
+test "286 installation follows explicit paths and PATH instead of project cwd" {
+    with Os = real_os() {
+        with Fs = real_fs() {
+            ro root = install_test_root()
+            install_test_file(root, "first/canopus.exe")
+            install_test_file(root, "second/canopus.exe")
+            ro current = root.join("project").display()
+            ro first = root.join("first").display()
+            ro second = root.join("second").display()
+            ro found = resolve_install_program("canopus", current, "${first};${second}", true)
+            assert(found.display() == root.join("first/canopus.exe").normalize().display())
+            ro reversed = resolve_install_program("canopus.exe", current, "${second};${first}", true)
+            assert(reversed.display() == root.join("second/canopus.exe").normalize().display())
+            ro explicit = resolve_install_program(root.join("second/canopus.exe").display(), current, first, true)
+            assert(explicit.display() == root.join("second/canopus.exe").normalize().display())
+            ro relative = resolve_install_program("../second/canopus.exe", current, first, true)
+            assert(relative.display() == root.join("second/canopus.exe").normalize().display())
+            ro gone = remove_dir_all(root)
+        }
+    }
+}
+
+test "286 Windows current directory and quoted PATH entries retain launch order" {
+    with Os = real_os() {
+        with Fs = real_fs() {
+            ro root = install_test_root()
+            install_test_file(root, "project/canopus.exe")
+            install_test_file(root, "installed folder/canopus.exe")
+            ro current = root.join("project").display()
+            ro folder = root.join("installed folder").display()
+            ro local = resolve_install_program("canopus", current, folder, true)
+            assert(local.display() == root.join("project/canopus.exe").normalize().display())
+            ro quoted = resolve_install_program("canopus", root.join("other").display(), "\"${folder}\"", true)
+            assert(quoted.display() == root.join("installed folder/canopus.exe").normalize().display())
+            ro missing = resolve_install_program("missing", current, folder, true)
+            assert(missing.display() == root.join("project/missing").normalize().display())
+            ro gone = remove_dir_all(root)
+        }
+    }
+}

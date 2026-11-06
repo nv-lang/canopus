@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Proof of red for the merge gate (task 005, AC-30):  node test/landing-red.mjs
 // A test that cannot fail proves nothing. The script copies the plugin into a temp folder, replaces exactly ONE line (found by its
 // marker `GATE:*`) by a stub that says "all is well" and runs the gate test on the copy (CANOPUS_PLUGIN_DIR); the cells that guard that check
@@ -11,7 +12,7 @@
 // Heavy (the gate test on a copy, a few minutes): run it once, on a quiet machine. Flags: --markers-only (only count the markers),
 // --src <folder> (take the plugin from another folder: the control that a deleted marker fails).
 import { spawnSync } from "node:child_process"
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
@@ -66,7 +67,7 @@ RUNS.forEach((run, k) => {
       const stub = line.replace(/=> .*(\/\/ GATE:[\w-]+)\s*\r?$/, (_all, mark) => `=> true ${mark}`)
       if (stub === line) throw new Error(`заглушка для ${m} не применилась`)
       text[i] = stub
-      writeFileSync(file, text.join("\n"))
+      writeFixtureFile(file, text.join("\n"))
     }
     const r = spawnSync(process.execPath, [path.join(TEST, "canopus-landing-gate.test.mjs")], { encoding: "utf8", env: { ...process.env, CANOPUS_PLUGIN_DIR: copy, LANDING_SECTIONS: run.sections }, maxBuffer: 64 * 1024 * 1024 })
     const out = `${r.stdout}${r.stderr}`

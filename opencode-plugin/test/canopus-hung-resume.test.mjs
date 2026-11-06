@@ -1,24 +1,25 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the self-recovery of a hung turn, task 048 (node >= 24):  node test/canopus-hung-resume.test.mjs
 // Contract 279 supersedes automatic interruption from transcript silence: native
 // active remains owned, health is visible, no interrupt or fabricated resume.
 // A running tool and an open question to the owner are not a hang: no interrupt.
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs"
 import { DatabaseSync } from "node:sqlite"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-hung-resume-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 process.env.TEMP = process.env.TMP = process.env.TMPDIR = tmp // the plugin log lives in os.tmpdir(): a log of its own per run, not the one other parallel runs write (task 085)
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_STATUS_MS = "300"
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("STATUS_MS", "300")
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const dbPath = path.join(tmp, "opencode.db")
-process.env.CANOPUS_DB = dbPath
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", dbPath)
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), "{}")
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), "{}")
 
 const db = new DatabaseSync(dbPath)
 db.exec("create table session_v2 (id text primary key, directory text, title text, parent_id text, time_archived integer, time_idle integer, time_viewed integer, time_suspended integer)")
@@ -52,7 +53,7 @@ core.saveCard({ ...core.readJson(core.cardFile(A)), task: { project: "proj", n: 
 fw.addForm(F, { id: "form-F", at: Date.now(), title: "q", question: "which one?", session: F })
 mkdirSync(core.WINDOWS, { recursive: true })
 const WPID = 838383
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: ALL.map((sessionID) => ({ sessionID, active: true, busy: true })) }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: ALL.map((sessionID) => ({ sessionID, active: true, busy: true })) }))
 beat()
 const heart = setInterval(beat, 300)
 

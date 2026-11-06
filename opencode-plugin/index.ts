@@ -1,3 +1,6 @@
+import { publishPluginChildContext } from "./config-context.ts"
+import { refuseRuntimeEnvironment } from "./runtime-policy.ts"
+import { runtimeValue, RUNTIME_POLICY } from "./runtime-policy.ts"
 import { pluginOptions } from "./plugin-config.ts"
 // plugins/nova-peers — переписка между окнами (сессиями) OpenCode во ВСЕХ репозиториях.
 //
@@ -199,6 +202,8 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
   return {
   id: "canopus",
   async setup(rawCtx: any) {
+    refuseRuntimeEnvironment()
+    publishPluginChildContext()
     refuseLegacyEnv("плагин canopus") // старые имена CANOPUS_*/OPENCODE_CANOPUS_* заданы — отказ с новым именем, без fallback (задача 284)
     let disposed = false
     const lifetime = pluginLifetime()
@@ -230,7 +235,7 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
     setProjects(projects, options.local)
     saveProjects(options) // для MCP-сервера вкладок claude-code: список проектов один
     // задача 034: дальше стартового чтения настройки и файл приёмки обновляются в фоне (асинхронный git), цикл службы не ждёт
-    background.on = process.env.CANOPUS_SYNC_GIT !== "1"
+    background.on = runtimeValue("SYNC_GIT") !== "1"
     // Проект визитки: записанный в ней (вкладка сама ставит его при каждом обращении) или вычисленный по каталогу.
     const projOf = (c: Card) => c.project ?? projectOf(c.directory, projects)
     const keyOf = (c: Card) => roleKey(projOf(c), normalizeRole(c.role)) // старые визитки с assistant — это worker
@@ -460,7 +465,7 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
         prompt: async input => {
           let timer: any
           const request = a.mode === "quiet-synthetic" ? ctx.session.synthetic({ ...input, resume: false }) : ctx.session.prompt({ ...input, ...(a.mode === "quiet-prompt" ? { resume: false } : {}) })
-          try { return await Promise.race([request, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("native admission timeout")), Number(process.env.CANOPUS_STEP_MS) || 30_000) })]) }
+          try { return await Promise.race([request, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("native admission timeout")), runtimeValue("STEP_MS")) })]) }
           catch (error) { deliveryFailed(card, error); throw error }
           finally { clearTimeout(timer) }
         },
@@ -1212,7 +1217,7 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
     let profilesSaid = ""
     let profilesAt = 0
     let profilesRunAt = 0
-    const PROFILES_MS = Number(process.env.CANOPUS_PROFILES_MS) || 10_000 // чтение настроек — процессы git: не чаще раза в 10 с
+    const PROFILES_MS = runtimeValue("PROFILES_MS") // чтение настроек — процессы git: не чаще раза в 10 с
     async function profilesStep() {
       if (now() - profilesRunAt < PROFILES_MS) return
       profilesRunAt = now()
@@ -1255,7 +1260,7 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
     // проверки, например хук проекта). Сессия закончила ход вопросом владельцу — уведомление во все живые окна (с
     // кнопкой Open и системным уведомлением, когда окно не в фокусе); не ответил — повтор через owner_reminder_min.
     // В сводке — открытые вкладки, сессии задач и те, у кого есть наблюдения или свои открытые задачи.
-    const STATUS_EVERY_MS = Number(process.env.CANOPUS_STATUS_MS) || 15_000
+    const STATUS_EVERY_MS = runtimeValue("STATUS_MS")
     // конец хода — из базы (5 ГБ у владельца) только когда появилась новая строка idle: сначала дешёвое время
     // последнего idle (idleAt), тяжёлое чтение сообщений — при его изменении (замер: ~0,1 с на вкладку, в главном потоке)
     const ends = new Map<string, { at: number; end: Awaited<ReturnType<typeof turnEnd>> }>()
@@ -1602,7 +1607,7 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
     // причиной — вопрос владельцу (письмо автору с текстом для question и уведомление окнам). Законное ожидание не тревожит: ход окна по этой задаче (исполнитель
     // или приёмщик в состоянии working), открытый вопрос владельцу у держателя, исполнителя или приёмщика, HOLD/STOP, наблюдение canopus_watch с потолком.
     // Запись о сроке и письмах — файл idle-watch/<проект>/<номер>.json: после перезапуска службы ничего не повторяется (id письма выводится из записи).
-    const STEP_EVERY_MS = Number(process.env.CANOPUS_STEP_MS) || 30_000
+    const STEP_EVERY_MS = runtimeValue("STEP_MS")
     let stepAt0 = 0
     async function stepWatch() {
       if (now() - stepAt0 < STEP_EVERY_MS) return
@@ -1688,7 +1693,7 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
     // текстом и вариантами: задать вопрос заново (до 3 раз, не чаще раза в 2 минуты; потом «без ответа, нужен владелец»); (2) уведомление
     // владельцу при появлении вопроса и раз в 30 минут, пока он открыт: всплывающее в окнах, а по настройке проекта owner_system_notify -
     // ещё и системное Windows. За владельца не отвечается и вариант не выбирается нигде.
-    const FORM_EVERY_MS = Number(process.env.CANOPUS_FORM_MS) || 5_000
+    const FORM_EVERY_MS = runtimeValue("FORM_MS")
     let formAt = 0
     async function formWatch() {
       if (now() - formAt < formLookEvery(now(), undefined, FORM_EVERY_MS)) return // вопрос, отменённый без ответа, вкладке возвращается за секунды (задача 069)
@@ -1887,7 +1892,7 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
     // закрыто всё из его «после:» (и «после:» его фазы) и не идёт шаг с пересекающимся «где:»; внутри лимитов проекта;
     // по приоритету шага, иначе фазы, затем по порядку в плане. Шаг-подплан — задача-план. Все шаги закрыты —
     // письмо автору: закрыть план. Раз в PLAN_STEPS_MS: файл плана читается из git.
-    const PLAN_STEPS_MS = Number(process.env.CANOPUS_PLANSTEPS_MS) || 10_000
+    const PLAN_STEPS_MS = runtimeValue("PLANSTEPS_MS")
     let planStepsAt = 0
     async function planSteps() {
       if (now() - planStepsAt < PLAN_STEPS_MS) return
@@ -1999,7 +2004,7 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
     // УБОРКА (retention.ts): раз в сутки, по retention_days (опция плагина; прежнее имя keep_days; умолчание 7, 0 — не
     // убирать); проверка — раз в HOUSEKEEP_MS, проход ограничен числом удалений за вызов и дозавершается со следующей проверки.
     const RETENTION_DAYS = options.retention_days !== undefined ? Number(options.retention_days) : Number(options.keep_days ?? 7)
-    const HOUSEKEEP_MS = Number(process.env.CANOPUS_HOUSEKEEP_MS) || 3_600_000
+    const HOUSEKEEP_MS = runtimeValue("HOUSEKEEP_MS")
     let housekeptAt = 0
     function housekeep() {
       if (now() - housekeptAt < HOUSEKEEP_MS) return
@@ -2010,7 +2015,7 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
 
     const landedBusy = new Set<string>()
     function flowWatch() {
-      if (now() - flowAt < (Number(process.env.CANOPUS_FLOW_MS) || 60_000)) return
+      if (now() - flowAt < (runtimeValue("FLOW_MS"))) return
       flowAt = now()
       const t = now()
       const byProject = new Map<string, Task[]>()
@@ -2087,15 +2092,15 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
     // ветки (локальные и на origin) и worktree по шаблонам настроек (review.ts leftoversOf, асинхронный git). Нашлись —
     // письмо автору задачи со списком; одно письмо на один набор хвостов. Отменённая задача — убрать или сохранить
     // работу решает автор. Сам плагин не удаляет: удаление веток на origin — действие наружу.
-    const LEFT_EVERY_MS = Number(process.env.CANOPUS_LEFT_MS) || 600_000
+    const LEFT_EVERY_MS = runtimeValue("LEFT_MS")
     // НЕ ПРИ ЗАПУСКЕ (2026-10-07): первый проход шёл сразу при подъёме сервиса, да ещё с ls-remote, — 32 с прохода
     // в минуту, когда сервер и так загружает сессии и окна переподключаются. Первый проход — через LEFT_EVERY_MS,
     // первый взгляд на origin — через LEFT_REMOTE_FIRST_MS.
     let leftAt = Date.now()
     const leftClean = new Set<string>()
-    const LEFT_PER_RUN = Number(process.env.CANOPUS_LEFT_PER_RUN) || 3
-    const LEFT_REMOTE_MS = Number(process.env.CANOPUS_LEFT_REMOTE_MS) || 6 * 3_600_000
-    const LEFT_REMOTE_FIRST_MS = Number(process.env.CANOPUS_LEFT_REMOTE_FIRST_MS) || 30 * 60_000
+    const LEFT_PER_RUN = runtimeValue("LEFT_PER_RUN")
+    const LEFT_REMOTE_MS = runtimeValue("LEFT_REMOTE_MS")
+    const LEFT_REMOTE_FIRST_MS = runtimeValue("LEFT_REMOTE_FIRST_MS")
     let leftRemoteAt = Date.now() - LEFT_REMOTE_MS + LEFT_REMOTE_FIRST_MS
     async function leftWatch() {
       if (now() - leftAt < LEFT_EVERY_MS) return
@@ -2133,8 +2138,8 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
       // ПЕРЕИМЕНОВАНИЕ — ТЯЖЁЛОЕ ДЛЯ СЛУЖБЫ (2026-10-13): каждый session.update пишет в базу OpenCode в процессе службы; 237 старых
       // сессий после смены формата названия давали задержку цикла 5–11 с. Поэтому: не больше TITLES_PER_PASS переименований за
       // проход и закрытые задачи старше TITLES_FRESH_MS не переименовываются вовсе (их названия не меняются, роль в них не нужна).
-      const perPass = Number(process.env.CANOPUS_TITLES_PER_PASS) || 3
-      const freshMs = Number(process.env.CANOPUS_TITLES_FRESH_MS) || 24 * 3_600_000
+      const perPass = runtimeValue("TITLES_PER_PASS")
+      const freshMs = runtimeValue("TITLES_FRESH_MS")
       let renamed = 0
       for (const c of all) {
         if (await bud.stop(ci++, all.length)) break
@@ -2185,7 +2190,7 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
     const startingNow = new Set<string>()
     const startBlocked = new Map<string, number>() // задача → когда повторить запуск, отложенный из-за дерева
     const startFailed = new Map<string, string>() // задача → причина последнего сбоя создания сессии (resumeTasks скажет автору)
-    const START_RETRY_MS = Number(process.env.CANOPUS_START_RETRY_MS) || 120_000
+    const START_RETRY_MS = runtimeValue("START_RETRY_MS")
     // Дерево на ветке принадлежит ДРУГОЙ открытой задаче проекта (её дерево, дерево её сессии или записанное track): её название или undefined (задача 079)
     const foreignTree = (t: Task) => (tree: string): string | undefined => {
       for (const o of listTasks(t.project)) {
@@ -2411,13 +2416,13 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
     // прохода не вернулся, passBusy остался true, следующие проходы выходили сразу: ни доставки, ни подталкивания, ни
     // сторожа, и всё молча. Теперь каждый шаг — с пределом времени (зависший или упавший шаг в журнал, остальные
     // идут), а проход, висящий дольше PASS_STUCK_MS, следующий не ждёт (в журнале — шаг, на котором висит).
-    const STEP_MS = Number(process.env.CANOPUS_STEP_MS) || 60_000
-    const PASS_STUCK_MS = Number(process.env.CANOPUS_PASS_STUCK_MS) || 120_000
+    const STEP_MS = runtimeValue("STEP_MS", RUNTIME_POLICY.STEP_PASS_MS)
+    const PASS_STUCK_MS = runtimeValue("PASS_STUCK_MS")
     let passStage = ""
     let passStartedAt = 0
     let passId = 0
     // ЖУРНАЛ МЕДЛЕННЫХ ШАГОВ (задача 034): шаг дольше SLOW_STEP_MS — одна строка, не чаще раза в минуту на шаг
-    const SLOW_STEP_MS = Number(process.env.CANOPUS_SLOW_STEP_MS) || 1000
+    const SLOW_STEP_MS = runtimeValue("SLOW_STEP_MS")
     const slowLoggedAt = new Map<string, number>()
     const step = async (name: string, fn: () => any) => {
       if (!running) return
@@ -2496,7 +2501,7 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
     }
     // КАТАЛОГ И ВЕТКА ОКОН РАЗ В 10 с (задача 157): ветка могла смениться между ходами или под командой не из оболочки окна; снимок для /canopus, панели
     // и canopus_doctor свежий и у окон, которые сейчас не ходят. Только окна этого процесса, только контролируемые роли; чтение файлов `.git`, не git.
-    const BRANCH_EVERY_MS = Number(process.env.CANOPUS_BRANCH_MS) || 10_000
+    const BRANCH_EVERY_MS = runtimeValue("BRANCH_MS")
     let branchAt = 0
     async function branchWatch() {
       if (now() - branchAt < BRANCH_EVERY_MS) return
@@ -2685,7 +2690,7 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
 
     // Самопроверка при загрузке (через 10 с: окна успевают отметиться) и раз в DOCTOR_EVERY_MS. Итог — в DOCTOR_FILE
     // (его показывает /canopus-doctor окна), проблемы — в журнал; уведомление окнам — только когда набор проблем сменился.
-    const DOCTOR_EVERY_MS = Number(process.env.CANOPUS_DOCTOR_MS) || 10 * 60_000
+    const DOCTOR_EVERY_MS = runtimeValue("DOCTOR_MS")
     let doctorSaid = ""
     const runDoctor = async () => {
       if (disposed) return
@@ -2723,7 +2728,7 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
     // LAG_LOG_MS — строка в журнал с шагом прохода плагина, который в это время шёл («—» — плагин был свободен: держал
     // кто-то другой в процессе сервера), и памятью процесса.
     const LAG_EVERY_MS = 500
-    const LAG_LOG_MS = Number(process.env.CANOPUS_LAG_MS) || 1_000
+    const LAG_LOG_MS = runtimeValue("LAG_MS")
     let lagExpected = Date.now() + LAG_EVERY_MS
     const lagTick = () => {
       const t = Date.now()

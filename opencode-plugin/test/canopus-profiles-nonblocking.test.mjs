@@ -8,9 +8,9 @@ import path from "node:path"
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-profiles-nonblocking-"))
 for (const k of Object.keys(process.env)) if (/^(CANOPUS_|OPENCODE_CANOPUS_)/.test(k)) delete process.env[k]
 process.env.XDG_DATA_HOME = path.join(tmp, "data")
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 process.env.XDG_CONFIG_HOME = path.join(tmp, "config")
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
 const W = await import("../profile-windows.ts")
 const mapping = new Map()
 const head = (gitdir) => {

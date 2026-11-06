@@ -1,16 +1,17 @@
+import { fixtureProjects, writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test (node >= 24):  node test/canopus-acceptance-text-doctor.test.mjs
 // The doctor warns when, with merge_precheck: required, an acceptance step text describes the acceptance order itself
 // (the order belongs to the plugin). It only warns; no sign in the text, or merge_precheck: off, means no warning.
 import { execFileSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { pathToFileURL } from "node:url"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-acc-doctor-"))
 process.env.XDG_DATA_HOME = path.join(tmp, "data")
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_SETTINGS_TTL_MS = "1"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("SETTINGS_TTL_MS", "1")
 const plugin = process.env.CANOPUS_PLUGIN_DIR ? path.resolve(process.env.CANOPUS_PLUGIN_DIR) : path.join(import.meta.dirname, "..")
 const settings = await import(pathToFileURL(path.join(plugin, "settings.ts")).href)
 const git = (cwd, ...a) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...a], { stdio: "ignore" })
@@ -18,10 +19,10 @@ const cfgDir = path.join(tmp, "proj", "proj-settings")
 mkdirSync(path.join(cfgDir, ".opencode"), { recursive: true }); mkdirSync(path.join(cfgDir, ".canopus", "plugin"), { recursive: true })
 git(cfgDir, "init", "-q", "-b", "main")
 const set = (obj) => {
-  writeFileSync(path.join(cfgDir, ".canopus", "plugin", "config.json"), JSON.stringify({ project: "proj", root: "..", ...obj }, null, 2))
+  writeFixtureFile(path.join(cfgDir, ".canopus", "plugin", "config.json"), JSON.stringify({ project: "proj", root: "..", ...obj }, null, 2))
   git(cfgDir, "add", "-A")
   git(cfgDir, "commit", "-q", "--allow-empty", "-m", "s")
-  return settings.settingsProblems(settings.parseProjects({ projects: [cfgDir] }))
+  return settings.settingsProblems(fixtureProjects(settings, { projects: [cfgDir] }))
 }
 let fail = 0
 const cell = (n, ok, d) => { console.log(`${ok ? "ok  " : "FAIL"} ${n}${ok ? "" : " :: " + d}`); if (!ok) fail++ }

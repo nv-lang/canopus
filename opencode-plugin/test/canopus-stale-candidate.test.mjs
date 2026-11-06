@@ -1,8 +1,9 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test: a task branch that moved ahead of the precheck candidate makes the candidate stale (task 030; node >= 24):
 //   node test/canopus-stale-candidate.test.mjs
 // stale: the branch got a commit after precheck and the candidate neither contains it nor has its tree -> merge refused, lock free,
 // record stale, text names both short SHAs; same tree (squash) passes; candidate containing the branch passes; no local branch passes.
-import { writeFileSync } from "node:fs"
+import {  } from "node:fs"
 import path from "node:path"
 import { harness, reporter } from "./landing-harness.mjs"
 
@@ -24,7 +25,7 @@ const prep = async (build) => {
 const advance = (t, real) => {
   const cur = git(proj, "rev-parse", "--abbrev-ref", "HEAD")
   git(proj, "switch", "-q", t.branch)
-  if (real) { writeFileSync(path.join(proj, `late${t.n}.txt`), "late"); git(proj, "add", "--", `late${t.n}.txt`) }
+  if (real) { writeFixtureFile(path.join(proj, `late${t.n}.txt`), "late"); git(proj, "add", "--", `late${t.n}.txt`) }
   git(proj, "commit", "-q", "--allow-empty", "-m", "more work")
   git(proj, "switch", "-q", cur)
   return git(proj, "rev-parse", t.branch)

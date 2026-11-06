@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test: races and restart (task 005, AC-16, AC-18, AC-19, Г-7; node >= 24):  node test/canopus-landing-race.test.mjs
 // Heavy: child processes (test/landing-child.mjs), each with its own plugin instance on the same folders; run it alone, after the others.
 //   AC-16: 8 processes with live holders call merge at the same moment on green records — exactly one gets the lock (5 rounds);
@@ -9,7 +10,7 @@
 //          the record; the seam `betweenLandedSteps` stops the service exactly between them, and a second process makes accept in
 //          that window (a real process, run synchronously inside the seam) or the service dies there (the seam throws).
 import { execFileSync, spawn } from "node:child_process"
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, rmSync } from "node:fs"
 import path from "node:path"
 import { harness, reporter } from "./landing-harness.mjs"
 
@@ -34,7 +35,7 @@ async function runChildren(jobs) {
     return done
   })
   for (const end = Date.now() + 120_000; jobs.some((_, k) => !existsSync(path.join(sync, `ready-${k}`))) && Date.now() < end; ) await H.wait(50)
-  writeFileSync(path.join(sync, "go"), "1")
+  writeFixtureFile(path.join(sync, "go"), "1")
   const res = await Promise.all(procs)
   rmSync(sync, { recursive: true, force: true })
   return res.map((r) => ({ sid: r.sid, code: r.code, text: /^RESULT (.*)$/m.exec(r.out)?.[1] ? JSON.parse(/^RESULT (.*)$/m.exec(r.out)[1]) : `NO RESULT: ${r.out.slice(-200)} ${r.err.slice(-300)}` }))
@@ -85,7 +86,7 @@ for (let round = 1; round <= 5; round++) {
   clearLock()
   const tip = H.originTip()
   mine.forEach((t, i) => greenAt(t, SIDS[i], tip))
-  writeFileSync(H.lockFile(), JSON.stringify({ session: "sesGhost", n: 9999, at: Date.now() - 3 * 3600_000 }))
+  writeFixtureFile(H.lockFile(), JSON.stringify({ session: "sesGhost", n: 9999, at: Date.now() - 3 * 3600_000 }))
   const res = await runChildren(SIDS.slice(0, 7).map((sid, i) => [sid, { action: "merge", n: mine[i].n }]))
   const winners = res.filter(granted)
   cell(
@@ -126,7 +127,7 @@ clearLock()
   const syncAccept = (sid, n) => {
     const sync = path.join(H.tmp, `sync-window-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`)
     mkdirSync(sync, { recursive: true })
-    writeFileSync(path.join(sync, "go"), "1")
+    writeFixtureFile(path.join(sync, "go"), "1")
     let out = ""
     try {
       out = execFileSync(process.execPath, [CHILD, H.tmp, sync, "0", sid, JSON.stringify(SIDS), JSON.stringify({ action: "accept", n })], { encoding: "utf8", windowsHide: true, stdio: ["ignore", "pipe", "pipe"], timeout: 120_000 })
@@ -204,7 +205,7 @@ clearLock()
   const n = 777
   const dir = path.dirname(tasks.taskFile("proj", n))
   mkdirSync(dir, { recursive: true })
-  writeFileSync(tasks.taskFile("proj", n), "")
+  writeFixtureFile(tasks.taskFile("proj", n), "")
   const r = await call("canopus_task", "sesR1", { action: "merge", n })
   cell("Г-7: an empty task record is a refusal, the lock is not issued", /Задачи 777 в проекте proj нет/.test(r) && !H.holder(), r)
 }

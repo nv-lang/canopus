@@ -9,15 +9,15 @@ import { fileURLToPath } from "node:url"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-profiles-docs-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_PRESENCE ??= "all"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
 
 const P = await import("../profiles.ts")
 const schema = await import("../config-schema.ts")
 const core = await import("../core.ts")
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, "..")
-const readme = readFileSync(path.join(root, "README.md"), "utf8")
+const readme = readFileSync(path.join(root, "README.md"), "utf8").replace(/\r\n/g, "\n")
 
 let fail = 0
 const cell = (name, ok, detail) => {
@@ -67,7 +67,7 @@ const help = core.HELP
 cell("AC-19 the help names the two commands and what the set decides", help.includes("/canopus-sets") && help.includes("/canopus-profiles") && /наборы профилей моделей/.test(help), "missing")
 cell("AC-19 the help says the tier model is the default while no set is enabled", /по умолчанию, пока набор не\s+включён/.test(help), help.split("\n").find((l) => /модель по ступени/.test(l)))
 const coreSrc = readFileSync(path.join(root, "core.ts"), "utf8")
-cell("AC-19 no description claims `heavy/medium/light = opus/sonnet/haiku`: the tools say «by default» and name the set", !/heavy\/medium\/light\s*=\s*opus/i.test(coreSrc) && /by default claude-code opus\|sonnet\|haiku, spawn_models of the project overrides; an enabled model-profile set/.test(coreSrc), "missing")
+cell("AC-19 no description claims `heavy/medium/light = opus/sonnet/haiku`: the tools say «by default» and name the set", !/heavy\/medium\/light\s*=\s*opus/i.test(coreSrc) && /by default claude-code opus\|sonnet\|haiku,.*built-in.*; an enabled model-profile set/.test(coreSrc), "missing")
 
 // ---- AC-31: the names of the commands: only /canopus-sets and /canopus-profiles ----
 // the patterns are assembled from parts, so that this file does not hold them as text

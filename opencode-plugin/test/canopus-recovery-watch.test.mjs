@@ -1,10 +1,11 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 import assert from "node:assert/strict"
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from "node:fs"
+import { mkdtempSync, mkdirSync, readFileSync, existsSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-recovery-watch-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 process.env.XDG_STATE_HOME = tmp
 const watch = await import("../watch.ts")
 const now = Date.now()
@@ -14,7 +15,7 @@ try {
   mkdirSync(watch.WATCHES, { recursive: true })
   const running = { id: "orphan-fixture", session: "sesFIXTURE", command: "exit 0", cwd: tmp, created: now - 30_000, started: now - 30_000, status: "running", pid: 1_000_000_001, minutes: 120 }
   const file = path.join(watch.WATCHES, `${running.id}.json`)
-  writeFileSync(file, JSON.stringify(running))
+  writeFixtureFile(file, JSON.stringify(running))
   watch.pollWatches(() => posted++, () => {}, now, () => 1, { treePids: () => [process.pid] })
   cell("missing old wrapper PID cannot settle a command with live marked descendants", () => { assert.equal(posted, 0); assert.equal(JSON.parse(readFileSync(file, "utf8")).status, "running") })
   watch.pollWatches(() => posted++, () => {}, now, () => 1, { treePids: () => undefined })

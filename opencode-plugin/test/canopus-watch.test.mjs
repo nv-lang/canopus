@@ -1,14 +1,15 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of canopus_watch (provider plan 002; node >= 24):  node test/canopus-watch.test.mjs
 // A watch is a file; the plugin's pass starts its command detached in Git Bash and, when the exit code appears,
 // posts one letter: code, output tail. A command gone with no exit code -> "ОБОРВАНО". The time limit -> 124.
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
+import { existsSync, mkdtempSync, readFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import assert from "node:assert/strict"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-watch-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 const w = await import("../watch.ts")
 const posted = []
 const post = (x, text) => posted.push({ session: x.session, text, code: x.code })
@@ -48,7 +49,7 @@ assert.equal(posted.length, 1) // one letter only
 
 // 2. gone without an exit code (a machine reboot): "ОБОРВАНО"
 const gone = { id: "1-gone", session: "sesB", command: "sleep 999", cwd: tmp, minutes: 5, created: Date.now() - 60_000, started: Date.now() - 60_000, status: "running", pid: 999999 }
-writeFileSync(path.join(w.WATCHES, "1-gone.json"), JSON.stringify(gone))
+writeFixtureFile(path.join(w.WATCHES, "1-gone.json"), JSON.stringify(gone))
 w.pollWatches(post)
 assert.equal(posted.length, 2)
 assert.equal(posted[1].code, null)

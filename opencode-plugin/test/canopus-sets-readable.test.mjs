@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the readable answers of /canopus-sets (task 066; node >= 24):
 //   node test/canopus-sets-readable.test.mjs
 // `show` is a short view (a table stage x tier with short model names, a legend, one-line warnings, a hint) and a detailed view
@@ -5,7 +6,7 @@
 // first and then only what changed. Snapshots of the answers on a set whose stages are all alike and on a set with different
 // models and inheritance; the rule of short names; the one-line warnings (the same family, a model out of the catalog, a hole).
 import { execFileSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
@@ -13,13 +14,13 @@ const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-sets-readable-"))
 process.env.TEMP = tmp
 process.env.TMP = tmp
 process.env.XDG_DATA_HOME = path.join(tmp, "data")
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 process.env.XDG_CONFIG_HOME = path.join(tmp, "xdgcfg")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_PROFILES_MS = "100000"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-process.env.CANOPUS_SETTINGS_TTL_MS = "600000"
-process.env.CANOPUS_PRESENCE = "all"
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PROFILES_MS", "100000")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("SETTINGS_TTL_MS", "600000")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
 
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
 const prof = (model, context, output, input) => ({ model, context, output, ...(input ? { input } : {}) })
@@ -46,11 +47,11 @@ const cfgDir = path.join(root, "proj-settings")
 mkdirSync(path.join(cfgDir, ".opencode"), { recursive: true }); mkdirSync(path.join(cfgDir, ".canopus", "plugin"), { recursive: true })
 const file = path.join(cfgDir, ".canopus", "plugin", "config.json")
 git(cfgDir, "init", "-q", "-b", "main")
-writeFileSync(file, JSON.stringify({ project: "readproj", root: "..", model_profiles: TABLE, profile_sets: SETS }, null, 2))
+writeFixtureFile(file, JSON.stringify({ project: "readproj", root: "..", model_profiles: TABLE, profile_sets: SETS }, null, 2))
 git(cfgDir, "add", "-A")
 git(cfgDir, "commit", "-q", "-m", "settings")
 mkdirSync(path.join(process.env.XDG_CONFIG_HOME, "opencode"), { recursive: true })
-writeFileSync(path.join(process.env.XDG_CONFIG_HOME, "opencode", "opencode.jsonc"), `{ "compaction": { "reserved": 20000 }, "provider": { "kimi-code-plan-global": { "models": { "k3-256k": { "limit": { "context": 262144, "output": 131072 } } } } } }\n`)
+writeFixtureFile(path.join(process.env.XDG_CONFIG_HOME, "opencode", "opencode.jsonc"), `{ "compaction": { "reserved": 20000 }, "provider": { "kimi-code-plan-global": { "models": { "k3-256k": { "limit": { "context": 262144, "output": 131072 } } } } } }\n`)
 
 const mod = await import("./fixture-plugin.mjs")
 const Cmd = await import("../profile-cmd.ts")

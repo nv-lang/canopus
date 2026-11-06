@@ -1,9 +1,10 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the cheap reading of the branch and of the parsing of shell commands (task 157, node >= 24):  node test/canopus-branch-head.test.mjs
 // readHead reads .git/HEAD without running git: a main copy (.git is a folder), a working tree (.git is a file "gitdir: ..." and
 // commondir), a detached HEAD, a folder that is not a repository. gitCalls finds the git calls of a shell command with the folder
 // each of them acts on (cd, git -C, --git-dir/--work-tree, bash -c) and mutationOf says which of them change the branch or the history.
 import { execFileSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { pathToFileURL } from "node:url"
@@ -38,21 +39,21 @@ const writeTargets = (t, i) => {
 const fw = (p) => p.replace(/\\/g, "/")
 const main = path.join(tmp, "repo")
 mkdirSync(path.join(main, ".git"), { recursive: true })
-writeFileSync(path.join(main, ".git", "HEAD"), "ref: refs/heads/main\n")
+writeFixtureFile(path.join(main, ".git", "HEAD"), "ref: refs/heads/main\n")
 const wt = path.join(tmp, "trees", "task-157")
 const gd = path.join(main, ".git", "worktrees", "task-157")
 mkdirSync(gd, { recursive: true })
 mkdirSync(wt, { recursive: true })
-writeFileSync(path.join(gd, "HEAD"), "ref: refs/heads/task/157-branch-guard\n")
-writeFileSync(path.join(gd, "commondir"), "../..\n")
-writeFileSync(path.join(wt, ".git"), `gitdir: ${fw(gd)}\n`)
+writeFixtureFile(path.join(gd, "HEAD"), "ref: refs/heads/task/157-branch-guard\n")
+writeFixtureFile(path.join(gd, "commondir"), "../..\n")
+writeFixtureFile(path.join(wt, ".git"), `gitdir: ${fw(gd)}\n`)
 const cand = path.join(tmp, "trees", "cand")
 const gdc = path.join(main, ".git", "worktrees", "cand")
 mkdirSync(gdc, { recursive: true })
 mkdirSync(cand, { recursive: true })
-writeFileSync(path.join(gdc, "HEAD"), "0123456789abcdef0123456789abcdef01234567\n")
-writeFileSync(path.join(gdc, "commondir"), "../..\n")
-writeFileSync(path.join(cand, ".git"), `gitdir: ${fw(gdc)}\n`)
+writeFixtureFile(path.join(gdc, "HEAD"), "0123456789abcdef0123456789abcdef01234567\n")
+writeFixtureFile(path.join(gdc, "commondir"), "../..\n")
+writeFixtureFile(path.join(cand, ".git"), `gitdir: ${fw(gdc)}\n`)
 
 // ---- readHead
 const h1 = readHead(main)
@@ -67,9 +68,9 @@ cell("a subfolder reads the repository above it", sameTree?.(readHead(sub)?.top,
 const h3 = readHead(cand)
 cell("detached HEAD: no branch, the commit", h3?.branch === undefined && h3?.detached === "0123456789abcdef0123456789abcdef01234567", J(h3))
 cell("a folder that is not a repository: undefined", readHead(tmp) === undefined && readHead(path.join(tmp, "nothing-here")) === undefined, J(readHead(tmp)))
-writeFileSync(path.join(main, ".git", "HEAD"), "ref: refs/heads/feature/x\n")
+writeFixtureFile(path.join(main, ".git", "HEAD"), "ref: refs/heads/feature/x\n")
 cell("HEAD is read afresh each call (the branch changed)", readHead(main)?.branch === "feature/x", J(readHead(main)))
-writeFileSync(path.join(main, ".git", "HEAD"), "ref: refs/heads/main\n")
+writeFixtureFile(path.join(main, ".git", "HEAD"), "ref: refs/heads/main\n")
 cell("sameTree compares by the real path, not by the spelling", sameTree?.(wt, `${fw(wt)}/`) === true && sameTree?.(wt, main) === false && sameTree?.(undefined, main) === false, "")
 // a real git: the format of a worktree that git itself writes
 let real
@@ -130,10 +131,10 @@ const mkRebase = (name, kind) => {
   const g = path.join(main, ".git", "worktrees", name)
   mkdirSync(path.join(g, kind), { recursive: true })
   mkdirSync(dir, { recursive: true })
-  writeFileSync(path.join(g, "HEAD"), "89abcdef0123456789abcdef0123456789abcdef\n")
-  writeFileSync(path.join(g, "commondir"), "../..\n")
-  writeFileSync(path.join(g, kind, "head-name"), "refs/heads/task/157-branch-guard\n")
-  writeFileSync(path.join(dir, ".git"), `gitdir: ${fw(g)}\n`)
+  writeFixtureFile(path.join(g, "HEAD"), "89abcdef0123456789abcdef0123456789abcdef\n")
+  writeFixtureFile(path.join(g, "commondir"), "../..\n")
+  writeFixtureFile(path.join(g, kind, "head-name"), "refs/heads/task/157-branch-guard\n")
+  writeFixtureFile(path.join(dir, ".git"), `gitdir: ${fw(g)}\n`)
   return dir
 }
 const rbm = readHead(mkRebase("rbm", "rebase-merge"))
@@ -145,11 +146,11 @@ cell("rebase --continue, --skip, --abort, --quit are never a change", ["--contin
 
 // ---- (acceptance 4.2) git checkout <file> without "--" restores a file, it does not change the branch
 mkdirSync(path.join(main, "src"), { recursive: true })
-writeFileSync(path.join(main, "src", "foo.ts"), "x")
+writeFixtureFile(path.join(main, "src", "foo.ts"), "x")
 mkdirSync(path.join(main, ".git", "refs", "heads"), { recursive: true })
-writeFileSync(path.join(main, ".git", "refs", "heads", "main"), "0123456789abcdef0123456789abcdef01234567\n")
+writeFixtureFile(path.join(main, ".git", "refs", "heads", "main"), "0123456789abcdef0123456789abcdef01234567\n")
 mkdirSync(path.join(main, "docs"), { recursive: true })
-writeFileSync(path.join(main, ".git", "packed-refs"), "# pack-refs\n0123456789abcdef0123456789abcdef01234567 refs/heads/docs\n")
+writeFixtureFile(path.join(main, ".git", "packed-refs"), "# pack-refs\n0123456789abcdef0123456789abcdef01234567 refs/heads/docs\n")
 cell("checkout of an existing file that is not a branch is a restore of the file", mutationOf("checkout", ["src/foo.ts"], main) === undefined && mutationOf("checkout", ["src/foo.ts", "src/other.ts"], main) === undefined, J(mutationOf("checkout", ["src/foo.ts"], main)))
 cell("checkout of a branch is still a change of the branch", mutationOf("checkout", ["main"], main)?.kind === "branch", J(mutationOf("checkout", ["main"], main)))
 cell("a name that is a branch wins over a folder of the same name (packed-refs)", mutationOf("checkout", ["docs"], main)?.kind === "branch", J(mutationOf("checkout", ["docs"], main)))

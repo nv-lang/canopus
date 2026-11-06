@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of task 063: an idle tab with an open task and no question to the owner is marked and woken (node >= 24):
 //   node test/canopus-idle-tab.test.mjs
 // IT-1 the store of an episode (idle-tab.ts): hold, read, clear. IT-2 the rule over the tasks of the tab (idleBlockers): a task between
@@ -18,25 +19,25 @@
 //      IT-11 the plugin: the same sources (a silent reviewer, a reviewer under an old canopus_watch) get ONE letter and the mark; a reviewer
 //      at work, a fresh canopus_watch, four letters, a young last letter and a cleaned task get nothing; the cleanup and the word of the
 //      reviewer end the episode.
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-idle-tab-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_STATUS_MS = "100"
-process.env.CANOPUS_FORM_MS = "100"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("STATUS_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_MS", "100")
 const dbPath = path.join(tmp, "opencode.db")
-process.env.CANOPUS_DB = dbPath
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", dbPath)
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
 // task 161: the watch of the term of a step is off here (step_term_minutes 0): this file tests the old rule of the tab alone; the one-letter-per-step rule is in canopus-idle-watch-burst-flow
 // threshold 3 s: the fixtures stand 2 minutes, the checks of "the mark is gone" run well inside 3 s
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ idle_tab_minutes: 0.05, step_term_minutes: 0 }))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ idle_tab_minutes: 0.05, step_term_minutes: 0 }))
 
 let fail = 0
 const cell = (name, ok, detail = "") => {
@@ -249,7 +250,7 @@ const WPID = 636363
 mkdirSync(core.WINDOWS, { recursive: true })
 // dated 30 s ahead: a window counts as live for 3 s after its beat, and under load this process misses a beat; an open tab then looks
 // closed and its letter is held (task 088). This test does not check the freshness of a window.
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now() + 30_000, tabs: TABS.map((sessionID) => ({ sessionID, active: true, busy: BUSY.has(sessionID) })) }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now() + 30_000, tabs: TABS.map((sessionID) => ({ sessionID, active: true, busy: BUSY.has(sessionID) })) }))
 beat()
 const heart = setInterval(beat, 300)
 
@@ -265,7 +266,7 @@ for (const s of ALL) core.saveCard({ ...core.readJson(core.cardFile(s)), busy: f
 const P = core.readJson(core.cardFile("sesI1"))?.project
 const putTask = (t) => {
   mkdirSync(path.dirname(tasks.taskFile(P, t.n)), { recursive: true })
-  writeFileSync(tasks.taskFile(P, t.n), JSON.stringify(t, null, 1))
+  writeFixtureFile(tasks.taskFile(P, t.n), JSON.stringify(t, null, 1))
 }
 putTask(mkTask(P, 61, "sesI1", "idle", { title: "Спека" }))
 putTask(mkTask(P, 62, "sesI2", "running", { executor: "sesX2" }))
@@ -281,7 +282,7 @@ putTask(mkTask(P, 69, "sesI9", "idle"))
 core.addObligation("sesX6", { qid: "qr22", from_session: "sesI6", from_role: "integrator", at: T0, nudges: 0, task: "приёмка 022", stuck: true, stuckAt: T0 + 5, stuckWhat: "приёмка 022 — 3 хода подряд" })
 core.addObligation("sesX7", { qid: "q7ask", from_session: "sesI7", from_role: "integrator", at: Date.now(), nudges: 0 })
 mkdirSync(watch.WATCHES, { recursive: true })
-writeFileSync(path.join(watch.WATCHES, "w63.json"), JSON.stringify({ id: "w63", session: "sesI3", command: "x", cwd: proj, note: "CI", minutes: 120, created: Date.now(), status: "running", pid: process.pid, started: Date.now() }))
+writeFixtureFile(path.join(watch.WATCHES, "w63.json"), JSON.stringify({ id: "w63", session: "sesI3", command: "x", cwd: proj, note: "CI", minutes: 120, created: Date.now(), status: "running", pid: process.pid, started: Date.now() }))
 fw.handleFormEvent({ type: "form.created", data: { form: { id: "frm_i4", sessionID: "sesI4", title: "Questions", metadata: { kind: "question" }, fields: [{ key: "q0", description: "Запускать следующую сессию?", options: [{ label: "Да (Recommended)" }, { label: "Нет" }] }] } } })
 for (const b of BUSY) core.saveCard({ ...core.readJson(core.cardFile(b)), busy: true, busySince: Date.now() })
 gs.noteGate("sesI8", "ворота", T0 + 1)
@@ -294,7 +295,7 @@ putTask(mkTask(P, 74, "sesJ4", "running", { kind: "spawn", executor: "sesY4" }))
 putTask(mkTask(P, 75, "sesJ5", "running", { kind: "spawn", executor: "sesY5" }))
 putTask(mkTask(P, 76, "sesJ6", "running", { kind: "order", order_to: "otherproj", child: { project: "otherproj", n: 9 } }))
 core.saveCard({ ...core.readJson(core.cardFile("sesY2")), task: { project: P, n: 72 } })
-writeFileSync(path.join(watch.WATCHES, "w70.json"), JSON.stringify({ id: "w70", session: "sesY5", command: "x", cwd: proj, note: "CI", minutes: 120, created: Date.now(), status: "running", pid: process.pid, started: Date.now() }))
+writeFixtureFile(path.join(watch.WATCHES, "w70.json"), JSON.stringify({ id: "w70", session: "sesY5", command: "x", cwd: proj, note: "CI", minutes: 120, created: Date.now(), status: "running", pid: process.pid, started: Date.now() }))
 
 // task 076: an accepted task, `sent` reminders in the read letters of the author; a letter with a time in the future is a young one
 const FAR = 3 * 3_600_000
@@ -304,7 +305,7 @@ const putAccepted = (n, author, reviewer, sent, times, extra = {}) => {
   putTask(t)
   const dir = path.join(core.READ, core.safeKey(author))
   mkdirSync(dir, { recursive: true })
-  for (let k = 1; k <= sent; k++) writeFileSync(path.join(dir, `${tasks.acceptedReminderId(t, at, k)}.json`), JSON.stringify({ id: tasks.acceptedReminderId(t, at, k), time: times[k - 1] ?? times[times.length - 1] }))
+  for (let k = 1; k <= sent; k++) writeFixtureFile(path.join(dir, `${tasks.acceptedReminderId(t, at, k)}.json`), JSON.stringify({ id: tasks.acceptedReminderId(t, at, k), time: times[k - 1] ?? times[times.length - 1] }))
   core.saveCard({ ...core.readJson(core.cardFile(reviewer)), task: { project: P, n } })
 }
 const OLD = [Date.now() - 150 * 60_000, Date.now() - 120 * 60_000, Date.now() - 90 * 60_000, Date.now() - 60 * 60_000, Date.now() - 30 * 60_000]
@@ -315,8 +316,8 @@ putAccepted(94, "sesK4", "sesZ4", 5, OLD)
 putAccepted(95, "sesK5", "sesZ5", 4, [...OLD.slice(0, 3), Date.now() + 3_600_000]) // the fourth is young: the plugin sends no fifth
 putAccepted(96, "sesK6", "sesZ6", 5, [...OLD.slice(0, 4), Date.now() + 3_600_000])
 putAccepted(97, "sesK7", "sesZ7", 5, OLD, { status: "done" })
-writeFileSync(path.join(watch.WATCHES, "w76a.json"), JSON.stringify({ id: "w76a", session: "sesZ2", command: "x", cwd: proj, note: "ждать отдельный cleanup plan", minutes: 720, created: T0 - 3_600_000, status: "running", pid: process.pid, started: T0 - 3_600_000 }))
-writeFileSync(path.join(watch.WATCHES, "w76b.json"), JSON.stringify({ id: "w76b", session: "sesZ4", command: "x", cwd: proj, note: "gate", minutes: 120, created: Date.now() + 600_000, status: "running", pid: process.pid, started: Date.now() + 600_000 }))
+writeFixtureFile(path.join(watch.WATCHES, "w76a.json"), JSON.stringify({ id: "w76a", session: "sesZ2", command: "x", cwd: proj, note: "ждать отдельный cleanup plan", minutes: 720, created: T0 - 3_600_000, status: "running", pid: process.pid, started: T0 - 3_600_000 }))
+writeFixtureFile(path.join(watch.WATCHES, "w76b.json"), JSON.stringify({ id: "w76b", session: "sesZ4", command: "x", cwd: proj, note: "gate", minutes: 120, created: Date.now() + 600_000, status: "running", pid: process.pid, started: Date.now() + 600_000 }))
 
 const letters = (s) => prompts.filter((p) => p.sessionID === s && /Ты простаиваешь/.test(p.text))
 const stOf = (s) => core.readJson(path.join(status.STATUS, `${s}.json`))

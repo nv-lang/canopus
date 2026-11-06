@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Probe of the window file on a THROWAWAY OpenCode server (task 003; not a test, not in npm test):
 //   node test/probe-profiles.mjs <AC-08|AC-09|AC-10|AC-11|AC-14|AC-25|AC-40|all>
 // Every run starts its own server on a free port of 127.0.0.1 with its own XDG_* folders in the OS temp dir and a stub
@@ -7,7 +8,7 @@
 // sources of the claude-code provider; without it the parts that call the provider functions are NOT VERIFIED).
 import { execFileSync, spawn } from "node:child_process"
 import { createHash } from "node:crypto"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs"
 import http from "node:http"
 import net from "node:net"
 import os from "node:os"
@@ -42,9 +43,9 @@ const pass = (name, ok, detail) => report(name, ok ? "PASS" : "FAIL", ok ? undef
 async function startServer(prefix, config) {
   const root = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), `probe-profiles-${prefix}-`)))
   const d = (n) => { const p = path.join(root, n); mkdirSync(p, { recursive: true }); return p }
-  const env = { XDG_CONFIG_HOME: d("cfg"), XDG_DATA_HOME: d("data"), CANOPUS_HOME: path.join(d("data"), "opencode"), XDG_STATE_HOME: d("state"), XDG_CACHE_HOME: d("cache"), USERPROFILE: d("home"), HOME: d("home") }
+  const env = { XDG_CONFIG_HOME: d("cfg"), XDG_DATA_HOME: d("data"), XDG_STATE_HOME: d("state"), XDG_CACHE_HOME: d("cache"), USERPROFILE: d("home"), HOME: d("home") }
   mkdirSync(path.join(env.XDG_CONFIG_HOME, "opencode"), { recursive: true })
-  writeFileSync(path.join(env.XDG_CONFIG_HOME, "opencode", "opencode.jsonc"), JSON.stringify(config, null, 2))
+  writeFixtureFile(path.join(env.XDG_CONFIG_HOME, "opencode", "opencode.jsonc"), JSON.stringify(config, null, 2))
   const port = await freePort()
   const child = spawn(OPENCODE, ["serve", "--hostname", "127.0.0.1", "--port", String(port)], { shell: true, env: { ...process.env, ...env }, stdio: ["ignore", "pipe", "pipe"], windowsHide: true })
   started.push(child.pid)
@@ -97,7 +98,7 @@ function makeRepo(root) {
   const proj = path.join(root, "proj")
   mkdirSync(proj, { recursive: true })
   git(proj, "init", "-q", "-b", "main")
-  writeFileSync(path.join(proj, "a.txt"), "a\n")
+  writeFixtureFile(path.join(proj, "a.txt"), "a\n")
   git(proj, "add", "-A")
   git(proj, "commit", "-q", "-m", "init")
   const wt = path.join(root, "wt", "task-1")
@@ -177,7 +178,7 @@ const sections = {
         const cfgFile = path.join(s.env.XDG_CONFIG_HOME, "opencode", "opencode.jsonc")
         const cfg = JSON.parse(readFileSync(cfgFile, "utf8"))
         cfg.provider["claude-code"] = { models: { opus: { limit: { context: 720000, output: 64000 } } } }
-        writeFileSync(cfgFile, JSON.stringify(cfg, null, 2))
+        writeFixtureFile(cfgFile, JSON.stringify(cfg, null, 2))
         rmSync(W.windowPath(wt))
         let now = Date.now() + 20_000
         const b = mod.opencodeWindow(wt, "opus", { XDG_CONFIG_HOME: s.env.XDG_CONFIG_HOME }, now)
@@ -311,7 +312,7 @@ const sections = {
       const { proj, wt } = makeRepo(s.root)
       const rootJsonc = path.join(proj, ".opencode", "opencode.jsonc")
       mkdirSync(path.dirname(rootJsonc), { recursive: true })
-      writeFileSync(rootJsonc, '{ "provider": { "stub": { "models": { "m1": { "limit": { "context": 90000, "output": 8000 } } } } } }\n')
+      writeFixtureFile(rootJsonc, '{ "provider": { "stub": { "models": { "m1": { "limit": { "context": 90000, "output": 8000 } } } } } }\n')
       const globalCfg = path.join(s.env.XDG_CONFIG_HOME, "opencode", "opencode.jsonc")
       const h0 = [sha(rootJsonc), sha(globalCfg)].join()
       await s.ready(wt)
@@ -325,7 +326,7 @@ const sections = {
       git(proj, "worktree", "add", "-q", "-b", "task-2", wt2)
       mkdirSync(path.join(wt2, ".opencode"), { recursive: true }); mkdirSync(path.join(wt2, ".canopus", "plugin"), { recursive: true })
       const foreign = JSON.stringify({ provider: { stub: { models: { m1: { limit: { context: 77000, output: 1 } } } } } })
-      writeFileSync(W.windowPath(wt2), foreign)
+      writeFixtureFile(W.windowPath(wt2), foreign)
       const r = W.writeWindowFile(wt2, W.windowFileContent(new Map([["stub/m1", { context: 55000, output: 7000 }]])))
       pass("AC-11 a file without the mark is not overwritten (the plugin reports it)", r === "foreign" && readFileSync(W.windowPath(wt2), "utf8") === foreign, r)
       const tracked = git(proj, "ls-files", "--", ".opencode/opencode.json")
@@ -344,12 +345,12 @@ const sections = {
       const set = await import(pathToFileURL(path.join(PROVIDER_SRC, "src", "settings.js")).href)
       const cfgDir = path.join(root, "xdg", "opencode")
       mkdirSync(cfgDir, { recursive: true })
-      writeFileSync(path.join(cfgDir, "opencode.jsonc"), JSON.stringify({ compaction: { reserved: 20000 }, provider: { "claude-code": { models: { opus: { limit: { context: 720000, output: 64000 } } } } } }))
+      writeFixtureFile(path.join(cfgDir, "opencode.jsonc"), JSON.stringify({ compaction: { reserved: 20000 }, provider: { "claude-code": { models: { opus: { limit: { context: 720000, output: 64000 } } } } } }))
       const { proj, wt } = makeRepo(root)
       void proj
       W.writeWindowFile(wt, W.windowFileContent(new Map([["claude-code/opus", { context: 300000, output: 64000 }]])))
       const projFile = path.join(wt, ".opencode", "opencode-claude-code-provider.json")
-      writeFileSync(projFile, JSON.stringify({ autoCompactWindow: { opus: 500000 } }))
+      writeFixtureFile(projFile, JSON.stringify({ autoCompactWindow: { opus: 500000 } }))
       const h = sha(projFile)
       const env = { XDG_CONFIG_HOME: path.join(root, "xdg") }
       const w = win.opencodeWindow(wt, "opus", env, Date.now() + 30_000)
@@ -372,7 +373,7 @@ const sections = {
       // (a) a TRACKED hand-written .opencode/opencode.jsonc inside the worktree: commit it in the repository, then a new worktree carries it
       const rootJsonc = path.join(proj, ".opencode", "opencode.jsonc")
       mkdirSync(path.dirname(rootJsonc), { recursive: true })
-      writeFileSync(rootJsonc, '{ "provider": { "stub": { "models": { "m1": { "limit": { "context": 90000, "output": 8000 } } } } } }\n')
+      writeFixtureFile(rootJsonc, '{ "provider": { "stub": { "models": { "m1": { "limit": { "context": 90000, "output": 8000 } } } } } }\n')
       git(proj, "add", "--", ".opencode/opencode.jsonc")
       git(proj, "commit", "-q", "-m", "hand-written window")
       const wtB = path.join(s.root, "wt", "task-b")

@@ -1,16 +1,17 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // 280: real plugin entry, pre-existing native form, recommendations enabled, source-backed native reply.
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, rmSync } from "node:fs"
 import os from 'node:os'
 import path from 'node:path'
 const tmp = mkdtempSync(path.join(os.tmpdir(), 'canopus-question-forms-'))
 for (const k of ['XDG_DATA_HOME', 'XDG_STATE_HOME', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'TEMP', 'TMP', 'TMPDIR']) process.env[k] = tmp
-process.env.CANOPUS_HOME = path.join(tmp, "opencode")
-process.env.CANOPUS_DB = path.join(tmp, 'absent.db')
-process.env.CANOPUS_PRESENCE = 'all'
-process.env.CANOPUS_POLL_MS = '50'
-process.env.CANOPUS_FORM_MS = '50'
-process.env.CANOPUS_SYNC_GIT = '1'
+;await (await import("./test-home.mjs")).configureTestHome(path.join(tmp, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, 'absent.db'))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", 'all')
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", '50')
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_MS", '50')
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("SYNC_GIT", '1')
 let stop
 try {
   const core = await import('../core.ts')
@@ -19,9 +20,9 @@ try {
   const { digest, formRequest } = await import('../question-routing.ts')
   const { getQuestionForm, replyQuestionForm } = await import('../question-native.ts')
   const root = path.join(tmp, 'repo'); mkdirSync(path.join(root, '.opencode'), { recursive: true }); mkdirSync(path.join(root, '.canopus', 'plugin'), { recursive: true }); mkdirSync(path.join(root, 'doc'))
-  writeFileSync(path.join(root, '.canopus', 'plugin', 'config.json'), JSON.stringify({ answer_mode: { default: 'recommendations' }, answer_delay_sec: 0 }))
+  writeFixtureFile(path.join(root, '.canopus', 'plugin', 'config.json'), JSON.stringify({ answer_mode: { default: 'recommendations' }, answer_delay_sec: 0 }))
   const sourceText = 'Проверенная команда Alula: alula check fixture. Источник — изолированный тест, не живая команда.'
-  writeFileSync(path.join(root, 'doc', 'source.md'), sourceText)
+  writeFixtureFile(path.join(root, 'doc', 'source.md'), sourceText)
   const worker = 'ses_fixture_question_worker', integrator = 'ses_fixture_question_integrator'
   const t = createTask({ project: 'sample', title: 'fixture', goal: 'g', criteria: 'c', priority: 'P2', tier: 'light', role: 'worker', author: integrator, author_role: 'sample.integrator', qid: 'q_fixture_task', status: 'running', kind: 'assign', directory: root, executor: worker })
   for (const [session, role] of [[worker, 'worker'], [integrator, 'integrator']]) core.saveCard({ session, role, project: 'sample', auto: false, title: 'fixture', repo: 'fixture', directory: root, pid: process.pid, updated: Date.now(), ...(session === worker ? { task: { project: 'sample', n: t.n } } : {}) })
@@ -61,7 +62,7 @@ try {
   fw.addForm(worker, { id: 'frm_fixture', session: worker, at: Date.now() - 24 * 3600_000, kind: 'question', nq: 1, full: fields[0].description, options: ['Угадать (Recommended)'], optDesc: ['Нет проверенного источника'] })
   // An old queued recommendation from before the router must not bypass source-backed routing either.
   mkdirSync(path.join(core.BASE, 'answers'), { recursive: true })
-  writeFileSync(path.join(core.BASE, 'answers', 'auto-frm_fixture.json'), JSON.stringify({ id: 'auto-frm_fixture', at: Date.now(), form: 'frm_fixture', session: worker, option: '1', quote: 'fixture recommendation', source: 'plugin' }))
+  writeFixtureFile(path.join(core.BASE, 'answers', 'auto-frm_fixture.json'), JSON.stringify({ id: 'auto-frm_fixture', at: Date.now(), form: 'frm_fixture', session: worker, option: '1', quote: 'fixture recommendation', source: 'plugin' }))
   const tools = []
   const hooks = {}
   const plugin = await import('../index.ts')
@@ -116,7 +117,7 @@ try {
   assignment.boundaries = 'Не менять SHA/объём; финальные owner gates и HOLD сохраняются.'
   saveTask(assignment)
   const chainSource = `Решение текущего ответственного: exact SHA ${sha}, та же цепочка и объём. Независимый просмотр перед отдельной финальной owner acceptance; нового разрешения на публикацию нет.`
-  writeFileSync(path.join(root, 'doc', 'chain.md'), chainSource)
+  writeFixtureFile(path.join(root, 'doc', 'chain.md'), chainSource)
   const id = 'frm_chain'
   const question = `Публикация упомянута как контекст той же ранее порученной цепочки. Какой exact SHA ${sha} передать автору на независимый просмотр?`
   forms.set(id, { id, sessionID: worker, title: 'Та же цепочка', metadata: { kind: 'question' }, fields: [{ ...fields[0], description: question, options: [{ value: 'same', label: 'Тот же маршрут (Recommended)' }] }], state: { status: 'pending' } })

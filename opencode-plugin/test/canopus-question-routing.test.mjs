@@ -1,18 +1,19 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // 280: real adapters, evidence and official native V2 Form.Detail fixtures; real transport forbidden.
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync } from "node:fs"
 import os from 'node:os'
 import path from 'node:path'
 const tmp = mkdtempSync(path.join(os.tmpdir(), 'canopus-question-routing-'))
 for (const k of ['XDG_DATA_HOME', 'XDG_STATE_HOME', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'TEMP', 'TMP', 'TMPDIR']) process.env[k] = tmp
-process.env.CANOPUS_HOME = path.join(tmp, "opencode")
-process.env.CANOPUS_DB = path.join(tmp, 'absent.db')
+;await (await import("./test-home.mjs")).configureTestHome(path.join(tmp, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, 'absent.db'))
 globalThis.fetch = async () => { throw new Error('unexpected real transport') }
 try {
   const { createQuestionRouting, formRequest, formObservation, verifyQuestionSources, digest } = await import('../question-routing.ts')
   const root = path.join(tmp, 'repo'); mkdirSync(path.join(root, 'doc'), { recursive: true })
   const sourceText = 'Источник: задание интегратора.\nКороткая независимая приёмка точного коммита через интегратора.\nПотом отдельная финальная приёмка владельцем. URL не выдавался.\n'
-  writeFileSync(path.join(root, 'doc', 'wc-1.md'), sourceText)
+  writeFixtureFile(path.join(root, 'doc', 'wc-1.md'), sourceText)
   const sources = [{ path: 'doc/wc-1.md', sha256: digest(sourceText), quote: 'Потом отдельная финальная приёмка владельцем. URL не выдавался.' }]
   assert.deepEqual(verifyQuestionSources(root, sources), sources)
   assert.equal(verifyQuestionSources(root, [{ ...sources[0], quote: 'владелец отменил финальные ворота' }]), undefined)

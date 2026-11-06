@@ -1,3 +1,4 @@
+import { runtimeValue } from "./runtime-policy.ts"
 // canopus — ПЛАГИН ОКНА (TUI). OpenCode грузит его в каждом окне: tui.ts в папке плагина, папка указана в
 // ~/.config/opencode/cli.json, раздел plugins (сервер грузит index.ts той же папки из opencode.jsonc).
 //
@@ -29,7 +30,7 @@ import { listTasks, loadTask, taskNo } from "./tasks.ts"
 import { DECISION_RU, type Decision, writeApproval } from "./approvals.ts"
 
 const BEAT_MS = 1_000
-const AUTOCLOSE_MS = Number(process.env.CANOPUS_AUTOCLOSE_MS) || 120_000
+const AUTOCLOSE_MS = runtimeValue("AUTOCLOSE_MS")
 
 export default {
   id: "canopus.window",
@@ -96,7 +97,7 @@ export default {
     // длинный текст — в широком прокручиваемом диалоге (dialog-text.tsx): alert OpenCode узкий, прижат к верху и не прокручивается;
     // короткий остаётся обычным alert. Модуль грузится при старте, с защитой: не загрузился — везде alert
     let textDialog: any
-    if (api.ui?.slot && !process.env.CANOPUS_NO_SIDEBAR) import("./dialog-text.tsx").then((m) => (textDialog = m)).catch((e) => log(`text dialog not drawn pid=${process.pid}: ${String(e).slice(0, 300)}`))
+    if (api.ui?.slot && !runtimeValue("NO_SIDEBAR")) import("./dialog-text.tsx").then((m) => (textDialog = m)).catch((e) => log(`text dialog not drawn pid=${process.pid}: ${String(e).slice(0, 300)}`))
     const showText = (o0: { title: string; message: string }): Promise<void> | undefined => {
       const o = { title: str(o0?.title), message: str(o0?.message) } // в <text> идут только строки
 
@@ -125,7 +126,7 @@ export default {
     const offThread = (op: any): Promise<string> =>
       new Promise((resolve) => {
         const fallback = () => void inline(op).then(resolve)
-        if (process.env.CANOPUS_NO_WORKER) return fallback()
+        if (runtimeValue("NO_WORKER")) return fallback()
         import("node:worker_threads")
           .then(({ Worker }) => {
             if (!worker) {
@@ -360,12 +361,12 @@ export default {
 
     // блок «Canopus» в боковой панели (план 003.2): отдельным модулем и с защитой — JSX компилирует OpenCode; не вышло (другая
     // версия, тест под Node) — блока нет, присутствие, уведомления и команды работают
-    const canopusSidebar = api.ui?.slot && !process.env.CANOPUS_NO_SIDEBAR ? import("./sidebar.tsx").then((m) => (m.mountSidebar(api), log(`sidebar mounted pid=${process.pid}`))).catch((e) => log(`sidebar not drawn pid=${process.pid}: ${String(e).slice(0, 300)}`)) : undefined
+    const canopusSidebar = api.ui?.slot && !runtimeValue("NO_SIDEBAR") ? import("./sidebar.tsx").then((m) => (m.mountSidebar(api), log(`sidebar mounted pid=${process.pid}`))).catch((e) => log(`sidebar not drawn pid=${process.pid}: ${String(e).slice(0, 300)}`)) : undefined
     // блок «Ход работ» (задача 004) — под «Canopus», своей цепочкой: ошибка в нём не касается «Canopus», ошибка в «Canopus» не мешает ему
     canopusSidebar?.finally(() => import("./progress-sidebar.tsx").then((m) => (m.mountProgress(api), log(`progress block mounted pid=${process.pid}`))).catch((e) => log(`progress block not drawn pid=${process.pid}: ${String(e).slice(0, 300)}`)))
 
     // поток поднимается заранее (через 5 с после открытия окна), чтобы первая команда не ждала ни загрузки модулей, ни git
-    const warmTimer = process.env.CANOPUS_NO_WORKER ? undefined : setTimeout(() => void offThread({ kind: "warm" }), 5_000)
+    const warmTimer = runtimeValue("NO_WORKER") ? undefined : setTimeout(() => void offThread({ kind: "warm" }), 5_000)
     warmTimer?.unref?.()
     beat()
     const timer = setInterval(beat, BEAT_MS)

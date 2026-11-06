@@ -1,27 +1,28 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Flow test of the lost owner question through the plugin (task 040; node >= 24):  node test/canopus-lost-question-flow.test.mjs
 // A record in forms/ with a tab that has no turn (the window or the service was restarted): the tab gets the wake as a prompt, at
 // most three times; then "без ответа, нужен владелец" and no more wakes; the window gets the notice; nothing answers for the owner.
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-lostq-flow-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_STATUS_MS = "100"
-process.env.CANOPUS_FORM_MS = "100"
-process.env.CANOPUS_FORM_GONE_MS = "300"
-process.env.CANOPUS_FORM_REPEAT_GAP_MS = "700"
-process.env.CANOPUS_FORM_RESTART_GRACE_MS = "300"
-process.env.CANOPUS_FORM_REMIND_MS = "2500"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("STATUS_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_GONE_MS", "300")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_REPEAT_GAP_MS", "700")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_RESTART_GRACE_MS", "300")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_REMIND_MS", "2500")
 const dbPath = path.join(tmp, "opencode.db")
-process.env.CANOPUS_DB = dbPath
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", dbPath)
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({}))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({}))
 
 const db = new DatabaseSync(dbPath)
 db.exec("create table session_v2 (id text primary key, directory text, title text, parent_id text, time_archived integer, time_idle integer, time_viewed integer, time_suspended integer)")
@@ -57,7 +58,7 @@ const cell = (name, ok, detail) => {
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 const WPID = 616161
 mkdirSync(core.WINDOWS, { recursive: true })
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: [{ sessionID: SES, active: true, busy: false }] }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: [{ sessionID: SES, active: true, busy: false }] }))
 beat()
 const heart = setInterval(beat, 300)
 const notices = () => {

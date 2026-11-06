@@ -61,83 +61,77 @@ export const CONFIG_TEMPLATE: Record<string, any> = {
     "claude": {
       "develop": {
         "family": "claude",
-        "tier": "task"
+        "tier": "light"
       },
       "accept": {
         "family": "claude",
-        "tier": "task"
+        "tier": "light"
       },
       "plan": {
         "family": "claude",
-        "tier": "task"
+        "tier": "light"
       },
       "plan_accept": {
         "family": "claude",
-        "tier": "task"
+        "tier": "light"
       }
     },
     "codex": {
       "develop": {
         "family": "codex",
-        "tier": "task"
+        "tier": "light"
       },
       "accept": {
         "family": "codex",
-        "tier": "task"
+        "tier": "light"
       },
       "plan": {
         "family": "codex",
-        "tier": "task"
+        "tier": "light"
       },
       "plan_accept": {
         "family": "codex",
-        "tier": "task"
+        "tier": "light"
       }
     },
     "codex-kimi": {
       "develop": {
         "family": "codex",
-        "tier": "task"
+        "tier": "light"
       },
       "plan": {
         "family": "codex",
-        "tier": "task"
+        "tier": "light"
       },
       "accept": {
         "family": "kimi",
-        "tier": "task"
+        "tier": "light"
       },
       "plan_accept": {
         "family": "kimi",
-        "tier": "task"
+        "tier": "light"
       }
     },
     "kimi": {
       "develop": {
         "family": "kimi",
-        "tier": "task"
+        "tier": "light"
       },
       "plan": {
         "family": "kimi",
-        "tier": "task"
+        "tier": "light"
       },
       "accept": {
         "family": "kimi",
-        "tier": "task"
+        "tier": "light"
       },
       "plan_accept": {
         "family": "kimi",
-        "tier": "task"
+        "tier": "light"
       }
     }
   },
-  "profile_set": "codex",
-  "tier_max": "light",
-  "branch_name": "task/{n}-{slug}",
-  "worktrees": "../worktrees",
-  "worktree_name": "{repo}-{n}-{slug}",
-  "accepted_slot": "free",
-  "cleanup_limit": 10
+  "profile_set": "codex"
 }
 
 /** Шаблон поверх настроек проекта: ключи проекта остаются, дописываются только отсутствующие. Возвращает итог и дописанные ключи. */

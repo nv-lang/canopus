@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // The proof of red of the question-answering tests (task 007; node >= 24):
 //   node test/answer-red.mjs                 all runs: 0 (the base), 1..3, 5..12 and 14..17 (stubs; the stub 4 GATE:review is gone, task 097), 13 (no stubs); prints "answer-red ok"
 //   node test/answer-red.mjs --run <k>       one run
@@ -11,7 +12,7 @@
 // red. Run 13: the copy without stubs, all tests green. The tests run one by one with a pause of 10 s; the script is heavy (copies,
 // the flow test runs many times) -- run it once, on a free machine, never together with another heavy run.
 import { execFileSync, spawnSync } from "node:child_process"
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
@@ -77,7 +78,9 @@ function copyCode(dst, from = pluginDir) {
   cpSync(from, dst, { recursive: true, filter: (src) => !/[\\/](test|node_modules)([\\/]|$)/.test(src) || src === from })
 }
 function load(copy) {
-  const r = spawnSync(process.execPath, ["--input-type=module", "-e", "for (const f of ['answer-parse','answer','config-schema','settings','core','status','index']) await import('./'+f+'.ts'); console.log('load ok')"], { cwd: copy, encoding: "utf8", env: { ...process.env, XDG_DATA_HOME: mkdtempSync(path.join(os.tmpdir(), CANOPUS_HOME: path.join(mkdtempSync(path.join(os.tmpdir(), "opencode"), "answer-red-load-")) } })
+  const home = mkdtempSync(path.join(os.tmpdir(), "answer-red-load-"))
+  const init = `await (await import('./config-context.ts')).initializePluginConfig({config:${JSON.stringify(path.join(home, "plugin", "config.json"))}}); `
+  const r = spawnSync(process.execPath, ["--input-type=module", "-e", init + "for (const f of ['answer-parse','answer','config-schema','settings','core','status','index']) await import('./'+f+'.ts'); console.log('load ok')"], { cwd: copy, encoding: "utf8", env: { ...process.env, XDG_DATA_HOME: home } })
   return /load ok/.test(r.stdout) ? "" : `the copy does not load: ${(r.stderr || r.stdout).slice(0, 400)}`
 }
 function stubCopy(markers, dst) {
@@ -93,7 +96,7 @@ function applyStubs(markers, dst) {
     if (found.length !== 1) throw new Error(`маркер не найден: GATE:${m} в ${file} (совпадений ${found.length}, нужно 1)`)
     const next = s.replace(pairRe(m), () => repl)
     if (next === s) throw new Error(`подстановка не изменила файл: GATE:${m}`)
-    writeFileSync(f, next)
+    writeFixtureFile(f, next)
   }
   const bad = load(dst)
   if (bad) throw new Error(bad)
@@ -182,7 +185,7 @@ try {
     const copy = path.join(tmp, "control")
     copyCode(copy)
     const f = path.join(copy, "answer-parse.ts")
-    writeFileSync(f, readFileSync(f, "utf8").replace(pairRe("limit"), "ctx.count >= ctx.max")) // the pair of the marker is taken out
+    writeFixtureFile(f, readFileSync(f, "utf8").replace(pairRe("limit"), "ctx.count >= ctx.max")) // the pair of the marker is taken out
     let msg = ""
     try {
       applyStubs(["limit"], copy)
@@ -196,7 +199,7 @@ try {
     if (k === 0) {
       run0()
       if (process.env.ANSWER_RED_RECORD) {
-        writeFileSync(BASE_FILE, JSON.stringify(observed, null, 1) + NL)
+        writeFixtureFile(BASE_FILE, JSON.stringify(observed, null, 1) + NL)
         say(`записано ${BASE_FILE}`)
       }
     }
@@ -205,7 +208,7 @@ try {
   } else {
     run0()
     if (process.env.ANSWER_RED_RECORD) {
-      writeFileSync(BASE_FILE, JSON.stringify(observed, null, 1) + NL)
+      writeFixtureFile(BASE_FILE, JSON.stringify(observed, null, 1) + NL)
       say(`записано ${BASE_FILE}`)
     }
     for (const s of STUBS) runStub(s)

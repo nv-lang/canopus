@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of task 069, "Esc in a plugin window keeps the question under it" (node >= 24):  node test/canopus-esc-question.test.mjs
 // Source: the owner opened a window of the plugin (/canopus-sets use ...), a question of the built-in questionnaire arrived while
 // the window was open, the owner pressed Esc to close the window - and the question was cancelled ("The user dismissed this
@@ -9,7 +10,7 @@
 //   part 1: the window of the plugin never stays open when the keyboard is taken by another mode - it closes at once, and the
 //           question keeps its place; a window that is not hijacked stays;
 //   part 2: a question cancelled without an answer is returned to the tab in seconds, not in 20 s.
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
@@ -17,14 +18,14 @@ const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-esc-question-"))
 process.env.TEMP = tmp // the plugin log lives in os.tmpdir()
 process.env.TMP = tmp
 process.env.XDG_DATA_HOME = path.join(tmp, "data")
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 process.env.XDG_CONFIG_HOME = path.join(tmp, "xdgcfg")
-process.env.CANOPUS_NO_SIDEBAR = "1" // no panels, no text dialog (jsx): the window uses dialog.alert like under Node
-process.env.CANOPUS_NO_WORKER = "1"
-process.env.CANOPUS_DIALOG_GUARD_MS = "20" // the look of the guard and the time the stack of dialogs needs to push its mode
-process.env.CANOPUS_DIALOG_GRACE_MS = "120"
-process.env.CANOPUS_FORM_GONE_MS = "20000"
-process.env.CANOPUS_FORM_CANCEL_GONE_MS = "3000"
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("NO_SIDEBAR", "1")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("NO_WORKER", "1")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DIALOG_GUARD_MS", "20")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DIALOG_GRACE_MS", "120")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_GONE_MS", "20000")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_CANCEL_GONE_MS", "3000")
 
 const Tui = await import("../tui.ts")
 const core = await import("../core.ts")
@@ -44,7 +45,7 @@ const until = async (cond, ms = 60_000) => {
 
 const session = "ses_esc_demo"
 mkdirSync(path.dirname(core.cardFile(session)), { recursive: true })
-writeFileSync(core.cardFile(session), JSON.stringify({ session, directory: tmp, role: "worker", project: "escproj", repo: "r", pid: process.pid, updated: Date.now() }))
+writeFixtureFile(core.cardFile(session), JSON.stringify({ session, directory: tmp, role: "worker", project: "escproj", repo: "r", pid: process.pid, updated: Date.now() }))
 
 // a window of OpenCode 2.0.26, cut down to what matters here. The dialog stack: show() = replace() (the old dialog gets its
 // onClose, a new one takes the place; the first dialog pushes the mode "modal"); clear() = every onClose, the mode goes.

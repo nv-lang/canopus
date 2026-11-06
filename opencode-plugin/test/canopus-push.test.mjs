@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of pushing stalled tabs by empty turns (plan 002, Ph.2; node >= 24):  node test/canopus-push.test.mjs
 // The turn facts come from OpenCode's database (session_message between two `idle` rows): a turn with a tool call
 // is a working one (resets the empty counter), a turn without one is empty; push_empty_turns empty turns in a row
@@ -5,22 +6,22 @@
 // with an owner's message gets no reminder and resets the counter; a working turn also resets the reminder counter (task 043),
 // so push_max stops only the reminders of turns the database does not show. canopus_task push clears "stuck". A turn cut off
 // by a server restart (time_suspended, no idle) is resumed by one letter.
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-push-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_STATUS_MS = "200"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("STATUS_MS", "200")
 const dbPath = path.join(tmp, "opencode.db")
-process.env.CANOPUS_DB = dbPath
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", dbPath)
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ push_empty_turns: 3, push_max: 8 }))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ push_empty_turns: 3, push_max: 8 }))
 
 // OpenCode's tables, as much as the plugin reads
 const db = new DatabaseSync(dbPath)
@@ -34,8 +35,8 @@ db.prepare("update session_v2 set time_suspended = ? where id = ?").run(Date.now
 
 // the interrupted session's tree has traces of a git operation cut off by the restart
 mkdirSync(path.join(proj, ".git"), { recursive: true })
-writeFileSync(path.join(proj, ".git", "MERGE_HEAD"), "abc")
-writeFileSync(path.join(proj, ".git", "index.lock"), "")
+writeFixtureFile(path.join(proj, ".git", "MERGE_HEAD"), "abc")
+writeFixtureFile(path.join(proj, ".git", "index.lock"), "")
 const core = await import("../core.ts")
 const tasks = await import("../tasks.ts")
 // sesINTER1 owes an answer from before the restart
@@ -103,7 +104,7 @@ async function turn({ tools: withTool = false, owner = false } = {}) {
 const WPID = 717171
 const tabs = ["sesINTEG1", "sesWORK01", "ses_fail01", "ses_retry1"].map((sessionID, i) => ({ sessionID, active: i === 0, busy: false }))
 mkdirSync(core.WINDOWS, { recursive: true })
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs }))
 beat()
 const heart = setInterval(beat, 300)
 for (const s of ["sesINTEG1", "sesWORK01"]) {
@@ -127,7 +128,7 @@ cell("the resume letter names the git traces: the stale index.lock and the merge
   const gd = path.join(tmp, "gitdirs", "wt1")
   mkdirSync(wt, { recursive: true })
   mkdirSync(path.join(gd, "rebase-merge"), { recursive: true })
-  writeFileSync(path.join(wt, ".git"), `gitdir: ${gd}
+  writeFixtureFile(path.join(wt, ".git"), `gitdir: ${gd}
 `)
   const tr = gitTraces(wt)
   cell("gitTraces follows a worktree's .git file", tr.length === 1 && /rebase/.test(tr[0]), JSON.stringify(tr))
@@ -192,12 +193,12 @@ cell("after push an empty turn gets a reminder again", reminders() === 8, remind
 for (let i = 0; i < 9; i++) await turn({ tools: true })
 cell("working turns past push_max: a reminder after each, the counter stays 1, not stuck", reminders() === 17 && obl()?.nudges === 1 && !obl()?.stuck && calls() === 1, `${reminders()} ${JSON.stringify(obl())}`)
 // push_max still stops reminders of turns the database does not show (they count as working, but do not reset the counter)
-process.env.CANOPUS_DB = path.join(tmp, "no-such.db")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "no-such.db"))
 for (let i = 0; i < 7; i++) await turn()
 cell("turns unseen in the database: reminders up to push_max", reminders() === 24 && obl()?.nudges === 8 && obl()?.empty === 0, `${reminders()} ${JSON.stringify(obl())}`)
 await turn()
 cell("over push_max: stuck, a call 'reminders without an answer'", obl()?.stuck === true && got("sesINTEG1", "8 напоминаний остались без ответа").length === 1 && reminders() === 24, JSON.stringify(obl()))
-process.env.CANOPUS_DB = dbPath
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", dbPath)
 
 // 5b. waiting the honest way (2026-10-06): an open canopus_watch or a question waiting for its answer -> no
 // reminders (executor 017 of nova got one a minute while waiting for a commit in main and took to polling in Bash)

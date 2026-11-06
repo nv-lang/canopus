@@ -1,25 +1,26 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of session status (plan 003; node >= 24):  node test/canopus-status.test.mjs
 // The plugin writes status/<session>.json: working (a turn runs), waiting for the owner (the last answer ends with a
 // question and the owner has not written since), waiting for a watch, idle. A new question to the owner posts a
 // notice with attention to every live window; unanswered, it is repeated after owner_reminder_min. The /canopus text
 // puts the waiting ones first.
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-status-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_STATUS_MS = "100"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("STATUS_MS", "100")
 const dbPath = path.join(tmp, "opencode.db")
-process.env.CANOPUS_DB = dbPath
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", dbPath)
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
 // a reminder every 0.03 min (1.8 s) to see the repeat in a test
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ owner_reminder_min: 0.03 }))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ owner_reminder_min: 0.03 }))
 
 const db = new DatabaseSync(dbPath)
 db.exec("create table session_v2 (id text primary key, directory text, title text, parent_id text, time_archived integer, time_idle integer, time_viewed integer, time_suspended integer)")
@@ -58,7 +59,7 @@ const st = (s) => JSON.parse(readFileSync(path.join(status.STATUS, `${s}.json`),
 const WPID = 515151
 const tabs = S.map((sessionID, i) => ({ sessionID, active: i === 0, busy: sessionID === "sesWORK01" }))
 mkdirSync(core.WINDOWS, { recursive: true })
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs }))
 beat()
 const heart = setInterval(beat, 300)
 const notices = () => {

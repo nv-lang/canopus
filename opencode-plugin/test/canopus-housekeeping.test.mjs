@@ -1,12 +1,13 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of housekeeping (node >= 24):  node test/canopus-housekeeping.test.mjs
 // Read letters older than keep_days are removed, their ids stay (no repeated letters); the shared log rotates.
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, utimesSync, writeFileSync, existsSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, utimesSync, existsSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-house-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 const hk = await import("../housekeeping.ts")
 const core = await import("../core.ts")
 const tasks = await import("../tasks.ts")
@@ -19,7 +20,7 @@ const box = path.join(core.READ, "sesA")
 mkdirSync(box, { recursive: true })
 const put = (id, ageDays) => {
   const f = path.join(box, `${id}.json`)
-  writeFileSync(f, "{}")
+  writeFixtureFile(f, "{}")
   const t = (Date.now() - ageDays * 86_400_000) / 1000
   utimesSync(f, t, t)
 }
@@ -32,9 +33,9 @@ cell("a removed letter still counts as sent (no repeat)", tasks.letterExists("se
 cell("a second sweep removes nothing more", hk.sweepRead(core.READ, 7 * 86_400_000) === 0, "removed again")
 
 const log = path.join(tmp, "big.log")
-writeFileSync(log, "x".repeat(2_000))
+writeFixtureFile(log, "x".repeat(2_000))
 cell("a log under the limit stays", !hk.rotateLog(log, 5_000) && statSync(log).size === 2_000, "rotated")
-writeFileSync(log, "x".repeat(6_000))
+writeFixtureFile(log, "x".repeat(6_000))
 cell("a log over the limit goes to .1", hk.rotateLog(log, 5_000) && !existsSync(log) && statSync(`${log}.1`).size === 6_000, "not rotated")
 
 try {

@@ -1,5 +1,7 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
+import { getFixtureRuntime } from "./fixture-settings.mjs"
 // Regression 279: isolated V2 service, no live requests, prompts or sessions.
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { randomUUID } from "node:crypto"
@@ -7,13 +9,13 @@ import { allowNativeRegistry } from "./native-isolation.mjs"
 import { DatabaseSync } from "node:sqlite"
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-native-recovery-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 process.env.XDG_STATE_HOME = tmp
-process.env.CANOPUS_DB = path.join(tmp, "native.db")
-process.env.CANOPUS_POLL_MS = "50"
-process.env.CANOPUS_STATUS_MS = "50"
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "native.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "50")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("STATUS_MS", "50")
 mkdirSync(path.join(tmp, "opencode"), { recursive: true })
-writeFileSync(path.join(tmp, "opencode", "service.json"), JSON.stringify({ url: "http://native.invalid", password: randomUUID() }))
+writeFixtureFile(path.join(tmp, "opencode", "service.json"), JSON.stringify({ url: "http://native.invalid", password: randomUUID() }))
 allowNativeRegistry(path.join(tmp, "opencode", "service.json"))
 const core = await import("../core.ts")
 const { readNative } = await import("../native-state.ts")
@@ -29,7 +31,7 @@ let active = {}
 const projected = new Map()
 const unknown = new Set()
 const info = sessionID => ({ id: sessionID, location: { directory: tmp }, time: { created: start - 100, updated: start, idle: start }, outcome: "failed" })
-const db = new DatabaseSync(process.env.CANOPUS_DB)
+const db = new DatabaseSync(getFixtureRuntime("DB"))
 db.exec("create table session_v2 (id text primary key, directory text, title text, parent_id text, time_archived integer, time_idle integer, time_viewed integer, time_suspended integer, idle_outcome text); create table session_message (id text primary key, session_id text, type text, seq integer, time_created integer, time_updated integer, data text)")
 db.prepare("insert into session_v2 values (?, ?, ?, null, null, ?, null, null, ?)").run("sesSTALE", tmp, "fixture", start, "failed")
 db.prepare("insert into session_message values (?, ?, ?, ?, ?, ?, ?)").run("msg_old_tool", "sesSTALE", "assistant", 1, start - 1000, start - 1000, JSON.stringify({ content: [{ type: "tool", name: "read", time: { created: start - 1000 }, state: { status: "running" } }] }))
@@ -108,7 +110,7 @@ try {
   cell("unsupported current schema keeps the letter queued", !prompts.some(p => p.sessionID === "sesUNKNOWN") && core.peekLetters(["sesUNKNOWN"]).length === 1)
    const { WATCHES, watchById } = await import("../watch.ts")
   mkdirSync(WATCHES, { recursive: true })
-  writeFileSync(path.join(WATCHES, "live-command.json"), JSON.stringify({ id: "live-command", session: "sesCOMMAND", cwd: tmp, command: "fixture-only", status: "running", pid: process.pid, created: Date.now(), started: Date.now(), minutes: 120 }))
+  writeFixtureFile(path.join(WATCHES, "live-command.json"), JSON.stringify({ id: "live-command", session: "sesCOMMAND", cwd: tmp, command: "fixture-only", status: "running", pid: process.pid, created: Date.now(), started: Date.now(), minutes: 120 }))
   core.saveCard({ ...card, session: "sesCOMMAND", busy: false, busySince: undefined })
   core.postLetter("sesCOMMAND", { id: "background-question", qid: "qBackground", from_role: "p.integrator", from_session: "sesAUTHOR", to: "sesCOMMAND", time: Date.now(), text: "рабочий вопрос во время независимого таймера" })
   await until(() => readNative("sesCOMMAND")?.source === "machine-watch")

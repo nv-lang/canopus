@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of task 161 in the plugin: the watch of idle tasks at work (node >= 24):  node test/canopus-idle-watch-flow.test.mjs
 // F-1 the case of task 092 through the plugin: a task that «goes» (running), the window of the author busy with other work, the step
 // did not change for two hours -> a letter that asks for an answer by canopus_step_note, then (no answer) the question to the owner, and the
@@ -5,24 +6,24 @@
 // watch with a ceiling, an open question to the owner, a HOLD by the word of the owner). F-3 the answer by the tool extends the term once
 // and is recorded; the second letter; the question. F-4 a restart of the plugin repeats nothing. F-5 the decision of the owner closes the
 // question and no new one is asked inside the new term. F-6 the tool is registered and named in canopus_help.
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-idle-watch-flow-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_STATUS_MS = "100"
-process.env.CANOPUS_FORM_MS = "100"
-process.env.CANOPUS_STEP_MS = "100"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-process.env.CANOPUS_PRESENCE = "all"
-process.env.CANOPUS_SETTINGS_TTL_MS = "1"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("STATUS_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("STEP_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("SETTINGS_TTL_MS", "1")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
 // term 3 s, an answer is awaited 3 s, an answer extends by 6 s
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ project: "proj", allow_default_models: true, step_term_minutes: 0.05, step_answer_minutes: 0.05, step_extend_minutes: 0.1, step_questions_max: 10, idle_tab_minutes: 0 }))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ project: "proj", allow_default_models: true, step_term_minutes: 0.05, step_answer_minutes: 0.05, step_extend_minutes: 0.1, step_questions_max: 10, idle_tab_minutes: 0 }))
 
 let fail = 0
 const cell = (name, ok, detail = "") => {
@@ -72,7 +73,7 @@ const mkTask = (n, st, extra = {}) => ({
 })
 const putTask = (t) => {
   mkdirSync(path.dirname(tasks.taskFile(P, t.n)), { recursive: true })
-  writeFileSync(tasks.taskFile(P, t.n), JSON.stringify(t, null, 1))
+  writeFixtureFile(tasks.taskFile(P, t.n), JSON.stringify(t, null, 1))
 }
 const lettersOf = (s) => {
   const out = []
@@ -101,7 +102,7 @@ putTask(mkTask(96, "running", { executor: "sesEXEC4" }))
 // 98: the control - an executor that is not at work (its card is not busy): the letter goes to the EXECUTOR
 putTask(mkTask(98, "running", { executor: "sesEXEC5" }))
 mkdirSync(watch.WATCHES, { recursive: true })
-writeFileSync(path.join(watch.WATCHES, "w161.json"), JSON.stringify({ id: "w161", session: "sesEXEC2", command: "x", cwd: proj, note: "CI", minutes: 120, created: Date.now(), status: "running", pid: process.pid, started: Date.now() }))
+writeFixtureFile(path.join(watch.WATCHES, "w161.json"), JSON.stringify({ id: "w161", session: "sesEXEC2", command: "x", cwd: proj, note: "CI", minutes: 120, created: Date.now(), status: "running", pid: process.pid, started: Date.now() }))
 fw.handleFormEvent({ type: "form.created", data: { form: { id: "frm_161", sessionID: "sesEXEC4", title: "Questions", metadata: { kind: "question" }, fields: [{ key: "q0", description: "Как быть?", options: [{ label: "Да (Recommended)" }, { label: "Нет" }] }] } } })
 const hold = await tools.canopus_step_note?.execute({ n: 95, hold: "HOLD", who: "владелец, 2026-10-24, «пока не трогать»" }, { sessionID: "sesAUTH" })
 

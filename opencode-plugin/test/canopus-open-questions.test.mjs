@@ -1,7 +1,8 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of overdue open questions in canopus_doctor (node >= 24):  node test/canopus-open-questions.test.mjs
 // The number comes from the project's own guard script (check-open-questions.py --overdue); the plugin does not count by itself.
 import assert from "node:assert/strict"
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { OQ_FILE, OQ_SCRIPT, overdueProblems } from "../open-questions.ts"
@@ -11,8 +12,8 @@ const mk = (name, withFile = true, withScript = true) => {
   const root = path.join(tmp, name)
   mkdirSync(path.join(root, ...OQ_SCRIPT.slice(0, -1)), { recursive: true })
   mkdirSync(path.join(root, ...OQ_FILE.slice(0, -1)), { recursive: true })
-  if (withScript) writeFileSync(path.join(root, ...OQ_SCRIPT), "")
-  if (withFile) writeFileSync(path.join(root, ...OQ_FILE), "")
+  if (withScript) writeFixtureFile(path.join(root, ...OQ_SCRIPT), "")
+  if (withFile) writeFixtureFile(path.join(root, ...OQ_FILE), "")
   return { name, root, rootPath: root }
 }
 try {

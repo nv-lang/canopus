@@ -1,0 +1,1129 @@
+{
+  "app_keys": [
+    "port",
+    "data_dir",
+    "store",
+    "workdir",
+    "web_dir",
+    "machines_dir",
+    "idle_term_seconds",
+    "acp_trace",
+    "ask_form",
+    "ask_timeout_seconds",
+    "max_image_bytes",
+    "agents",
+    "hub.program",
+    "hub.args",
+    "pg.host",
+    "pg.port",
+    "pg.database",
+    "pg.user",
+    "pg.password",
+    "routes_dir",
+    "route_reviewer_order",
+    "route_task_limit",
+    "route_task_messages",
+    "route_fix_attempts",
+    "route_worktree_ask",
+    "route_overlap_seconds",
+    "route_keep_days",
+    "context_drop_percent",
+    "route_confirm_word",
+    "route_over_limit_word",
+    "route_max_active",
+    "route_tool",
+    "route_auto_propose",
+    "route_children",
+    "route_wip",
+    "wip_timeout_seconds",
+    "agent_start_timeout_seconds",
+    "agent_silent_minutes",
+    "auto_extend_confidence",
+    "task_scope",
+    "voice.url",
+    "voice.language",
+    "voice.managed",
+    "voice.dir",
+    "voice.model",
+    "preset",
+    "tools_dir"
+  ],
+  "plugin_keys": [
+    "project",
+    "root",
+    "branch",
+    "exclusive_roles",
+    "inbound",
+    "task_fields",
+    "spawn_limits",
+    "inflight_limit",
+    "spawn_models",
+    "tiers",
+    "model_profiles",
+    "profile_sets",
+    "profile_set",
+    "tier_max",
+    "allow_default_models",
+    "tier_min",
+    "allow_self_assign",
+    "default_priority",
+    "accepted_slot",
+    "cleanup_limit",
+    "task_extra_fields",
+    "route_defaults",
+    "tasks_dir",
+    "push_empty_turns",
+    "stall_minutes",
+    "idle_tab_minutes",
+    "step_term_minutes",
+    "step_term_by_step",
+    "step_extend_minutes",
+    "step_answer_minutes",
+    "step_questions_max",
+    "step_letters_per_pass",
+    "step_old_minutes",
+    "long_turn_minutes",
+    "accepted_reminder_min",
+    "machine_slots",
+    "owner_reminder_min",
+    "owner_system_notify",
+    "push_max",
+    "reviewer",
+    "plans_dir",
+    "plan_name",
+    "plan_rounds_max",
+    "plan_clean_rounds",
+    "plan_sections",
+    "plan_header",
+    "plan_prefix",
+    "plan_labels",
+    "plan_marks",
+    "plan_mode_question",
+    "plan_acceptance",
+    "plan_merge_acceptance",
+    "plan_grades",
+    "plan_approver",
+    "plan_steps",
+    "plan_template",
+    "heavy_commands",
+    "acceptance",
+    "acceptance_file",
+    "target_branch",
+    "rework_max",
+    "cleanup",
+    "merge_precheck",
+    "merge_lock_per_task",
+    "worktrees",
+    "worktree_name",
+    "branch_name",
+    "answer_mode",
+    "answer_delay_sec",
+    "answer_max",
+    "owner_language",
+    "compaction_summary",
+    "project_rules"
+  ],
+  "environment": {
+    "CANOPUS_ACCEPTANCE_TTL_MS": [
+      "opencode-plugin\\acceptance-file.ts"
+    ],
+    "CANOPUS_ANSWER_TTL_H": [
+      "scripts\\canopus-answer.mjs"
+    ],
+    "CANOPUS_AUTOCLOSE_MS": [
+      "opencode-plugin\\tui.ts"
+    ],
+    "CANOPUS_BASE": [
+      "opencode-plugin\\core.ts"
+    ],
+    "CANOPUS_BRANCH_MS": [
+      "opencode-plugin\\index.ts"
+    ],
+    "CANOPUS_CATALOG_MAX_AGE_MS": [
+      "opencode-plugin\\model-catalog.ts"
+    ],
+    "CANOPUS_DB": [
+      "opencode-plugin\\core.ts"
+    ],
+    "CANOPUS_DB_PROBE_PW": [
+      "src\\pg\\db.ps1"
+    ],
+    "CANOPUS_DIALOG_GRACE_MS": [
+      "opencode-plugin\\dialog-guard.ts"
+    ],
+    "CANOPUS_DIALOG_GUARD_MS": [
+      "opencode-plugin\\dialog-guard.ts"
+    ],
+    "CANOPUS_DIR": [
+      "opencode-plugin\\paths.ts"
+    ],
+    "CANOPUS_DIVERGE_TTL_MS": [
+      "opencode-plugin\\config-diverge.ts"
+    ],
+    "CANOPUS_DOCTOR_MS": [
+      "opencode-plugin\\index.ts"
+    ],
+    "CANOPUS_ECHO_ABSENT_271": [
+      "src\\acp\\fake-agent-echo.test.mjs"
+    ],
+    "CANOPUS_ECHO_FIXTURE": [
+      "src\\acp\\fake-agent-echo.test.mjs"
+    ],
+    "CANOPUS_EVENT_PROBE": [
+      "opencode-plugin\\event-probe.ts"
+    ],
+    "CANOPUS_FLOW_MS": [
+      "opencode-plugin\\index.ts"
+    ],
+    "CANOPUS_FORM_": [
+      "opencode-plugin\\form-wait.ts"
+    ],
+    "CANOPUS_FORM_CANCEL_GONE_MS": [
+      "opencode-plugin\\form-wait.ts"
+    ],
+    "CANOPUS_FORM_GONE_MS": [
+      "opencode-plugin\\form-wait.ts"
+    ],
+    "CANOPUS_FORM_MS": [
+      "opencode-plugin\\index.ts"
+    ],
+    "CANOPUS_FORM_REMIND_MS": [
+      "opencode-plugin\\form-wait.ts"
+    ],
+    "CANOPUS_FORM_REPEAT_GAP_MS": [
+      "opencode-plugin\\form-wait.ts"
+    ],
+    "CANOPUS_FORM_RESTART_GRACE_MS": [
+      "opencode-plugin\\form-wait.ts"
+    ],
+    "CANOPUS_GIT_LOG": [
+      "src\\server\\taskwt.nv"
+    ],
+    "CANOPUS_HOME": [
+      "opencode-plugin\\paths.ts",
+      "opencode-plugin\\plugin-config.ts",
+      "scripts\\canopus-answer.mjs",
+      "scripts\\install-stt.ps1",
+      "src\\canopus.nv",
+      "src\\config\\config_cmd.nv",
+      "src\\config\\config_layout.nv",
+      "src\\config\\config_migrate.nv",
+      "src\\pg\\db.ps1",
+      "src\\server\\front\\front_settings.nv",
+      "src\\server\\run-pg.ps1",
+      "src\\server\\settings.nv"
+    ],
+    "CANOPUS_HOUSEKEEP_MS": [
+      "opencode-plugin\\index.ts"
+    ],
+    "CANOPUS_HUNG_MS": [
+      "opencode-plugin\\core.ts"
+    ],
+    "CANOPUS_LAG_MS": [
+      "opencode-plugin\\index.ts"
+    ],
+    "CANOPUS_LEFT_MS": [
+      "opencode-plugin\\index.ts"
+    ],
+    "CANOPUS_LEFT_PER_RUN": [
+      "opencode-plugin\\index.ts"
+    ],
+    "CANOPUS_LEFT_REMOTE_FIRST_MS": [
+      "opencode-plugin\\index.ts"
+    ],
+    "CANOPUS_LEFT_REMOTE_MS": [
+      "opencode-plugin\\index.ts"
+    ],
+    "CANOPUS_LOG_MAX": [
+      "opencode-plugin\\core.ts"
+    ],
+    "CANOPUS_NO_SIDEBAR": [
+      "opencode-plugin\\tui.ts"
+    ],
+    "CANOPUS_NO_WORKER": [
+      "opencode-plugin\\tui.ts"
+    ],
+    "CANOPUS_OPENCODE_KEEP_PLUGIN": [
+      "src\\agent_config.nv"
+    ],
+    "CANOPUS_OPEN_TURN_MAX_MS": [
+      "opencode-plugin\\core.ts"
+    ],
+    "CANOPUS_PASS_STUCK_MS": [
+      "opencode-plugin\\index.ts"
+    ],
+    "CANOPUS_PG_": [
+      "src\\server\\settings.nv"
+    ],
+    "CANOPUS_PG_CONFIG": [
+      "src\\pgconf\\settings.nv"
+    ],
+    "CANOPUS_PG_DATABASE": [
+      "src\\config\\config_layout.nv",
+      "src\\pg\\db.ps1",
+      "src\\pgconf\\settings.nv",
+      "src\\server\\run-pg.ps1"
+    ],
+    "CANOPUS_PG_HOST": [
+      "src\\config\\config_layout.nv",
+      "src\\pg\\db.ps1",
+      "src\\pgconf\\settings.nv"
+    ],
+    "CANOPUS_PG_PASSWORD": [
+      "src\\config\\config_layout.nv",
+      "src\\pg\\db.ps1",
+      "src\\pgconf\\settings.nv",
+      "src\\server\\run-pg.ps1"
+    ],
+    "CANOPUS_PG_PORT": [
+      "src\\config\\config_layout.nv",
+      "src\\pg\\db.ps1",
+      "src\\pgconf\\settings.nv",
+      "src\\server\\run-pg.ps1"
+    ],
+    "CANOPUS_PG_USER": [
+      "src\\config\\config_layout.nv",
+      "src\\pg\\db.ps1",
+      "src\\pgconf\\settings.nv"
+    ],
+    "CANOPUS_PLANSTEPS_MS": [
+      "opencode-plugin\\index.ts"
+    ],
+    "CANOPUS_PLUGIN_MARK": [
+      "src\\agent_config.nv"
+    ],
+    "CANOPUS_POLL_MS": [
+      "opencode-plugin\\core.ts"
+    ],
+    "CANOPUS_PREPARATION_ADAPTER": [
+      "src\\server\\preparation_launch.nv"
+    ],
+    "CANOPUS_PREPARATION_MODEL": [
+      "src\\server\\preparation_launch.nv"
+    ],
+    "CANOPUS_PREPARATION_SERVICE_REGISTRATION": [
+      "src\\server\\preparation_launch.nv"
+    ],
+    "CANOPUS_PREPARATION_VARIANT": [
+      "src\\server\\preparation_launch.nv"
+    ],
+    "CANOPUS_PRESENCE": [
+      "opencode-plugin\\core.ts"
+    ],
+    "CANOPUS_PRESET": [
+      "src\\config\\config_layout.nv"
+    ],
+    "CANOPUS_PRIVATE_NAMES": [
+      "scripts\\guards\\check-private-names.py",
+      "scripts\\guards\\lib\\names.py"
+    ],
+    "CANOPUS_PRIVATE_NAMES_FILE": [
+      "scripts\\guards\\check-private-names.py",
+      "scripts\\guards\\lib\\names.py"
+    ],
+    "CANOPUS_PROCESS_START": [
+      "opencode-plugin\\core.ts"
+    ],
+    "CANOPUS_PROFILES_MS": [
+      "opencode-plugin\\index.ts"
+    ],
+    "CANOPUS_PROGRESS_ABANDON_MS": [
+      "opencode-plugin\\progress.ts"
+    ],
+    "CANOPUS_PROGRESS_DONE_MS": [
+      "opencode-plugin\\progress.ts"
+    ],
+    "CANOPUS_PROGRESS_STALE_MS": [
+      "opencode-plugin\\progress.ts"
+    ],
+    "CANOPUS_PROJECT": [
+      "opencode-plugin\\core.ts",
+      "opencode-plugin\\watch.ts"
+    ],
+    "CANOPUS_REPLY_MS": [
+      "opencode-plugin\\form-reply.ts"
+    ],
+    "CANOPUS_RESUME_GRACE_MS": [
+      "opencode-plugin\\hung-resume.ts"
+    ],
+    "CANOPUS_REVIEW_N": [
+      "opencode-plugin\\core.ts",
+      "opencode-plugin\\index.ts",
+      "opencode-plugin\\watch.ts"
+    ],
+    "CANOPUS_ROLE": [
+      "opencode-plugin\\core.ts",
+      "opencode-plugin\\watch.ts"
+    ],
+    "CANOPUS_SERVER_ACP_TRACE": [
+      "src\\config\\config_layout.nv",
+      "src\\server\\settings.nv"
+    ],
+    "CANOPUS_SERVER_AGENT": [
+      "src\\config\\config_layout.nv",
+      "src\\server\\run-pg.ps1",
+      "src\\server\\settings.nv"
+    ],
+    "CANOPUS_SERVER_ASK_FORM": [
+      "src\\config\\config_layout.nv",
+      "src\\server\\settings.nv"
+    ],
+    "CANOPUS_SERVER_ASK_TIMEOUT_SECONDS": [
+      "src\\config\\config_layout.nv",
+      "src\\server\\settings.nv"
+    ],
+    "CANOPUS_SERVER_CONFIG": [
+      "src\\canopus_hub.nv",
+      "src\\config\\config_layout.nv",
+      "src\\server\\front\\front_settings.nv",
+      "src\\server\\settings.nv"
+    ],
+    "CANOPUS_SERVER_DATA_DIR": [
+      "src\\canopus.nv",
+      "src\\config\\config_layout.nv",
+      "src\\server\\front\\front_settings.nv",
+      "src\\server\\settings.nv"
+    ],
+    "CANOPUS_SERVER_HUB": [
+      "src\\config\\config_layout.nv",
+      "src\\server\\front\\front_settings.nv",
+      "src\\server\\settings.nv"
+    ],
+    "CANOPUS_SERVER_IDLE_SECONDS": [
+      "src\\config\\config_layout.nv",
+      "src\\server\\settings.nv"
+    ],
+    "CANOPUS_SERVER_MACHINES_DIR": [
+      "src\\config\\config_layout.nv",
+      "src\\product_machines\\data.nv",
+      "src\\server\\settings.nv"
+    ],
+    "CANOPUS_SERVER_MAX_IMAGE_BYTES": [
+      "src\\config\\config_layout.nv",
+      "src\\server\\front\\front_settings.nv",
+      "src\\server\\settings.nv"
+    ],
+    "CANOPUS_SERVER_PORT": [
+      "src\\config\\config_layout.nv",
+      "src\\server\\front\\front_settings.nv",
+      "src\\server\\run-pg.ps1",
+      "src\\server\\settings.nv"
+    ],
+    "CANOPUS_SERVER_ROUTES_DIR": [
+      "src\\config\\config_layout.nv"
+    ],
+    "CANOPUS_SERVER_STORE": [
+      "src\\config\\config_layout.nv",
+      "src\\pg\\db.ps1",
+      "src\\server\\run-pg.ps1",
+      "src\\server\\settings.nv"
+    ],
+    "CANOPUS_SERVER_STT_DIR": [
+      "scripts\\install-stt.ps1",
+      "src\\config\\config_layout.nv",
+      "src\\server\\front\\front_settings.nv"
+    ],
+    "CANOPUS_SERVER_STT_LANGUAGE": [
+      "src\\config\\config_layout.nv",
+      "src\\server\\front\\front_settings.nv",
+      "src\\server\\settings.nv"
+    ],
+    "CANOPUS_SERVER_STT_MANAGED": [
+      "src\\config\\config_layout.nv",
+      "src\\server\\front\\front_settings.nv"
+    ],
+    "CANOPUS_SERVER_STT_MODEL": [
+      "src\\config\\config_layout.nv",
+      "src\\server\\front\\front_settings.nv"
+    ],
+    "CANOPUS_SERVER_STT_URL": [
+      "scripts\\start-stt.ps1",
+      "src\\config\\config_layout.nv",
+      "src\\server\\front\\front_settings.nv",
+      "src\\server\\settings.nv"
+    ],
+    "CANOPUS_SERVER_WEB_DIR": [
+      "src\\config\\config_layout.nv",
+      "src\\server\\front\\front_settings.nv",
+      "src\\server\\settings.nv"
+    ],
+    "CANOPUS_SERVER_WORKDIR": [
+      "src\\config\\config_layout.nv",
+      "src\\server\\settings.nv"
+    ],
+    "CANOPUS_SESSION_ID": [
+      "opencode-plugin\\core.ts",
+      "opencode-plugin\\watch.ts"
+    ],
+    "CANOPUS_SETTINGS_TTL_MS": [
+      "opencode-plugin\\settings.ts"
+    ],
+    "CANOPUS_SLOW_STEP_MS": [
+      "opencode-plugin\\index.ts"
+    ],
+    "CANOPUS_START_RETRY_MS": [
+      "opencode-plugin\\index.ts"
+    ],
+    "CANOPUS_STATE_WORDS": [
+      "opencode-plugin\\progress.ts",
+      "opencode-plugin\\status.ts"
+    ],
+    "CANOPUS_STATUS_MS": [
+      "opencode-plugin\\index.ts"
+    ],
+    "CANOPUS_STEP_MS": [
+      "opencode-plugin\\hung-resume.ts",
+      "opencode-plugin\\index.ts"
+    ],
+    "CANOPUS_STT_DIR": [
+      "scripts\\install-stt.ps1",
+      "scripts\\start-stt.ps1",
+      "src\\config\\config_layout.nv"
+    ],
+    "CANOPUS_STT_LANGUAGE": [
+      "scripts\\start-stt.ps1"
+    ],
+    "CANOPUS_STT_MODEL": [
+      "scripts\\start-stt.ps1"
+    ],
+    "CANOPUS_STT_PORT": [
+      "scripts\\start-stt.ps1",
+      "scripts\\stop-stt.ps1"
+    ],
+    "CANOPUS_SYNC_GIT": [
+      "opencode-plugin\\index.ts"
+    ],
+    "CANOPUS_TASK_LIST_TOOL": [
+      "src\\server\\ask_mcp.nv",
+      "src\\server\\canopus_task_list.nv"
+    ],
+    "CANOPUS_TASK_N": [
+      "opencode-plugin\\core.ts",
+      "opencode-plugin\\index.ts",
+      "opencode-plugin\\watch.ts"
+    ],
+    "CANOPUS_TASK_TOOL": [
+      "src\\server\\ask_mcp.nv",
+      "src\\server\\canopus_task.nv"
+    ],
+    "CANOPUS_TITLES_FRESH_MS": [
+      "opencode-plugin\\index.ts"
+    ],
+    "CANOPUS_TITLES_PER_PASS": [
+      "opencode-plugin\\index.ts"
+    ],
+    "CANOPUS_TOAST_MESSAGE": [
+      "opencode-plugin\\toast-win.ts"
+    ],
+    "CANOPUS_TOAST_TITLE": [
+      "opencode-plugin\\toast-win.ts"
+    ],
+    "CANOPUS_TOOLS_DIR": [
+      "scripts\\install-stt.ps1",
+      "src\\config\\config_layout.nv"
+    ],
+    "CANOPUS_TREE_SCAN_END": [
+      "opencode-plugin\\watch.ts"
+    ],
+    "CANOPUS_VOICE_DIR": [
+      "scripts\\install-stt.ps1",
+      "src\\config\\config_layout.nv"
+    ],
+    "CANOPUS_VOICE_LANGUAGE": [
+      "src\\config\\config_layout.nv"
+    ],
+    "CANOPUS_VOICE_MANAGED": [
+      "src\\config\\config_layout.nv"
+    ],
+    "CANOPUS_VOICE_MODEL": [
+      "src\\config\\config_layout.nv"
+    ],
+    "CANOPUS_VOICE_URL": [
+      "src\\config\\config_layout.nv"
+    ],
+    "CANOPUS_WATCH_ID": [
+      "opencode-plugin\\watch.ts"
+    ],
+    "CANOPUS_WATCH_NO_CONSOLE": [
+      "opencode-plugin\\watch.ts"
+    ],
+    "CANOPUS_X": [
+      "opencode-plugin\\legacy-env.ts",
+      "src\\config\\config_layout.nv"
+    ],
+    "OPENCODE_CANOPUS_PROJECTS": [
+      "opencode-plugin\\core.ts"
+    ],
+    "OPENCODE_CANOPUS_SESSION": [
+      "opencode-plugin\\mcp.ts"
+    ],
+    "OPENCODE_CANOPUS_X": [
+      "opencode-plugin\\legacy-env.ts"
+    ]
+  },
+  "app_schema": [
+    {
+      "key": "port",
+      "kind": "i",
+      "default": 8099
+    },
+    {
+      "key": "data_dir",
+      "kind": "s",
+      "default": ""
+    },
+    {
+      "key": "store",
+      "kind": "s",
+      "default": "files"
+    },
+    {
+      "key": "workdir",
+      "kind": "s",
+      "default": ""
+    },
+    {
+      "key": "web_dir",
+      "kind": "s",
+      "default": "src/web"
+    },
+    {
+      "key": "machines_dir",
+      "kind": "s",
+      "default": ""
+    },
+    {
+      "key": "idle_term_seconds",
+      "kind": "i",
+      "default": 900
+    },
+    {
+      "key": "acp_trace",
+      "kind": "b",
+      "default": true
+    },
+    {
+      "key": "ask_form",
+      "kind": "b",
+      "default": true
+    },
+    {
+      "key": "ask_timeout_seconds",
+      "kind": "i",
+      "default": 1800
+    },
+    {
+      "key": "max_image_bytes",
+      "kind": "i",
+      "default": 10485760
+    },
+    {
+      "key": "agents",
+      "kind": "a",
+      "default": []
+    },
+    {
+      "key": "hub.program",
+      "kind": "s",
+      "default": "target/canopus-hub.exe"
+    },
+    {
+      "key": "hub.args",
+      "kind": "a",
+      "default": []
+    },
+    {
+      "key": "pg.host",
+      "kind": "s",
+      "default": "127.0.0.1"
+    },
+    {
+      "key": "pg.port",
+      "kind": "i",
+      "default": 5432
+    },
+    {
+      "key": "pg.database",
+      "kind": "s",
+      "default": "canopus"
+    },
+    {
+      "key": "pg.user",
+      "kind": "s",
+      "default": "canopus_app"
+    },
+    {
+      "key": "pg.password",
+      "kind": "s",
+      "default": ""
+    },
+    {
+      "key": "routes_dir",
+      "kind": "s",
+      "default": ""
+    },
+    {
+      "key": "route_reviewer_order",
+      "kind": "a",
+      "default": [
+        "codex",
+        "claude",
+        "kimi",
+        "opencode"
+      ]
+    },
+    {
+      "key": "route_task_limit",
+      "kind": "i",
+      "default": 12
+    },
+    {
+      "key": "route_task_messages",
+      "kind": "i",
+      "default": 40
+    },
+    {
+      "key": "route_fix_attempts",
+      "kind": "i",
+      "default": 2
+    },
+    {
+      "key": "route_worktree_ask",
+      "kind": "b",
+      "default": true
+    },
+    {
+      "key": "route_overlap_seconds",
+      "kind": "i",
+      "default": 30
+    },
+    {
+      "key": "route_keep_days",
+      "kind": "i",
+      "default": 30
+    },
+    {
+      "key": "context_drop_percent",
+      "kind": "i",
+      "default": 40
+    },
+    {
+      "key": "route_confirm_word",
+      "kind": "s",
+      "default": "задача"
+    },
+    {
+      "key": "route_over_limit_word",
+      "kind": "s",
+      "default": "сверх"
+    },
+    {
+      "key": "route_max_active",
+      "kind": "i",
+      "default": 3
+    },
+    {
+      "key": "route_tool",
+      "kind": "b",
+      "default": true
+    },
+    {
+      "key": "route_auto_propose",
+      "kind": "b",
+      "default": false
+    },
+    {
+      "key": "route_children",
+      "kind": "b",
+      "default": true
+    },
+    {
+      "key": "route_wip",
+      "kind": "b",
+      "default": true
+    },
+    {
+      "key": "wip_timeout_seconds",
+      "kind": "i",
+      "default": 300
+    },
+    {
+      "key": "agent_start_timeout_seconds",
+      "kind": "i",
+      "default": 60
+    },
+    {
+      "key": "agent_silent_minutes",
+      "kind": "i",
+      "default": 5
+    },
+    {
+      "key": "auto_extend_confidence",
+      "kind": "s",
+      "default": "high"
+    },
+    {
+      "key": "task_scope",
+      "kind": "s",
+      "default": "session"
+    },
+    {
+      "key": "voice.url",
+      "kind": "s",
+      "default": "http://127.0.0.1:8178/inference"
+    },
+    {
+      "key": "voice.language",
+      "kind": "s",
+      "default": "auto"
+    },
+    {
+      "key": "voice.managed",
+      "kind": "b",
+      "default": true
+    },
+    {
+      "key": "voice.dir",
+      "kind": "s",
+      "default": ""
+    },
+    {
+      "key": "voice.model",
+      "kind": "s",
+      "default": "small"
+    },
+    {
+      "key": "preset",
+      "kind": "s",
+      "default": "default"
+    },
+    {
+      "key": "tools_dir",
+      "kind": "s",
+      "default": ""
+    }
+  ],
+  "active_nondefault_app_keys": [
+    "web_dir",
+    "agents",
+    "hub.program"
+  ],
+  "proposal": {
+    "app": {
+      "public": [
+        "port",
+        "store",
+        "agents",
+        "pg.host",
+        "pg.port",
+        "pg.database",
+        "pg.user",
+        "voice.url",
+        "voice.language",
+        "voice.managed",
+        "voice.model",
+        "preset"
+      ],
+      "derive": [
+        "data_dir",
+        "workdir",
+        "web_dir",
+        "machines_dir",
+        "hub.program",
+        "hub.args",
+        "routes_dir",
+        "voice.dir",
+        "tools_dir"
+      ],
+      "secret": [
+        "pg.password"
+      ],
+      "internal": [
+        "idle_term_seconds",
+        "acp_trace",
+        "ask_form",
+        "ask_timeout_seconds",
+        "max_image_bytes",
+        "route_reviewer_order",
+        "route_task_limit",
+        "route_task_messages",
+        "route_fix_attempts",
+        "route_worktree_ask",
+        "route_overlap_seconds",
+        "route_keep_days",
+        "context_drop_percent",
+        "route_confirm_word",
+        "route_over_limit_word",
+        "route_max_active",
+        "route_tool",
+        "route_auto_propose",
+        "route_children",
+        "route_wip",
+        "wip_timeout_seconds",
+        "agent_start_timeout_seconds",
+        "agent_silent_minutes",
+        "auto_extend_confidence",
+        "task_scope"
+      ]
+    },
+    "plugin": {
+      "public": [
+        "project",
+        "root",
+        "exclusive_roles",
+        "inbound",
+        "task_fields",
+        "spawn_limits",
+        "inflight_limit",
+        "spawn_models",
+        "tiers",
+        "model_profiles",
+        "profile_sets",
+        "profile_set",
+        "tier_max",
+        "allow_default_models",
+        "tier_min",
+        "allow_self_assign",
+        "default_priority",
+        "accepted_slot",
+        "cleanup_limit",
+        "task_extra_fields",
+        "route_defaults",
+        "tasks_dir",
+        "machine_slots",
+        "owner_system_notify",
+        "reviewer",
+        "plans_dir",
+        "plan_rounds_max",
+        "plan_clean_rounds",
+        "plan_mode_question",
+        "plan_acceptance",
+        "plan_merge_acceptance",
+        "plan_grades",
+        "plan_approver",
+        "plan_steps",
+        "plan_template",
+        "heavy_commands",
+        "acceptance",
+        "acceptance_file",
+        "target_branch",
+        "rework_max",
+        "cleanup",
+        "merge_precheck",
+        "merge_lock_per_task",
+        "worktrees",
+        "worktree_name",
+        "branch_name",
+        "answer_mode",
+        "answer_delay_sec",
+        "answer_max",
+        "owner_language",
+        "compaction_summary",
+        "project_rules"
+      ],
+      "derive": [
+        "branch"
+      ],
+      "internal": [
+        "push_empty_turns",
+        "stall_minutes",
+        "idle_tab_minutes",
+        "step_term_minutes",
+        "step_term_by_step",
+        "step_extend_minutes",
+        "step_answer_minutes",
+        "step_questions_max",
+        "step_letters_per_pass",
+        "step_old_minutes",
+        "long_turn_minutes",
+        "accepted_reminder_min",
+        "owner_reminder_min",
+        "push_max",
+        "plan_name",
+        "plan_sections",
+        "plan_header",
+        "plan_prefix",
+        "plan_labels",
+        "plan_marks"
+      ]
+    },
+    "runtime_environment_remove": [
+      "CANOPUS_HOME",
+      "CANOPUS_PG_DATABASE",
+      "CANOPUS_PG_HOST",
+      "CANOPUS_PG_PASSWORD",
+      "CANOPUS_PG_PORT",
+      "CANOPUS_PG_USER",
+      "CANOPUS_PRESET",
+      "CANOPUS_SERVER_ACP_TRACE",
+      "CANOPUS_SERVER_AGENT",
+      "CANOPUS_SERVER_ASK_FORM",
+      "CANOPUS_SERVER_ASK_TIMEOUT_SECONDS",
+      "CANOPUS_SERVER_CONFIG",
+      "CANOPUS_SERVER_DATA_DIR",
+      "CANOPUS_SERVER_HUB",
+      "CANOPUS_SERVER_IDLE_SECONDS",
+      "CANOPUS_SERVER_MACHINES_DIR",
+      "CANOPUS_SERVER_MAX_IMAGE_BYTES",
+      "CANOPUS_SERVER_PORT",
+      "CANOPUS_SERVER_ROUTES_DIR",
+      "CANOPUS_SERVER_STORE",
+      "CANOPUS_SERVER_STT_DIR",
+      "CANOPUS_SERVER_STT_LANGUAGE",
+      "CANOPUS_SERVER_STT_MANAGED",
+      "CANOPUS_SERVER_STT_MODEL",
+      "CANOPUS_SERVER_STT_URL",
+      "CANOPUS_SERVER_WEB_DIR",
+      "CANOPUS_SERVER_WORKDIR",
+      "CANOPUS_STT_DIR",
+      "CANOPUS_TOOLS_DIR",
+      "CANOPUS_VOICE_DIR",
+      "CANOPUS_VOICE_LANGUAGE",
+      "CANOPUS_VOICE_MANAGED",
+      "CANOPUS_VOICE_MODEL",
+      "CANOPUS_VOICE_URL"
+    ]
+  },
+  "proposal2": {
+    "app": {
+      "public": [
+        "port",
+        "store",
+        "agents",
+        "voice.language",
+        "voice.model"
+      ],
+      "secret_connection_replacement": [
+        "pg.host",
+        "pg.port",
+        "pg.database",
+        "pg.user",
+        "pg.password"
+      ],
+      "derive": [
+        "data_dir",
+        "workdir",
+        "web_dir",
+        "machines_dir",
+        "hub.program",
+        "hub.args",
+        "routes_dir",
+        "voice.dir",
+        "tools_dir"
+      ],
+      "constants": [
+        "idle_term_seconds",
+        "acp_trace",
+        "ask_form",
+        "ask_timeout_seconds",
+        "max_image_bytes",
+        "route_reviewer_order",
+        "route_task_limit",
+        "route_task_messages",
+        "route_fix_attempts",
+        "route_worktree_ask",
+        "route_overlap_seconds",
+        "route_keep_days",
+        "context_drop_percent",
+        "route_confirm_word",
+        "route_over_limit_word",
+        "route_max_active",
+        "route_tool",
+        "route_auto_propose",
+        "route_children",
+        "route_wip",
+        "wip_timeout_seconds",
+        "agent_start_timeout_seconds",
+        "agent_silent_minutes",
+        "auto_extend_confidence",
+        "task_scope",
+        "voice.url",
+        "voice.managed",
+        "preset"
+      ]
+    },
+    "plugin": {
+      "public": [
+        "tasks_dir",
+        "model_profiles",
+        "profile_sets",
+        "profile_set",
+        "spawn_limits",
+        "inflight_limit",
+        "machine_slots",
+        "owner_language",
+        "answer_mode",
+        "acceptance_file"
+      ],
+      "global_identity_only": [
+        "project",
+        "root"
+      ],
+      "derive": [
+        "branch",
+        "target_branch",
+        "plans_dir",
+        "plan_name",
+        "worktrees",
+        "worktree_name",
+        "branch_name"
+      ],
+      "constants": [
+        "exclusive_roles",
+        "inbound",
+        "task_fields",
+        "spawn_models",
+        "tiers",
+        "tier_max",
+        "allow_default_models",
+        "tier_min",
+        "allow_self_assign",
+        "default_priority",
+        "accepted_slot",
+        "cleanup_limit",
+        "task_extra_fields",
+        "route_defaults",
+        "push_empty_turns",
+        "stall_minutes",
+        "idle_tab_minutes",
+        "step_term_minutes",
+        "step_term_by_step",
+        "step_extend_minutes",
+        "step_answer_minutes",
+        "step_questions_max",
+        "step_letters_per_pass",
+        "step_old_minutes",
+        "long_turn_minutes",
+        "accepted_reminder_min",
+        "owner_reminder_min",
+        "owner_system_notify",
+        "push_max",
+        "reviewer",
+        "plan_rounds_max",
+        "plan_clean_rounds",
+        "plan_sections",
+        "plan_header",
+        "plan_prefix",
+        "plan_labels",
+        "plan_marks",
+        "plan_mode_question",
+        "plan_acceptance",
+        "plan_merge_acceptance",
+        "plan_grades",
+        "plan_approver",
+        "plan_steps",
+        "plan_template",
+        "heavy_commands",
+        "acceptance",
+        "rework_max",
+        "cleanup",
+        "merge_precheck",
+        "merge_lock_per_task",
+        "answer_delay_sec",
+        "answer_max",
+        "compaction_summary",
+        "project_rules"
+      ]
+    }
+  }
+}

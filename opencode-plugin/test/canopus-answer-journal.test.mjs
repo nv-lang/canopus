@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the journal and the decision of the question-answering modes (task 007; node >= 24):
 //   node test/canopus-answer-journal.test.mjs
 // answerTurn closes the questions of the end of a turn that the settings allow to close: a record of the journal (answers/ in the
@@ -7,7 +8,7 @@
 // steps (AC-17), the text of the letter (AC-18), the rate of the check of the owner's word (AC-20), a broken journal and a failing
 // read (AC-22). The code comes from CANOPUS_PLUGIN_DIR (a copy with stubs) or from the folder above.
 import { execFile } from "node:child_process"
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, utimesSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, utimesSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { promisify } from "node:util"
@@ -181,7 +182,7 @@ const logTail = () => {
   const file = path.join(A.ANSWERS, `${rec.id}.json`)
   const j = JSON.parse(readFileSync(file, "utf8"))
   delete j.letterPostedAt
-  writeFileSync(file, JSON.stringify(j))
+  writeFixtureFile(file, JSON.stringify(j))
   const claimed = core.claimLetters(sid, `${process.pid}-${Date.now()}`)
   await pass(sid, clock + 20_000)
   cell("AC-17 без отметки", claimed.length === 1 && answerLetters(sid).length === 1 && !!recs(sid, "a")[0].letterPostedAt, JSON.stringify([claimed.length, answerLetters(sid)]))
@@ -207,7 +208,7 @@ const logTail = () => {
   const fa = path.join(A.ANSWERS, `${aRec.id}.json`)
   const ja = JSON.parse(readFileSync(fa, "utf8"))
   delete ja.letterPostedAt
-  writeFileSync(fa, JSON.stringify(ja))
+  writeFixtureFile(fa, JSON.stringify(ja))
   const tt = tasks.loadTask("proj", tA.n)
   tt.history = tt.history.filter((h) => !/\[a-/.test(h.note ?? ""))
   tasks.saveTask(tt)
@@ -339,7 +340,7 @@ const logTail = () => {
   modes(3)
   saveCard(sid)
   mkdirSync(A.ANSWERS, { recursive: true })
-  writeFileSync(path.join(A.ANSWERS, `a-${sid}-${clock - 60_000}-1.json`), "{ this is not json")
+  writeFixtureFile(path.join(A.ANSWERS, `a-${sid}-${clock - 60_000}-1.json`), "{ this is not json")
   await turn(sid, blocks([1]))
   const res = await pass(sid)
   const endAt = (await core.turnEnd(sid)).at
@@ -367,7 +368,7 @@ const logTail = () => {
   const DAY = 24 * 3_600_000
   const fake = (name, end) => {
     const file = path.join(A.ANSWERS, name)
-    writeFileSync(file, JSON.stringify({ id: name.replace(/\.json$/, ""), kind: "a", session: "sesOther", project: "proj", qn: 1, end, type: "implementation", mode: "recommendations", who: "рекомендация", question: "q", answer: "a", state: "дан", askedAt: end, answeredAt: end + 5 }))
+    writeFixtureFile(file, JSON.stringify({ id: name.replace(/\.json$/, ""), kind: "a", session: "sesOther", project: "proj", qn: 1, end, type: "implementation", mode: "recommendations", who: "рекомендация", question: "q", answer: "a", state: "дан", askedAt: end, answeredAt: end + 5 }))
     utimesSync(file, end / 1000, end / 1000) // the time of the answer is the time of the file, as it would be
   }
   for (let i = 0; i < 700; i++) fake(`a-sesOther${i % 20}-${clock - 40 * DAY + i}-1.json`, clock - 40 * DAY + i) // older than the term of the storage

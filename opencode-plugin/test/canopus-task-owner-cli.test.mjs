@@ -4,10 +4,10 @@ import { spawn, execFileSync } from "node:child_process"
 import { mkdirSync, writeFileSync, readdirSync, rmSync, existsSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { taskTestHome } from "./task-owner-harness.mjs"
+import { taskTestHome, taskTestConfig } from "./task-owner-harness.mjs"
 import { allowNativeRegistry, allowNativeEndpoint } from "./native-isolation.mjs"
 import { pathToFileURL } from "node:url"
-const home = taskTestHome("canopus-owner-cli-")
+const home = await taskTestHome("canopus-owner-cli-")
 const forms = new Map(), requests = []
 let active = false, pidDrift = false, infoReads = 0
 const server = createServer(async (req, res) => {
@@ -40,11 +40,11 @@ writeFileSync(preload, `import {allowNativeRegistry,allowNativeEndpoint} from ${
 const childEnv = { ...process.env, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ""} --import ${pathToFileURL(preload).href}` }
 
 const repo = path.join(home, "repo"), tree = path.join(home, "tree"); mkdirSync(path.join(repo, ".canopus/plugin"), { recursive: true }); mkdirSync(path.join(repo, "doc/tasks"), { recursive: true })
-writeFileSync(path.join(repo, ".canopus/plugin/config.json"), JSON.stringify({ project: "sample", tasks_dir: "doc/tasks" })); writeFileSync(path.join(repo, "doc/tasks/.gitkeep"), "")
+writeFileSync(path.join(repo, ".canopus/plugin/config.json"), JSON.stringify({ tasks_dir: "doc/tasks" })); writeFileSync(path.join(repo, "doc/tasks/.gitkeep"), "")
 const git = (...args) => execFileSync("git", ["-C", repo, ...args], { windowsHide: true, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim()
 git("init", "-q", "-b", "main"); git("config", "user.name", "Fixture"); git("config", "user.email", "fixture@example.com"); git("add", "--", ".canopus/plugin/config.json", "doc/tasks/.gitkeep"); git("commit", "-qm", "fixture"); git("worktree", "add", "-qb", "task/fixture", tree)
 const script = fileURLToPath(new URL("../../scripts/task-number.mjs", import.meta.url))
-const args = [script, "--dir", tree, "--project", "sample", "--title", "CLI approved task", "--session", "ses_cli", "--creation-reason", "new independent output", "--checked-tasks", "none", "--why-new", "no matching task exists"]
+const args = [script, "--config", taskTestConfig(home), "--dir", tree, "--project", "sample", "--title", "CLI approved task", "--session", "ses_cli", "--creation-reason", "new independent output", "--checked-tasks", "none", "--why-new", "no matching task exists"]
 const run = (argv, env = childEnv) => new Promise((resolve, reject) => {
  const p = spawn(process.execPath, argv, { windowsHide: true, env, stdio: ["ignore", "pipe", "pipe"] }); let stdout = "", stderr = ""; p.stdout.setEncoding("utf8"); p.stderr.setEncoding("utf8"); p.stdout.on("data", b => stdout += b); p.stderr.on("data", b => stderr += b); p.on("error", reject); p.on("close", code => resolve({ code, stdout, stderr }))
 })

@@ -1,12 +1,18 @@
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import os from "node:os"
-export function taskTestHome(prefix = "canopus-owner-") {
-  const root = mkdtempSync(path.join(os.tmpdir(), prefix))
+import {pathToFileURL} from "node:url"
+export const taskTestConfig = root => path.join(root, "instance", "plugin", "config.json")
+export async function taskTestHome(prefix = "canopus-owner-") {
+  const root = mkdtempSync(path.join(os.tmpdir(), prefix)), instance = path.join(root, "instance")
   process.env.XDG_DATA_HOME = path.join(root, "opencode-host")
-  process.env.CANOPUS_HOME = path.join(root, "instance")
   process.env.XDG_STATE_HOME = path.join(root, "state")
-  process.env.CANOPUS_DB = path.join(root, "absent.db")
+  await (await import("./test-home.mjs")).configureTestHome(instance)
+  ;(await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(root, "absent.db"))
+  // Real child processes must select this same instance before their static core imports.
+  const bootstrap = path.join(root, "owner-instance-bootstrap.mjs")
+  writeFileSync(bootstrap, `await (await import(${JSON.stringify(new URL("./test-home.mjs", import.meta.url).href)})).configureTestHome(${JSON.stringify(instance)});(await import(${JSON.stringify(new URL("./fixture-settings.mjs", import.meta.url).href)})).setFixtureRuntime('DB',${JSON.stringify(path.join(root,"absent.db"))});`)
+  process.env.NODE_OPTIONS = `${process.env.NODE_OPTIONS ?? ""} --import ${pathToFileURL(bootstrap).href}`
   return root
 }
 export function taskOwnerIO() {

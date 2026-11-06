@@ -1,27 +1,14 @@
-// settings.nv - the settings of the session server from a JSON file and from the environment (task 099).
-//
-// The file is a JSON object; every key is optional (see `src/server/server.example.json`):
-//   port, data_dir, store ("files" or "pg"), pg {host, port, database, user, password}, agents [{id, label, program, args}],
-//   idle_term_seconds, workdir, web_dir, machines_dir (the folder of the machines of the product, task 248), hub {program, args}, acp_trace (true by default: the raw exchange with the agent is written to
-//   <data_dir>/<session>/acp.jsonl), ask_form (true by default: the agents may ask the owner a question with a choice; see src/acp/README.md,
-//   "Questions of the agent"), ask_timeout_seconds (1800: how long the tool `ask_user_question` waits for the owner), agents[].ask (native, mcp, off), stt {url, language} (the local whisper server the front sends the voice to: `/api/stt`),
-//   max_image_bytes (the largest picture of a message, 10 MB by default; env CANOPUS_SERVER_MAX_IMAGE_BYTES)
-//   routes_dir ("doc/routes": the files of the modes of work, task 192q), route_reviewer_order (["codex","claude","kimi","opencode"]: the families of the independent reviewer),
-//   route_task_limit (12 subtasks) and route_task_messages (40 messages): over them the page is told to suggest a new task, route_fix_attempts (2: tries of the agent to resolve a conflict), route_worktree_ask (true: a subtask whose files overlap with another asks the owner for a tree of its own for route_overlap_seconds = 30, then takes it), route_keep_days (30: days without activity after which a session is marked stale and the page asks whether to delete its tree and branch; 0 - no term)
-// The environment is over the file, key by key:
-//   CANOPUS_SERVER_PORT, CANOPUS_SERVER_STORE, CANOPUS_SERVER_DATA_DIR, CANOPUS_SERVER_AGENT (the command of the one agent "opencode",
-//   words separated by spaces), CANOPUS_SERVER_WORKDIR, CANOPUS_SERVER_WEB_DIR, CANOPUS_SERVER_MACHINES_DIR, CANOPUS_SERVER_ACP_TRACE (true/false), CANOPUS_SERVER_ASK_FORM (true/false), CANOPUS_SERVER_ASK_TIMEOUT_SECONDS, CANOPUS_SERVER_STT_URL, CANOPUS_SERVER_STT_LANGUAGE, CANOPUS_SERVER_IDLE_SECONDS, CANOPUS_SERVER_HUB (the command
-//   that starts the hub, words separated by spaces) and the CANOPUS_PG_* variables of `canopus.pgconf`.
-// The file is named by the argument or, when that is empty, by CANOPUS_SERVER_CONFIG. The password lives in the environment or in a
-// file outside the repository; it is in no error and no description.
+// Runtime settings: five public fields, layered files and adjacent secrets.json.
+// Named internal defaults preserve the full resolved structure and its consumers.
+// Pure parsers accept explicit resolved input for internal callers; runtime files reject removed keys.
+// The selected config parent owns data and tools. No environment/--set/positional-file runtime layer.
 module canopus.server
 
 import canopus.pgdb.{PgConfig, parse_pg_config}
-import canopus.pgconf.{pg_config_env}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 import std.fs.{Fs, read_text, Path}
 import std.os.{Os, env}
-import canopus.config.{ConfigLayout, legacy_layout, layout_in, layout_with_data_dir, canopus_home, work_dir_now, find_project_dir, file_layers, env_layer, arg_layer, merge_layers, normalize_layer, file_text}
+import canopus.config.{ConfigLayout, Layer, ConfigSelection, parse_database_url, install_paths, layout_for_config, legacy_layout, layout_in, layout_with_data_dir, canopus_home, work_dir_now, find_project_dir, file_layers, policy_layer, retired_env_problem, env_layer, arg_layer, merge_layers, normalize_layer, file_text}
 
 /// AgentSpec: an agent the page can choose: the id the page names it by, the label, the command, and how it asks the owner (task 192i): `native` (its own
 /// tool of questions, over `elicitation/create`; the default), `mcp` (the hub gives it the MCP tool `ask_user_question` and a hint), `off` (nothing).
@@ -180,7 +167,7 @@ fn st_object(v JsonValue, what str) -> Result[JsonObject, str] {
     }
 }
 
-/// The settings from the text of a file; the text is never quoted in an error.
+/// Default instance settings; explicit file selection uses the selected variant below.
 export fn parse_server_settings(text str) -> Result[ServerSettings, str] {
     ro value = match Json.parse(text) {
         Ok(v) => v
@@ -192,7 +179,12 @@ export fn parse_server_settings(text str) -> Result[ServerSettings, str] {
     ro data_dir = st_text(o, "data_dir", "canopus-data")?
     ro store = st_text(o, "store", "files")?
     if store != "files" && store != "pg" { return Err("the store must be files or pg") }
-    ro pg = match o.get("pg") {
+    ro pg = match o.get("database_url") {
+        Some(value) => {
+            ro url = value.str() ?? ""
+            if url.byte_len() > 0 { parse_pg_config(JsonValue.object(parse_database_url(url)?).to_str())? } else { parse_pg_config("{}")? }
+        }
+        None => match o.get("pg") {
         Some(p) => {
             ro po = st_object(p, "the setting pg")?
             match parse_pg_config(JsonValue.object(po).to_str()) {
@@ -201,6 +193,7 @@ export fn parse_server_settings(text str) -> Result[ServerSettings, str] {
             }
         }
         None => parse_pg_config("{}")?
+    }
     }
     ro agents = match o.get("agents") {
         Some(list) => {
@@ -338,23 +331,25 @@ fn st_one_agent(words []str) -> []AgentSpec {
     one
 }
 
-/// The settings in the root of the instance named by CANOPUS_HOME (or the folder of the user): see `server_settings_in`.
+/// Compatibility code API: positional file and sets are rejected; the selected file determines the instance.
 export fn server_settings(file str) Os Fs -> Result[ServerSettings, str] => server_settings_in(file, canopus_home(""), []str.new())
 
-/// The settings by the layers (task 192.12, ADR-0016), the lower ones are covered by the upper: the defaults of the code, `<home>/config.json`, the file `file`
-/// (or the one named by CANOPUS_SERVER_CONFIG when `file` is empty: "the server file"), `.canopus/config.json` and `local.json` of the project (the folder the hub works in,
-/// or above it), `<home>/secrets.json`, the variables CANOPUS_*, the words `key=value` of `sets` (the arguments `--set`). `home` is the root of the instance ("" - none: the
-/// old flat layout in `canopus-data`). An old `data_dir` (a file or CANOPUS_SERVER_DATA_DIR) makes the layout flat in that folder. The error is `file:line: reason` for a broken
-/// file and never quotes the content.
-export fn server_settings_in(file str, home str, sets []str) Os Fs -> Result[ServerSettings, str] {
-    ro name = if file.byte_len() > 0 { file } else { st_env("CANOPUS_SERVER_CONFIG") ?? "" }
+/// Compatibility code API; runtime selection is file-based and retired overrides are rejected.
+export fn server_settings_in(file str, home str, sets []str) Os Fs -> Result[ServerSettings, str] => server_settings_selected(file, home, sets, "")
+
+export fn server_settings_selected(file str, home str, sets []str, config_file str) Os Fs -> Result[ServerSettings, str] {
+    if file.byte_len() > 0 || sets.len() > 0 { return Err("runtime overrides are no longer supported; use --config <file>") }
+    ro old_env = retired_env_problem()
+    if old_env.byte_len() > 0 { return Err(old_env) }
+    ro name = ""
     if name.byte_len() > 0 && file_text(name).is_none() { return Err("the settings file ${name} cannot be read") }
     ro work = work_dir_now()
     ro project = find_project_dir(work, home)
-    ro at = layout_in(home, project)
-    mut layers = file_layers(at, name)?
-    layers.push(env_layer())
-    layers.push(arg_layer(sets))
+    if config_file.byte_len() > 0 && file_text(config_file).is_none() { return Err("the config file ${config_file} cannot be read") }
+    ro at = if config_file.byte_len() > 0 { layout_for_config(ConfigSelection { file: config_file, root: home }, project) } else { layout_in(home, project) }
+    mut layers = []Layer.new()
+    layers.push(policy_layer())
+    for layer in file_layers(at, name)? { layers.push(layer) }
     ro merged = merge_layers(layers)
     ro data_set = match merged.get("data_dir") {
         Some(v) => (v.str() ?? "").byte_len() > 0
@@ -369,35 +364,27 @@ export fn server_settings_in(file str, home str, sets []str) Os Fs -> Result[Ser
         Err(e) => return Err(e)
     }
     ro layout = if data_set { layout_with_data_dir(home, parsed.data_dir, project) } else if home.byte_len() > 0 { at } else { legacy_layout(parsed.data_dir) }
+    ro installed = install_paths()
     ro base = ServerSettings {
-        port: parsed.port, data_dir: layout.sessions, store: parsed.store, pg: parsed.pg, agents: parsed.agents, idle_term_ms: parsed.idle_term_ms, workdir: parsed.workdir, web_dir: parsed.web_dir, machines_dir: parsed.machines_dir,
-        hub_program: parsed.hub_program, hub_args: parsed.hub_args, acp_trace: parsed.acp_trace, ask_form: parsed.ask_form, ask_timeout_ms: parsed.ask_timeout_ms, stt_url: parsed.stt_url,
+        port: parsed.port, data_dir: layout.sessions, store: parsed.store, pg: parsed.pg, agents: parsed.agents, idle_term_ms: parsed.idle_term_ms, workdir: parsed.workdir, web_dir: installed.web, machines_dir: installed.machines,
+        hub_program: installed.hub, hub_args: parsed.hub_args, acp_trace: parsed.acp_trace, ask_form: parsed.ask_form, ask_timeout_ms: parsed.ask_timeout_ms, stt_url: parsed.stt_url,
         stt_language: parsed.stt_language, max_image_bytes: parsed.max_image_bytes, routes_dir: if routes_set { parsed.routes_dir } else { "" }, route_reviewer_order: parsed.route_reviewer_order,
         route_task_limit: parsed.route_task_limit, route_task_messages: parsed.route_task_messages, route_fix_attempts: parsed.route_fix_attempts, route_worktree_ask: parsed.route_worktree_ask,
         route_overlap_seconds: parsed.route_overlap_seconds, route_keep_days: parsed.route_keep_days, context_drop_percent: parsed.context_drop_percent, route_confirm_word: parsed.route_confirm_word,
         route_over_limit_word: parsed.route_over_limit_word, route_max_active: parsed.route_max_active, route_tool: parsed.route_tool, route_auto_propose: parsed.route_auto_propose,
         route_children: parsed.route_children, route_wip: parsed.route_wip, wip_timeout_ms: parsed.wip_timeout_ms, agent_start_ms: parsed.agent_start_ms, agent_silent_minutes: parsed.agent_silent_minutes, layout, preset: parsed.preset, auto_extend_confidence: parsed.auto_extend_confidence, task_scope: parsed.task_scope
     }
-    // Environment is already merged below CLI arguments; validate through the shared layer.
-    ro pg_check = pg_config_env(base.pg)?
     ro pg = base.pg
-    ro port = st_env_number("CANOPUS_SERVER_PORT")?
-    ro idle = st_env_number("CANOPUS_SERVER_IDLE_SECONDS")?
     ro agents = base.agents
     ro hub_program = base.hub_program
     ro hub_args = base.hub_args
-    // the variables are already a layer of `base` (env_layer), under the arguments; here they are only checked, a wrong one is named
     ro idle_term_ms = base.idle_term_ms
-    ro trace_check = st_env_flag("CANOPUS_SERVER_ACP_TRACE", base.acp_trace)?
-    ro form_check = st_env_flag("CANOPUS_SERVER_ASK_FORM", base.ask_form)?
-    ro ask_check = st_env_number("CANOPUS_SERVER_ASK_TIMEOUT_SECONDS")?
     ro acp_trace = base.acp_trace
     ro ask_form = base.ask_form
     ro ask_timeout_ms = base.ask_timeout_ms
     ro stt_url = base.stt_url
     ro stt_language = base.stt_language
     st_stt_check(stt_url, stt_language)?
-    ro image_limit = st_env_number("CANOPUS_SERVER_MAX_IMAGE_BYTES")?
     ro max_image_bytes = base.max_image_bytes
     st_image_limit_check(max_image_bytes)?
     ro merged = ServerSettings {

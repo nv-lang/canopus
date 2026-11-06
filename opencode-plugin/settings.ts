@@ -1,28 +1,15 @@
-// ПРОЕКТЫ И ИХ НАСТРОЙКИ (план 002, решение №12, 2026-10-05).
-//
-// Проект бывает виртуальным: C:/work/nova — папка с многими репозиториями, сама не репозиторий. Поэтому
-// настройки проекта живут в РЕПОЗИТОРИИ НАСТРОЕК, а не в рабочей папке вкладки:
-//   opencode.jsonc:  "options": { "project_settings": ["C:/work/nova/nova-settings", "C:/work/tools"] }
-//   <папка>/.canopus/plugin/config.json:  { "project": "nova", "root": "..", ... }
-// Папка — любая внутри git-репозитория. Имя проекта — поле "project" (нет — имя папки); корень — "root" от папки
-// (нет — сама папка). Файл читается ЗАКОММИЧЕННЫМ из ветки по умолчанию (`git show <ветка>:<путь>`; другая ветка —
-// поле "branch"): незакоммиченная правка не действует, worktree и ветки кода на настройки не влияют.
-//
-// Ключ называется project_settings: он перечисляет папки настроек, а не проекты (задача 089). Прежнее имя `projects` — синоним:
-// читается, если project_settings не задан; заданы оба — действует project_settings, canopus_doctor говорит о расхождении.
-//
-// Прежняя форма опций `{ "nova": "C:/work/nova" }` (только под именем `projects`) читается дальше: имя → корень, а настройки — по-старому
-// из `.canopus/plugin/config.json` вверх от каталога вкладки (рабочая копия). Старое имя nova-peers.json больше не
-// читается (решение №16 плана 002 выполнено: nv-lang перешёл на репозиторий настроек 2026-10-05).
-//
-// Машинно-зависимое (модели по ступеням) — необязательная поправка в опциях плагина:
-//   "options": { "project_settings": [...], "local": { "nova": { "spawn_models": { "light": "kimi/k3" } } } }
+import { runtimeValue } from "./runtime-policy.ts"
+// Project settings are accepted from the canonical primary Git worktree's default branch.
+// Global project_settings accepts repository folders or explicit virtual {project, root} definitions.
+// Shared config contains ten public settings only; private local layers have higher precedence.
+// Registration selects a file; retired aliases and shared identity overrides are rejected.
 
 import { execFileSync } from "node:child_process"
 import { background, gitAsync } from "./async-git.ts"
 import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs"
 import path from "node:path"
-import { settingsLayers, validateTasksDir } from "./plugin-config.ts"
+import { validateProjectSettings, resolveProjectPolicy } from "./resolved-policy.ts"
+import { settingsLayers, settingsWithOrigins, validateTasksDir } from "./plugin-config.ts"
 import { log, safeKey } from "./core.ts"
 import { answerNotes } from "./answer-parse.ts"
 import { BASE } from "./base.ts"
@@ -85,6 +72,24 @@ function* defaultBranch(repo: string): GitGen<string> {
   return "main"
 }
 
+const defaultBranches = new Map<string, { at: number; branch: string }>()
+
+/** The accepted branch, independent of the branch of a task's linked worktree. */
+export function repositoryDefaultBranch(directory: string): string {
+  const identity = mainTreeOf(directory) ?? directory
+  const cached = defaultBranches.get(identity)
+  const now = Date.now()
+  if (cached && now - cached.at < runtimeValue("DEFAULT_BRANCH_CACHE_MS")) return cached.branch
+  const steps = defaultBranch(identity)
+  let row = steps.next()
+  while (!row.done) {
+    try { row = steps.next(git(row.value[0], row.value[1])) }
+    catch (error) { row = steps.throw(error) }
+  }
+  defaultBranches.set(identity, { at: now, branch: row.value })
+  return row.value
+}
+
 /** Закоммиченный файл настроек: текст из ветки или undefined. */
 function* showCommitted(repo: string, branch: string, file: string): GitGen<string | undefined> {
   try {
@@ -104,7 +109,7 @@ const parseJson = (text: string | undefined): any => {
 }
 
 // Прочитанные файлы настроек — на несколько секунд (инструменты зовут настройки на каждое письмо, git — процесс).
-const CACHE_MS = Number(process.env.CANOPUS_SETTINGS_TTL_MS) || 5_000
+const CACHE_MS = runtimeValue("SETTINGS_TTL_MS")
 const cache = new Map<string, { at: number; value: any }>()
 const good = new Map<string, any>() // последние настройки без проблем, по папке
 
@@ -128,10 +133,6 @@ function* settingsBody(dir: string): GitGen<Folder> {
     branch = yield* defaultBranch(repo)
     let j = parseJson(yield* showCommitted(repo, branch, file))
     // Retired filenames are diagnosed below, never read as a fallback.
-    if (j && typeof j.branch === "string" && j.branch && j.branch !== branch) {
-      branch = j.branch
-      j = parseJson(yield* showCommitted(repo, branch, file))
-    }
     if (j === undefined) {
       // файл в рабочей копии есть, а в ветке нет — его просто не закоммитили (claude-limits, 2026-10-07: приёмка
       // проекта сутки не действовала, а самопроверка говорила только «нет файла»)
@@ -143,11 +144,12 @@ function* settingsBody(dir: string): GitGen<Folder> {
       )
     }
     else if (j === null) problems.push(`${file} в ветке ${branch} — не JSON; настройки по умолчанию`)
-    else raw = j
+    else { validateProjectSettings(j, "committed project file"); raw = j }
   }
-  const name = String(raw.project ?? path.basename(dir)).toLowerCase()
+  const main = mainTreeOf(dir)
+  const name = path.basename(main ?? repo ?? dir).toLowerCase()
   if (!PROJECT_RE.test(name)) problems.push(`имя проекта «${name}» не годится: строчные латинские буквы, цифры, дефис`)
-  const rootAbs = path.resolve(dir, typeof raw.root === "string" && raw.root ? raw.root : ".")
+  const rootAbs = main ?? repo ?? dir
   if (!existsSync(rootAbs)) problems.push(`корень проекта ${name} (${rootAbs}) не существует`)
   let value = { project: { name, root: normPath(rootAbs), rootPath: canon(rootAbs), dir, repo, file, branch, problems, ...(legacy ? { legacy } : {}) }, raw }
   // ПОСЛЕДНИЕ ХОРОШИЕ НАСТРОЙКИ (2026-10-05): под нагрузкой git не ответил — и плагин молча взял умолчания: задача #6
@@ -169,6 +171,7 @@ function* settingsBody(dir: string): GitGen<Folder> {
         last = JSON.parse(readFileSync(goodFile, "utf8"))
       } catch {}
     if (last && !last.project?.problems?.length) {
+      validateProjectSettings(last.raw ?? {}, "last good project cache")
       log(`settings of ${dir}: ${problems.join("; ")} -- using the last good ones`)
       value = last
     }
@@ -238,7 +241,8 @@ const given = (v: unknown) => v !== undefined && v !== null
 
 /** Значение ключа папок настроек: project_settings, а если он не задан — projects. */
 export function projectsOption(opt: any): any {
-  return given(opt?.[PROJECT_SETTINGS_KEY]) ? opt[PROJECT_SETTINGS_KEY] : opt?.[PROJECTS_KEY_OLD]
+  if (given(opt?.[PROJECTS_KEY_OLD])) throw new Error("Canopus projects was removed; use project_settings in the config file")
+  return opt?.[PROJECT_SETTINGS_KEY] ?? []
 }
 
 /** Записи значения ключа для сравнения: список — папки, прежняя форма — «имя: корень». */
@@ -279,19 +283,12 @@ export function parseProjects(opt: any, log: (s: string) => void = () => {}): Pr
     for (const folder of list) {
       if (typeof folder === "string" && folder) out.push(readSettingsFolder(folder).project)
       else if (folder && typeof folder === "object" && PROJECT_RE.test(folder.project) && typeof folder.root === "string" && path.isAbsolute(folder.root)) {
+        if (Object.keys(folder).some(key => key !== "project" && key !== "root")) throw new Error("project_settings: virtual definitions accept only project and root")
         // A project can be configured globally without editing a foreign repository.
         out.push({ name: folder.project, root: normPath(folder.root), rootPath: canon(folder.root) })
       } else throw new Error("project_settings: expected a settings directory or {project, root: absolute path}")
     }
-  } else
-    for (const [name, root] of Object.entries(list ?? {})) {
-      const n = String(name).toLowerCase()
-      if (!PROJECT_RE.test(n) || typeof root !== "string" || !root) {
-        log(`project ignored: ${name} -> ${root}`)
-        continue
-      }
-      out.push({ name: n, root: normPath(root), rootPath: canon(root) })
-    }
+  } else throw new Error("project_settings: expected an array")
   // проверки, которые видны только по всему списку
   const byName = new Map<string, Project[]>()
   for (const p of out) byName.set(p.name, [...(byName.get(p.name) ?? []), p])
@@ -337,7 +334,11 @@ export function projectFor(dir: string, projects: Projects, name?: string): Proj
   const hit = rootMatch(normPath(dir), projects)
   if (hit) return hit
   const main = mainTreeOf(dir)
-  return main ? rootMatch(normPath(main), projects) : undefined
+  if (!main) return undefined
+  const registered = rootMatch(normPath(main), projects)
+  if (registered) return registered
+  const inferred = readSettingsFolder(main).project
+  return { ...inferred, name: inferred.name.replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "") || "local" }
 }
 
 /** Каталог dir лежит под корнем проекта p (а не найден по имени или как рабочее дерево вне корня). */
@@ -353,15 +354,16 @@ export const outsideProject = (dir: string): string =>
   `папка вкладки ${dir.replace(/\\/g, "/")} не относится к проекту: она вне корней проектов плагина (opencode.jsonc) и не рабочее дерево репозитория проекта — открой вкладку в папке проекта или в рабочем дереве его задачи`
 
 /** Сырые настройки проекта: файл из репозитория настроек (+ локальная поправка) или прежний поиск вверх от каталога. */
-export function rawSettingsFor(dir: string, projects: Projects, local: Record<string, any> = {}, name?: string): any {
+export function settingsForWithOrigins(dir: string, projects: Projects, local: Record<string, any> = {}, name?: string): { values: any; origins: Record<string, string> } {
   const p = projectFor(dir, projects, name)
-  let raw: any
-  if (p?.dir) raw = readSettingsFolder(p.dir).raw
-  else raw = legacyWalk(legacyBase(dir, p))
-  const over = p ? local[p.name] : undefined
-  const result = settingsLayers(raw, p?.dir ?? mainTreeOf(dir) ?? dir, over, p?.name)
-  if (typeof result.tasks_dir === "string") result.tasks_dir = validateTasksDir(result.tasks_dir)
+  const main = mainTreeOf(dir)
+  const raw = p?.dir ? readSettingsFolder(p.dir).raw : main ? readSettingsFolder(main).raw : {}
+  const result = settingsWithOrigins(raw, p?.dir ?? p?.rootPath ?? main ?? dir, p ? local[p.name] : {}, p?.name)
+  if (typeof result.values.tasks_dir === "string") result.values.tasks_dir = validateTasksDir(result.values.tasks_dir)
   return result
+}
+export function rawSettingsFor(dir: string, projects: Projects, local: Record<string, any> = {}, name?: string): any {
+  return settingsForWithOrigins(dir, projects, local, name).values
 }
 
 // Прежняя форма: `.canopus/plugin/config.json` вверх от каталога вкладки, рабочая копия.
@@ -475,13 +477,12 @@ export function settingsProblems(projects: Projects, local: Record<string, any> 
     const w = divergenceProblem(p.name, configDivergence(p.repo, p.file, p.branch))
     if (w) out.push(w)
   }
-  out.push(...legacyProblems(projects))
   // проект без определённых моделей: canopus_spawn откажет (задача 033)
   for (const p of projects) {
     if (p.problems?.length) continue // нет читаемых настроек — об этом уже сказано выше
-    if (!modelsDefined(rawSettingsFor(p.rootPath ?? p.root, projects, local))) out.push(`${unconfiguredLine(p.name)} (нет profile_set, spawn_models и allow_default_models: canopus_spawn откажет; canopus_config {action: "apply_template"} или canopus_config guide)`)
+    const raw = rawSettingsFor(p.rootPath ?? p.root, projects, local)
+    const configured = { ...raw, allow_default_models: resolveProjectPolicy(raw, p.dir ?? p.rootPath ?? p.root).allow_default_models }
+    if (!modelsDefined(configured)) out.push(`${unconfiguredLine(p.name)} (нет включённого profile_set: canopus_spawn требует явную модель; canopus_config {action: "apply_template"} или canopus_config guide)`)
   }
-  const old = projects.filter((p) => !p.dir).map((p) => p.name)
-  if (old.length) out.push(`проекты ${old.join(", ")} заданы прежней формой опций (имя → корень); новая — список папок настроек: "project_settings": ["<папка с .canopus/plugin/config.json>"], файл называет проект и root (doc/archive/plans/002-tasks.md, «Где живут настройки проекта»)`)
   return [...new Set(out)]
 }

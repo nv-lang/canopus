@@ -7,10 +7,10 @@ import { pathToFileURL } from "node:url"
 
 const [tmp, session, nowArg, startArg] = process.argv.slice(2)
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_DB = path.join(tmp, "opencode.db")
-process.env.CANOPUS_SETTINGS_TTL_MS = "1"
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "opencode.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("SETTINGS_TTL_MS", "1")
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const plugin = process.env.CANOPUS_PLUGIN_DIR ? path.resolve(process.env.CANOPUS_PLUGIN_DIR) : path.join(import.meta.dirname, "..")
 const load = (f) => import(pathToFileURL(path.join(plugin, f)).href)
 const core = await load("core.ts")

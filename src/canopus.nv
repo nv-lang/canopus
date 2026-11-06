@@ -1,22 +1,23 @@
 // canopus.nv - the entry point of the canopus binary (task 099): the session server, its front. It serves the page
 // of src/web/ and the WebSocket /ws on 127.0.0.1 and starts the hub (src/canopus_hub.nv) as a child process. Task 192.12 adds the commands of the configuration.
-//   canopus serve [settings.json] [--home <folder>] [--set key=value ...]
+//   canopus [serve] [--config <file>]
 //   canopus config list [--show-origin] | get <key> [--show-origin] | set <key> <value> [--project|--local]
 //   canopus doctor
 //   canopus migrate [--from <data_dir>] [--dry-run]
-//   canopus                            prints the version and the usage and ends (a test of the entry point runs it)
-// The root of the instance (`CANOPUS_HOME`) is the argument `--home`, else the variable CANOPUS_HOME, else `~/.canopus`; see src/server/README.md, "Where things lie".
+//   canopus                            starts the default application instance
+// The selected config parent is the instance root; default ~/.canopus/config.json.
 // Build both programs: nova build src/canopus_hub.nv -o target/canopus-hub.exe; nova build src/canopus.nv -o target/canopus.exe
 module canopus.canopus
 
-import canopus.server.front.{run_front_with_metadata, front_settings_in, FrontSettings}
+import canopus.server.front.{run_front_with_metadata, front_settings_selected, FrontSettings}
 import canopus.model_metadata.{MetadataInput, MetadataHook, static_hook, default_opencode_program}
-import canopus.config.{split_cli_args, canopus_home, layout_in, find_project_dir, work_dir_now, config_list, config_get, config_set, doctor, command_layers, effective_entries, plan_migration, plan_text, run_migration, ConfigLayout, CliArgs}
+import canopus.config.{split_cli_args, canopus_home, layout_in, find_project_dir, work_dir_now, config_list, config_get, config_set, doctor, command_layers, effective_entries, plan_migration, plan_text, run_migration, ConfigLayout, ConfigSelection, claim_instance, retired_env_problem, select_config, layout_for_config, CliArgs}
 import std.os.{args, exit_process, env}
 import std.io.{stderr}
 import std.time.{Time}
 
-const USAGE = "canopus 0.1.0 - usage:\n  canopus serve [settings.json] [--home <folder>] [--set key=value]\n  canopus config list [--show-origin]\n  canopus config get <key> [--show-origin]\n  canopus config set <key> <value> [--project|--local]\n  canopus doctor\n  canopus migrate [--from <data_dir>] [--dry-run]\n(the root of the instance: --home <folder>, else CANOPUS_HOME, else ~/.canopus; --file <settings.json> names the server file for config, doctor and migrate)"
+const USAGE = "canopus 0.1.0 - usage:\n  canopus [serve] [--config <file>]\n  canopus config list [--show-origin]\n  canopus config get <key> [--show-origin]\n  canopus config set <key> <value> [--project|--local]\n  canopus doctor\n  canopus migrate [--from <data_dir>] [--dry-run]\n(default config: ~/.canopus/config.json; its parent owns secrets.json and instance data)"
+
 
 fn fail(text str) Os Io -> () {
     mut err = stderr()
@@ -25,13 +26,7 @@ fn fail(text str) Os Io -> () {
 }
 
 // Where the root came from, for `doctor`.
-fn home_source(arg_home str) Os -> str {
-    if arg_home.byte_len() > 0 { return "--home" }
-    match env("CANOPUS_HOME") {
-        Some(v) => if v.byte_len() > 0 { "CANOPUS_HOME" } else { "the folder of the user" }
-        None => "the folder of the user"
-    }
-}
+fn home_source(arg_home str) Os -> str => "the folder of the user"
 
 /// OptionTaken: the value of `--name value` ("" - none) and the words without it.
 type OptionTaken { value str, rest []str }
@@ -81,10 +76,16 @@ fn metadata_input_of(settings FrontSettings) Os Fs -> Option[MetadataInput] {
 }
 
 fn cmd_serve(cli CliArgs) Proc Net Time Detach Io Os Fs -> () {
-    ro file = if cli.rest.len() > 2 { cli.rest[2] } else { "" }
-    ro home = canopus_home(cli.home)
+    if cli.rest.len() > 2 { return fail("serve no longer takes a settings file; use --config <file>") }
+    ro selected = if cli.config.byte_len() > 0 {
+        match select_config(cli.config, work_dir_now(), "") { Ok(s) => s, Err(reason) => return fail(reason) }
+    } else { ConfigSelection { file: "", root: canopus_home(cli.home) } }
+    ro file = if selected.file.byte_len() == 0 && cli.rest.len() > 2 { cli.rest[2] } else { "" }
     mut pass = []str.new()
-    if cli.home.byte_len() > 0 {
+    if selected.file.byte_len() > 0 {
+        pass.push("--config")
+        pass.push(selected.file)
+    } else if cli.home.byte_len() > 0 {
         pass.push("--home")
         pass.push(cli.home)
     }
@@ -92,9 +93,10 @@ fn cmd_serve(cli CliArgs) Proc Net Time Detach Io Os Fs -> () {
         pass.push("--set")
         pass.push(s)
     }
-    match front_settings_in(file, home, cli.sets) {
+    match front_settings_selected(file, selected.root, cli.sets, selected.file) {
         Err(reason) => fail(reason)
         Ok(settings) => {
+            match claim_instance(settings.layout.home, "app") { Ok(done) => (), Err(reason) => return fail(reason) }
             // the effects of metadata_input_of are already in this signature; the handler comes
             // from the caller (one with at the entry, the module-conventions rule)
             ro input = metadata_input_of(settings)
@@ -106,13 +108,19 @@ fn cmd_serve(cli CliArgs) Proc Net Time Detach Io Os Fs -> () {
     }
 }
 
-fn layout_now(cli CliArgs) Os Fs -> ConfigLayout {
+fn layout_now(cli CliArgs) Os Fs -> Result[ConfigLayout, str] {
+    if cli.config.byte_len() > 0 {
+        ro selected = select_config(cli.config, work_dir_now(), "")?
+        claim_instance(selected.root, "app")?
+        return Ok(layout_for_config(selected, find_project_dir(work_dir_now(), selected.root)))
+    }
     ro home = canopus_home(cli.home)
-    layout_in(home, find_project_dir(work_dir_now(), home))
+    claim_instance(home, "app")?
+    Ok(layout_in(home, find_project_dir(work_dir_now(), home)))
 }
 
 fn cmd_config(cli CliArgs) Os Fs Io -> () {
-    ro layout = layout_now(cli)
+    ro layout = match layout_now(cli) { Ok(l) => l, Err(reason) => return fail(reason) }
     mut words = []str.new()
     mut i = 2
     while i < cli.rest.len() {
@@ -147,15 +155,15 @@ fn cmd_config(cli CliArgs) Os Fs Io -> () {
 }
 
 fn cmd_doctor(cli CliArgs) Os Fs Io -> () {
-    ro layout = layout_now(cli)
+    ro layout = match layout_now(cli) { Ok(l) => l, Err(reason) => return fail(reason) }
     ro file = take_option(cli.rest, "--file")
-    ro report = doctor(layout, file.value, home_source(cli.home), work_dir_now())
+    ro report = doctor(layout, file.value, if cli.config.byte_len() > 0 { "--config" } else { home_source(cli.home) }, work_dir_now())
     println(report.text)
     if report.errors > 0 { exit_process(1) }
 }
 
 fn cmd_migrate(cli CliArgs) Os Fs Time Io -> () {
-    ro layout = layout_now(cli)
+    ro layout = match layout_now(cli) { Ok(l) => l, Err(reason) => return fail(reason) }
     ro from = take_option(cli.rest, "--from")
     ro dry = take_flag(from.rest, "--dry-run")
     ro file = take_option(dry.rest, "--file")
@@ -187,12 +195,16 @@ fn cmd_migrate(cli CliArgs) Os Fs Time Io -> () {
 fn main() Os Fs Proc Net Time Detach Io -> () {
     ro cli = split_cli_args(args())
     if cli.error.byte_len() > 0 { return fail(cli.error) }
+    ro old_env = retired_env_problem()
+    if old_env.byte_len() > 0 { return fail(old_env) }
     if cli.rest.len() < 2 {
-        println(USAGE)
+        cmd_serve(cli)
         return
     }
     ro verb = cli.rest[1]
-    if verb == "serve" {
+    if verb == "--help" || verb == "-h" {
+        println(USAGE)
+    } else if verb == "serve" {
         cmd_serve(cli)
     } else if verb == "config" {
         cmd_config(cli)

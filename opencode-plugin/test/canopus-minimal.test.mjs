@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the minimal /canopus screen (task 077; node >= 24):  node test/canopus-minimal.test.mjs
 // The owner (2026-10-17): "в /canopus нужно уменьшить количество текста до минимума, оставшийся сделай на анг., общается crew должен — дословно; guard-allow(legacy-name): дословное слово владельца 2026-10-17
 // на моем языке". /canopus (formatStatuses) shows, per project: the name, the tabs that wait for the owner (the question as is, on its own
@@ -10,13 +11,13 @@
 // The snapshot below is a live-like set: a tab waiting for the owner, a task without a folder with a question (rows), a task without a
 // folder that asks nothing (one line), a task with a folder (live and finished sessions), a watch, a reply, a stalled tab, an
 // approval plan, a running plan, an accepted-and-uncleaned task, a report, a stale ask, a project with only an idle tab.
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-minimal-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 const status = await import("../status.ts")
 const progress = await import("../progress.ts")
 const tasks = await import("../tasks.ts")
@@ -51,7 +52,7 @@ tasks.saveTask(unclean)
 for (let k = 1; k <= tasks.ACCEPTED_REMINDERS_MAX; k++) {
   const dir = path.join(core.INBOX, core.safeKey("sesAUTH"))
   mkdirSync(dir, { recursive: true })
-  writeFileSync(path.join(dir, `${tasks.acceptedReminderId(unclean, acceptedAt, k)}.json`), JSON.stringify({ time: NOW }))
+  writeFixtureFile(path.join(dir, `${tasks.acceptedReminderId(unclean, acceptedAt, k)}.json`), JSON.stringify({ time: NOW }))
 }
 const merged = mk("Разобрать receipt", "done", { steps: [{ id: "s1", text: "t" }], checks: { s1: "ok" } })
 

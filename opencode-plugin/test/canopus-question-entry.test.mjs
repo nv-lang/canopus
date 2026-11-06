@@ -1,13 +1,14 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // 280: regression through the real canopus_send entry, not just the standalone state machine.
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync } from "node:fs"
 import os from 'node:os'
 import path from 'node:path'
 const tmp = mkdtempSync(path.join(os.tmpdir(), 'canopus-question-entry-'))
 for (const k of ['XDG_DATA_HOME', 'XDG_STATE_HOME', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'TEMP', 'TMP', 'TMPDIR']) process.env[k] = tmp
-process.env.CANOPUS_HOME = path.join(tmp, "opencode")
-process.env.CANOPUS_DB = path.join(tmp, 'absent.db')
-process.env.CANOPUS_PRESENCE = 'all'
+;await (await import("./test-home.mjs")).configureTestHome(path.join(tmp, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, 'absent.db'))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", 'all')
 globalThis.fetch = async () => { throw new Error('unexpected real transport') }
 try {
   const core = await import('../core.ts')
@@ -60,7 +61,7 @@ try {
   mkdirSync(path.join(WATCH_DIR, 'sample'), { recursive: true })
   const holdFile = path.join(WATCH_DIR, 'sample', `${held.n}.json`)
   const holdRecord = { project: 'sample', n: held.n, hold: { kind: 'HOLD', at: 1, who: 'fixture legacy hold' } }
-  writeFileSync(holdFile, JSON.stringify(holdRecord))
+  writeFixtureFile(holdFile, JSON.stringify(holdRecord))
   const refused = await tools.find(t => t.name === 'canopus_task').execute({ action: 'rework', n: held.n, candidate: 'd7e541a7818e86b12bb9748aba38dc6e8450c879', text: 'Не снимать legacy HOLD' }, integrator.session)
   assert.match(refused.content, /HOLD/)
   assert.equal(loadTask('sample', held.n).status, 'submitted')
@@ -68,11 +69,11 @@ try {
   assert.match(core.questionExecutionBlock({ questionCanReply: () => undefined }, 'sample', held.n), /HOLD/, 'host override cannot silently release durable legacy HOLD')
   for (const scope of ['execution', 'external', 'gate']) {
     const scoped = { ...holdRecord, hold: { ...holdRecord.hold, scope, gate: true, ...(scope === 'external' ? { wait: { id: 'fixture-current-ci', deadline: 1_000_000 } } : {}) } }
-    writeFileSync(holdFile, JSON.stringify(scoped))
+    writeFixtureFile(holdFile, JSON.stringify(scoped))
     assert.equal(!!core.questionExecutionBlock({}, 'sample', held.n), scope === 'execution')
     assert.deepEqual(core.readJson(holdFile), scoped, 'question adapter never clears or migrates HOLD')
   }
-  writeFileSync(holdFile, JSON.stringify(holdRecord))
+  writeFixtureFile(holdFile, JSON.stringify(holdRecord))
   const next = { ...integrator, session: 'ses_fixture_new_integrator' }
   core.saveCard(next); core.takeExclusive('sample.integrator', 'integrator', next.session, true)
   assert.equal(core.questionRouterFor(host).deps.target({ project: 'sample', task: small.n, session: worker.session }), next.session, 'stale task.author role cannot override the current integrator lock')
@@ -80,7 +81,7 @@ try {
   host.questionInspectText = async () => ({ state: 'pending' })
   mkdirSync(path.join(root, 'doc'), { recursive: true })
   const textSource = 'Фикстура: команда Alula проверена по служебному артефакту; разрешений владельца не выдаёт.'
-  writeFileSync(path.join(root, 'doc', 'source.md'), textSource)
+  writeFixtureFile(path.join(root, 'doc', 'source.md'), textSource)
   const { digest } = await import('../question-routing.ts')
   const qtool = tools.find(t => t.name === 'canopus_question')
   await qtool.execute({ action: 'ask', text: 'Где проверенная команда Alula?', context: 'Нужен факт, не новое разрешение.' }, worker.session)

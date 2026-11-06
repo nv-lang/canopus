@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the two screens that open after a choice (task 075; node >= 24):
 //   node test/canopus-set-screens.test.mjs
 // The screen after `use` (also the answer of Enter on a set): the stages by human words (work / review), a model per stage instead of
@@ -7,7 +8,7 @@
 // words, whether the enabled set uses it now. Snapshots on: codex -> kimi, no change, different models, split stages, no set
 // enabled, a project with a tier bound, a family nobody uses.
 import { execFileSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
@@ -15,13 +16,13 @@ const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-set-screens-"))
 process.env.TEMP = tmp
 process.env.TMP = tmp
 process.env.XDG_DATA_HOME = path.join(tmp, "data")
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 process.env.XDG_CONFIG_HOME = path.join(tmp, "xdgcfg")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_PROFILES_MS = "100000"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-process.env.CANOPUS_SETTINGS_TTL_MS = "600000"
-process.env.CANOPUS_PRESENCE = "all"
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PROFILES_MS", "100000")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("SETTINGS_TTL_MS", "600000")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
 
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
 const prof = (model, context, output, input) => ({ model, context, output, ...(input ? { input } : {}) })
@@ -48,16 +49,16 @@ mkdirSync(path.join(cfgDir, ".opencode"), { recursive: true }); mkdirSync(path.j
 const file = path.join(cfgDir, ".canopus", "plugin", "config.json")
 const base = { project: "readproj", root: ".." }
 git(cfgDir, "init", "-q", "-b", "main")
-writeFileSync(file, JSON.stringify({ ...base, model_profiles: TABLE, profile_sets: SETS }, null, 2))
+writeFixtureFile(file, JSON.stringify({ ...base, model_profiles: TABLE, profile_sets: SETS }, null, 2))
 git(cfgDir, "add", "-A")
 git(cfgDir, "commit", "-q", "-m", "settings")
 mkdirSync(path.join(process.env.XDG_CONFIG_HOME, "opencode"), { recursive: true })
-writeFileSync(path.join(process.env.XDG_CONFIG_HOME, "opencode", "opencode.jsonc"), "{}\n")
+writeFixtureFile(path.join(process.env.XDG_CONFIG_HOME, "opencode", "opencode.jsonc"), "{}\n")
 // the statuses of the plugin (status/<session>.json): what the screen counts as the running sessions
 const statusDir = path.join(process.env.XDG_DATA_HOME, "opencode", "plugin", "data", "status")
 mkdirSync(statusDir, { recursive: true })
 const st = (id, project, model, task, extra = {}) =>
-  writeFileSync(path.join(statusDir, `${id}.json`), JSON.stringify({ session: id, project, role: task ? "worker" : "integrator", title: "", model, state: "working", detail: "x", watches: [], asked: [], tasks: [], updated: Date.now(), ...(task ? { task } : {}), ...extra }))
+  writeFixtureFile(path.join(statusDir, `${id}.json`), JSON.stringify({ session: id, project, role: task ? "worker" : "integrator", title: "", model, state: "working", detail: "x", watches: [], asked: [], tasks: [], updated: Date.now(), ...(task ? { task } : {}), ...extra }))
 st("s1", "readproj", "openai/gpt-6-luna#default", { n: 94, status: "running", as: "executor", title: "Выпустить Windows seed" })
 st("s2", "readproj", "openai/gpt-6.1-sol#default", { n: 98, status: "submitted", as: "reviewer", title: "Проверить контракты" })
 st("s3", "readproj", `${KIMI}#low`, { n: 99, status: "running", as: "executor", title: "Одна строка, которая заметно длиннее сорока знаков" })
@@ -165,14 +166,14 @@ cell("use when no set was enabled: no `(был …)`, the old side is `по spaw
 {
   const raw = JSON.parse(readFileSync(file, "utf8"))
   raw.tier_max = "light"
-  writeFileSync(file, JSON.stringify(raw, null, 2))
+  writeFixtureFile(file, JSON.stringify(raw, null, 2))
   git(cfgDir, "commit", "-q", "-a", "-m", "tier bound")
   bump()
   await sets("use kimiset")
   r = await sets("use codexset")
   cell("use with tier_max light: one name per stage (the bound cut the tiers) and a line naming the bound", lines(r)[1] === "Работа:   luna  (было k3-256k)" && lines(r)[2] === "Приёмка:  luna  (было те же)" && lines(r).includes("Ступени ограничены проектом: не выше light (tier_max).") && /Контекст модели: 525K, ввод 461K, вывод до 128K \(у «kimiset» было 220K, вывод до 131072\)\./.test(r), r)
   delete raw.tier_max
-  writeFileSync(file, JSON.stringify(raw, null, 2))
+  writeFixtureFile(file, JSON.stringify(raw, null, 2))
   git(cfgDir, "commit", "-q", "-a", "-m", "tier bound off")
   bump()
 }

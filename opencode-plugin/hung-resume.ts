@@ -1,3 +1,4 @@
+import { runtimeValue } from "./runtime-policy.ts"
 // САМОВОССТАНОВЛЕНИЕ ЗАВИСШЕГО ХОДА (задача 048; владелец, 2026-10-15: «я не хочу это делать вручную, если это требуется
 // обязательно делать, автоматизируй»). Ход, который задача 036 признала зависшим (core.ts hungTurn), плагин прерывает сам —
 // ctx.session.interrupt({sessionID, resume: true}), тот же вызов, что делает окно по Esc, — и будит вкладку письмом «продолжай».
@@ -9,9 +10,9 @@ import { hhmm } from "./core.ts"
 export const RESUME_PER_HOUR = 2
 export const RESUME_WINDOW_MS = 60 * 60_000
 /** Сколько ждать после успешной попытки, пока ход того же зависания не сдвинется: потом — владельцу. */
-export const RESUME_GRACE_MS = Number(process.env.CANOPUS_RESUME_GRACE_MS) || 5 * 60_000
+export const RESUME_GRACE_MS = runtimeValue("RESUME_GRACE_MS")
 /** Предел ожидания ответа interrupt: зависший вызов не держит проход сводки. */
-const INTERRUPT_MS = Number(process.env.CANOPUS_STEP_MS) || 30_000
+const INTERRUPT_MS = runtimeValue("STEP_MS")
 
 /** Попытка: зависание (since — время последней активности модели), когда пробовали, удалась ли. */
 export type ResumeTry = { since: number; at: number; ok: boolean }

@@ -9,15 +9,16 @@
 // THE ONLY WAY TO `git push` is `tw_push`, called from `tw_publish_tail` alone, which is the end of `publish` and `publish_continue`; a push
 // is never forced and is made only from a head that is a descendant of `origin/main`. `taskwt_test.nv` greps this file for it.
 //
-// Debug: when the environment variable `CANOPUS_GIT_LOG` names a file, every call of git adds one line there (`<dir> | <arguments>`, redacted).
+// Optional internal redacted logging is a code constant. Standard Git GIT_TRACE remains available for diagnostics.
 module canopus.server
 
 import std.text
 import std.fs.{Fs, read_text, write_text, try_exists, remove_dir, remove_file, canonicalize, Path}
-import std.os.{Os, env, Command, Stdio, Tree}
+import std.os.{Os, Command, Stdio, Tree}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 
 /// Time limits, in milliseconds: a local call, a call over the network.
+const TW_GIT_LOG = ""
 const TW_LOCAL_MS = 60000
 const TW_NET_MS = 180000
 // the check-out of a tree of a big repository takes tens of seconds (task 192.8): the term of `git worktree add`
@@ -217,21 +218,12 @@ export fn worktrees_dir_check(repo_main_path str, setting str) Fs -> Result[str,
 
 // ----- running git -----
 
-fn tw_log_call(dir str, args []str) Os Fs -> () {
-    match env("CANOPUS_GIT_LOG") {
-        Some(file) => {
-            if file.byte_len() > 0 {
-                ro p = Path.from_bytes(file.bytes())
-                ro before = match read_text(p) {
-                    Ok(t) => t
-                    Err(e) => ""
-                }
-                ro line = tw_redact("${tw_norm(dir)} | ${args.join(" ")}")
-                ro written = write_text(p, "${before}${line}\n")
-            }
-        }
-        None => ()
-    }
+fn tw_log_call(dir str, args []str) Fs -> () {
+    if TW_GIT_LOG.byte_len() == 0 { return }
+    ro p = Path.from_bytes(TW_GIT_LOG.bytes())
+    ro before = match read_text(p) { Ok(t) => t, Err(e) => "" }
+    ro line = tw_redact("${tw_norm(dir)} | ${args.join(" ")}")
+    ro written = write_text(p, "${before}${line}\n")
 }
 
 fn tw_exec(dir str, args []str, timeout_ms int) Proc Os Fs -> GitOut {

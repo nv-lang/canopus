@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the busy rows of the side panel and of the busy flag of closed tasks (task 111; node >= 24):  node test/canopus-panel-busy.test.mjs
 // 1. A working session without a live task (role worker, reviewer, ...) is named by the title of its card (at most two rows, "..." at the
 //    end), not only by its role; a task session and the integrator's tab are not changed; an empty title leaves the role alone.
@@ -6,20 +7,20 @@
 // 3. A closed task (cancelled, merged) or a transferred session drops the busy flag of its sessions when no turn runs in the database of
 //    OpenCode; a going turn is not touched.
 import { DatabaseSync } from "node:sqlite"
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-panel-busy-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
 const dbPath = path.join(tmp, "opencode.db")
-process.env.CANOPUS_DB = dbPath
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", dbPath)
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ spawn_limits: { worker: 8 }, inflight_limit: 8, spawn_models: { light: "kimi/k3" } }))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ spawn_limits: { worker: 8 }, inflight_limit: 8, spawn_models: { light: "kimi/k3" } }))
 
 const db = new DatabaseSync(dbPath)
 db.exec("create table session_v2 (id text primary key, directory text, title text, parent_id text, time_archived integer, time_idle integer, time_viewed integer, time_suspended integer)")
@@ -114,9 +115,9 @@ const panel = (s) => sidebarLines([s], now, "nova")
   const k = schema.SCHEMA.find((x) => x.key === "long_turn_minutes")
   cell("111 AC-2 the schema has long_turn_minutes: int, default 360, group Подталкивание", k?.kind?.type === "int" && k.default === 360 && k.group === "Подталкивание", JSON.stringify(k))
   cell("111 AC-2 the setting is read: default 360, 0 kept, a number kept", core.loadConfig(proj).longTurnMin === 360, String(core.loadConfig(proj).longTurnMin))
-  writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ spawn_limits: { worker: 8 }, inflight_limit: 8, spawn_models: { light: "kimi/k3" }, long_turn_minutes: 0 }))
+  writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ spawn_limits: { worker: 8 }, inflight_limit: 8, spawn_models: { light: "kimi/k3" }, long_turn_minutes: 0 }))
   cell("111 AC-2 long_turn_minutes 0 is read as 0 (off)", core.loadConfig(proj).longTurnMin === 0, String(core.loadConfig(proj).longTurnMin))
-  writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ spawn_limits: { worker: 8 }, inflight_limit: 8, spawn_models: { light: "kimi/k3" } }))
+  writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ spawn_limits: { worker: 8 }, inflight_limit: 8, spawn_models: { light: "kimi/k3" } }))
 }
 
 // 3. the busy flag of a closed task
@@ -145,7 +146,7 @@ const call = async (name, sid, input = {}) => (await tools[name].execute(input, 
 const WPID = 515151
 const tabs = [{ sessionID: "sesINTEG1", active: true, busy: false }]
 mkdirSync(core.WINDOWS, { recursive: true })
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs }))
 beat()
 const heart = setInterval(beat, 300)
 db.prepare("insert into session_v2 values (?, ?, ?, null, null, null, null, null)").run("sesINTEG1", proj, "sesINTEG1")

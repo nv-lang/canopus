@@ -1,23 +1,24 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the diagnostics of a stuck "busy" tab (node >= 24):  node test/canopus-stale-diag.test.mjs
 // The window says the turn is running (tab busy), the database has no open turn and the last turn ended long ago. The plugin
 // already turns that into "waits for you"; now it also writes one line with the facts when the state starts and one when it
 // ends, so that the pattern (after a restart? after Esc? after a night?) can be read from the log.
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import { DatabaseSync } from "node:sqlite"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-stalediag-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 process.env.TEMP = process.env.TMP = process.env.TMPDIR = tmp // the plugin log lives in os.tmpdir(): a log of its own per run, not the one other parallel runs write (task 085)
-process.env.CANOPUS_POLL_MS = "100"
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const dbPath = path.join(tmp, "opencode.db")
-process.env.CANOPUS_DB = dbPath
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", dbPath)
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), "{}")
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), "{}")
 
 const db = new DatabaseSync(dbPath)
 db.exec("create table session_v2 (id text primary key, directory text, title text, parent_id text, time_archived integer, time_idle integer, time_viewed integer, time_suspended integer)")
@@ -36,7 +37,7 @@ core.saveCard({ session: S, role: "integrator", auto: false, title: S, directory
 let busy = true
 mkdirSync(core.WINDOWS, { recursive: true })
 const WPID = 818181
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: [{ sessionID: S, active: true, busy }] }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: [{ sessionID: S, active: true, busy }] }))
 beat()
 const heart = setInterval(beat, 300)
 

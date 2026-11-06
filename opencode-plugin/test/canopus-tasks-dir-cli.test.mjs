@@ -6,14 +6,14 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-task-dir-"))
 const repo = path.join(tmp, "repo"), tree = path.join(tmp, "tree")
-const env = { ...process.env, CANOPUS_HOME: path.join(tmp, "home"), XDG_DATA_HOME: path.join(tmp, "opencode-data") }
+const env = { ...process.env, XDG_DATA_HOME: path.join(tmp, "opencode-data") }
 const {taskOwnerHttp}=await import("./task-owner-http.mjs")
 const native=await taskOwnerHttp(tmp,env)
 const git = (...args) => execFileSync("git", ["-c", "user.name=test", "-c", "user.email=test@example.org", ...args], { env, stdio: ["ignore", "pipe", "pipe"] })
 try {
   git("init", "-q", "-b", "main", repo)
   mkdirSync(path.join(repo, ".canopus", "plugin"), { recursive: true })
-  writeFileSync(path.join(repo, ".canopus", "plugin", "config.json"), JSON.stringify({ project: "fixture", tasks_dir: "docs/tasks" }))
+  writeFileSync(path.join(repo, ".canopus", "plugin", "config.json"), JSON.stringify({ tasks_dir: "docs/tasks" }))
   mkdirSync(path.join(repo, "docs", "tasks", "001-existing"), { recursive: true })
   writeFileSync(path.join(repo, "docs", "tasks", "001-existing", "log.md"), "fixture")
   git("-C", repo, "add", "--", ".canopus/plugin/config.json", "docs/tasks/001-existing/log.md")

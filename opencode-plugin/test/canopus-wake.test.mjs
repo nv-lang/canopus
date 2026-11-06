@@ -1,18 +1,19 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test: a letter wakes only a tab open in a live window (node >= 24):  node test/canopus-wake.test.mjs
 // Presence comes from the window plugin (tui.ts): windows/<pid>.json with a heartbeat and the open tabs (core.ts
 // "ПРИСУТСТВИЕ"). A closed tab or a window whose heartbeat froze (closed with X, crashed) is not woken: the letter
 // waits and goes out once the tab is open again. A letter to a background tab leaves a notice for that window.
 // wake: false letters are queued with resume: false (no turn of their own).
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-wake-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const proj = path.join(tmp, "proj")
 mkdirSync(proj, { recursive: true })
 
@@ -65,7 +66,7 @@ const tabs = [
 ]
 mkdirSync(core.WINDOWS, { recursive: true })
 let frozen = false
-const beat = () => !frozen && writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), route: "sesFRONT1", tabs }))
+const beat = () => !frozen && writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), route: "sesFRONT1", tabs }))
 beat()
 const heart = setInterval(beat, 300)
 

@@ -1,3 +1,4 @@
+import { runtimeValue } from "./runtime-policy.ts"
 // ЗАВЕРШЕНИЕ ВОПРОСНИКА ЧЕРЕЗ ШТАТНЫЙ API СЛУЖБЫ (задача 263; инцидент 258, 2026-10-30). OpenCode 2.0.26:
 // POST /api/session/{sessionID}/form/{formID}/reply (Form.Reply {answer: {q0: «вариант или свой текст»}}) завершает
 // именно ожидающий вызов `question` — модель получает ответ как результат инструмента и ход продолжается сам, без
@@ -25,7 +26,7 @@ export function serviceReg(file = path.join(stateDir(), "service.json")): { url:
   return r?.url && r?.password ? { url: String(r.url), password: String(r.password) } : undefined
 }
 
-export const REPLY_TIMEOUT_MS = Number(process.env.CANOPUS_REPLY_MS) || 30_000
+export const REPLY_TIMEOUT_MS = runtimeValue("REPLY_MS")
 
 /**
  * Ответить на ожидающую форму вопросника. ok — 204 (вызов question завершён этим ответом); settled — 409 (форма уже

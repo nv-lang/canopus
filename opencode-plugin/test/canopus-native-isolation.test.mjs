@@ -7,7 +7,7 @@ import { pathToFileURL } from "node:url"
 const guard = pathToFileURL(path.join(import.meta.dirname, "native-isolation.mjs")).href
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-isolation-control-"))
 let checks = 0
-const run = source => spawnSync(process.execPath, ["--import", guard, "--input-type=module", "-e", source], { encoding: "utf8", env: { ...process.env, XDG_DATA_HOME: tmp , CANOPUS_HOME: path.join(tmp , "opencode")}, timeout: 10_000 })
+const run = source => spawnSync(process.execPath, ["--import", guard, "--input-type=module", "-e", `await (await import('./config-context.ts')).initializePluginConfig({config:${JSON.stringify(path.join(tmp, "opencode", "plugin", "config.json"))}});\n${source}`], { encoding: "utf8", env: { ...process.env, XDG_DATA_HOME: tmp }, timeout: 10_000 })
 try {
   const read = run(`import fs from 'node:fs'; try { fs.readFileSync('C:/work/fixture/service.json') } catch {} process.exit(0)`)
   assert.equal(read.status, 1); assert.match(read.stderr, /registry/); checks++

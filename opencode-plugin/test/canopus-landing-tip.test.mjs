@@ -1,10 +1,11 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test: reading the tip of the target branch (task 005, REQ-09; AC-11, AC-20, AC-32 at the level of originTip; node >= 24):
 //   node test/canopus-landing-tip.test.mjs
 // Heavy (network cases, up to 20 s each; they run in parallel, about one term in all): run it alone, after the other tests.
 // The plugin reads the tip with `git ls-remote` under its own timer and kills the process tree of its own launch by the process
 // number when the term runs out (never by name or mask); after the term no git process with the address of the case remains.
 import { execFileSync, spawn, spawnSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync } from "node:fs"
 import net from "node:net"
 import os from "node:os"
 import path from "node:path"
@@ -26,7 +27,7 @@ const mkRepo = (name, origin) => {
   const dir = path.join(tmp, name)
   mkdirSync(dir, { recursive: true })
   git(dir, "init", "-q", "-b", "main")
-  writeFileSync(path.join(dir, "a.txt"), name)
+  writeFixtureFile(path.join(dir, "a.txt"), name)
   git(dir, "add", "-A")
   git(dir, "commit", "-q", "-m", "init")
   if (origin) git(dir, "remote", "add", "origin", origin)
@@ -48,7 +49,7 @@ const work = mkRepo("work", bare)
 const head0 = git(seed, "rev-parse", "main")
 const r0 = await originTip(work, "main")
 cell("AC-32 tip: the tip of main on a local origin is the full hash", r0.ok && r0.tip === head0 && r0.source === "origin", JSON.stringify(r0))
-writeFileSync(path.join(seed, "b.txt"), "b")
+writeFixtureFile(path.join(seed, "b.txt"), "b")
 git(seed, "add", "-A")
 git(seed, "commit", "-q", "-m", "second")
 git(seed, "push", "-q", "origin", "main")

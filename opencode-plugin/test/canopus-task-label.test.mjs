@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of tasks 083 and 086 (node >= 24):  node test/canopus-task-label.test.mjs
 // Task 083 (the owner, 2026-10-17) made the labels of canopus three digits; task 086 (2026-10-18: "все задачи всех проектов подписываются
 // тремя цифрами без #") extended that to every project and forbade "#N" (canopus-task-hash.test.mjs holds the rule itself). This test keeps the
@@ -8,14 +9,14 @@
 //      title of a group, idle-tab texts, the merge-lock texts (lockWaitLine, precheckLines, unlockMerge), the live sessions of the profiles.
 // TL-4 no place glues "#" and a task number by hand: every "#${...n}" in the sources is a key "project#n" or goes through taskNo.
 import assert from "node:assert/strict"
-import { mkdtempSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from "node:fs"
+import { mkdtempSync, readdirSync, readFileSync, mkdirSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-task-label-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 const T = await import("../tasks.ts")
 const S = await import("../status.ts")
 const IT = await import("../idle-tab.ts")

@@ -1,20 +1,21 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of canopus delivery to an idle window (node >= 24):  node test/canopus-idle.test.mjs
 // A window's card exists on disk (written by an earlier plugin instance), but the window
 // makes no request after the plugin (re)loads. A letter to its role must still be
 // delivered within one poll tick; a card of a live FOREIGN process must be left alone.
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-idle-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_PRESENCE ??= "all" // every tab taken as open (presence has its own test)
-process.env.CANOPUS_POLL_MS = "100"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
 const cards = path.join(tmp, "opencode", "plugin", "data", "cards")
 mkdirSync(cards, { recursive: true })
 const card = (session, role, pid) =>
-  writeFileSync(path.join(cards, `${session}.json`), JSON.stringify({ session, role, auto: false, title: "", directory: process.cwd(), repo: "nova", pid, updated: Date.now() }))
+  writeFixtureFile(path.join(cards, `${session}.json`), JSON.stringify({ session, role, auto: false, title: "", directory: process.cwd(), repo: "nova", pid, updated: Date.now() }))
 card("sesIDLE01", "carina", process.pid) // this process, plugin reloaded since
 card("sesDEAD01", "tester", 999999) // a process that no longer exists (server restart)
 card("sesFORGN1", "foreign", process.ppid) // a live foreign process: not ours to deliver

@@ -1,20 +1,21 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of task 035 (node >= 24):  node test/canopus-no-self-assign.test.mjs
 // - canopus_task assign refuses both the author's and another user's session, even with forged owner_words;
 // - allow_self_assign is not a trusted receipt; spawn/reassign use independent program-created sessions.
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-noself-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-process.env.CANOPUS_SETTINGS_TTL_MS = "1"
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("SETTINGS_TTL_MS", "1")
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const dirA = path.join(tmp, "alpha")
 mkdirSync(path.join(dirA, ".opencode"), { recursive: true }); mkdirSync(path.join(dirA, ".canopus", "plugin"), { recursive: true })
-const settings = (v) => writeFileSync(path.join(dirA, ".canopus", "plugin", "config.json"), JSON.stringify(v))
+const settings = (v) => writeFixtureFile(path.join(dirA, ".canopus", "plugin", "config.json"), JSON.stringify(v))
 settings({})
 
 const mod = await import("./fixture-plugin.mjs")
@@ -52,7 +53,7 @@ const call = async (name, sid, input = {}) => (await tools[name].execute(input, 
 const WPID = 727272
 const tabs = Object.keys(dirOf).map((sessionID) => ({ sessionID, active: false, busy: false }))
 mkdirSync(core.WINDOWS, { recursive: true })
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs }))
 beat()
 const heart = setInterval(beat, 300)
 for (const s of Object.keys(dirOf)) {

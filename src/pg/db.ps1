@@ -41,7 +41,7 @@ $ServiceUser = 'canopus_service'
 $DefaultPort = 15432
 $root = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $schemaFile = Join-Path $PSScriptRoot 'schema.sql'
-$configDir = if ($env:CANOPUS_HOME) { $env:CANOPUS_HOME } else { Join-Path $HOME '.canopus' }
+$configDir = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.canopus'
 if ($Config -eq '') { $Config = Join-Path $configDir 'secrets.json' }
 $script:Secrets = @()
 
@@ -118,7 +118,16 @@ function Write-JsonFile([string]$File, $Object, [switch]$Secret) {
     if ($File -eq $Config -and $Secret) {
         $document = if (Test-Path -LiteralPath $File) { Get-Content -Raw -LiteralPath $File | ConvertFrom-Json } else { [pscustomobject]@{} }
         $document | Add-Member -NotePropertyName postgres -NotePropertyValue $Object -Force
-        $document | Add-Member -NotePropertyName pg -NotePropertyValue ([ordered]@{password=$Object.service_password}) -Force
+        if (-not $document.PSObject.Properties['database_url']) {
+            $dbHost = [string]$Object.host
+            if ($dbHost.Contains(':') -and -not $dbHost.StartsWith('[')) { $dbHost = "[$dbHost]" }
+            $login = [Uri]::EscapeDataString([string]$Object.service_user)
+            $password = [Uri]::EscapeDataString([string]$Object.service_password)
+            $dbName = [Uri]::EscapeDataString([string]$Object.database)
+            $scheme = 'postgresql'
+            $dsn = "${scheme}://${login}:${password}@${dbHost}:$($Object.port)/$dbName"
+            $document | Add-Member -NotePropertyName database_url -NotePropertyValue $dsn
+        }
         $Object = $document
     }
     $json = $Object | ConvertTo-Json -Depth 12
@@ -426,12 +435,7 @@ function Invoke-ServeConfig {
     $server = [ordered]@{
         port = 8099
         store = 'pg'
-        pg = [ordered]@{ host = $cfg.host; port = [int]$cfg.port; database = $cfg.database; user = $cfg.service_user }
         agents = @([ordered]@{ id = 'opencode'; label = 'OpenCode'; program = 'opencode.cmd'; args = @('acp') })
-        idle_term_seconds = 900
-        workdir = ''
-        web_dir = 'src/web'
-        hub = [ordered]@{ program = 'target/canopus-hub.exe'; args = @() }
     }
     Write-JsonFile $target $server
     Write-Output "settings of the server with store pg (no password) written: $target"
@@ -445,7 +449,7 @@ switch ($Command) {
     'backup' { Invoke-Backup }
     'restore' { Invoke-Restore }
     'reset' { Invoke-Reset }
-    'env' { Invoke-Env }
+    'env' { Stop-Script 'Runtime environment settings are retired. Use config.json and its neighboring secrets.json database_url.' }
     'serve-config' { Invoke-ServeConfig }
     'dropdb' { Invoke-DropDb }
     default {

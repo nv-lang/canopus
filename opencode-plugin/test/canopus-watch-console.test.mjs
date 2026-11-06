@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the console of canopus_watch (task 100; node >= 24, Windows):  node test/canopus-watch-console.test.mjs
 // The service of OpenCode has no console. A watch started `detached` (DETACHED_PROCESS) had none either, so every console program
 // of its chain (cmd, python, vcvars64.bat, cl) made a new console of its own, and on a loaded machine such a program died with
@@ -6,7 +7,7 @@
 //   - vcvars64.bat + cl from a watch, 5 runs in a row, exit 0 (no Visual Studio Build Tools -> skipped, said aloud);
 //   - the watch outlives the process that started it, `.exit` appears, and the pid file is in the record.
 // Red probe: CANOPUS_WATCH_NO_CONSOLE=1 starts the watch the old way - the console check must go red.
-import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
+import { existsSync, mkdtempSync, readdirSync, readFileSync } from "node:fs"
 import { execFileSync } from "node:child_process"
 import os from "node:os"
 import path from "node:path"
@@ -21,7 +22,7 @@ if (process.platform !== "win32") {
 const here = path.dirname(fileURLToPath(import.meta.url))
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-watch-console-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 const watchUrl = pathToFileURL(path.join(here, "..", "watch.ts")).href
 const w = await import(watchUrl)
 const posted = []
@@ -97,7 +98,7 @@ const vcvars = findVcvars()
 if (!vcvars) console.log("skip  vcvars: no Visual Studio Build Tools (vcvars64.bat) found; set CANOPUS_TEST_VCVARS to run it")
 else {
   const bat = path.join(tmp, "vc.cmd")
-  writeFileSync(bat, `@echo off\r\ncall "${vcvars}" >nul\r\nif errorlevel 1 exit /b %errorlevel%\r\nwhere cl\r\n`)
+  writeFixtureFile(bat, `@echo off\r\ncall "${vcvars}" >nul\r\nif errorlevel 1 exit /b %errorlevel%\r\nwhere cl\r\n`)
   for (let i = 1; i <= 5; i++) {
     const v = w.requestWatch({ session: "sesV", command: `MSYS_NO_PATHCONV=1 cmd /c '${bat.replace(/\\/g, "/")}'`, cwd: tmp, machine: true, project: "V", note: `vcvars ${i}` })
     await until(() => posted.some((p) => p.id === v.id))
@@ -112,7 +113,7 @@ else {
 {
   const helper = `
     process.env.XDG_DATA_HOME = process.argv[1]
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
     const w = await import(process.argv[2])
     const x = w.requestWatch({ session: "sesO", command: "sleep 4; echo survived", cwd: process.argv[1], note: "outlives" })
     w.pollWatches(() => {})

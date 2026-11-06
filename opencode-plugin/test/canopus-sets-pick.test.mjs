@@ -1,10 +1,11 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the list and the pick of /canopus-sets and /canopus-profiles (task 066, items 8 and 9; node >= 24):
 //   node test/canopus-sets-pick.test.mjs
 // `ls` (also `list` and the command without words) is a list with the enabled set marked and the models in the cells; in the window it
 // is a pick (dialog.select): arrows, Enter enables the set and shows the short result. The verbs of the menu that take a name of a
 // set (a family) open the same list first; text is typed only for a new name or a cell. `view` is gone: a refusal that says `show`.
 import { execFileSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
@@ -12,15 +13,15 @@ const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-sets-pick-"))
 process.env.TEMP = tmp
 process.env.TMP = tmp
 process.env.XDG_DATA_HOME = path.join(tmp, "data")
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 process.env.XDG_CONFIG_HOME = path.join(tmp, "xdgcfg")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_PROFILES_MS = "100000"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-process.env.CANOPUS_SETTINGS_TTL_MS = "600000"
-process.env.CANOPUS_PRESENCE = "all"
-process.env.CANOPUS_NO_SIDEBAR = "1"
-process.env.CANOPUS_NO_WORKER = "1"
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PROFILES_MS", "100000")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("SETTINGS_TTL_MS", "600000")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("NO_SIDEBAR", "1")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("NO_WORKER", "1")
 
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
 const prof = (model, context, output, input) => ({ model, context, output, ...(input ? { input } : {}) })
@@ -41,7 +42,7 @@ const cfgDir = path.join(root, "proj-settings")
 mkdirSync(path.join(cfgDir, ".opencode"), { recursive: true }); mkdirSync(path.join(cfgDir, ".canopus", "plugin"), { recursive: true })
 const file = path.join(cfgDir, ".canopus", "plugin", "config.json")
 git(cfgDir, "init", "-q", "-b", "main")
-writeFileSync(file, JSON.stringify({ project: "cmdproj", root: "..", model_profiles: TABLE, profile_sets: SETS }, null, 2))
+writeFixtureFile(file, JSON.stringify({ project: "cmdproj", root: "..", model_profiles: TABLE, profile_sets: SETS }, null, 2))
 git(cfgDir, "add", "-A")
 git(cfgDir, "commit", "-q", "-m", "settings")
 
@@ -103,7 +104,7 @@ for (const kind of ["sets", "profiles"]) {
 // ---- item 9: the pick in the window ----
 const session = "ses_pick_demo"
 mkdirSync(path.dirname(Core.cardFile(session)), { recursive: true })
-writeFileSync(Core.cardFile(session), JSON.stringify({ session, directory: root, role: "worker", project: "cmdproj", repo: "r", pid: process.pid, updated: Date.now() }))
+writeFixtureFile(Core.cardFile(session), JSON.stringify({ session, directory: root, role: "worker", project: "cmdproj", repo: "r", pid: process.pid, updated: Date.now() }))
 const mkApi = (script) => {
   const out = { shown: [], asked: [] }
   const api = {

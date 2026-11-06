@@ -2,17 +2,17 @@ import assert from "node:assert/strict"
 import { mkdirSync, writeFileSync, rmSync } from "node:fs"
 import path from "node:path"
 import { execFileSync } from "node:child_process"
-import { taskTestHome, taskOwnerIO } from "./task-owner-harness.mjs"
-const home = taskTestHome("canopus-owner-plugin-")
+import { taskTestHome, taskOwnerIO, taskTestConfig } from "./task-owner-harness.mjs"
+const home = await taskTestHome("canopus-owner-plugin-")
 const root = path.join(home, "repo"), caller = "ses_ui_integrator", project = "sample"
 mkdirSync(path.join(root, ".canopus/plugin"), { recursive: true }); writeFileSync(path.join(root, ".canopus/plugin/config.json"), JSON.stringify({ tasks_dir: "" }))
-mkdirSync(path.join(process.env.CANOPUS_HOME, "plugin"), { recursive: true }); writeFileSync(path.join(process.env.CANOPUS_HOME, "plugin/config.json"), JSON.stringify({ project_settings: [{ project, root }] }))
+mkdirSync(path.dirname(taskTestConfig(home)), { recursive: true }); writeFileSync(taskTestConfig(home), JSON.stringify({ project_settings: [{ project, root }] }))
 const git = (...args) => execFileSync("git", ["-C", root, ...args], { windowsHide: true, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })
 git("init", "-q", "-b", "main"); git("config", "user.name", "Fixture"); git("config", "user.email", "fixture@example.com"); git("add", "--", ".canopus/plugin/config.json"); git("commit", "-qm", "fixture")
 const core = await import("../core.ts"), tasks = await import("../tasks.ts"), forms = await import("../form-wait.ts")
 const { createCanopusPlugin } = await import("../index.ts"), { nativeFixture } = await import("./fixture-plugin.mjs")
 const owner = taskOwnerIO(), hooks = {}, tools = new Map(), events = {}, prompts = [], created = []
-const ctx = { location: { directory: root }, options: {}, session: {
+const ctx = { location: { directory: root }, options: {config:taskTestConfig(home)}, session: {
  get: async ({ sessionID }) => ({ id: sessionID, title: sessionID, location: { directory: root }, time: {} }),
  create: async req => { created.push(req); return { id: req.id } }, update: async () => {},
  prompt: async req => { prompts.push(req); return {} }, synthetic: async () => ({}), hook: async (name, fn) => { hooks[name] = fn },

@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of submission, the review queue and acceptance (plan 002, Ph.3; node >= 24):  node test/canopus-review.test.mjs
 // On a real git repository: the executor's report submits the task without waking the integrator; a reviewer is
 // assigned by priority (a free open worker tab — never the author or the executor — or a new review session); the
@@ -6,21 +7,21 @@
 // branch; then the cleanup steps, checked by the plugin (cleanup) -> sessions closed, a quiet summary to the
 // integrator. rework_max exceeded -> a call to the integrator.
 import { execFileSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-review-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
 const settings = (reviewers) =>
-  writeFileSync(
+  writeFixtureFile(
     path.join(proj, ".canopus", "plugin", "config.json"),
     JSON.stringify({
       allow_default_models: true,
@@ -40,7 +41,7 @@ const settings = (reviewers) =>
   )
 settings(1)
 git(proj, "init", "-q", "-b", "main")
-writeFileSync(path.join(proj, "a.txt"), "a\n")
+writeFixtureFile(path.join(proj, "a.txt"), "a\n")
 git(proj, "add", "-A")
 git(proj, "commit", "-q", "-m", "init")
 
@@ -97,7 +98,7 @@ const WPID = 818181
 const tabs = ["sesINTEG1", "sesREVIEW1"].map((sessionID, i) => ({ sessionID, active: i === 0, busy: false }))
 mkdirSync(core.WINDOWS, { recursive: true })
 // dated 30 s ahead: git runs synchronously here and stops this process's timer, a window of 3 s freshness would look closed (task 088)
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now() + 30_000, tabs }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now() + 30_000, tabs }))
 beat()
 const heart = setInterval(beat, 300)
 for (const t of tabs) await turnEnds(t.sessionID)
@@ -116,7 +117,7 @@ cell("the executor's session is located in the worktree", sessions.get(ex1)?.loc
 await until(() => got(ex1, "WORKTREE ГОТОВ").length >= 1) // state persistence precedes asynchronous native admission
 cell("the task letter says the worktree is ready", got(ex1, "WORKTREE ГОТОВ").length === 1 && got(ex1, "git worktree add").length === 0, JSON.stringify(got(ex1, "ЗАДАЧА").map((d) => d.text.slice(0, 300))))
 cell("the task letter lists the project's acceptance steps for the executor", got(ex1, "ПРИЁМЩИК ПРОВЕРИТ").length === 1 && got(ex1, "tests: тесты зелёные").length === 1 && got(ex1, "notes (по желанию): заметки").length === 1, JSON.stringify(got(ex1, "ЗАДАЧА").map((d) => d.text.slice(-400))))
-writeFileSync(path.join(task(1).worktree, "f.txt"), "feature\n")
+writeFixtureFile(path.join(task(1).worktree, "f.txt"), "feature\n")
 git(task(1).worktree, "add", "-A")
 git(task(1).worktree, "commit", "-q", "-m", "feature")
 // the deliveries of the start have ended before the count below: the count stops growing
@@ -264,7 +265,7 @@ const busyLock = await call("canopus_task", rv2, { action: "merge", n: 2 })
 cell("a second reviewer cannot take the merge lock", /у приёмщика задачи 003/.test(busyLock), busyLock)
 
 // 6. squash merge: accept with the commit in the target branch
-writeFileSync(path.join(proj, "squash.txt"), "x\n")
+writeFixtureFile(path.join(proj, "squash.txt"), "x\n")
 git(proj, "add", "-A")
 git(proj, "commit", "-q", "-m", "squash of 003")
 const sha = git(proj, "rev-parse", "HEAD")

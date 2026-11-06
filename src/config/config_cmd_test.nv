@@ -63,61 +63,43 @@ test "schema: every default is JSON of its kind" {
     }
 }
 
-test "list: each key shows the layer it comes from" {
+test "list: only the five public fields are shown with their file origins" {
     ro root = tmp3("origin")
-    put3(root, "inst/config.json", "{\"port\":8100,\"store\":\"files\",\"voice\":{\"model\":\"medium\"}}")
-    put3(root, "srv.json", "{\"web_dir\":\"srv-web\"}")
-    put3(root, "repo/.canopus/config.json", "{\"web_dir\":\"proj-web\",\"preset\":\"mix\"}")
-    put3(root, "repo/.canopus/local.json", "{\"workdir\":\"C:/work/mine\"}")
+    put3(root, "inst/config.json", "{\"port\":8100,\"voice\":{\"model\":\"medium\"}}")
+    put3(root, "repo/.canopus/config.json", "{\"port\":8101}")
+    put3(root, "repo/.canopus/local.json", "{\"voice\":{\"language\":\"ru\"}}")
     ro layout = layout_in("${root}/inst", "${root}/repo/.canopus")
-    ro text = listing(layout, "${root}/srv.json", ["port=8131"], true, ["CANOPUS_SERVER_ACP_TRACE=false"])
-    assert(line_of(text, "port").starts_with("port=8131\targ"))
-    assert(line_of(text, "store").starts_with("store=files\tuser\t${root}/inst/config.json"))
-    assert(line_of(text, "web_dir").starts_with("web_dir=proj-web\tproject\t"))
-    assert(line_of(text, "workdir").starts_with("workdir=C:/work/mine\tlocal\t"))
-    assert(line_of(text, "acp_trace").starts_with("acp_trace=false\tenv"))
+    ro text = listing(layout, "", []str.new(), true, []str.new())
+    assert(text.split("\n").collect().len() == 5)
+    assert(line_of(text, "port").starts_with("port=8101\tproject\t"))
+    assert(line_of(text, "store").starts_with("store=files\tdefault"))
     assert(line_of(text, "voice.model").starts_with("voice.model=medium\tuser"))
-    assert(line_of(text, "voice.language").starts_with("voice.language=auto\tdefault"))
-    assert(line_of(text, "preset").starts_with("preset=mix\tproject"))
-    assert(line_of(text, "data_dir").starts_with("data_dir=${root}/inst/data/sessions\tdefault"))
+    assert(line_of(text, "voice.language").starts_with("voice.language=ru\tlocal"))
+    assert(!text.contains("data_dir") && !text.contains("hub.") && !text.contains("route_"))
     drop3(root)
 }
 
-test "list: without --show-origin only key=value; the server file is between the user and the project" {
+test "list: plain output has no origins and runtime overrides are refused" {
     ro root = tmp3("plain")
-    put3(root, "inst/config.json", "{\"web_dir\":\"user-web\"}")
-    put3(root, "srv.json", "{\"web_dir\":\"srv-web\"}")
     ro layout = layout_in("${root}/inst", "")
-    ro text = listing(layout, "${root}/srv.json", []str.new(), false, []str.new())
-    assert(line_of(text, "web_dir") == "web_dir=srv-web")
-    assert(!text.contains("\t"))
-    drop3(root)
-}
-
-test "list: the old key stt is shown as voice" {
-    ro root = tmp3("stt")
-    put3(root, "srv.json", "{\"stt\":{\"language\":\"ru\"}}")
-    ro layout = layout_in("${root}/inst", "")
-    ro text = listing(layout, "${root}/srv.json", []str.new(), true, []str.new())
-    assert(line_of(text, "voice.language").starts_with("voice.language=ru\tserver"))
-    assert(line_of(text, "stt.language") == "")
-    drop3(root)
-}
-
-test "secrets: a password is never printed, from the environment, secrets.json or a file" {
-    ro root = tmp3("secret")
-    put3(root, "inst/secrets.json", "{\"pg\":{\"password\":\"from-secrets-file\"}}")
-    put3(root, "srv.json", "{\"pg\":{\"host\":\"localhost\",\"password\":\"from-server-file\"}}")
-    ro layout = layout_in("${root}/inst", "")
-    ro quiet = listing(layout, "${root}/srv.json", []str.new(), true, []str.new())
-    assert(!quiet.contains("from-secrets-file") && !quiet.contains("from-server-file"))
-    assert(line_of(quiet, "pg.password").starts_with("pg.password=***\tsecret"))
-    ro loud = listing(layout, "${root}/srv.json", []str.new(), true, ["CANOPUS_PG_PASSWORD=from-env-xyz"])
-    assert(!loud.contains("from-env-xyz"))
-    assert(line_of(loud, "pg.password").starts_with("pg.password=***\tenv"))
+    ro text = listing(layout, "", []str.new(), false, []str.new())
+    assert(!text.contains("\t") && text.split("\n").collect().len() == 5)
     mut state = MockOs.new()
-    state.put_env("CANOPUS_PG_PASSWORD", "from-env-xyz")
-    match with Os = mock_os(state), Fs = real_fs() { config_get(layout, "${root}/srv.json", []str.new(), "pg.password", false) } {
+    state.put_env("CANOPUS_PG_PASSWORD", "not-printed-value")
+    match with Os = mock_os(state), Fs = real_fs() { config_list(layout, "", []str.new(), true) } {
+        Ok(t) => assert(false)
+        Err(e) => assert(e.contains("CANOPUS_PG_PASSWORD") && !e.contains("not-printed-value"))
+    }
+    drop3(root)
+}
+
+test "secrets: database URL is masked on explicit get and absent from public list" {
+    ro root = tmp3("secret")
+    put3(root, "inst/secrets.json", "{\"database_url\":\"placeholder\"}")
+    ro layout = layout_in("${root}/inst", "")
+    ro quiet = listing(layout, "", []str.new(), true, []str.new())
+    assert(!quiet.contains("placeholder") && line_of(quiet, "database_url") == "")
+    match with Os = mock_os(MockOs.new()), Fs = real_fs() { config_get(layout, "", []str.new(), "database_url", false) } {
         Ok(t) => assert(t == "***")
         Err(e) => assert(false)
     }
@@ -146,14 +128,14 @@ test "set: writes the key into the file of the scope and keeps the other keys" {
     ro layout = layout_in("${root}/inst", "${root}/repo/.canopus")
     with Fs = real_fs() {
         assert(config_set(layout, "user", "", "voice.language", "ru").is_ok())
-        assert(config_set(layout, "project", "", "route_wip", "false").is_ok())
-        assert(config_set(layout, "local", "", "workdir", "C:/work/mine").is_ok())
+        assert(config_set(layout, "project", "", "port", "8102").is_ok())
+        assert(config_set(layout, "local", "", "voice.language", "en").is_ok())
         ro user = read_text(Path.from_bytes("${root}/inst/config.json".bytes())).unwrap()
         assert(user.contains("\"port\": 8100") && user.contains("\"model\": \"medium\"") && user.contains("\"language\": \"ru\""))
         ro project = read_text(Path.from_bytes("${root}/repo/.canopus/config.json".bytes())).unwrap()
-        assert(project.contains("\"route_wip\": false"))
+        assert(project.contains("\"port\": 8102"))
         ro local = read_text(Path.from_bytes("${root}/repo/.canopus/local.json".bytes())).unwrap()
-        assert(local.contains("\"workdir\": \"C:/work/mine\""))
+        assert(local.contains("\"language\": \"en\""))
     }
     drop3(root)
 }
@@ -173,16 +155,16 @@ test "set: a wrong key, a wrong value, a list and a secret are refused" {
     }
 }
 
-test "validate: unknown keys and wrong kinds name file and line, secrets in a file are a warning" {
-    match read_layer_text("c.json", "{\n  \"port\": \"abc\",\n  \"colour\": 1,\n  \"pg\": {\"password\": \"zzz\"}\n}") {
+test "validate: wrong kinds and unknown keys name the source; secrets are never quoted" {
+    match read_layer_text("c.json", "{\n  \"port\": \"abc\",\n  \"colour\": 1,\n  \"database_url\": \"placeholder\"\n}") {
         Err(e) => assert(false)
         Ok(l) => {
             ro problems = validate_layer(l)
             assert(problems.len() == 3)
             assert(problems[0] == "c.json:2: port must be a whole number")
             assert(problems[1] == "c.json:3: unknown key colour")
-            assert(problems[2].starts_with("warning c.json:4: pg.password is a secret"))
-            assert(!problems[2].contains("zzz"))
+            assert(problems[2].starts_with("c.json:4: database_url is a secret"))
+            assert(!problems[2].contains("placeholder"))
         }
     }
 }

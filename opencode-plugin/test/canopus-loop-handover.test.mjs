@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test: the delivery loop survives the removal of its owner instance (node >= 24):  node test/canopus-loop-handover.test.mjs
 // OpenCode creates one plugin instance per project directory and removes them one by one; the loop is ONE per process
 // and belongs to the instance set up last. Case of 2026-10-10: the owner (directory D) was removed while the instance of
@@ -5,23 +6,23 @@
 // The test sets up N, then D, removes D, and writes a letter BY HAND into the role mailbox (a file, not canopus_send) for a
 // tab open in a live window (real presence, not CANOPUS_PRESENCE=all). Probe: CANOPUS_MODULE=<copy of the old index.ts>
 // (the old plugin has no hand-over) makes the delivery cells go red.
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-handover-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const base = path.join(tmp, "opencode", "plugin", "data")
 const SES = "ses_efdd2dc2effePXj0L8WPrxkIJN"
 const dirN = path.join(tmp, "nova")
 const dirD = path.join(tmp, "canopus")
 for (const d of [dirN, dirD, path.join(base, "cards"), path.join(base, "windows")]) mkdirSync(d, { recursive: true })
-writeFileSync(path.join(base, "cards", `${SES}.json`), JSON.stringify({ session: SES, role: "integrator", auto: false, title: "", directory: dirN, repo: "nova", project: "nova", pid: process.pid, updated: Date.now(), busy: false }))
-const beat = () => writeFileSync(path.join(base, "windows", "56032.json"), JSON.stringify({ pid: 56032, beat: Date.now(), route: SES, tabs: [{ sessionID: SES, active: true, busy: false, title: "t" }] }))
+writeFixtureFile(path.join(base, "cards", `${SES}.json`), JSON.stringify({ session: SES, role: "integrator", auto: false, title: "", directory: dirN, repo: "nova", project: "nova", pid: process.pid, updated: Date.now(), busy: false }))
+const beat = () => writeFixtureFile(path.join(base, "windows", "56032.json"), JSON.stringify({ pid: 56032, beat: Date.now(), route: SES, tabs: [{ sessionID: SES, active: true, busy: false, title: "t" }] }))
 beat()
 const heart = setInterval(beat, 200)
 
@@ -46,7 +47,7 @@ const wait = (ms = 1200) => new Promise((r) => setTimeout(r, ms))
 const box = path.join(base, "inbox", "nova_integrator")
 const handWritten = (id, wake) => {
   mkdirSync(box, { recursive: true })
-  writeFileSync(path.join(box, `${id}.json`), JSON.stringify({ id, from_role: "canopus.integrator", from_session: "ses_ee370751dffeztE2CBAcS8ip6m", to: "nova.integrator", text: id, time: Date.now(), wake }, null, 1))
+  writeFixtureFile(path.join(box, `${id}.json`), JSON.stringify({ id, from_role: "canopus.integrator", from_session: "ses_ee370751dffeztE2CBAcS8ip6m", to: "nova.integrator", text: id, time: Date.now(), wake }, null, 1))
 }
 const got = (id) => delivered.find((d) => d.text.includes(id))
 const left = () => (existsSync(box) ? readdirSync(box).join(",") : "")

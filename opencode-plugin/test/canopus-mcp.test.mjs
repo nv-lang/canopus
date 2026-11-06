@@ -1,10 +1,11 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the MCP server for claude-code windows (node >= 24):  node test/canopus-mcp.test.mjs
 // The plugin runs in this process (as OpenCode would), the MCP server (mcp.ts) is a real child process on stdio
 // acting for one session (OPENCODE_CANOPUS_SESSION). Same mailbox, same tools, same project.role addresses;
 // letters sent through MCP are delivered by the plugin's timer, letters to the MCP window reach it too.
 // CANOPUS_MODULE / CANOPUS_MCP point at mutated copies for the red probes.
 import { spawn } from "node:child_process"
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -13,10 +14,10 @@ import { DatabaseSync } from "node:sqlite"
 const here = path.dirname(fileURLToPath(import.meta.url))
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-mcp-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_PRESENCE ??= "all" // every tab taken as open (presence has its own test)
-process.env.CANOPUS_POLL_MS = "100"
-delete process.env.CANOPUS_DB
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("DB")
 delete process.env.OPENCODE_CANOPUS_PROJECTS
 const root = path.join(tmp, "src")
 const dirs = { A: path.join(root, "nova", "repo-a"), B: path.join(root, "nova", "limits"), C: path.join(root, "nova", "repo-c"), D: path.join(root, "nova", "limits", "sub") }
@@ -200,7 +201,7 @@ try {
 // from the journal; canopus_task through MCP shows the same journal.
 // the project has no model settings of its own: the default models are allowed on purpose (task 033)
 mkdirSync(path.join(root, "nova", ".opencode"), { recursive: true }); mkdirSync(path.join(root, "nova", ".canopus", "plugin"), { recursive: true })
-writeFileSync(path.join(root, "nova", ".canopus", "plugin", "config.json"), JSON.stringify({ allow_default_models: true }))
+writeFixtureFile(path.join(root, "nova", ".canopus", "plugin", "config.json"), JSON.stringify({ allow_default_models: true }))
 const integ = startMcp("sesAAAAAA")
 try {
   await integ.rpc("initialize", { protocolVersion: "2025-06-18", capabilities: {} })

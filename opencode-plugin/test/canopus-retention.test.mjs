@@ -1,13 +1,14 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the data retention pass (node >= 24):  node test/canopus-retention.test.mjs
 // Old delivered letters, empty session folders, cards and statuses of closed tabs are removed once a day; open questions,
 // undelivered letters (inbox/), live tabs, tabs with open obligations and tasks/ records stay; retention_days=0 removes nothing.
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, utimesSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, utimesSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-retention-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 const core = await import("../core.ts")
 const ret = await import("../retention.ts")
 const tasks = await import("../tasks.ts")
@@ -24,7 +25,7 @@ const age = (f, days) => {
 const put = (dir, name, body, days) => {
   mkdirSync(dir, { recursive: true })
   const f = path.join(dir, name)
-  writeFileSync(f, JSON.stringify(body))
+  writeFixtureFile(f, JSON.stringify(body))
   age(f, days)
   return f
 }
@@ -51,7 +52,7 @@ const oblOld = card("sesA", 10)
 const deadStatus = status("sesDead", 10)
 const liveStatus = status("sesLive", 10)
 mkdirSync(path.join(core.BASE, "windows"), { recursive: true })
-writeFileSync(path.join(core.BASE, "windows", "1.json"), JSON.stringify({ pid: 1, beat: Date.now(), tabs: [{ sessionID: "sesLive" }] }))
+writeFixtureFile(path.join(core.BASE, "windows", "1.json"), JSON.stringify({ pid: 1, beat: Date.now(), tabs: [{ sessionID: "sesLive" }] }))
 
 // 0: nothing is removed
 cell("retention_days=0 does nothing", ret.runRetention(0) === undefined && existsSync(oldLetter) && existsSync(deadOld), "removed")

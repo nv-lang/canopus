@@ -100,23 +100,9 @@ try {
     Set-Content -LiteralPath (Join-Path $inst 'bin/.sha256') -Value ('a' * 64)
     Check 'installed: the marker is right' (Test-SttBinaryInstalled $inst $binary)
 
-    # the folder: CANOPUS_VOICE_DIR, CANOPUS_STT_DIR, CANOPUS_TOOLS_DIR, CANOPUS_HOME, the folder of the user (task 192.12)
-    $oldDir = $env:CANOPUS_STT_DIR; $oldLocal = $env:LOCALAPPDATA; $oldVoice = $env:CANOPUS_VOICE_DIR; $oldTools = $env:CANOPUS_TOOLS_DIR; $oldHome = $env:CANOPUS_HOME
-    try {
-        $env:CANOPUS_VOICE_DIR = ''; $env:CANOPUS_TOOLS_DIR = ''; $env:CANOPUS_HOME = ''
-        $env:CANOPUS_STT_DIR = 'C:/work/somewhere/stt'
-        Check 'dir: CANOPUS_STT_DIR' ((Get-SttDir) -eq 'C:/work/somewhere/stt')
-        $env:CANOPUS_VOICE_DIR = 'C:/work/voice'
-        Check 'dir: CANOPUS_VOICE_DIR over CANOPUS_STT_DIR' ((Get-SttDir) -eq 'C:/work/voice')
-        $env:CANOPUS_VOICE_DIR = ''; $env:CANOPUS_STT_DIR = ''
-        $env:LOCALAPPDATA = 'C:/work/local'
-        $env:CANOPUS_TOOLS_DIR = 'C:/work/tools'
-        Check 'dir: CANOPUS_TOOLS_DIR/whisper ignores old installation locations' ((Get-SttDir).Replace([string][char]92, '/') -eq 'C:/work/tools/whisper')
-        $env:CANOPUS_TOOLS_DIR = ''; $env:CANOPUS_HOME = 'C:/work/inst'
-        Check 'dir: CANOPUS_HOME/tools/whisper' ((Get-SttDir).Replace([string][char]92, '/') -eq 'C:/work/inst/tools/whisper')
-        $env:CANOPUS_HOME = ''
-        Check 'dir: the folder of the user otherwise' ((Get-SttDir).Replace([string][char]92, '/') -like '*/.canopus/tools/whisper')
-    } finally { $env:CANOPUS_STT_DIR = $oldDir; $env:LOCALAPPDATA = $oldLocal; $env:CANOPUS_VOICE_DIR = $oldVoice; $env:CANOPUS_TOOLS_DIR = $oldTools; $env:CANOPUS_HOME = $oldHome }
+    Check 'dir: explicit config controls the instance root' ((Get-SttDir (Join-Path $tmp 'instance/custom.json')).Replace([string][char]92, '/') -eq (Join-Path $tmp 'instance/tools/whisper').Replace([string][char]92, '/'))
+    Check 'dir: default user instance' ((Get-SttDir).Replace([string][char]92, '/') -like '*/.canopus/tools/whisper')
+
 } finally {
     Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
 }

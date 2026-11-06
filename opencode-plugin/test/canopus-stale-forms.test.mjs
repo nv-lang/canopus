@@ -1,16 +1,17 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the stale form (task 071; node >= 24):  node test/canopus-stale-forms.test.mjs
 // A tab that asks the same question again (same text AND same options) makes the old form of this tab "replaced": the record
 // stays in forms/ as history, but it is not an open question any more (not in the lists, /ask, the status, the reminders,
 // the wakes), and an answer to it is refused with the id of the new form. Another text, other options, another tab, a form
 // without a text, a form of a tab whose turn is long over and that was not repeated - all stay open. Old duplicates are closed
 // by the same rule at the first pass (settleDuplicates, formTick, answerTick).
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-stale-forms-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 const fw = await import("../form-wait.ts")
 const core = await import("../core.ts")
 const oa = await import("../owner-answer.ts")
@@ -115,7 +116,7 @@ await safe("e", async () => {
 await safe("f", async () => {
   mkdirSync(fw.FORMS, { recursive: true })
   const mk = (id, at, question = Q, options = OPTS, extra = {}) => ({ id, at, title: "Questions", question, options, kind: "question", session: "sesF", ...extra })
-  writeFileSync(path.join(fw.FORMS, "sesF.json"), JSON.stringify([mk("frm_f1", T0, Q, OPTS, { cancelled: T0 + MIN, repeats: 3, exhausted: T0 + 20 * MIN }), mk("frm_f2", T0 + 5 * MIN, "Другой вопрос?", ["Да", "Нет"]), mk("frm_f3", T0 + 30 * MIN), mk("frm_f4", T0 + 40 * MIN)]))
+  writeFixtureFile(path.join(fw.FORMS, "sesF.json"), JSON.stringify([mk("frm_f1", T0, Q, OPTS, { cancelled: T0 + MIN, repeats: 3, exhausted: T0 + 20 * MIN }), mk("frm_f2", T0 + 5 * MIN, "Другой вопрос?", ["Да", "Нет"]), mk("frm_f3", T0 + 30 * MIN), mk("frm_f4", T0 + 40 * MIN)]))
   cell("f: before the pass the duplicates are visible (the old state)", open("sesF").length >= 2, open("sesF").join())
   const closed = fw.settleDuplicates(fw.FORMS, T0 + 50 * MIN)
   cell("f: the pass closes the older forms of the question, keeps the newest and the other question", open("sesF").join() === "frm_f2,frm_f4", open("sesF").join())
@@ -123,7 +124,7 @@ await safe("f", async () => {
   cell("f: the records stay, marked with the newest form", file("sesF").length === 4 && rec("sesF", "frm_f1")?.replacedBy === "frm_f4" && rec("sesF", "frm_f3")?.replacedBy === "frm_f4" && !rec("sesF", "frm_f2")?.replacedBy && !rec("sesF", "frm_f4")?.replacedBy, JSON.stringify(file("sesF")))
   cell("f: the second pass changes nothing", fw.settleDuplicates(fw.FORMS, T0 + 51 * MIN).length === 0 && open("sesF").join() === "frm_f2,frm_f4", open("sesF").join())
   // the tick does the same pass for the first look after an update
-  writeFileSync(path.join(fw.FORMS, "sesG.json"), JSON.stringify([{ ...mk("frm_g1", T0), session: "sesG" }, { ...mk("frm_g2", T0 + 5 * MIN), session: "sesG" }]))
+  writeFixtureFile(path.join(fw.FORMS, "sesG.json"), JSON.stringify([{ ...mk("frm_g1", T0), session: "sesG" }, { ...mk("frm_g2", T0 + 5 * MIN), session: "sesG" }]))
   const woken = []
   await fw.formTick({ processStart: T0 - 60 * MIN, tab: async () => ({ open: true, busy: true }), idle: async () => undefined, ownerWrote: async () => false, wake: (s, t, id) => woken.push(id), say: () => {} }, T0 + 6 * MIN)
   cell("f: formTick closes the old duplicate even when the tab is busy", open("sesG", T0 + 6 * MIN).join() === "frm_g2" && rec("sesG", "frm_g1")?.replacedBy === "frm_g2", JSON.stringify(file("sesG")))
@@ -147,7 +148,7 @@ await safe("g", async () => {
   // end to end through the pass over the answer files
   const dir = path.join(tmp, "answers-071")
   mkdirSync(dir, { recursive: true })
-  const put = (name, a) => writeFileSync(path.join(dir, `${name}.json`), JSON.stringify({ id: name, at: 1, quote: "по рекомендации", option: "1", ...a }))
+  const put = (name, a) => writeFixtureFile(path.join(dir, `${name}.json`), JSON.stringify({ id: name, at: 1, quote: "по рекомендации", option: "1", ...a }))
   put("a-old", { form: "frm_h1", session: "sesH" })
   const letters = []
   const interrupted = []
@@ -161,7 +162,7 @@ await safe("g", async () => {
   cell("g: the answer to the new form is applied", neu?.status === "applied" && neu.form === "frm_h2" && interrupted.length === 1 && letters.join() === "owner-answer-a-new", JSON.stringify([neu, interrupted, letters]))
 
   // old duplicates met by the answer pass are settled first: the answer to the older one gets the hint at once
-  writeFileSync(path.join(fw.FORMS, "sesI.json"), JSON.stringify([{ id: "frm_i1", at: T0, question: Q, options: OPTS, kind: "question", session: "sesI" }, { id: "frm_i2", at: T0 + MIN, question: Q, options: OPTS, kind: "question", session: "sesI" }]))
+  writeFixtureFile(path.join(fw.FORMS, "sesI.json"), JSON.stringify([{ id: "frm_i1", at: T0, question: Q, options: OPTS, kind: "question", session: "sesI" }, { id: "frm_i2", at: T0 + MIN, question: Q, options: OPTS, kind: "question", session: "sesI" }]))
   put("a-i", { form: "frm_i1", session: "sesI" })
   await oa.answerTick({ interrupt: async () => ({ ok: true }), letter: () => {}, history: () => {}, say: () => {} }, T0 + 20 * MIN, dir)
   const i = core.readJson(path.join(dir, "a-i.json"))

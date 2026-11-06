@@ -1,88 +1,36 @@
-// Self-test of canopus project config (node >= 24):  node test/canopus-config.test.mjs
-// Base roles of the plugin: `integrator` exclusive, everything else shared. The project config ADDS exclusive
-// roles (exclusive_roles), sets project_rules (the end of the system block) and may override the tier lists (tiers).
+// Task286: the public configuration no longer controls roles and rendered rule text.
+import assert from "node:assert/strict"
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
-
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-config-"))
-process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_PRESENCE ??= "all" // every tab taken as open (presence has its own test)
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-const bare = path.join(tmp, "bare")
-const proj = path.join(tmp, "proj")
-mkdirSync(bare, { recursive: true })
-mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ exclusive_roles: ["lead"], project_rules: "EXTRA-LINE-OF-THE-PROJECT" }))
-
-const dirOf = (sid) => (sid.startsWith("sesP") ? proj : bare)
-const mod = await import(process.env.CANOPUS_MODULE ?? "./fixture-plugin.mjs")
-const { loadConfig } = await import("../core.ts")
-const hooks = {}
-const tools = {}
-const ctx = {
-  location: { directory: bare },
-  session: {
-    get: async ({ sessionID }) => ({ id: sessionID, title: sessionID, location: { directory: dirOf(sessionID) } }),
-    prompt: async () => {},
-    hook: async (name, cb) => (hooks[name] = cb),
-  },
-  tool: { transform: async (fn) => fn({ add: (t) => (tools[t.name] = t) }) },
-}
-const stop = await mod.default.setup(ctx)
-
-let fail = 0
-const cell = (name, ok, detail) => {
-  console.log(`${ok ? "ok  " : "FAIL"} ${name}${ok ? "" : " :: " + detail}`)
-  if (!ok) fail++
-}
-const turn = (sid) => hooks.context({ sessionID: sid, system: [] })
-const call = (name, sid, input = {}) => tools[name].execute(input, { sessionID: sid })
-
-// WITHOUT a config: `lead` is shared (both windows hold it); `integrator` is the plugin's one base exclusive role
-await turn("sesB1")
-await turn("sesB2")
-await call("canopus_role", "sesB1", { role: "lead" })
-const joined = await call("canopus_role", "sesB2", { role: "lead" })
-cell("without a config a project role is shared: the second window joins", /теперь «lead»/.test(joined.content) && !/занята/.test(joined.content), joined.content)
-await call("canopus_role", "sesB1", { role: "integrator" })
-const baseRefused = await call("canopus_role", "sesB2", { role: "integrator" })
-cell("without a config integrator is exclusive (base role)", /занята/.test(baseRefused.content), baseRefused.content)
-
-// WITH a config: `lead` becomes exclusive
-await turn("sesP1")
-await turn("sesP2")
-await call("canopus_role", "sesP1", { role: "lead" })
-const refused = await call("canopus_role", "sesP2", { role: "lead" })
-cell("with a config the listed role is exclusive: refused without force", /занята/.test(refused.content), refused.content)
-const forced = await call("canopus_role", "sesP2", { role: "lead", force: true })
-cell("with a config force takes the exclusive role", /теперь «lead»/.test(forced.content), forced.content)
-
-const helpProj = (await call("canopus_help", "sesP1")).content
-const helpBare = (await call("canopus_help", "sesB1")).content
-cell("project_rules is read for the project and is not in canopus_help", loadConfig(proj).projectRules === "EXTRA-LINE-OF-THE-PROJECT" && !helpProj.includes("EXTRA-LINE-OF-THE-PROJECT"), helpProj.slice(-120))
-cell("project_rules is absent without a config", loadConfig(bare).projectRules === "", "present")
-cell("default help names neutral roles", /integrator/.test(helpBare) && /worker/.test(helpBare), "missing")
-
-// The config is named after the package (canopus.json); the old name nova-peers.json is no longer read
-// (plan 002, decision 16: nv-lang moved to a settings repository 2026-10-05).
-const legacy = path.join(tmp, "legacy")
-const both = path.join(tmp, "both")
-mkdirSync(path.join(legacy, ".opencode"), { recursive: true }); mkdirSync(path.join(legacy, ".canopus", "plugin"), { recursive: true })
-mkdirSync(path.join(both, ".opencode"), { recursive: true }); mkdirSync(path.join(both, ".canopus", "plugin"), { recursive: true })
-writeFileSync(path.join(legacy, ".opencode", "nova-peers.json"), JSON.stringify({ project_rules: "OLD-NAME-LINE" }))
-writeFileSync(path.join(both, ".opencode", "nova-peers.json"), JSON.stringify({ project_rules: "OLD-NAME-LINE" }))
-writeFileSync(path.join(both, ".canopus", "plugin", "config.json"), JSON.stringify({ project_rules: "NEW-NAME-LINE" }))
-cell("the old name nova-peers.json is not read", !loadConfig(legacy).projectRules.includes("OLD-NAME-LINE"), "read")
-cell("canopus.json wins over the old name", loadConfig(both).projectRules.includes("NEW-NAME-LINE") && !loadConfig(both).projectRules.includes("OLD-NAME-LINE"), "wrong file")
-
-// A project config saved with a BOM (Notepad, PowerShell 5.1 "utf8") is read like any other.
-const bom = path.join(tmp, "bom")
-mkdirSync(path.join(bom, ".opencode"), { recursive: true }); mkdirSync(path.join(bom, ".canopus", "plugin"), { recursive: true })
-writeFileSync(path.join(bom, ".canopus", "plugin", "config.json"), "\uFEFF" + JSON.stringify({ project_rules: "BOM-LINE" }))
-cell("a config saved with a BOM is read", loadConfig(bom).projectRules.includes("BOM-LINE"), "BOM file ignored")
-await stop?.()
-rmSync(tmp, { recursive: true, force: true })
-console.log(fail ? `canopus-config.test: FAIL ${fail}` : "canopus-config.test ok")
-process.exit(fail ? 1 : 0)
+await (await import("./test-home.mjs")).configureTestHome(path.join(tmp, "home"))
+const policy = await import("../resolved-policy.ts")
+const schema = await import("../config-schema.ts")
+const core = await import("../core.ts")
+const cfg = await import("../plugin-config.ts")
+try {
+  const bare = path.join(tmp, "bare")
+  mkdirSync(bare)
+  const resolved = core.loadConfig(bare)
+  assert(resolved.exclusive.has("integrator"))
+  assert(!resolved.exclusive.has("lead"))
+  assert.equal(resolved.projectRules, "")
+  assert(Object.isFrozen(policy.INTERNAL_POLICY.exclusive_roles))
+  for (const key of ["exclusive_roles", "project_rules", "tiers"]) {
+    assert(schema.invalid(key, key === "project_rules" ? "text" : []))
+    assert.throws(() => policy.validateProjectSettings({ [key]: "value" }, "test"), /unsupported setting/)
+  }
+  // The accepted filename and BOM support remain real parser contracts, not fixture filtering.
+  const configFile = path.join(cfg.pluginRoot(), "config.json")
+  mkdirSync(path.dirname(configFile), { recursive: true })
+  writeFileSync(configFile, "\uFEFF" + JSON.stringify({ defaults: { owner_language: "English" } }))
+  assert.equal(cfg.globalConfig().defaults.owner_language, "English")
+  writeFileSync(configFile, JSON.stringify({ defaults: { project_rules: "retired" } }))
+  assert.throws(() => cfg.globalConfig(), /unsupported setting project_rules/)
+  writeFileSync(configFile, "{}")
+  mkdirSync(path.join(bare, ".opencode"))
+  writeFileSync(path.join(bare, ".opencode/nova-peers.json"), JSON.stringify({ project_rules: "legacy" }))
+  assert.equal(core.loadConfig(bare).projectRules, "")
+  console.log("canopus-config: built-in roles, retired public keys, BOM and no legacy fallback passed")
+} finally { rmSync(tmp, { recursive: true, force: true }) }

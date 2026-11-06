@@ -3,19 +3,21 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-layers-"))
-process.env.CANOPUS_HOME = path.join(tmp, "home")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(tmp, "home"))
 process.env.XDG_DATA_HOME = path.join(tmp, "different-opencode-home")
 const m = await import("../plugin-config.ts")
 const { canopusBase } = await import("../paths.ts")
 const put = (f, v) => { mkdirSync(path.dirname(f), { recursive: true }); writeFileSync(f, JSON.stringify(v)) }
 try {
   assert.equal(canopusBase(), path.join(tmp, "home", "plugin", "data"))
-  put(path.join(m.pluginRoot(), "config.json"), { defaults: { enabled: true, n: 2, nested: { a: 1, b: 2 }, list: [1] } })
-  const project = { project: "test", nested: { a: 4 }, list: [2], enabled: false }
-  put(path.join(tmp, "repo", ".canopus", "plugin", "local.json"), { n: 0, nested: { b: 6 } })
-  put(path.join(m.pluginRoot(), "config.json"), { defaults: { enabled: true, n: 2, nested: { a: 1, b: 2 }, list: [1] }, local: { test: { n: 4 } } })
-  const result = m.settingsLayers(project, path.join(tmp, "repo"), { nested: { a: 9 } })
-  assert.deepEqual(result, { project: "test", enabled: false, n: 0, nested: { a: 9, b: 6 }, list: [2] })
+  put(path.join(m.pluginRoot(), "config.json"), { defaults: { owner_language: "en", inflight_limit: 2, spawn_limits: { worker: 1, reviewer: 2 }, model_profiles: [{ id: "global" }] }, local: { test: { inflight_limit: 4 } } })
+  const project = { owner_language: "ru", spawn_limits: { worker: 4 }, model_profiles: [{ id: "project" }] }
+  put(path.join(tmp, "repo", ".canopus", "plugin", "local.json"), { inflight_limit: 8, spawn_limits: { reviewer: 6 } })
+  const result = m.settingsLayers(project, path.join(tmp, "repo"), { spawn_limits: { worker: 9 } }, "test")
+  assert.deepEqual(result, { owner_language: "ru", inflight_limit: 8, spawn_limits: { worker: 9, reviewer: 6 }, model_profiles: [{ id: "project" }] })
+  put(path.join(m.pluginRoot(), "config.json"), { defaults: { answer_max: 1 } })
+  assert.throws(() => m.globalConfig(), /unsupported setting answer_max/)
+  put(path.join(m.pluginRoot(), "config.json"), {})
   assert.equal(m.pluginOptions().local, undefined, "global local settings must not become launch overrides")
   assert.equal(m.validateTasksDir("docs/tasks"), "docs/tasks")
   assert.equal(m.validateTasksDir(""), "")

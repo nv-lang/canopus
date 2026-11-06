@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of task 084 (node >= 24):  node test/canopus-stale-owner-wait.test.mjs
 // Source (owner, 2026-10-17, screenshot of the panel): "Ждут вас: 2 · с 15:22" with two tabs of one task, and at the foot "ждут 0"; under a
 // submitted task the mark "⚠ застряла с 10:48". The forms of those two tabs had used up their repeats ("без ответа, нужен владелец") at
@@ -8,17 +9,17 @@
 // tab worked after it (a turn runs or one ended) or made a newer form; the record stays (history, canopus-answer sees it). A form with repeats
 // left, and the loop of task 078, wait as before. "Застряла" is not shown when the task is already past the stuck party. One number for
 // "Ждут вас" and the foot.
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { load } from "./answer-harness.mjs"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-stale-owner-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({}))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({}))
 const fw = await load("form-wait.ts")
 const core = await load("core.ts")
 const status = await load("status.ts")
@@ -134,7 +135,7 @@ await safe("g", async () => {
   await tick(T0 + 200 * MIN)
   const dir = path.join(fw.FORMS, "loops")
   mkdirSync(dir, { recursive: true })
-  writeFileSync(path.join(dir, `${core.safeKey("sesG")}.json`), JSON.stringify({ session: "sesG", asks: [], loop: { since: NOW - 30 * MIN, n: 3, question: Q, forms: ["frm_g1"] } }))
+  writeFixtureFile(path.join(dir, `${core.safeKey("sesG")}.json`), JSON.stringify({ session: "sesG", asks: [], loop: { since: NOW - 30 * MIN, n: 3, question: Q, forms: ["frm_g1"] } }))
   const s = st("sesG")
   cell("g1: a tab in a loop is the state owner with the mark of the loop", s.state === "owner" && !!s.loop, JSON.stringify(s))
 })
@@ -142,7 +143,7 @@ await safe("g", async () => {
 // (h) the mark "stuck" of the obligation: shown only while the task still waits for that tab
 const putTask = (n, status, extra = {}) => {
   mkdirSync(path.dirname(tasks.taskFile("proj", n)), { recursive: true })
-  writeFileSync(tasks.taskFile("proj", n), JSON.stringify({ n, project: "proj", title: `задача ${n}`, slug: `t${n}`, goal: "g", author: "sesAUTH", author_role: "proj.integrator", qid: `qx${n}`, review_qid: `rq${n}`, status, kind: "spawn", priority: "P2", tier: "light", role: "worker", executors: [], attempt: 1, directory: proj, history: [], created: NOW - 3_600_000, updated: NOW - 3_600_000, executor: `sesEX${n}`, reviewer: `sesRV${n}`, ...extra }))
+  writeFixtureFile(tasks.taskFile("proj", n), JSON.stringify({ n, project: "proj", title: `задача ${n}`, slug: `t${n}`, goal: "g", author: "sesAUTH", author_role: "proj.integrator", qid: `qx${n}`, review_qid: `rq${n}`, status, kind: "spawn", priority: "P2", tier: "light", role: "worker", executors: [], attempt: 1, directory: proj, history: [], created: NOW - 3_600_000, updated: NOW - 3_600_000, executor: `sesEX${n}`, reviewer: `sesRV${n}`, ...extra }))
 }
 const stuckOb = (session, qid, task) => core.saveObligations(session, [{ qid, from_session: "sesAUTH", from_role: "proj.integrator", at: NOW - 3 * 3_600_000, nudges: 3, empty: 3, stuck: true, stuckAt: NOW - 2 * 3_600_000, stuckWhat: "застряла", task }])
 const stuckOf = (session, n, as) => st(session, {}, { role: "worker", ...(as === "rv" ? { review: { project: "proj", n } } : { task: { project: "proj", n } }) }).stuck

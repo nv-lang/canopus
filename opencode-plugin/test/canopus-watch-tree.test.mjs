@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the tree of a watch command (task 101; node >= 24, Windows):  node test/canopus-watch-tree.test.mjs
 // `taskkill /T /F /PID <pid of the watch>` does not reach `timeout.exe` and `sleep.exe` of the command: their Windows parent is a
 // dead fork copy of Git Bash (msys), not the watch process. A cancelled gate or build stayed alive, held its slot's work and the
@@ -11,7 +12,7 @@
 //   4. dropWatch of a watch whose bash is already gone still closes the tree.
 // Red probe: before the fix step 1 is red (the processes of the tree stay alive after the cancel).
 import { execFileSync, spawn } from "node:child_process"
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs"
+import { mkdtempSync, readFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import assert from "node:assert/strict"
@@ -23,7 +24,7 @@ if (process.platform !== "win32") {
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-watch-tree-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 delete process.env.CANOPUS_WATCH_ID
 const w = await import("../watch.ts")
 const posted = []
@@ -138,7 +139,7 @@ try {
     const tok = fresh()
     const id = `${Date.now()}-limit`
     const req = { id, session: "sesL", command: tree(tok), cwd: tmp, note: "tree limit", minutes: 0.4, created: Date.now(), status: "requested" }
-    writeFileSync(path.join(w.WATCHES, `${id}.req.json`), JSON.stringify(req))
+    writeFixtureFile(path.join(w.WATCHES, `${id}.req.json`), JSON.stringify(req))
     w.pollWatches(post)
     await up(tok)
     for (let i = 0; i < 300 && !posted.some((p) => p.id === id); i++) {

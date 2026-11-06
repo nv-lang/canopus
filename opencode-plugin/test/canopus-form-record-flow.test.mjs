@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of task 120 in the running plugin (node >= 24):  node test/canopus-form-record-flow.test.mjs
 // The same rules as test/canopus-form-record.test.mjs, but through the passes of the service (index.ts) over a database of OpenCode made by hand:
 //   A. a held form whose record is gone and whose call `question` is open: the pass makes the record again, the panel (status file) says "owner",
@@ -6,7 +7,7 @@
 //   C. a record whose call was aborted by the restart of the service and a turn that went on: the record is kept as dead, the panel says so,
 //      canopus-answer is refused "dialog closed, close the tab by hand" and the form leaves the list of those who wait;
 //   D. form.cancelled through the subscription while the call is open: not cancelled; when the call ended: cancelled.
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
@@ -14,22 +15,22 @@ import { legacyAnswerPass } from "./legacy-answer-fixture.mjs"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-form-record-flow-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 process.env.XDG_STATE_HOME = tmp
 process.env.TEMP = process.env.TMP = process.env.TMPDIR = tmp
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_STATUS_MS = "100"
-process.env.CANOPUS_FORM_MS = "100"
-process.env.CANOPUS_FORM_GONE_MS = "300"
-process.env.CANOPUS_FORM_CANCEL_GONE_MS = "300"
-process.env.CANOPUS_FORM_REPEAT_GAP_MS = "300"
-process.env.CANOPUS_FORM_RESTART_GRACE_MS = "100"
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("STATUS_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_GONE_MS", "300")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_CANCEL_GONE_MS", "300")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_REPEAT_GAP_MS", "300")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_RESTART_GRACE_MS", "100")
 const dbPath = path.join(tmp, "opencode.db")
-process.env.CANOPUS_DB = dbPath
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", dbPath)
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({}))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({}))
 const db = new DatabaseSync(dbPath)
 db.exec("create table session_v2 (id text primary key, directory text, title text, parent_id text, time_archived integer, time_idle integer, time_viewed integer, time_suspended integer)")
 db.exec("create table session_message (id text primary key, session_id text, type text, seq integer, time_created integer, time_updated integer, data text)")
@@ -60,13 +61,13 @@ for (const id of [A, B, C, D]) core.saveCard({ session: id, role: "acceptor", au
 mkdirSync(core.WINDOWS, { recursive: true })
 const WPID = 595960
 let busyOf = { [A]: true, [B]: true, [C]: false, [D]: true }
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: [A, B, C, D].map((sessionID) => ({ sessionID, active: true, busy: busyOf[sessionID] })) }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: [A, B, C, D].map((sessionID) => ({ sessionID, active: true, busy: busyOf[sessionID] })) }))
 beat()
 const heart = setInterval(beat, 300)
 
 // the traces of A: the marker "held" (the closed list left the form to the owner); no record; B has nothing; C has its record (the restart did not remove it: it is dead); D is made by the event
 mkdirSync(path.join(fw.FORMS, "auto"), { recursive: true })
-writeFileSync(path.join(fw.FORMS, "auto", "frm_FA.json"), JSON.stringify({ id: "frm_FA", session: A, project: "proj", type: "default", question: QUESTION, first: T0, at: T0, state: "held", reason: "closed", rule: "merge", why: "слияние" }))
+writeFixtureFile(path.join(fw.FORMS, "auto", "frm_FA.json"), JSON.stringify({ id: "frm_FA", session: A, project: "proj", type: "default", question: QUESTION, first: T0, at: T0, state: "held", reason: "closed", rule: "merge", why: "слияние" }))
 const created = (id, session) => ({ type: "form.created", data: { form: { id, sessionID: session, title: "Questions", metadata: { kind: "question" }, fields: [{ key: "q0", question: QUESTION, options: OPTIONS.map((o) => ({ label: o.label })) }] } } })
 fw.handleFormEvent(created("frm_FC", C), T0)
 
@@ -100,7 +101,7 @@ const filesIn = (dir) => (existsSync(dir) ? readdirSync(dir, { recursive: true }
 const lettersTo = (id) => [...filesIn(path.join(core.INBOX, core.safeKey(id))), ...filesIn(path.join(core.READ, core.safeKey(id)))].map((f) => readFileSync(f, "utf8"))
 const stOf = (s) => core.readJson(path.join(status.STATUS, `${s}.json`))
 const recOf = (s) => core.readJson(path.join(fw.FORMS, `${core.safeKey(s)}.json`)) ?? []
-const put = (name, a) => (mkdirSync(oa.ANSWERS, { recursive: true }), writeFileSync(path.join(oa.ANSWERS, `${name}.json`), JSON.stringify({ id: name, at: Date.now(), ...a })))
+const put = (name, a) => (mkdirSync(oa.ANSWERS, { recursive: true }), writeFixtureFile(path.join(oa.ANSWERS, `${name}.json`), JSON.stringify({ id: name, at: Date.now(), ...a })))
 const got = (name) => core.readJson(path.join(oa.ANSWERS, `${name}.json`))
 
 let fail = 0

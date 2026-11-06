@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Red probe of task 263 (the incident of task 258): a tab blocked INSIDE the `question` tool shows as "busy"/"running"
 // and its letters wait unread, while nobody can tell it waits for the OWNER (node >= 24):
 //   node test/canopus-hidden-wait.test.mjs
@@ -11,23 +12,23 @@
 //   4. a really working tab (a running tool that is not question) stays plain "занята" — no false blocker;
 //   5. letters to the blocked tab wait unread (the turn is held by the question), and canopus_list still shows their count;
 //   6. the diagnosis itself produces no push letters ("Не завершено"/"застряла").
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-hidden-wait-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 process.env.TEMP = process.env.TMP = process.env.TMPDIR = tmp
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_STEP_MS = "100"
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("STEP_MS", "100")
 const dbPath = path.join(tmp, "opencode.db")
-process.env.CANOPUS_DB = dbPath
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", dbPath)
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ allow_default_models: true, step_term_minutes: 0.05, step_answer_minutes: 0.05, idle_tab_minutes: 0 }))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ allow_default_models: true, step_term_minutes: 0.05, step_answer_minutes: 0.05, idle_tab_minutes: 0 }))
 
 const db = new DatabaseSync(dbPath)
 db.exec("create table session_v2 (id text primary key, directory text, title text, parent_id text, time_archived integer, time_idle integer, time_viewed integer, time_suspended integer)")
@@ -83,7 +84,7 @@ const tabs = [
   { sessionID: "sesCONTROL", active: false, busy: false },
 ]
 mkdirSync(core.WINDOWS, { recursive: true })
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs }))
 beat()
 const heart = setInterval(beat, 300)
 for (const t of tabs) {
@@ -169,13 +170,13 @@ clearInterval(heart)
 await stop?.()
 // No watcher is running now: fixture metadata cannot start any command.
 mkdirSync(watch.WATCHES, {recursive:true})
-writeFileSync(path.join(watch.WATCHES,"diag263.json"),JSON.stringify({id:"diag263",session:"sesWORK",command:"fixture only",cwd:proj,created:T0,minutes:10,machine:true,status:"requested"}))
+writeFixtureFile(path.join(watch.WATCHES,"diag263.json"),JSON.stringify({id:"diag263",session:"sesWORK",command:"fixture only",cwd:proj,created:T0,minutes:10,machine:true,status:"requested"}))
 let evidence = await core.activityEvidence("sesWORK")
 cell("source diagnosis: working shell and machine queue are independent", evidence.includes("shell с") && evidence.includes("очередь машины") && evidence.includes("session_message") && evidence.includes("PID неизвестен"),evidence)
-writeFileSync(path.join(watch.WATCHES,"diag263.json"),JSON.stringify({id:"diag263",session:"sesWORK",command:"fixture only",cwd:proj,created:T0,started:T0,minutes:10,status:"running",pid:123456}))
+writeFixtureFile(path.join(watch.WATCHES,"diag263.json"),JSON.stringify({id:"diag263",session:"sesWORK",command:"fixture only",cwd:proj,created:T0,started:T0,minutes:10,status:"running",pid:123456}))
 evidence = await core.activityEvidence("sesWORK")
 cell("source diagnosis: external process PID is metadata, not invented liveness", evidence.includes("внешняя команда") && evidence.includes("123456") && evidence.includes("живость PID неизвестна"),evidence)
-process.env.CANOPUS_DB = path.join(tmp,"missing.db")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp,"missing.db"))
 evidence = await core.activityEvidence("sesUNKNOWN")
 cell("source diagnosis: missing database is unknown, not working", evidence.includes("инструмент: неизвестно") && evidence.includes("очередь сервера: неизвестно"),evidence)
 db.close()

@@ -1,27 +1,28 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of task 062: a stop at a gate ends with a question to the owner (node >= 24):  node test/canopus-gate-stop.test.mjs
 // GS-1 the gate store (gate-stop.ts): note, read, clear, the letter is marked once. GS-2 log_line kind "ворота": the entry is written
 //      in any case, the answer of the tool says "no question to the owner" when the tab has none open, and the plugin notes the stop.
 // GS-3 the status of a tab with a gate and no question: state owner, the mark ⚠, the text "ждёт вашего решения, вопроса нет".
 // GS-4 the plugin: after the turn of such a tab ends it gets ONE letter and the mark; an open question (forms/ record or a question
 //      mark at the end of the turn) or the owner's word clears it, no letter then. The live phrase of the source (2026-10-16).
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-gate-stop-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_STATUS_MS = "100"
-process.env.CANOPUS_FORM_MS = "100"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("STATUS_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_MS", "100")
 const dbPath = path.join(tmp, "opencode.db")
-process.env.CANOPUS_DB = dbPath
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", dbPath)
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
 mkdirSync(path.join(proj, "doc", "tasks", "007-x"), { recursive: true })
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({}))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({}))
 const LOG = path.join(proj, "doc", "tasks", "007-x", "log.md")
 
 let fail = 0
@@ -110,7 +111,7 @@ const ctx = {
 const WPID = 626262
 mkdirSync(core.WINDOWS, { recursive: true })
 // dated 30 s ahead: a window of 3 s freshness would look closed when this process is slow on a loaded machine (task 088)
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now() + 30_000, tabs: SESS.map((sessionID) => ({ sessionID, active: true, busy: false })) }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now() + 30_000, tabs: SESS.map((sessionID) => ({ sessionID, active: true, busy: false })) }))
 beat()
 const heart = setInterval(beat, 300)
 

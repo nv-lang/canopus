@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the window commands /canopus-help, /canopus-sets and /canopus-profiles (task 003, defect "commands at once"; node >= 24):
 //   node test/canopus-instant-commands.test.mjs
 // The three are commands of the window (tui.ts), as /canopus-progress: the answer is a dialog at once, no service message and no
@@ -5,7 +6,7 @@
 // functions as before; the catalog of the window comes from the provider list of the window, or is declared unavailable.
 import { execFileSync } from "node:child_process"
 import { createHash } from "node:crypto"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
@@ -13,14 +14,14 @@ const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-instant-commands-"))
 process.env.TEMP = tmp // the plugin log lives in os.tmpdir(): this keeps the lines of this test apart from the live service
 process.env.TMP = tmp
 process.env.XDG_DATA_HOME = path.join(tmp, "data")
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 process.env.XDG_CONFIG_HOME = path.join(tmp, "xdgcfg")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_PROFILES_MS = "100000"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-process.env.CANOPUS_SETTINGS_TTL_MS = "600000"
-process.env.CANOPUS_PRESENCE = "all"
-process.env.CANOPUS_NO_SIDEBAR = "1" // the window test draws no panels
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PROFILES_MS", "100000")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("SETTINGS_TTL_MS", "600000")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("NO_SIDEBAR", "1")
 
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
 const sha = (f) => createHash("sha256").update(readFileSync(f)).digest("hex")
@@ -42,7 +43,7 @@ const cfgDir = path.join(root, "proj-settings")
 mkdirSync(path.join(cfgDir, ".opencode"), { recursive: true }); mkdirSync(path.join(cfgDir, ".canopus", "plugin"), { recursive: true })
 const file = path.join(cfgDir, ".canopus", "plugin", "config.json")
 git(cfgDir, "init", "-q", "-b", "main")
-writeFileSync(file, JSON.stringify({ project: "cmdproj", root: "..", model_profiles: TABLE, profile_sets: SETS }, null, 2))
+writeFixtureFile(file, JSON.stringify({ project: "cmdproj", root: "..", model_profiles: TABLE, profile_sets: SETS }, null, 2))
 git(cfgDir, "add", "-A")
 git(cfgDir, "commit", "-q", "-m", "settings")
 
@@ -77,7 +78,7 @@ const cell = (name, ok, detail) => {
 }
 const session = "ses_instant_demo"
 mkdirSync(path.dirname(core.cardFile(session)), { recursive: true })
-writeFileSync(core.cardFile(session), JSON.stringify({ session, directory: root, role: "worker", project: "cmdproj", repo: "r", pid: process.pid, updated: Date.now() }))
+writeFixtureFile(core.cardFile(session), JSON.stringify({ session, directory: root, role: "worker", project: "cmdproj", repo: "r", pid: process.pid, updated: Date.now() }))
 
 // a window API as OpenCode gives it, cut down: select / prompt answer from a script; every shown text is kept
 const mkApi = (script, provider) => {
@@ -176,22 +177,22 @@ await new Promise((r) => setTimeout(r, 3600))
   script = ["__verbs", "check"]
   await slashOf(out, "canopus-sets").run()
   cell("no snapshot: check says the catalog is unavailable and names the reason", /каталог недоступен: плагин сервиса ещё не записал снимок/.test(msg(out)), msg(out).slice(0, 300))
-  writeFileSync(Cat.CATALOG_FILE, JSON.stringify({ at: Date.now() - 3 * 3600_000, models: JSON.parse(keep).models }))
+  writeFixtureFile(Cat.CATALOG_FILE, JSON.stringify({ at: Date.now() - 3 * 3600_000, models: JSON.parse(keep).models }))
   script = ["__verbs", "check"]
   await slashOf(out, "canopus-sets").run()
   cell("an old snapshot is not used, the reason names its age", /каталог недоступен: снимок каталога старый \(3 ч назад\)/.test(msg(out)), msg(out).slice(0, 300))
-  writeFileSync(Cat.CATALOG_FILE, keep)
+  writeFixtureFile(Cat.CATALOG_FILE, keep)
   await stop?.()
 }
 
 {
   // the same without the worker thread: the process of the window does the work after «Загрузка…»
-  process.env.CANOPUS_NO_WORKER = "1"
+  ;await (await import("./fixture-settings.mjs")).setFixtureRuntime("NO_WORKER", "1")
   const { api, out } = mkApi(["claude"])
   const stop = Tui.default.setup(api)
   await slashOf(out, "canopus-profiles").run()
   cell("without the worker the same answer arrives (the fallback in the process of the window)", out.shown.at(-2)?.message === "Загрузка…" && /Семья «claude»/.test(msg(out)), JSON.stringify(out.shown.map((x) => x.message.slice(0, 20))))
-  delete process.env.CANOPUS_NO_WORKER
+  ;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("NO_WORKER")
   await stop?.()
 }
 
@@ -290,7 +291,7 @@ await new Promise((r) => setTimeout(r, 3600))
   const { api, out } = mkApi([])
   const stop = Tui.default.setup(api)
   core.writeDoctorForTest?.()
-  writeFileSync(core.DOCTOR_FILE, JSON.stringify({ at: Date.now(), problems: [7, { a: 1 }, null, "text"] }))
+  writeFixtureFile(core.DOCTOR_FILE, JSON.stringify({ at: Date.now(), problems: [7, { a: 1 }, null, "text"] }))
   await slashOf(out, "canopus-doctor").run()
   cell("a self-check with problems that are numbers and objects reaches the dialog as strings", out.shown.length > 0 && out.shown.every((x) => typeof x.title === "string" && typeof x.message === "string"), JSON.stringify(out.shown))
   await stop?.()

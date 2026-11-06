@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // 281 (089/WC-2 slice): a normal submit must not break an existing verified question (node >= 24):
 //   node test/canopus-question-lifecycle.test.mjs
 // The scope of a question is the STABLE identity of the assignment (project/n/qid/goal/boundaries/criteria/route/
@@ -11,15 +12,15 @@
 // boundary changes at the same qid/holder (repair refuses, the stored scope stands, POST = 0), a new source SHA, an
 // owner decision, unknown transport, repeated delivery.
 import assert from "node:assert/strict"
-import { mkdtempSync, mkdirSync, writeFileSync, readdirSync, existsSync } from "node:fs"
+import { mkdtempSync, mkdirSync, readdirSync, existsSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-question-lifecycle-"))
 for (const k of ["XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "TEMP", "TMP", "TMPDIR"]) process.env[k] = tmp
-process.env.CANOPUS_HOME = path.join(tmp, "opencode")
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-process.env.CANOPUS_PRESENCE = "all"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(tmp, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
 globalThis.fetch = async () => { throw new Error("unexpected real transport") }
 
 const core = await import("../core.ts")
@@ -42,7 +43,7 @@ const ok = (cond, name) => {
 const root = path.join(tmp, "repo")
 mkdirSync(path.join(root, "doc"), { recursive: true })
 const sourceText = "Фикстура: проверенный артефакт жизненного цикла вопроса; разрешений владельца не выдаёт."
-writeFileSync(path.join(root, "doc", "source.md"), sourceText)
+writeFixtureFile(path.join(root, "doc", "source.md"), sourceText)
 const source = { path: "doc/source.md", sha256: digest(sourceText), quote: sourceText }
 
 const WORKER = "ses_life_worker"
@@ -98,7 +99,7 @@ const legacyQid = "qlegacy281"
 const legacyId = questionId({ project: "proj", session: WORKER, channel: "text", qid: legacyQid })
 const legacyDir = path.join(core.BASE, "question-routing")
 mkdirSync(legacyDir, { recursive: true })
-writeFileSync(path.join(legacyDir, `${legacyId}.json`), JSON.stringify({
+writeFixtureFile(path.join(legacyDir, `${legacyId}.json`), JSON.stringify({
   v: 1, id: legacyId, revision: 0, epoch: 0, status: "ready", created: Date.now(), updated: Date.now(), deadline: Date.now() + 600_000,
   project: "proj", task: task.n, session: WORKER, channel: "text", qid: legacyQid, text: "Прежний вопрос со scope по старым полям", context: "контекст",
   source: { kind: "text", id: legacyQid, at: Date.now() }, answer: "Прежний проверенный вердикт.", sources: [source],
@@ -119,7 +120,7 @@ ok(letters(WORKER).filter((f) => f.includes("question-answer")).length === 2, "t
 // resolve itself. No scope auto-adopt (no stored boundary evidence), no invented answer, no repeated POST.
 const lateQid = "qlate281"
 const lateId = questionId({ project: "proj", session: WORKER, channel: "text", qid: lateQid })
-writeFileSync(path.join(legacyDir, `${lateId}.json`), JSON.stringify({
+writeFixtureFile(path.join(legacyDir, `${lateId}.json`), JSON.stringify({
   v: 1, id: lateId, revision: 0, epoch: 1, status: "blocked", created: Date.now(), updated: Date.now(), deadline: Date.now() + 600_000,
   project: "proj", task: task.n, session: WORKER, channel: "text", qid: lateQid, text: "Актуальный вопрос, чей resolve отказал до сохранения ответа", context: "контекст",
   source: { kind: "text", id: lateQid, at: Date.now() }, target: INTEG, receivedAt: Date.now(), observed: { state: "pending" },
@@ -143,7 +144,7 @@ ok(letters(WORKER).filter((f) => f.includes(`question-answer-${lateId}`)).length
 // evidence recorded, the verdict is delivered once.
 const mailQid = "qmail281"
 const mailId = questionId({ project: "proj", session: WORKER, channel: "mail", qid: mailQid })
-writeFileSync(path.join(legacyDir, `${mailId}.json`), JSON.stringify({
+writeFixtureFile(path.join(legacyDir, `${mailId}.json`), JSON.stringify({
   v: 1, id: mailId, revision: 0, epoch: 1, status: "blocked", created: Date.now(), updated: Date.now(), deadline: Date.now() + 600_000,
   project: "proj", task: task.n, session: WORKER, channel: "mail", qid: mailQid, text: "Вопрос по почте, заблокированный до ответа", context: "контекст",
   source: { kind: "mail", id: mailQid, at: Date.now() }, target: INTEG, receivedAt: Date.now(), observed: { state: "pending" },
@@ -164,7 +165,7 @@ ok(letters(WORKER).filter((f) => f.includes(`question-answer-${mailId}`)).length
 // a genuinely different assignment: the refresh must not attach it
 const otherQid = "qother281"
 const otherId = questionId({ project: "proj", session: WORKER, channel: "text", qid: otherQid })
-writeFileSync(path.join(legacyDir, `${otherId}.json`), JSON.stringify({
+writeFixtureFile(path.join(legacyDir, `${otherId}.json`), JSON.stringify({
   v: 1, id: otherId, revision: 0, epoch: 0, status: "ready", created: Date.now(), updated: Date.now(), deadline: Date.now() + 600_000,
   project: "proj", task: task.n, session: WORKER, channel: "text", qid: otherQid, text: "Вопрос другого поручения", context: "контекст",
   source: { kind: "text", id: otherQid, at: Date.now() }, answer: "Чужой вердикт.", sources: [source],
@@ -181,7 +182,7 @@ ok(/source|источник/i.test(badSha.content), "a new source SHA is refused
 // an owner decision is not resolved by the integrator
 const ownerQid = "qowner281"
 const ownerId = questionId({ project: "proj", session: WORKER, channel: "text", qid: ownerQid })
-writeFileSync(path.join(legacyDir, `${ownerId}.json`), JSON.stringify({
+writeFixtureFile(path.join(legacyDir, `${ownerId}.json`), JSON.stringify({
   v: 1, id: ownerId, revision: 0, epoch: 0, status: "owner", created: Date.now(), updated: Date.now(), deadline: Date.now() + 600_000,
   project: "proj", task: task.n, session: WORKER, channel: "text", qid: ownerQid, text: "Настоящее решение владельца", context: "контекст",
   source: { kind: "text", id: ownerQid, at: Date.now() }, target: INTEG, decision: "решение владельца",
@@ -193,7 +194,7 @@ ok(!letters(WORKER).some((f) => f.includes(`question-answer-${ownerId}`)), "no d
 // unknown transport: no POST, the record stays safe
 const unknownQid = "qunknown281"
 const unknownId = questionId({ project: "proj", session: WORKER, channel: "form", qid: unknownQid })
-writeFileSync(path.join(legacyDir, `${unknownId}.json`), JSON.stringify({
+writeFixtureFile(path.join(legacyDir, `${unknownId}.json`), JSON.stringify({
   v: 1, id: unknownId, revision: 0, epoch: 1, status: "unknown", created: Date.now(), updated: Date.now(), deadline: Date.now() + 600_000,
   project: "proj", task: task.n, session: WORKER, channel: "form", qid: unknownQid, text: "Неизвестный transport", context: "контекст",
   source: { kind: "form", id: "frm_unknown", at: Date.now() }, form: { id: "frm_unknown", fingerprint: "fp", field: "q0" },

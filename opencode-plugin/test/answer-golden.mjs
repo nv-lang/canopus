@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Golden texts of the base for the question-answering task (007; node >= 24).
 //   node test/answer-golden.mjs --write            record the snapshot test/answer-golden.json (once, BEFORE the core is changed);
 //                                                  the first write also saves the same texts as answer-golden-base.json (the proof of red)
@@ -9,7 +10,7 @@
 // two new keys (`answer_*`), the heading of their group and the empty line before it are left out of guide and show: the new keys
 // change those two texts, everything else must stay. ANSWER_GOLDEN_FILE points to another snapshot file (the control: a snapshot
 // with one line spoiled must differ). CANOPUS_PLUGIN_DIR points to another copy of the plugin code.
-import { copyFileSync, existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs"
+import { copyFileSync, existsSync, readFileSync, realpathSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { harness } from "./answer-harness.mjs"
@@ -103,7 +104,7 @@ await H.close()
 
 if (mode === "write") {
   const text = JSON.stringify(result, null, 1) + "\n"
-  writeFileSync(SNAPSHOT, text)
+  writeFixtureFile(SNAPSHOT, text)
   if (!process.env.ANSWER_GOLDEN_FILE && !existsSync(BASE_SNAPSHOT)) copyFileSync(SNAPSHOT, BASE_SNAPSHOT)
   console.log(`golden written: ${Object.keys(result).length} texts -> ${path.basename(SNAPSHOT)}`)
   process.exit(0)

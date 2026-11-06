@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of canopus shared roles and window models (node >= 24):  node test/canopus-shared.test.mjs
 // Red probe: CANOPUS_NO_AMBIGUITY_GUARD=1 -- not supported by the plugin; the probe in the report removes the
 // guard line from a copy (see the commit message). This file asserts the behaviour.
@@ -7,14 +8,14 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-shared-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_PRESENCE ??= "all" // every tab taken as open (presence has its own test)
-import { mkdirSync, writeFileSync } from "node:fs"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
+import { mkdirSync } from "node:fs"
 // Project config: integrator is exclusive here (the plugin itself names no role).
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ exclusive_roles: ["integrator"] }))
-process.env.CANOPUS_DB = path.join(tmp, "absent.db") // no database: models come from the event
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ exclusive_roles: ["integrator"] }))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
 const mod = await import(process.env.CANOPUS_MODULE ?? "./fixture-plugin.mjs")
 
 const hooks = {}

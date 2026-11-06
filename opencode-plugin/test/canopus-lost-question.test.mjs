@@ -1,14 +1,15 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the lost owner question (task 040; node >= 24):  node test/canopus-lost-question.test.mjs
 // An open record in forms/ with no question left in the window wakes the tab (at most 3 repeats, >= 2 min apart), then "no
 // answer, the owner is needed"; form.replied closes, form.cancelled starts a repeat; a new turn of the tab closes the record;
 // /ask lists the open questions; the notice repeats every 30 minutes and never answers for the owner.
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-lostq-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 const fw = await import("../form-wait.ts")
 const core = await import("../core.ts")
 const { statusOf, formatStatuses, sidebarLines, waitingLine } = await import("../status.ts")
@@ -179,7 +180,7 @@ await safe("e0", async () => {
 // (f) /ask: the open questions with project, tab, waiting time, text and options
 await safe("f", async () => {
   mkdirSync(core.CARDS, { recursive: true })
-  const card = (session, project, role, title) => writeFileSync(core.cardFile(session), JSON.stringify({ session, project, role, title, directory: tmp, repo: "r", auto: false, pid: process.pid, updated: Date.now() }))
+  const card = (session, project, role, title) => writeFixtureFile(core.cardFile(session), JSON.stringify({ session, project, role, title, directory: tmp, repo: "r", auto: false, pid: process.pid, updated: Date.now() }))
   card("sesA", "nova", "integrator", "Интегратор")
   card("sesC", "canopus", "worker", "040 вопрос")
   if (!fw.askText) throw new Error("askText is not there yet")

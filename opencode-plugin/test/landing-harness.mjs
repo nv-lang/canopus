@@ -1,9 +1,10 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Shared set-up of the landing tests (task 005): a fake OpenCode host over the real plugin modules, a project that is a real git
 // repository with a local bare `origin` (a file path), a second clone that moves the origin, tabs of the integrator and the
 // reviewers, and helpers that build tasks on review. Not a test itself (no `.test.` in the name: `npm test` does not take it).
 // The plugin code comes from CANOPUS_PLUGIN_DIR (a copy with stubs, task 005 AC-30) or from the folder above this one.
 import { execFileSync, spawnSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs"
 import { DatabaseSync } from "node:sqlite"
 import os from "node:os"
 import path from "node:path"
@@ -22,15 +23,15 @@ export async function harness(prefix, opts = {}) {
   const attach = opts.attach
   const tmp = attach ?? mkdtempSync(path.join(os.tmpdir(), `${prefix}-`))
   process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-  process.env.CANOPUS_POLL_MS = "100"
-  process.env.CANOPUS_STATUS_MS = "100"
-  process.env.CANOPUS_FLOW_MS = "200"
-  process.env.CANOPUS_LEFT_MS = "3600000"
-  process.env.CANOPUS_SETTINGS_TTL_MS = "1"
-  process.env.CANOPUS_DB = path.join(tmp, opts.db || attach ? "opencode.db" : "absent.db")
-  if (opts.db) process.env.CANOPUS_PROCESS_START = String(Date.now()) // the turns that stopped before this moment were interrupted by a restart
-  delete process.env.CANOPUS_PRESENCE
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+  ;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+  ;await (await import("./fixture-settings.mjs")).setFixtureRuntime("STATUS_MS", "100")
+  ;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FLOW_MS", "200")
+  ;await (await import("./fixture-settings.mjs")).setFixtureRuntime("LEFT_MS", "3600000")
+  ;await (await import("./fixture-settings.mjs")).setFixtureRuntime("SETTINGS_TTL_MS", "1")
+  ;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, opts.db || attach ? "opencode.db" : "absent.db"))
+  if (opts.db) (await import("./fixture-settings.mjs")).setFixtureRuntime("PROCESS_START", Date.now()) // the turns that stopped before this moment were interrupted by a restart
+  ;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
   const proj = path.join(tmp, "proj")
   const bare = path.join(tmp, "origin.git")
   const other = path.join(tmp, "other")
@@ -46,14 +47,14 @@ process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
   let current = {}
   const settings = (more = {}) => {
     current = { ...more }
-    writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ spawn_limits: { worker: 20, reviewer: 0 }, stall_minutes: 600, inflight_limit: 50, accepted_reminder_min: 600, merge_precheck: "required", ...(opts.settings ?? {}), ...more }))
+    writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ spawn_limits: { worker: 20, reviewer: 0 }, stall_minutes: 600, inflight_limit: 50, accepted_reminder_min: 600, merge_precheck: "required", ...(opts.settings ?? {}), ...more }))
   }
   if (!attach) {
     settings()
     execFileSync("git", ["init", "-q", "--bare", "-b", "main", bare], { stdio: "ignore" })
     git(proj, "init", "-q", "-b", "main")
-    writeFileSync(path.join(proj, ".git", "info", "exclude"), ".opencode/\n.canopus/plugin/\n") // the settings file is not part of any commit
-    writeFileSync(path.join(proj, "a.txt"), "a\n")
+    writeFixtureFile(path.join(proj, ".git", "info", "exclude"), ".opencode/\n.canopus/plugin/\n") // the settings file is not part of any commit
+    writeFixtureFile(path.join(proj, "a.txt"), "a\n")
     git(proj, "add", "-A")
     git(proj, "commit", "-q", "-m", "init")
     git(proj, "remote", "add", "origin", bare)
@@ -100,7 +101,7 @@ process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
   const sids = sidsAll
   const WPID = 700000 + Math.floor(Math.random() * 90000)
   mkdirSync(core.WINDOWS, { recursive: true })
-  const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: sids.map((sessionID, i) => ({ sessionID, active: i === 0, busy: false })) }))
+  const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now(), tabs: sids.map((sessionID, i) => ({ sessionID, active: i === 0, busy: false })) }))
   beat()
   const heart = setInterval(beat, 300)
   const wait = (ms = 300) => new Promise((r) => setTimeout(r, ms))
@@ -150,7 +151,7 @@ process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
         const cur = git(proj, "rev-parse", "--abbrev-ref", "HEAD")
         git(proj, "branch", "-f", t.branch, `origin/main`)
         git(proj, "switch", "-q", t.branch)
-        writeFileSync(path.join(proj, `f${t.n}.txt`), `feature ${t.n}\n`)
+        writeFixtureFile(path.join(proj, `f${t.n}.txt`), `feature ${t.n}\n`)
         git(proj, "add", "-A")
         git(proj, "commit", "-q", "-m", `feature ${t.n}`)
         git(proj, "switch", "-q", cur)
@@ -162,7 +163,7 @@ process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
     /** move the origin: the second clone commits a file on main and pushes; returns the new tip */
     moveOrigin: (file = `m${Date.now()}.txt`) => {
       git(other, "pull", "-q", "--ff-only", "origin", "main")
-      writeFileSync(path.join(other, file), `${file}\n`)
+      writeFixtureFile(path.join(other, file), `${file}\n`)
       git(other, "add", "-A")
       git(other, "commit", "-q", "-m", `move ${file}`)
       git(other, "push", "-q", "origin", "main")
@@ -176,7 +177,7 @@ process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
       git(proj, "switch", "-q", "-C", name, "origin/main")
       if (merge) git(proj, "merge", "-q", "--no-edit", merge)
       else {
-        writeFileSync(path.join(proj, `${name.replace(/\W/g, "_")}.txt`), name)
+        writeFixtureFile(path.join(proj, `${name.replace(/\W/g, "_")}.txt`), name)
         git(proj, "add", "-A")
         git(proj, "commit", "-q", "-m", `candidate ${name}`)
       }

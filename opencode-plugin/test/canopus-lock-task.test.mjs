@@ -1,9 +1,10 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test: the merge lock knows its task (task 006; node >= 24):  node test/canopus-lock-task.test.mjs
 // LT-1..3: merge_precheck: off, one reviewer with two tasks: by default the second merge swaps the task in the lock as before; with the
 // project flag merge_lock_per_task: on it is refused with a reason. LT-4..5: rework/cancel of another task does not release the lock of
 // the held one (always). LT-6..7: a broken settings file in the legacy mode is reported (log, doctor line) and does not silently turn
 // the protection keys off (the last good settings are kept).
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { harness, reporter } from "./landing-harness.mjs"
@@ -46,9 +47,9 @@ const clear = () => review.releaseMergeLock("proj", holder()?.session ?? "")
   const f = path.join(dir, ".canopus", "plugin", "config.json")
   mkdirSync(path.dirname(f), { recursive: true })
   const settings = await import("../settings.ts")
-  writeFileSync(f, JSON.stringify({ merge_precheck: "required", rework_max: 7 }))
+  writeFixtureFile(f, JSON.stringify({ merge_precheck: "required", rework_max: 7 }))
   const first = settings.rawSettingsFor(dir, [])
-  writeFileSync(f, "{ not json")
+  writeFixtureFile(f, "{ not json")
   const broken = settings.rawSettingsFor(dir, [])
   cell("LT-6 broken legacy file: the last good settings are kept (protection keys stay)", first.rework_max === 7 && broken.rework_max === 7 && broken.merge_precheck === "required", JSON.stringify(broken))
   const probs = settings.settingsProblems([{ name: "leg", root: settings.normPath(dir), rootPath: dir }])

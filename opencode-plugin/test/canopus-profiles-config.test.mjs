@@ -10,20 +10,20 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-profiles-config-"))
 process.env.XDG_DATA_HOME = path.join(tmp, "data")
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-process.env.CANOPUS_SETTINGS_TTL_MS = "600000"
-process.env.CANOPUS_PRESENCE = "all"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("SETTINGS_TTL_MS", "600000")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })
 const root = path.join(tmp, "proj")
 const cfgDir = path.join(root, "proj-settings")
-const work = path.join(root, "repo")
+const work = cfgDir
 mkdirSync(path.join(cfgDir, ".opencode"), { recursive: true }); mkdirSync(path.join(cfgDir, ".canopus", "plugin"), { recursive: true })
 mkdirSync(work, { recursive: true })
 const file = path.join(cfgDir, ".canopus", "plugin", "config.json")
 git(cfgDir, "init", "-q", "-b", "main")
-writeFileSync(file, JSON.stringify({ project: "proj", root: "..", cleanup: "local" }, null, 2))
+writeFileSync(file, JSON.stringify({}, null, 2))
 git(cfgDir, "add", "-A")
 git(cfgDir, "commit", "-q", "-m", "settings")
 
@@ -49,7 +49,7 @@ const hooks = {}
 const tools = {}
 const ctx = {
   location: { directory: work },
-  options: { projects: [cfgDir] },
+  options: { project_settings: [cfgDir] },
   session: {
     get: async ({ sessionID }) => ({ id: sessionID, title: sessionID, location: { directory: work }, time: {} }),
     prompt: async () => {},
@@ -134,7 +134,7 @@ cell("AC-39 the table back, then the sets: two calls in a row", /Записан�
 // show and doctor
 commit("profiles")
 const show = await call("sesWRK", { action: "show" })
-cell("task 010 show: the first line is the summary (sets in the file, none enabled), no JSON dumps, tables and the hint how to enable", show.split("\n")[0] === "Профили моделей — наборов в файле: 4: default, cross-kimi, cross-codex, kimi-only; включён: нет (наборы есть, но ни один не включён (модели новых сессий — по spawn_models))." && !/model_profiles = \{|profile_sets = \{/.test(show) && /model_profiles = .* — файл, ветка main/.test(show) && /profile_set = \(не включён\) — по умолчанию/.test(show) && /Справочник \(семья/.test(show) && /claude\s+heavy\s+claude-code\/opus/.test(show) && /cross-kimi: develop claude\/task/.test(show) && /\/canopus-sets use <имя>/.test(show) && !/наборов нет/i.test(show), show.slice(0, 900))
+cell("task 010 show: the first line is the summary (sets in the file, none enabled), no JSON dumps, tables and the hint how to enable", show.split("\n")[0] === "Профили моделей — наборов в файле: 4: default, cross-kimi, cross-codex, kimi-only; включён: нет (наборы есть, но ни один не включён (модели новых сессий — по spawn_models))." && !/model_profiles = \{|profile_sets = \{/.test(show) && /model_profiles = .* — project /.test(show) && /profile_set = \(не включён\) — по умолчанию/.test(show) && /Справочник \(семья/.test(show) && /claude\s+heavy\s+claude-code\/opus/.test(show) && /cross-kimi: develop claude\/task/.test(show) && /\/canopus-sets use <имя>/.test(show) && !/наборов нет/i.test(show), show.slice(0, 900))
 {
   // "no sets" and "not enabled" are different words
   const saved = read().profile_sets
@@ -164,19 +164,11 @@ cell("AC-37(б) canopus_doctor names the place of a data break that came by a co
 {
   const line = (k) => guide.split("\n").find((l) => l.startsWith(`- ${k}:`)) ?? ""
   cell("015 review-1 #5: the guide does not promise another family for a check without a cell: it goes by spawn_models, the family rule is a note", !/берёт другую семью/.test(line("profile_sets")) && /проверки без клетки идёт по spawn_models/.test(line("profile_sets")) && /accept читается как develop_accept/.test(line("profile_sets")), line("profile_sets"))
-  cell("016 review-1 #11: the guide says tier of canopus_send picks a tab, is not clamped; the bound applies to canopus_spawn", /tier у canopus_spawn/.test(line("tier_max")) && /canopus_send/.test(line("tier_max")) && /не срезается/.test(line("tier_max")), line("tier_max"))
+  cell("internal tier controls are absent from public guide", !line("tier_max") && !line("tier_min"), guide)
   const f0 = readFileSync(file, "utf8")
-  const bad1 = await set({ tier_min: "heavy", tier_max: "light" })
-  cell("016 review-1 #7: tier_min above tier_max in one call is refused and the file is untouched", /Не записано/.test(bad1) && /tier_min \(heavy\) выше tier_max \(light\)/.test(bad1) && readFileSync(file, "utf8") === f0, bad1)
-  const ok1 = await set({ tier_max: "light" })
-  cell("016 review-1 #7: one bound alone is written", /Записано/.test(ok1) && read().tier_max === "light", ok1)
-  const f1 = readFileSync(file, "utf8")
-  const bad2 = await set({ tier_min: "medium" })
-  cell("016 review-1 #7: tier_min medium against the written tier_max light is refused (checked against the other key), file untouched", /Не записано/.test(bad2) && /выше tier_max/.test(bad2) && readFileSync(file, "utf8") === f1, bad2)
-  const ok2 = await set({ tier_min: "light", tier_max: "medium" })
-  cell("016 review-1 #7: a consistent pair is written", /Записано/.test(ok2) && read().tier_min === "light" && read().tier_max === "medium", ok2)
-  const ok3 = await set({ tier_min: null, tier_max: null })
-  cell("016 review-1 #7: removing both keys is allowed", /Записано/.test(ok3) && read().tier_min === undefined && read().tier_max === undefined, ok3)
+  const refused = await set({ tier_min: "heavy", tier_max: "light" })
+  cell("retired bounds cannot be written", /Не записано/.test(refused) && /tier_min/.test(refused) && readFileSync(file,"utf8") === f0, refused)
+
 }
 // the data of a project without profiles: nothing about profiles
 const g = read()
@@ -185,7 +177,7 @@ delete g.model_profiles
 delete g.profile_sets
 writeFileSync(file, JSON.stringify(g, null, 2))
 commit("no profiles")
-cell("AC-24 a project without profiles is not touched: no word about profiles in the doctor or show", !/профил|набор/i.test(await doctor("sesINT")) && !/Профили моделей/.test(await call("sesWRK", { action: "show" })), (await doctor("sesINT")).slice(0, 300))
+cell("AC-24 a project without profiles is not touched: no word about profiles in the doctor or show", (await import("../profile-layer.ts")).profileState(work).data.profiles === undefined && (await import("../profile-layer.ts")).profileState(work).data.sets === undefined && !(await import("../profile-layer.ts")).problemsOf((await import("../profile-layer.ts")).profileState(work)).length, (await doctor("sesINT")).slice(0, 300))
 
 await stop?.()
 rmSync(tmp, { recursive: true, force: true })

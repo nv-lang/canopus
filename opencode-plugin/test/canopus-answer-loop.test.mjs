@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the loop "question -> answer -> reminder -> the same question", task 078 (node >= 24):  node test/canopus-answer-loop.test.mjs
 // Source: 2026-10-17 the tab of task #94 asked the owner the same question again and again, though the owner answered it four times
 // from outside the window (canopus-answer, task 059): the OpenCode queue of the tab held old service messages ahead of the answers, so the
@@ -9,7 +10,7 @@
 //   - a working turn of the tab, the owner's word in the tab, a reassigned task or a closed tab clears the loop.
 // Borders that must stay quiet: the answer was not delivered (a busy tab keeps its letters), a working turn between the questions, other
 // questions, only two forms after answers. Red probe: the first run before the code (every "loop" cell red, the borders green).
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
@@ -17,22 +18,22 @@ import { legacyAnswerPass } from "./legacy-answer-fixture.mjs"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-answer-loop-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 // This suite covers legacy interrupt+mail delivery, not the service reply API. Never use the owner's registration.
 process.env.XDG_STATE_HOME = tmp
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_STATUS_MS = "200"
-process.env.CANOPUS_FORM_MS = "100"
-process.env.CANOPUS_FORM_GONE_MS = "300"
-process.env.CANOPUS_FORM_CANCEL_GONE_MS = "300"
-process.env.CANOPUS_FORM_REPEAT_GAP_MS = "300"
-process.env.CANOPUS_FORM_RESTART_GRACE_MS = "100"
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("STATUS_MS", "200")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_GONE_MS", "300")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_CANCEL_GONE_MS", "300")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_REPEAT_GAP_MS", "300")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_RESTART_GRACE_MS", "100")
 const dbPath = path.join(tmp, "opencode.db")
-process.env.CANOPUS_DB = dbPath
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", dbPath)
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ push_empty_turns: 50, push_max: 50, stall_minutes: 0 }))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ push_empty_turns: 50, push_max: 50, stall_minutes: 0 }))
 
 const db = new DatabaseSync(dbPath)
 db.exec("create table session_v2 (id text primary key, directory text, title text, parent_id text, time_archived integer, time_idle integer, time_viewed integer, time_suspended integer)")
@@ -84,7 +85,7 @@ mkdirSync(core.WINDOWS, { recursive: true })
 const WPID = 616161
 const open = new Set([AUTH, ...names])
 // dated 30 s ahead: a window of 3 s freshness would look closed when this process is slow on a loaded machine (task 088)
-const beat = () => writeFileSync(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now() + 30_000, tabs: [...open].map((sessionID) => ({ sessionID, active: sessionID === AUTH, busy: !!busyOf[sessionID] })) }))
+const beat = () => writeFixtureFile(path.join(core.WINDOWS, `${WPID}.json`), JSON.stringify({ pid: WPID, beat: Date.now() + 30_000, tabs: [...open].map((sessionID) => ({ sessionID, active: sessionID === AUTH, busy: !!busyOf[sessionID] })) }))
 beat()
 const heart = setInterval(beat, 300)
 
@@ -133,7 +134,7 @@ const until = async (f, ms = 60_000) => {
   return false
 }
 const got = (s, t) => delivered.filter((d) => d.sessionID === s && d.text.includes(t))
-const put = (name, a) => (mkdirSync(oa.ANSWERS, { recursive: true }), writeFileSync(path.join(oa.ANSWERS, `${name}.json`), JSON.stringify({ id: name, at: Date.now(), ...a })))
+const put = (name, a) => (mkdirSync(oa.ANSWERS, { recursive: true }), writeFixtureFile(path.join(oa.ANSWERS, `${name}.json`), JSON.stringify({ id: name, at: Date.now(), ...a })))
 const result = (name) => core.readJson(path.join(oa.ANSWERS, `${name}.json`))
 // Owner permission/gate loops remain legacy owner waits, not working fact searches (ADR-0017).
 const created = (id, session, question, options) => ({ type: "form.created", data: { form: { id, sessionID: session, title: "Questions", metadata: { kind: "question" }, fields: [{ key: "q0", description: `Тип: gate\n${question}`, options: options.map((label) => ({ label })) }] } } })

@@ -1,19 +1,20 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the constant system hint of a tab (node >= 24):  node test/canopus-system-hint.test.mjs
 // The plugin pushes one text into the system part of every request of a tab. It must name the role and the address, tell
 // the model to ask the owner by the question tool, and stay byte-identical between requests (a change re-bills the history).
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-hint-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_PRESENCE ??= "all"
-process.env.CANOPUS_POLL_MS = "100"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
 const cards = path.join(tmp, "opencode", "plugin", "data", "cards")
 mkdirSync(cards, { recursive: true })
 const card = (session, role) =>
-  writeFileSync(path.join(cards, `${session}.json`), JSON.stringify({ session, role, auto: false, title: "", directory: process.cwd(), repo: "nova", pid: process.pid, updated: Date.now() }))
+  writeFixtureFile(path.join(cards, `${session}.json`), JSON.stringify({ session, role, auto: false, title: "", directory: process.cwd(), repo: "nova", pid: process.pid, updated: Date.now() }))
 card("sesHINT01", "carina")
 
 const mod = await import("./fixture-plugin.mjs")

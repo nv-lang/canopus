@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test: the texts of the base do not change (task 005, AC-01; node >= 24):  node test/canopus-landing-golden.test.mjs
 // test/landing-golden.mjs collects the texts the plugin shows (the refusal of canopus_spawn by the limit, the reminders about an
 // accepted task, the task letters, the review letters, canopus_task show and list) on a throwaway project and compares them with
@@ -5,7 +6,7 @@
 // and they differ from the snapshot where the behaviour changed (owner, 2026-10-09: the new keys are on by default). The control: a snapshot with
 // one line spoiled must differ.
 import { execFileSync } from "node:child_process"
-import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { copyFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
@@ -53,7 +54,7 @@ copyFileSync(path.join(here, "landing-golden.json"), spoiled)
 const snap = JSON.parse(readFileSync(spoiled, "utf8"))
 const key = Object.keys(snap).find((k) => k.startsWith("letter reviewLetter"))
 snap[key] = snap[key].replace("ПРИЁМКА", "ПРИЕМКА")
-writeFileSync(spoiled, JSON.stringify(snap, null, 1))
+writeFixtureFile(spoiled, JSON.stringify(snap, null, 1))
 const ctl = run(["--check", "--legacy"], { LANDING_GOLDEN_FILE: spoiled })
 cell("AC-01 control: a spoiled line of the snapshot is found", ctl.code === 1 && /golden differs: letter reviewLetter/.test(ctl.out), ctl.out.slice(0, 600))
 

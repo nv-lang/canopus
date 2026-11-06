@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of task 039 (node >= 24):  node test/canopus-tool-texts.test.mjs
 // TT-1 the system block is English, does not retell the tools, ends with "Project rules: <text>" when the project sets project_rules,
 //      and is byte-identical between requests. TT-2 project_rules is a setting, help_extra is gone. TT-3 cleanup and cleaned give one
@@ -5,7 +6,7 @@
 //      line, cover plan_decide, round, kind plan, cleanup, view; the old name cleaned is not in them. TT-6 view is gone (task 066).
 // TT-7 (task 054) the owner's language is the setting owner_language (Russian by default): the rule of the block names letters to other
 //      tabs and task reports and takes the language from it; canopus_send and canopus_task tell to write texts in the owner's language.
-import { readFileSync, writeFileSync } from "node:fs"
+import { readFileSync } from "node:fs"
 import path from "node:path"
 import { harness, reporter } from "./landing-harness.mjs"
 
@@ -84,7 +85,7 @@ const file = path.join(H.tasks.TASKS, "proj", `${c.n}.json`)
 const raw = JSON.parse(readFileSync(file, "utf8"))
 raw.status = "cleaned"
 raw.history.push({ at: Date.now(), by: "x", status: "cleaned", note: "old" })
-writeFileSync(file, JSON.stringify(raw))
+writeFixtureFile(file, JSON.stringify(raw))
 cell("TT-4a a file with the status cleaned is read as done (loadTask and listTasks)", H.task(c.n).status === "done" && H.all().find((x) => x.n === c.n).status === "done" && H.task(c.n).history.at(-1).status === "done", JSON.stringify(H.task(c.n).status))
 cell("TT-4b the Russian label of done", H.tasks.statusRu("done").length > 0 && H.tasks.statusRu("done") !== "done", H.tasks.statusRu("done"))
 

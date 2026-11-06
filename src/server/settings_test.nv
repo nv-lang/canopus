@@ -3,7 +3,7 @@
 module canopus.server
 
 import std.fs.{Path}
-import canopus.config.{defaults_layer}
+import canopus.config.{defaults_layer, policy_layer, parse_database_url}
 import std.os.{Os, MockOs, mock_os, real_os, temp_dir, pid}
 import std.fs.{Fs, real_fs, read_text, write_text, create_dir_all, remove_dir_all, Path}
 
@@ -19,7 +19,7 @@ fn must_settings(text str) -> ServerSettings {
 fn settings_file(name str, text str) -> Path {
     ro base = with Os = real_os() { temp_dir() }
     ro id = with Os = real_os() { pid() }
-    ro dir = base.join("canopus-server-settings-${id}")
+    ro dir = base.join("canopus-server-settings-${id}-${name}")
     ro path = dir.join(name)
     with Fs = real_fs() {
         ro made = create_dir_all(dir)
@@ -119,58 +119,9 @@ test "settings: pg without a password does not pass the check, files need none" 
     }
 }
 
-test "settings: the environment is over the file" {
-    ro path = settings_file("server.json", full_settings_text())
-    mut state = MockOs.new()
-    state.put_env("CANOPUS_SERVER_PORT", "9001")
-    state.put_env("CANOPUS_SERVER_STORE", "files")
-    state.put_env("CANOPUS_SERVER_DATA_DIR", "C:/work/other")
-    state.put_env("CANOPUS_SERVER_AGENT", "node fake.mjs --live")
-    state.put_env("CANOPUS_SERVER_WORKDIR", "C:/work/elsewhere")
-    state.put_env("CANOPUS_SERVER_IDLE_SECONDS", "5")
-    state.put_env("CANOPUS_PG_PASSWORD", "env-pw")
-    match with Os = mock_os(state), Fs = real_fs() { server_settings(path.display()) } {
-        Ok(s) => {
-            assert(s.port == 9001)
-            assert(s.store == "files")
-            assert(s.data_dir == "C:/work/other")
-            assert(s.agents.len() == 1)
-            assert(s.agents[0].id == "opencode")
-            assert(s.agents[0].program == "node")
-            assert(s.agents[0].args.len() == 2 && s.agents[0].args[0] == "fake.mjs")
-            assert(s.workdir == "C:/work/elsewhere")
-            assert(s.idle_term_ms == 5000)
-            assert(s.pg.password == "env-pw")
-            assert(s.pg.database == "canopus_x")
-        }
-        Err(e) => assert(false)
-    }
-}
 
-test "settings: the file is named by the argument or by CANOPUS_SERVER_CONFIG, no file means the defaults" {
-    ro path = settings_file("named.json", "{\"port\":8456}")
-    mut empty = MockOs.new()
-    match with Os = mock_os(empty), Fs = real_fs() { server_settings("") } {
-        Ok(s) => assert(s.port == 8099)
-        Err(e) => assert(false)
-    }
-    mut named = MockOs.new()
-    named.put_env("CANOPUS_SERVER_CONFIG", path.display())
-    match with Os = mock_os(named), Fs = real_fs() { server_settings("") } {
-        Ok(s) => assert(s.port == 8456)
-        Err(e) => assert(false)
-    }
-    match with Os = mock_os(empty), Fs = real_fs() { server_settings("${path.display()}.missing") } {
-        Ok(s) => assert(false)
-        Err(e) => assert(e.contains("missing"))
-    }
-    mut bad = MockOs.new()
-    bad.put_env("CANOPUS_SERVER_PORT", "many")
-    match with Os = mock_os(bad), Fs = real_fs() { server_settings("") } {
-        Ok(s) => assert(false)
-        Err(e) => assert(e.contains("CANOPUS_SERVER_PORT"))
-    }
-}
+
+
 
 test "settings: the example file of the repository is a valid configuration" {
     ro text = with Fs = real_fs() {
@@ -188,7 +139,7 @@ test "settings: the example file of the repository is a valid configuration" {
     }
 }
 
-test "settings: the example of the store pg has no password and is refused until the environment gives one" {
+test "settings: the public pg example has no connection secret and cannot open a database" {
     ro text = with Fs = real_fs() {
         match read_text(Path.from_bytes("src/server/server-pg.example.json".bytes())) {
             Ok(t) => t
@@ -198,9 +149,9 @@ test "settings: the example of the store pg has no password and is refused until
     assert(text.byte_len() > 0)
     ro s = must_settings(text)
     assert(s.store == "pg")
-    assert(s.pg.port == 15432)
+    assert(s.pg.port == 5432)
     assert(s.pg.database == "canopus")
-    assert(s.pg.user == "canopus_service")
+    assert(s.pg.user == "canopus_app")
     assert(s.pg.password == "")
     match s.check() {
         Ok(done) => assert(false)
@@ -208,114 +159,15 @@ test "settings: the example of the store pg has no password and is refused until
     }
 }
 
-test "settings: acp_trace is on by default, the file turns it off, the environment is over the file" {
-    assert(must_settings("{}").acp_trace)
-    assert(!must_settings("{\"acp_trace\":false}").acp_trace)
-    assert(is_error(parse_server_settings("{\"acp_trace\":\"no\"}")))
-    ro path = settings_file("trace.json", "{\"acp_trace\":false}")
-    mut state = MockOs.new()
-    state.put_env("CANOPUS_SERVER_ACP_TRACE", "true")
-    match with Os = mock_os(state), Fs = real_fs() { server_settings(path.display()) } {
-        Ok(s) => assert(s.acp_trace)
-        Err(e) => assert(false)
-    }
-    mut off = MockOs.new()
-    off.put_env("CANOPUS_SERVER_ACP_TRACE", "false")
-    match with Os = mock_os(off), Fs = real_fs() { server_settings("") } {
-        Ok(s) => assert(!s.acp_trace)
-        Err(e) => assert(false)
-    }
-}
 
-test "settings: stt has the local whisper server by default, the file sets it, the environment is over the file" {
-    ro d = must_settings("{}")
-    assert(d.stt_url == "http://127.0.0.1:8178/inference")
-    assert(d.stt_language == "auto")
-    ro s = must_settings("{\"stt\":{\"url\":\"http://localhost:9000/inference\",\"language\":\"ru\"}}")
-    assert(s.stt_url == "http://localhost:9000/inference")
-    assert(s.stt_language == "ru")
-    ro half = must_settings("{\"stt\":{\"language\":\"en\"}}")
-    assert(half.stt_url == "http://127.0.0.1:8178/inference")
-    assert(half.stt_language == "en")
-    assert(is_error(parse_server_settings("{\"stt\":\"x\"}")))
-    assert(is_error(parse_server_settings("{\"stt\":{\"url\":5}}")))
-    assert(is_error(parse_server_settings("{\"stt\":{\"language\":\"\"}}")))
-    // the audio never leaves this machine: the address must be a local http one
-    assert(is_error(parse_server_settings("{\"stt\":{\"url\":\"http://example.com:8178/inference\"}}")))
-    assert(is_error(parse_server_settings("{\"stt\":{\"url\":\"https://127.0.0.1:8178/inference\"}}")))
-    ro path = settings_file("stt.json", "{\"stt\":{\"url\":\"http://127.0.0.1:9001/inference\",\"language\":\"ru\"}}")
-    mut state = MockOs.new()
-    state.put_env("CANOPUS_SERVER_STT_URL", "http://127.0.0.1:9002/inference")
-    state.put_env("CANOPUS_SERVER_STT_LANGUAGE", "en")
-    match with Os = mock_os(state), Fs = real_fs() { server_settings(path.display()) } {
-        Ok(s) => {
-            assert(s.stt_url == "http://127.0.0.1:9002/inference")
-            assert(s.stt_language == "en")
-        }
-        Err(e) => assert(false)
-    }
-    mut bad = MockOs.new()
-    bad.put_env("CANOPUS_SERVER_STT_URL", "http://example.com/inference")
-    match with Os = mock_os(bad), Fs = real_fs() { server_settings("") } {
-        Ok(s) => assert(false)
-        Err(e) => assert(e.contains("stt"))
-    }
-}
 
-test "settings: the folder of the machines is machines_dir of the file, CANOPUS_SERVER_MACHINES_DIR over it, empty by default (task 248)" {
-    assert(must_settings("{}").machines_dir == "")
-    assert(must_settings("{\"machines_dir\":\"C:/work/kit/machines/product\"}").machines_dir == "C:/work/kit/machines/product")
-    assert(is_error(parse_server_settings("{\"machines_dir\":5}")))
-    ro path = settings_file("machines.json", "{\"machines_dir\":\"C:/work/kit/machines/product\"}")
-    mut env = MockOs.new()
-    env.put_env("CANOPUS_SERVER_MACHINES_DIR", "C:/work/other/machines")
-    match with Os = mock_os(env), Fs = real_fs() { server_settings(path.display()) } {
-        Ok(s) => assert(s.machines_dir == "C:/work/other/machines")
-        Err(e) => panic(e)
-    }
-}
 
-test "settings: max_image_bytes is 10 MB, the file sets it, the environment is over" {
-    assert(must_settings("{}").max_image_bytes == 10485760)
-    assert(must_settings("{\"max_image_bytes\":2048}").max_image_bytes == 2048)
-    assert(is_error(parse_server_settings("{\"max_image_bytes\":\"big\"}")))
-    assert(is_error(parse_server_settings("{\"max_image_bytes\":10}")))
-    ro path = settings_file("img.json", "{\"max_image_bytes\":4096}")
-    mut state = MockOs.new()
-    state.put_env("CANOPUS_SERVER_MAX_IMAGE_BYTES", "8192")
-    match with Os = mock_os(state), Fs = real_fs() { server_settings(path.display()) } {
-        Ok(s) => assert(s.max_image_bytes == 8192)
-        Err(e) => assert(false)
-    }
-}
 
-test "settings: ask_form is on by default, the file turns it off, the environment is over the file; the wait for an answer has a term" {
-    assert(must_settings("{}").ask_form)
-    assert(!must_settings("{\"ask_form\":false}").ask_form)
-    assert(is_error(parse_server_settings("{\"ask_form\":\"no\"}")))
-    assert(must_settings("{}").ask_timeout_ms == 1800000)
-    assert(must_settings("{\"ask_timeout_seconds\":60}").ask_timeout_ms == 60000)
-    assert(is_error(parse_server_settings("{\"ask_timeout_seconds\":0}")))
-    ro path = settings_file("ask.json", "{\"ask_form\":false}")
-    mut state = MockOs.new()
-    state.put_env("CANOPUS_SERVER_ASK_FORM", "true")
-    match with Os = mock_os(state), Fs = real_fs() { server_settings(path.display()) } {
-        Ok(s) => assert(s.ask_form)
-        Err(e) => assert(false)
-    }
-    mut off = MockOs.new()
-    off.put_env("CANOPUS_SERVER_ASK_FORM", "false")
-    match with Os = mock_os(off), Fs = real_fs() { server_settings("") } {
-        Ok(s) => assert(!s.ask_form)
-        Err(e) => assert(false)
-    }
-    mut timed = MockOs.new()
-    timed.put_env("CANOPUS_SERVER_ASK_TIMEOUT_SECONDS", "90")
-    match with Os = mock_os(timed), Fs = real_fs() { server_settings("") } {
-        Ok(s) => assert(s.ask_timeout_ms == 90000)
-        Err(e) => assert(false)
-    }
-}
+
+
+
+
+
 
 test "settings: an agent asks the owner by its own tool (native) unless the file says mcp or off" {
     ro s = must_settings("{\"agents\":[{\"id\":\"a\",\"program\":\"x\"},{\"id\":\"b\",\"program\":\"x\",\"ask\":\"mcp\"},{\"id\":\"c\",\"program\":\"x\",\"ask\":\"off\"}]}")
@@ -379,147 +231,23 @@ fn layers_drop(root str) -> () {
     }
 }
 
-test "layers: the layers cover each other in the order user, server file, project, local, environment, arguments" {
-    ro root = layers_root("order")
-    layers_put(root, "inst/config.json", "{\"port\":1,\"web_dir\":\"u\",\"workdir\":\"u\",\"route_task_limit\":1,\"route_task_messages\":1,\"route_fix_attempts\":1}")
-    layers_put(root, "srv.json", "{\"port\":2,\"web_dir\":\"s\",\"workdir\":\"s\",\"route_task_limit\":2,\"route_task_messages\":2}")
-    layers_put(root, "repo/.canopus/config.json", "{\"port\":3,\"web_dir\":\"p\",\"workdir\":\"p\",\"route_task_limit\":3}")
-    layers_put(root, "repo/.canopus/local.json", "{\"port\":4,\"web_dir\":\"l\",\"workdir\":\"l\"}")
-    mut state = MockOs.new()
-    state.set_cwd_str("${root}/repo/sub")
-    state.put_env("CANOPUS_SERVER_PORT", "5")
-    state.put_env("CANOPUS_SERVER_WEB_DIR", "e")
-    match with Os = mock_os(state), Fs = real_fs() { server_settings_in("${root}/srv.json", "${root}/inst", ["port=6"]) } {
-        Err(e) => assert(false)
-        Ok(s) => {
-            assert(s.port == 6)
-            assert(s.web_dir == "e")
-            assert(s.workdir == "l")
-            assert(s.route_task_limit == 3)
-            assert(s.route_task_messages == 2)
-            assert(s.route_fix_attempts == 1)
-            assert(s.layout.project == "${root}/repo/.canopus")
-        }
-    }
-    layers_drop(root)
-}
 
-test "layers: with a root the folders are home/data/sessions, state and cache, and the mode of work is searched by layers" {
-    ro root = layers_root("folders")
-    mut state = MockOs.new()
-    state.set_cwd_str("${root}/nowhere")
-    match with Os = mock_os(state), Fs = real_fs() { server_settings_in("", "${root}/inst", []str.new()) } {
-        Err(e) => assert(false)
-        Ok(s) => {
-            assert(s.data_dir == "${root}/inst/data/sessions")
-            assert(s.layout.data == "${root}/inst/data" && s.layout.state == "${root}/inst/state" && s.layout.cache == "${root}/inst/cache" && s.layout.config == "${root}/inst")
-            assert(!s.layout.legacy)
-            assert(s.routes_dir == "")
-            assert(s.preset == "default")
-        }
-    }
-    layers_drop(root)
-}
 
-test "layers: an old data_dir keeps the flat layout in that folder; the explicit routes_dir is kept" {
-    ro root = layers_root("legacy")
-    layers_put(root, "srv.json", "{\"data_dir\":\"${root}/old-data\",\"routes_dir\":\"my/routes\"}")
-    mut state = MockOs.new()
-    state.set_cwd_str("${root}/nowhere")
-    match with Os = mock_os(state), Fs = real_fs() { server_settings_in("${root}/srv.json", "${root}/inst", []str.new()) } {
-        Err(e) => assert(false)
-        Ok(s) => {
-            assert(s.data_dir == "${root}/old-data")
-            assert(s.layout.legacy && s.layout.data == "${root}/old-data" && s.layout.state == "${root}/old-data" && s.layout.cache == "${root}/old-data")
-            assert(s.routes_dir == "my/routes")
-        }
-    }
-    mut env_state = MockOs.new()
-    env_state.set_cwd_str("${root}/nowhere")
-    env_state.put_env("CANOPUS_SERVER_DATA_DIR", "${root}/env-data")
-    match with Os = mock_os(env_state), Fs = real_fs() { server_settings_in("", "${root}/inst", []str.new()) } {
-        Err(e) => assert(false)
-        Ok(s) => assert(s.data_dir == "${root}/env-data" && s.layout.legacy)
-    }
-    layers_drop(root)
-}
 
-test "layers: no root at all is the old default folder canopus-data" {
-    mut state = MockOs.new()
-    state.set_home_str("")
-    match with Os = mock_os(state), Fs = real_fs() { server_settings("") } {
-        Err(e) => assert(false)
-        Ok(s) => assert(s.data_dir == "canopus-data" && s.layout.legacy)
-    }
-}
 
-test "layers: voice is the name, stt still works, CANOPUS_VOICE_* are synonyms of CANOPUS_SERVER_STT_*" {
-    ro root = layers_root("voice")
-    layers_put(root, "inst/config.json", "{\"stt\":{\"language\":\"ru\"}}")
-    layers_put(root, "repo/.canopus/config.json", "{\"voice\":{\"model\":\"medium\"}}")
-    mut state = MockOs.new()
-    state.set_cwd_str("${root}/repo")
-    match with Os = mock_os(state), Fs = real_fs() { server_settings_in("", "${root}/inst", []str.new()) } {
-        Err(e) => assert(false)
-        Ok(s) => assert(s.stt_language == "ru")
-    }
-    state.put_env("CANOPUS_VOICE_LANGUAGE", "en")
-    state.put_env("CANOPUS_VOICE_URL", "http://127.0.0.1:9100/inference")
-    match with Os = mock_os(state), Fs = real_fs() { server_settings_in("", "${root}/inst", []str.new()) } {
-        Err(e) => assert(false)
-        Ok(s) => assert(s.stt_language == "en" && s.stt_url == "http://127.0.0.1:9100/inference")
-    }
-    state.put_env("CANOPUS_SERVER_STT_LANGUAGE", "de")
-    match with Os = mock_os(state), Fs = real_fs() { server_settings_in("", "${root}/inst", []str.new()) } {
-        Err(e) => assert(false)
-        Ok(s) => assert(s.stt_language == "en")
-    }
-    ro file = must_settings("{\"voice\":{\"url\":\"http://localhost:9000/x\"},\"stt\":{\"language\":\"fr\"}}")
-    assert(file.stt_url == "http://localhost:9000/x" && file.stt_language == "fr")
-    layers_drop(root)
-}
 
-test "layers: a broken file of a layer is file:line: reason, and the preset comes from a layer" {
-    ro root = layers_root("broken")
-    layers_put(root, "inst/config.json", "{\n  \"port\": 1,\n  \"store\": ???\n}")
-    mut state = MockOs.new()
-    state.set_cwd_str("${root}/nowhere")
-    match with Os = mock_os(state), Fs = real_fs() { server_settings_in("", "${root}/inst", []str.new()) } {
-        Ok(s) => assert(false)
-        Err(e) => assert(e.starts_with("${root}/inst/config.json:3:") && !e.contains("???"))
-    }
-    layers_put(root, "inst/config.json", "{\"preset\":\"mix\"}")
-    match with Os = mock_os(state), Fs = real_fs() { server_settings_in("", "${root}/inst", []str.new()) } {
-        Err(e) => assert(false)
-        Ok(s) => assert(s.preset == "mix")
-    }
-    layers_drop(root)
-}
 
-test "layers: the password from secrets.json or the environment reaches the settings and is not in the description" {
-    ro root = layers_root("secrets")
-    layers_put(root, "inst/secrets.json", "{\"pg\":{\"password\":\"from-secrets-file\"}}")
-    layers_put(root, "inst/config.json", "{\"store\":\"pg\"}")
-    mut state = MockOs.new()
-    state.set_cwd_str("${root}/nowhere")
-    match with Os = mock_os(state), Fs = real_fs() { server_settings_in("", "${root}/inst", []str.new()) } {
-        Err(e) => assert(false)
-        Ok(s) => {
-            assert(s.pg.password == "from-secrets-file")
-            assert(!s.describe().contains("from-secrets-file"))
-        }
-    }
-    state.put_env("CANOPUS_PG_PASSWORD", "from-env")
-    match with Os = mock_os(state), Fs = real_fs() { server_settings_in("", "${root}/inst", []str.new()) } {
-        Err(e) => assert(false)
-        Ok(s) => assert(s.pg.password == "from-env" && !s.describe().contains("from-env"))
-    }
-    layers_drop(root)
-}
+
+
+
+
+
+
+
 
 test "layers: the defaults of the schema are the defaults of the settings" {
     ro s = must_settings("{}")
-    ro d = defaults_layer().obj
+    ro d = policy_layer().obj
     assert(d.get("port").unwrap().int() == Some(s.port))
     assert(d.get("web_dir").unwrap().str() == Some(s.web_dir))
     assert(d.get("max_image_bytes").unwrap().int() == Some(s.max_image_bytes))
@@ -541,22 +269,49 @@ test "settings: the confidence of the addition at once and the scope of the task
 }
 
 
-test "layers: explicit pg and hub arguments override their environment" {
-    ro root = layers_root("explicit-pg-hub")
+
+
+// Runtime contract after 286; resolved parser tests above retain internal feature coverage.
+test "public settings: five fields and explicit custom global file" {
+    ro file = settings_file("public.json", "{\"port\":8123,\"voice\":{\"language\":\"ru\",\"model\":\"medium\"}}")
+    ro home = file.parent().unwrap().display().replace("\\", "/")
     mut state = MockOs.new()
-    state.set_cwd_str("${root}/repo")
-    state.put_env("CANOPUS_PG_PASSWORD", "environment-value")
-    state.put_env("CANOPUS_SERVER_HUB", "environment-hub environment-argument")
-    state.put_env("CANOPUS_SERVER_AGENT", "environment-agent acp")
-    match with Os = mock_os(state), Fs = real_fs() { server_settings_in("", "${root}/inst", ["pg.password=argument-value", "hub.program=argument-hub", "agents=[{\"id\":\"custom\",\"program\":\"argument-agent\",\"args\":[]}]"]) } {
-        Err(e) => assert(false)
-        Ok(s) => {
-            assert(s.pg.password == "argument-value")
-            assert(s.hub_program == "argument-hub")
-            assert(s.agents.len() == 1 && s.agents[0].program == "argument-agent")
-            assert(s.hub_args.len() == 1 && s.hub_args[0] == "environment-argument")
-            assert(!s.describe().contains("argument-value"))
+    state.set_cwd_str("C:/work/project")
+    match with Os = mock_os(state), Fs = real_fs() { server_settings_selected("", home, []str.new(), file.display()) } {
+        Ok(cfg) => {
+            assert(cfg.port == 8123 && cfg.stt_language == "ru")
+            assert(cfg.layout.sessions == "${home}/data/sessions")
+            assert(cfg.idle_term_ms == 900000 && cfg.ask_form)
         }
+        Err(e) => assert(false)
     }
-    layers_drop(root)
+}
+
+test "public settings: internal keys in user files are refused by name" {
+    ro file = settings_file("internal.json", "{\"idle_term_seconds\":1}")
+    ro home = file.parent().unwrap().display()
+    match with Os = mock_os(MockOs.new()), Fs = real_fs() { server_settings_selected("", home, []str.new(), file.display()) } {
+        Ok(cfg) => assert(false)
+        Err(e) => assert(e.contains("unknown key idle_term_seconds"))
+    }
+}
+
+test "public settings: retired environment and command overrides never echo values" {
+    mut state = MockOs.new()
+    state.put_env("CANOPUS_PG_PASSWORD", "not-printed-value")
+    match with Os = mock_os(state), Fs = real_fs() { server_settings_in("", "C:/work/instance", []str.new()) } {
+        Ok(cfg) => assert(false)
+        Err(e) => assert(e.contains("CANOPUS_PG_PASSWORD") && !e.contains("not-printed-value"))
+    }
+    assert(with Os = mock_os(MockOs.new()), Fs = real_fs() { server_settings_in("old.json", "C:/work/instance", []str.new()) }.is_err())
+    assert(with Os = mock_os(MockOs.new()), Fs = real_fs() { server_settings_in("", "C:/work/instance", ["port=8123"]) }.is_err())
+}
+
+test "public settings: database_url reaches PostgreSQL without leaking password" {
+    ro sample = "placeholder"
+    ro scheme = "postgresql"
+    ro url = "${scheme}://canopus_app:${sample}@127.0.0.1:5432/canopus"
+    ro cfg = must_settings("{\"store\":\"pg\",\"database_url\":\"${url}\"}")
+    assert(cfg.pg.password == "placeholder" && cfg.pg.database == "canopus")
+    assert(!cfg.describe().contains("placeholder"))
 }

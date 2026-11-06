@@ -1,3 +1,4 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of task 161 in the plugin, the remarks of the acceptance (node >= 24):  node test/canopus-idle-watch-burst-flow.test.mjs
 // BF-1 no double letters to the author: when the author holds the step (a task between sessions, a running task without an executor) the
 //      plugin sends the letter of the watch («Шаг стоит …», it asks for an answer) and NOT the old «Ты простаиваешь» about the same task.
@@ -5,23 +6,23 @@
 // BF-2 a window that works on ANOTHER task is no excuse: the reviewer of tasks 30 and 31 works a turn on 31 (its card says so) - the
 //      letter goes to it about 30 and none about 31.
 // BF-3 a holder with no live window gets no letter: the task goes into ONE summary question of the project at once.
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-idle-watch-burst-flow-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_STATUS_MS = "100"
-process.env.CANOPUS_FORM_MS = "100"
-process.env.CANOPUS_STEP_MS = "100"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-process.env.CANOPUS_PRESENCE = "all"
-process.env.CANOPUS_SETTINGS_TTL_MS = "1"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("STATUS_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("FORM_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("STEP_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("SETTINGS_TTL_MS", "1")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ project: "proj", allow_default_models: true, step_term_minutes: 0.05, step_answer_minutes: 0.05, step_extend_minutes: 0.1, idle_tab_minutes: 0.05 }))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ project: "proj", allow_default_models: true, step_term_minutes: 0.05, step_answer_minutes: 0.05, step_extend_minutes: 0.1, idle_tab_minutes: 0.05 }))
 
 let fail = 0
 const cell = (name, ok, detail = "") => {
@@ -67,7 +68,7 @@ const mkTask = (n, st, extra = {}) => ({
 })
 const putTask = (t) => {
   mkdirSync(path.dirname(tasks.taskFile(P, t.n)), { recursive: true })
-  writeFileSync(tasks.taskFile(P, t.n), JSON.stringify(t, null, 1))
+  writeFixtureFile(tasks.taskFile(P, t.n), JSON.stringify(t, null, 1))
 }
 const lettersTo = (s) => {
   const out = []

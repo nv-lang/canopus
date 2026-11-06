@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from "node
 import path from "node:path"
 import { spawnSync, spawn } from "node:child_process"
 import { taskTestHome, taskOwnerIO } from "./task-owner-harness.mjs"
-const home = taskTestHome()
+const home = await taskTestHome()
 const gate = await import("../task-confirmation.ts")
 try {
  const fake = taskOwnerIO(), dir = path.join(home, "approvals")

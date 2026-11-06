@@ -1,20 +1,21 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of the renaming of task sessions (node >= 24):  node test/canopus-titles-cap.test.mjs
 // Every session.update writes into the OpenCode database inside the service process; renaming hundreds of old sessions at once
 // froze the service for seconds. Closed tasks older than a day are not renamed at all; the rest is renamed a few per pass.
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-titlescap-"))
 process.env.XDG_DATA_HOME = tmp
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-process.env.CANOPUS_TITLES_PER_PASS = "2"
-delete process.env.CANOPUS_PRESENCE
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("TITLES_PER_PASS", "2")
+;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
-writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ allow_default_models: true }))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ allow_default_models: true }))
 
 const core = await import("../core.ts")
 const tasks = await import("../tasks.ts")
@@ -40,7 +41,7 @@ for (let n = 7; n <= 12; n++) {
   const f = path.join(tmp, "opencode", "plugin", "data", "tasks", "proj", `${n}.json`)
   const j = JSON.parse(readFileSync(f, "utf8"))
   j.updated = OLD
-  writeFileSync(f, JSON.stringify(j))
+  writeFixtureFile(f, JSON.stringify(j))
 }
 
 const mod = await import("./fixture-plugin.mjs")

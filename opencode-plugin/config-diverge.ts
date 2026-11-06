@@ -1,3 +1,6 @@
+import { settingsLayers } from "./plugin-config.ts"
+import { resolveProjectPolicy } from "./resolved-policy.ts"
+import { runtimeValue } from "./runtime-policy.ts"
 // РАСХОЖДЕНИЕ НАСТРОЕК (задача 029, 2026-10-11): плагин читает .canopus/plugin/config.json с целевой ветки, а файл в рабочей
 // копии до коммита не действует. Здесь файл рабочей копии сравнивается с веткой по верхнеуровневым ключам; результат
 // кешируется на несколько секунд (git не на каждый вызов), как в acceptance-file.ts. «Рабочая копия» — папка настроек
@@ -27,7 +30,7 @@ export function differingKeys(a: Record<string, any>, b: Record<string, any>): s
 }
 
 const cache = new Map<string, { at: number; value: Divergence }>()
-const ttl = () => (process.env.CANOPUS_DIVERGE_TTL_MS !== undefined ? Number(process.env.CANOPUS_DIVERGE_TTL_MS) : 5_000)
+const ttl = () => runtimeValue("DIVERGE_TTL_MS")
 
 /** Сравнить файл рабочей копии (repo/file) с файлом целевой ветки (origin/<ветка>, затем локальная). Не падает. */
 export function configDivergence(repo: string | undefined, file: string | undefined, branch: string | undefined): Divergence {
@@ -92,7 +95,12 @@ export function unconfiguredLineFor(project: string): string | undefined {
     const dir = path.join(BASE, "settings-good")
     for (const f of readdirSync(dir)) {
       const v = JSON.parse(readFileSync(path.join(dir, f), "utf8"))
-      if (v?.project?.name === project) return modelsDefined(v.raw) ? undefined : `⚠ ${unconfiguredLine(project)}`
+      if (v?.project?.name === project) {
+        const folder = v.project.dir ?? v.project.rootPath ?? v.project.root
+        const raw = settingsLayers(v.raw, folder, {}, project)
+        const configured = { ...raw, allow_default_models: resolveProjectPolicy(raw, folder).allow_default_models }
+        return modelsDefined(configured) ? undefined : `⚠ ${unconfiguredLine(project)}`
+      }
     }
   } catch {}
   return undefined

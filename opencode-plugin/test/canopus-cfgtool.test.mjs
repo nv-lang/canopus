@@ -1,20 +1,21 @@
+import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of canopus_config (plan 002, Ph.6; node >= 24):  node test/canopus-cfgtool.test.mjs
 // The settings live in a settings repository (a real git repo here). guide covers every key of the schema with the
 // current value and its source; show names the source of each value (default, the committed file, the local option)
 // and the uncommitted edits; set is the integrator's, checks every value (a wrong value or an unknown key -> nothing
 // written), writes the working copy; the new value applies only once committed.
 import { execFileSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-cfgtool-"))
 process.env.XDG_DATA_HOME = path.join(tmp, "data")
-process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
-process.env.CANOPUS_POLL_MS = "100"
-process.env.CANOPUS_DB = path.join(tmp, "absent.db")
-process.env.CANOPUS_SETTINGS_TTL_MS = "1"
-process.env.CANOPUS_PRESENCE = "all"
+;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("SETTINGS_TTL_MS", "1")
+;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })
 const root = path.join(tmp, "proj")
 const cfgDir = path.join(root, "proj-settings")
@@ -23,7 +24,7 @@ mkdirSync(path.join(cfgDir, ".opencode"), { recursive: true }); mkdirSync(path.j
 mkdirSync(work, { recursive: true })
 const file = path.join(cfgDir, ".canopus", "plugin", "config.json")
 git(cfgDir, "init", "-q", "-b", "main")
-writeFileSync(file, JSON.stringify({ project: "proj", root: "..", cleanup: "local" }, null, 2))
+writeFixtureFile(file, JSON.stringify({ project: "proj", root: "..", cleanup: "local" }, null, 2))
 git(cfgDir, "add", "-A")
 git(cfgDir, "commit", "-q", "-m", "settings")
 

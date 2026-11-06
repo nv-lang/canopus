@@ -8,7 +8,7 @@ import std.fs.{Fs, real_fs, write_text, create_dir_all, remove_dir_all, Path}
 fn front_file(name str, text str) -> Path {
     ro base = with Os = real_os() { temp_dir() }
     ro id = with Os = real_os() { pid() }
-    ro dir = base.join("canopus-front-settings-${id}")
+    ro dir = base.join("canopus-front-settings-${id}-${name}")
     ro path = dir.join(name)
     with Fs = real_fs() {
         ro made = create_dir_all(dir)
@@ -17,267 +17,64 @@ fn front_file(name str, text str) -> Path {
     path
 }
 
-test "front settings: no file and no environment means the defaults" {
-    mut empty = MockOs.new()
-    match with Os = mock_os(empty), Fs = real_fs() { front_settings("") } {
-        Ok(s) => {
-            assert(s.port == 8099)
-            assert(s.web_dir == "src/web")
-            assert(s.hub_program == "target/canopus-hub.exe")
-            assert(s.hub_args.len() == 0)
-            assert(s.data_dir.ends_with("/.canopus/data/sessions"))
+test "front resolved parser retains internal code policy features" {
+    ro cfg = fs_from_file("{\"port\":8123,\"hub\":{\"program\":\"internal-hub\",\"args\":[\"x\"]},\"voice\":{\"managed\":false,\"dir\":\"internal-tools\",\"model\":\"medium\"},\"max_image_bytes\":4096}")
+    assert(cfg.port == 8123 && cfg.hub_program == "internal-hub" && cfg.hub_args.len() == 1)
+    assert(!cfg.stt_managed && cfg.stt_dir == "internal-tools" && cfg.stt_model == "medium" && cfg.max_image_bytes == 4096)
+}
+
+test "front public config: custom basename and instance folders" {
+    ro file = front_file("custom.json", "{\"port\":8123,\"voice\":{\"language\":\"ru\",\"model\":\"medium\"}}")
+    ro root = file.parent().unwrap().display().replace("\\", "/")
+    mut state = MockOs.new()
+    state.set_cwd_str("C:/work/repo")
+    state.push_arg("C:/work/install/target/canopus.exe")
+    match with Os = mock_os(state), Fs = real_fs() { front_settings_selected("", root, []str.new(), file.display()) } {
+        Ok(cfg) => {
+            assert(cfg.port == 8123 && cfg.stt_language == "ru" && cfg.stt_model == "medium")
+            assert(cfg.layout.config_file.replace("\\", "/").ends_with("/custom.json"))
+            assert(cfg.data_dir == "${root}/data/sessions" && cfg.stt_dir == "${root}/tools/whisper")
+            assert(cfg.web_dir == "C:/work/install/src/web" && cfg.hub_program == "C:/work/install/target/canopus-hub.exe")
         }
         Err(e) => assert(false)
     }
 }
 
-test "front settings: the keys of a file, the environment over them" {
-    ro path = front_file("front.json", "{\"port\":8123,\"web_dir\":\"web\",\"hub\":{\"program\":\"h.exe\",\"args\":[\"x\"]},\"agents\":[{\"id\":\"opencode\",\"label\":\"OpenCode\",\"program\":\"private.exe\",\"args\":[\"acp\"]},{\"id\":\"kimi\",\"label\":\"Kimi Code\",\"program\":\"kimi.cmd\",\"args\":[\"acp\"]}],\"store\":\"pg\",\"data_dir\":\"d-file\"}")
-    mut none = MockOs.new()
-    match with Os = mock_os(none), Fs = real_fs() { front_settings(path.display()) } {
-        Ok(s) => {
-            assert(s.port == 8123)
-            assert(s.web_dir == "web")
-            assert(s.hub_program == "h.exe")
-            assert(s.hub_args.len() == 1 && s.hub_args[0] == "x")
-            assert(s.agents.len() == 2)
-            assert(s.agents[0].id == "opencode" && s.agents[0].label == "OpenCode")
-            assert(s.agents[1].id == "kimi" && s.agents[1].label == "Kimi Code")
-            assert(s.data_dir == "d-file")
-        }
+test "front public config: voice can be disabled without a managed path override" {
+    ro file = front_file("voice-off.json", "{\"voice\":false}")
+    ro root = file.parent().unwrap().display()
+    match with Os = mock_os(MockOs.new()), Fs = real_fs() { front_settings_selected("", root, []str.new(), file.display()) } {
+        Ok(cfg) => assert(!cfg.stt_managed)
         Err(e) => assert(false)
+    }
+}
+
+test "front public config: internal fields and retired overrides are refused" {
+    ro file = front_file("internal.json", "{\"voice\":{\"dir\":\"not-a-public-path\"}}")
+    match with Os = mock_os(MockOs.new()), Fs = real_fs() { front_settings_selected("", file.parent().unwrap().display(), []str.new(), file.display()) } {
+        Ok(cfg) => assert(false)
+        Err(e) => assert(e.contains("voice.dir") && !e.contains("not-a-public-path"))
     }
     mut state = MockOs.new()
-    state.put_env("CANOPUS_SERVER_PORT", "9002")
-    state.put_env("CANOPUS_SERVER_WEB_DIR", "elsewhere")
-    state.put_env("CANOPUS_SERVER_HUB", "other.exe a b")
-    state.put_env("CANOPUS_SERVER_AGENT", "override-agent acp")
-    state.put_env("CANOPUS_SERVER_DATA_DIR", "d-env")
-    match with Os = mock_os(state), Fs = real_fs() { front_settings(path.display()) } {
-        Ok(s) => {
-            assert(s.port == 9002)
-            assert(s.web_dir == "elsewhere")
-            assert(s.hub_program == "other.exe")
-            assert(s.hub_args.len() == 2 && s.hub_args[1] == "b")
-            assert(s.agents.len() == 1 && s.agents[0].id == "opencode")
-            assert(s.data_dir == "d-env")
-        }
-        Err(e) => assert(false)
+    state.put_env("CANOPUS_SERVER_PORT", "not-printed-value")
+    match with Os = mock_os(state), Fs = real_fs() { front_settings_in("", "C:/work/instance", []str.new()) } {
+        Ok(cfg) => assert(false)
+        Err(e) => assert(e.contains("CANOPUS_SERVER_PORT") && !e.contains("not-printed-value"))
     }
 }
 
-test "front settings: a missing file, a bad port" {
-    mut none = MockOs.new()
-    match with Os = mock_os(none), Fs = real_fs() { front_settings("C:/work/no-such-settings.json") } {
-        Ok(s) => assert(false)
-        Err(e) => assert(e.contains("no-such-settings"))
-    }
-    mut bad = MockOs.new()
-    bad.put_env("CANOPUS_SERVER_PORT", "many")
-    match with Os = mock_os(bad), Fs = real_fs() { front_settings("") } {
-        Ok(s) => assert(false)
-        Err(e) => assert(e.contains("CANOPUS_SERVER_PORT"))
-    }
-    mut zero = MockOs.new()
-    zero.put_env("CANOPUS_SERVER_PORT", "0")
-    match with Os = mock_os(zero), Fs = real_fs() { front_settings("") } {
-        Ok(s) => assert(false)
-        Err(e) => assert(e.contains("port"))
-    }
-}
-
-test "front settings: the recognizer of the voice, local only; the file, the environment over it" {
-    mut empty = MockOs.new()
-    match with Os = mock_os(empty), Fs = real_fs() { front_settings("") } {
-        Ok(s) => {
-            assert(s.stt_url == "http://127.0.0.1:8178/inference")
-            assert(s.stt_language == "auto")
-        }
-        Err(e) => assert(false)
-    }
-    ro path = front_file("stt.json", "{\"stt\":{\"url\":\"http://localhost:9000/inference\",\"language\":\"ru\"}}")
-    mut none = MockOs.new()
-    match with Os = mock_os(none), Fs = real_fs() { front_settings(path.display()) } {
-        Ok(s) => {
-            assert(s.stt_url == "http://localhost:9000/inference")
-            assert(s.stt_language == "ru")
-        }
-        Err(e) => assert(false)
-    }
-    mut state = MockOs.new()
-    state.put_env("CANOPUS_SERVER_STT_URL", "http://127.0.0.1:9100/inference")
-    state.put_env("CANOPUS_SERVER_STT_LANGUAGE", "en")
-    match with Os = mock_os(state), Fs = real_fs() { front_settings(path.display()) } {
-        Ok(s) => {
-            assert(s.stt_url == "http://127.0.0.1:9100/inference")
-            assert(s.stt_language == "en")
-        }
-        Err(e) => assert(false)
-    }
-    // an address that is not local is the default: the voice does not leave the machine
-    ro far = front_file("stt-far.json", "{\"stt\":{\"url\":\"http://example.com:9000/inference\"}}")
-    match with Os = mock_os(empty), Fs = real_fs() { front_settings(far.display()) } {
-        Ok(s) => assert(s.stt_url == "http://127.0.0.1:8178/inference")
-        Err(e) => assert(false)
-    }
-    mut far_env = MockOs.new()
-    far_env.put_env("CANOPUS_SERVER_STT_URL", "http://example.com:1/x")
-    match with Os = mock_os(far_env), Fs = real_fs() { front_settings("") } {
-        Ok(s) => assert(s.stt_url == "http://127.0.0.1:8178/inference")
-        Err(e) => assert(false)
-    }
-}
-
-test "front settings: the recognizer is managed by default; the folder, the model, the data folder" {
-    mut empty = MockOs.new()
-    match with Os = mock_os(empty), Fs = real_fs() { front_settings("") } {
-        Ok(s) => {
-            assert(s.stt_managed)
-            assert(s.stt_model == "small")
-            assert(s.data_dir.ends_with("/.canopus/data/sessions"))
-            assert(s.stt_dir.ends_with("/.canopus/tools/whisper"))
-        }
-        Err(e) => assert(false)
-    }
-    // the default folder: CANOPUS_STT_DIR (the installer's), else an older install in LOCALAPPDATA/canopus/stt if it is there, else <home>/tools/whisper
-    mut local = MockOs.new()
-    local.put_env("LOCALAPPDATA", "C:/work/local")
-    match with Os = mock_os(local), Fs = real_fs() { front_settings("") } {
-        Ok(s) => assert(s.stt_dir.ends_with("/.canopus/tools/whisper"))
-        Err(e) => assert(false)
-    }
-    mut no_home = MockOs.new()
-    no_home.set_home_str("")
-    no_home.put_env("LOCALAPPDATA", "C:/work/local")
-    match with Os = mock_os(no_home), Fs = real_fs() { front_settings("") } {
-        Ok(s) => assert(s.stt_dir == "" && s.layout.legacy)
-        Err(e) => assert(false)
-    }
-    mut tools = MockOs.new()
-    tools.put_env("CANOPUS_TOOLS_DIR", "C:/work/tools")
-    match with Os = mock_os(tools), Fs = real_fs() { front_settings("") } {
-        Ok(s) => assert(s.stt_dir == "C:/work/tools/whisper")
-        Err(e) => assert(false)
-    }
-    mut voice = MockOs.new()
-    voice.put_env("CANOPUS_VOICE_DIR", "C:/work/voice")
-    voice.put_env("CANOPUS_VOICE_MODEL", "medium")
-    match with Os = mock_os(voice), Fs = real_fs() { front_settings("") } {
-        Ok(s) => assert(s.stt_dir == "C:/work/voice" && s.stt_model == "medium")
-        Err(e) => assert(false)
-    }
-    mut installer = MockOs.new()
-    installer.put_env("LOCALAPPDATA", "C:/work/local")
-    installer.put_env("CANOPUS_STT_DIR", "C:/work/stt")
-    match with Os = mock_os(installer), Fs = real_fs() { front_settings("") } {
-        Ok(s) => assert(s.stt_dir == "C:/work/stt")
-        Err(e) => assert(false)
-    }
-    ro path = front_file("stt-managed.json", "{\"data_dir\":\"C:/work/data\",\"stt\":{\"managed\":false,\"dir\":\"C:/work/from-file\",\"model\":\"medium\"}}")
-    match with Os = mock_os(installer), Fs = real_fs() { front_settings(path.display()) } {
-        Ok(s) => {
-            assert(!s.stt_managed)
-            assert(s.stt_dir == "C:/work/stt")
-            assert(s.stt_model == "medium")
-            assert(s.data_dir == "C:/work/data")
-        }
-        Err(e) => assert(false)
-    }
-    mut env = MockOs.new()
-    env.put_env("CANOPUS_SERVER_STT_MANAGED", "true")
-    env.put_env("CANOPUS_SERVER_STT_DIR", "C:/work/from-env")
-    env.put_env("CANOPUS_SERVER_STT_MODEL", "small")
-    env.put_env("CANOPUS_SERVER_DATA_DIR", "C:/work/data-env")
-    match with Os = mock_os(env), Fs = real_fs() { front_settings(path.display()) } {
-        Ok(s) => {
-            assert(s.stt_managed)
-            assert(s.stt_dir == "C:/work/from-env")
-            assert(s.stt_model == "small")
-            assert(s.data_dir == "C:/work/data-env")
-        }
-        Err(e) => assert(false)
-    }
-    mut off = MockOs.new()
-    off.put_env("CANOPUS_SERVER_STT_MANAGED", "false")
-    match with Os = mock_os(off), Fs = real_fs() { front_settings("") } {
-        Ok(s) => assert(!s.stt_managed)
-        Err(e) => assert(false)
-    }
-    // a model that could leave the folder is the default
-    ro odd = front_file("stt-odd.json", "{\"stt\":{\"model\":\"../x\",\"managed\":\"yes\"}}")
-    match with Os = mock_os(empty), Fs = real_fs() { front_settings(odd.display()) } {
-        Ok(s) => {
-            assert(s.stt_model == "small")
-            assert(s.stt_managed)
-        }
-        Err(e) => assert(false)
-    }
-}
-
-test "front settings: the folder of the data and the limit of a picture" {
-    ro path = front_file("front-img.json", "{\"data_dir\":\"D:/data\",\"max_image_bytes\":4096}")
-    mut none = MockOs.new()
-    match with Os = mock_os(none), Fs = real_fs() { front_settings(path.display()) } {
-        Ok(s) => {
-            assert(s.data_dir == "D:/data")
-            assert(s.max_image_bytes == 4096)
-        }
-        Err(e) => assert(false)
-    }
-    mut state = MockOs.new()
-    state.put_env("CANOPUS_SERVER_DATA_DIR", "E:/elsewhere")
-    state.put_env("CANOPUS_SERVER_MAX_IMAGE_BYTES", "8192")
-    match with Os = mock_os(state), Fs = real_fs() { front_settings(path.display()) } {
-        Ok(s) => {
-            assert(s.data_dir == "E:/elsewhere")
-            assert(s.max_image_bytes == 8192)
-        }
-        Err(e) => assert(false)
-    }
-    mut empty = MockOs.new()
-    match with Os = mock_os(empty), Fs = real_fs() { front_settings("") } {
-        Ok(s) => assert(s.data_dir.ends_with("/.canopus/data/sessions") && s.max_image_bytes == 10485760)
-        Err(e) => assert(false)
-    }
-}
-
-test "front settings: the layers of the hub are those of the front, an old data_dir stays flat, voice and stt are the same key" {
-    ro base = with Os = real_os() { temp_dir() }
-    ro id = with Os = real_os() { pid() }
-    ro root = base.join("canopus-front-layers-${id}").display().replace("\\", "/")
+test "front public layers: project and personal fields override global" {
+    ro file = front_file("layers.json", "{\"port\":8100,\"voice\":{\"language\":\"ru\"}}")
+    ro root = file.parent().unwrap().display().replace("\\", "/")
     with Fs = real_fs() {
-        // Stop project discovery inside the fixture, before any real user configuration.
-        ro project = create_dir_all(Path.from_bytes("${root}/.canopus".bytes()))
-        ro made = create_dir_all(Path.from_bytes("${root}/inst/config".bytes()))
-        ro w1 = write_text(Path.from_bytes("${root}/inst/config.json".bytes()), "{\"port\":1111,\"stt\":{\"language\":\"ru\"},\"preset\":\"mix\"}")
-        ro w2 = write_text(Path.from_bytes("${root}/srv.json".bytes()), "{\"port\":2222,\"voice\":{\"model\":\"medium\"}}")
+        ro made = create_dir_all(Path.from_bytes("${root}/repo/.canopus".bytes()))
+        ro one = write_text(Path.from_bytes("${root}/repo/.canopus/config.json".bytes()), "{\"port\":8101}")
+        ro two = write_text(Path.from_bytes("${root}/repo/.canopus/local.json".bytes()), "{\"voice\":{\"language\":\"en\"}}")
     }
     mut state = MockOs.new()
-    state.set_cwd_str("${root}/nowhere")
-    match with Os = mock_os(state), Fs = real_fs() { front_settings_in("${root}/srv.json", "${root}/inst", ["port=3333"]) } {
-        Ok(s) => {
-            assert(s.port == 3333 && s.stt_language == "ru" && s.stt_model == "medium" && s.preset == "mix")
-            assert(s.data_dir == "${root}/inst/data/sessions" && s.layout.data == "${root}/inst/data" && s.layout.state == "${root}/inst/state" && s.layout.cache == "${root}/inst/cache")
-        }
+    state.set_cwd_str("${root}/repo/src")
+    match with Os = mock_os(state), Fs = real_fs() { front_settings_selected("", root, []str.new(), file.display()) } {
+        Ok(cfg) => assert(cfg.port == 8101 && cfg.stt_language == "en")
         Err(e) => assert(false)
-    }
-    state.put_env("CANOPUS_SERVER_DATA_DIR", "${root}/old")
-    match with Os = mock_os(state), Fs = real_fs() { front_settings_in("${root}/srv.json", "${root}/inst", []str.new()) } {
-        Ok(s) => assert(s.data_dir == "${root}/old" && s.layout.legacy && s.layout.state == "${root}/old" && s.layout.data == "${root}/old")
-        Err(e) => assert(false)
-    }
-    with Fs = real_fs() {
-        ro gone = remove_dir_all(Path.from_bytes(root.bytes()))
-    }
-}
-
-
-test "front layers: tools argument overrides environment without a voice directory" {
-    mut state = MockOs.new()
-    state.set_cwd_str("C:/work/no-project")
-    state.put_env("CANOPUS_TOOLS_DIR", "C:/work/environment-tools")
-    match with Os = mock_os(state), Fs = real_fs() { front_settings_in("", "C:/work/home", ["tools_dir=C:/work/argument-tools"]) } {
-        Err(e) => assert(false)
-        Ok(s) => assert(s.stt_dir == "C:/work/argument-tools/whisper")
     }
 }
