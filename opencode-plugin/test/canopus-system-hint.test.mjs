@@ -14,15 +14,15 @@ process.env.XDG_DATA_HOME = tmp
 const cards = path.join(tmp, "opencode", "plugin", "data", "cards")
 mkdirSync(cards, { recursive: true })
 const card = (session, role) =>
-  writeFixtureFile(path.join(cards, `${session}.json`), JSON.stringify({ session, role, auto: false, title: "", directory: process.cwd(), repo: "nova", pid: process.pid, updated: Date.now() }))
+  writeFixtureFile(path.join(cards, `${session}.json`), JSON.stringify({ session, role, auto: false, title: "", directory: tmp, repo: "nova", pid: process.pid, updated: Date.now() }))
 card("sesHINT01", "carina")
 
 const mod = await import("./fixture-plugin.mjs")
 const hooks = {}
 const ctx = {
-  location: { directory: process.cwd() },
+  location: { directory: tmp },
   session: {
-    get: async ({ sessionID }) => ({ id: sessionID, location: { directory: process.cwd() } }),
+    get: async ({ sessionID }) => ({ id: sessionID, location: { directory: tmp } }),
     prompt: async () => {},
     hook: async (name, cb) => (hooks[name] = cb),
   },

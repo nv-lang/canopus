@@ -20,7 +20,9 @@ let enter, release, creates = 0, prompts = 0
 const entered = new Promise(r => { enter = r })
 const neverUntilExplicitRelease = new Promise(r => { release = r })
 const get = async route => route === "/api/info" ? { pid: process.pid, version: "2.0.26" } : route === "/api/session/active" ? { data: {} } : { data: { id: route.split("/").at(-1), time: { created: 1, updated: Date.now(), idle: Date.now() } } }
-const stop = await createCanopusPlugin({ get, spacingMs: 0 }).setup({ location: { directory: tmp }, options: { projects: { p: tmp } }, session: { get: async ({ sessionID }) => ({ id: sessionID, location: { directory: tmp } }), create: () => { creates++; enter(); return neverUntilExplicitRelease }, hook: async () => {}, prompt: async () => { prompts++ } }, tool: { transform: async () => {} } })
+const ctx = { location: { directory: tmp }, options: { projects: { p: tmp } }, session: { get: async ({ sessionID }) => ({ id: sessionID, location: { directory: tmp } }), create: () => { creates++; enter(); return neverUntilExplicitRelease }, hook: async () => {}, prompt: async () => { prompts++ } }, tool: { transform: async () => {} } }
+;(await import("./fixture-settings.mjs")).prepareFixturePluginContext(await import("../core.ts"),ctx)
+const stop=await createCanopusPlugin({get,spacingMs:0}).setup(ctx)
 await entered
 const drain = stop()
 let deadline

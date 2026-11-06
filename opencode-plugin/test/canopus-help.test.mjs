@@ -18,9 +18,9 @@ const commands = {}
 const prompts = []
 const synthetics = []
 const ctx = {
-  location: { directory: process.cwd() },
+  location: { directory: tmp },
   session: {
-    get: async ({ sessionID }) => ({ id: sessionID, title: sessionID, location: { directory: process.cwd() } }),
+    get: async ({ sessionID }) => ({ id: sessionID, title: sessionID, location: { directory: tmp } }),
     prompt: async (p) => prompts.push(p),
     synthetic: async (p) => synthetics.push(p),
     hook: async (name, cb) => (hooks[name] = cb),

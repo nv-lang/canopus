@@ -68,6 +68,7 @@ try {
   const plugin = await import('../index.ts')
   const { nativeFixture } = await import('./fixture-plugin.mjs')
   const fixture = nativeFixture({ location: { directory: root }, options: { projects: { sample: root } }, session: { get: async ({ sessionID }) => ({ id: sessionID, location: { directory: root } }), prompt: async () => ({}), hook: async (name, cb) => { hooks[name] = cb }, interrupt: async () => { interrupts++ } }, tool: { transform: async cb => cb({ add: tool => tools.push(tool) }) } })
+  ;(await import("./fixture-settings.mjs")).prepareFixturePluginContext(core, fixture.ctx)
   stop = await plugin.createCanopusPlugin({ get: fixture.get, spacingMs: 0, questionIO }).setup(fixture.ctx)
   const hint = async () => { const ev = { sessionID: integrator, system: [] }; await hooks.context(ev); return ev.system.map(s => s.text).join('\n') }
   const h1 = await hint(), h2 = await hint()

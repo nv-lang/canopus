@@ -26,7 +26,7 @@ const tools = {}
 const delivered = []
 const ctx = {
   location: { directory: root },
-  options: { projects: { nova: path.join(root, "nova"), limits: dirs.C, "Bad Name": root } },
+  options: { projects: { nova: path.join(root, "nova"), limits: dirs.C } },
   session: {
     get: async ({ sessionID }) => ({ id: sessionID, title: sessionID, location: { directory: dirOf[sessionID] } }),
     prompt: async ({ sessionID, text }) => delivered.push({ sessionID, text }),
@@ -45,8 +45,11 @@ const wait = () => new Promise((r) => setTimeout(r, 300))
 const got = (s, t) => delivered.filter((d) => d.sessionID === s && d.text.includes(t)).length
 
 // pure helpers
-const P = mod.parseProjects(ctx.options)
-cell("invalid project name is ignored", P.length === 2 && !P.some((p) => p.name.includes(" ")), JSON.stringify(P))
+const coreProjects = await import("../core.ts")
+const P = coreProjects.loadProjects()
+let invalidNameRefused=false
+try { mod.parseProjects({project_settings:[{project:"Bad Name",root}]}) } catch { invalidNameRefused=true }
+cell("invalid project name is refused before registration", invalidNameRefused && P.length === 2 && !P.some(p=>p.name.includes(" ")), JSON.stringify(P))
 cell("longest root wins", mod.projectOf(dirs.C, P) === "limits" && mod.projectOf(dirs.A, P) === "nova", `${mod.projectOf(dirs.C, P)} ${mod.projectOf(dirs.A, P)}`)
 cell("outside the list -> repository name", mod.projectOf(path.join(tmp, "elsewhere", "my_Repo"), P) === "my-repo", mod.projectOf(path.join(tmp, "elsewhere", "my_Repo"), P))
 

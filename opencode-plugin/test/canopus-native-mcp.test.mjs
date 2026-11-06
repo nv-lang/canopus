@@ -13,7 +13,7 @@ process.env.XDG_DATA_HOME = process.env.XDG_STATE_HOME = tmp
 ;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "50")
 const core = await import("../core.ts")
 const { createCanopusPlugin } = await import("../index.ts")
-const { tools } = await import("../mcp.ts")
+const { tools } = await import("../mcp-runtime.ts")
 const at = Date.now() - 1000
 const card = (session, role, busy) => core.saveCard({ session, role, project: "p", repo: "p", directory: tmp, model: "fixture/haiku", pid: process.pid, updated: at, busy, ...(busy ? { busySince: at - 100 } : {}) })
 card("sesMCPAUTHOR", "integrator", false)
@@ -37,10 +37,12 @@ const get = async route => {
   const id = decodeURIComponent(route.split("/").at(-1))
   return { data: id === "sesMCPUNKNOWN" ? { id } : { id, time: { created: at - 100, updated: at, idle: at } } }
 }
-const stop = await createCanopusPlugin({ get, spacingMs: 0 }).setup({ location: { directory: tmp }, options: { projects: { p: tmp } }, session: {
+const ctx = { location: { directory: tmp }, options: { projects: { p: tmp } }, session: {
   get: async ({ sessionID }) => ({ id: sessionID, location: { directory: tmp } }), hook: async () => {},
   prompt: async input => { posts.push(input); return { id: input.id, sessionID: input.sessionID, type: "user", payload: { text: input.text }, time: { created: Date.now() }, delivery: "queue" } },
-}, tool: { transform: async () => {} } })
+}, tool: { transform: async () => {} } }
+;(await import("./fixture-settings.mjs")).prepareFixturePluginContext(core,ctx)
+const stop=await createCanopusPlugin({get,spacingMs:0}).setup(ctx)
 try {
   const end = Date.now() + 5000
   while (posts.length < 2 && Date.now() < end) await new Promise(r => setTimeout(r, 20))

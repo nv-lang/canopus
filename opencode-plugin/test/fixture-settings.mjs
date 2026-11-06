@@ -20,6 +20,7 @@ const explicitPolicies = new Map()
 const policyAliases = new Map()
 const identities = new Map()
 const fixtureSettings = new Map()
+const virtualSettings = new Map()
 const canonicalFixturePath = file => {
   const absolute = path.resolve(file)
   try { return realpathSync.native(absolute) }
@@ -51,6 +52,14 @@ export function writeFixtureFile(file, value, ...options) {
         identities.set(norm(folder), parts.identity)
         policies.set(norm(folder), parts.policy)
         value = JSON.stringify(parts.settings)
+        const target = virtualSettings.get(norm(folder))
+        if (target) {
+          // Legacy feature fixtures edit a global-only project: use that actual public destination.
+          // Ordinary committed-project contract tests never pass through this helper.
+          const selected = pluginConfigContext().file
+          const current = JSON.parse(readFileSync(selected, "utf8"))
+          writeFileSync(selected, JSON.stringify({ ...current, local: { ...(current.local ?? {}), [target.project]: { ...parts.settings, ...target.overrides } } }))
+        }
       }
     } catch {} // malformed JSON tests must still write malformed JSON
   }
@@ -91,7 +100,10 @@ export function fixtureSetProjects(core, projects, local = {}) {
 /** Old feature fixtures provide programmatic projects/options; write only the real new public global format. */
 export function prepareFixturePluginContext(core, ctx) {
   const options = ctx.options ?? {}
-  if (!Object.keys(options).some(key => key !== "config")) return ctx
+  if (!Object.keys(options).some(key => key !== "config")) {
+    ctx.options = { config: options.config ?? pluginConfigContext().file }
+    return ctx
+  }
   const projects = fixtureProjects(core, options)
   const global = { project_settings: projects.map(project => {
     const identity = project.dir && identities.get(norm(project.dir))
@@ -106,6 +118,7 @@ export function prepareFixturePluginContext(core, ctx) {
     const parts = split(options.local?.[project.name] ?? {})
     const ordinary = global.project_settings.some(entry => typeof entry === "string" && norm(entry) === norm(folder))
     global.local[project.name] = ordinary ? parts.settings : { ...settings, ...parts.settings }
+    if (!ordinary) virtualSettings.set(norm(folder), { project: project.name, overrides: parts.settings })
     const key = norm(folder)
     const policy = { ...(policies.get(key) ?? {}), ...parts.policy }
     policies.set(key, policy)

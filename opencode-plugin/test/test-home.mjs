@@ -10,5 +10,10 @@ export async function configureTestHome(home) {
     : core ? path.dirname(core.startsWith("file:") ? fileURLToPath(core) : path.isAbsolute(core) ? core : fileURLToPath(new URL(core, import.meta.url)))
     : path.resolve(import.meta.dirname, "..")
   const context = await import(pathToFileURL(path.join(plugin, "config-context.ts")).href)
-  return context.initializePluginConfig({ config: path.join(home, "plugin", "config.json") })
+  const selected = context.initializePluginConfig({ config: path.join(home, "plugin", "config.json") })
+  const preload = new URL(pathToFileURL(path.join(plugin, "test", "instance-preload.mjs")).href)
+  preload.searchParams.set("config", selected.file)
+  const argument = `--import=${preload.href}`
+  if (!(process.env.NODE_OPTIONS ?? "").includes(argument)) process.env.NODE_OPTIONS = `${process.env.NODE_OPTIONS ?? ""} ${argument}`.trim()
+  return selected
 }

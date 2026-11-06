@@ -62,6 +62,7 @@ try {
     return { data: unknown && s === worker ? { id: s } : { id: s, time: { created: at - 1, updated: at, idle: at }, outcome: 'failed' } }
   }
   const ctx = { location: { directory: root }, options: { projects: { sample: root } }, session: { get: async ({ sessionID }) => ({ id: sessionID, location: { directory: root } }), hook: async () => {}, interrupt: async () => { interrupts++ }, prompt: async input => { const now = Date.now(); prompts.push({ ...input, at: now }); projected.set(input.sessionID, [{ id: input.id, type: 'user', text: input.text, time: { created: now } }]); return { id: input.id, sessionID: input.sessionID, type: 'user', payload: { text: input.text }, delivery: 'queue', time: { created: now } } } }, tool: { transform: async cb => cb({ add: tool => tools.push(tool) }) } }
+  ;(await import("./fixture-settings.mjs")).prepareFixturePluginContext(core, ctx)
   stop = await createCanopusPlugin({ get, spacingMs: 0, questionIO: io }).setup(ctx)
   const until = async fn => { for (let i = 0; i < 160; i++) { if (fn()) return; await new Promise(r => setTimeout(r, 25)) }; throw new Error('expected correlated current-input recovery') }
   const tool = tools.find(t => t.name === 'canopus_question')
@@ -108,6 +109,7 @@ try {
   assert.notEqual(router.get(original.id).status, 'answered', 'native admission is not continuation')
   assert.equal(continued.length, 0)
   await stop()
+  ;(await import("./fixture-settings.mjs")).prepareFixturePluginContext(core, ctx)
   stop = await createCanopusPlugin({ get, spacingMs: 0, questionIO: io }).setup(ctx)
   assert.equal(router.get(original.id).recovery.letter, id, 'restart preserves the original recovery identity')
   continued.push(input.id) // Execute the fixture continuation and expose its linked new assistant generation.

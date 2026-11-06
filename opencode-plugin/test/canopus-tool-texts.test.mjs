@@ -37,7 +37,8 @@ H.settings({})
 
 // ---- TT-2 the setting
 const schema = await import("../config-schema.ts")
-cell("TT-2a project_rules is in the schema (string, empty by default), help_extra is not", schema.SCHEMA.some((k) => k.key === "project_rules" && k.default === "") && !schema.SCHEMA.some((k) => k.key === "help_extra"), "")
+const {INTERNAL_POLICY}=await import("../resolved-policy.ts")
+cell("TT-2a project_rules is retained code policy, not public schema; help_extra is absent", INTERNAL_POLICY.project_rules === "" && !schema.SCHEMA.some(k=>["project_rules","help_extra"].includes(k.key)) && typeof schema.invalid("project_rules","x") === "string", "")
 cell("TT-2b loadConfig reads project_rules", (H.settings({ project_rules: "R1" }), H.cfg().projectRules === "R1"), JSON.stringify(H.cfg().projectRules))
 H.settings({})
 
@@ -98,13 +99,12 @@ cell("TT-5c canopus_task enum has cleanup and the synonym", tools.canopus_task.i
 const S = tools.canopus_spawn.description
 cell("TT-5d canopus_spawn describes kind plan fully (plans_dir, rounds, who approves, /plans, plan_decide)", /kind: plan/.test(S) && /plans_dir/.test(S) && /\/plans/.test(S) && /plan_decide/.test(S) && /approval/.test(S), S)
 const C = tools.canopus_config.description
-cell("TT-5e canopus_config: show is the one name (no view), plan settings named", /\bshow\b/.test(C) && !/\bview\b/.test(C) && /plan_approver/.test(C) && /plan_acceptance/.test(C) && /plans_dir/.test(C) && C.split("\n").length >= 4, C)
+cell("TT-5e canopus_config names public choices and show, not retired plan policy knobs", /\bshow\b/.test(C) && !/\bview\b/.test(C) && /owner_language/.test(C) && /tasks_dir/.test(C) && !/plan_approver|plan_acceptance/.test(C) && C.split("\n").length >= 4, C)
 cell("TT-5f canopus_watch is line by line", tools.canopus_watch.description.split("\n").length >= 6, "")
 const help = await call("canopus_help", "sesINTEG1", {})
 cell("TT-5g HELP explains planning and uses cleanup/done", /ЗАДАЧА-ПЛАН|задача-план/i.test(help) && /plan_decide/.test(help) && /approval/.test(help) && /cleanup/.test(help) && /ПЛАНИРОВАНИЕ/.test(help), "")
 cell("256 HELP does not offer assignment to an owner's tab", /assign запрещён/.test(help) && !/assign — открытой вкладке владельца/.test(help) && /передача — reassign/.test(help), "stale assignment hint")
-const legacy = (await import("../config-schema.ts")).SCHEMA.find((s) => s.key === "allow_self_assign")
-cell("256 the settings questionnaire marks allow_self_assign ineffective in all advice", /не действует/.test(legacy.question) && /true не даёт исключения/.test(legacy.why) && /не влияет/.test(legacy.recommend), JSON.stringify(legacy))
+cell("256 self-assignment remains disabled code policy and cannot be enabled through public settings", INTERNAL_POLICY.allow_self_assign === false && !schema.SCHEMA_KEYS.includes("allow_self_assign") && typeof schema.invalid("allow_self_assign",true) === "string", "")
 cell("256 the message field documents only migration and refused legacy assignment", /migrate:/.test(tools.canopus_task.input.properties.message.description) && /assign is refused/.test(tools.canopus_task.input.properties.message.description) && !/assign in a project with task folders/.test(tools.canopus_task.input.properties.message.description), tools.canopus_task.input.properties.message.description)
 
 // ---- TT-6 view is gone, show works (task 066)
