@@ -46,8 +46,9 @@ export fn stt_exe_path(dir str) -> str => "${stt_trim_slash(dir)}/bin/whisper-se
 export fn stt_model_path(dir str, model str) -> str => "${stt_trim_slash(dir)}/models/ggml-${model}.bin"
 
 /// The arguments of `whisper-server`: the model, 127.0.0.1 (never another address), the port, the language.
-export fn stt_server_args(model_path str, port int, language str) -> []str {
-    ["-m", model_path, "--host", "127.0.0.1", "--port", "${port}", "-l", language]
+// The child runs in bin. A relative model path also works with Unicode installation roots on Windows.
+export fn stt_server_args(model str, port int, language str) -> []str {
+    ["-m", "../models/ggml-${model}.bin", "--host", "127.0.0.1", "--port", "${port}", "-l", language]
 }
 
 /// The port of `http://<host>:<port>/...`; 1 to 65535.
@@ -278,7 +279,7 @@ fn stt_keep(cfg SttConfig, consume child Child, asks ChanRx[SttMgrAsk]) Proc Net
 // Start the recognizer; the state word and, with "starting", the child.
 fn stt_start(cfg SttConfig, port int, asks ChanRx[SttMgrAsk]) Proc Net Fs Time Io Detach -> () {
     mut command = Command.new(stt_exe_path(cfg.dir))
-    for a in stt_server_args(stt_model_path(cfg.dir, cfg.model), port, cfg.language) { command.arg(a) }
+    for a in stt_server_args(cfg.model, port, cfg.language) { command.arg(a) }
     command.stdin(Stdio.Null)
     command.stdout(Stdio.Null)
     command.stderr(Stdio.Null)

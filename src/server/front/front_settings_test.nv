@@ -246,6 +246,8 @@ test "front settings: the layers of the hub are those of the front, an old data_
     ro id = with Os = real_os() { pid() }
     ro root = base.join("canopus-front-layers-${id}").display().replace("\\", "/")
     with Fs = real_fs() {
+        // Stop project discovery inside the fixture, before any real user configuration.
+        ro project = create_dir_all(Path.from_bytes("${root}/.canopus".bytes()))
         ro made = create_dir_all(Path.from_bytes("${root}/inst/config".bytes()))
         ro w1 = write_text(Path.from_bytes("${root}/inst/config.json".bytes()), "{\"port\":1111,\"stt\":{\"language\":\"ru\"},\"preset\":\"mix\"}")
         ro w2 = write_text(Path.from_bytes("${root}/srv.json".bytes()), "{\"port\":2222,\"voice\":{\"model\":\"medium\"}}")

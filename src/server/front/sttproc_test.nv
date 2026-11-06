@@ -48,9 +48,9 @@ test "sttproc: the paths of the exe and of the model" {
 }
 
 test "sttproc: the arguments of the server bind to 127.0.0.1 at the port of the address" {
-    ro args = stt_server_args("C:/work/m/ggml-small.bin", 8179, "ru")
+    ro args = stt_server_args("small", 8179, "ru")
     assert(args.len() == 8)
-    assert(args[0] == "-m" && args[1] == "C:/work/m/ggml-small.bin")
+    assert(args[0] == "-m" && args[1] == "../models/ggml-small.bin")
     assert(args[2] == "--host" && args[3] == "127.0.0.1")
     assert(args[4] == "--port" && args[5] == "8179")
     assert(args[6] == "-l" && args[7] == "ru")
