@@ -2,7 +2,7 @@
 module canopus.config
 
 import std.encoding.json.{JsonObject, JsonValue}
-import std.encoding.url.{Url}
+import std.text
 
 const DATABASE_URL_DEFAULT_HOST = "127.0.0.1"
 const DATABASE_URL_DEFAULT_PORT = 5432
@@ -10,16 +10,38 @@ const DATABASE_URL_DEFAULT_DATABASE = "canopus"
 const DATABASE_URL_DEFAULT_USER = "canopus_app"
 const DATABASE_URL_INVALID = "database_url must be a PostgreSQL URI with a valid host, port and UTF-8 components; query options and fragments are not supported"
 
+fn database_hex(value u8) -> Result[int, str] {
+    if value >= 48 && value <= 57 { return Ok((value as int) - 48) }
+    if value >= 65 && value <= 70 { return Ok((value as int) - 55) }
+    if value >= 97 && value <= 102 { return Ok((value as int) - 87) }
+    Err(DATABASE_URL_INVALID)
+}
+
 fn database_component(text str) -> Result[str, str] {
-    // The std helper is form-oriented; URI userinfo/path must preserve literal plus.
-    ro decoded = match Url.decode_query(text.replace("+", "%2B")) {
-        Ok(value) => value
-        Err(e) => return Err(DATABASE_URL_INVALID)
+    // Decode URI bytes directly: plus is literal and the final conversion validates UTF-8.
+    ro input = text.bytes()
+    mut decoded = []u8.new(cap: input.len())
+    mut at = 0
+    while at < input.len() {
+        if input[at] == 37 {
+            if at + 2 >= input.len() { return Err(DATABASE_URL_INVALID) }
+            ro hi = database_hex(input[at + 1])?
+            ro lo = database_hex(input[at + 2])?
+            decoded.push((hi * 16 + lo) as u8)
+            at += 3
+        } else {
+            decoded.push(input[at])
+            at += 1
+        }
     }
-    for byte in decoded.bytes() {
+    ro value = match decoded.to_str() {
+        Ok(result) => result
+        Err(error) => return Err(DATABASE_URL_INVALID)
+    }
+    for byte in value.bytes() {
         if byte == 0 { return Err(DATABASE_URL_INVALID) }
     }
-    Ok(decoded)
+    Ok(value)
 }
 
 fn database_port(text str) -> Result[int, str] {
