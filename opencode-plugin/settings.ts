@@ -171,9 +171,16 @@ function* settingsBody(dir: string): GitGen<Folder> {
         last = JSON.parse(readFileSync(goodFile, "utf8"))
       } catch {}
     if (last && !last.project?.problems?.length) {
-      validateProjectSettings(last.raw ?? {}, "last good project cache")
-      log(`settings of ${dir}: ${problems.join("; ")} -- using the last good ones`)
-      value = last
+      try {
+        validateProjectSettings(last.raw ?? {}, "last good project cache")
+        log(`settings of ${dir}: ${problems.join("; ")} -- using the last good ones`)
+        value = last
+      } catch {
+        // A cache from an older schema is evidence, not accepted configuration.
+        // Keep it intact and report the transition instead of aborting doctor.
+        problems.push(`резервный кеш настроек ${dir} несовместим с текущей схемой; сохранён без изменений, нужен явный переход настроек проекта`)
+        log(`settings of ${dir}: incompatible last good project cache retained`)
+      }
     }
   }
   return value
@@ -458,6 +465,13 @@ export function unconfiguredLine(name: string): string {
 
 export function settingsProblems(projects: Projects, local: Record<string, any> = {}): string[] {
   const out = [...optionLines.problems, ...projects.flatMap((p) => p.problems ?? [])]
+  // Globally registered repositories also read committed settings, but their
+  // registration has no folder diagnostics. Surface incompatible recovery caches.
+  for (const p of projects) {
+    if (p.dir) continue
+    const main = mainTreeOf(p.rootPath ?? p.root)
+    if (main) out.push(...(readSettingsFolder(main).project.problems ?? []).filter(line => line.startsWith("резервный кеш настроек ")))
+  }
   for (const p of projects) if (p.legacy) out.push(`проект ${p.name}: настройки в файле с прежним именем ${p.legacy} — переименуй в .canopus/plugin/config.json (git mv) и закоммить`)
   // настройка, которая не может сработать: ключ gate в answer_mode, режим agent, неверный answer_max (задача 007)
   for (const p of projects) {

@@ -548,6 +548,10 @@ use(undefined)
   f.reviewer = "acceptor"
   f.spawn_limits = { ...f.spawn_limits, acceptor: 1 }
   writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(f))
+  // Public limits belong to the accepted branch, unlike injected code policy.
+  execFileSync("git", ["-C", proj, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "accept reviewer limits", "--", ".canopus/plugin/config.json"])
+  await until(() => core.loadConfig(proj).spawnLimits.acceptor === 1, 60_000)
+  cell("DNC-08 the accepted configuration supplies the acceptor limit", core.loadConfig(proj).spawnLimits.acceptor === 1, "accepted limit must be one")
   use("cross-kimi")
   const nK = await submit({})
   const tK = await reviewed(nK)

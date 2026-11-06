@@ -49,5 +49,22 @@ try {
  }
  const retired=path.join(tmp,"retired");mkdirSync(retired);git(retired,"init","-qb","main");json(path.join(retired,".opencode/opencode-peers.json"),{inflight_limit:777});git(retired,"add","--",".opencode/opencode-peers.json");git(retired,"commit","-qm","retired fixture")
  const old=settings.readSettingsFolder(retired);assert.deepEqual(old.raw,{});assert.ok(old.project.problems.length)
+ // An old persisted fallback must not abort diagnostics or become accepted settings.
+ const stale=settings.canon(path.join(tmp,"stale-cache"));mkdirSync(stale);git(stale,"init","-qb","main")
+ writeFileSync(path.join(stale,"README.md"),"fixture");git(stale,"add","--","README.md");git(stale,"commit","-qm","fixture")
+ const staleFile=path.join(core.BASE,"settings-good",`${core.safeKey(stale)}.json`)
+ const staleValue={project:{name:"stale-cache",root:stale,problems:[]},raw:{worktrees:false,inflight_limit:77}}
+ json(staleFile,staleValue)
+ const before=readFileSync(staleFile,"utf8")
+ const diagnosed=settings.readSettingsFolder(stale,Date.now()+240000)
+ assert.deepEqual(diagnosed.raw,{},"retired cache never supplies public or removed values")
+ assert.ok(diagnosed.project.problems.some(p=>p.includes("несовместим")),"explicit transition diagnostic survives")
+ assert.equal(readFileSync(staleFile,"utf8"),before,"owner fallback evidence remains byte-for-byte intact")
+ const virtual=[{name:"stale-cache",root:settings.normPath(stale),rootPath:stale}]
+ assert.ok(settings.settingsProblems(virtual).some(p=>p.includes("несовместим")),"doctor diagnoses a globally registered repository too")
+
+ json(path.join(stale,SF),{inflight_limit:6});git(stale,"add","--",SF);git(stale,"commit","-qm","explicit transition")
+ const recovered=settings.readSettingsFolder(stale,Date.now()+300000)
+ assert.equal(recovered.raw.inflight_limit,6);assert.deepEqual(recovered.project.problems,[])
  console.log("settings contract: real public files, accepted branch, layer precedence, canonical identity, fail-closed removed inputs and Git recovery OK")
 } finally {rmSync(tmp,{recursive:true,force:true})}
