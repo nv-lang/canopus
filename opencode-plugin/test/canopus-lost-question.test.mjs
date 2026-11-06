@@ -8,6 +8,7 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-lostq-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 const fw = await import("../form-wait.ts")
 const core = await import("../core.ts")
 const { statusOf, formatStatuses, sidebarLines, waitingLine } = await import("../status.ts")

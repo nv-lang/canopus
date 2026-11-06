@@ -42,7 +42,7 @@ const pass = (name, ok, detail) => report(name, ok ? "PASS" : "FAIL", ok ? undef
 async function startServer(prefix, config) {
   const root = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), `probe-profiles-${prefix}-`)))
   const d = (n) => { const p = path.join(root, n); mkdirSync(p, { recursive: true }); return p }
-  const env = { XDG_CONFIG_HOME: d("cfg"), XDG_DATA_HOME: d("data"), XDG_STATE_HOME: d("state"), XDG_CACHE_HOME: d("cache"), USERPROFILE: d("home"), HOME: d("home") }
+  const env = { XDG_CONFIG_HOME: d("cfg"), XDG_DATA_HOME: d("data"), CANOPUS_HOME: path.join(d("data"), "opencode"), XDG_STATE_HOME: d("state"), XDG_CACHE_HOME: d("cache"), USERPROFILE: d("home"), HOME: d("home") }
   mkdirSync(path.join(env.XDG_CONFIG_HOME, "opencode"), { recursive: true })
   writeFileSync(path.join(env.XDG_CONFIG_HOME, "opencode", "opencode.jsonc"), JSON.stringify(config, null, 2))
   const port = await freePort()
@@ -323,7 +323,7 @@ const sections = {
       // an unmarked file in a second worktree
       const wt2 = path.join(s.root, "wt", "task-2")
       git(proj, "worktree", "add", "-q", "-b", "task-2", wt2)
-      mkdirSync(path.join(wt2, ".opencode"), { recursive: true })
+      mkdirSync(path.join(wt2, ".opencode"), { recursive: true }); mkdirSync(path.join(wt2, ".canopus", "plugin"), { recursive: true })
       const foreign = JSON.stringify({ provider: { stub: { models: { m1: { limit: { context: 77000, output: 1 } } } } } })
       writeFileSync(W.windowPath(wt2), foreign)
       const r = W.writeWindowFile(wt2, W.windowFileContent(new Map([["stub/m1", { context: 55000, output: 7000 }]])))

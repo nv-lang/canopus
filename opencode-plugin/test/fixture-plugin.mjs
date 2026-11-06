@@ -29,8 +29,8 @@ export function nativeFixture(ctx) {
       return { messages: db.prepare("select id, type, time_created, time_updated, seq, data from session_message where session_id = ? order by seq desc").all(session), known: true }
     } catch { return { messages: [], known: false } } finally { db?.close() }
   }
-  const cardsDir = path.join(process.env.XDG_DATA_HOME, "opencode", "canopus", "cards")
-  const windowsDir = path.join(process.env.XDG_DATA_HOME, "opencode", "canopus", "windows")
+  const cardsDir = path.join(process.env.XDG_DATA_HOME, "opencode", "plugin", "data", "cards")
+  const windowsDir = path.join(process.env.XDG_DATA_HOME, "opencode", "plugin", "data", "windows")
   const jsons = dir => !existsSync(dir) ? [] : readdirSync(dir).filter(f => f.endsWith(".json")).map(f => { try { return JSON.parse(readFileSync(path.join(dir, f), "utf8")) } catch { return undefined } }).filter(Boolean)
   const fact = session => {
     if (fixtureNativeActive.has(session)) return { active: true }

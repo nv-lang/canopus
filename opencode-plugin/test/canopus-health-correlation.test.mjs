@@ -6,6 +6,7 @@ import os from "node:os"
 import path from "node:path"
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-health-correlation-"))
 process.env.XDG_DATA_HOME = process.env.XDG_STATE_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_DB = path.join(tmp, "native.db")
 const core = await import("../core.ts")
 const iw = await import("../idle-watch.ts")

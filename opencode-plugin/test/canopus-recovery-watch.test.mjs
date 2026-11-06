@@ -4,6 +4,7 @@ import os from "node:os"
 import path from "node:path"
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-recovery-watch-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.XDG_STATE_HOME = tmp
 const watch = await import("../watch.ts")
 const now = Date.now()

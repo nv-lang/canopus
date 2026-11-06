@@ -34,6 +34,12 @@ fn spec_of(key str) -> Option[KeySpec] {
     for k in known_keys() {
         if k.key == key { return Some(k) }
     }
+    // Infrastructure clients share secrets.json but do not add application defaults.
+    if key == "postgres.port" { return Some(ks(key, "i", "15432")) }
+    for name in ["container", "volume", "host", "database", "admin_user", "admin_password", "service_user", "service_password"] {
+        if key == "postgres.${name}" { return Some(ks(key, "s", "\"\"")) }
+    }
+    if key == "db_viewer.password" { return Some(ks(key, "s", "\"\"")) }
     None
 }
 
@@ -199,7 +205,7 @@ export fn config_get(layout ConfigLayout, server_file str, sets []str, key str, 
     Err("no such key: ${key}")
 }
 
-/// The file `config set` writes: `user` is `<home>/config/config.json`, `project` is `.canopus/config.json` of the project, `local` is `.canopus/local.json`.
+/// The file `config set` writes: `user` is `<home>/config.json`, `project` is `.canopus/config.json` of the project, `local` is `.canopus/local.json`.
 /// `work` is the folder of the project when it has no `.canopus` yet. Err when the scope has no place.
 export fn set_target(layout ConfigLayout, scope str, work str) -> Result[str, str] {
     if scope == "user" {
@@ -234,7 +240,7 @@ export fn typed_value(key str, text str) -> Result[JsonValue, str] {
 
 /// `config set <key> <value> [--project|--local]`: put the value into the file of the scope (the other keys of the file stay). Returns the line to print.
 export fn config_set(layout ConfigLayout, scope str, work str, key str, text str) Fs -> Result[str, str] {
-    if is_secret_key(key) { return Err("${key} is a secret: put it in the environment or in <home>/config/secrets.json by hand") }
+    if is_secret_key(key) { return Err("${key} is a secret: put it in the environment or in <home>/secrets.json by hand") }
     ro value = typed_value(key, text)?
     ro file = set_target(layout, scope, work)?
     ro old = match read_layer(scope, file)? {

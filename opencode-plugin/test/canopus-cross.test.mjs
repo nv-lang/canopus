@@ -10,14 +10,15 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-cross-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_POLL_MS = "100"
 process.env.CANOPUS_DB = path.join(tmp, "absent.db")
 process.env.CANOPUS_SETTINGS_TTL_MS = "1"
 delete process.env.CANOPUS_PRESENCE
 const dirA = path.join(tmp, "alpha")
 const dirB = path.join(tmp, "beta")
-for (const d of [dirA, dirB]) mkdirSync(path.join(d, ".opencode"), { recursive: true })
-const inbound = (v) => writeFileSync(path.join(dirB, ".opencode", "canopus.json"), JSON.stringify(v ? { inbound: v, allow_default_models: true } : { allow_default_models: true }))
+for (const d of [dirA, dirB]) { mkdirSync(path.join(d, ".opencode"), { recursive: true }); mkdirSync(path.join(d, ".canopus", "plugin"), { recursive: true }) }
+const inbound = (v) => writeFileSync(path.join(dirB, ".canopus", "plugin", "config.json"), JSON.stringify(v ? { inbound: v, allow_default_models: true } : { allow_default_models: true }))
 inbound(undefined)
 
 const mod = await import("./fixture-plugin.mjs")

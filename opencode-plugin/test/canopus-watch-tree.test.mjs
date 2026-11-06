@@ -23,6 +23,7 @@ if (process.platform !== "win32") {
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-watch-tree-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 delete process.env.CANOPUS_WATCH_ID
 const w = await import("../watch.ts")
 const posted = []

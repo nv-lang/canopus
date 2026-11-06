@@ -9,6 +9,7 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-task-show-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 const { sidebarLines, formatStatuses, sideText, waitingLine } = await import("../status.ts")
 const { taskRef, taskNo, sessionRef } = await import("../tasks.ts")
 let fail = 0

@@ -15,12 +15,13 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-flow-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_POLL_MS = "100"
 process.env.CANOPUS_DB = path.join(tmp, "absent.db")
 delete process.env.CANOPUS_PRESENCE
 const proj = path.join(tmp, "proj")
-mkdirSync(path.join(proj, ".opencode"), { recursive: true })
-writeFileSync(path.join(proj, ".opencode", "canopus.json"), JSON.stringify({ spawn_limits: { worker: 1 }, spawn_models: { light: "kimi/k3" } }))
+mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
+writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ spawn_limits: { worker: 1 }, spawn_models: { light: "kimi/k3" } }))
 
 const mod = await import(process.env.CANOPUS_MODULE ?? "./fixture-plugin.mjs")
 const core = await import(process.env.CANOPUS_CORE ?? "../core.ts")

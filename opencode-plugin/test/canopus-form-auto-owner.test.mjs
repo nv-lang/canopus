@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-form-auto-owner-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.TEMP = process.env.TMP = process.env.TMPDIR = tmp
 process.env.CANOPUS_DB = path.join(tmp, "absent.db")
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -214,8 +215,8 @@ cell("delivery: an answer of the OWNER (no source) with the same words is delive
 
 // ---- the scripts/canopus-answer.mjs shows the reason ------------------------------------------------------------------------------------------
 reset()
-const cardsDir = path.join(tmp, "opencode", "canopus", "cards")
-const base = path.join(tmp, "opencode", "canopus")
+const cardsDir = path.join(tmp, "opencode", "plugin", "data", "cards")
+const base = path.join(tmp, "opencode", "plugin", "data")
 mkdirSync(cardsDir, { recursive: true })
 const baseForms = path.join(base, "forms")
 mkdirSync(path.join(baseForms, "auto"), { recursive: true })
@@ -223,7 +224,7 @@ const NOW = Date.now()
 writeFileSync(path.join(cardsDir, "sesCA.json"), JSON.stringify({ session: "sesCA", project: "proj", role: "worker" }))
 writeFileSync(path.join(baseForms, "sesCA.json"), JSON.stringify([{ id: "frm_ca", at: NOW, born: NOW, title: "Questions", question: "Утверждаешь правило?", full: "Questions\nУтверждаешь правило?", options: ["Да (Recommended)", "Нет"], nq: 1, kind: "question", session: "sesCA" }]))
 writeFileSync(path.join(baseForms, "auto", "frm_ca.json"), JSON.stringify({ id: "frm_ca", session: "sesCA", project: "proj", type: "default", first: NOW, at: NOW, state: "held", reason: "closed", rule: "norms", why: "утверждение правил («утверждаешь»)" }))
-const run = spawnSync(process.execPath, [path.join(here, "..", "..", "scripts", "canopus-answer.mjs")], { env: { ...process.env, XDG_DATA_HOME: tmp }, encoding: "utf8" })
+const run = spawnSync(process.execPath, [path.join(here, "..", "..", "scripts", "canopus-answer.mjs")], { env: { ...process.env, XDG_DATA_HOME: tmp , CANOPUS_HOME: path.join(tmp , "opencode")}, encoding: "utf8" })
 cell("canopus-answer: the list of the open forms says «удержана для владельца» with the reason of the rule", /\[удержана для владельца: утверждение правил/.test(run.stdout), JSON.stringify([run.stdout, run.stderr]))
 
 // ---- the README ---------------------------------------------------------------------------------------------------------------------------

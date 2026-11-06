@@ -358,7 +358,7 @@ test "routes: the working folder of the agent is the tree of the subtask, else t
 test "routes: the prelude of a message: the instruction once, the files of the subtask each time, the prompt of a step" {
     ro doc = parse_route_doc("fast", rt_doc_text())
     ro first = route_prelude(doc, true, "doc/tasks/007-x/task", 2, "")
-    assert(first.starts_with("[crew]"))
+    assert(first.starts_with("[canopus]"))
     assert(first.contains("Делай быстро."))
     assert(first.contains("doc/tasks/007-x/task"))
     assert(first.contains("message.2.md"))
@@ -484,14 +484,14 @@ test "routes: the note about a planned task and its pictures is said only when t
     ro b = route_files_hint("doc/tasks/007-x/task", 1, false, true)
     assert(b.contains("doc/tasks/007-x/task/images/") && !b.contains("«Задание»"))
     ro both = route_files_hint("doc/tasks/007-x/task", 1, true, true)
-    assert(both.contains("«Задание»") && both.contains("images/") && both.starts_with("[crew]"))
+    assert(both.contains("«Задание»") && both.contains("images/") && both.starts_with("[canopus]"))
 }
 
 test "routes: the prelude of the planning holds its instruction first" {
     ro doc = parse_route_doc("planning", rt_repo_file("planning.md"))
     ro text = route_prelude(doc, true, "doc/tasks/007-x/task", 1, "")
     assert(doc.instruction.byte_len() > 500)
-    assert(text.starts_with("[crew] Режим «Подготовка задачи»"))
+    assert(text.starts_with("[canopus] Режим «Подготовка задачи»"))
     assert(text.contains("Подзадача 1"))
 }
 

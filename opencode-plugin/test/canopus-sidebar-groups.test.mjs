@@ -12,6 +12,7 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-sidebar-groups-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 const { sidebarLines, sideText, SIDE_WIDTH } = await import("../status.ts")
 const { WATCH_DIR } = await import("../idle-watch.ts")
 const { TASKS } = await import("../tasks.ts")

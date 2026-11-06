@@ -13,6 +13,7 @@ import { DatabaseSync } from "node:sqlite"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-nudge-matrix-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_POLL_MS = "100"
 process.env.CANOPUS_STATUS_MS = "200"
 process.env.CANOPUS_FLOW_MS = "200"
@@ -28,8 +29,8 @@ const dirs = {}
 const projectsOpt = {}
 const mkProject = (name, extra = {}) => {
   const dir = path.join(tmp, name)
-  mkdirSync(path.join(dir, ".opencode"), { recursive: true })
-  writeFileSync(path.join(dir, ".opencode", "canopus.json"), JSON.stringify({ ...BASE_CFG, ...extra }))
+  mkdirSync(path.join(dir, ".opencode"), { recursive: true }); mkdirSync(path.join(dir, ".canopus", "plugin"), { recursive: true })
+  writeFileSync(path.join(dir, ".canopus", "plugin", "config.json"), JSON.stringify({ ...BASE_CFG, ...extra }))
   dirs[name] = dir
   projectsOpt[name] = dir
 }

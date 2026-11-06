@@ -20,6 +20,7 @@ import { DatabaseSync } from "node:sqlite"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-form-record-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.TEMP = process.env.TMP = process.env.TMPDIR = tmp
 process.env.CANOPUS_FORM_GONE_MS = "1"
 process.env.CANOPUS_FORM_CANCEL_GONE_MS = "1"

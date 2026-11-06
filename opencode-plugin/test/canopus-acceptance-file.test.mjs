@@ -10,6 +10,7 @@ import { pathToFileURL } from "node:url"
 
 const tmp = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), "canopus-acc-file-")))
 process.env.XDG_DATA_HOME = path.join(tmp, "data")
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.TEMP = process.env.TMP = process.env.TMPDIR = tmp // the plugin log lives in os.tmpdir(): a log of its own per run, not the one other parallel runs write (task 085)
 process.env.CANOPUS_POLL_MS = "100"
 process.env.CANOPUS_DB = path.join(tmp, "absent.db")
@@ -22,12 +23,12 @@ const git = (cwd, ...a) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", 
 const root = path.join(tmp, "proj")
 const cfgDir = path.join(root, "proj-settings")
 const work = path.join(root, "repo")
-mkdirSync(path.join(cfgDir, ".opencode"), { recursive: true })
+mkdirSync(path.join(cfgDir, ".opencode"), { recursive: true }); mkdirSync(path.join(cfgDir, ".canopus", "plugin"), { recursive: true })
 mkdirSync(path.join(work, "doc"), { recursive: true })
 git(cfgDir, "init", "-q", "-b", "main")
 git(work, "init", "-q", "-b", "main")
 const setSettings = (obj) => {
-  writeFileSync(path.join(cfgDir, ".opencode", "canopus.json"), JSON.stringify({ project: "proj", root: "..", ...obj }, null, 2))
+  writeFileSync(path.join(cfgDir, ".canopus", "plugin", "config.json"), JSON.stringify({ project: "proj", root: "..", ...obj }, null, 2))
   git(cfgDir, "add", "-A")
   git(cfgDir, "commit", "-q", "--allow-empty", "-m", "s")
 }

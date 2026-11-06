@@ -21,6 +21,7 @@ const OLD3 = "nova-peers"
 
 // a fresh install: the new name, no old names made
 process.env.XDG_DATA_HOME = tmp // изоляция от ящика машины до импорта модуля: BASE считается при импорте
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 const fresh = path.join(tmp, "fresh")
 mkdirSync(fresh)
 const { canopusBase, migrateBase, rollbackBase } = await import("../paths.ts")

@@ -14,6 +14,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const script = path.resolve(here, "..", "..", "scripts", "task-number.mjs")
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-task-numbers-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 let fail = 0
 const cell = (name, ok, detail) => {
   console.log(`${ok ? "ok  " : "FAIL"} ${name}${ok ? "" : " :: " + detail}`)
@@ -98,7 +99,7 @@ const tree2 = path.join(tmp, "wt-race")
 git(proj, "worktree", "add", "-q", "-b", "race", tree2, "main")
 const run = (title) =>
   new Promise((res) => {
-    const p = spawn(process.execPath, [script, "--dir", tree2, "--project", "race", "--title", title], { env: { ...process.env, XDG_DATA_HOME: tmp }, windowsHide: true })
+    const p = spawn(process.execPath, [script, "--dir", tree2, "--project", "race", "--title", title], { env: { ...process.env, XDG_DATA_HOME: tmp , CANOPUS_HOME: path.join(tmp , "opencode")}, windowsHide: true })
     let out = ""
     let err = ""
     p.stdout.on("data", (d) => (out += d))

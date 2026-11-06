@@ -21,6 +21,7 @@ if (process.platform !== "win32") {
 const here = path.dirname(fileURLToPath(import.meta.url))
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-watch-console-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 const watchUrl = pathToFileURL(path.join(here, "..", "watch.ts")).href
 const w = await import(watchUrl)
 const posted = []
@@ -111,6 +112,7 @@ else {
 {
   const helper = `
     process.env.XDG_DATA_HOME = process.argv[1]
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
     const w = await import(process.argv[2])
     const x = w.requestWatch({ session: "sesO", command: "sleep 4; echo survived", cwd: process.argv[1], note: "outlives" })
     w.pollWatches(() => {})

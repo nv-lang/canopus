@@ -7,6 +7,7 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-retention-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 const core = await import("../core.ts")
 const ret = await import("../retention.ts")
 const tasks = await import("../tasks.ts")

@@ -14,6 +14,7 @@ import { execFileSync } from "node:child_process"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-task-message-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_POLL_MS = "100"
 process.env.CANOPUS_DB = path.join(tmp, "absent.db")
 process.env.CANOPUS_PRESENCE = "all"
@@ -23,8 +24,8 @@ const settings = { root: "..", worktrees: "worktrees", worktree_name: "{repo}-{n
 const proj = path.join(tmp, "proj")
 const flat = path.join(tmp, "flat")
 for (const [dir, folders] of [[proj, true], [flat, false]]) {
-  mkdirSync(path.join(dir, ".opencode"), { recursive: true })
-  writeFileSync(path.join(dir, ".opencode", "canopus.json"), JSON.stringify(settings))
+  mkdirSync(path.join(dir, ".opencode"), { recursive: true }); mkdirSync(path.join(dir, ".canopus", "plugin"), { recursive: true })
+  writeFileSync(path.join(dir, ".canopus", "plugin", "config.json"), JSON.stringify(settings))
   if (folders) {
     mkdirSync(path.join(dir, "doc", "tasks", "045-registry", "task"), { recursive: true })
     writeFileSync(path.join(dir, "doc", "tasks", "045-registry", "task", "message.md"), "# Задание: Реестры контрактов\n\nтекст\n")
@@ -68,7 +69,7 @@ const cell = (name, ok, detail) => {
 }
 const wait = (ms = 300) => new Promise((r) => setTimeout(r, ms))
 const call = async (name, sid, input = {}) => (await tools[name].execute(input, { sessionID: sid })).content
-const store = (p) => path.join(tmp, "opencode", "canopus", "tasks", p)
+const store = (p) => path.join(tmp, "opencode", "plugin", "data", "tasks", p)
 const records = (p) => (existsSync(store(p)) ? readdirSync(store(p)).filter((f) => /^\d+\.json$/.test(f)).length : 0)
 const branches = () => git(proj, "branch", "--list", "task/*").split("\n").filter(Boolean).length
 for (const sid of ["sesINTEG1", "sesFLATINT"]) {

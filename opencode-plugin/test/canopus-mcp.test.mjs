@@ -13,6 +13,7 @@ import { DatabaseSync } from "node:sqlite"
 const here = path.dirname(fileURLToPath(import.meta.url))
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-mcp-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_PRESENCE ??= "all" // every tab taken as open (presence has its own test)
 process.env.CANOPUS_POLL_MS = "100"
 delete process.env.CANOPUS_DB
@@ -133,7 +134,7 @@ try {
   // canopus_role from MCP; the card keeps the plugin's pid, so letters to the MCP window are still delivered
   const r = (await mcp.call("canopus_role", { role: "worker" })).text
   cell("MCP canopus_role sets the role", /теперь «worker», адрес nova\.worker/.test(r), r)
-  const card = JSON.parse(readFileSync(path.join(tmp, "opencode", "canopus", "cards", "sesCCCCCC.json"), "utf8"))
+  const card = JSON.parse(readFileSync(path.join(tmp, "opencode", "plugin", "data", "cards", "sesCCCCCC.json"), "utf8"))
   cell("the card keeps the OpenCode process pid", card.pid === process.pid && card.role === "worker", JSON.stringify(card))
   const rx = (await mcp.call("canopus_role", { role: "integrator" })).text
   cell("exclusive role held by a live window is refused through MCP too", /занята/.test(rx), rx)
@@ -152,8 +153,8 @@ try {
   cell("MCP canopus_help is the plugin's help", help === (await tools.canopus_help.execute({}, { sessionID: "sesCCCCCC" })).content, help.slice(0, 80))
   const bad = (await mcp.call("canopus_send", { to: "No Such.x", text: "bad" })).text
   cell("invalid address is refused", /не годится/.test(bad), bad)
-  const inboxDirs = readdirSync(path.join(tmp, "opencode", "canopus", "inbox"))
-  cell("nothing stuck in the inbox", inboxDirs.every((d) => readdirSync(path.join(tmp, "opencode", "canopus", "inbox", d)).filter((f) => f.endsWith(".json")).length === 0), inboxDirs.join(","))
+  const inboxDirs = readdirSync(path.join(tmp, "opencode", "plugin", "data", "inbox"))
+  cell("nothing stuck in the inbox", inboxDirs.every((d) => readdirSync(path.join(tmp, "opencode", "plugin", "data", "inbox", d)).filter((f) => f.endsWith(".json")).length === 0), inboxDirs.join(","))
 } catch (e) {
   cell("mcp session", false, String(e?.stack ?? e))
 } finally {
@@ -168,7 +169,7 @@ try {
   await fresh.rpc("initialize", { protocolVersion: "2025-06-18", capabilities: {} })
   const pl = (await fresh.call("canopus_list")).text
   cell("a window without a card gets project.role from the plugin's project list", /^\* limits\.worker/m.test(pl) && /limits\.integrator/.test(pl), pl)
-  const card = JSON.parse(readFileSync(path.join(tmp, "opencode", "canopus", "cards", "sesDDDDDD.json"), "utf8"))
+  const card = JSON.parse(readFileSync(path.join(tmp, "opencode", "plugin", "data", "cards", "sesDDDDDD.json"), "utf8"))
   cell("its card has pid 0 (delivered by the plugin's timer)", card.pid === 0 && card.project === "limits", JSON.stringify(card))
   await tools.canopus_send.execute({ to: "sesDDDDDD", text: "to-a-fresh-window" }, { sessionID: "sesBBBBBB" })
   await until(() => got("sesDDDDDD", "to-a-fresh-window").length >= 1)
@@ -194,8 +195,8 @@ try {
 // Tasks through MCP: the integrator's claude-code window starts a task; the plugin (in this process) picks it up
 // from the journal; canopus_task through MCP shows the same journal.
 // the project has no model settings of its own: the default models are allowed on purpose (task 033)
-mkdirSync(path.join(root, "nova", ".opencode"), { recursive: true })
-writeFileSync(path.join(root, "nova", ".opencode", "canopus.json"), JSON.stringify({ allow_default_models: true }))
+mkdirSync(path.join(root, "nova", ".opencode"), { recursive: true }); mkdirSync(path.join(root, "nova", ".canopus", "plugin"), { recursive: true })
+writeFileSync(path.join(root, "nova", ".canopus", "plugin", "config.json"), JSON.stringify({ allow_default_models: true }))
 const integ = startMcp("sesAAAAAA")
 try {
   await integ.rpc("initialize", { protocolVersion: "2025-06-18", capabilities: {} })

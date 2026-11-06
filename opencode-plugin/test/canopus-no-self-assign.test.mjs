@@ -7,13 +7,14 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-noself-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_POLL_MS = "100"
 process.env.CANOPUS_DB = path.join(tmp, "absent.db")
 process.env.CANOPUS_SETTINGS_TTL_MS = "1"
 delete process.env.CANOPUS_PRESENCE
 const dirA = path.join(tmp, "alpha")
-mkdirSync(path.join(dirA, ".opencode"), { recursive: true })
-const settings = (v) => writeFileSync(path.join(dirA, ".opencode", "canopus.json"), JSON.stringify(v))
+mkdirSync(path.join(dirA, ".opencode"), { recursive: true }); mkdirSync(path.join(dirA, ".canopus", "plugin"), { recursive: true })
+const settings = (v) => writeFileSync(path.join(dirA, ".canopus", "plugin", "config.json"), JSON.stringify(v))
 settings({})
 
 const mod = await import("./fixture-plugin.mjs")

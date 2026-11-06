@@ -8,6 +8,7 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-stuck-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.TEMP = process.env.TMP = process.env.TMPDIR = tmp // the plugin log lives in os.tmpdir(): a log of its own per run, not the one other parallel runs write (task 085)
 process.env.CANOPUS_POLL_MS = "100"
 process.env.CANOPUS_STEP_MS = "300"
@@ -15,8 +16,8 @@ process.env.CANOPUS_PASS_STUCK_MS = "800"
 process.env.CANOPUS_DB = path.join(tmp, "absent.db")
 delete process.env.CANOPUS_PRESENCE
 const proj = path.join(tmp, "proj")
-mkdirSync(path.join(proj, ".opencode"), { recursive: true })
-writeFileSync(path.join(proj, ".opencode", "canopus.json"), "{}")
+mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
+writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), "{}")
 
 const core = await import("../core.ts")
 const tasks = await import("../tasks.ts")

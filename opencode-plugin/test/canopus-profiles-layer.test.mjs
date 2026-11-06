@@ -10,6 +10,7 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-profiles-layer-"))
 process.env.XDG_DATA_HOME = path.join(tmp, "data")
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.TEMP = process.env.TMP = process.env.TMPDIR = tmp // the plugin log lives in os.tmpdir(): a log of its own per run, not the one other parallel runs write (task 085)
 process.env.CANOPUS_POLL_MS = "100"
 process.env.CANOPUS_DB = path.join(tmp, "absent.db")
@@ -34,9 +35,9 @@ const soloRoot = path.join(tmp, "solo")
 for (const d of [projRoot, innerRoot, soloRoot]) mkdirSync(d, { recursive: true })
 const mkSettings = (name, folder, obj) => {
   const dir = path.join(tmp, folder)
-  mkdirSync(path.join(dir, ".opencode"), { recursive: true })
+  mkdirSync(path.join(dir, ".opencode"), { recursive: true }); mkdirSync(path.join(dir, ".canopus", "plugin"), { recursive: true })
   git(dir, "init", "-q", "-b", "main")
-  writeFileSync(path.join(dir, ".opencode", "canopus.json"), JSON.stringify(obj, null, 2))
+  writeFileSync(path.join(dir, ".canopus", "plugin", "config.json"), JSON.stringify(obj, null, 2))
   git(dir, "add", "-A")
   git(dir, "commit", "-q", "-m", "settings")
   return dir
@@ -44,7 +45,7 @@ const mkSettings = (name, folder, obj) => {
 const projSettings = mkSettings("proj", "proj-settings", { project: "proj", root: "../proj", model_profiles: FAM, profile_sets: SETS })
 const innerSettings = mkSettings("inner", "inner-settings", { project: "inner", root: "../proj/inner" })
 const soloSettings = mkSettings("solo", "solo-settings", { project: "solo", root: "../solo" })
-const file = path.join(projSettings, ".opencode", "canopus.json")
+const file = path.join(projSettings, ".canopus", "plugin", "config.json")
 const sha = (f) => createHash("sha256").update(readFileSync(f)).digest("hex")
 const commit = (msg) => {
   git(projSettings, "add", "-A")
@@ -83,7 +84,7 @@ cell("base: a project with the table and sets and no name is row 1 (nothing appl
 
 // the data in force are the three keys of the WORKING COPY of the file: an uncommitted edit acts at once, no layer between
 bump() // normalises the file once; every later drop rewrites the same bytes
-const committedName = () => JSON.parse(git(projSettings, "show", "HEAD:.opencode/canopus.json")).profile_set
+const committedName = () => JSON.parse(git(projSettings, "show", "HEAD:.canopus/plugin/config.json")).profile_set
 writeFileJson({ ...readFileJson(), profile_set: "cross-kimi" })
 let s = st()
 cell("the name written into the working copy (no commit) applies at once: row 2", s.name === "cross-kimi" && s.state.row === 2 && committedName() === undefined, JSON.stringify([s.name, s.state.row, committedName()]))
@@ -139,7 +140,7 @@ bump()
 const w = readFileJson()
 cell("the draft lands in the working copy: edit, deletion, unset, new set, name", wr.ok && w.model_profiles.claude.heavy.context === 500000 && !w.model_profiles.claude.light && !w.profile_sets["cross-kimi"].plan_accept && w.profile_sets.mine.develop.family === "kimi" && w.profile_set === "mine", JSON.stringify(wr))
 cell("the other keys of the file are kept as they were", w.project === before.project && w.root === before.root, JSON.stringify([w.project, w.root]))
-cell("the plugin does not commit: git log did not grow, the file is modified", commits() === log0 && git(projSettings, "status", "--porcelain").includes("canopus.json"), String(commits()))
+cell("the plugin does not commit: git log did not grow, the file is modified", commits() === log0 && git(projSettings, "status", "--porcelain").includes(".canopus/plugin/config.json"), String(commits()))
 cell("no temporary file is left next to the file", !existsSync(`${file}.${process.pid}.tmp`), "tmp left")
 cell("the state equals the file at once (no commit needed)", st().data.profiles.claude.heavy.context === 500000 && st().name === "mine", JSON.stringify(st().name))
 // an emptied family goes away

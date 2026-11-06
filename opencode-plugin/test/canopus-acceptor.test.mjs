@@ -12,18 +12,19 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-acceptor-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_POLL_MS = "100"
 process.env.CANOPUS_DB = path.join(tmp, "absent.db")
 delete process.env.CANOPUS_PRESENCE
 const proj = path.join(tmp, "proj")
-mkdirSync(path.join(proj, ".opencode"), { recursive: true })
+mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
 mkdirSync(path.join(proj, ".claude"), { recursive: true })
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
 // the deny list of the nova project (copied, not read from nova)
 const NOVA_DENY = ["Read(./**/.env*)", "Read(./**/*.pem)", "Read(./**/*.key)", "Read(./**/*.p12)", "Read(./**/*.pfx)", "Read(./**/id_rsa*)", "Read(./**/id_ed25519*)", "Bash(git reset --hard:*)", "Bash(git clean -fd:*)", "PowerShell(git reset --hard:*)", "PowerShell(git clean -fd:*)"]
 writeFileSync(path.join(proj, ".claude", "settings.json"), JSON.stringify({ permissions: { deny: NOVA_DENY } }))
 writeFileSync(
-  path.join(proj, ".opencode", "canopus.json"),
+  path.join(proj, ".canopus", "plugin", "config.json"),
   JSON.stringify({
     allow_default_models: true,
     reviewer: "acceptor",

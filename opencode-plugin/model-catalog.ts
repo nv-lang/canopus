@@ -1,3 +1,4 @@
+import { pluginCache } from "./plugin-config.ts"
 // СНИМОК КАТАЛОГА МОДЕЛЕЙ (правка 003, 2026-10-08). Каталог моделей (провайдер, модель, окно) знает сервер OpenCode: плагин сервиса
 // получает его через ctx.model.list(). У окна (tui.ts) такого списка нет надёжно, поэтому плагин сервиса при загрузке и раз в десять
 // минут пишет снимок в файл model-catalog.json ящика, а окно читает его для `check` и `use` (/canopus-sets, /canopus-profiles). У снимка
@@ -6,7 +7,7 @@ import { mkdirSync, renameSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { BASE, readJson } from "./core.ts"
 
-export const CATALOG_FILE = path.join(BASE, "model-catalog.json")
+export const CATALOG_FILE = path.join(pluginCache(), "model-catalog.json")
 /** старше — снимок не берётся: служба давно не обновляла (обновление раз в 10 минут) */
 export const CATALOG_MAX_AGE_MS = Number(process.env.CANOPUS_CATALOG_MAX_AGE_MS) || 60 * 60_000
 

@@ -43,7 +43,7 @@ const clear = () => review.releaseMergeLock("proj", holder()?.session ?? "")
 // ---- legacyWalk: a broken file
 {
   const dir = mkdtempSync(path.join(os.tmpdir(), "lt-legacy-"))
-  const f = path.join(dir, ".opencode", "canopus.json")
+  const f = path.join(dir, ".canopus", "plugin", "config.json")
   mkdirSync(path.dirname(f), { recursive: true })
   const settings = await import("../settings.ts")
   writeFileSync(f, JSON.stringify({ merge_precheck: "required", rework_max: 7 }))
@@ -52,7 +52,7 @@ const clear = () => review.releaseMergeLock("proj", holder()?.session ?? "")
   const broken = settings.rawSettingsFor(dir, [])
   cell("LT-6 broken legacy file: the last good settings are kept (protection keys stay)", first.rework_max === 7 && broken.rework_max === 7 && broken.merge_precheck === "required", JSON.stringify(broken))
   const probs = settings.settingsProblems([{ name: "leg", root: settings.normPath(dir), rootPath: dir }])
-  cell("LT-7 broken legacy file: canopus_doctor names the file", probs.some((p) => p.includes("canopus.json") && /не JSON/.test(p)), JSON.stringify(probs))
+  cell("LT-7 broken legacy file: canopus_doctor names the file", probs.some((p) => p.includes("config.json") && /не JSON/.test(p)), JSON.stringify(probs))
   rmSync(dir, { recursive: true, force: true })
 }
 

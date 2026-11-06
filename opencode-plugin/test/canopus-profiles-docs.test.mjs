@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-profiles-docs-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_PRESENCE ??= "all"
 
 const P = await import("../profiles.ts")

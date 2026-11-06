@@ -15,7 +15,7 @@ export const load = (f) => import(pathToFileURL(path.join(PLUGIN, f)).href)
 /**
  * @param prefix temp folder prefix
  * @param opts {settings, sessions, window, plugin}
- *   settings: the project settings file content (written to proj/.opencode/canopus.json; setSettings() rewrites it)
+ *   settings: the project settings file content (written to proj/.canopus/plugin/config.json; setSettings() rewrites it)
  *   sessions: ids of the sessions that get a row in `session_v2` (the first one is the tab of the owner); default four
  *   window: the sessions with a tab in the window (default: all of them); false -- no window at all
  *   plugin: false -- the plugin is not started (the pure modules only); the host objects are still created
@@ -25,6 +25,7 @@ export const load = (f) => import(pathToFileURL(path.join(PLUGIN, f)).href)
 export async function harness(prefix, opts = {}) {
   const tmp = mkdtempSync(path.join(os.tmpdir(), `${prefix}-`))
   process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
   if (opts.ownLog) process.env.TEMP = process.env.TMP = process.env.TMPDIR = tmp
   process.env.CANOPUS_POLL_MS = "100"
   process.env.CANOPUS_STATUS_MS = "100"
@@ -34,8 +35,8 @@ export async function harness(prefix, opts = {}) {
   process.env.CANOPUS_DB = path.join(tmp, "opencode.db")
   delete process.env.CANOPUS_PRESENCE
   const proj = path.join(tmp, "proj")
-  mkdirSync(path.join(proj, ".opencode"), { recursive: true })
-  const settingsFile = path.join(proj, ".opencode", "canopus.json")
+  mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
+  const settingsFile = path.join(proj, ".canopus", "plugin", "config.json")
   const setSettings = (s) => writeFileSync(settingsFile, JSON.stringify(s))
   setSettings(opts.settings ?? {})
 

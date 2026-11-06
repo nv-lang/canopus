@@ -1,5 +1,5 @@
 // Self-test of project settings in a settings repository (node >= 24):  node test/canopus-settings.test.mjs
-// Plan 002, decision 12: the plugin options list settings folders; the file `.opencode/canopus.json` in a
+// Plan 002, decision 12: the plugin options list settings folders; the file `.canopus/plugin/config.json` in a
 // folder names the project and its root (relative to the folder) and is read COMMITTED from the default branch
 // (another branch: its "branch" field), never from the working copy. The old options form (name -> root) still
 // works; machine-specific values come from the `local` option.
@@ -10,6 +10,7 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-settings-"))
 process.env.XDG_DATA_HOME = path.join(tmp, "data")
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_SETTINGS_TTL_MS = "1" // no cache between steps
 const core = await import(process.env.CANOPUS_CORE ?? "../core.ts")
 const { canon } = await import("../settings.ts")
@@ -32,7 +33,7 @@ const tab = path.join(nv, "nova-carina", "src")
 mkdirSync(tab, { recursive: true })
 mkdirSync(cfgRepo, { recursive: true })
 git(cfgRepo, "init", "-q", "-b", "main")
-const file = path.join(cfgRepo, ".opencode", "canopus.json")
+const file = path.join(cfgRepo, ".canopus", "plugin", "config.json")
 write(file, { project: "nova", root: "..", project_rules: "COMMITTED-LINE", spawn_limits: { worker: 2 }, task_fields: ["goal", "criteria", "boundaries"], worktrees: "worktrees", default_priority: "P1" })
 git(cfgRepo, "add", "-A")
 git(cfgRepo, "commit", "-q", "-m", "settings")
@@ -83,7 +84,7 @@ git(empty, "commit", "-q", "-m", "x")
 const dup = path.join(tmp, "dup-repo")
 mkdirSync(dup, { recursive: true })
 git(dup, "init", "-q", "-b", "main")
-write(path.join(dup, ".opencode", "canopus.json"), { project: "nova" })
+write(path.join(dup, ".canopus", "plugin", "config.json"), { project: "nova" })
 git(dup, "add", "-A")
 git(dup, "commit", "-q", "-m", "dup")
 const loose = path.join(tmp, "loose-repo") // the file exists but was never committed (claude-limits, 2026-10-07)
@@ -96,14 +97,14 @@ write(path.join(loose, ".opencode", "opencode-peers.json"), { project: "loose" }
 const bad = core.parseProjects({ projects: [cfgRepo, plain, empty, dup, loose] })
 const problems = core.settingsProblems(bad)
 cell("doctor: a folder outside git", problems.some((p) => p.includes("не внутри git")), JSON.stringify(problems))
-cell("doctor: no settings file in the default branch", problems.some((p) => p.includes("нет .opencode/canopus.json")), JSON.stringify(problems))
-cell("doctor: an uncommitted settings file is named, with the new name to commit it under", problems.some((p) => p.includes(".opencode/opencode-peers.json лежит в рабочей копии") && p.includes("не закоммичен") && p.includes("под именем .opencode/canopus.json")), JSON.stringify(problems))
+cell("doctor: no settings file in the default branch", problems.some((p) => p.includes("нет .canopus/plugin/config.json")), JSON.stringify(problems))
+cell("doctor: an uncommitted settings file is named, with the new name to commit it under", problems.some((p) => p.includes(".opencode/opencode-peers.json лежит в рабочей копии") && p.includes("не закоммичен") && p.includes("под именем .canopus/plugin/config.json")), JSON.stringify(problems))
 cell("doctor: two projects with one name", problems.some((p) => p.includes("два проекта с именем «nova»")), JSON.stringify(problems))
 
 // the old options form still works (name -> root, settings walked up from the tab, working copy)
 const old = core.parseProjects({ projects: { legacy: path.join(tmp, "old") } })
 core.setProjects(old, {})
-write(path.join(tmp, "old", ".opencode", "canopus.json"), { project_rules: "OLD-FORM-LINE" })
+write(path.join(tmp, "old", ".canopus", "plugin", "config.json"), { project_rules: "OLD-FORM-LINE" })
 mkdirSync(path.join(tmp, "old", "a"), { recursive: true })
 cell("the old options form: project by root", core.projectOf(path.join(tmp, "old", "a"), old) === "legacy", core.projectOf(path.join(tmp, "old", "a"), old))
 cell("the old options form: settings from the tab's tree", core.loadConfig(path.join(tmp, "old", "a")).projectRules.includes("OLD-FORM-LINE"), "missing")
@@ -123,6 +124,14 @@ renameSync(path.join(cfgRepo, ".git"), path.join(cfgRepo, ".git-off"))
 const during = readSettingsFolder(cfgRepo, Date.now() + 120_000)
 renameSync(path.join(cfgRepo, ".git-off"), path.join(cfgRepo, ".git"))
 cell("a failed git read keeps the last good settings", JSON.stringify(during.raw) === JSON.stringify(before) && Object.keys(before).length > 0 && during.project.name === "nova", JSON.stringify({ before, during: during.raw, problems: during.project.problems }))
+
+const retired = path.join(tmp, "retired-config")
+mkdirSync(retired, { recursive: true })
+git(retired, "init", "-q", "-b", "main")
+write(path.join(retired, ".opencode", "opencode-peers.json"), { project_rules: "RETIRED-MUST-NOT-LOAD" })
+git(retired, "add", "--", ".opencode/opencode-peers.json")
+git(retired, "commit", "-qm", "retired configuration fixture")
+cell("a committed retired filename is never a fallback", !JSON.stringify(readSettingsFolder(retired).raw).includes("RETIRED-MUST-NOT-LOAD"), "retired settings loaded")
 
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `canopus-settings.test: FAIL ${fail}` : "canopus-settings.test ok")

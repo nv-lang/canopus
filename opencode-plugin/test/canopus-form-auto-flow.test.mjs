@@ -11,6 +11,7 @@ import { DatabaseSync } from "node:sqlite"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-form-auto-flow-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.TEMP = process.env.TMP = process.env.TMPDIR = tmp
 process.env.CANOPUS_POLL_MS = "100"
 process.env.CANOPUS_STATUS_MS = "100"
@@ -24,10 +25,10 @@ delete process.env.CANOPUS_PRESENCE
 const proj = path.join(tmp, "proj")
 const plain = path.join(tmp, "plain")
 for (const d of [proj, plain]) {
-  mkdirSync(path.join(d, ".opencode"), { recursive: true })
-  writeFileSync(path.join(d, ".opencode", "canopus.json"), JSON.stringify({}))
+  mkdirSync(path.join(d, ".opencode"), { recursive: true }); mkdirSync(path.join(d, ".canopus", "plugin"), { recursive: true })
+  writeFileSync(path.join(d, ".canopus", "plugin", "config.json"), JSON.stringify({}))
 }
-const settingsFile = path.join(proj, ".opencode", "canopus.json")
+const settingsFile = path.join(proj, ".canopus", "plugin", "config.json")
 const settingsBefore = readFileSync(settingsFile, "utf8")
 const db = new DatabaseSync(dbPath)
 db.exec("create table session_v2 (id text primary key, directory text, title text, parent_id text, time_archived integer, time_idle integer, time_viewed integer, time_suspended integer)")

@@ -7,13 +7,14 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-config-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_PRESENCE ??= "all" // every tab taken as open (presence has its own test)
 process.env.CANOPUS_DB = path.join(tmp, "absent.db")
 const bare = path.join(tmp, "bare")
 const proj = path.join(tmp, "proj")
 mkdirSync(bare, { recursive: true })
-mkdirSync(path.join(proj, ".opencode"), { recursive: true })
-writeFileSync(path.join(proj, ".opencode", "canopus.json"), JSON.stringify({ exclusive_roles: ["lead"], project_rules: "EXTRA-LINE-OF-THE-PROJECT" }))
+mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
+writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ exclusive_roles: ["lead"], project_rules: "EXTRA-LINE-OF-THE-PROJECT" }))
 
 const dirOf = (sid) => (sid.startsWith("sesP") ? proj : bare)
 const mod = await import(process.env.CANOPUS_MODULE ?? "./fixture-plugin.mjs")
@@ -68,18 +69,18 @@ cell("default help names neutral roles", /integrator/.test(helpBare) && /worker/
 // (plan 002, decision 16: nv-lang moved to a settings repository 2026-10-05).
 const legacy = path.join(tmp, "legacy")
 const both = path.join(tmp, "both")
-mkdirSync(path.join(legacy, ".opencode"), { recursive: true })
-mkdirSync(path.join(both, ".opencode"), { recursive: true })
+mkdirSync(path.join(legacy, ".opencode"), { recursive: true }); mkdirSync(path.join(legacy, ".canopus", "plugin"), { recursive: true })
+mkdirSync(path.join(both, ".opencode"), { recursive: true }); mkdirSync(path.join(both, ".canopus", "plugin"), { recursive: true })
 writeFileSync(path.join(legacy, ".opencode", "nova-peers.json"), JSON.stringify({ project_rules: "OLD-NAME-LINE" }))
 writeFileSync(path.join(both, ".opencode", "nova-peers.json"), JSON.stringify({ project_rules: "OLD-NAME-LINE" }))
-writeFileSync(path.join(both, ".opencode", "canopus.json"), JSON.stringify({ project_rules: "NEW-NAME-LINE" }))
+writeFileSync(path.join(both, ".canopus", "plugin", "config.json"), JSON.stringify({ project_rules: "NEW-NAME-LINE" }))
 cell("the old name nova-peers.json is not read", !loadConfig(legacy).projectRules.includes("OLD-NAME-LINE"), "read")
 cell("canopus.json wins over the old name", loadConfig(both).projectRules.includes("NEW-NAME-LINE") && !loadConfig(both).projectRules.includes("OLD-NAME-LINE"), "wrong file")
 
 // A project config saved with a BOM (Notepad, PowerShell 5.1 "utf8") is read like any other.
 const bom = path.join(tmp, "bom")
-mkdirSync(path.join(bom, ".opencode"), { recursive: true })
-writeFileSync(path.join(bom, ".opencode", "canopus.json"), "\uFEFF" + JSON.stringify({ project_rules: "BOM-LINE" }))
+mkdirSync(path.join(bom, ".opencode"), { recursive: true }); mkdirSync(path.join(bom, ".canopus", "plugin"), { recursive: true })
+writeFileSync(path.join(bom, ".canopus", "plugin", "config.json"), "\uFEFF" + JSON.stringify({ project_rules: "BOM-LINE" }))
 cell("a config saved with a BOM is read", loadConfig(bom).projectRules.includes("BOM-LINE"), "BOM file ignored")
 await stop?.()
 rmSync(tmp, { recursive: true, force: true })

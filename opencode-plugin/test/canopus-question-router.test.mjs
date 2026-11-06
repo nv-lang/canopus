@@ -6,6 +6,7 @@ import path from 'node:path'
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), 'canopus-question-router-'))
 for (const k of ['XDG_DATA_HOME', 'XDG_STATE_HOME', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'TEMP', 'TMP', 'TMPDIR']) process.env[k] = tmp
+process.env.CANOPUS_HOME = path.join(tmp, "opencode")
 process.env.CANOPUS_DB = path.join(tmp, 'absent.db')
 globalThis.fetch = async () => { throw new Error('unexpected real transport') }
 let cells = 0

@@ -30,6 +30,7 @@ if (!mode || (mode === "check" && keysMode !== "legacy") || (mode === "write" &&
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-golden-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_POLL_MS = "100"
 process.env.CANOPUS_STATUS_MS = "100"
 process.env.CANOPUS_FLOW_MS = "200"
@@ -38,7 +39,7 @@ process.env.CANOPUS_DB = path.join(tmp, "absent.db")
 delete process.env.CANOPUS_PRESENCE
 
 const proj = path.join(tmp, "proj")
-mkdirSync(path.join(proj, ".opencode"), { recursive: true })
+mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
 const settings = {
   inflight_limit: 3,
   stall_minutes: 600,
@@ -54,7 +55,7 @@ const settings = {
   ...(keysMode === "legacy" ? { accepted_slot: "hold", cleanup_limit: 10, merge_precheck: "off", task_extra_fields: [] } : {}),
   ...(keysMode === "new" ? { accepted_slot: "free", cleanup_limit: 10, merge_precheck: "required", task_extra_fields: [] } : {}),
 }
-writeFileSync(path.join(proj, ".opencode", "canopus.json"), JSON.stringify(settings))
+writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(settings))
 const git = (...a) => execFileSync("git", ["-C", proj, "-c", "user.name=t", "-c", "user.email=t@t", ...a], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })
 git("init", "-q", "-b", "main")
 writeFileSync(path.join(proj, "a.txt"), "a")

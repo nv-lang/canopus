@@ -43,12 +43,12 @@ if (-not ((Test-Path $front) -and (Test-Path $hub))) {
     exit 1
 }
 
-if ($Config -eq '') { $Config = Join-Path $HOME '.config/canopus/pg.json' }
-if ($ServerConfig -eq '') { $ServerConfig = Join-Path $HOME '.config/canopus/server-pg.json' }
+if ($Config -eq '') { $Config = Join-Path $(if ($env:CANOPUS_HOME) {$env:CANOPUS_HOME} else {Join-Path $HOME '.canopus'}) 'secrets.json' }
+if ($ServerConfig -eq '') { $ServerConfig = Join-Path $(if ($env:CANOPUS_HOME) {$env:CANOPUS_HOME} else {Join-Path $HOME '.canopus'}) 'config.json' }
 & powershell -NoProfile -File $db serve-config -Out $ServerConfig @dbArgs
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
-$settings = Get-Content -Raw -Path $Config | ConvertFrom-Json
+$settings = (Get-Content -Raw -LiteralPath $Config | ConvertFrom-Json).postgres
 $env:CANOPUS_PG_PASSWORD = $settings.service_password
 $env:CANOPUS_PG_PORT = [string]$settings.port
 $env:CANOPUS_PG_DATABASE = $Database

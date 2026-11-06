@@ -11,13 +11,12 @@
 // Использование:
 //   node scripts/canopus-answer.mjs                       — открытые вопросники: проект, вкладка, вопрос, варианты
 //   node scripts/canopus-answer.mjs <форма|сессия|проект.роль> (--option <номер|подпись> | --text "<свой ответ>") --quote "<слово владельца>" [--no-wait]
-// Папка данных — как у плагина: $XDG_DATA_HOME/opencode или ~/.local/share/opencode, подпапка canopus.
+// Папка данных — общий resolver плагина: <CANOPUS_HOME>/plugin/data.
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs"
-import os from "node:os"
+import { canopusBase } from "../opencode-plugin/paths.ts"
 import path from "node:path"
 
-const root = process.env.XDG_DATA_HOME ? path.join(process.env.XDG_DATA_HOME, "opencode") : path.join(os.homedir(), ".local", "share", "opencode")
-const base = ["canopus", "opencode-peers", "nova-peers"].map((n) => path.join(root, n)).find((p) => existsSync(p)) ?? path.join(root, "canopus")
+const base = canopusBase()
 const FORMS = path.join(base, "forms")
 const CARDS = path.join(base, "cards")
 const ANSWERS = path.join(base, "answers")

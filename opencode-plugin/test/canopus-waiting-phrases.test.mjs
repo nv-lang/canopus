@@ -6,6 +6,7 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-phrases-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 const status = await import("../status.ts")
 let fail = 0
 const cell = (name, ok, extra = "") => { if (!ok) { fail++; console.log(`FAIL ${name} ${extra}`) } }

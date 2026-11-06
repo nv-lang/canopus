@@ -14,7 +14,7 @@
 #   powershell -File src/pg/db.ps1 dropdb -Database canopus_x   drop an extra database canopus_* (made by `up -Database canopus_x`; never `canopus`)
 #
 # Options: -Port (15432; a changed port re-creates the container, the data stay), -Config (the file with the passwords,
-# default ~/.config/canopus/pg.json), -Database (default canopus; `up` makes it, `psql`, `backup`, `restore` use it), -Out
+# default ~/.canopus/secrets.json, section postgres), -Database (default canopus; `up` makes it, `psql`, `backup`, `restore` use it), -Out
 # (serve-config), -Image (postgres:16-alpine).
 #
 # The script works with ONE container, `canopus-pg`, and ONE volume, `canopus-pg-data`, and with nothing else: other
@@ -41,8 +41,8 @@ $ServiceUser = 'canopus_service'
 $DefaultPort = 15432
 $root = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $schemaFile = Join-Path $PSScriptRoot 'schema.sql'
-$configDir = Join-Path $HOME '.config/canopus'
-if ($Config -eq '') { $Config = Join-Path $configDir 'pg.json' }
+$configDir = if ($env:CANOPUS_HOME) { $env:CANOPUS_HOME } else { Join-Path $HOME '.canopus' }
+if ($Config -eq '') { $Config = Join-Path $configDir 'secrets.json' }
 $script:Secrets = @()
 
 function Stop-Script([string]$Message, [int]$Code = 1) {
@@ -98,7 +98,7 @@ function Test-Volume {
 
 function Read-Settings {
     if (-not (Test-Path $Config)) { return $null }
-    try { return (Get-Content -Raw -Path $Config | ConvertFrom-Json) } catch { Stop-Script "the settings file $Config is not JSON: remove it or fix it." }
+    try { return (Get-Content -Raw -LiteralPath $Config | ConvertFrom-Json).postgres } catch { Stop-Script "the settings file $Config is not JSON: remove it or fix it." }
 }
 
 # the file is readable by its owner only
@@ -115,7 +115,13 @@ function Protect-File([string]$File) {
 function Write-JsonFile([string]$File, $Object, [switch]$Secret) {
     $dir = Split-Path -Parent $File
     if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory -Force $dir | Out-Null }
-    $json = $Object | ConvertTo-Json -Depth 6
+    if ($File -eq $Config -and $Secret) {
+        $document = if (Test-Path -LiteralPath $File) { Get-Content -Raw -LiteralPath $File | ConvertFrom-Json } else { [pscustomobject]@{} }
+        $document | Add-Member -NotePropertyName postgres -NotePropertyValue $Object -Force
+        $document | Add-Member -NotePropertyName pg -NotePropertyValue ([ordered]@{password=$Object.service_password}) -Force
+        $Object = $document
+    }
+    $json = $Object | ConvertTo-Json -Depth 12
     [System.IO.File]::WriteAllText($File, $json + "`n", (New-Object System.Text.UTF8Encoding $false))
     if ($Secret) { Protect-File $File }
 }
@@ -373,8 +379,12 @@ function Invoke-Reset {
         Write-Output "volume $Volume removed"
     }
     if (Test-Path $Config) {
-        Remove-Item $Config
-        Write-Output "settings file $Config removed (its passwords were those of the removed volume)"
+        $document = Get-Content -Raw -LiteralPath $Config | ConvertFrom-Json
+        $document.PSObject.Properties.Remove('postgres')
+        $document.PSObject.Properties.Remove('pg')
+        Write-JsonFile $Config $document
+        Protect-File $Config
+        Write-Output "PostgreSQL secrets removed from $Config; other settings retained"
     }
 }
 
@@ -407,7 +417,7 @@ function Invoke-ServeConfig {
     $cfg = Read-Settings
     if (-not $cfg) { Stop-Script "no settings file $Config : run powershell -File src/pg/db.ps1 up first." }
     $target = $Out
-    if ($target -eq '') { $target = Join-Path $configDir 'server-pg.json' }
+    if ($target -eq '') { $target = Join-Path $configDir 'config.json' }
     $target = Resolve-UserPath $target
     if ((Test-Path $target) -and -not $Force) {
         Write-Output "settings file $target exists and is kept (-Force writes it anew)"
@@ -415,7 +425,6 @@ function Invoke-ServeConfig {
     }
     $server = [ordered]@{
         port = 8099
-        data_dir = 'target/canopus-data'
         store = 'pg'
         pg = [ordered]@{ host = $cfg.host; port = [int]$cfg.port; database = $cfg.database; user = $cfg.service_user }
         agents = @([ordered]@{ id = 'opencode'; label = 'OpenCode'; program = 'opencode.cmd'; args = @('acp') })

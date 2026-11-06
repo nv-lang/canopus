@@ -7,14 +7,15 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-hung-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.TEMP = process.env.TMP = process.env.TMPDIR = tmp // the plugin log lives in os.tmpdir(): a log of its own per run, not the one other parallel runs write (task 085)
 process.env.CANOPUS_POLL_MS = "100"
 delete process.env.CANOPUS_PRESENCE
 const dbPath = path.join(tmp, "opencode.db")
 process.env.CANOPUS_DB = dbPath
 const proj = path.join(tmp, "proj")
-mkdirSync(path.join(proj, ".opencode"), { recursive: true })
-writeFileSync(path.join(proj, ".opencode", "canopus.json"), "{}")
+mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
+writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), "{}")
 
 const db = new DatabaseSync(dbPath)
 db.exec("create table session_v2 (id text primary key, directory text, title text, parent_id text, time_archived integer, time_idle integer, time_viewed integer, time_suspended integer)")

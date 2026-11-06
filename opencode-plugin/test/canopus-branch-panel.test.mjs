@@ -10,6 +10,7 @@ import { pathToFileURL } from "node:url"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-branch-panel-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_POLL_MS = "100"
 process.env.CANOPUS_DB = path.join(tmp, "absent.db")
 process.env.CANOPUS_PRESENCE = "all"
@@ -39,8 +40,8 @@ const fw = (p) => p.replace(/\\/g, "/")
 // ---- a real repository: the main copy, the tree of task 145, a helper tree
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
 const MAIN = path.join(tmp, "proj")
-mkdirSync(path.join(MAIN, ".opencode"), { recursive: true })
-writeFileSync(path.join(MAIN, ".opencode", "canopus.json"), JSON.stringify({ project: "proj", allow_default_models: true }))
+mkdirSync(path.join(MAIN, ".opencode"), { recursive: true }); mkdirSync(path.join(MAIN, ".canopus", "plugin"), { recursive: true })
+writeFileSync(path.join(MAIN, ".canopus", "plugin", "config.json"), JSON.stringify({ project: "proj", allow_default_models: true }))
 git(MAIN, "init", "-q", "-b", "main")
 writeFileSync(path.join(MAIN, "a.txt"), "a\n")
 git(MAIN, "add", "-A")
@@ -122,7 +123,7 @@ const call = async (tool, input, sessionID) => {
 }
 const c1 = await call("bash", { command: "git checkout update/main" }, "ses_int")
 cell("a bash call that switches the branch of the main copy is denied through the permission check, with the way to a reason", c1.effect === "deny" && /canopus_branch_note/.test(c1.message ?? ""), J(c1))
-cell("the refusal is written to the journal of the project (blocked)", existsSync(path.join(BASE, "branch-journal.jsonl")) && readFileSync(path.join(BASE, "branch-journal.jsonl"), "utf8").split("\n").some((l) => l.includes('"blocked"') && l.includes("ses_int")), "")
+cell("the refusal is written to the journal of the project (blocked)", existsSync(path.join(BASE, "..", "state", "branch-journal.jsonl")) && readFileSync(path.join(BASE, "..", "state", "branch-journal.jsonl"), "utf8").split("\n").some((l) => l.includes('"blocked"') && l.includes("ses_int")), "")
 const c2 = await call("bash", { command: "git status" }, "ses_int")
 cell("a read passes", c2.effect === "allow", J(c2))
 const c3 = await call("bash", { command: `git -C ${fw(HELPER)} commit --allow-empty -m x` }, "ses_int")
@@ -138,14 +139,14 @@ cell("a session without a card passes (nothing is known about it)", c6.effect ==
 where.ses_145 = T145
 git(T145, "switch", "-q", "-c", "side/oops")
 await handlers.tool["execute.after"]?.({ tool: "bash", sessionID: "ses_145", id: "x-after", status: "completed" })
-const lines = (existsSync(path.join(BASE, "branch-journal.jsonl")) ? readFileSync(path.join(BASE, "branch-journal.jsonl"), "utf8") : "").split("\n").filter(Boolean).map((l) => JSON.parse(l))
+const lines = (existsSync(path.join(BASE, "..", "state", "branch-journal.jsonl")) ? readFileSync(path.join(BASE, "..", "state", "branch-journal.jsonl"), "utf8") : "").split("\n").filter(Boolean).map((l) => JSON.parse(l))
 cell("after a shell call the window is checked again: a branch that changed under it is a line was -> became", lines.some((l) => l.session === "ses_145" && l.kind === "drift" && l.to?.includes("side/oops")), J(lines.filter((l) => l.session === "ses_145")))
 git(T145, "switch", "-q", "task/145-orders")
 // a call that is judged by two instances of the plugin: one verdict
 const regs2 = { tool: {}, permission: {} }
 await registerBranchHooks({ tool: { hook: async (k, f) => void (regs2.tool[k] = f) }, permission: { hook: async (k, f) => void (regs2.permission[k] = f) } }, (l) => hlogs.push(l), { cardOf: (sid) => cards[sid], dirOf: async (sid) => where[sid], deps })
 const idDup = `dup${++callNo}`
-const blockedN = () => (existsSync(path.join(BASE, "branch-journal.jsonl")) ? readFileSync(path.join(BASE, "branch-journal.jsonl"), "utf8").split("\n").filter((l) => l.includes('"blocked"')).length : 0)
+const blockedN = () => (existsSync(path.join(BASE, "..", "state", "branch-journal.jsonl")) ? readFileSync(path.join(BASE, "..", "state", "branch-journal.jsonl"), "utf8").split("\n").filter((l) => l.includes('"blocked"')).length : 0)
 const before = blockedN()
 await handlers.tool["execute.before"]?.({ tool: "bash", sessionID: "ses_int", id: idDup, input: { command: "git merge x" } })
 await regs2.tool["execute.before"]?.({ tool: "bash", sessionID: "ses_int", id: idDup, input: { command: "git merge x" } })

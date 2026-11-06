@@ -8,6 +8,7 @@ import assert from "node:assert/strict"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-watch-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 const w = await import("../watch.ts")
 const posted = []
 const post = (x, text) => posted.push({ session: x.session, text, code: x.code })

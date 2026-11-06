@@ -37,7 +37,7 @@ cmd=${1-}
 [ $# -gt 0 ] && shift
 rest=$*
 
-names_file=${CANOPUS_PRIVATE_NAMES_FILE:-${HOME:-}/.config/canopus/private-names.txt}
+names_file=${CANOPUS_PRIVATE_NAMES_FILE:-${HOME:-}/.canopus/guards/private-names.txt}
 probe_values=${TMPDIR:-/tmp}/canopus-probe-values.txt
 
 die() {
@@ -116,7 +116,7 @@ cmd_status() {
 
 cmd_secret() {
   if [ ! -s "$names_file" ]; then
-    die "предпосылка: нет файла со списком запрещённых имён или он пуст (путь переопределяет CANOPUS_PRIVATE_NAMES_FILE; по умолчанию ~/.config/canopus/private-names.txt)"
+    die "предпосылка: нет файла со списком запрещённых имён или он пуст (путь переопределяет CANOPUS_PRIVATE_NAMES_FILE; по умолчанию ~/.canopus/guards/private-names.txt)"
   fi
   need_gh
   if [ "$dry" -eq 1 ]; then

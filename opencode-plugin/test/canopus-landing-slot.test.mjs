@@ -9,6 +9,7 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-landing-slot-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_POLL_MS = "100"
 process.env.CANOPUS_STATUS_MS = "100"
 process.env.CANOPUS_FLOW_MS = "200"
@@ -18,10 +19,10 @@ process.env.CANOPUS_SETTINGS_TTL_MS = "1"
 process.env.CANOPUS_DB = path.join(tmp, "absent.db")
 delete process.env.CANOPUS_PRESENCE
 const proj = path.join(tmp, "proj")
-mkdirSync(path.join(proj, ".opencode"), { recursive: true })
+mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
 mkdirSync(path.join(proj, "docs", "plans"), { recursive: true })
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
-const settings = (extra) => writeFileSync(path.join(proj, ".opencode", "canopus.json"), JSON.stringify({ allow_default_models: true, spawn_limits: { worker: 20, reviewer: 0 }, stall_minutes: 600, accepted_reminder_min: 0.01, ...extra }))
+const settings = (extra) => writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ allow_default_models: true, spawn_limits: { worker: 20, reviewer: 0 }, stall_minutes: 600, accepted_reminder_min: 0.01, ...extra }))
 settings({})
 const PLAN = [
   "# План 9 — демо", "", "**Статус:** 🟡 В РАБОТЕ", "**Источник:** задача 001", "**Зависимости:** —", "",

@@ -13,6 +13,7 @@ const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-instant-commands-"))
 process.env.TEMP = tmp // the plugin log lives in os.tmpdir(): this keeps the lines of this test apart from the live service
 process.env.TMP = tmp
 process.env.XDG_DATA_HOME = path.join(tmp, "data")
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.XDG_CONFIG_HOME = path.join(tmp, "xdgcfg")
 process.env.CANOPUS_POLL_MS = "100"
 process.env.CANOPUS_PROFILES_MS = "100000"
@@ -38,8 +39,8 @@ const SETS = {
 }
 const root = path.join(tmp, "proj")
 const cfgDir = path.join(root, "proj-settings")
-mkdirSync(path.join(cfgDir, ".opencode"), { recursive: true })
-const file = path.join(cfgDir, ".opencode", "canopus.json")
+mkdirSync(path.join(cfgDir, ".opencode"), { recursive: true }); mkdirSync(path.join(cfgDir, ".canopus", "plugin"), { recursive: true })
+const file = path.join(cfgDir, ".canopus", "plugin", "config.json")
 git(cfgDir, "init", "-q", "-b", "main")
 writeFileSync(file, JSON.stringify({ project: "cmdproj", root: "..", model_profiles: TABLE, profile_sets: SETS }, null, 2))
 git(cfgDir, "add", "-A")

@@ -9,6 +9,7 @@
 import { existsSync, lstatSync, realpathSync, renameSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
+import { pluginRoot } from "./plugin-config.ts"
 
 export function dataDir(): string {
   const xdg = process.env.XDG_DATA_HOME
@@ -28,20 +29,18 @@ export function legacyBase(root = dataDir()): string | undefined {
   return undefined
 }
 
-/**
- * Ящик плагина. Есть новый — возвращается он. Есть только прежний — понятный отказ (блокер существующей
- * установки): ждёт однократного переноса по switch-манифесту задачи 284, новый пустой ящик рядом не создаётся.
- */
-export function canopusBase(root = dataDir()): string {
-  const neu = path.join(root, CANOPUS_DIR)
-  if (existsSync(neu)) {
+/** Runtime mailbox belongs to Canopus, independent of OpenCode XDG paths. */
+export function canopusBase(root?: string): string {
+  // An explicit root is only for the old mailbox migration API. Runtime ignores XDG.
+  if (root !== undefined) {
     const old = legacyBase(root)
-    if (old) throw new Error(`canopus: рядом с новым ящиком ${neu} остался прежний ${old} — разберите вручную по switch-манифесту задачи 284 (двойной записи быть не должно)`)
-    return neu
+    if (old) throw new Error(`Canopus task 284: ${old}; use migrateBase() after stopping the service`)
+    return path.join(root, CANOPUS_DIR)
   }
-  const old = legacyBase(root)
-  if (old) throw new Error(`canopus: найден прежний ящик ${old}, а нового ${neu} нет. Нужен однократный перенос (задача 284, switch-манифест, при остановленной службе): migrateBase() или переименование папки в ${neu}. Новый пустой ящик не создаётся, данные не тронуты.`)
-  return neu // прежнего ящика нет: новая установка
+  const target = path.join(pluginRoot(), "data")
+  const old = path.join(dataDir(), CANOPUS_DIR)
+  if (!process.env.CANOPUS_HOME && !existsSync(target) && existsSync(old)) throw new Error(`Canopus data migration required: ${old} -> ${target}; stop the service and run the explicit migration`)
+  return target
 }
 
 /**

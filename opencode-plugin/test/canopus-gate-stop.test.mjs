@@ -11,6 +11,7 @@ import { DatabaseSync } from "node:sqlite"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-gate-stop-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_POLL_MS = "100"
 process.env.CANOPUS_STATUS_MS = "100"
 process.env.CANOPUS_FORM_MS = "100"
@@ -18,9 +19,9 @@ const dbPath = path.join(tmp, "opencode.db")
 process.env.CANOPUS_DB = dbPath
 delete process.env.CANOPUS_PRESENCE
 const proj = path.join(tmp, "proj")
-mkdirSync(path.join(proj, ".opencode"), { recursive: true })
+mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
 mkdirSync(path.join(proj, "doc", "tasks", "007-x"), { recursive: true })
-writeFileSync(path.join(proj, ".opencode", "canopus.json"), JSON.stringify({}))
+writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({}))
 const LOG = path.join(proj, "doc", "tasks", "007-x", "log.md")
 
 let fail = 0

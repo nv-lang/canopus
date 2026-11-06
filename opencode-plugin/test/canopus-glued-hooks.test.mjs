@@ -7,6 +7,7 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-glued-hooks-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_PRESENCE ??= "all"
 const guard = await import("../glued-guard.ts")
 const { pieceOf, judge, isTextFile, registerGluedHooks, REFUSAL_WINDOW_MS } = guard
@@ -142,7 +143,7 @@ const ctx = {
 const stop = await mod.default.setup(ctx)
 cell("setup registers execute.before, execute.after and evaluate", typeof regs.tool["execute.before"] === "function" && typeof regs.tool["execute.after"] === "function" && typeof regs.permission.evaluate === "function", J(Object.keys(regs.tool)))
 const inboxCount = () => {
-  const root = path.join(tmp, "opencode", "canopus", "inbox")
+  const root = path.join(tmp, "opencode", "plugin", "data", "inbox")
   if (!existsSync(root)) return 0
   return readdirSync(root, { recursive: true }).filter((f) => String(f).endsWith(".json")).length
 }

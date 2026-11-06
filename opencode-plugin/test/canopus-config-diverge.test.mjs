@@ -10,6 +10,7 @@ import { pathToFileURL } from "node:url"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-diverge-"))
 process.env.XDG_DATA_HOME = path.join(tmp, "data")
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_SETTINGS_TTL_MS = "1"
 process.env.CANOPUS_DIVERGE_TTL_MS = "0"
 const plugin = process.env.CANOPUS_PLUGIN_DIR ? path.resolve(process.env.CANOPUS_PLUGIN_DIR) : path.join(import.meta.dirname, "..")
@@ -17,7 +18,7 @@ const settings = await import(pathToFileURL(path.join(plugin, "settings.ts")).hr
 const status = await import(pathToFileURL(path.join(plugin, "status.ts")).href)
 const git = (cwd, ...a) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...a], { stdio: "ignore" })
 const cfgDir = path.join(tmp, "proj", "proj-settings")
-const file = path.join(cfgDir, ".opencode", "canopus.json")
+const file = path.join(cfgDir, ".canopus", "plugin", "config.json")
 mkdirSync(path.dirname(file), { recursive: true })
 git(cfgDir, "init", "-q", "-b", "main")
 const write = (obj) => writeFileSync(file, JSON.stringify({ project: "proj", root: "..", ...obj }, null, 2))
@@ -46,10 +47,10 @@ commit({ answer_max: 1, tier_max: "light" })
 cell("after commit: warning gone", diverge(doctor()).length === 0 && !sum().includes("⚠ off-branch"), sum())
 
 const bare = path.join(tmp, "proj2", "s2")
-mkdirSync(path.join(bare, ".opencode"), { recursive: true })
+mkdirSync(path.join(bare, ".opencode"), { recursive: true }); mkdirSync(path.join(bare, ".canopus", "plugin"), { recursive: true })
 git(bare, "init", "-q", "-b", "main")
 git(bare, "commit", "-q", "--allow-empty", "-m", "i")
-writeFileSync(path.join(bare, ".opencode", "canopus.json"), JSON.stringify({ project: "proj2", root: ".." }))
+writeFileSync(path.join(bare, ".canopus", "plugin", "config.json"), JSON.stringify({ project: "proj2", root: ".." }))
 let q
 try { q = settings.settingsProblems(settings.parseProjects({ projects: [bare] })) } catch (e) { q = ["THROW " + e] }
 cell("no file on branch: plain line, no crash", q.some((x) => x.includes("proj2") && x.includes("не закоммичен")) && !q.some((x) => x.startsWith("THROW")), JSON.stringify(q))

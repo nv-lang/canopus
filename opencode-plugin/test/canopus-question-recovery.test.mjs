@@ -6,6 +6,7 @@ import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 const tmp = mkdtempSync(path.join(os.tmpdir(), 'canopus-question-recovery-'))
 for (const k of ['XDG_DATA_HOME', 'XDG_STATE_HOME', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'TEMP', 'TMP', 'TMPDIR']) process.env[k] = tmp
+process.env.CANOPUS_HOME = path.join(tmp, "opencode")
 process.env.CANOPUS_DB = path.join(tmp, 'fixture.db')
 process.env.CANOPUS_PRESENCE = 'all'
 process.env.CANOPUS_POLL_MS = process.env.CANOPUS_FORM_MS = '50'

@@ -2,14 +2,14 @@
 //
 // The root of an instance is `CANOPUS_HOME`: the argument `--home <folder>`, else the variable `CANOPUS_HOME`, else `<the home folder of the user>/.canopus`.
 // Inside the root the subfolders are fixed:
-//   config/   what the user wrote: config.json, roles.json, presets/, modes/, secrets.json
+//   root      what the user wrote: config.json, roles.json, presets/, modes/, secrets.json
 //   data/     what must not be lost: projects.json, sessions/<id>/ (the journal, the snapshot, acp.jsonl, inbox, images)
 //   state/    service files that can be deleted: stt.pid, last_dir.txt, the logs
 //   cache/    what can be made again: agents.json (the catalog of the families), agent-config/
 //   tools/    heavy installs (whisper); CANOPUS_TOOLS_DIR or the setting `voice.dir` move them
 // The folder `.canopus/` of a project has the same names: config.json (shared, in git), local.json (personal, absolute paths; ignored by git), modes/, presets/, roles.json.
-// The layers, lower ones are covered by upper ones: the defaults in the code -> `<home>/config/config.json` -> the server file (`serve <file>`, CANOPUS_SERVER_CONFIG)
-// -> `.canopus/config.json` of the project -> `.canopus/local.json` -> `<home>/config/secrets.json` -> the variables CANOPUS_* -> the arguments of the command line.
+// The layers, lower ones are covered by upper ones: the defaults in the code -> `<home>/config.json` -> the server file (`serve <file>`, CANOPUS_SERVER_CONFIG)
+// -> `.canopus/config.json` of the project -> `.canopus/local.json` -> `<home>/secrets.json` -> the variables CANOPUS_* -> the arguments of the command line.
 // An old settings file with `data_dir` keeps working: the flat layout (sessions, projects.json, agents.json, stt.pid ... all in that folder), see `legacy_layout`.
 //
 // This module holds `std` only: the front (Polaris), the hub (the PostgreSQL driver) and the commands of `canopus` all import it.
@@ -38,18 +38,18 @@ fn trim_slash(p str) -> str {
     s
 }
 
-/// The layout under a root: `<home>/config`, `data`, `data/sessions`, `state`, `cache`, `tools`.
+/// The layout under a root: `<home>`, `data`, `data/sessions`, `state`, `cache`, `tools`.
 export fn layout_in(home str, project str) -> ConfigLayout {
     ro h = trim_slash(home)
     if h.byte_len() == 0 { return legacy_layout("") }
-    { home: h, config: "${h}/config", data: "${h}/data", sessions: "${h}/data/sessions", state: "${h}/state", cache: "${h}/cache", tools: "${h}/tools", project, legacy: false }
+    { home: h, config: h, data: "${h}/data", sessions: "${h}/data/sessions", state: "${h}/state", cache: "${h}/cache", tools: "${h}/tools", project, legacy: false }
 }
 
 /// The layout when `data_dir` was named by the old settings: `data`, `sessions`, `state` and `cache` are that folder, `config` and `tools` stay under the root (when there is one).
 export fn layout_with_data_dir(home str, data_dir str, project str) -> ConfigLayout {
     ro h = trim_slash(home)
     ro d = trim_slash(data_dir)
-    { home: h, config: if h.byte_len() > 0 { "${h}/config" } else { "" }, data: d, sessions: d, state: d, cache: d, tools: if h.byte_len() > 0 { "${h}/tools" } else { "" }, project, legacy: true }
+    { home: h, config: h, data: d, sessions: d, state: d, cache: d, tools: if h.byte_len() > 0 { "${h}/tools" } else { "" }, project, legacy: true }
 }
 
 /// The root of the instance from the three sources, in the order of the rule: the argument, the variable, the folder of the user. "" - none of them is known.
@@ -284,6 +284,9 @@ export fn put_path(o JsonObject, key str, value JsonValue) -> JsonObject {
 
 /// The value of a `--set` word or of a text from the command line: `true` and `false` are flags, digits are a number, anything else is a string.
 export fn guess_value(text str) -> JsonValue {
+    if text.starts_with("[") || text.starts_with("{") {
+        match Json.parse(text) { Ok(value) => return value, Err(e) => () }
+    }
     if text == "true" { return JsonValue.bool(true) }
     if text == "false" { return JsonValue.bool(false) }
     match text.to_int() {
@@ -300,6 +303,7 @@ type EnvKey { var str, key str, kind str }
 fn ek(var str, key str, kind str) -> EnvKey => { var, key, kind }
 
 fn env_keys() -> []EnvKey => [
+    ek("CANOPUS_STT_DIR", "voice.dir", "s"),
     ek("CANOPUS_SERVER_PORT", "port", "i"), ek("CANOPUS_SERVER_STORE", "store", "s"), ek("CANOPUS_SERVER_DATA_DIR", "data_dir", "s"), ek("CANOPUS_SERVER_WORKDIR", "workdir", "s"),
     ek("CANOPUS_SERVER_WEB_DIR", "web_dir", "s"), ek("CANOPUS_SERVER_MACHINES_DIR", "machines_dir", "s"), ek("CANOPUS_SERVER_ACP_TRACE", "acp_trace", "b"), ek("CANOPUS_SERVER_ASK_FORM", "ask_form", "b"),
     ek("CANOPUS_SERVER_ASK_TIMEOUT_SECONDS", "ask_timeout_seconds", "i"), ek("CANOPUS_SERVER_IDLE_SECONDS", "idle_term_seconds", "i"),
@@ -333,6 +337,41 @@ export fn env_layer() Os -> Layer {
             }
         }
     }
+    match cfg_env("CANOPUS_SERVER_AGENT") {
+        Some(command) => {
+            mut words = []str.new()
+            for word in command.split(" ") { if word.byte_len() > 0 { words.push(word) } }
+            if words.len() > 0 {
+                mut args = []JsonValue.new()
+                mut i = 1
+                while i < words.len() { args.push(JsonValue.str(words[i])); i += 1 }
+                mut agent = JsonObject.new()
+                ign(agent.insert("id", JsonValue.str("opencode")))
+                ign(agent.insert("label", JsonValue.str("OpenCode")))
+                ign(agent.insert("program", JsonValue.str(words[0])))
+                ign(agent.insert("args", JsonValue.array(args)))
+                ign(agent.insert("ask", JsonValue.str("native")))
+                mut agents = []JsonValue.new()
+                agents.push(JsonValue.object(agent))
+                o = put_path(o, "agents", JsonValue.array(agents))
+            }
+        }
+        None => ()
+    }
+    match cfg_env("CANOPUS_SERVER_HUB") {
+        Some(command) => {
+            mut words = []str.new()
+            for word in command.split(" ") { if word.byte_len() > 0 { words.push(word) } }
+            if words.len() > 0 {
+                o = put_path(o, "hub.program", JsonValue.str(words[0]))
+                mut args = []JsonValue.new()
+                mut i = 1
+                while i < words.len() { args.push(JsonValue.str(words[i])); i += 1 }
+                o = put_path(o, "hub.args", JsonValue.array(args))
+            }
+        }
+        None => ()
+    }
     { origin: "env", file: "", obj: o, text: "" }
 }
 
@@ -348,7 +387,7 @@ export fn legacy_env_problem() Os -> str {
     for k in env_keys() { names.push(k.var) }
     mut out = []str.new()
     for n in names {
-        ro old = "CANOPUS_${n[8..]}" // guard-allow(legacy-name): вывод старого имени из нового — назначение функции
+        ro old = "CREW_${n[8..]}" // guard-allow(legacy-name): вывод старого имени из нового — назначение функции
         match cfg_env(old) {
             Some(v) => out.push("${old} -> задай ${n}")
             None => ()

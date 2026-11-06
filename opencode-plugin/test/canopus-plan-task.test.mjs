@@ -9,16 +9,17 @@ import { execFileSync } from "node:child_process"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-plantask-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_POLL_MS = "100"
 process.env.CANOPUS_DB = path.join(tmp, "absent.db")
 process.env.CANOPUS_PRESENCE = "all"
 process.env.CANOPUS_PLANSTEPS_MS = "200"
 const proj = path.join(tmp, "proj")
-mkdirSync(path.join(proj, ".opencode"), { recursive: true })
+mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
 mkdirSync(path.join(proj, "docs", "plans"), { recursive: true })
 writeFileSync(path.join(proj, "docs", "plans", "7-old.md"), "# План 7 — старый\n")
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
-writeFileSync(path.join(proj, ".opencode", "canopus.json"), JSON.stringify({ worktrees: "wt", branch_name: "t{n}-{slug}", cleanup: "local", allow_default_models: true, merge_precheck: "off", accepted_slot: "hold", spawn_limits: { worker: 5, reviewer: 1 }, plan_clean_rounds: 2, plan_rounds_max: 4 }))
+writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ worktrees: "wt", branch_name: "t{n}-{slug}", cleanup: "local", allow_default_models: true, merge_precheck: "off", accepted_slot: "hold", spawn_limits: { worker: 5, reviewer: 1 }, plan_clean_rounds: 2, plan_rounds_max: 4 }))
 git(proj, "init", "-q", "-b", "main")
 git(proj, "add", "-A")
 git(proj, "commit", "-q", "-m", "init")

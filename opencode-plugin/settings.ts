@@ -3,7 +3,7 @@
 // Проект бывает виртуальным: C:/work/nova — папка с многими репозиториями, сама не репозиторий. Поэтому
 // настройки проекта живут в РЕПОЗИТОРИИ НАСТРОЕК, а не в рабочей папке вкладки:
 //   opencode.jsonc:  "options": { "project_settings": ["C:/work/nova/nova-settings", "C:/work/tools"] }
-//   <папка>/.opencode/canopus.json:  { "project": "nova", "root": "..", ... }
+//   <папка>/.canopus/plugin/config.json:  { "project": "nova", "root": "..", ... }
 // Папка — любая внутри git-репозитория. Имя проекта — поле "project" (нет — имя папки); корень — "root" от папки
 // (нет — сама папка). Файл читается ЗАКОММИЧЕННЫМ из ветки по умолчанию (`git show <ветка>:<путь>`; другая ветка —
 // поле "branch"): незакоммиченная правка не действует, worktree и ветки кода на настройки не влияют.
@@ -12,7 +12,7 @@
 // читается, если project_settings не задан; заданы оба — действует project_settings, canopus_doctor говорит о расхождении.
 //
 // Прежняя форма опций `{ "nova": "C:/work/nova" }` (только под именем `projects`) читается дальше: имя → корень, а настройки — по-старому
-// из `.opencode/canopus.json` вверх от каталога вкладки (рабочая копия). Старое имя nova-peers.json больше не
+// из `.canopus/plugin/config.json` вверх от каталога вкладки (рабочая копия). Старое имя nova-peers.json больше не
 // читается (решение №16 плана 002 выполнено: nv-lang перешёл на репозиторий настроек 2026-10-05).
 //
 // Машинно-зависимое (модели по ступеням) — необязательная поправка в опциях плагина:
@@ -22,12 +22,13 @@ import { execFileSync } from "node:child_process"
 import { background, gitAsync } from "./async-git.ts"
 import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs"
 import path from "node:path"
+import { settingsLayers, validateTasksDir } from "./plugin-config.ts"
 import { log, safeKey } from "./core.ts"
 import { answerNotes } from "./answer-parse.ts"
 import { BASE } from "./base.ts"
 import { configDivergence, divergenceProblem } from "./config-diverge.ts"
 
-export const SETTINGS_FILE = path.join(".opencode", "canopus.json")
+export const SETTINGS_FILE = path.join(".canopus", "plugin", "config.json")
 /** прежнее имя файла настроек (до плана 005, 2026-10-06) */
 export const LEGACY_SETTINGS_NAME = ".opencode/opencode-peers.json"
 export const PROJECT_RE = /^[a-z0-9][a-z0-9-]{0,40}$/
@@ -123,19 +124,10 @@ function* settingsBody(dir: string): GitGen<Folder> {
   }
   if (repo) {
     const prefix = (yield [dir, ["rev-parse", "--show-prefix"]]).trim()
-    file = prefix + ".opencode/canopus.json" // путь в репозитории
+    file = prefix + ".canopus/plugin/config.json" // путь в репозитории
     branch = yield* defaultBranch(repo)
     let j = parseJson(yield* showCommitted(repo, branch, file))
-    // прежнее имя файла (до плана 005): читается, canopus_doctor просит переименовать
-    if (j === undefined) {
-      const oldFile = prefix + LEGACY_SETTINGS_NAME
-      const o = parseJson(yield* showCommitted(repo, branch, oldFile))
-      if (o !== undefined) {
-        j = o
-        file = oldFile
-        legacy = oldFile
-      }
-    }
+    // Retired filenames are diagnosed below, never read as a fallback.
     if (j && typeof j.branch === "string" && j.branch && j.branch !== branch) {
       branch = j.branch
       j = parseJson(yield* showCommitted(repo, branch, file))
@@ -143,10 +135,10 @@ function* settingsBody(dir: string): GitGen<Folder> {
     if (j === undefined) {
       // файл в рабочей копии есть, а в ветке нет — его просто не закоммитили (claude-limits, 2026-10-07: приёмка
       // проекта сутки не действовала, а самопроверка говорила только «нет файла»)
-      const local = [prefix + ".opencode/canopus.json", prefix + LEGACY_SETTINGS_NAME].find((f) => existsSync(path.join(repo!, f)))
+      const local = [prefix + ".canopus/plugin/config.json", prefix + LEGACY_SETTINGS_NAME].find((f) => existsSync(path.join(repo!, f)))
       problems.push(
         local
-          ? `${local} лежит в рабочей копии ${repo}, но не закоммичен в ${branch} — плагин его не читает, настройки по умолчанию; закоммить его в ${branch}${local.endsWith(LEGACY_SETTINGS_NAME) ? ` под именем .opencode/canopus.json` : ""}`
+          ? `${local} лежит в рабочей копии ${repo}, но не закоммичен в ${branch} — плагин его не читает, настройки по умолчанию; закоммить его в ${branch}${local.endsWith(LEGACY_SETTINGS_NAME) ? ` под именем .canopus/plugin/config.json` : ""}`
           : `в ветке ${branch} репозитория ${repo} нет ${file} — настройки по умолчанию`,
       )
     }
@@ -270,7 +262,7 @@ export function optionKeyLines(opt: any): { problems: string[]; notes: string[] 
       )
     else notes.push(`в опциях плагина заданы оба ключа, project_settings и projects, с одинаковыми записями: действует project_settings, projects игнорируется; убери projects из opencode.jsonc`)
   } else if (given(old) && Array.isArray(old)) notes.push(`ключ projects переименован в project_settings; прежнее имя работает`)
-  if (given(main) && !Array.isArray(main)) problems.push(`ключ project_settings — список папок настроек ["<папка с .opencode/canopus.json>"]; прежняя форма «имя → корень» работает только под прежним именем projects`)
+  if (given(main) && !Array.isArray(main)) problems.push(`ключ project_settings — список папок настроек ["<папка с .canopus/plugin/config.json>"]; прежняя форма «имя → корень» работает только под прежним именем projects`)
   return { problems, notes }
 }
 // Строки врача по последним разобранным опциям (их ставит parseProjects: плагин и MCP-сервер разбирают опции один раз при загрузке).
@@ -285,8 +277,11 @@ export function parseProjects(opt: any, log: (s: string) => void = () => {}): Pr
   const list = projectsOption(opt)
   if (Array.isArray(list)) {
     for (const folder of list) {
-      if (typeof folder !== "string" || !folder) continue
-      out.push(readSettingsFolder(folder).project)
+      if (typeof folder === "string" && folder) out.push(readSettingsFolder(folder).project)
+      else if (folder && typeof folder === "object" && PROJECT_RE.test(folder.project) && typeof folder.root === "string" && path.isAbsolute(folder.root)) {
+        // A project can be configured globally without editing a foreign repository.
+        out.push({ name: folder.project, root: normPath(folder.root), rootPath: canon(folder.root) })
+      } else throw new Error("project_settings: expected a settings directory or {project, root: absolute path}")
     }
   } else
     for (const [name, root] of Object.entries(list ?? {})) {
@@ -364,10 +359,12 @@ export function rawSettingsFor(dir: string, projects: Projects, local: Record<st
   if (p?.dir) raw = readSettingsFolder(p.dir).raw
   else raw = legacyWalk(legacyBase(dir, p))
   const over = p ? local[p.name] : undefined
-  return over && typeof over === "object" ? { ...raw, ...over } : raw
+  const result = settingsLayers(raw, p?.dir ?? mainTreeOf(dir) ?? dir, over, p?.name)
+  if (typeof result.tasks_dir === "string") result.tasks_dir = validateTasksDir(result.tasks_dir)
+  return result
 }
 
-// Прежняя форма: `.opencode/canopus.json` вверх от каталога вкладки, рабочая копия.
+// Прежняя форма: `.canopus/plugin/config.json` вверх от каталога вкладки, рабочая копия.
 // Битый файл (не JSON) молча давал пустые настройки, и защитные ключи (merge_precheck: required и др.) выключались без
 // сообщения (задача 006): теперь берутся последние хорошие настройки этого файла, а о файле пишется в журнал и в canopus_doctor.
 const legacyGood = new Map<string, any>()
@@ -459,7 +456,7 @@ export function unconfiguredLine(name: string): string {
 
 export function settingsProblems(projects: Projects, local: Record<string, any> = {}): string[] {
   const out = [...optionLines.problems, ...projects.flatMap((p) => p.problems ?? [])]
-  for (const p of projects) if (p.legacy) out.push(`проект ${p.name}: настройки в файле с прежним именем ${p.legacy} — переименуй в .opencode/canopus.json (git mv) и закоммить`)
+  for (const p of projects) if (p.legacy) out.push(`проект ${p.name}: настройки в файле с прежним именем ${p.legacy} — переименуй в .canopus/plugin/config.json (git mv) и закоммить`)
   // настройка, которая не может сработать: ключ gate в answer_mode, режим agent, неверный answer_max (задача 007)
   for (const p of projects) {
     if (!p.dir) continue
@@ -485,6 +482,6 @@ export function settingsProblems(projects: Projects, local: Record<string, any> 
     if (!modelsDefined(rawSettingsFor(p.rootPath ?? p.root, projects, local))) out.push(`${unconfiguredLine(p.name)} (нет profile_set, spawn_models и allow_default_models: canopus_spawn откажет; canopus_config {action: "apply_template"} или canopus_config guide)`)
   }
   const old = projects.filter((p) => !p.dir).map((p) => p.name)
-  if (old.length) out.push(`проекты ${old.join(", ")} заданы прежней формой опций (имя → корень); новая — список папок настроек: "project_settings": ["<папка с .opencode/canopus.json>"], файл называет проект и root (doc/archive/plans/002-tasks.md, «Где живут настройки проекта»)`)
+  if (old.length) out.push(`проекты ${old.join(", ")} заданы прежней формой опций (имя → корень); новая — список папок настроек: "project_settings": ["<папка с .canopus/plugin/config.json>"], файл называет проект и root (doc/archive/plans/002-tasks.md, «Где живут настройки проекта»)`)
   return [...new Set(out)]
 }

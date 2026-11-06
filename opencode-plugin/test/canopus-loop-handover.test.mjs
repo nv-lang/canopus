@@ -11,10 +11,11 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-handover-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_POLL_MS = "100"
 process.env.CANOPUS_DB = path.join(tmp, "absent.db")
 delete process.env.CANOPUS_PRESENCE
-const base = path.join(tmp, "opencode", "canopus")
+const base = path.join(tmp, "opencode", "plugin", "data")
 const SES = "ses_efdd2dc2effePXj0L8WPrxkIJN"
 const dirN = path.join(tmp, "nova")
 const dirD = path.join(tmp, "canopus")

@@ -20,6 +20,7 @@ syncBuiltinESMExports()
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-progress-"))
 process.env.XDG_DATA_HOME = path.join(tmp, "xdg-data")
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.XDG_CONFIG_HOME = path.join(tmp, "xdg-config")
 process.env.XDG_STATE_HOME = path.join(tmp, "xdg-state")
 const P = await import("../progress.ts")

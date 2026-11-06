@@ -108,7 +108,7 @@ const runOne = ({ f }) =>
     const state = mkdtempSync(path.join(os.tmpdir(), "canopus-test-native-state-"))
     const isolate = pathToFileURL(path.join(here, "native-isolation.mjs")).href
     const options = `${process.env.NODE_OPTIONS ?? ""} --import=${isolate}`.trim()
-    const child = spawn(process.execPath, [f], { cwd: root, env: { ...process.env, XDG_STATE_HOME: state, NODE_OPTIONS: options }, stdio: ["ignore", "pipe", "pipe"] })
+    const child = spawn(process.execPath, [f], { cwd: root, env: { ...process.env, XDG_STATE_HOME: state, XDG_DATA_HOME: path.join(state, "opencode-data"), CANOPUS_HOME: path.join(state, "canopus"), NODE_OPTIONS: options }, stdio: ["ignore", "pipe", "pipe"], windowsHide: true })
     let out = ""
     child.stdout.on("data", (d) => (out += d))
     child.stderr.on("data", (d) => (out += d))

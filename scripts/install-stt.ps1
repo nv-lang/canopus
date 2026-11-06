@@ -7,7 +7,7 @@
 # The files are not in the repository (685 MB and 488 MB): the addresses, sizes and SHA256 are in tools/stt/manifest.json. The script downloads
 # what is missing into `<tool folder>/_download`, checks the size and the SHA256 (a mismatch stops it and deletes the file), unpacks, and
 # says what it did. A second run downloads nothing when the files are in place and their SHA256 are right.
-# The tool folder (the same one the control panel looks in; the setting voice.dir / stt.dir names another): CANOPUS_VOICE_DIR, CANOPUS_STT_DIR, an older install in
+# The tool folder (the same one the control panel looks in; the setting voice.dir / stt.dir names another): CANOPUS_VOICE_DIR, CANOPUS_STT_DIR, no implicit search in older installs in
 # %LOCALAPPDATA%/canopus/stt that is still there, CANOPUS_TOOLS_DIR/whisper, <CANOPUS_HOME>/tools/whisper, else ~/.canopus/tools/whisper (task 192.12, ADR-0016).
 # No path of a machine is written in the repository.
 param(
@@ -23,10 +23,6 @@ $ErrorActionPreference = 'Stop'
 function Get-SttDir {
     if (-not [string]::IsNullOrWhiteSpace($env:CANOPUS_VOICE_DIR)) { return $env:CANOPUS_VOICE_DIR }
     if (-not [string]::IsNullOrWhiteSpace($env:CANOPUS_STT_DIR)) { return $env:CANOPUS_STT_DIR }
-    if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
-        $older = Join-Path $env:LOCALAPPDATA 'canopus/stt'
-        if (Test-Path (Join-Path $older 'bin/whisper-server.exe')) { return $older }
-    }
     if (-not [string]::IsNullOrWhiteSpace($env:CANOPUS_TOOLS_DIR)) { return (Join-Path $env:CANOPUS_TOOLS_DIR 'whisper') }
     if (-not [string]::IsNullOrWhiteSpace($env:CANOPUS_HOME)) { return (Join-Path $env:CANOPUS_HOME 'tools/whisper') }
     $home_dir = $env:USERPROFILE

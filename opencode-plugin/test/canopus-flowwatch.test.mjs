@@ -9,6 +9,7 @@ import { DatabaseSync } from "node:sqlite"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-flowwatch-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_POLL_MS = "100"
 process.env.CANOPUS_STATUS_MS = "100"
 process.env.CANOPUS_FLOW_MS = "200"
@@ -17,9 +18,9 @@ const dbPath = path.join(tmp, "opencode.db")
 process.env.CANOPUS_DB = dbPath
 delete process.env.CANOPUS_PRESENCE
 const proj = path.join(tmp, "proj")
-mkdirSync(path.join(proj, ".opencode"), { recursive: true })
+mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
 // stall after 0.01 min (0.6 s); no review sessions, so a submitted task waits for a reviewer
-writeFileSync(path.join(proj, ".opencode", "canopus.json"), JSON.stringify({ stall_minutes: 0.01, accepted_reminder_min: 0.01, inflight_limit: 3, accepted_slot: "hold", heavy_commands: ["scripts/gate.sh"], spawn_limits: { reviewer: 0 }, branch_name: "t{n}-{slug}", cleanup: "local" }))
+writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ stall_minutes: 0.01, accepted_reminder_min: 0.01, inflight_limit: 3, accepted_slot: "hold", heavy_commands: ["scripts/gate.sh"], spawn_limits: { reviewer: 0 }, branch_name: "t{n}-{slug}", cleanup: "local" }))
 // the project is a git repository: task 003 was accepted, but its branch and a diagnostic branch stayed
 const { execFileSync } = await import("node:child_process")
 const g = (...a) => execFileSync("git", ["-C", proj, "-c", "user.name=t", "-c", "user.email=t@t", ...a], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })
@@ -146,12 +147,12 @@ cell("a submitted task waiting for a reviewer is raised, once", wait2.length ===
 // 4. a turn continued by OpenCode itself counts as working
 await until(() => {
   try {
-    return JSON.parse(readFileSync(path.join(tmp, "opencode", "canopus", "status", "sesRUN01.json"), "utf8")).state === "working"
+    return JSON.parse(readFileSync(path.join(tmp, "opencode", "plugin", "data", "status", "sesRUN01.json"), "utf8")).state === "working"
   } catch {
     return false
   }
 })
-const run = JSON.parse(readFileSync(path.join(tmp, "opencode", "canopus", "status", "sesRUN01.json"), "utf8"))
+const run = JSON.parse(readFileSync(path.join(tmp, "opencode", "plugin", "data", "status", "sesRUN01.json"), "utf8"))
 cell("an open, fresh turn in the database is 'working'", run.state === "working", run.state)
 
 // 5. leftovers of an accepted task: one letter to the author listing them (not another task's branch)

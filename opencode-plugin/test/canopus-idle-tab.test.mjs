@@ -25,6 +25,7 @@ import { DatabaseSync } from "node:sqlite"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-idle-tab-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_POLL_MS = "100"
 process.env.CANOPUS_STATUS_MS = "100"
 process.env.CANOPUS_FORM_MS = "100"
@@ -32,10 +33,10 @@ const dbPath = path.join(tmp, "opencode.db")
 process.env.CANOPUS_DB = dbPath
 delete process.env.CANOPUS_PRESENCE
 const proj = path.join(tmp, "proj")
-mkdirSync(path.join(proj, ".opencode"), { recursive: true })
+mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
 // task 161: the watch of the term of a step is off here (step_term_minutes 0): this file tests the old rule of the tab alone; the one-letter-per-step rule is in canopus-idle-watch-burst-flow
 // threshold 3 s: the fixtures stand 2 minutes, the checks of "the mark is gone" run well inside 3 s
-writeFileSync(path.join(proj, ".opencode", "canopus.json"), JSON.stringify({ idle_tab_minutes: 0.05, step_term_minutes: 0 }))
+writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ idle_tab_minutes: 0.05, step_term_minutes: 0 }))
 
 let fail = 0
 const cell = (name, ok, detail = "") => {

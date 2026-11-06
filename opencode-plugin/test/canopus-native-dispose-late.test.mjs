@@ -9,6 +9,7 @@ import path from "node:path"
 import { randomUUID } from "node:crypto"
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "canopus-dispose-late-"))
 process.env.XDG_DATA_HOME = process.env.XDG_STATE_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_DB = path.join(tmp, "absent.db")
 process.env.CANOPUS_POLL_MS = "50"
 process.env.CANOPUS_STEP_MS = "100"

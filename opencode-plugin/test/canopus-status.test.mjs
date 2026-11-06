@@ -10,15 +10,16 @@ import { DatabaseSync } from "node:sqlite"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-status-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_POLL_MS = "100"
 process.env.CANOPUS_STATUS_MS = "100"
 const dbPath = path.join(tmp, "opencode.db")
 process.env.CANOPUS_DB = dbPath
 delete process.env.CANOPUS_PRESENCE
 const proj = path.join(tmp, "proj")
-mkdirSync(path.join(proj, ".opencode"), { recursive: true })
+mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
 // a reminder every 0.03 min (1.8 s) to see the repeat in a test
-writeFileSync(path.join(proj, ".opencode", "canopus.json"), JSON.stringify({ owner_reminder_min: 0.03 }))
+writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ owner_reminder_min: 0.03 }))
 
 const db = new DatabaseSync(dbPath)
 db.exec("create table session_v2 (id text primary key, directory text, title text, parent_id text, time_archived integer, time_idle integer, time_viewed integer, time_suspended integer)")

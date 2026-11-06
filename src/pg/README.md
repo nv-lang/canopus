@@ -115,7 +115,7 @@ powershell -File src/pg/db.ps1 serve-config        # writes the settings of the 
   login is made once and **its password is never changed afterwards**. The container is made with `--restart unless-stopped`; the port is
   `127.0.0.1:15432` (`-Port 15433` changes it: the container is re-created, the volume and the data stay; only the local address is ever published).
 - **Passwords.** Two random passwords (the administrator `postgres` and the login `canopus_service`, a member of `canopus_app`) are made on the first `up`
-  and written to `~/.config/canopus/pg.json` (`-Config <file>` names another), **outside the repository**; on Windows only the owner of the
+  and written to `~/.canopus/secrets.json (section `postgres`)` (`-Config <file>` names another), **outside the repository**; on Windows only the owner of the
   file keeps access to it. Besides them the file holds the container, the volume, the port and the database. No command prints a password except
   `env -ShowPassword`; the SQL that holds one goes to `psql` over stdin, never on a command line; a message with a password in it is shown with `***`.
   The settings file lost while the container lives: `up` makes new passwords and sets them in the database (the local login of the container
@@ -124,7 +124,7 @@ powershell -File src/pg/db.ps1 serve-config        # writes the settings of the 
   schema (the tests of `src/server/test/e2e.mjs --pg-docker` use `canopus_e2e` and drop it with `db.ps1 dropdb -Database canopus_e2e`; `dropdb` drops only
   a database named `canopus_<something>`, never `canopus`). `psql`, `backup`, `restore` act on `-Database` too.
 - **Backup and restore.** `backup` is `pg_dump -Fc` of one database (roles are not in it; `up` makes `canopus_app` and the login again). `restore`
-  replaces the data, so it first dumps the present state to `~/.config/canopus/backups/<database>-before-restore-<time>.dump`, then runs
+  replaces the data, so it first dumps the present state to `~/.canopus/backups/<database>-before-restore-<time>.dump`, then runs
   `pg_restore --clean --if-exists --single-transaction` and applies `schema.sql` again; a failed restore leaves the database as it was.
 - **Reset.** `reset -Force` removes the container, the volume and the settings file (its passwords belong to the removed volume). The next `up` starts
   from nothing. It is the only command that loses data; make a `backup` first.

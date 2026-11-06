@@ -7,6 +7,7 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-delivery-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_POLL_MS = "100"
 process.env.CANOPUS_DB = path.join(tmp, "absent.db")
 process.env.CANOPUS_PRESENCE = "all"
@@ -15,7 +16,7 @@ mkdirSync(proj, { recursive: true })
 
 const mod = await import(process.env.CANOPUS_MODULE ?? "./fixture-plugin.mjs")
 const core = await import(process.env.CANOPUS_CORE ?? "../core.ts")
-const base = path.join(tmp, "opencode", "canopus")
+const base = path.join(tmp, "opencode", "plugin", "data")
 const hooks = {}
 const tools = {}
 const delivered = []

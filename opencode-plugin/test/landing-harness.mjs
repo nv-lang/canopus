@@ -22,6 +22,7 @@ export async function harness(prefix, opts = {}) {
   const attach = opts.attach
   const tmp = attach ?? mkdtempSync(path.join(os.tmpdir(), `${prefix}-`))
   process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
   process.env.CANOPUS_POLL_MS = "100"
   process.env.CANOPUS_STATUS_MS = "100"
   process.env.CANOPUS_FLOW_MS = "200"
@@ -33,7 +34,7 @@ export async function harness(prefix, opts = {}) {
   const proj = path.join(tmp, "proj")
   const bare = path.join(tmp, "origin.git")
   const other = path.join(tmp, "other")
-  if (!attach) mkdirSync(path.join(proj, ".opencode"), { recursive: true })
+  if (!attach) mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
   const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim()
   const gitTry = (cwd, ...args) => {
     try {
@@ -45,13 +46,13 @@ export async function harness(prefix, opts = {}) {
   let current = {}
   const settings = (more = {}) => {
     current = { ...more }
-    writeFileSync(path.join(proj, ".opencode", "canopus.json"), JSON.stringify({ spawn_limits: { worker: 20, reviewer: 0 }, stall_minutes: 600, inflight_limit: 50, accepted_reminder_min: 600, merge_precheck: "required", ...(opts.settings ?? {}), ...more }))
+    writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ spawn_limits: { worker: 20, reviewer: 0 }, stall_minutes: 600, inflight_limit: 50, accepted_reminder_min: 600, merge_precheck: "required", ...(opts.settings ?? {}), ...more }))
   }
   if (!attach) {
     settings()
     execFileSync("git", ["init", "-q", "--bare", "-b", "main", bare], { stdio: "ignore" })
     git(proj, "init", "-q", "-b", "main")
-    writeFileSync(path.join(proj, ".git", "info", "exclude"), ".opencode/\n") // the settings file is not part of any commit
+    writeFileSync(path.join(proj, ".git", "info", "exclude"), ".opencode/\n.canopus/plugin/\n") // the settings file is not part of any commit
     writeFileSync(path.join(proj, "a.txt"), "a\n")
     git(proj, "add", "-A")
     git(proj, "commit", "-q", "-m", "init")

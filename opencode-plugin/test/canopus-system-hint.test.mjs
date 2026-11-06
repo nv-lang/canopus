@@ -7,9 +7,10 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-hint-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_PRESENCE ??= "all"
 process.env.CANOPUS_POLL_MS = "100"
-const cards = path.join(tmp, "opencode", "canopus", "cards")
+const cards = path.join(tmp, "opencode", "plugin", "data", "cards")
 mkdirSync(cards, { recursive: true })
 const card = (session, role) =>
   writeFileSync(path.join(cards, `${session}.json`), JSON.stringify({ session, role, auto: false, title: "", directory: process.cwd(), repo: "nova", pid: process.pid, updated: Date.now() }))

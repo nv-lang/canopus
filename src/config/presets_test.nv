@@ -120,8 +120,8 @@ test "preset: a wrong file is file:line: reason" {
 
 test "presets: the project replaces the user's preset of the same name, the others are added" {
     ro root = tmp_root2("layers")
-    put2(root, "inst/config/presets/a.json", "{\"roles\":{\"dev\":{\"family\":\"claude\"},\"dev_accept\":{\"family\":\"kimi\"}}}")
-    put2(root, "inst/config/presets/b.json", "{\"roles\":{\"dev_accept\":{\"family\":\"codex\"}}}")
+    put2(root, "inst/presets/a.json", "{\"roles\":{\"dev\":{\"family\":\"claude\"},\"dev_accept\":{\"family\":\"kimi\"}}}")
+    put2(root, "inst/presets/b.json", "{\"roles\":{\"dev_accept\":{\"family\":\"codex\"}}}")
     put2(root, "repo/.canopus/presets/a.json", "{\"roles\":{\"dev_accept\":{\"family\":\"opencode\"}}}")
     ro layout = layout_in("${root}/inst", "${root}/repo/.canopus")
     match with Fs = real_fs() { load_presets(layout, ["codex", "claude"]) } {
@@ -142,7 +142,7 @@ test "presets: the project replaces the user's preset of the same name, the othe
 
 test "presets: a broken file is the error of load_presets, and the reply of the API still has the built-in preset" {
     ro root = tmp_root2("broken")
-    put2(root, "inst/config/presets/bad.json", "{\n  \"roles\": 3\n}")
+    put2(root, "inst/presets/bad.json", "{\n  \"roles\": 3\n}")
     ro layout = layout_in("${root}/inst", "")
     match with Fs = real_fs() { load_presets(layout, ["codex", "claude"]) } {
         Ok(list) => assert(false)
@@ -162,7 +162,7 @@ test "presets: a broken file is the error of load_presets, and the reply of the 
 
 test "presets: the reply lists the presets with their roles, the active one and the roles of the process" {
     ro root = tmp_root2("reply")
-    put2(root, "inst/config/presets/mix.json", "{\"description\":\"микс\",\"roles\":{\"dev\":{\"family\":\"kimi\",\"model\":\"k3\"}}}")
+    put2(root, "inst/presets/mix.json", "{\"description\":\"микс\",\"roles\":{\"dev\":{\"family\":\"kimi\",\"model\":\"k3\"}}}")
     ro layout = layout_in("${root}/inst", "")
     ro reply = with Fs = real_fs() { presets_reply(layout, ["codex", "claude"], "mix") }
     match Json.parse(reply) {

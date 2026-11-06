@@ -8,6 +8,7 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-tier-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_PRESENCE ??= "all" // every tab taken as open (presence has its own test)
 process.env.CANOPUS_DB = path.join(tmp, "absent.db")
 process.env.CANOPUS_POLL_MS = "60"
@@ -123,7 +124,7 @@ cell("without tier a shared role with two holders is still refused with the list
 // 6b. liveness by last activity is NOT a criterion, presence is: a tab silent for 2 hours but open in a live window
 // gets the heavy task; a tab open in no window (closed, its window closed or frozen) does not, whatever its pid.
 import { mkdirSync, readdirSync, writeFileSync } from "node:fs"
-const cardsDir = path.join(tmp, "opencode", "canopus", "cards")
+const cardsDir = path.join(tmp, "opencode", "plugin", "data", "cards")
 const oldCard = (sid, model, role, pid = process.pid) =>
   writeFileSync(path.join(cardsDir, `${sid}.json`), JSON.stringify({ session: sid, role, auto: false, title: "", directory: tmp, repo: "t", model, modelAt: Date.now() - 7200_000, modelFrom: "request", pid, updated: Date.now() - 7200_000 }))
 const OPUS_ID = "anthropic-sdk/claude-opus-5-5#medium"
@@ -132,7 +133,7 @@ oldCard("sesCLOSE1", OPUS_ID, "w9")
 oldCard("sesFROZE1", OPUS_ID, "w10")
 // real presence from here: one live window with every tab but the closed one, one frozen window with sesFROZE1
 delete process.env.CANOPUS_PRESENCE
-const windowsDir = path.join(tmp, "opencode", "canopus", "windows")
+const windowsDir = path.join(tmp, "opencode", "plugin", "data", "windows")
 mkdirSync(windowsDir, { recursive: true })
 const openTabs = () => readdirSync(cardsDir).map((f) => f.replace(/\.json$/, "")).filter((s) => s !== "sesCLOSE1" && s !== "sesFROZE1").map((sessionID) => ({ sessionID, active: false, busy: false }))
 const beat = () => writeFileSync(path.join(windowsDir, "777001.json"), JSON.stringify({ pid: 777001, beat: Date.now(), tabs: openTabs() }))

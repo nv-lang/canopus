@@ -45,9 +45,9 @@ test "prompt: no file is the built-in text, a file of the user replaces it, a fi
     ro layout = layout_in("${root}/inst", "${root}/repo/.canopus")
     ro none = with Fs = real_fs() { pick_prompt(layout, "reminder", "built-in text") }
     assert(none.text == "built-in text" && none.source == "built-in" && none.note == "")
-    put5(root, "inst/config/prompts/reminder.md", "user text {x}\n")
+    put5(root, "inst/prompts/reminder.md", "user text {x}\n")
     ro user = with Fs = real_fs() { pick_prompt(layout, "reminder", "built-in text") }
-    assert(user.text == "user text {x}" && user.source == "${root}/inst/config/prompts/reminder.md")
+    assert(user.text == "user text {x}" && user.source == "${root}/inst/prompts/reminder.md")
     put5(root, "repo/.canopus/prompts/reminder.md", "project text")
     ro project = with Fs = real_fs() { pick_prompt(layout, "reminder", "built-in text") }
     assert(project.text == "project text")
@@ -59,12 +59,12 @@ test "prompt: no file is the built-in text, a file of the user replaces it, a fi
 test "prompt: an empty file and a file that is not text give the built-in text and a note" {
     ro root = tmp5("broken")
     ro layout = layout_in("${root}/inst", "")
-    put5(root, "inst/config/prompts/empty.md", "  \n\n")
+    put5(root, "inst/prompts/empty.md", "  \n\n")
     ro empty = with Fs = real_fs() { pick_prompt(layout, "empty", "fallback") }
     assert(empty.text == "fallback" && empty.note.contains("is empty"))
     with Fs = real_fs() {
-        ro made = create_dir_all(Path.from_bytes("${root}/inst/config/prompts".bytes()))
-        ro bytes = write(Path.from_bytes("${root}/inst/config/prompts/bad.md".bytes()), [255 as u8, 254 as u8, 253 as u8])
+        ro made = create_dir_all(Path.from_bytes("${root}/inst/prompts".bytes()))
+        ro bytes = write(Path.from_bytes("${root}/inst/prompts/bad.md".bytes()), [255 as u8, 254 as u8, 253 as u8])
     }
     ro bad = with Fs = real_fs() { pick_prompt(layout, "bad", "fallback") }
     assert(bad.text == "fallback" && bad.note.contains("cannot be read"))

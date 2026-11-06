@@ -341,9 +341,9 @@ fn st_one_agent(words []str) -> []AgentSpec {
 /// The settings in the root of the instance named by CANOPUS_HOME (or the folder of the user): see `server_settings_in`.
 export fn server_settings(file str) Os Fs -> Result[ServerSettings, str] => server_settings_in(file, canopus_home(""), []str.new())
 
-/// The settings by the layers (task 192.12, ADR-0016), the lower ones are covered by the upper: the defaults of the code, `<home>/config/config.json`, the file `file`
+/// The settings by the layers (task 192.12, ADR-0016), the lower ones are covered by the upper: the defaults of the code, `<home>/config.json`, the file `file`
 /// (or the one named by CANOPUS_SERVER_CONFIG when `file` is empty: "the server file"), `.canopus/config.json` and `local.json` of the project (the folder the hub works in,
-/// or above it), `<home>/config/secrets.json`, the variables CANOPUS_*, the words `key=value` of `sets` (the arguments `--set`). `home` is the root of the instance ("" - none: the
+/// or above it), `<home>/secrets.json`, the variables CANOPUS_*, the words `key=value` of `sets` (the arguments `--set`). `home` is the root of the instance ("" - none: the
 /// old flat layout in `canopus-data`). An old `data_dir` (a file or CANOPUS_SERVER_DATA_DIR) makes the layout flat in that folder. The error is `file:line: reason` for a broken
 /// file and never quotes the content.
 export fn server_settings_in(file str, home str, sets []str) Os Fs -> Result[ServerSettings, str] {
@@ -378,20 +378,14 @@ export fn server_settings_in(file str, home str, sets []str) Os Fs -> Result[Ser
         route_over_limit_word: parsed.route_over_limit_word, route_max_active: parsed.route_max_active, route_tool: parsed.route_tool, route_auto_propose: parsed.route_auto_propose,
         route_children: parsed.route_children, route_wip: parsed.route_wip, wip_timeout_ms: parsed.wip_timeout_ms, agent_start_ms: parsed.agent_start_ms, agent_silent_minutes: parsed.agent_silent_minutes, layout, preset: parsed.preset, auto_extend_confidence: parsed.auto_extend_confidence, task_scope: parsed.task_scope
     }
-    ro pg = pg_config_env(base.pg)?
+    // Environment is already merged below CLI arguments; validate through the shared layer.
+    ro pg_check = pg_config_env(base.pg)?
+    ro pg = base.pg
     ro port = st_env_number("CANOPUS_SERVER_PORT")?
     ro idle = st_env_number("CANOPUS_SERVER_IDLE_SECONDS")?
-    ro agent_words = match st_env("CANOPUS_SERVER_AGENT") {
-        Some(command) => st_split(command)
-        None => []str.new()
-    }
-    ro agents = if agent_words.len() > 0 { st_one_agent(agent_words) } else { base.agents }
-    ro hub_words = match st_env("CANOPUS_SERVER_HUB") {
-        Some(command) => st_split(command)
-        None => []str.new()
-    }
-    ro hub_program = if hub_words.len() > 0 { hub_words[0] } else { base.hub_program }
-    ro hub_args = if hub_words.len() > 0 { st_rest(hub_words) } else { base.hub_args }
+    ro agents = base.agents
+    ro hub_program = base.hub_program
+    ro hub_args = base.hub_args
     // the variables are already a layer of `base` (env_layer), under the arguments; here they are only checked, a wrong one is named
     ro idle_term_ms = base.idle_term_ms
     ro trace_check = st_env_flag("CANOPUS_SERVER_ACP_TRACE", base.acp_trace)?

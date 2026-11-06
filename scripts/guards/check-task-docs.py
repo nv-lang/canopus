@@ -85,6 +85,7 @@ sys.dont_write_bytecode = True
 
 import os
 import re
+import json
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib"))
 
@@ -689,7 +690,32 @@ def check_parent_line(path, text, source, by_path, rep):
             rep.add(path, 1, "children-row", "в %s/task/children.md нет строки ребёнка %s: хаб пишет её при создании, руками — «| %s | дочерняя | … |» (%s)" % (folder, own.group(2), own.group(2), CHILDREN_RULE))
 
 
+def configure_tasks_dir(source):
+    global TASK_FILE, JOURNAL_FILE, LOG_FILE, TASK_FOLDER, CHILDREN_FILE, MESSAGE_FILE
+    entries = {entry.path: entry for entry in source.entries()}
+    rel = "doc/tasks"
+    entry = entries.get(".canopus/plugin/config.json")
+    if entry is not None:
+        raw = source.read(entry)
+        if raw is not None:
+            config = json.loads(raw.decode("utf-8-sig"))
+            rel = config.get("tasks_dir", rel)
+    if not isinstance(rel, str):
+        raise ValueError("tasks_dir must be a relative directory")
+    rel = rel.replace("\\", "/").removesuffix("/")
+    if rel and (rel.startswith("/") or ":" in rel or any(p in ("", ".", "..") for p in rel.split("/"))):
+        raise ValueError("tasks_dir must stay inside the repository")
+    prefix = re.escape(rel) if rel else r"(?!)"
+    TASK_FILE = re.compile(r"^" + prefix + r"/[^/]+/(spec\.md|plan\.md|(?:spec-review|plan-review|review|delivery-review)-(\d+)\.md)$")
+    JOURNAL_FILE = re.compile(r"^" + prefix + r"/[^/]+/progress\.log$")
+    LOG_FILE = re.compile(r"^" + prefix + r"/[^/]+/log\.md$")
+    TASK_FOLDER = re.compile(r"^(" + prefix + r"/([0-9]{3,})-[^/]+)/")
+    CHILDREN_FILE = re.compile(r"^(" + prefix + r"/[^/]+)/task/children\.md$")
+    MESSAGE_FILE = re.compile(r"^(" + prefix + r"/[^/]+)/task/message\.md$")
+
+
 def judge(source, args, rep):
+    configure_tasks_dir(source)
     count = 0
     check_number_dup(source, [e.path for e in source.changed()], rep)
     by_path = None

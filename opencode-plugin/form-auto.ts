@@ -312,11 +312,11 @@ export const CLOSED_LIST: ClosedRule[] = [
           "прав(ить)", "править", "поправ(ить|им)", "измен(ить|им|ите|яем)", "мен(ять|яем)", "поменя(ть|ем)", "редактир(овать|уем)", "отредактир(овать|уем)", "записа(ть)", "запиш(ем|ите)", "постав(ить|им|ьте)", "выстав(ить|им|ьте)", "обнов(ить|им)", "добав(ить|им|ьте)", "включ(ить|им|ите)",
           "выключ(ить|им|ите)",
         ],
-        o: ["canopus json", "opencode jsonc", "opencode json", "настройк* проект*", "canopus config"],
+        o: ["canopus json", "canopus plugin config json", "canopus plugin local json", "canopus config json", "canopus local json", "canopus secrets json", "opencode jsonc", "opencode json", "настройк* проект*", "canopus config"],
         w: 6,
       },
     ],
-    yes: ["Поправить .opencode/canopus.json?", "Изменить глобальный opencode.jsonc?", "Записать профиль в настройки проекта?"],
+    yes: ["Поправить .canopus/plugin/config.json?", "Изменить глобальный opencode.jsonc?", "Записать профиль в настройки проекта?"],
     no: ["Файл canopus.json прочитан, ключей project_settings нет.", "Настройки проекта подгружены при старте."],
   },
   {

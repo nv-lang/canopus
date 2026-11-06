@@ -11,6 +11,7 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-profiles-windows-"))
 process.env.XDG_DATA_HOME = path.join(tmp, "data")
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.XDG_CONFIG_HOME = path.join(tmp, "xdgcfg")
 process.env.CANOPUS_POLL_MS = "100"
 process.env.CANOPUS_PROFILES_MS = "150"
@@ -33,12 +34,12 @@ const SETS = {
   "kimi-only": { develop: c("kimi", "heavy"), plan: c("kimi", "heavy"), accept: c("kimi", "heavy"), plan_accept: c("kimi", "heavy") },
 }
 const base = { allow_default_models: true, spawn_limits: { worker: 50, "*": 50, reviewer: 50 }, inflight_limit: 50, worktrees: "wt", cleanup: "none", branch_name: "p{n}-{slug}", merge_precheck: "off" }
-const settingsOf = (dir) => path.join(dir, ".opencode", "canopus.json")
+const settingsOf = (dir) => path.join(dir, ".canopus", "plugin", "config.json")
 const writeSettings = (dir, obj) => writeFileSync(settingsOf(dir), JSON.stringify({ ...base, ...obj }))
 const readSettings = (dir) => JSON.parse(readFileSync(settingsOf(dir), "utf8"))
 const mkRepo = (name, obj) => {
   const dir = path.join(tmp, name)
-  mkdirSync(path.join(dir, ".opencode"), { recursive: true })
+  mkdirSync(path.join(dir, ".opencode"), { recursive: true }); mkdirSync(path.join(dir, ".canopus", "plugin"), { recursive: true })
   writeSettings(dir, obj)
   git(dir, "init", "-q", "-b", "main")
   writeFileSync(path.join(dir, "a.txt"), "a\n")
@@ -100,7 +101,7 @@ const call = async (name, sid, input = {}) => (await tools[name].execute(input, 
 const task = (project, n) => tasks.loadTask(project, n)
 // enabling a set = the name in the file of the project (ADR-0014: no local layer; the window commands write the same key)
 const use = (name, dir = proj) => {
-  const file = path.join(dir, ".opencode", "canopus.json")
+  const file = path.join(dir, ".canopus", "plugin", "config.json")
   const o = JSON.parse(readFileSync(file, "utf8"))
   if (name) o.profile_set = name
   else delete o.profile_set

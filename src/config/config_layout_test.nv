@@ -60,14 +60,14 @@ test "home: canopus_home reads CANOPUS_HOME and the home of the user from the sy
 
 test "layout: the five folders under the root, sessions inside data" {
     ro l = layout_in("C:/work/inst/", "")
-    assert(l.config == "C:/work/inst/config" && l.data == "C:/work/inst/data" && l.sessions == "C:/work/inst/data/sessions")
+    assert(l.config == "C:/work/inst" && l.data == "C:/work/inst/data" && l.sessions == "C:/work/inst/data/sessions")
     assert(l.state == "C:/work/inst/state" && l.cache == "C:/work/inst/cache" && l.tools == "C:/work/inst/tools" && !l.legacy)
 }
 
 test "layout: an old data_dir is flat and keeps everything in one folder" {
     ro l = layout_with_data_dir("C:/work/inst", "C:/work/old/data", "")
     assert(l.legacy && l.data == "C:/work/old/data" && l.sessions == "C:/work/old/data" && l.state == "C:/work/old/data" && l.cache == "C:/work/old/data")
-    assert(l.config == "C:/work/inst/config")
+    assert(l.config == "C:/work/inst")
     ro flat = legacy_layout("x")
     assert(flat.config == "" && flat.sessions == "x")
 }
@@ -128,7 +128,7 @@ test "guess_value: flags, numbers and text" {
 
 test "layers: the files are read in the order user, server, project, local, and a missing file is skipped" {
     ro root = tmp_root("layers")
-    put(root, "inst/config/config.json", "{\"port\":1,\"store\":\"files\"}")
+    put(root, "inst/config.json", "{\"port\":1,\"store\":\"files\"}")
     put(root, "srv.json", "{\"port\":2}")
     put(root, "repo/.canopus/config.json", "{\"port\":3,\"workdir\":\"w\"}")
     put(root, "repo/.canopus/local.json", "{\"workdir\":\"mine\"}")
@@ -149,16 +149,16 @@ test "layers: the files are read in the order user, server, project, local, and 
 
 test "layers: a broken file is an error file:line: reason, a file that is not an object too" {
     ro root = tmp_root("broken")
-    put(root, "inst/config/config.json", "{\n  \"port\": 1,\n  \"store\": nope\n}")
+    put(root, "inst/config.json", "{\n  \"port\": 1,\n  \"store\": nope\n}")
     ro layout = layout_in("${root}/inst", "")
     match with Fs = real_fs() { file_layers(layout, "") } {
         Ok(layers) => assert(false)
         Err(e) => {
-            assert(e.starts_with("${root}/inst/config/config.json:3:"))
+            assert(e.starts_with("${root}/inst/config.json:3:"))
             assert(!e.contains("nope"))
         }
     }
-    put(root, "inst/config/config.json", "[1,2]")
+    put(root, "inst/config.json", "[1,2]")
     match with Fs = real_fs() { file_layers(layout, "") } {
         Ok(layers) => assert(false)
         Err(e) => assert(e.contains("config.json:1:"))
@@ -168,7 +168,7 @@ test "layers: a broken file is an error file:line: reason, a file that is not an
 
 test "layers: the variables are over the files and the arguments over the variables" {
     ro root = tmp_root("envarg")
-    put(root, "inst/config/config.json", "{\"port\":1,\"voice\":{\"model\":\"small\"}}")
+    put(root, "inst/config.json", "{\"port\":1,\"voice\":{\"model\":\"small\"}}")
     ro layout = layout_in("${root}/inst", "")
     mut state = MockOs.new()
     state.put_env("CANOPUS_SERVER_PORT", "7")
@@ -192,7 +192,7 @@ test "project folder: found in a folder above, the root of the instance is not a
     ro root = tmp_root("project")
     put(root, "repo/.canopus/config.json", "{}")
     put(root, "repo/src/deep/x.txt", "x")
-    put(root, "inst/.canopus/config/config.json", "{}")
+    put(root, "inst/.canopus/config.json", "{}")
     with Fs = real_fs() {
         assert(find_project_dir("${root}/repo/src/deep", "${root}/inst/.canopus") == "${root}/repo/.canopus")
         assert(find_project_dir("${root}/inst", "${root}/inst/.canopus") == "")
@@ -203,11 +203,11 @@ test "project folder: found in a folder above, the root of the instance is not a
 test "legacy env: a set old name is a refusal with the new name, a clean environment passes (task 284)" {
     mut state = MockOs.new()
     assert(with Os = mock_os(state) { legacy_env_problem() } == "")
-    state.put_env("CANOPUS_HOME", "C:/work/old") // guard-allow(legacy-name): негативная проба старого env
-    state.put_env("CANOPUS_SERVER_PORT", "7") // guard-allow(legacy-name): негативная проба старого env
+    state.put_env("CREW_HOME", "C:/work/old") // guard-allow(legacy-name): негативная проба старого env
+    state.put_env("CREW_SERVER_PORT", "7") // guard-allow(legacy-name): негативная проба старого env
     ro problem = with Os = mock_os(state) { legacy_env_problem() }
-    assert(problem.contains("CANOPUS_HOME -> задай CANOPUS_HOME")) // guard-allow(legacy-name): негативная проба старого env
-    assert(problem.contains("CANOPUS_SERVER_PORT -> задай CANOPUS_SERVER_PORT")) // guard-allow(legacy-name): негативная проба старого env
+    assert(problem.contains("CREW_HOME -> задай CANOPUS_HOME")) // guard-allow(legacy-name): негативная проба старого env
+    assert(problem.contains("CREW_SERVER_PORT -> задай CANOPUS_SERVER_PORT")) // guard-allow(legacy-name): негативная проба старого env
     mut fresh = MockOs.new()
     fresh.put_env("CANOPUS_HOME", "C:/work/inst")
     assert(with Os = mock_os(fresh) { legacy_env_problem() } == "")

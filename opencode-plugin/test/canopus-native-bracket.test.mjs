@@ -6,6 +6,7 @@ import os from "node:os"
 import path from "node:path"
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-native-bracket-"))
 process.env.XDG_DATA_HOME = process.env.XDG_STATE_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 const { nativeState, boundedNativeGet } = await import("../native-state.ts")
 const defer = () => { let resolve; const promise = new Promise(r => { resolve = r }); return { promise, resolve } }
 const infoSeen = defer(), infoGate = defer(), oldSeen = defer(), oldGate = defer(), secondRead = defer()

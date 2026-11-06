@@ -11,6 +11,7 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-journal-"))
 process.env.XDG_DATA_HOME = path.join(tmp, "data")
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_PRESENCE ??= "all"
 const plugin = (await import("./fixture-plugin.mjs")).default
 const { progressLine, logLine, usageLine, noteLoopLag, maxLoopLagSince, resetLoopLagForTest, isLauncherCard } = await import("../journal.ts")

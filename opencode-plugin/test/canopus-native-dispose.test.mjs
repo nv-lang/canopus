@@ -6,6 +6,7 @@ import os from "node:os"
 import path from "node:path"
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-native-dispose-"))
 process.env.XDG_DATA_HOME = process.env.XDG_STATE_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_DB = path.join(tmp, "absent.db")
 process.env.CANOPUS_POLL_MS = "50"
 const core = await import("../core.ts")

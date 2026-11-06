@@ -9,15 +9,16 @@ import { pathToFileURL } from "node:url"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-acc-doctor-"))
 process.env.XDG_DATA_HOME = path.join(tmp, "data")
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_SETTINGS_TTL_MS = "1"
 const plugin = process.env.CANOPUS_PLUGIN_DIR ? path.resolve(process.env.CANOPUS_PLUGIN_DIR) : path.join(import.meta.dirname, "..")
 const settings = await import(pathToFileURL(path.join(plugin, "settings.ts")).href)
 const git = (cwd, ...a) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...a], { stdio: "ignore" })
 const cfgDir = path.join(tmp, "proj", "proj-settings")
-mkdirSync(path.join(cfgDir, ".opencode"), { recursive: true })
+mkdirSync(path.join(cfgDir, ".opencode"), { recursive: true }); mkdirSync(path.join(cfgDir, ".canopus", "plugin"), { recursive: true })
 git(cfgDir, "init", "-q", "-b", "main")
 const set = (obj) => {
-  writeFileSync(path.join(cfgDir, ".opencode", "canopus.json"), JSON.stringify({ project: "proj", root: "..", ...obj }, null, 2))
+  writeFileSync(path.join(cfgDir, ".canopus", "plugin", "config.json"), JSON.stringify({ project: "proj", root: "..", ...obj }, null, 2))
   git(cfgDir, "add", "-A")
   git(cfgDir, "commit", "-q", "--allow-empty", "-m", "s")
   return settings.settingsProblems(settings.parseProjects({ projects: [cfgDir] }))

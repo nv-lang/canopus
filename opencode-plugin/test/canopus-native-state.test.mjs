@@ -5,6 +5,7 @@ import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-native-state-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.XDG_STATE_HOME = tmp
 process.env.CANOPUS_DB = path.join(tmp, "fixture.db")
 const { nativeState, boundedNativeGet } = await import("../native-state.ts")

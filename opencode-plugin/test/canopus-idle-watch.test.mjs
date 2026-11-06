@@ -15,6 +15,7 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-idle-watch-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 let fail = 0
 const cell = (name, ok, detail = "") => {
   console.log(`${ok ? "ok  " : "FAIL"} ${name}${ok ? "" : " :: " + detail}`)
@@ -46,8 +47,8 @@ const cfg30 = { termMin: 30, byStep: {}, extendMin: 30, answerMin: 15 }
   cell("W-1b step_term_minutes: int, default 30; 0 switches the watch off", ks[0]?.kind?.type === "int" && ks[0].default === 30 && /0 — не/.test(ks[0].question ?? ""), J(ks[0]))
   cell("W-1c step_extend_minutes 30 and step_answer_minutes 15; step_term_by_step is a map of numbers", ks[2]?.default === 30 && ks[3]?.default === 15 && ks[1]?.kind?.type === "intMap", J(ks.slice(1)))
   const dir = path.join(tmp, "cfgproj")
-  mkdirSync(path.join(dir, ".opencode"), { recursive: true })
-  writeFileSync(path.join(dir, ".opencode", "canopus.json"), JSON.stringify({ step_term_minutes: 45, step_term_by_step: { review: 90 }, step_extend_minutes: 20, step_answer_minutes: 5 }))
+  mkdirSync(path.join(dir, ".opencode"), { recursive: true }); mkdirSync(path.join(dir, ".canopus", "plugin"), { recursive: true })
+  writeFileSync(path.join(dir, ".canopus", "plugin", "config.json"), JSON.stringify({ step_term_minutes: 45, step_term_by_step: { review: 90 }, step_extend_minutes: 20, step_answer_minutes: 5 }))
   const d = core.loadConfig(path.join(tmp, "nowhere"))
   const p = core.loadConfig(dir)
   cell("W-1d loadConfig: defaults 30 / 30 / 15 and the values of the project", d.stepTermMin === 30 && d.stepExtendMin === 30 && d.stepAnswerMin === 15 && p.stepTermMin === 45 && p.stepTermByStep?.review === 90 && p.stepExtendMin === 20 && p.stepAnswerMin === 5, J([d.stepTermMin, d.stepExtendMin, d.stepAnswerMin, p.stepTermMin, p.stepTermByStep, p.stepExtendMin, p.stepAnswerMin]))

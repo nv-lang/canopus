@@ -42,7 +42,7 @@ background); a task session may run with no window at all. Formerly `opencode-pe
   synonym: it is read when `project_settings` is not set (both set: `project_settings` acts, `projects` is
   ignored and `canopus_doctor` names the entries that differ; only `projects` as a list: it works, `canopus_doctor`
   adds one low-importance note «ключ projects переименован в project_settings; прежнее имя работает» below its
-  verdict, not a problem). The file `.opencode/canopus.json` there
+  verdict, not a problem). The file `.canopus/plugin/config.json` there
   names the project and its root (relative to the folder) and is read **committed** from the
   default branch (`git show`; another branch: its `"branch"` field), never from the working copy:
 
@@ -926,7 +926,7 @@ Recovery остаётся `answer_queued` до точного per-letter receipt
 ### Legacy recommendation path
 
 Вне рабочего question router прежний путь сохраняется: by default every question of a session waits for the owner. A project can hand some of them to the session's own
-recommendation with two keys of `.opencode/canopus.json`, which only a person sets (edit the file and commit; `canopus_config set`
+recommendation with two keys of `.canopus/plugin/config.json`, which only a person sets (edit the file and commit; `canopus_config set`
 refuses them) — [ADR-0010](../doc/canon/decisions/ADR-0010-question-answering-modes.md):
 
 - `answer_mode` — a map "type of the question → mode". Types: `requirements`, `plan`, `implementation` and `default` (for a type
@@ -1247,7 +1247,7 @@ still required. `canopus_task route` moves a task to and from `small` by the sam
 **Display.** `canopus_task list` and `show` and `/canopus` mark a fast task with the word «быстрый» on the line of its title, the panel — on the heading («045 Название · быстрый»); a marked
 task has the warning line under it (in the panel two rows: «⚠ правка после слова завода», «↳ нужно новое слово владельца»). `show` prints the route line with the source, the basis, the word and the numbers.
 
-**The project's settings: `route_defaults`** in `.opencode/canopus.json` (a person or `canopus_config set`; the schema checks the shape, a value under the minimum can be written
+**The project's settings: `route_defaults`** in `.canopus/plugin/config.json` (a person or `canopus_config set`; the schema checks the shape, a value under the minimum can be written
 and is refused at the choice of the route). No key — the values of the methodology:
 
 ```json
@@ -1480,7 +1480,7 @@ by itself. Full design: [plan 004](../doc/archive/plans/004-plans.md).
 ## Model profiles: sets of models and windows by stage
 
 Which model runs a stage of work and how big its context window is are two settings of the project, kept as plain
-JSON in `.opencode/canopus.json` (any reader sees them without this plugin; the decision is
+JSON in `.canopus/plugin/config.json` (any reader sees them without this plugin; the decision is
 [ADR-0008](../doc/canon/decisions/ADR-0008-model-profiles-layer-and-window-files.md)). Without these keys nothing changes:
 `spawn_models`, `tiers`, `reviewer` and the texts of the tools work as before.
 
@@ -1566,7 +1566,7 @@ Commands of the window (answers are shown in a dialog at once, no turn of the mo
 The answers follow one pattern: the first line is the result in one sentence (`Готово: …` for an edit, with «was» for `set`; the set is on for `use`; the summary for `check`), below only what changed or what needs attention. `/canopus-sets show` is the place for the rest.
 
 Edits act at once, without a commit and without any layer between: every command rewrites the three keys (`model_profiles`,
-`profile_sets`, `profile_set`) of the file `.opencode/canopus.json` in the working copy of the settings folder, in one
+`profile_sets`, `profile_set`) of the file `.canopus/plugin/config.json` in the working copy of the settings folder, in one
 atomic write; the data in force are those keys of the working copy (the plugin does not commit — commit the file when you
 want the change to travel). An edit that would make the enabled set invalid or leave a dangling reference is refused whole
 and the file stays as it was. There is no `save` and no `reset`: the earlier local layer
@@ -1744,7 +1744,7 @@ Renamed 2026-10-07 (plan 005): `nova-peers` → `opencode-peers` → Canopus (`c
 282): the previous product name → Canopus (`canopus`); the plugin id is
 `canopus`; the mailbox of the earliest name was moved to `canopus` by the one-shot explicit migration of task 284
 (no aliases, no links left; nothing is
-lost); the settings file is `.opencode/canopus.json` (`.opencode/opencode-peers.json` is still read, with a
+lost); the settings file is `.canopus/plugin/config.json` (`.opencode/opencode-peers.json` is still read, with a
 `canopus_doctor` note to rename it).
 
 License: MIT OR Apache-2.0 (see [LICENSE](../LICENSE)).

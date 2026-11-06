@@ -77,7 +77,7 @@ function copyCode(dst, from = pluginDir) {
   cpSync(from, dst, { recursive: true, filter: (src) => !/[\\/](test|node_modules)([\\/]|$)/.test(src) || src === from })
 }
 function load(copy) {
-  const r = spawnSync(process.execPath, ["--input-type=module", "-e", "for (const f of ['answer-parse','answer','config-schema','settings','core','status','index']) await import('./'+f+'.ts'); console.log('load ok')"], { cwd: copy, encoding: "utf8", env: { ...process.env, XDG_DATA_HOME: mkdtempSync(path.join(os.tmpdir(), "answer-red-load-")) } })
+  const r = spawnSync(process.execPath, ["--input-type=module", "-e", "for (const f of ['answer-parse','answer','config-schema','settings','core','status','index']) await import('./'+f+'.ts'); console.log('load ok')"], { cwd: copy, encoding: "utf8", env: { ...process.env, XDG_DATA_HOME: mkdtempSync(path.join(os.tmpdir(), CANOPUS_HOME: path.join(mkdtempSync(path.join(os.tmpdir(), "opencode"), "answer-red-load-")) } })
   return /load ok/.test(r.stdout) ? "" : `the copy does not load: ${(r.stderr || r.stdout).slice(0, 400)}`
 }
 function stubCopy(markers, dst) {

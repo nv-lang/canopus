@@ -17,6 +17,7 @@ const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-esc-question-"))
 process.env.TEMP = tmp // the plugin log lives in os.tmpdir()
 process.env.TMP = tmp
 process.env.XDG_DATA_HOME = path.join(tmp, "data")
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.XDG_CONFIG_HOME = path.join(tmp, "xdgcfg")
 process.env.CANOPUS_NO_SIDEBAR = "1" // no panels, no text dialog (jsx): the window uses dialog.alert like under Node
 process.env.CANOPUS_NO_WORKER = "1"

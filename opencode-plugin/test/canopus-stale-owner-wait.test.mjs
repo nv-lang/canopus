@@ -15,9 +15,10 @@ import { load } from "./answer-harness.mjs"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-stale-owner-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 const proj = path.join(tmp, "proj")
-mkdirSync(path.join(proj, ".opencode"), { recursive: true })
-writeFileSync(path.join(proj, ".opencode", "canopus.json"), JSON.stringify({}))
+mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
+writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({}))
 const fw = await load("form-wait.ts")
 const core = await load("core.ts")
 const status = await load("status.ts")

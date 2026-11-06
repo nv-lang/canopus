@@ -97,8 +97,8 @@ powershell -File src/server/run-pg.ps1          # from a console window, in the 
 
 It starts (or finds) the permanent PostgreSQL in Docker (`src/pg/db.ps1 up`: the container `canopus-pg`, the volume with the data, the login
 `canopus_service`), says the two `nova build` commands above if `target/canopus-hub.exe` or `target/canopus.exe` is missing, writes
-`~/.config/canopus/server-pg.json` once (`store: pg`, the `pg` block **without a password**; a file that exists is kept), puts the password
-from `~/.config/canopus/pg.json` (outside the repository) into `CANOPUS_PG_PASSWORD` **of that process only** and runs `canopus serve`.
+`~/.canopus/config.json` once (`store: pg`, the `pg` block **without a password**; a file that exists is kept), puts the password
+from `~/.canopus/secrets.json` (outside the repository) into `CANOPUS_PG_PASSWORD` **of that process only** and runs `canopus serve`.
 The password is in no file of the repository, no line of the output and no command line. Docker not running: a message and exit code 1.
 `-ServerPort 8100` is another port of the page (`CANOPUS_SERVER_PORT`), `-Agent "node a.mjs --live"` another agent (`CANOPUS_SERVER_AGENT`),
 `-Config`, `-ServerConfig`, `-Port`, `-Database` name other files, the port of the database and another database. By hand it is
@@ -161,26 +161,26 @@ The root of an instance is **`CANOPUS_HOME`**: the argument `--home <folder>`, e
 
 | Folder | What lies in it | Can it be deleted |
 |---|---|---|
-| `config/` | what the user wrote: `config.json`, `roles.json`, `presets/<name>.json`, `modes/<mode>.md` (the modes of work and the tables of Alula of the user), `prompts/<name>.md`, `secrets.json` | no |
+| root | what the user wrote: `config.json`, `roles.json`, `presets/<name>.json`, `modes/<mode>.md` (the modes of work and the tables of Alula of the user), `prompts/<name>.md`, `secrets.json` | no |
 | `data/` | what must not be lost: `projects.json`, `sessions/<id>/` (`journal`, `snapshot`, `acp.jsonl`, `inbox`, `images/`, the tasks outside a repository) | no |
 | `state/` | service files: `serve.*.log`, `stt.pid`, `last_dir.txt`, the backups and reports of `migrate` | yes |
 | `cache/` | made again: `agents.json` (the catalog of the families), `agent-config/` (the copy of the configuration of OpenCode without the plugin) | yes |
 | `tools/` | heavy installs: `whisper/` (the recognizer); `CANOPUS_TOOLS_DIR` or `voice.dir` move it | yes (installed again by `scripts/install-stt.ps1`) |
 
-The **folder of a project** in its repository, `.canopus/`, has the same names: `config.json` (shared, in git), `local.json` (personal, absolute paths; the repository ignores it: the line `.canopus/local.json` in `.gitignore`), `modes/`, `presets/`, `prompts/`, `roles.json`. The tasks stay in `doc/tasks/`. The hub finds the folder from its working folder upwards.
+The **folder of a project** in its repository, `.canopus/`, has the same names: `config.json` (shared, in git), `local.json` (personal, absolute paths; the repository ignores it: the line `.canopus/local.json` in `.gitignore`), `modes/`, `presets/`, `prompts/`, `roles.json`. The task folder is configured by `tasks_dir` (default `doc/tasks`). The hub finds the folder from its working folder upwards.
 
 **The layers** of the settings, the lower ones are covered by the upper ones:
 
 1. the defaults in the code;
-2. `<CANOPUS_HOME>/config/config.json`;
+2. `<CANOPUS_HOME>/config.json`;
 3. **the server file** (`canopus serve <file>` or `CANOPUS_SERVER_CONFIG`; the old way keeps working; it is put AFTER the user's file and BEFORE the project's, so a project can still cover it);
 4. `.canopus/config.json` of the project;
 5. `.canopus/local.json`;
-6. `<CANOPUS_HOME>/config/secrets.json` (outside the repository, the rights for the owner only);
+6. `<CANOPUS_HOME>/secrets.json` (outside the repository, the rights for the owner only);
 7. the variables `CANOPUS_*` (`CANOPUS_SERVER_*` and `CANOPUS_STT_*` stay, `CANOPUS_VOICE_*` are synonyms; `CANOPUS_HOME`, `CANOPUS_TOOLS_DIR`, `CANOPUS_PRESET` are new);
 8. the arguments of the command line: `--home <folder>`, `--set key=value` (a dotted key, `--set voice.language=en`; `true`, `false` and whole numbers are typed).
 
-The **modes of work** (the tables of Alula, `modes`): `routes_dir` of the settings alone when it is set; else `.canopus/modes/`, `<CANOPUS_HOME>/config/modes/`, and last `doc/routes/` of the working folder of the hub (the texts of the product; Nova 0.1.0 cannot build a folder into the program, so the product still wants `doc/routes` beside the working folder unless the user puts the files into a layer). The code and the folder keep the name `routes`. **Roles and presets** (below) and **prompts** (below) use the same layers by name.
+The **modes of work** (the tables of Alula, `modes`): `routes_dir` of the settings alone when it is set; else `.canopus/modes/`, `<CANOPUS_HOME>/modes/`, and last `doc/routes/` of the working folder of the hub (the texts of the product; Nova 0.1.0 cannot build a folder into the program, so the product still wants `doc/routes` beside the working folder unless the user puts the files into a layer). The code and the folder keep the name `routes`. **Roles and presets** (below) and **prompts** (below) use the same layers by name.
 
 **An old `data_dir`** (a settings file or `CANOPUS_SERVER_DATA_DIR`) keeps the flat layout in that folder: `sessions`, `projects.json`, `agents.json`, `stt.pid`, `last_dir.txt` and `agent-config/` all lie in it, as before; the stands that started earlier work without a change. The hub writes a line "the old layout" to its log. No root known (no `CANOPUS_HOME`, no home folder) and no `data_dir`: the old default `canopus-data` in the working folder.
 
@@ -190,13 +190,13 @@ The **modes of work** (the tables of Alula, `modes`): `routes_dir` of the settin
 |---|---|
 | `config list [--show-origin]` | all keys with the values in force; with the origin each line is `key=value<TAB>origin[<TAB>file]`, the origin is `default`, `user`, `server`, `project`, `local`, `secret`, `env` or `arg` |
 | `config get <key> [--show-origin]` | one value (a string without quotes) |
-| `config set <key> <value> [--project\|--local]` | writes the key into `<home>/config/config.json` (or `.canopus/config.json`, or `local.json`), the other keys stay; a secret key, a list and an unknown key are refused |
+| `config set <key> <value> [--project\|--local]` | writes the key into `<home>/config.json` (or `.canopus/config.json`, or `local.json`), the other keys stay; a secret key, a list and an unknown key are refused |
 | `doctor` | the paths and whether they exist, the layer files checked against the schema (`file:line: reason`), the rights of `secrets.json`, the old places; the exit code is 1 when a problem is found |
 | `migrate [--from <data_dir>] [--dry-run]` | moves the old flat folder into `data/`, `state/`, `cache/`; the small files are copied to `state/migrate-backup-<stamp>/` first, the sessions are moved by a rename, nothing that is there is overwritten, the report is printed and kept in `state/migrate-report-<stamp>.txt`; **nothing moves without the command**, `--dry-run` only lists; stop the server first |
 
 `--file <settings.json>` names the server file for `config`, `doctor` and `migrate` (else `CANOPUS_SERVER_CONFIG`). A broken file of a layer stops the start with `file:line: reason`; the text of the file is never quoted. Unknown keys and a value of the wrong kind are reported by `doctor`.
 
-**Secrets** are not in `config.json`: only the environment (`CANOPUS_PG_PASSWORD`) or `<CANOPUS_HOME>/config/secrets.json` (the same keys as the settings: `{"pg":{"password":"..."}}`). A value of a secret key (a password, a token, a key) is never printed: `config list` shows `***`, `describe()` and the errors leave it out. `doctor` warns about a secret in a file that is not `secrets.json`.
+**Secrets** are not in `config.json`: only the environment (`CANOPUS_PG_PASSWORD`) or `<CANOPUS_HOME>/secrets.json` (the same keys as the settings: `{"pg":{"password":"..."}}`). A value of a secret key (a password, a token, a key) is never printed: `config list` shows `***`, `describe()` and the errors leave it out. `doctor` warns about a secret in a file that is not `secrets.json`.
 
 **The voice** (`voice`, was `stt`; STT is speech-to-text, the recognition of speech): the key `stt` is still read, `voice` is over it; the variables `CANOPUS_VOICE_URL`, `_LANGUAGE`, `_MANAGED`, `_DIR`, `_MODEL` are the synonyms of `CANOPUS_SERVER_STT_*` (the new name wins); the folder of the recognizer is `voice.dir`, else `CANOPUS_VOICE_DIR` / `CANOPUS_STT_DIR`, else an older install in `%LOCALAPPDATA%/canopus/stt` that is still there, else `CANOPUS_TOOLS_DIR/whisper`, else `<CANOPUS_HOME>/tools/whisper`.
 

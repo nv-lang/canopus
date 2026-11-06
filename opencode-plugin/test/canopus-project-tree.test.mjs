@@ -12,6 +12,7 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-project-tree-"))
 process.env.XDG_DATA_HOME = path.join(tmp, "data")
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_POLL_MS = "100"
 process.env.CANOPUS_DB = path.join(tmp, "absent.db")
 process.env.CANOPUS_SETTINGS_TTL_MS = "600000"
@@ -27,9 +28,9 @@ const TABLE = {
   kimi: { heavy: prof("kimi/k3", 220000, 131072), medium: prof("kimi/k3", 220000, 131072), light: prof("kimi/k3", 220000, 131072) },
 }
 const SETS = { default: { develop: c("claude", "task"), accept: c("claude", "task") }, kimi: { develop: c("kimi", "heavy"), accept: c("kimi", "heavy") } }
-const SF = ".opencode/canopus.json"
+const SF = ".canopus/plugin/config.json"
 const write = (dir, obj) => {
-  mkdirSync(path.join(dir, ".opencode"), { recursive: true })
+  mkdirSync(path.join(dir, ".opencode"), { recursive: true }); mkdirSync(path.join(dir, ".canopus", "plugin"), { recursive: true })
   writeFileSync(path.join(dir, SF), JSON.stringify(obj, null, 2))
 }
 const repo = (dir) => {

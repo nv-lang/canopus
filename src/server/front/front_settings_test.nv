@@ -150,7 +150,7 @@ test "front settings: the recognizer is managed by default; the folder, the mode
     no_home.set_home_str("")
     no_home.put_env("LOCALAPPDATA", "C:/work/local")
     match with Os = mock_os(no_home), Fs = real_fs() { front_settings("") } {
-        Ok(s) => assert(s.stt_dir == "C:/work/local/canopus/stt" && s.layout.legacy)
+        Ok(s) => assert(s.stt_dir == "" && s.layout.legacy)
         Err(e) => assert(false)
     }
     mut tools = MockOs.new()
@@ -177,7 +177,7 @@ test "front settings: the recognizer is managed by default; the folder, the mode
     match with Os = mock_os(installer), Fs = real_fs() { front_settings(path.display()) } {
         Ok(s) => {
             assert(!s.stt_managed)
-            assert(s.stt_dir == "C:/work/from-file")
+            assert(s.stt_dir == "C:/work/stt")
             assert(s.stt_model == "medium")
             assert(s.data_dir == "C:/work/data")
         }
@@ -247,7 +247,7 @@ test "front settings: the layers of the hub are those of the front, an old data_
     ro root = base.join("canopus-front-layers-${id}").display().replace("\\", "/")
     with Fs = real_fs() {
         ro made = create_dir_all(Path.from_bytes("${root}/inst/config".bytes()))
-        ro w1 = write_text(Path.from_bytes("${root}/inst/config/config.json".bytes()), "{\"port\":1111,\"stt\":{\"language\":\"ru\"},\"preset\":\"mix\"}")
+        ro w1 = write_text(Path.from_bytes("${root}/inst/config.json".bytes()), "{\"port\":1111,\"stt\":{\"language\":\"ru\"},\"preset\":\"mix\"}")
         ro w2 = write_text(Path.from_bytes("${root}/srv.json".bytes()), "{\"port\":2222,\"voice\":{\"model\":\"medium\"}}")
     }
     mut state = MockOs.new()
@@ -266,5 +266,16 @@ test "front settings: the layers of the hub are those of the front, an old data_
     }
     with Fs = real_fs() {
         ro gone = remove_dir_all(Path.from_bytes(root.bytes()))
+    }
+}
+
+
+test "front layers: tools argument overrides environment without a voice directory" {
+    mut state = MockOs.new()
+    state.set_cwd_str("C:/work/no-project")
+    state.put_env("CANOPUS_TOOLS_DIR", "C:/work/environment-tools")
+    match with Os = mock_os(state), Fs = real_fs() { front_settings_in("", "C:/work/home", ["tools_dir=C:/work/argument-tools"]) } {
+        Err(e) => assert(false)
+        Ok(s) => assert(s.stt_dir == "C:/work/argument-tools/whisper")
     }
 }

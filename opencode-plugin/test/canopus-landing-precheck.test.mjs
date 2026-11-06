@@ -87,7 +87,7 @@ fetch()
 {
   H.settings({ merge_precheck: undefined }) // JSON.stringify drops the key, so the project file has none: the default applies
   const t = H.reviewing()
-  cell("AC-12 умолчание: the settings file really has no merge_precheck key", !("merge_precheck" in JSON.parse(readFileSync(path.join(H.proj, ".opencode", "canopus.json"), "utf8"))), "key present")
+  cell("AC-12 умолчание: the settings file really has no merge_precheck key", !("merge_precheck" in JSON.parse(readFileSync(path.join(H.proj, ".canopus", "plugin", "config.json"), "utf8"))), "key present")
   cell("AC-12 умолчание: with no merge_precheck key loadConfig gives required", core.loadConfig(H.proj).mergePrecheck === "required", core.loadConfig(H.proj).mergePrecheck)
   clearLock()
   const m = await call("canopus_task", REV, { action: "merge", n: t.n })

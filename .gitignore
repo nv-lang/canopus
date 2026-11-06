@@ -15,3 +15,7 @@ nova.override.toml
 
 # Personal settings of a project of the control panel (absolute paths of the machine); the shared ones, .canopus/config.json, are committed (task 192.12).
 .canopus/local.json
+
+# Personal Canopus configuration
+.canopus/secrets.json
+.canopus/plugin/local.json

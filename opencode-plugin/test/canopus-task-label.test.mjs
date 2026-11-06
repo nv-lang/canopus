@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-task-label-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 const T = await import("../tasks.ts")
 const S = await import("../status.ts")
 const IT = await import("../idle-tab.ts")

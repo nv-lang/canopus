@@ -14,6 +14,7 @@ const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-profiles-cmd-"))
 process.env.TEMP = tmp // the plugin log lives in os.tmpdir(): this keeps the lines of this test apart from the live service
 process.env.TMP = tmp
 process.env.XDG_DATA_HOME = path.join(tmp, "data")
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.XDG_CONFIG_HOME = path.join(tmp, "xdgcfg")
 process.env.CANOPUS_POLL_MS = "100"
 process.env.CANOPUS_PROFILES_MS = "100000"
@@ -39,8 +40,8 @@ const SETS = {
 }
 const root = path.join(tmp, "proj")
 const cfgDir = path.join(root, "proj-settings")
-mkdirSync(path.join(cfgDir, ".opencode"), { recursive: true })
-const file = path.join(cfgDir, ".opencode", "canopus.json")
+mkdirSync(path.join(cfgDir, ".opencode"), { recursive: true }); mkdirSync(path.join(cfgDir, ".canopus", "plugin"), { recursive: true })
+const file = path.join(cfgDir, ".canopus", "plugin", "config.json")
 const base = { project: "cmdproj", root: ".." }
 git(cfgDir, "init", "-q", "-b", "main")
 const writeFileJson = (obj) => writeFileSync(file, JSON.stringify(obj, null, 2))
@@ -135,7 +136,7 @@ cell("AC-17 a refused edit leaves one `profile edit refused` line and no `profil
 r = await sets("use cross-kimi")
 cell("AC-07 use (task 075): the first line is the result, restart is not needed, the stages by words, no service words (the reviewer window is in the detailed view)", /^Набор «cross-kimi» включён$/m.test(r) && /^Новые сессии пойдут на модели набора, перезапуск не нужен\.$/m.test(r) && /^Приёмка:\s+k3-256k\s+\(было те же\)$/m.test(r) && /^Не закоммичено — это локальная настройка проекта\.$/m.test(r) && !/рукописным настройкам|Приёмка и приёмка плана: контекст профиля здесь не применяется|файлы окон/.test(r), r)
 cell("AC-07 the details of the reviewer window (the number of the hand-written settings) are in the detailed view of the stage", await (async () => { const d = await sets("show приёмка"); return /контекст профиля здесь не применяется/.test(d) && /модель kimi-code-plan-global\/k3-256k берёт контекст из рукописных и глобальных настроек: контекст 262144 · вывод до 131072/.test(d) })(), "")
-cell("AC-21 use writes profile_set into the working copy of the file at once, atomically, without a commit; the data in force are the file", sha(file) !== hashFile0 && readFileJson().profile_set === "cross-kimi" && st().name === "cross-kimi" && commits() === commits0 && JSON.parse(git(cfgDir, "show", "HEAD:.opencode/canopus.json")).profile_set === undefined, st().name)
+cell("AC-21 use writes profile_set into the working copy of the file at once, atomically, without a commit; the data in force are the file", sha(file) !== hashFile0 && readFileJson().profile_set === "cross-kimi" && st().name === "cross-kimi" && commits() === commits0 && JSON.parse(git(cfgDir, "show", "HEAD:.canopus/plugin/config.json")).profile_set === undefined, st().name)
 cell("AC-21 the write left no temporary file and no layer file", !existsSync(`${file}.${process.pid}.tmp`) && !existsSync(L.layerFile("cmdproj")), "left")
 cell("AC-17 use leaves exactly one line of the log", editLines().length === 1 && /canopus-sets use include|canopus-sets use/.test(editLines()[0]), JSON.stringify(editLines()))
 r = await sets("")
@@ -351,12 +352,12 @@ await sets("new saved")
 await sets("set saved develop claude/heavy")
 {
   const wc = readFileJson()
-  cell("AC-29 the edits are in the working copy at once: the name, the profile, the new set; git log did not grow, the file is modified", wc.profile_set === "cross-kimi" && wc.model_profiles.claude.heavy.context === 650000 && !!wc.profile_sets.saved && commits() === commitsA && git(cfgDir, "status", "--porcelain").includes("canopus.json"), JSON.stringify(Object.keys(wc)))
+  cell("AC-29 the edits are in the working copy at once: the name, the profile, the new set; git log did not grow, the file is modified", wc.profile_set === "cross-kimi" && wc.model_profiles.claude.heavy.context === 650000 && !!wc.profile_sets.saved && commits() === commitsA && git(cfgDir, "status", "--porcelain").includes(".canopus/plugin/config.json"), JSON.stringify(Object.keys(wc)))
 }
 const fileBeforeCheck = sha(file)
 catalogFails = false
 catalog = catalog.filter((m) => m.modelID !== "k3-256k")
-mkdirSync(path.join(root, ".opencode"), { recursive: true })
+mkdirSync(path.join(root, ".opencode"), { recursive: true }); mkdirSync(path.join(root, ".canopus", "plugin"), { recursive: true })
 const handRoot = path.join(root, ".opencode", "opencode.jsonc")
 writeFileSync(handRoot, `{ "provider": { "claude-code": { "models": { "opus": { "limit": { "context": 520000, "output": 64000 } } } } } }\n`)
 r = await sets("check")

@@ -1,3 +1,4 @@
+import { pluginOptions } from "./plugin-config.ts"
 // plugins/nova-peers — переписка между окнами (сессиями) OpenCode во ВСЕХ репозиториях.
 //
 // ЗАЧЕМ. В Claude Code окна говорили через `/canopus` и `SendMessage` по ИМЕНИ сессии,
@@ -222,9 +223,10 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
     const ctx = new Proxy(rawCtx, { get(object, key) { return key === "session" ? session : key === "model" ? model : key === "events" ? events : key === "event" ? event : Reflect.get(object, key, object) } })
     const mine = new Map<string, Card>() // сессии этого процесса
     const children = new Set<string>()
-    const projects = parseProjects(ctx?.options)
-    setProjects(projects, ctx?.options?.local)
-    saveProjects(ctx?.options) // для MCP-сервера вкладок claude-code: список проектов один
+    const options = pluginOptions(ctx?.options)
+    const projects = parseProjects(options)
+    setProjects(projects, options.local)
+    saveProjects(options) // для MCP-сервера вкладок claude-code: список проектов один
     // задача 034: дальше стартового чтения настройки и файл приёмки обновляются в фоне (асинхронный git), цикл службы не ждёт
     background.on = process.env.CANOPUS_SYNC_GIT !== "1"
     // Проект визитки: записанный в ней (вкладка сама ставит его при каждом обращении) или вычисленный по каталогу.
@@ -1964,7 +1966,7 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
 
     // УБОРКА (retention.ts): раз в сутки, по retention_days (опция плагина; прежнее имя keep_days; умолчание 7, 0 — не
     // убирать); проверка — раз в HOUSEKEEP_MS, проход ограничен числом удалений за вызов и дозавершается со следующей проверки.
-    const RETENTION_DAYS = ctx?.options?.retention_days !== undefined ? Number(ctx.options.retention_days) : Number(ctx?.options?.keep_days ?? 7)
+    const RETENTION_DAYS = options.retention_days !== undefined ? Number(options.retention_days) : Number(options.keep_days ?? 7)
     const HOUSEKEEP_MS = Number(process.env.CANOPUS_HOUSEKEEP_MS) || 3_600_000
     let housekeptAt = 0
     function housekeep() {

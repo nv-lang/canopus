@@ -160,7 +160,7 @@ export type State = {
 export type JournalLine = { at: number; kind: "note" | "change" | "drift" | "restored" | "blocked"; session: string; role: string; project?: string; task?: string; from?: string; to?: string; reason?: string; what?: string; why?: string; who?: string; command?: string }
 
 const stateFile = (base: string, session: string) => path.join(base, "branch", `${safeKey(session)}.json`)
-const journalFile = (base: string) => path.join(base, "branch-journal.jsonl")
+const journalFile = (base: string) => path.join(base, "..", "state", "branch-journal.jsonl")
 
 export function readState(base: string, session: string): State | undefined {
   try {

@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url"
 
 const [tmp, session, nowArg, startArg] = process.argv.slice(2)
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_DB = path.join(tmp, "opencode.db")
 process.env.CANOPUS_SETTINGS_TTL_MS = "1"
 delete process.env.CANOPUS_PRESENCE

@@ -4,6 +4,7 @@ import os from "node:os"
 import path from "node:path"
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-wake-receipt-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.XDG_STATE_HOME = tmp
 const { advanceWake, newWake, WAKE_RETRY_MS, WAKE_DEADLINE_MS } = await import("../wake-delivery.ts")
 const sid = "sesFIXTURE"

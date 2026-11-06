@@ -5,6 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 const tmp = mkdtempSync(path.join(os.tmpdir(), 'canopus-question-forms-'))
 for (const k of ['XDG_DATA_HOME', 'XDG_STATE_HOME', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'TEMP', 'TMP', 'TMPDIR']) process.env[k] = tmp
+process.env.CANOPUS_HOME = path.join(tmp, "opencode")
 process.env.CANOPUS_DB = path.join(tmp, 'absent.db')
 process.env.CANOPUS_PRESENCE = 'all'
 process.env.CANOPUS_POLL_MS = '50'
@@ -17,8 +18,8 @@ try {
   const { createTask, loadTask, saveTask } = await import('../tasks.ts')
   const { digest, formRequest } = await import('../question-routing.ts')
   const { getQuestionForm, replyQuestionForm } = await import('../question-native.ts')
-  const root = path.join(tmp, 'repo'); mkdirSync(path.join(root, '.opencode'), { recursive: true }); mkdirSync(path.join(root, 'doc'))
-  writeFileSync(path.join(root, '.opencode', 'canopus.json'), JSON.stringify({ answer_mode: { default: 'recommendations' }, answer_delay_sec: 0 }))
+  const root = path.join(tmp, 'repo'); mkdirSync(path.join(root, '.opencode'), { recursive: true }); mkdirSync(path.join(root, '.canopus', 'plugin'), { recursive: true }); mkdirSync(path.join(root, 'doc'))
+  writeFileSync(path.join(root, '.canopus', 'plugin', 'config.json'), JSON.stringify({ answer_mode: { default: 'recommendations' }, answer_delay_sec: 0 }))
   const sourceText = 'Проверенная команда Alula: alula check fixture. Источник — изолированный тест, не живая команда.'
   writeFileSync(path.join(root, 'doc', 'source.md'), sourceText)
   const worker = 'ses_fixture_question_worker', integrator = 'ses_fixture_question_integrator'

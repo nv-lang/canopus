@@ -9,6 +9,7 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-profiles-select-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_POLL_MS = "100"
 process.env.CANOPUS_DB = path.join(tmp, "absent.db")
 process.env.CANOPUS_SETTINGS_TTL_MS = "1"
@@ -34,15 +35,15 @@ const SETS = {
 const base = { allow_default_models: true, spawn_limits: { worker: 50, "*": 50, reviewer: 50 }, inflight_limit: 50, plans_dir: "plans" }
 const mk = (name, extra = {}) => {
   const dir = path.join(tmp, name)
-  mkdirSync(path.join(dir, ".opencode"), { recursive: true })
-  writeFileSync(path.join(dir, ".opencode", "canopus.json"), JSON.stringify({ ...base, ...extra }))
+  mkdirSync(path.join(dir, ".opencode"), { recursive: true }); mkdirSync(path.join(dir, ".canopus", "plugin"), { recursive: true })
+  writeFileSync(path.join(dir, ".canopus", "plugin", "config.json"), JSON.stringify({ ...base, ...extra }))
   return dir
 }
 const proj = mk("proj", { model_profiles: TABLE, profile_sets: SETS })
 const plain = mk("plain") // a project without any profile key
 const innerRoot = path.join(proj, "inner") // a nested root: its own project, no keys
-mkdirSync(path.join(innerRoot, ".opencode"), { recursive: true })
-writeFileSync(path.join(innerRoot, ".opencode", "canopus.json"), JSON.stringify(base))
+mkdirSync(path.join(innerRoot, ".opencode"), { recursive: true }); mkdirSync(path.join(innerRoot, ".canopus", "plugin"), { recursive: true })
+writeFileSync(path.join(innerRoot, ".canopus", "plugin", "config.json"), JSON.stringify(base))
 
 const mod = await import("./fixture-plugin.mjs")
 const core = await import("../core.ts")
@@ -91,7 +92,7 @@ const task = (project, n) => tasks.loadTask(project, n)
 const modelOf = (id) => (sessions.get(id)?.model ? `${sessions.get(id).model.providerID}/${sessions.get(id).model.id}` : undefined)
 // enabling a set = the name in the file of the project (ADR-0014: no local layer; the window commands write the same key)
 const use = (name, dir = proj) => {
-  const file = path.join(dir, ".opencode", "canopus.json")
+  const file = path.join(dir, ".canopus", "plugin", "config.json")
   const o = JSON.parse(readFileSync(file, "utf8"))
   if (name) o.profile_set = name
   else delete o.profile_set
@@ -99,7 +100,7 @@ const use = (name, dir = proj) => {
 }
 // task 016: the bounds of the project are two plain settings of the same file
 const setBounds = (b = {}, dir = proj) => {
-  const file = path.join(dir, ".opencode", "canopus.json")
+  const file = path.join(dir, ".canopus", "plugin", "config.json")
   const o = JSON.parse(readFileSync(file, "utf8"))
   delete o.tier_min
   delete o.tier_max
@@ -222,9 +223,9 @@ const before = tasks.listTasks("proj").length
 const sessionsBefore = creates.length
 {
   // the set `dev-only` lacks accept; a table without kimi makes the described stage refuse
-  const f = JSON.parse(readFileSync(path.join(proj, ".opencode", "canopus.json"), "utf8"))
+  const f = JSON.parse(readFileSync(path.join(proj, ".canopus", "plugin", "config.json"), "utf8"))
   delete f.model_profiles.kimi
-  writeFileSync(path.join(proj, ".opencode", "canopus.json"), JSON.stringify(f))
+  writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(f))
   use("dev-only")
   L.dropSnapshot("proj")
   await until(() => L.profileState(proj).state.row !== 2, 30_000)
@@ -234,7 +235,7 @@ const sessionsBefore = creates.length
   cell("AC-06(а) a plan task: the stage plan is not described in dev-only, so spawn_models applies and there is no refusal", !/Задача не поставлена/.test(planR) && tasks.listTasks("proj").length === before + 1, planR)
   // restore
   f.model_profiles.kimi = TABLE.kimi
-  writeFileSync(path.join(proj, ".opencode", "canopus.json"), JSON.stringify(f))
+  writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(f))
   use(undefined)
 }
 
@@ -488,9 +489,9 @@ const snapName = () => {
 }
 await until(() => snapName() === "cross-kimi", 60_000)
 {
-  const f = JSON.parse(readFileSync(path.join(proj, ".opencode", "canopus.json"), "utf8"))
+  const f = JSON.parse(readFileSync(path.join(proj, ".canopus", "plugin", "config.json"), "utf8"))
   delete f.model_profiles.kimi
-  writeFileSync(path.join(proj, ".opencode", "canopus.json"), JSON.stringify(f))
+  writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(f))
   await until(() => L.profileState(proj).state.row === 3, 60_000)
   const nH = await submit({})
   const tH = await reviewed(nH)
@@ -509,7 +510,7 @@ await until(() => snapName() === "cross-kimi", 60_000)
   const doc = await call("canopus_doctor", "sesINTEG")
   cell("AC-06(б) canopus_doctor has the line: submitted, no reviewer, with the reason", new RegExp(`задача ${String(nI).padStart(3, "0")} .*сдана, приёмщика нет`).test(doc), doc.slice(0, 400))
   f.model_profiles.kimi = TABLE.kimi
-  writeFileSync(path.join(proj, ".opencode", "canopus.json"), JSON.stringify(f))
+  writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(f))
   const tI2 = await reviewed(nI, 60_000)
   cell("AC-06(б) the data is repaired: the reviewer is assigned by itself on the next pass, on the model of the set", !!tI2.reviewer && modelOf(tI2.reviewer) === "kimi-code-plan-global/k3-256k", JSON.stringify([tI2.reviewer, tI2.status]))
 }
@@ -518,10 +519,10 @@ use(undefined)
 // ---- DNC-09: the integrator as the reviewer is not a stage of the set; no model switch; an unknown stage is ignored ----
 {
   // reviewer: integrator is written into the file of proj
-  const f = JSON.parse(readFileSync(path.join(proj, ".opencode", "canopus.json"), "utf8"))
+  const f = JSON.parse(readFileSync(path.join(proj, ".canopus", "plugin", "config.json"), "utf8"))
   f.reviewer = "integrator"
   f.profile_sets["with-extra"] = { ...SETS["cross-kimi"], coordination: c("claude", "heavy") }
-  writeFileSync(path.join(proj, ".opencode", "canopus.json"), JSON.stringify(f))
+  writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(f))
   use("with-extra")
   const before = creates.length
   const nJ = await submit({})
@@ -531,18 +532,18 @@ use(undefined)
   cell("DNC-09 a set with an unknown stage (coordination) is read, the stage is ignored, the set is valid", L.profileState(proj).state.row === 2 && L.profileState(proj).data.sets["with-extra"].coordination !== undefined, String(L.profileState(proj).state.row))
   f.reviewer = "worker"
   delete f.profile_sets["with-extra"]
-  writeFileSync(path.join(proj, ".opencode", "canopus.json"), JSON.stringify(f))
+  writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(f))
 }
 use(undefined)
 
 // ---- DNC-08: the role acceptor and the limits are not changed by a set ----
 {
-  const f = JSON.parse(readFileSync(path.join(proj, ".opencode", "canopus.json"), "utf8"))
+  const f = JSON.parse(readFileSync(path.join(proj, ".canopus", "plugin", "config.json"), "utf8"))
   // the earlier tasks hold review places: cancel every open task of the project first
   for (const t of tasks.listTasks("proj").filter(tasks.isOpen)) await call("canopus_task", "sesINTEG", { action: "cancel", n: t.n })
   f.reviewer = "acceptor"
   f.spawn_limits = { ...f.spawn_limits, acceptor: 1 }
-  writeFileSync(path.join(proj, ".opencode", "canopus.json"), JSON.stringify(f))
+  writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(f))
   use("cross-kimi")
   const nK = await submit({})
   const tK = await reviewed(nK)
@@ -554,7 +555,7 @@ use(undefined)
   const merge = await call("canopus_task", tK.executor, { action: "merge", n: nK })
   cell("DNC-08 merge stays with the reviewer (role acceptor): the executor of the task does not get the merge lock", !/Замок вливания .* твой/.test(String(merge)), String(merge).slice(0, 200))
   f.reviewer = "worker"
-  writeFileSync(path.join(proj, ".opencode", "canopus.json"), JSON.stringify(f))
+  writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(f))
 }
 use(undefined)
 clearInterval(heart)

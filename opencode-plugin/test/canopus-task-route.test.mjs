@@ -15,6 +15,7 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-task-route-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_POLL_MS = "100"
 process.env.CANOPUS_DB = path.join(tmp, "absent.db")
 process.env.CANOPUS_PRESENCE = "all"
@@ -22,17 +23,17 @@ process.env.CANOPUS_SETTINGS_TTL_MS = "1"
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
 const BASE = { root: "..", worktrees: "worktrees", worktree_name: "{repo}-{n}-{slug}", branch_name: "task/{n}-{slug}", cleanup: "local", allow_default_models: true, inflight_limit: 30, spawn_limits: { worker: 20, reviewer: 0 } }
 const proj = path.join(tmp, "proj")
-mkdirSync(path.join(proj, ".opencode"), { recursive: true })
+mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
 mkdirSync(path.join(proj, "doc", "tasks", "045-registry", "task"), { recursive: true })
 writeFileSync(path.join(proj, "doc", "tasks", "045-registry", "task", "message.md"), "# Задание: Реестры контрактов\n\nтекст\n")
-writeFileSync(path.join(proj, ".opencode", "canopus.json"), JSON.stringify(BASE))
+writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(BASE))
 git(proj, "init", "-q", "-b", "main")
 git(proj, "config", "user.name", "Owner Test")
 git(proj, "config", "user.email", "owner@test")
 writeFileSync(path.join(proj, "a.txt"), "a\n")
 git(proj, "add", "-A")
 git(proj, "commit", "-q", "-m", "init")
-const settings = (extra = {}) => writeFileSync(path.join(proj, ".opencode", "canopus.json"), JSON.stringify({ ...BASE, ...extra }))
+const settings = (extra = {}) => writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ ...BASE, ...extra }))
 
 let fail = 0
 const cell = (name, ok, detail) => {
@@ -195,7 +196,7 @@ const ctx = {
 const stop = await mod.default.setup(ctx)
 const wait = (ms = 50) => new Promise((r) => setTimeout(r, ms))
 const call = async (name, sid, input = {}) => (await tools[name].execute(input, { sessionID: sid })).content
-const store = () => path.join(tmp, "opencode", "canopus", "tasks", "proj")
+const store = () => path.join(tmp, "opencode", "plugin", "data", "tasks", "proj")
 await hooks.context({ sessionID: "sesINTEG1", system: [], model: { id: "x", providerID: "y" } })
 await events["session.idle"]({ properties: { sessionID: "sesINTEG1" } })
 await call("canopus_role", "sesINTEG1", { role: "integrator" })

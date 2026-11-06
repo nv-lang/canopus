@@ -8,6 +8,7 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-sidebar-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 const { sidebarLines, formatStatuses, sideText, doctorText } = await import("../status.ts")
 let fail = 0
 const cell = (name, ok, detail) => {

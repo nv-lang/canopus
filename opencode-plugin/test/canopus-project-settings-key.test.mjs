@@ -11,6 +11,7 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-pskey-"))
 process.env.XDG_DATA_HOME = path.join(tmp, "data")
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.XDG_CONFIG_HOME = path.join(tmp, "xdgcfg")
 process.env.TEMP = tmp
 process.env.TMP = tmp
@@ -22,9 +23,9 @@ process.env.CANOPUS_DIVERGE_TTL_MS = "0" // this fixture changes its own file be
 process.env.CANOPUS_PRESENCE = "all"
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
 const mkRepo = (dir, settings) => {
-  mkdirSync(path.join(dir, ".opencode"), { recursive: true })
+  mkdirSync(path.join(dir, ".opencode"), { recursive: true }); mkdirSync(path.join(dir, ".canopus", "plugin"), { recursive: true })
   git(dir, "init", "-q", "-b", "main")
-  writeFileSync(path.join(dir, ".opencode", "canopus.json"), JSON.stringify(settings, null, 2))
+  writeFileSync(path.join(dir, ".canopus", "plugin", "config.json"), JSON.stringify(settings, null, 2))
   git(dir, "add", "-A")
   git(dir, "commit", "-q", "-m", "settings")
 }
@@ -84,14 +85,14 @@ mkdirSync(oldRoot, { recursive: true })
 const old = settings.parseProjects({ projects: { oldp: oldRoot } })
 const oldProblems = settings.settingsProblems(old)
 cell("the old form under projects works as before", old.length === 1 && old[0].name === "oldp" && !old[0].dir, JSON.stringify(old))
-cell("the old form: the old advice, the new form is called project_settings", oldProblems.some((p) => /заданы прежней формой опций/.test(p) && p.includes('"project_settings": ["<папка с .opencode/canopus.json>"]') && !p.includes('"projects"')), JSON.stringify(oldProblems))
+cell("the old form: the old advice, the new form is called project_settings", oldProblems.some((p) => /заданы прежней формой опций/.test(p) && p.includes('"project_settings": ["<папка с .canopus/plugin/config.json>"]') && !p.includes('"projects"')), JSON.stringify(oldProblems))
 cell("the old form: no note about the rename (it is not a list)", settings.settingsNotes().length === 0, JSON.stringify(settings.settingsNotes()))
 const oldMain = settings.parseProjects({ project_settings: { oldp: oldRoot } })
 cell("the old form under project_settings still gives the project, the doctor says where the old form belongs", oldMain.length === 1 && settings.settingsProblems(oldMain).some((p) => /project_settings — список папок/.test(p) && /только под прежним именем projects/.test(p)), JSON.stringify(settings.settingsProblems(oldMain)))
 
 // ---- the mailbox copy for the MCP server keeps the key ----
 core.saveProjects({ project_settings: [cfgA], local: { alpha: { spawn_models: { light: "kimi/k3" } } } })
-const boxFile = path.join(process.env.XDG_DATA_HOME, "opencode", "canopus", "projects.json")
+const boxFile = path.join(process.env.XDG_DATA_HOME, "opencode", "plugin", "data", "projects.json")
 const box = JSON.parse(readFileSync(boxFile, "utf8"))
 cell("the mailbox file carries project_settings", JSON.stringify(box.project_settings) === JSON.stringify([cfgA]) && box.projects === undefined, JSON.stringify(box))
 const fromBox = core.loadProjects()
@@ -123,7 +124,7 @@ const boot = async (options) => {
 }
 let { tools, stop } = await boot({ project_settings: [cfgA] })
 const call = async (name, input) => (await tools[name].execute(input, { sessionID: "sesINT" })).content
-const fileA = path.join(cfgA, ".opencode", "canopus.json")
+const fileA = path.join(cfgA, ".canopus", "plugin", "config.json")
 cell("the plugin options with project_settings: the committed file is read", core.loadConfig(work).projectRules.includes("ALPHA-LINE"), core.loadConfig(work).projectRules.slice(-100))
 const doc = await call("canopus_doctor", {})
 // the mock host of this test has its own doctor lines (no session.create, no window): only the lines about the settings count
@@ -140,7 +141,7 @@ cell("own uncommitted set/use changes correctly produce a divergence warning", /
 await stop?.()
 // The next case is ONLY about the option-key rename. Finish this fixture's own
 // configuration edit instead of relying on a cached pre-edit healthy verdict.
-git(cfgA, "commit", "-q", "-m", "Apply fixture settings changes", "--", ".opencode/canopus.json")
+git(cfgA, "commit", "-q", "-m", "Apply fixture settings changes", "--", ".canopus/plugin/config.json")
 
 ;({ tools, stop } = await boot({ projects: [cfgA] }))
 const doc2 = await call("canopus_doctor", {})
@@ -156,7 +157,7 @@ await stop?.()
 
 ;({ tools, stop } = await boot({ projects: { oldp: oldRoot } }))
 const doc4 = await call("canopus_doctor", {})
-cell("canopus_doctor with the old form: the old advice with the new key name", /есть проблемы/.test(doc4) && doc4.includes('"project_settings": ["<папка с .opencode/canopus.json>"]'), doc4)
+cell("canopus_doctor with the old form: the old advice with the new key name", /есть проблемы/.test(doc4) && doc4.includes('"project_settings": ["<папка с .canopus/plugin/config.json>"]'), doc4)
 await stop?.()
 
 // the window text of /canopus-doctor shows the notes below the verdict

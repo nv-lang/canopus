@@ -14,13 +14,14 @@ import { execFileSync } from "node:child_process"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-task-folders-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_POLL_MS = "100"
 process.env.CANOPUS_DB = path.join(tmp, "absent.db")
 process.env.CANOPUS_PRESENCE = "all"
 const proj = path.join(tmp, "proj")
-mkdirSync(path.join(proj, ".opencode"), { recursive: true })
+mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
-writeFileSync(path.join(proj, ".opencode", "canopus.json"), JSON.stringify({ root: "..", worktrees: "worktrees", worktree_name: "{repo}-{n}-{slug}", branch_name: "task/{n}-{slug}", cleanup: "local", allow_default_models: true, inflight_limit: 20, spawn_limits: { worker: 9, reviewer: 0 } }))
+writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ root: "..", worktrees: "worktrees", worktree_name: "{repo}-{n}-{slug}", branch_name: "task/{n}-{slug}", cleanup: "local", allow_default_models: true, inflight_limit: 20, spawn_limits: { worker: 9, reviewer: 0 } }))
 const folder = (name, files) => {
   for (const [f, text] of Object.entries(files)) {
     const p = path.join(proj, "doc", "tasks", name, f)
@@ -42,7 +43,7 @@ const mainTip = git(proj, "rev-parse", "main")
 const wtRoot = path.join(tmp, "worktrees")
 
 // old records (before task 058): 013 closed, 014 open — numbers that now belong to folders 013 and 014
-const store = path.join(tmp, "opencode", "canopus", "tasks", "proj")
+const store = path.join(tmp, "opencode", "plugin", "data", "tasks", "proj")
 mkdirSync(store, { recursive: true })
 const oldRec = (n, status, title) => JSON.stringify({ project: "proj", n, title, slug: "old", goal: "g", priority: "P2", tier: "light", role: "worker", author: "sesOLD", author_role: "proj.integrator", qid: "qOld", status, kind: "spawn", executors: [], attempt: 1, directory: proj, history: [], created: 1, updated: 1 }, null, 1)
 writeFileSync(path.join(store, "13.json"), oldRec(13, "done", "старая закрытая"))

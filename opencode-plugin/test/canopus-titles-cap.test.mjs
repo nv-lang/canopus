@@ -7,13 +7,14 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-titlescap-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_POLL_MS = "100"
 process.env.CANOPUS_DB = path.join(tmp, "absent.db")
 process.env.CANOPUS_TITLES_PER_PASS = "2"
 delete process.env.CANOPUS_PRESENCE
 const proj = path.join(tmp, "proj")
-mkdirSync(path.join(proj, ".opencode"), { recursive: true })
-writeFileSync(path.join(proj, ".opencode", "canopus.json"), JSON.stringify({ allow_default_models: true }))
+mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
+writeFileSync(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ allow_default_models: true }))
 
 const core = await import("../core.ts")
 const tasks = await import("../tasks.ts")
@@ -36,7 +37,7 @@ const OLD = Date.now() - 3 * 86_400_000
 for (let n = 7; n <= 12; n++) {
   card(`sesEX${n}`, { spawned: { by: "sesINTEG1", task: `t${n}`, tier: "light", status: "closed", at: OLD, qid: `q${n}` }, task: { project: "proj", n } })
   const t = base(n, { status: "done", executor: `sesEX${n}`, reviewer: "sesREVX", review_kind: "tab", reviewer_role: "proj.worker", branch: `t${n}-x` })
-  const f = path.join(tmp, "opencode", "canopus", "tasks", "proj", `${n}.json`)
+  const f = path.join(tmp, "opencode", "plugin", "data", "tasks", "proj", `${n}.json`)
   const j = JSON.parse(readFileSync(f, "utf8"))
   j.updated = OLD
   writeFileSync(f, JSON.stringify(j))

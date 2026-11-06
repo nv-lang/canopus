@@ -199,7 +199,7 @@ test "settings: the example of the store pg has no password and is refused until
     ro s = must_settings(text)
     assert(s.store == "pg")
     assert(s.pg.port == 15432)
-    assert(s.pg.database == "crew")
+    assert(s.pg.database == "canopus")
     assert(s.pg.user == "canopus_service")
     assert(s.pg.password == "")
     match s.check() {
@@ -381,7 +381,7 @@ fn layers_drop(root str) -> () {
 
 test "layers: the layers cover each other in the order user, server file, project, local, environment, arguments" {
     ro root = layers_root("order")
-    layers_put(root, "inst/config/config.json", "{\"port\":1,\"web_dir\":\"u\",\"workdir\":\"u\",\"route_task_limit\":1,\"route_task_messages\":1,\"route_fix_attempts\":1}")
+    layers_put(root, "inst/config.json", "{\"port\":1,\"web_dir\":\"u\",\"workdir\":\"u\",\"route_task_limit\":1,\"route_task_messages\":1,\"route_fix_attempts\":1}")
     layers_put(root, "srv.json", "{\"port\":2,\"web_dir\":\"s\",\"workdir\":\"s\",\"route_task_limit\":2,\"route_task_messages\":2}")
     layers_put(root, "repo/.canopus/config.json", "{\"port\":3,\"web_dir\":\"p\",\"workdir\":\"p\",\"route_task_limit\":3}")
     layers_put(root, "repo/.canopus/local.json", "{\"port\":4,\"web_dir\":\"l\",\"workdir\":\"l\"}")
@@ -412,7 +412,7 @@ test "layers: with a root the folders are home/data/sessions, state and cache, a
         Err(e) => assert(false)
         Ok(s) => {
             assert(s.data_dir == "${root}/inst/data/sessions")
-            assert(s.layout.data == "${root}/inst/data" && s.layout.state == "${root}/inst/state" && s.layout.cache == "${root}/inst/cache" && s.layout.config == "${root}/inst/config")
+            assert(s.layout.data == "${root}/inst/data" && s.layout.state == "${root}/inst/state" && s.layout.cache == "${root}/inst/cache" && s.layout.config == "${root}/inst")
             assert(!s.layout.legacy)
             assert(s.routes_dir == "")
             assert(s.preset == "default")
@@ -455,7 +455,7 @@ test "layers: no root at all is the old default folder canopus-data" {
 
 test "layers: voice is the name, stt still works, CANOPUS_VOICE_* are synonyms of CANOPUS_SERVER_STT_*" {
     ro root = layers_root("voice")
-    layers_put(root, "inst/config/config.json", "{\"stt\":{\"language\":\"ru\"}}")
+    layers_put(root, "inst/config.json", "{\"stt\":{\"language\":\"ru\"}}")
     layers_put(root, "repo/.canopus/config.json", "{\"voice\":{\"model\":\"medium\"}}")
     mut state = MockOs.new()
     state.set_cwd_str("${root}/repo")
@@ -481,14 +481,14 @@ test "layers: voice is the name, stt still works, CANOPUS_VOICE_* are synonyms o
 
 test "layers: a broken file of a layer is file:line: reason, and the preset comes from a layer" {
     ro root = layers_root("broken")
-    layers_put(root, "inst/config/config.json", "{\n  \"port\": 1,\n  \"store\": ???\n}")
+    layers_put(root, "inst/config.json", "{\n  \"port\": 1,\n  \"store\": ???\n}")
     mut state = MockOs.new()
     state.set_cwd_str("${root}/nowhere")
     match with Os = mock_os(state), Fs = real_fs() { server_settings_in("", "${root}/inst", []str.new()) } {
         Ok(s) => assert(false)
-        Err(e) => assert(e.starts_with("${root}/inst/config/config.json:3:") && !e.contains("???"))
+        Err(e) => assert(e.starts_with("${root}/inst/config.json:3:") && !e.contains("???"))
     }
-    layers_put(root, "inst/config/config.json", "{\"preset\":\"mix\"}")
+    layers_put(root, "inst/config.json", "{\"preset\":\"mix\"}")
     match with Os = mock_os(state), Fs = real_fs() { server_settings_in("", "${root}/inst", []str.new()) } {
         Err(e) => assert(false)
         Ok(s) => assert(s.preset == "mix")
@@ -498,8 +498,8 @@ test "layers: a broken file of a layer is file:line: reason, and the preset come
 
 test "layers: the password from secrets.json or the environment reaches the settings and is not in the description" {
     ro root = layers_root("secrets")
-    layers_put(root, "inst/config/secrets.json", "{\"pg\":{\"password\":\"from-secrets-file\"}}")
-    layers_put(root, "inst/config/config.json", "{\"store\":\"pg\"}")
+    layers_put(root, "inst/secrets.json", "{\"pg\":{\"password\":\"from-secrets-file\"}}")
+    layers_put(root, "inst/config.json", "{\"store\":\"pg\"}")
     mut state = MockOs.new()
     state.set_cwd_str("${root}/nowhere")
     match with Os = mock_os(state), Fs = real_fs() { server_settings_in("", "${root}/inst", []str.new()) } {
@@ -538,4 +538,25 @@ test "settings: the confidence of the addition at once and the scope of the task
     assert(must_settings("{\"auto_extend_confidence\":\"off\"}").auto_extend_confidence == "off")
     assert(is_error(parse_server_settings("{\"auto_extend_confidence\":\"low\"}")))
     assert(is_error(parse_server_settings("{\"task_scope\":\"project\"}")))
+}
+
+
+test "layers: explicit pg and hub arguments override their environment" {
+    ro root = layers_root("explicit-pg-hub")
+    mut state = MockOs.new()
+    state.set_cwd_str("${root}/repo")
+    state.put_env("CANOPUS_PG_PASSWORD", "environment-value")
+    state.put_env("CANOPUS_SERVER_HUB", "environment-hub environment-argument")
+    state.put_env("CANOPUS_SERVER_AGENT", "environment-agent acp")
+    match with Os = mock_os(state), Fs = real_fs() { server_settings_in("", "${root}/inst", ["pg.password=argument-value", "hub.program=argument-hub", "agents=[{\"id\":\"custom\",\"program\":\"argument-agent\",\"args\":[]}]"]) } {
+        Err(e) => assert(false)
+        Ok(s) => {
+            assert(s.pg.password == "argument-value")
+            assert(s.hub_program == "argument-hub")
+            assert(s.agents.len() == 1 && s.agents[0].program == "argument-agent")
+            assert(s.hub_args.len() == 1 && s.hub_args[0] == "environment-argument")
+            assert(!s.describe().contains("argument-value"))
+        }
+    }
+    layers_drop(root)
 }

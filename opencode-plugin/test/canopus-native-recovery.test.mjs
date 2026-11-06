@@ -7,6 +7,7 @@ import { allowNativeRegistry } from "./native-isolation.mjs"
 import { DatabaseSync } from "node:sqlite"
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-native-recovery-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.XDG_STATE_HOME = tmp
 process.env.CANOPUS_DB = path.join(tmp, "native.db")
 process.env.CANOPUS_POLL_MS = "50"

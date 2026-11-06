@@ -343,7 +343,7 @@ export function setsTable(ps: L.PState): string {
   const lines = [`Наборы проекта ${ps.project}. Включён: ${ps.name ? `«${ps.name}».` : "нет (модели — по spawn_models)."}`]
   if (!names.length) lines.push(`Наборов нет. Готовый пример файла (справочник и наборы) — в разделе README о профилях моделей:
 ${PROFILES_README_URL}
-Скопируйте пример в .opencode/canopus.json проекта (или передайте агенту: canopus_config set) и коммитьте файл.`)
+Скопируйте пример в .canopus/plugin/config.json проекта (или передайте агенту: canopus_config set) и коммитьте файл.`)
   else {
     const { keys, first } = modelsOfSets(ps, names)
     const shorts = shortModelNames(keys)
@@ -389,7 +389,7 @@ function pickJson(ps: L.PState, kind: "sets" | "profiles", args: string[]): stri
 export function profilesTable(ps: L.PState): string {
   const fams = Object.keys(isObj(ps.data.profiles) ? ps.data.profiles : {}).sort()
   const lines = [`Справочник профилей проекта ${ps.project}: семья, ступень → модель, контекст.`]
-  if (!fams.length) lines.push(`Справочник пуст. Готовый пример файла (справочник и наборы) — в разделе README о профилях моделей:\n${PROFILES_README_URL}\nСкопируйте пример в .opencode/canopus.json проекта (или передайте агенту: canopus_config set) и коммитьте файл.`)
+  if (!fams.length) lines.push(`Справочник пуст. Готовый пример файла (справочник и наборы) — в разделе README о профилях моделей:\n${PROFILES_README_URL}\nСкопируйте пример в .canopus/plugin/config.json проекта (или передайте агенту: canopus_config set) и коммитьте файл.`)
   for (const f of fams)
     for (const t of P.PROFILE_TIERS) {
       const p = (ps.data.profiles as any)[f][t]

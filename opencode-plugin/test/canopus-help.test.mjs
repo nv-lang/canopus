@@ -8,6 +8,7 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-help-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_PRESENCE ??= "all" // every tab taken as open (presence has its own test)
 const mod = await import("./fixture-plugin.mjs")
 
@@ -41,7 +42,7 @@ if (drop) help = help.split(drop).join("")
 for (const t of ["canopus_list", "canopus_role", "canopus_send", "canopus_inbox", "canopus_wait", "canopus_spawn", "canopus_task", "canopus_config", "canopus_doctor"]) {
   cell(`help names ${t}`, help.includes(t), "missing")
 }
-for (const w of ["force", "all", "worker", "assistant — то же, что worker", "canopus.json", "wake: false", "expect_reply", "reply_to", "через 3 с", "Open", "напоминанием", "spawn_limits", "#N", "P0", "assign", "reassign", "task_fields", "ДАННЫЕ ОТ СОСЕДА", "КОНТРОЛЬНЫЙ ВОПРОС", "кто тут integrator проекта X", "я integrator проекта X"]) {
+for (const w of ["force", "all", "worker", "assistant — то же, что worker", ".canopus/plugin/config.json", "wake: false", "expect_reply", "reply_to", "через 3 с", "Open", "напоминанием", "spawn_limits", "#N", "P0", "assign", "reassign", "task_fields", "ДАННЫЕ ОТ СОСЕДА", "КОНТРОЛЬНЫЙ ВОПРОС", "кто тут integrator проекта X", "я integrator проекта X"]) {
   cell(`help mentions «${w}»`, help.includes(w), "missing")
 }
 

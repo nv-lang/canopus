@@ -10,16 +10,17 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-push-reviewer-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_POLL_MS = "100"
 process.env.CANOPUS_DB = path.join(tmp, "absent.db")
 delete process.env.CANOPUS_PRESENCE
 const proj = path.join(tmp, "proj")
-mkdirSync(path.join(proj, ".opencode"), { recursive: true })
+mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
 mkdirSync(path.join(proj, "docs", "plans"), { recursive: true })
 writeFileSync(path.join(proj, "docs", "plans", "7-old.md"), "# План 7 — старый\n")
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
 writeFileSync(
-  path.join(proj, ".opencode", "canopus.json"),
+  path.join(proj, ".canopus", "plugin", "config.json"),
   JSON.stringify({ allow_default_models: true, worktrees: "wt", branch_name: "p{n}-{slug}", cleanup: "local", merge_precheck: "off", accepted_slot: "hold", rework_max: 5, spawn_limits: { worker: 5, reviewer: 1 } }),
 )
 writeFileSync(path.join(proj, "a.txt"), "a\n")

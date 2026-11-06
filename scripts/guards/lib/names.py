@@ -9,7 +9,7 @@
 Правило: AGENTS.md п.15, ADR-0006.
 
 Источники по приоритету: переменная окружения CANOPUS_PRIVATE_NAMES (в CI — из секрета с тем же
-именем), затем файл CANOPUS_PRIVATE_NAMES_FILE, затем ~/.config/canopus/private-names.txt.
+именем), затем файл CANOPUS_PRIVATE_NAMES_FILE, затем ~/.canopus/guards/private-names.txt.
 Формат: образец на строку, строка с решёткой первым знаком — комментарий, пустые строки пропускаются.
 Номер образца — порядковый среди образцов (без комментариев и пустых строк), с единицы.
 Значения образцов не попадают ни в вывод, ни в тексты исключений.
@@ -22,8 +22,8 @@ import os
 
 from guardlib import Unavailable
 
-DEFAULT_FILE = os.path.join("~", ".config", "canopus", "private-names.txt")
-HINT = ("Заведите список: файл ~/.config/canopus/private-names.txt (путь переопределяет "
+DEFAULT_FILE = os.path.join("~", ".canopus", "guards", "private-names.txt")
+HINT = ("Заведите список: файл ~/.canopus/guards/private-names.txt (путь переопределяет "
         "CANOPUS_PRIVATE_NAMES_FILE), образец на строку, решётка — комментарий; в CI — секрет "
         "CANOPUS_PRIVATE_NAMES (его заводит scripts/github-setup.sh secret).")
 

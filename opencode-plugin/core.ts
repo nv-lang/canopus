@@ -1,3 +1,4 @@
+import { globalConfig, pluginState, pluginCache } from "./plugin-config.ts"
 // Ядро canopus: ящик, визитки, адреса, проекты, ступени и САМИ ИНСТРУМЕНТЫ (canopus_list, canopus_role,
 // canopus_send, canopus_inbox, canopus_help). Его делят плагин OpenCode (index.ts) и MCP-сервер (mcp.ts) для окон
 // провайдера claude-code, которым инструменты плагина недоступны: одна реализация — одна семантика.
@@ -115,7 +116,7 @@ export function configShowText(dir: string, fallbackName = "?", compact = false)
   const profileKeys = ["model_profiles", "profile_sets"]
   const rows = SCHEMA.map((s) => `  ${s.key} = ${profileKeys.includes(s.key) && effective[s.key] !== undefined ? `(${Object.keys(effective[s.key] ?? {}).length} шт., таблицей ниже)` : s.key === "profile_set" && effective[s.key] === undefined ? "(не включён)" : shown(effective[s.key] ?? s.default)} — ${sourceOf(s.key)}${answerNote(s.key)}`)
   const head = p?.dir
-    ? `Проект ${p.name}: настройки ${path.join(p.dir, ".opencode", "canopus.json")}, читается ветка ${p.branch} (${p.repo}).`
+    ? `Проект ${p.name}: настройки ${path.join(p.dir, ".canopus", "plugin", "config.json")}, читается ветка ${p.branch} (${p.repo}).`
     : p
       ? `Проект ${p.name}: прежняя форма опций — настройки из рабочей копии вверх от каталога вкладки.`
       : `Папка вкладки ${dir.replace(/\\/g, "/")} не относится к проекту плагина (ни корень, ни рабочее дерево репозитория проекта): настройки — из файла вверх от этой папки, если он есть, иначе по умолчанию.`
@@ -184,7 +185,7 @@ let baseDirsReady = false
 export function ensureBaseDirs(): void {
   if (baseDirsReady) return
   baseDirsReady = true
-  for (const d of [CARDS, INBOX, READ, QUEUE]) mkdirSync(d, { recursive: true }) // delivering/ — по мере надобности
+  for (const d of [CARDS, INBOX, READ, QUEUE, pluginState(), pluginCache()]) mkdirSync(d, { recursive: true }) // delivering/ — по мере надобности
 }
 
 export type Spawned = { by: string; task: string; tier: string; status: "running" | "done" | "closed"; at: number; qid: string }
@@ -193,7 +194,7 @@ export type Spawned = { by: string; task: string; tier: string; status: "running
 export type Card = { session: string; role: string; auto: boolean; spawned?: Spawned; task?: { project: string; n: number }; review?: { project: string; n: number }; titleShown?: string; title: string; directory: string; repo: string; project?: string; lock_wait?: { project: string; n: number; at: number }; model?: string; modelAt?: number; modelFrom?: "request" | "db"; modelCheckedAt?: number; tasksDir?: string; busy?: boolean; busySince?: number; reservedAt?: number; turnStart?: number; wokeAt?: number; pid: number; updated: number }
 export type Letter = { id: string; from_role: string; from_session: string; to: string; text: string; time: number; tier?: Tier; wake?: boolean; qid?: string; reply_to?: string; wake_qid?: string; delivery_recovered?: true; purpose?: "diagnostic" }
 
-// НАСТРОЙКИ ПРОЕКТА — settings.ts: файл `.opencode/canopus.json` из репозитория настроек (закоммиченный),
+// НАСТРОЙКИ ПРОЕКТА — settings.ts: файл `.canopus/plugin/config.json` из репозитория настроек (закоммиченный),
 // для прежней формы опций — тот же файл вверх от каталога окна. Плагин абстрактен: ни ролей, ни проектного текста в
 // нём нет. Роли ИСКЛЮЧИТЕЛЬНЫЕ (`integrator` + exclusive_roles проекта) — у них один держатель (замок, см. РОЛИ);
 // любая другая роль РАЗДЕЛЯЕМАЯ: canopus_role присоединяет окно, а письмо на роль с несколькими открытыми
@@ -1202,7 +1203,7 @@ export async function lastTurn(sessionID: string, since = 0): Promise<TurnFacts 
 export const WINDOWS = path.join(BASE, "windows")
 export const NOTICES = path.join(BASE, "notices")
 /** Последняя самопроверка сервиса {at, problems}: её показывает команда окна /canopus-doctor (окну canopus_doctor не вызвать). */
-export const DOCTOR_FILE = path.join(BASE, "doctor.json")
+export const DOCTOR_FILE = path.join(pluginState(), "doctor.json")
 export const WINDOW_STALE_MS = 3_000
 export type WindowTab = { sessionID: string; active?: boolean; busy?: boolean; title?: string }
 export type WindowBeat = { pid: number; beat: number; route?: string; tabs: WindowTab[] }
@@ -1682,7 +1683,7 @@ ${verbHelpText()}
 всем открытым вкладкам своего проекта; «проект.all». Отправитель подписан полным адресом и сессией.
 
 РОЛИ. Новая вкладка — worker (разделяемая; вкладки внутри роли различает id сессии). assistant — то же, что worker.
-integrator — исключительная: один держатель на проект (плюс exclusive_roles из .opencode/canopus.json).
+integrator — исключительная: один держатель на проект (плюс exclusive_roles из .canopus/plugin/config.json).
 Держится замком: пока держатель открыт, роль не отнять без force; закрыл окно — роль свободна сразу.
 Письмо на разделяемую роль с несколькими открытыми держателями не доставляется наугад — адресуй id сессии.
 acceptor — роль приёмщика (разделяемая) при настройке проекта reviewer: acceptor: см. ПРИЁМКА.
@@ -1864,7 +1865,9 @@ export function saveProjects(opt: any) {
 /** Проекты для MCP-сервера; заодно ставит их текущими (setProjects). */
 export function loadProjects(): Projects {
   const env = process.env.OPENCODE_CANOPUS_PROJECTS
-  let opt: any = readJson<any>(PROJECTS_FILE) ?? {}
+  let opt: any = globalConfig()
+  const fromGlobal = Object.keys(opt).length > 0
+  if (!fromGlobal) opt = readJson<any>(PROJECTS_FILE) ?? {}
   if (env) {
     try {
       opt = { ...opt, project_settings: JSON.parse(env), projects: undefined }
@@ -1873,7 +1876,7 @@ export function loadProjects(): Projects {
     }
   }
   const projects = parseProjects(opt)
-  setProjects(projects, opt.local)
+  setProjects(projects, fromGlobal ? {} : opt.local)
   return projects
 }
 
@@ -3745,7 +3748,7 @@ ${lockStillYours(stillHeld.n)}` : "") }
     name: "canopus_config",
     description:
       [
-        "The project's settings (.opencode/canopus.json in its settings repository). One line per action: action - who may - parameters - what it does.",
+        "The project's settings (.canopus/plugin/config.json in its settings repository). One line per action: action - who may - parameters - what it does.",
         "guide - anyone - questions for the owner on every key (current value, options, recommendation, why): ask them in text and record the answers.",
         "show - anyone - effective values and where each comes from (default, the committed file, the local option of opencode.jsonc), plus uncommitted edits. Model profiles come first: model_profiles = families/tiers -> model, profile_sets = named sets of stages, profile_set = the enabled set (only a person changes it, /canopus-sets use|off); the summary says 'sets in the file: N; enabled: name or none' - never answer 'no sets' from 'not enabled'; details: canopus_help.",
         "set - integrator - values {key: value; null removes a key} - checks every value and writes the working copy; it applies once committed to the settings branch. Keys changed by people only (profile_set, answer_mode, answer_max) are refused.",
@@ -3776,7 +3779,7 @@ ${lockStillYours(stillHeld.n)}` : "") }
       if (action === "apply_template") {
         if (!isIntegrator(me)) return notIntegrator(me)
         if (!p) return { content: outsideProject(me.directory).replace(/^./, (c) => c.toUpperCase()) + "." }
-        if (!p.dir) return { content: `Проект ${p.name} задан прежней формой опций: записать некуда. Переведи его на репозиторий настроек — в opencode.jsonc "project_settings": ["<папка с .opencode/canopus.json>"].` }
+        if (!p.dir) return { content: `Проект ${p.name} задан прежней формой опций: записать некуда. Переведи его на репозиторий настроек — в opencode.jsonc "project_settings": ["<папка с .canopus/plugin/config.json>"].` }
         const { values, added } = mergeTemplate(workingSettings(p.dir).raw)
         if (!added.length) return { content: `Шаблон ничего не добавил: все его ключи у проекта уже есть (файл не тронут).` }
         const file = writeSettings(p.dir, values)
@@ -3785,7 +3788,7 @@ ${lockStillYours(stillHeld.n)}` : "") }
       if (action === "set") {
         if (!isIntegrator(me)) return notIntegrator(me)
         if (!p) return { content: outsideProject(me.directory).replace(/^./, (c) => c.toUpperCase()) + "." }
-        if (!p.dir) return { content: `Проект ${p.name} задан прежней формой опций: записать некуда. Переведи его на репозиторий настроек — в opencode.jsonc "project_settings": ["<папка с .opencode/canopus.json>"].` }
+        if (!p.dir) return { content: `Проект ${p.name} задан прежней формой опций: записать некуда. Переведи его на репозиторий настроек — в opencode.jsonc "project_settings": ["<папка с .canopus/plugin/config.json>"].` }
         const values = input.values
         if (!values || typeof values !== "object" || Array.isArray(values) || !Object.keys(values).length) return { content: "Нужно values: {ключ: значение}." }
         if (Object.prototype.hasOwnProperty.call(values, "profile_set")) return { content: "Не записано (файл не тронут):\n- profile_set: имя набора меняет человек (команда окна /canopus-sets use либо правка файла); вызовом set его не записывают" }

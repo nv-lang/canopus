@@ -11,6 +11,7 @@ import { pathToFileURL } from "node:url"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-branch-guard-"))
 process.env.XDG_DATA_HOME = path.join(tmp, "data")
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 const plugin = process.env.CANOPUS_PLUGIN_DIR ? path.resolve(process.env.CANOPUS_PLUGIN_DIR) : path.join(import.meta.dirname, "..")
 let fail = 0
 let n = 0

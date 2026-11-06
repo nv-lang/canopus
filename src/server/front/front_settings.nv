@@ -65,12 +65,6 @@ fn fs_strings(v JsonValue) -> []str {
 }
 
 fn fs_default_agents() -> []AgentChoice => [AgentChoice { id: "opencode", label: "OpenCode", program: "" }]
-fn fs_agents(base []AgentChoice) Os -> []AgentChoice {
-    match fs_env("CANOPUS_SERVER_AGENT") {
-        Some(_) => [AgentChoice { id: "opencode", label: "OpenCode", program: "" }]
-        None => base
-    }
-}
 fn fs_defaults() -> FrontSettings => { port: 8099, web_dir: "src/web", hub_program: "target/canopus-hub.exe", hub_args: []str.new(), agents: fs_default_agents(), stt_url: "http://127.0.0.1:8178/inference", stt_language: "auto", stt_managed: true, stt_dir: "", stt_model: "small", data_dir: "canopus-data", max_image_bytes: 10485760, layout: legacy_layout("canopus-data"), preset: "default", reviewer_order: ["codex", "claude", "kimi", "opencode"] }
 
 // The voice never leaves this machine: a recognizer address that is not a local http one is the default (the hub says what is wrong).
@@ -215,33 +209,16 @@ fn fs_from_file(text str) -> FrontSettings {
     { port, web_dir, hub_program, hub_args, agents, stt_url, stt_language, stt_managed, stt_dir, stt_model, data_dir, max_image_bytes, layout: base.layout, preset, reviewer_order }
 }
 
-// The folder of the recognizer when no setting names it (task 192.12): an install of the older place (`%LOCALAPPDATA%/canopus/stt`) that is still there is used;
-// else `CANOPUS_TOOLS_DIR/whisper` or `<home>/tools/whisper`; with no root at all, the older place.
+// Default recognizer installation: tools/whisper under the resolved Canopus home.
 fn fs_default_stt_dir(layout ConfigLayout) Os Fs -> str {
-    // CANOPUS_STT_DIR is the default of the installer: under the setting `voice.dir`, over the guesses below
-    match fs_env("CANOPUS_STT_DIR") {
-        Some(dir) => return dir
-        None => ()
-    }
-    ro old = match fs_env("LOCALAPPDATA") {
-        Some(local) => "${local.replace("\\", "/")}/canopus/stt"
-        None => ""
-    }
-    if old.byte_len() > 0 {
-        match cfg_file_text("${old}/bin/whisper-server.exe") {
-            Some(t) => return old
-            None => ()
-        }
-    }
-    ro tools = tools_dir_now(layout)
-    if tools.byte_len() > 0 { return "${tools}/whisper" }
-    old
+    if layout.tools.byte_len() > 0 { return "${layout.tools}/whisper" }
+    ""
 }
 
 /// The settings of the front in the root of the instance named by CANOPUS_HOME (or the folder of the user): see `front_settings_in`.
 export fn front_settings(file str) Os Fs -> Result[FrontSettings, str] => front_settings_in(file, canopus_home(""), []str.new())
 
-/// The settings of the front by the same layers as the hub (task 192.12, `server_settings_in` of src/server/settings.nv): the defaults, `<home>/config/config.json`, the server file `file`
+/// The settings of the front by the same layers as the hub (task 192.12, `server_settings_in` of src/server/settings.nv): the defaults, `<home>/config.json`, the server file `file`
 /// (or CANOPUS_SERVER_CONFIG), `.canopus/config.json` and `local.json` of the project, secrets.json, the variables CANOPUS_*, the words `key=value` of `sets` (the arguments `--set`).
 export fn front_settings_in(file str, home str, sets []str) Os Fs -> Result[FrontSettings, str] {
     ro name = if file.byte_len() > 0 { file } else { fs_env("CANOPUS_SERVER_CONFIG") ?? "" }
@@ -267,12 +244,9 @@ export fn front_settings_in(file str, home str, sets []str) Os Fs -> Result[Fron
         None => ()
     }
     if base.port < 1 || base.port > 65535 { return Err("the port must be 1 to 65535") }
-    ro hub_words = match fs_env("CANOPUS_SERVER_HUB") {
-        Some(command) => fs_words(command)
-        None => []str.new()
-    }
-    ro hub_program = if hub_words.len() > 0 { hub_words[0] } else { base.hub_program }
-    ro hub_args = if hub_words.len() > 0 { fs_rest(hub_words) } else { base.hub_args }
-    ro stt_dir = if base.stt_dir.byte_len() > 0 { base.stt_dir } else { fs_default_stt_dir(layout) }
-    Ok({ port: base.port, web_dir: base.web_dir, hub_program, hub_args, agents: fs_agents(base.agents), stt_url: base.stt_url, stt_language: base.stt_language, stt_managed: base.stt_managed, stt_dir, stt_model: base.stt_model, data_dir: layout.sessions, max_image_bytes: base.max_image_bytes, layout, preset: base.preset, reviewer_order: base.reviewer_order })
+    ro hub_program = base.hub_program
+    ro hub_args = base.hub_args
+    ro tools = match merged.get("tools_dir") { Some(v) => v.str() ?? "", None => "" }
+    ro stt_dir = if base.stt_dir.byte_len() > 0 { base.stt_dir } else if tools.byte_len() > 0 { "${tools}/whisper" } else { fs_default_stt_dir(layout) }
+    Ok({ port: base.port, web_dir: base.web_dir, hub_program, hub_args, agents: base.agents, stt_url: base.stt_url, stt_language: base.stt_language, stt_managed: base.stt_managed, stt_dir, stt_model: base.stt_model, data_dir: layout.sessions, max_image_bytes: base.max_image_bytes, layout, preset: base.preset, reviewer_order: base.reviewer_order })
 }

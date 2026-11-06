@@ -6,6 +6,7 @@ import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-glued-"))
 process.env.XDG_DATA_HOME = tmp
+process.env.CANOPUS_HOME = path.join(process.env.XDG_DATA_HOME, "opencode")
 process.env.CANOPUS_PRESENCE ??= "all"
 const { gluedText } = await import("../glued.ts")
 const mod = await import("./fixture-plugin.mjs")
@@ -44,7 +45,7 @@ const ctx = {
 }
 const stop = await mod.default.setup(ctx)
 const inboxCount = () => {
-  const root = path.join(tmp, "opencode", "canopus", "inbox")
+  const root = path.join(tmp, "opencode", "plugin", "data", "inbox")
   if (!existsSync(root)) return 0
   return readdirSync(root, { recursive: true }).filter((f) => String(f).endsWith(".json")).length
 }
