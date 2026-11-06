@@ -3,7 +3,7 @@
 // On real git repositories with a local origin: precheck {n} reads the tip and writes "running"; precheck {n, candidate, result}
 // finishes it ("green") after the checks of REQ-07 (every refusal leaves the record as it was); unlock releases the lock the session
 // holds for the task; the record becomes stale on rework, rework sync, reassign, cancel, unlock and a new review after a re-submit.
-import { readFileSync } from "node:fs"
+import { readFileSync, readdirSync } from "node:fs"
 import path from "node:path"
 import { harness, reporter } from "./landing-harness.mjs"
 
@@ -75,7 +75,7 @@ fetch()
   H.settings({ merge_precheck: "off" })
   const t = H.reviewing()
   const r = await begin(t)
-  cell("AC-12 precheck off: the action is refused (the project turned it off with the explicit key), no record", /выключена явным ключом merge_precheck: off/.test(r) && !T(t.n).precheck, r)
+  cell("AC-12 precheck off: the action is refused (the internal code policy turned it off), no record", /Предпроверка выключена внутренней политикой кода/.test(r) && /Публичного переключателя нет/.test(r) && !T(t.n).precheck, r)
   clearLock()
   lockFor(REV, t.n)
   const u = await call("canopus_task", REV, { action: "unlock", n: t.n })
@@ -173,8 +173,16 @@ fetch()
   await call("canopus_task", "sesINTEG1", { action: "reassign", n: t.n })
   cell("AC-14 c: reassign makes the record stale", staleOf(t.n) === "передана другой сессии", JSON.stringify(T(t.n).precheck))
   ;({ t } = await greenTask())
-  await call("canopus_task", "sesINTEG1", { action: "cancel", n: t.n })
-  cell("AC-14 d: cancel makes the record stale", staleOf(t.n) === "задача отменена" && T(t.n).status === "cancelled", JSON.stringify(T(t.n).precheck))
+  const confirmation = await import("../task-confirmation.ts")
+  const cancelResult = await call("canopus_task", "sesINTEG1", { action: "cancel", n: t.n })
+  const proposals = () => readdirSync(confirmation.APPROVALS).filter(f=>/^[a-f0-9]{64}\.json$/.test(f)).map(f=>confirmation.readProposal(f.slice(0,-5))).filter(p=>p?.action === "cancel" && p.project === "proj" && p.scope.target?.n === t.n)
+  const before = {cancelResult,proposals:proposals(),task:T(t.n),executor:core.readJson(core.cardFile(t.executor)),reviewer:core.readJson(core.cardFile(t.reviewer))}
+  console.log("cancel one-click evidence before wait " + JSON.stringify(before))
+  const blocked = before.proposals.some(p=>p.state === "blocked") || /Операция не завершена/.test(cancelResult)
+  if (!blocked) await H.until(()=>T(t.n).status === "cancelled",60_000)
+  const after = T(t.n)
+  cell("AC-14 d: one owner-confirmed cancel eventually invalidates the record and persists terminal status", !blocked && staleOf(t.n) === "задача отменена" && after.status === "cancelled", JSON.stringify({before,after,proposals:proposals()}))
+  cell("AC-14 d one confirmation: cancellation is applied once without a repeated action or owner answer", proposals().length === 1 && proposals()[0]?.state === "applied" && after.operations?.filter(op=>op.action === "cancel").length === 1 && after.operations?.find(op=>op.action === "cancel")?.approval.confirmed_by === "native_owner", JSON.stringify({proposals:proposals(),operations:after.operations}))
   const s = H.reviewing({ fields: { status: "submitted", precheck: { state: "green", base: H.originTip(), at: Date.now(), by: REV, round: 0, candidate: H.originTip(), result: "x", green_at: Date.now() } } })
   await call("canopus_task", REV, { action: "review", n: s.n })
   cell("AC-14 e: a new review after a re-submit makes a green record stale", T(s.n).status === "reviewing" && staleOf(s.n) === "приёмка начата заново", JSON.stringify(T(s.n)))

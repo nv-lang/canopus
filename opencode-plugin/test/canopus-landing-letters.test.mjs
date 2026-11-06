@@ -135,14 +135,14 @@ review.releaseMergeLock("proj", REV)
 {
   const d = H.tools.canopus_task.description
   const props = H.tools.canopus_task.input.properties
-  cell("AC-26 описание: the description names precheck, unlock, merge_precheck and the assign guard; extra stays on spawn and in the legacy input", /precheck \{n\}/.test(d) && /unlock \{n\}/.test(d) && /merge_precheck: required/.test(d) && /trusted owner receipt/.test(d) && /extra/.test(H.tools.canopus_spawn.description) && !!props.candidate && !!props.extra && props.action.enum.includes("precheck") && props.action.enum.includes("unlock"), d.slice(0, 200))
+  cell("AC-26 описание: the description names precheck, unlock, the internal merge policy and the assign guard; extra stays on spawn and in the legacy input", /precheck \{n\}/.test(d) && /unlock \{n\}/.test(d) && /required by the named internal merge policy/.test(d) && !/merge_precheck: off/.test(d) && /trusted owner receipt/.test(d) && /extra/.test(H.tools.canopus_spawn.description) && !!props.candidate && !!props.extra && props.action.enum.includes("precheck") && props.action.enum.includes("unlock"), d.slice(0, 200))
   const sd = H.tools.canopus_spawn.description
   cell("AC-26 описание canopus_spawn: the description of canopus_spawn names extra and the flags", /extra \{id/.test(sd) && /accepted_slot: free/.test(sd) && !!H.tools.canopus_spawn.input.properties.extra, sd.slice(0, 120))
   const help = core.HELP
   cell("AC-26 HELP: the section ПРИЁМКА names the precheck, unlock, the lock on the same tip, the three keys", ["ПРЕДПРОВЕРКА ВЛИВАНИЯ", "merge_precheck", "precheck {n}", "unlock {n}", "accepted_slot", "cleanup_limit", "task_extra_fields", "Только после этого merge берёт замок"].every((w) => help.includes(w)), help.slice(0, 80))
   cell(
     "AC-26 HELP по умолчанию: the help says that the precheck and the free slot are on by default, that merge without a precheck is refused, the order, and the keys that return the old order",
-    ["по умолчанию required", "merge без предпроверки отклоняется", "review → check → precheck → CI без замка → precheck candidate → merge → accept → отдельная cleanup → cleanup", "merge_precheck: off", "accepted_slot: hold"].every((w) => help.includes(w)),
+    ["встроенная политика required — включена", "merge без предпроверки отклоняется", "review → check → precheck → CI без замка → precheck candidate → merge → accept → отдельная cleanup → cleanup", "merge_precheck: off", "accepted_slot: hold"].every((w) => help.includes(w)),
     help.slice(help.indexOf("ПРЕДПРОВЕРКА ВЛИВАНИЯ"), help.indexOf("ПРЕДПРОВЕРКА ВЛИВАНИЯ") + 300),
   )
   cell(
@@ -151,7 +151,7 @@ review.releaseMergeLock("proj", REV)
     help.slice(help.indexOf("Замок слияния отпускает"), help.indexOf("Замок слияния отпускает") + 300),
   )
   cell("AC-26 описание canopus_task замок: the English description names accept, rework, cancel, unlock, cleanup and the service release", /released by accept, also by rework and cancel/.test(d) && /unlock \{n\} releases it when the merge is abandoned before accept/.test(d) && /cleanup does not release it/.test(d) && /the service releases it by itself/.test(d), d.slice(0, 120))
-  cell("AC-26 описание canopus_task по умолчанию: the English description says merge without a green precheck is refused by default and the explicit off returns the old order", /merge without a green precheck is refused/.test(d) && /merge_precheck: off/.test(d), d.slice(0, 120))
+  cell("AC-26 описание canopus_task по умолчанию: the English description says merge without a green precheck is refused by default and the explicit off returns the old order", /The required merge policy refuses a merge without a green precheck/.test(d) && !/merge_precheck: off/.test(d), d.slice(0, 120))
 }
 
 done(H)
