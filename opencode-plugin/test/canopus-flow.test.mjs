@@ -10,19 +10,21 @@ import { writeFixtureFile } from "./fixture-settings.mjs"
 //   its report (reply_to the task qid) closes it: a final line in its history (resume: false), a notice to the
 //   integrator's window, no more letters;
 // - canopus_doctor reports a tab no window shows.
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-flow-"))
 process.env.XDG_DATA_HOME = tmp
-;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
+const selected=await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 ;await (await import("./fixture-settings.mjs")).setFixtureRuntime("POLL_MS", "100")
 ;await (await import("./fixture-settings.mjs")).setFixtureRuntime("DB", path.join(tmp, "absent.db"))
 ;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
+mkdirSync(path.dirname(selected.file),{recursive:true})
+writeFileSync(selected.file,JSON.stringify({defaults:{spawn_limits:{worker:1}}}))
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
-writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ spawn_limits: { worker: 1 }, spawn_models: { light: "kimi/k3" } }))
+writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ allow_default_models: true, spawn_limits: { worker: 1 }, spawn_models: { light: "kimi/k3" } }))
 
 const mod = await import(process.env.CANOPUS_MODULE ?? "./fixture-plugin.mjs")
 const core = await import(process.env.CANOPUS_CORE ?? "../core.ts")
@@ -128,7 +130,7 @@ const TASK = sp.match(/сессия (ses_[A-Za-z0-9]+)/)?.[1] ?? "?"
 const tqid = sp.match(/canopus_wait \{qid: "([^"]+)"/)?.[1]
 cell("the integrator spawns task 001", /Задача 001 запущена/.test(sp) && TASK.startsWith("ses_") && !!tqid, sp)
 cell("the session is created with the id written to the journal first", created[0]?.id === TASK && core.allCards().some((c) => c.session === TASK && c.task?.n === 1), JSON.stringify(created[0]))
-cell("the model comes from the project's spawn_models", created[0]?.model?.providerID === "kimi" && created[0]?.model?.id === "k3", JSON.stringify(created[0]))
+cell("the model comes from the explicitly consented code policy model table", created[0]?.model?.providerID === "kimi" && created[0]?.model?.id === "k3", JSON.stringify(created[0]))
 cell("the session title is #N and the first line of the goal", created[0]?.title === "001 исп почини тест X", JSON.stringify(created[0]))
 await wait()
 const task = got(TASK, "почини тест X")

@@ -22,6 +22,7 @@ const neverUntilExplicitRelease = new Promise(r => { release = r })
 const get = async route => route === "/api/info" ? { pid: process.pid, version: "2.0.26" } : route === "/api/session/active" ? { data: {} } : { data: { id: route.split("/").at(-1), time: { created: 1, updated: Date.now(), idle: Date.now() } } }
 const ctx = { location: { directory: tmp }, options: { projects: { p: tmp } }, session: { get: async ({ sessionID }) => ({ id: sessionID, location: { directory: tmp } }), create: () => { creates++; enter(); return neverUntilExplicitRelease }, hook: async () => {}, prompt: async () => { prompts++ } }, tool: { transform: async () => {} } }
 ;(await import("./fixture-settings.mjs")).prepareFixturePluginContext(await import("../core.ts"),ctx)
+;(await import("./fixture-settings.mjs")).setFixturePolicy(tmp,{worktrees:""}) // RPC disposal fixture is deliberately not a Git project.
 const stop=await createCanopusPlugin({get,spacingMs:0}).setup(ctx)
 await entered
 const drain = stop()

@@ -47,14 +47,14 @@ process.env.XDG_DATA_HOME = tmp
 const OLD = "CREW_" + "HOME" // guard-allow(legacy-name): негативная проба старого имени
 process.env[OLD] = "/old"
 process.env.UNRELATED_PERSONAL_282 = "keep-me"
-const plugin = (await import("../index.ts")).createCanopusPlugin()
 let refused = ""
 try {
+  const plugin = (await import("../index.ts")).createCanopusPlugin()
   await plugin.setup({})
 } catch (e) {
   refused = String(e)
 }
-cell("4a: setup with a set old name refuses with the new name", refused.includes("CANOPUS_HOME"), refused)
+cell("4a: import/setup with an old home input refuses with current config guidance", refused.includes(OLD) && refused.includes("--config") && !refused.includes("задай CANOPUS_HOME"), refused)
 cell("4b: the refusal made no mailbox dirs and no files", !existsSync(path.join(tmp, "opencode")), "fs touched")
 cell("4c: unrelated personal values stay", process.env.UNRELATED_PERSONAL_282 === "keep-me", "lost")
 delete process.env[OLD]

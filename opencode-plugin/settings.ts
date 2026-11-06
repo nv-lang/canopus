@@ -461,15 +461,17 @@ export function settingsProblems(projects: Projects, local: Record<string, any> 
   for (const p of projects) if (p.legacy) out.push(`проект ${p.name}: настройки в файле с прежним именем ${p.legacy} — переименуй в .canopus/plugin/config.json (git mv) и закоммить`)
   // настройка, которая не может сработать: ключ gate в answer_mode, режим agent, неверный answer_max (задача 007)
   for (const p of projects) {
-    if (!p.dir) continue
-    const raw = readSettingsFolder(p.dir).raw
-    for (const n of answerNotes(raw?.answer_mode, raw?.answer_max, raw?.answer_delay_sec)) out.push(`проект ${p.name}: ${n}`)
+    if (p.problems?.length) continue
+    const raw = rawSettingsFor(p.rootPath ?? p.root, projects, local)
+    // Public values and retained code policy have distinct origins; diagnostics need both.
+    const policy = resolveProjectPolicy(raw, p.dir ?? p.rootPath ?? p.root)
+    for (const n of answerNotes(raw?.answer_mode, policy.answer_max, policy.answer_delay_sec)) out.push(`проект ${p.name}: ${n}`)
     // шаги приёмки — один источник (задача 027): и файл Канона, и тексты в настройках — ошибка; плагин берёт файл
-    if (typeof raw?.acceptance_file === "string" && raw.acceptance_file.trim() && Array.isArray(raw?.acceptance) && raw.acceptance.length)
+    if (typeof raw?.acceptance_file === "string" && raw.acceptance_file.trim() && Array.isArray(policy.acceptance) && policy.acceptance.length)
       out.push(`проект ${p.name}: шаги приёмки заданы и файлом Канона, и текстами в настройках: оставь один источник — acceptance_file`)
     // порядок приёмки задаёт плагин (merge_precheck); текст шага, пересказывающий старый порядок, устареет — только предупреждение
-    if (raw?.merge_precheck !== "off" && Array.isArray(raw?.acceptance))
-      for (const a of raw.acceptance) if (a && typeof a.id === "string" && describesAcceptanceOrder(a.text)) out.push(`проект ${p.name}: шаг ${a.id} описывает порядок приёмки, он задаётся плагином (canopus_help, ПРИЁМКА): оставь в шаге только проектные команды и критерии`)
+    if (policy.merge_precheck !== "off" && Array.isArray(policy.acceptance))
+      for (const a of policy.acceptance) if (a && typeof a.id === "string" && describesAcceptanceOrder(a.text)) out.push(`проект ${p.name}: шаг ${a.id} описывает порядок приёмки, он задаётся плагином (canopus_help, ПРИЁМКА): оставь в шаге только проектные команды и критерии`)
   }
   // расхождение файла рабочей копии с целевой веткой (задача 029): предупреждение, действуют настройки ветки
   for (const p of projects) {

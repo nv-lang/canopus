@@ -2,6 +2,8 @@
 import os from "node:os"
 import path from "node:path"
 import { claimPluginInstance } from "./instance-kind.ts"
+import { refuseLegacyEnv } from "./legacy-env.ts"
+import { refuseRuntimeEnvironment } from "./runtime-policy.ts"
 
 export type PluginConfigContext = Readonly<{ file: string; root: string; data: string; state: string; cache: string }>
 
@@ -41,6 +43,9 @@ export function pluginConfigContext(): PluginConfigContext {
 
 /** Called by runtime modules before they derive immutable paths. */
 export function freezePluginConfigContext(): PluginConfigContext {
+  // Reject removed inputs before claiming a format marker or creating any instance directory.
+  refuseRuntimeEnvironment()
+  refuseLegacyEnv("плагин canopus")
   const selected = pluginConfigContext()
   claimPluginInstance(selected.root)
   frozen = true
