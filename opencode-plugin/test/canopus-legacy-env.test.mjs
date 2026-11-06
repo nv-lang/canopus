@@ -16,7 +16,7 @@ cell("1d: a foreign variable is not ours", legacy.newNameFor("XDG_DATA_HOME") ==
 // 2. a clean environment passes, a set old name is a refusal with the new name
 cell("2a: no old names — no problems", legacy.legacyEnvProblems({ "CANOPUS_HOME": "/x", "PATH": "p" }).length === 0)
 const problems = legacy.legacyEnvProblems({ ["CREW_" + "HOME"]: "/old", ["OPENCODE_" + "CREW_" + "PROJECTS"]: "[]" })
-cell("2b: every old name is named with the new one", problems.length === 2 && problems.some((p) => p.includes("CREW_" + "HOME") && p.includes("CANOPUS_HOME")) && problems.some((p) => p.includes("OPENCODE_CANOPUS_PROJECTS")), JSON.stringify(problems))
+cell("2b: removed settings point to config while the old name remains identified", problems.length === 2 && problems.some((p) => p.includes("CREW_" + "HOME") && p.includes("CANOPUS_HOME")) && problems.some((p) => p.includes("project_settings") && !p.includes("задай OPENCODE_CANOPUS_PROJECTS")), JSON.stringify(problems))
 let threw = ""
 try {
   legacy.refuseLegacyEnv("проба", { ["CREW_" + "HOME"]: "/old" })
@@ -26,6 +26,11 @@ try {
 cell("2c: refuseLegacyEnv throws, names old and new, no execution", threw.includes("не поддерживаются") && threw.includes("CREW_" + "HOME") && threw.includes("CANOPUS_HOME") && threw.includes("проба"), threw)
 const both = legacy.legacyEnvProblems({ ["CREW_" + "HOME"]: "/old", "CANOPUS_HOME": "/new" })
 cell("2d: old and new set together — still a refusal of the old one, no silent choice", both.length === 1 && both[0].includes("CANOPUS_HOME"), JSON.stringify(both))
+
+const removedHints = legacy.legacyEnvProblems({ ["CREW_" + "HOME"]: "private-fixture-value", ["CREW_" + "SERVER_PORT"]: "1", ["CREW_" + "POLL_MS"]: "1" })
+cell("2e: removed inputs do not recommend dead environment settings or expose values", removedHints.length === 3 && removedHints.every(line => line.includes("--config") && line.includes("политикой кода") && !/→ задай CANOPUS_/.test(line) && !line.includes("private-fixture-value")), JSON.stringify(removedHints))
+const contextHints = legacy.legacyEnvProblems({ ["OPENCODE_" + "CREW_" + "SESSION"]: "ses_fixture", ["CREW_" + "TASK_N"]: "1", ["CREW_" + "REVIEW_N"]: "2" })
+cell("2f: valid session and task protocol retains canonical rename hints", contextHints.some(line => line.includes("задай OPENCODE_CANOPUS_SESSION")) && contextHints.some(line => line.includes("задай CANOPUS_TASK_N")) && contextHints.some(line => line.includes("задай CANOPUS_REVIEW_N")), JSON.stringify(contextHints))
 
 // 3. a call of a tool by the old name gets the new name in the hint, nothing runs
 cell("3a: crew_send -> canopus_send", legacy.renamedToolHint("crew" + "_send") === " — инструмент переименован: canopus_send") // guard-allow(legacy-name): негативная проба старого имени

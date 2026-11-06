@@ -5,7 +5,7 @@ import canopus.config.{layout_with_data_dir}
 
 export fn scenario_family_approvals(settings ServerSettings) Proc Detach Time Net Fs Os -> str {
     mut c = kit_check()
-    ro written = write_file("${settings.data_dir}/inst/config/presets/pool272.json", "{\"roles\":{},\"pools\":{\"mix\":{\"heavy\":[{\"family\":\"opencode\",\"model\":\"fake-model-b\",\"effort\":\"high\"}]}}}")
+    ro written = write_file("${settings.data_dir}/inst/presets/pool272.json", "{\"roles\":{},\"pools\":{\"mix\":{\"heavy\":[{\"family\":\"opencode\",\"model\":\"fake-model-b\",\"effort\":\"high\"}]}}}")
     mut configured = ServerSettings { ...settings }
     configured.layout = layout_with_data_dir("${settings.data_dir}/inst", settings.data_dir, "")
     mut rig = rig_open(configured)

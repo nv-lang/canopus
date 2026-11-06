@@ -1,3 +1,4 @@
+import { pluginConfigContext } from "./config-context.ts"
 import { runtimeValue } from "./runtime-policy.ts"
 // canopus — ПЛАГИН ОКНА (TUI). OpenCode грузит его в каждом окне: tui.ts в папке плагина, папка указана в
 // ~/.config/opencode/cli.json, раздел plugins (сервер грузит index.ts той же папки из opencode.jsonc).
@@ -130,7 +131,7 @@ export default {
         import("node:worker_threads")
           .then(({ Worker }) => {
             if (!worker) {
-              const w = new Worker(new URL("./cmd-worker.ts", import.meta.url))
+              const w = new Worker(new URL("./cmd-worker.ts", import.meta.url), { workerData: { config: pluginConfigContext().file } })
               w.unref?.()
               w.on("message", (m: any) => pending.get(m.id)?.(m))
               const lost = () => {

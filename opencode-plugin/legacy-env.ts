@@ -1,3 +1,4 @@
+import { retiredRuntimeEnvironmentKey } from "./runtime-policy.ts"
 // ОТКАЗ СТАРЫХ ИМЁН ПЕРЕМЕННЫХ ОКРУЖЕНИЯ (задача 284). Переименование CrewHarness → Canopus одномоментное, <!-- guard-allow(legacy-name): карта переименования — назначение файла -->
 // без переходного периода: заданная старая переменная CREW_*/OPENCODE_CREW_* — понятный отказ с новым
 // именем, без исполнения старого вызова, без fallback и без молчаливого выбора пустого нового каталога.
@@ -17,7 +18,9 @@ export function legacyEnvProblems(env: NodeJS.ProcessEnv = process.env): string[
   const out: string[] = []
   for (const key of Object.keys(env)) {
     const fresh = newNameFor(key)
-    if (fresh) out.push(`${key} → задай ${fresh}`)
+    if (fresh === "OPENCODE_CANOPUS_PROJECTS") out.push(`${key} → project_settings в выбранном конфиге Canopus; переменная окружения удалена`)
+    else if (fresh && retiredRuntimeEnvironmentKey(fresh)) out.push(`${key} → ${fresh} больше не является настройкой; выбери --config <file>, технические значения заданы именованной политикой кода`)
+    else if (fresh) out.push(`${key} → задай ${fresh}`)
   }
   return out.sort()
 }

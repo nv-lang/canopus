@@ -70,7 +70,7 @@ fn Hub @routes_path() -> str {
     if d.starts_with("/") || d.starts_with("\\") || d.contains(":") { d } else { "${@workdir}/${d}" }
 }
 
-// The folders of the files of the modes, the strongest first (task 192.12): `routes_dir` of the settings alone when it is set; else `.canopus/modes` of the project, `<home>/config/modes`,
+// The folders of the files of the modes, the strongest first (task 192.12): `routes_dir` of the settings alone when it is set; else `.canopus/modes` of the project, `<home>/modes`,
 // and last `doc/routes` of the working folder (the texts of the product).
 fn Hub @mode_dirs() -> []str {
     if @settings.routes_dir.byte_len() > 0 { return [@routes_path()] }

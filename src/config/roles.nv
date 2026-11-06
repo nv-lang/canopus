@@ -1,7 +1,7 @@
 // roles.nv - the roles of the process: who does what in the work on a task (task 192.12, ADR-0016).
 //
 // A role is a place in the process, not a model. The roles of the product are built in; `roles.json` adds or changes them by the id:
-// `<home>/config/roles.json`, then `.canopus/roles.json` of the project (the project wins). The file is one object, the key is the id of a role:
+// `<home>/roles.json`, then `.canopus/roles.json` of the project (the project wins). The file is one object, the key is the id of a role:
 //   { "dev": { "title": "Исполнитель", "rule": "...", "independent": false } }
 // `independent: true` - the holder must not be the author of the work (the family of the reviewer differs from the family of the session).
 // The names of the stages are those of the stages of the plugin of the owner (`develop`, `develop_accept`, `plan`, `plan_accept`, `spec`, `spec_accept`, `delivery`, `delivery_accept`)

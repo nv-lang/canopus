@@ -235,7 +235,7 @@ export fn config_get(layout ConfigLayout, server_file str, sets []str, key str, 
 /// `work` is the folder of the project when it has no `.canopus` yet. Err when the scope has no place.
 export fn set_target(layout ConfigLayout, scope str, work str) -> Result[str, str] {
     if scope == "user" {
-        if layout.config.byte_len() == 0 { return Err("no root of the instance: give --home <folder> or set CANOPUS_HOME") }
+        if layout.config.byte_len() == 0 { return Err("no root of the instance: select --config <file>") }
         return Ok(layout.config_file)
     }
     ro dir = if layout.project.byte_len() > 0 { layout.project } else if work.byte_len() > 0 { "${work}/.canopus" } else { "" }

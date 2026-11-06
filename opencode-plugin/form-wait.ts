@@ -29,7 +29,7 @@ export const FORM_DEAD_TTL_MS = 24 * 3_600_000
 /** Task 120: the refusal of an answer to a dead dialog (canopus-answer, owner-answer.ts) and the tail of its row in the panel. */
 export const DEAD_WHY = "диалог закрыт (вызов question завершён), вкладку закрыть вручную"
 
-/** Repeats of a lost question (the times can be shortened by CANOPUS_FORM_*_MS, for self-tests), the pause between them, the reminder of the owner, the time a tab must be quiet before the
+/** Repeats of a lost question (the times are named code constants; isolated tests inject explicit policy), the pause between them, the reminder of the owner, the time a tab must be quiet before the
  *  question counts as gone, and the time the windows get to recover after a restart of the service. */
 export const FORM_MAX_REPEATS = 3
 export const FORM_REPEAT_GAP_MS = runtimeValue("FORM_REPEAT_GAP_MS")

@@ -52,7 +52,7 @@ export fn plan_migration(from str, layout ConfigLayout) Fs -> Plan {
     mut steps = []Step.new()
     mut notes = []str.new()
     if layout.legacy || layout.home.byte_len() == 0 {
-        return Plan { from: src, steps, notes, error: "no root of the instance: give --home <folder> or set CANOPUS_HOME (the new layout needs a root)" }
+        return Plan { from: src, steps, notes, error: "no root of the instance: select --config <file> (the new layout needs a root)" }
     }
     if src == layout.data || src == layout.sessions || src == layout.state || src == layout.cache {
         return Plan { from: src, steps, notes, error: "${src} is a folder of the new layout already" }

@@ -1,6 +1,6 @@
 // canopus_hub.nv - the entry point of the hub of the session server (task 099): the engines, the agents and the store, over stdin and
 // stdout. The front (HTTP and WebSocket) starts it; it can also be started by hand to look at the lines it speaks.
-//   canopus-hub [settings.json] [--home <folder>] [--set key=value ...]   (the file may also be named by CANOPUS_SERVER_CONFIG; see src/server/README.md)
+//   canopus-hub [--config <file>]   (the parent of the selected file owns the instance; see src/server/README.md)
 // Build: nova build src/canopus_hub.nv -o target/canopus-hub.exe
 module canopus.canopus_hub
 

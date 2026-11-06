@@ -64,9 +64,14 @@ export function runtimeValue(key: string, alternate?: unknown): any {
   return injected[key] ?? alternate ?? RUNTIME_POLICY[key as keyof typeof RUNTIME_POLICY]
 }
 const RETIRED_APP = ["HOME","SERVER_CONFIG","SERVER_AGENT","SERVER_HUB","PG_CONFIG","STT_DIR","PRESET","TOOLS_DIR","OPENCODE_KEEP_PLUGIN","PREPARATION_SERVICE_REGISTRATION","PREPARATION_MODEL","PREPARATION_VARIANT","PREPARATION_ADAPTER","GIT_LOG"]
-export function refuseRuntimeEnvironment(environment: Record<string, string | undefined> = process.env): void {
-  const names = Object.keys(environment).filter(name => environment[name] && name.startsWith("CANOPUS_") && (
+/** Shared classification for current-input refusal and historical rename diagnostics. */
+export function retiredRuntimeEnvironmentKey(name: string): boolean {
+  return name === "OPENCODE_CANOPUS_PROJECTS" || name.startsWith("CANOPUS_") && (
     name.slice(8) in RUNTIME_POLICY || RETIRED_APP.includes(name.slice(8)) || /^(SERVER_|VOICE_|STT_|PG_)/.test(name.slice(8))
-  ))
+  )
+}
+export function refuseRuntimeEnvironment(environment: Record<string, string | undefined> = process.env): void {
+  if (environment.OPENCODE_CANOPUS_PROJECTS) throw new Error("OPENCODE_CANOPUS_PROJECTS is no longer supported; put project_settings in the selected Canopus config")
+  const names = Object.keys(environment).filter(name => environment[name] && retiredRuntimeEnvironmentKey(name))
   if (names.length) throw new Error(`Canopus runtime environment settings are no longer supported: ${names.join(", ")}; use the selected config file`)
 }

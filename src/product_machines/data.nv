@@ -259,7 +259,7 @@ export fn find_machines_dir(setting str, program str) -> Result[str, str] {
     for dir in candidates {
         if pm_has_machines(dir) { return Ok(dir) }
     }
-    Err("the machines of the product are not found: no dialog.alula.json in ${pm_join(candidates, " or ")}; put the folder machines/product beside the program or name it by the setting machines_dir or CANOPUS_SERVER_MACHINES_DIR")
+    Err("the machines of the product are not found: no dialog.alula.json in ${pm_join(candidates, " or ")}; restore the machines/product folder of the installation")
 }
 
 // ----- the tree of the repository (the tests) -----

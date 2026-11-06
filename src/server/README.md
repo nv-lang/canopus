@@ -594,9 +594,13 @@ On other platforms use the installed `kimi` executable for `program`. The page r
 
 ## Tests
 
+The two production entry files have no test blocks: invoking their `main` would start the services with the user's
+configuration. Exclude only those two files from test discovery; verify both binaries by building them, then run
+`canopus --help`, `canopus config list --config <isolated-config>` and the hub with an isolated configuration and EOF stdin.
+
 ```powershell
 powershell -File src/pg/testdb.ps1                     # the temporary PostgreSQL in Docker, for src/server_pg
-nova test src --jobs 4                                 # all units; --strict-effects too
+nova test src --jobs 4 --skip src/canopus.nv --skip src/canopus_hub.nv  # all test blocks; --strict-effects too
 nova test src/server_live                              # the scenarios over files: about 25 s
 nova test src/server_pg                                # the same over PostgreSQL: about 30 s
 powershell -File src/pg/testdb.ps1 -Stop

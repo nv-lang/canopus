@@ -419,16 +419,18 @@ export fn env_layer() Os -> Layer {
 /// "" when the environment is clean, else the refusal text. A set old variable (`CANOPUS_X` for the new // guard-allow(legacy-name): карта переименования — назначение функции
 /// `CANOPUS_X`) is a clear refusal with the new name: the old value is never read, there is no fallback
 /// and no silent choice of another empty folder (the rename Canopus -> Canopus is one moment). guard-allow(legacy-name): карта переименования — назначение функции
-export fn legacy_env_problem() Os -> str {
-    mut names = []str.new()
-    names.push("CANOPUS_HOME")
-    names.push("CANOPUS_SERVER_CONFIG")
+fn retired_env_names() -> []str {
+    mut names = ["CANOPUS_HOME", "CANOPUS_SERVER_CONFIG", "CANOPUS_SERVER_AGENT", "CANOPUS_SERVER_HUB", "CANOPUS_PG_CONFIG", "CANOPUS_OPENCODE_KEEP_PLUGIN", "CANOPUS_PREPARATION_SERVICE_REGISTRATION", "CANOPUS_PREPARATION_MODEL", "CANOPUS_PREPARATION_VARIANT", "CANOPUS_PREPARATION_ADAPTER", "CANOPUS_GIT_LOG"]
     for k in env_keys() { names.push(k.var) }
+    names
+}
+
+export fn legacy_env_problem() Os -> str {
     mut out = []str.new()
-    for n in names {
+    for n in retired_env_names() {
         ro old = "CREW_${n[8..]}" // guard-allow(legacy-name): вывод старого имени из нового — назначение функции
         match cfg_env(old) {
-            Some(v) => out.push("${old} -> задай ${n}")
+            Some(v) => out.push("${old} -> ${n} is retired; use --config <file>; technical values are named code policy")
             None => ()
         }
     }
@@ -437,10 +439,8 @@ export fn legacy_env_problem() Os -> str {
 
 /// Retired runtime inputs fail by name only; never quote a value or a secret.
 export fn retired_env_problem() Os -> str {
-    mut names = ["CANOPUS_HOME", "CANOPUS_SERVER_CONFIG", "CANOPUS_SERVER_AGENT", "CANOPUS_SERVER_HUB", "CANOPUS_PG_CONFIG", "CANOPUS_OPENCODE_KEEP_PLUGIN", "CANOPUS_PREPARATION_SERVICE_REGISTRATION", "CANOPUS_PREPARATION_MODEL", "CANOPUS_PREPARATION_VARIANT", "CANOPUS_PREPARATION_ADAPTER", "CANOPUS_GIT_LOG"]
-    for k in env_keys() { names.push(k.var) }
     mut found = []str.new()
-    for name in names { if cfg_env(name).is_some() { found.push(name) } }
+    for name in retired_env_names() { if cfg_env(name).is_some() { found.push(name) } }
     if found.len() == 0 { "" } else { "runtime environment settings are no longer supported: ${found.join(", ")}; use --config <file>" }
 }
 

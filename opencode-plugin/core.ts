@@ -1878,16 +1878,8 @@ export function saveProjects(opt: any) {
 }
 /** Проекты для MCP-сервера; заодно ставит их текущими (setProjects). */
 export function loadProjects(): Projects {
-  const env = process.env.OPENCODE_CANOPUS_PROJECTS
-  let opt: any = globalConfig()
-
-  if (env) {
-    try {
-      opt = { ...opt, project_settings: JSON.parse(env), projects: undefined }
-    } catch (e) {
-      log(`OPENCODE_CANOPUS_PROJECTS ignored: ${e}`)
-    }
-  }
+  if (process.env.OPENCODE_CANOPUS_PROJECTS) throw new Error("OPENCODE_CANOPUS_PROJECTS is no longer supported; put project_settings in the selected Canopus config")
+  const opt = globalConfig()
   const projects = parseProjects(opt)
   setProjects(projects, {})
   return projects

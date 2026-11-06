@@ -25,6 +25,16 @@ try {
   mkdirSync(path.join(tmp, "plugin", "data"), { recursive: true })
   writeFileSync(path.join(tmp, "plugin", "data", "projects.json"), JSON.stringify({ projects: { stale: tmp } }))
   assert.deepEqual(core.loadProjects(), [])
+  const priorProjectOverride = process.env.OPENCODE_CANOPUS_PROJECTS
+  try {
+    process.env.OPENCODE_CANOPUS_PROJECTS = "[]"
+    assert.throws(() => core.loadProjects(), /OPENCODE_CANOPUS_PROJECTS.*project_settings/)
+    const { refuseRuntimeEnvironment } = await import("../runtime-policy.ts")
+    assert.throws(() => refuseRuntimeEnvironment({ OPENCODE_CANOPUS_PROJECTS: "not-printed-fixture" }), error => /project_settings/.test(error.message) && !error.message.includes("not-printed-fixture"))
+  } finally {
+    if (priorProjectOverride === undefined) delete process.env.OPENCODE_CANOPUS_PROJECTS
+    else process.env.OPENCODE_CANOPUS_PROJECTS = priorProjectOverride
+  }
   const repo = path.join(tmp, "project"), tree = path.join(tmp, "unrelated-tree-name")
   mkdirSync(path.join(repo, ".canopus", "plugin"), { recursive: true })
   git(repo, "init", "-q", "-b", "main")
