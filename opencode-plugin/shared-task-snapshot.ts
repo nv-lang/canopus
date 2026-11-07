@@ -8,7 +8,7 @@ type SnapshotTask={n:number;directory:string;branch?:string;worktree?:string;fol
 const git=(dir:string,args:string[],input?:string|Buffer)=>execFileSync("git",["-C",dir,...args],{encoding:"utf8",input,windowsHide:true,stdio:["pipe","pipe","pipe"]}).trim()
 const canonical=(p:string)=>fs.existsSync(p)?fs.realpathSync.native(p):path.resolve(p)
 const maybe=(dir:string,args:string[])=>{try{return git(dir,args)}catch{return undefined}}
-export function snapshotTaskDocuments(file:string,t:SnapshotTask,options:{stage?:boolean;freeze?:boolean;candidate?:string;target?:string}={}) {
+export function snapshotTaskDocuments(file:string,t:SnapshotTask,options:{stage?:boolean;freeze?:boolean;candidate?:string;target?:string;withdraw?:string}={}) {
  if(!t.branch||(!t.folder&&t.kind!=="application"))return {files:0}
  const common=maybe(t.directory,["rev-parse","--git-common-dir"])
  if(!common)return {files:0}
@@ -23,6 +23,8 @@ export function snapshotTaskDocuments(file:string,t:SnapshotTask,options:{stage?
  if(git(main,["branch","--show-current"])!==target)throw Error("The primary copy must stay on its accepted branch before preparing task documents")
  const folder=path.dirname(path.dirname(file)),prefix=t.folder??path.relative(main,folder).replace(/\\/g,"/")
  if(!prefix||path.isAbsolute(prefix)||prefix.split("/").includes(".."))return {files:0}
+ if(options.withdraw&&!maybe(main,["show",t.branch+":"+prefix+"/task/message.md"])?.includes(options.withdraw.trim()))return {files:0}
+ const message=options.withdraw?`${String(t.n).padStart(3,"0")} Take back the addition to message.md`:`${String(t.n).padStart(3,"0")} Snapshot shared task documents`
  const bodies:Record<string,Buffer>={}
  const walk=(dir:string)=>{for(const e of fs.readdirSync(dir,{withFileTypes:true})){
   if(e.name.startsWith(".")||e.name==="imported-sources"||e.name==="legacy"||e.name.endsWith(".tmp"))continue
@@ -61,10 +63,10 @@ export function snapshotTaskDocuments(file:string,t:SnapshotTask,options:{stage?
    }
    for(const n of names){const dest=path.join(t.worktree,n);fs.mkdirSync(path.dirname(dest),{recursive:true});fs.writeFileSync(dest,bodies[n])}
    git(t.worktree,["add","--",...names])
-   git(t.worktree,["commit","-s","--only","-m",`${String(t.n).padStart(3,"0")} Snapshot shared task documents`,"--",...names])
+   git(t.worktree,["commit","-s","--only","-m",message,"--",...names])
    commit=git(t.worktree,["rev-parse","HEAD"])
   }else{
-   const result=commitFiles(main,t.branch,t.branch,bodies,`${String(t.n).padStart(3,"0")} Snapshot shared task documents`)
+   const result=commitFiles(main,t.branch,t.branch,bodies,message)
    if(!result.ok)throw Error(result.error)
    commit=result.commit
   }

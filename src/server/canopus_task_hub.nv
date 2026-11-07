@@ -207,19 +207,12 @@ fn Hub mut @ct_ext_undo(trace str, id int) Proc Detach Time -> () {
             }
         }
     }
-    // the addition is in a commit already: the file is committed again without it
-    mut dir = rec.file
-    mut name = rec.file
-    ro cut = last_slash(rec.file)
-    if cut > 0 {
-        dir = rec.file[..cut]
-        name = rec.file[cut + 1..]
-    }
-    ro head = git_run(dir, ["show", "HEAD:./${name}"])
-    if head.ok && head.text.contains(rec.added.trim_ascii()) {
-        ro staged = git_run(dir, ["add", "--", name])
-        ro done = git_run(dir, ["commit", "-s", "-m", "${rec.task} Take back the addition to message.md", "-o", "--", name])
-        if !staged.ok || !done.ok { @ct_note(at, "▸ дополнение убрано из файла, но откатывающий коммит не сделан: ${cut_text(done.text, 200)}") }
+    // Shared live documents are outside the executor worktree. Freeze the withdrawal there
+    // only when the branch already contained the addition; never commit in the owner's main.
+    ro owner = @cs_find_number(rec.task)
+    if owner >= 0 {
+        ro done = @shared_task_snapshot_withdraw(owner, false, rec.added)
+        if !done.ok { @ct_note(at, "▸ дополнение убрано из файла, но откатывающий коммит не сделан: ${cut_text(done.text, 200)}") }
     }
     mut o = JsonObject.new()
     ji(o, "id", id)

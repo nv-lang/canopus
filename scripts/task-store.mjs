@@ -44,7 +44,7 @@ else if(action === "snapshot"){
  const hold=taskHold(t.project,t.n)
  if(hold&&(executionHeld(hold)||hold.gate===true||hold.scope==="gate"))throw Error("HOLD blocks task publication")
  const {snapshotTaskDocuments}=await import("../opencode-plugin/shared-task-snapshot.ts")
- console.log(JSON.stringify(snapshotTaskDocuments(tasks.taskFile(project,t.n),t,{stage:input.stage!==false})))
+ console.log(JSON.stringify(snapshotTaskDocuments(tasks.taskFile(project,t.n),t,{stage:input.stage!==false,withdraw:typeof input.withdraw==="string"?input.withdraw:undefined})))
 }
 else if (action === "reserve") {
   // Reserves only an empty numbered directory; it is NOT a task and grants no execution authority.

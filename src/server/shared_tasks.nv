@@ -49,11 +49,14 @@ fn Hub @shared_task_restore(mut s Dialog) Proc -> Dialog {
     s
 }
 
-fn Hub @shared_task_snapshot(at int, stage bool) Proc -> ShellOut {
+fn Hub @shared_task_snapshot(at int, stage bool) Proc -> ShellOut => @shared_task_snapshot_withdraw(at, stage, "")
+
+fn Hub @shared_task_snapshot_withdraw(at int, stage bool, added str) Proc -> ShellOut {
     ro s = @sessions[at]
     mut request = JsonObject.new()
     js(request, "session", s.id)
     js(request, "n", s.rt.number)
     jput(request, "stage", JsonValue.bool(stage))
+    if added.byte_len() > 0 { js(request, "withdraw", added) }
     shared_task_call("snapshot", @route_repo_dir(s.id), JsonValue.object(request).to_str(), @task_store_home())
 }

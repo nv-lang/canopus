@@ -88,11 +88,11 @@ export fn scenario_route_auto_extend(settings ServerSettings) Proc Detach Time N
     c.expect(ek_say(rig, "s-e1", "t3", ek_item("extend", "Закоммиченное требование", 1, "high")), "a second addition")
     c.expect(rk_text(file).contains("сделать: Закоммиченное требование"), "it is in message.md")
     ro tree = ck_tree(rig, 1, p1)
-    c.expect(rk_git(tree, ["add", "--", file]) && rk_git(tree, ["commit", "-m", "task: the addition"]), "the agent commits the file")
+    c.expect(rig.hub.shared_task_snapshot(rig.hub.find(p1), false).ok, "the shared document is committed as a branch snapshot")
     rig.page(1, "route_ext_undo", "s-e1", "{\"id\":2}")
     rig.run(1500)
     c.expect(!rk_text(file).contains("Закоммиченное требование"), "the section is out of the file")
-    c.expect(git_run(tree, ["status", "--porcelain", "--", file]).text == "", "and the file is committed without it: nothing is left to commit")
+    c.expect(git_run(tree, ["status", "--porcelain"]).text == "", "and the file is committed without it: nothing is left to commit")
     c.expect(git_run(tree, ["log", "-1", "--format=%s"]).text.contains("Take back the addition"), "by a commit that takes it back: ${git_run(tree, ["log", "-1", "--format=%s"]).text}")
     c.expect(ck_idle(rig, p1, 60000), "the agent of the task is free again")
 
