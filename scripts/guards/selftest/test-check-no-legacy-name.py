@@ -82,6 +82,10 @@ def main():
     pr.probe("красная", "пометка без причины — красный",
              red({"s/x.ts": "const h = '%s' // guard-allow(legacy-name):\n" % OLD_ENV},
                  "пометка без причины"))
+    pr.probe("иной-синтаксис", "бренд в верхнем регистре тоже распознаётся",
+             red({"s/x.ts": "const brand = '%s'\n" % OLD_KEBAB.upper()}, "бренд-имя"))
+    pr.probe("мишень", "пустой репозиторий — мишень потеряна",
+             lambda: stlib.expect(check(fresh({})), 1, "FAIL: мишень потеряна"))
     return pr.done()
 
 
