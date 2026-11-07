@@ -172,7 +172,7 @@ test('выбор папки: поиск фильтрует каталоги те
   const result = s.ui.pickFolder('C:/work');
   await settle();
   const search = s.q('.picker-search');
-  await s.type(search, 'crew');
+  await s.type(search, 'canopus');
   assert.deepEqual(s.top().querySelectorAll('.picker-list .picker-item').map(s.textOf), ['canopus']);
   await s.click(s.pickItem('C:/work/canopus'));
   await s.click(s.q('.primary'));

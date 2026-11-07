@@ -59,18 +59,18 @@ test('сессия из session_created несёт parent; route_state — до�
 });
 
 test('карточка: способ по умолчанию — отдельная задача; пометка агента (дочерняя, эпик, дополнить) выбрана заранее, если такая задача открыта', () => {
-  const crew = parseCanopusTask({ proposals: [], targets: [{ number: 232, title: 'Привет', session: 's', epic: false }, { number: 100, title: 'Эпик', session: 'e', epic: true }, { number: 0 }] });
+  const canopus = parseCanopusTask({ proposals: [], targets: [{ number: 232, title: 'Привет', session: 's', epic: false }, { number: 100, title: 'Эпик', session: 'e', epic: true }, { number: 0 }] });
   assert.equal(canopus.targets.length, 2);
   const base = { kind: 'new', epic: 0, extends: 0, state: 'open', title: 'x' };
-  assert.equal(defaultWay(base, crew), 'new:0');
-  assert.equal(defaultWay({ ...base, kind: 'child', epic: 100 }, crew), 'child:100');
-  assert.equal(defaultWay({ ...base, kind: 'epic' }, crew), 'epic:0');
-  assert.equal(defaultWay({ ...base, kind: 'extend', extends: 232 }, crew), 'extend:232');
+  assert.equal(defaultWay(base, canopus), 'new:0');
+  assert.equal(defaultWay({ ...base, kind: 'child', epic: 100 }, canopus), 'child:100');
+  assert.equal(defaultWay({ ...base, kind: 'epic' }, canopus), 'epic:0');
+  assert.equal(defaultWay({ ...base, kind: 'extend', extends: 232 }, canopus), 'extend:232');
   // пометка про задачу, которой нет (закрыта, сессия удалена): такого способа не предлагают
-  assert.equal(defaultWay({ ...base, kind: 'child', epic: 7 }, crew), 'new:0');
-  assert.equal(defaultWay({ ...base, kind: 'extend', extends: 7 }, crew), 'new:0');
+  assert.equal(defaultWay({ ...base, kind: 'child', epic: 7 }, canopus), 'new:0');
+  assert.equal(defaultWay({ ...base, kind: 'extend', extends: 7 }, canopus), 'new:0');
   assert.equal(defaultWay({ ...base, kind: 'child', epic: 7 }), 'new:0');
-  const values = wayOptions(base, crew).map((o) => o.value);
+  const values = wayOptions(base, canopus).map((o) => o.value);
   assert.deepEqual(values, ['new:0', 'child:232', 'child:100', 'epic:0', 'extend:232', 'extend:100']);
   // нет открытых задач — только «Отдельная задача» и «Эпик»
   assert.deepEqual(wayOptions(base, parseCanopusTask({})).map((o) => o.value), ['new:0', 'epic:0']);

@@ -10,7 +10,7 @@ const prop = (extra = {}) => ({ id: 1, kind: 'new', title: 'Кнопка вых�
 const wire = (extra = {}) => ({ proposals: [prop(), prop({ id: 2, kind: 'extend', extends: 3, title: 'Тест' }), prop({ id: 3, listed: false, title: 'Одиночная' })], active: 2, max_active: 3, confirm_word: 'задача', over_word: 'сверх', candidates: 1, ...extra });
 
 test('parseCanopusTask: поля хаба ложатся в модель, пустой вход даёт пустое состояние, мусор отбрасывается', () => {
-  const crew = parseCanopusTask(wire());
+  const canopus = parseCanopusTask(wire());
   assert.equal(canopus.proposals.length, 3);
   assert.equal(canopus.proposals[1].extends, 3);
   assert.equal(canopus.active, 2);
@@ -22,23 +22,23 @@ test('parseCanopusTask: поля хаба ложатся в модель, пус
   assert.equal(parseCanopusTask({ proposals: [5, 'x', prop({ state: 'зря' })] }).proposals[0].state, 'open');
 });
 
-test('route_state несёт crew и в интерактивном режиме, и в режиме с шагами', () => {
+test('route_state несёт canopus и в интерактивном режиме, и в режиме с шагами', () => {
   assert.equal(parseRouteState({ route: 'interactive', ...wire() }).canopus.proposals.length, 3);
   assert.equal(parseRouteState({ route: 'fast', steps: [], ...wire() }).canopus.active, 2);
-  assert.deepEqual(parseRouteState({ route: 'interactive' }).crew, EMPTY_CREW);
+  assert.deepEqual(parseRouteState({ route: 'interactive' }).canopus, EMPTY_CREW);
 });
 
 test('список: номера идут по порядку списка, одиночная карточка — последняя не из списка', () => {
-  const crew = parseCanopusTask(wire());
-  const items = listedItems(crew);
+  const canopus = parseCanopusTask(wire());
+  const items = listedItems(canopus);
   assert.deepEqual(items.map((p) => p.number), [1, 2]);
-  assert.equal(singleCard(crew).title, 'Одиночная');
+  assert.equal(singleCard(canopus).title, 'Одиночная');
   assert.equal(singleCard(parseCanopusTask({ proposals: [prop()] })), null);
 });
 
 test('строки и кнопки: новая — «В работу», дополняет — «Дополнить K», пересечение и лимит — свои кнопки', () => {
-  const crew = parseCanopusTask(wire());
-  const [a, b] = listedItems(crew);
+  const canopus = parseCanopusTask(wire());
+  const [a, b] = listedItems(canopus);
   assert.equal(rowText(a, 1), '1. Кнопка выхода — отдельная задача — затронет: src/web/view.js');
   assert.match(rowText(b, 2), /дополняет задачу 3/);
   assert.deepEqual(rowActions(a).map((x) => x.action), ['start', 'discuss', 'forget']);
@@ -46,21 +46,21 @@ test('строки и кнопки: новая — «В работу», допо
   assert.equal(rowActions(b)[0].label, 'Дополнить 3');
   const over = { ...a, state: 'overlap', withN: 1, withFiles: ['src/web/view.js'] };
   assert.deepEqual(rowActions(over).map((x) => x.action), ['wait', 'parallel', 'forget']);
-  assert.match(problemText(over, crew), /пересекается с задачей 1 по: src\/web\/view\.js/);
-  assert.match(problemText({ ...over, unknown: true, withFiles: [] }, crew), /неизвестны/);
+  assert.match(problemText(over, canopus), /пересекается с задачей 1 по: src\/web\/view\.js/);
+  assert.match(problemText({ ...over, unknown: true, withFiles: [] }, canopus), /неизвестны/);
   const limit = { ...a, state: 'limit' };
   assert.deepEqual(rowActions(limit).map((x) => x.action), ['over', 'queue', 'forget']);
-  assert.match(problemText(limit, crew), /лимит 3.*«сверх»/);
+  assert.match(problemText(limit, canopus), /лимит 3.*«сверх»/);
   assert.deepEqual(rowActions({ ...a, choice: 'discuss' }).map((x) => x.action), ['start', 'forget']);
 });
 
 test('слова и счётчик: «в работе N из лимита M», без лимита — «в работе N», подсказка кодового слова по состоянию', () => {
-  const crew = parseCanopusTask(wire());
-  assert.equal(activeText(crew), 'в работе 2 из лимита 3');
-  assert.equal(activeText({ ...crew, maxActive: 0 }), 'в работе 2');
-  assert.match(wordHint({ state: 'open' }, crew), /со словом «задача»/);
-  assert.match(wordHint({ state: 'limit' }, crew), /«сверх»/);
-  assert.match(wordHint({ state: 'overlap' }, crew), /подождать/);
+  const canopus = parseCanopusTask(wire());
+  assert.equal(activeText(canopus), 'в работе 2 из лимита 3');
+  assert.equal(activeText({ ...canopus, maxActive: 0 }), 'в работе 2');
+  assert.match(wordHint({ state: 'open' }, canopus), /со словом «задача»/);
+  assert.match(wordHint({ state: 'limit' }, canopus), /«сверх»/);
+  assert.match(wordHint({ state: 'overlap' }, canopus), /подождать/);
 });
 
 test('сигналы: кнопка карточки, распознавание', () => {
@@ -146,17 +146,17 @@ test('таблица: без открытых задач «Способ» — т
 });
 
 test('сводка и план таблицы: счёт по решениям, способ и агент только у «В работу»; строки с пересечением в таблицу не входят', () => {
-  const crew = parseCanopusTask({ proposals: [prop({ id: 1 }), prop({ id: 2 }), prop({ id: 3 }), prop({ id: 4, state: 'overlap', with_n: 1 })], targets: [{ number: 7, title: 'Т', session: 's', epic: false }] });
-  const rows = tableRows(crew);
+  const canopus = parseCanopusTask({ proposals: [prop({ id: 1 }), prop({ id: 2 }), prop({ id: 3 }), prop({ id: 4, state: 'overlap', with_n: 1 })], targets: [{ number: 7, title: 'Т', session: 's', epic: false }] });
+  const rows = tableRows(canopus);
   assert.deepEqual(rows.map((p) => p.id), [1, 2, 3]);
   const choices = new Map([[1, 'work'], [3, 'forget']]);
   const counts = applyCounts(rows, choices);
   assert.deepEqual(counts, { work: 1, discuss: 1, forget: 1 });
   assert.equal(applyLabel(counts), 'Применить: 1 в работу · 1 обсудить · 1 забыть');
-  assert.deepEqual(applyPlan(rows, choices, new Map([[1, 'epic:0']]), new Map([[1, 'codex']]), crew), [
+  assert.deepEqual(applyPlan(rows, choices, new Map([[1, 'epic:0']]), new Map([[1, 'codex']]), canopus), [
     { id: 1, action: 'work', mode: 'epic', target: 0, agent: 'codex' }, { id: 2, action: 'discuss' }, { id: 3, action: 'forget' },
   ]);
-  const over = problemRows(crew);
+  const over = problemRows(canopus);
   assert.equal(over.length, 1);
 });
 
@@ -198,8 +198,8 @@ function mountSingle(extra = {}, deps = {}) {
   const doc = createFakeDocument();
   const log = [];
   const ui = createCanopusTaskUi(doc, { onCanopusProp: (...a) => log.push(['prop', ...a]), onCanopusRecognize() {}, onCanopusApply() {} }, deps);
-  const crew = { proposals: [prop({ id: 7, listed: false, title: 'Отладчик', kind: 'epic', mode: 'full', reason: 'две независимые части', children: [{ title: 'Фронт', summary: 'страница', touches: ['src/web'], mode: 'fast' }, { title: 'Бек', summary: 'сервер', touches: [], mode: '' }], ...extra })], active: 0, max_active: 3, confirm_word: 'задача', over_word: 'сверх', targets: [{ number: 5, title: 'Своя', session: 's9', epic: false }] };
-  const session = { id: 's1', agent: 'codex', routeState: parseRouteState({ route: 'interactive', ...crew }) };
+  const canopus = { proposals: [prop({ id: 7, listed: false, title: 'Отладчик', kind: 'epic', mode: 'full', reason: 'две независимые части', children: [{ title: 'Фронт', summary: 'страница', touches: ['src/web'], mode: 'fast' }, { title: 'Бек', summary: 'сервер', touches: [], mode: '' }], ...extra })], active: 0, max_active: 3, confirm_word: 'задача', over_word: 'сверх', targets: [{ number: 5, title: 'Своя', session: 's9', epic: false }] };
+  const session = { id: 's1', agent: 'codex', routeState: parseRouteState({ route: 'interactive', ...canopus }) };
   ui.render(session);
   return { ui, log, session, el: ui.el };
 }
@@ -272,7 +272,7 @@ test('карточка: владелец меняет режим выполне�
 });
 
 test('parseCanopusTask: режим, причина и дочерние эпика; неизвестный режим и дочерняя без названия отбрасываются', () => {
-  const crew = parseCanopusTask({ proposals: [prop({ mode: 'turbo', reason: 'r', children: [{ title: '' }, { title: 'А', mode: 'fast' }, 5] })] });
+  const canopus = parseCanopusTask({ proposals: [prop({ mode: 'turbo', reason: 'r', children: [{ title: '' }, { title: 'А', mode: 'fast' }, 5] })] });
   assert.equal(canopus.proposals[0].mode, '');
   assert.equal(canopus.proposals[0].reason, 'r');
   assert.deepEqual(canopus.proposals[0].children, [{ title: 'А', summary: '', touches: [], mode: 'fast' }]);

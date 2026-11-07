@@ -10,7 +10,7 @@ import {
 } from './canopus-task.js';
 
 // подписи переключателей: ключи литералами (проверка strings.test.mjs ищет их в исходниках)
-const choiceLabel = (c, preparation = false) => (c === 'work' ? (preparation ? 'Подготовить задание' : t('crewtask.choice_work')) : c === 'forget' ? t('crewtask.choice_forget') : t('crewtask.choice_discuss'));
+const choiceLabel = (c, preparation = false) => (c === 'work' ? (preparation ? 'Подготовить задание' : t('canopustask.choice_work')) : c === 'forget' ? t('canopustask.choice_forget') : t('canopustask.choice_discuss'));
 const actionLabel = (a, session) => session.route === 'planning' && ['start', 'extend', 'wait', 'parallel', 'over', 'queue'].includes(a.action) ? 'Сохранить постановку' : a.label;
 
 /**
@@ -34,21 +34,21 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
   };
 
   // способ и семья, выбранные в строке, уходят вместе с кнопкой
-  function chosen(session, crew, p) {
+  function chosen(session, canopus, p) {
     const key = `${session.id}:${p.id}`;
-    return { key, way: ways.get(key) || defaultWay(p, crew), agent: agents.get(key) || '' };
+    return { key, way: ways.get(key) || defaultWay(p, canopus), agent: agents.get(key) || '' };
   }
 
-  function wayControls(session, crew, p) {
+  function wayControls(session, canopus, p) {
     if (p.state !== 'open') return false;
-    const { key, way, agent } = chosen(session, crew, p);
-    const select = h(doc, 'select', { class: 'canopus-way', 'aria-label': t('crewtask.way_label') },
-      ...wayOptions(p, crew).map((o) => h(doc, 'option', { value: o.value, text: o.label, selected: o.value === way })));
+    const { key, way, agent } = chosen(session, canopus, p);
+    const select = h(doc, 'select', { class: 'canopus-way', 'aria-label': t('canopustask.way_label') },
+      ...wayOptions(p, canopus).map((o) => h(doc, 'option', { value: o.value, text: o.label, selected: o.value === way })));
     select.value = way;
     select.addEventListener('change', () => { ways.set(key, select.value); sig = ''; render(current); });
     const families = agentList();
-    const family = families.length > 1 ? h(doc, 'select', { class: 'canopus-agent', 'aria-label': t('crewtask.agent_label'), title: t('crewtask.agent_label') },
-      h(doc, 'option', { value: '', text: t('crewtask.agent_same'), selected: agent === '' }),
+    const family = families.length > 1 ? h(doc, 'select', { class: 'canopus-agent', 'aria-label': t('canopustask.agent_label'), title: t('canopustask.agent_label') },
+      h(doc, 'option', { value: '', text: t('canopustask.agent_same'), selected: agent === '' }),
       ...families.map((a) => h(doc, 'option', { value: a, text: a, selected: a === agent }))) : false;
     if (family) {
       family.value = agent;
@@ -57,8 +57,8 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
     return h(doc, 'span', { class: 'canopus-way-row' }, select, family);
   }
 
-  function press(session, crew, p, action) {
-    const { way, agent } = chosen(session, crew, p);
+  function press(session, canopus, p, action) {
+    const { way, agent } = chosen(session, canopus, p);
     const { mode, target } = parseWay(way);
     const work = action === 'start' || action === 'extend';
     if (work) {
@@ -70,7 +70,7 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
   }
 
   // Таблица кандидатов: одна кнопка внизу применяет решения по всем строкам.
-  function tableCard(session, crew, rows, problems) {
+  function tableCard(session, canopus, rows, problems) {
     const choiceOf = (p) => choices.get(`${session.id}:${p.id}`) || DEFAULT_CHOICE;
     const local = new Map(rows.map((p) => [p.id, choiceOf(p)]));
     const body = rows.map((p) => {
@@ -87,23 +87,23 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
         h(doc, 'td', { class: 'canopus-summary muted', title: p.summary, text: p.summary }),
         h(doc, 'td', { class: 'canopus-touches muted', text: p.touches.join(', ') }),
         h(doc, 'td', { class: 'canopus-choices' }, ...radios),
-        h(doc, 'td', { class: 'canopus-way-cell' }, choiceOf(p) === 'work' ? wayControls(session, crew, p) : false));
+        h(doc, 'td', { class: 'canopus-way-cell' }, choiceOf(p) === 'work' ? wayControls(session, canopus, p) : false));
     });
     const counts = applyCounts(rows, local);
     const apply = button(session.route === 'planning' ? 'Применить без запуска исполнения' : applyLabel(counts), 'primary canopus-apply', () => {
-      handlers.onCanopusApply(session.id, applyPlan(rows, local, ways_for(session), agents_for(session), crew));
+      handlers.onCanopusApply(session.id, applyPlan(rows, local, ways_for(session), agents_for(session), canopus));
     });
     const table = rows.length === 0 ? false : h(doc, 'table', { class: 'canopus-table' },
       h(doc, 'thead', {}, h(doc, 'tr', {},
-        h(doc, 'th', { text: t('crewtask.col_no') }), h(doc, 'th', { text: t('crewtask.col_title') }), h(doc, 'th', { text: t('crewtask.col_summary') }),
-        h(doc, 'th', { text: t('crewtask.col_touches') }), h(doc, 'th', { text: t('crewtask.col_choice') }), h(doc, 'th', { text: t('crewtask.col_way') }))),
+        h(doc, 'th', { text: t('canopustask.col_no') }), h(doc, 'th', { text: t('canopustask.col_title') }), h(doc, 'th', { text: t('canopustask.col_summary') }),
+        h(doc, 'th', { text: t('canopustask.col_touches') }), h(doc, 'th', { text: t('canopustask.col_choice') }), h(doc, 'th', { text: t('canopustask.col_way') }))),
       h(doc, 'tbody', {}, ...body));
     const problemList = problems.length === 0 ? false : h(doc, 'ul', { class: 'canopus-rows' }, ...problems.map((p) => h(doc, 'li', { class: 'canopus-row', 'data-state': p.state },
       h(doc, 'span', { class: 'canopus-row-text', text: rowText(p, p.number) }),
-      h(doc, 'span', { class: 'canopus-row-problem', text: problemText(p, crew) }),
-      h(doc, 'span', { class: 'route-actions' }, ...rowActions(p, '').map((a) => button(actionLabel(a, session), a.primary ? 'primary' : '', () => press(session, crew, p, a.action)))))));
+      h(doc, 'span', { class: 'canopus-row-problem', text: problemText(p, canopus) }),
+      h(doc, 'span', { class: 'route-actions' }, ...rowActions(p, '').map((a) => button(actionLabel(a, session), a.primary ? 'primary' : '', () => press(session, canopus, p, a.action)))))));
     return h(doc, 'section', { class: 'route-card canopus-list', 'data-card': 'canopus-list' },
-      h(doc, 'strong', { class: 'route-card-title', text: t('crewtask.list_title') }),
+      h(doc, 'strong', { class: 'route-card-title', text: t('canopustask.list_title') }),
       table,
       problemList,
       rows.length > 0 ? h(doc, 'div', { class: 'canopus-apply-row' }, apply) : false);
@@ -127,40 +127,40 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
   }
 
   // Одиночная карточка: что предложил агент, три выбора с подписями (как оформить, кто делает, режим выполнения), части эпика, кнопки «В работу» и «Только обсуждение»
-  function singleCardEl(session, crew, p) {
-    const problem = problemText(p, crew);
-    const { key, way, agent } = chosen(session, crew, p);
+  function singleCardEl(session, canopus, p) {
+    const problem = problemText(p, canopus);
+    const { key, way, agent } = chosen(session, canopus, p);
     const open = p.state === 'open';
     let controls = false;
     if (open) {
       const rerender = () => { sig = ''; render(current); };
       const wayHintEl = h(doc, 'small', { class: 'canopus-field-hint muted', text: wayHint(way) });
-      const waySelect = h(doc, 'select', { class: 'canopus-way', 'aria-label': t('crewtask.way_label') },
-        ...wayOptions(p, crew).map((o) => h(doc, 'option', { value: o.value, text: o.label, selected: o.value === way })));
+      const waySelect = h(doc, 'select', { class: 'canopus-way', 'aria-label': t('canopustask.way_label') },
+        ...wayOptions(p, canopus).map((o) => h(doc, 'option', { value: o.value, text: o.label, selected: o.value === way })));
       waySelect.value = way;
       waySelect.addEventListener('change', () => { ways.set(key, waySelect.value); rerender(); });
       const families = agentList();
       let who = false;
       if (families.length > 1) {
-        const sameLabel = session.agent ? t('crewtask.agent_same_named', { name: session.agent }) : t('crewtask.agent_same');
-        const sel = h(doc, 'select', { class: 'canopus-agent', 'aria-label': t('crewtask.agent_label'), title: t('crewtask.agent_label') },
+        const sameLabel = session.agent ? t('canopustask.agent_same_named', { name: session.agent }) : t('canopustask.agent_same');
+        const sel = h(doc, 'select', { class: 'canopus-agent', 'aria-label': t('canopustask.agent_label'), title: t('canopustask.agent_label') },
           h(doc, 'option', { value: '', text: sameLabel, selected: agent === '' }),
           ...families.map((a) => h(doc, 'option', { value: a, text: a, selected: a === agent })));
         sel.value = agent;
         sel.addEventListener('change', () => { agents.set(key, sel.value); });
-        who = field(t('crewtask.who_label'), sel, h(doc, 'small', { class: 'canopus-field-hint muted', text: t('crewtask.who_hint') }));
+        who = field(t('canopustask.who_label'), sel, h(doc, 'small', { class: 'canopus-field-hint muted', text: t('canopustask.who_hint') }));
       }
       const run = runs.get(key) || defaultRun(p);
       const runList = runOptions();
       const runHint = h(doc, 'small', { class: 'canopus-field-hint muted', text: (runList.find((o) => o.value === run) || runList[0]).hint });
-      const runSelect = h(doc, 'select', { class: 'canopus-run', 'aria-label': t('crewtask.run_label') },
+      const runSelect = h(doc, 'select', { class: 'canopus-run', 'aria-label': t('canopustask.run_label') },
         ...runList.map((o) => h(doc, 'option', { value: o.value, text: o.label, selected: o.value === run })));
       runSelect.value = run;
       runSelect.addEventListener('change', () => { runs.set(key, runSelect.value); rerender(); });
       const isEpic = parseWay(way).mode === 'epic' && p.children.length > 0;
       const off = kidsOff.get(key) || new Set();
       const kids = !isEpic ? false : h(doc, 'div', { class: 'canopus-children' },
-        h(doc, 'strong', { class: 'canopus-children-title', text: t('crewtask.children_title') }),
+        h(doc, 'strong', { class: 'canopus-children-title', text: t('canopustask.children_title') }),
         h(doc, 'ul', { class: 'canopus-children-list' }, ...p.children.map((c, i) => {
           const box = h(doc, 'input', { type: 'checkbox', 'aria-label': c.title });
           box.checked = !off.has(i);
@@ -174,25 +174,25 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
           return h(doc, 'li', { class: 'canopus-child', 'data-index': String(i) },
             h(doc, 'label', {}, box, h(doc, 'span', { class: 'canopus-child-title', text: c.title })),
             c.summary && c.summary !== c.title ? h(doc, 'small', { class: 'canopus-field-hint muted', text: c.summary }) : false,
-            runName ? h(doc, 'small', { class: 'canopus-field-hint muted', text: t('crewtask.proposes_run', { run: runName }) }) : false);
+            runName ? h(doc, 'small', { class: 'canopus-field-hint muted', text: t('canopustask.proposes_run', { run: runName }) }) : false);
         })));
       controls = h(doc, 'div', { class: 'canopus-controls' },
-        field(t('crewtask.how_label'), waySelect, wayHintEl),
+        field(t('canopustask.how_label'), waySelect, wayHintEl),
         who,
-        field(t('crewtask.run_label'), runSelect, runHint),
+        field(t('canopustask.run_label'), runSelect, runHint),
         kids);
     }
-    const startTip = wordHint(p, crew);
+    const startTip = wordHint(p, canopus);
     return h(doc, 'section', { class: 'route-card canopus-single', 'data-card': 'canopus-single', 'data-state': p.state },
-      h(doc, 'strong', { class: 'route-card-title', text: t('crewtask.single_title', { title: p.title }) }),
+      h(doc, 'strong', { class: 'route-card-title', text: t('canopustask.single_title', { title: p.title }) }),
       h(doc, 'span', { class: 'canopus-proposes', text: proposesText(p) }),
       p.summary ? h(doc, 'span', { class: 'route-card-text muted', text: p.summary }) : false,
       controls,
       problem ? h(doc, 'span', { class: 'canopus-row-problem', text: problem }) : false,
       h(doc, 'div', { class: 'route-actions' },
-        ...rowActions(p, chosen(session, crew, p).way).filter((a) => a.action !== 'discuss').map((a) => {
-          const b = button(a.action === 'forget' ? t('crewtask.act_not_task') : actionLabel(a, session), a.primary ? 'primary' : '', () => press(session, crew, p, a.action === 'forget' ? 'dismiss' : a.action));
-          if (a.action === 'forget') b.setAttribute('title', t('crewtask.act_not_task_title'));
+        ...rowActions(p, chosen(session, canopus, p).way).filter((a) => a.action !== 'discuss').map((a) => {
+          const b = button(a.action === 'forget' ? t('canopustask.act_not_task') : actionLabel(a, session), a.primary ? 'primary' : '', () => press(session, canopus, p, a.action === 'forget' ? 'dismiss' : a.action));
+          if (a.action === 'forget') b.setAttribute('title', t('canopustask.act_not_task_title'));
           else if (a.primary) b.setAttribute('title', startTip);
           return b;
         })),
@@ -203,32 +203,32 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
   let current = null;
   function render(session) {
     current = session;
-    const crew = (session && session.routeState && session.routeState.crew) || EMPTY_CREW;
-    const rows = tableRows(crew);
-    const problems = problemRows(crew);
-    const single = singleCard(crew);
+    const canopus = (session && session.routeState && session.routeState.canopus) || EMPTY_CREW;
+    const rows = tableRows(canopus);
+    const problems = problemRows(canopus);
+    const single = singleCard(canopus);
     const show = recognizeShown(session);
-    const next = JSON.stringify([session && session.id, session && session.route, show, crew, [...ways], [...agents], [...choices], [...runs], [...kidsOff].map(([k, v]) => [k, [...v]]), agentList()]);
+    const next = JSON.stringify([session && session.id, session && session.route, show, canopus, [...ways], [...agents], [...choices], [...runs], [...kidsOff].map(([k, v]) => [k, [...v]]), agentList()]);
     if (next === sig) return;
     sig = next;
     if (!show) { el.hidden = true; el.replaceChildren(); return; }
     const bar = h(doc, 'div', { class: 'canopus-bar' },
-      button(t('crewtask.recognize'), '', () => handlers.onCanopusRecognize(session.id)),
-      h(doc, 'span', { class: 'canopus-count muted', text: activeText(crew) }),
-      canopus.candidates > 0 ? h(doc, 'span', { class: 'canopus-count muted', text: t('crewtask.candidates', { n: canopus.candidates }) }) : false);
-    el.replaceChildren(...[bar, rows.length + problems.length > 0 ? tableCard(session, crew, rows, problems) : false, single ? singleCardEl(session, crew, single) : false].filter(Boolean));
+      button(t('canopustask.recognize'), '', () => handlers.onCanopusRecognize(session.id)),
+      h(doc, 'span', { class: 'canopus-count muted', text: activeText(canopus) }),
+      canopus.candidates > 0 ? h(doc, 'span', { class: 'canopus-count muted', text: t('canopustask.candidates', { n: canopus.candidates }) }) : false);
+    el.replaceChildren(...[bar, rows.length + problems.length > 0 ? tableCard(session, canopus, rows, problems) : false, single ? singleCardEl(session, canopus, single) : false].filter(Boolean));
     el.hidden = false;
   }
 
   /** Блок правой панели: сколько в работе и кандидаты (нет задач и нет кандидатов — подсказка, как они появляются). */
   function panel(session) {
-    const crew = (session && session.routeState && session.routeState.crew) || EMPTY_CREW;
+    const canopus = (session && session.routeState && session.routeState.canopus) || EMPTY_CREW;
     if (!recognizeShown(session)) return false;
     const task = session.routeState && session.routeState.task;
     const hasSubs = Boolean(task) && task.subtasks.length > 0;
     const kids = (session.routeState && session.routeState.kids) || { list: [], merged: 0, total: 0, child: null, epic: false, unmerged: [] };
     // родитель этой сессии: клик открывает его чат
-    const parent = kids.child ? h(doc, 'button', { type: 'button', class: 'canopus-parent link-btn', text: t('crewtask.parent_of', { name: kids.child.parentName || kids.child.parent }) }) : false;
+    const parent = kids.child ? h(doc, 'button', { type: 'button', class: 'canopus-parent link-btn', text: t('canopustask.parent_of', { name: kids.child.parentName || kids.child.parent }) }) : false;
     if (parent) parent.addEventListener('click', () => handlers.onSelect(kids.child.parent));
     const list = kids.list.length === 0 ? false : h(doc, 'ul', { class: 'canopus-kids' }, ...kids.list.map((r) => {
       const row = h(doc, 'button', { type: 'button', class: 'canopus-kid', 'data-state': r.state, disabled: r.session === '' },
@@ -240,23 +240,23 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
       return h(doc, 'li', { class: 'canopus-kid-item' }, row);
     }));
     // эпик — любая открытая задача, у которой есть дочерние: пометка и необязательная кнопка «Влить все дочерние» (дочерние идут в ветку эпика; в main эпик уходит когда захочет)
-    const epic = kids.epic ? h(doc, 'p', { class: 'rsub-task canopus-epic-mark', text: t('crewtask.epic_mark') }) : false;
+    const epic = kids.epic ? h(doc, 'p', { class: 'rsub-task canopus-epic-mark', text: t('canopustask.epic_mark') }) : false;
     const unmerged = kids.list.filter((r) => r.state !== 'merged').length;
     const branched = Boolean(task) && Boolean(task.branch);
-    const mergeAll = kids.epic && branched && unmerged > 0 ? h(doc, 'button', { type: 'button', class: 'link-btn canopus-merge-all', title: t('crewtask.merge_all_title'), text: t('crewtask.merge_all') }) : false;
+    const mergeAll = kids.epic && branched && unmerged > 0 ? h(doc, 'button', { type: 'button', class: 'link-btn canopus-merge-all', title: t('canopustask.merge_all_title'), text: t('canopustask.merge_all') }) : false;
     if (mergeAll) mergeAll.addEventListener('click', () => handlers.onChildrenMerge(session.id));
     const note = kids.unmerged.length > 0 ? h(doc, 'p', { class: 'rsub-task canopus-unmerged', text: t('route.children_unmerged', { list: kids.unmerged.join(', ') }) }) : false;
     return h(doc, 'section', { class: 'card canopus-panel' },
-      h(doc, 'h3', { class: 'card-title', text: t('crewtask.panel_title') }),
-      h(doc, 'p', { class: 'rsub-task', text: activeText(crew) }),
-      canopus.candidates > 0 ? h(doc, 'p', { class: 'rsub-task', text: t('crewtask.candidates', { n: canopus.candidates }) }) : false,
+      h(doc, 'h3', { class: 'card-title', text: t('canopustask.panel_title') }),
+      h(doc, 'p', { class: 'rsub-task', text: activeText(canopus) }),
+      canopus.candidates > 0 ? h(doc, 'p', { class: 'rsub-task', text: t('canopustask.candidates', { n: canopus.candidates }) }) : false,
       parent,
       epic,
-      list ? h(doc, 'h4', { class: 'canopus-kids-title', text: t('crewtask.kids_title', { merged: kids.merged, total: kids.total }) }) : false,
+      list ? h(doc, 'h4', { class: 'canopus-kids-title', text: t('canopustask.kids_title', { merged: kids.merged, total: kids.total }) }) : false,
       list,
       note,
       mergeAll,
-      hasSubs || list ? false : h(doc, 'p', { class: 'muted', text: t('crewtask.none') }));
+      hasSubs || list ? false : h(doc, 'p', { class: 'muted', text: t('canopustask.none') }));
   }
 
   return { el, render, panel };

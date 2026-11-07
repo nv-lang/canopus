@@ -222,7 +222,7 @@ export function timeline(session) {
     } else if (m.role === 'answer') {
       items.push({ type: 'answer', key: m.key, skipped: m.skipped, lines: m.lines });
     } else if (m.role === 'auto_extend') {
-      const x = (session.routeState?.crew?.extensions ?? []).find((e) => e.id === m.id);
+      const x = (session.routeState?.canopus?.extensions ?? []).find((e) => e.id === m.id);
       if (x) items.push({ type: 'autoext', key: m.key, id: x.id, task: x.task, title: x.title, text: x.text, undone: x.undone });
     } else if (m.role === 'route_note') {
       items.push({ type: 'routenote', key: m.key, n: m.n, action: m.action });

@@ -15,7 +15,7 @@ test('название нового проекта по имени папки: �
   assert.equal(uniqueProjectName('canopus', []), 'canopus');
   assert.equal(uniqueProjectName('canopus', ['Другой']), 'canopus');
   assert.equal(uniqueProjectName('canopus', ['canopus']), 'canopus (2)');
-  assert.equal(uniqueProjectName('canopus', ['Canopus-Harness', 'canopus (2)']), 'canopus (3)');
+  assert.equal(uniqueProjectName('canopus', ['Canopus', 'canopus (2)']), 'canopus (3)');
   assert.equal(uniqueProjectName('', []), 'Проект');
 });
 

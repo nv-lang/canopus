@@ -163,7 +163,7 @@ function draw() {
     if (key !== '' && ui.acked[opened.id] !== key) ui.acked = { ...ui.acked, [opened.id]: key };
   }
   const all = Object.values(model.sessions);
-  for (const x of all) { const m = x.routeState && x.routeState.crew ? x.routeState.canopus.silentMinutes : -1; if (m >= 0) { ui.silentMin = m; break; } }
+  for (const x of all) { const m = x.routeState && x.routeState.canopus ? x.routeState.canopus.silentMinutes : -1; if (m >= 0) { ui.silentMin = m; break; } }
   const names = {};
   for (const x of all) names[x.id] = x.name;
   notifier.update(waitingKeys(all, ui.acked), names, ui.selected || '');

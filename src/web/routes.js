@@ -265,13 +265,13 @@ export function parseRouteState(input) {
   const sourceBranch = str(src.source_branch);
   const resultRepo = str(src.result_repo);
   const resultLabel = str(src.result_label);
-  if (!routeInfo(route).hasSteps) return { route, stepless: true, steps: [], running: false, useTree, sourceBranch, resultRepo, resultLabel, task: parseTask(src.task), where: parseWhere(src.where), crew: parseCanopusTask(src), kids: parseKids(src), hints: parseHints(src), context: parseContext(src) };
+  if (!routeInfo(route).hasSteps) return { route, stepless: true, steps: [], running: false, useTree, sourceBranch, resultRepo, resultLabel, task: parseTask(src.task), where: parseWhere(src.where), canopus: parseCanopusTask(src), kids: parseKids(src), hints: parseHints(src), context: parseContext(src) };
   const steps = (Array.isArray(src.steps) ? src.steps : []).filter(isObject).map((s, i) => ({
     n: Number.isInteger(s.n) ? s.n : i + 1,
     title: str(s.title),
     state: STEP_STATES.includes(s.state) ? s.state : 'pending',
   }));
-  return { route, stepless: false, steps, running: src.running === true, useTree, sourceBranch, resultRepo, resultLabel, task: parseTask(src.task), where: parseWhere(src.where), crew: parseCanopusTask(src), kids: parseKids(src), hints: parseHints(src), context: parseContext(src) };
+  return { route, stepless: false, steps, running: src.running === true, useTree, sourceBranch, resultRepo, resultLabel, task: parseTask(src.task), where: parseWhere(src.where), canopus: parseCanopusTask(src), kids: parseKids(src), hints: parseHints(src), context: parseContext(src) };
 }
 
 export const INTERACTIVE_STATE = Object.freeze(parseRouteState({ route: DEFAULT_ROUTE }));

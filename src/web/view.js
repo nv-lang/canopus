@@ -2274,7 +2274,7 @@ export function createView(doc, refs, deps) {
     }
     const queued = handlers.queuedItems ? handlers.queuedItems(session.id) : [];
     const sig = JSON.stringify([railTab, railTab === 'machines' ? machinesPanel.signature(session, queued) : '', railTab === 'request' ? requestPanel.signature(session) : '', session.id, session.project, session.folder, session.branch, session.agent, session.usage, session.outputs,
-      session.tasks.map((x) => [x.id, x.title, x.status, x.started, x.finishedAt]), session.routeState && session.routeState.task, session.routeState && session.routeState.crew,
+      session.tasks.map((x) => [x.id, x.title, x.status, x.started, x.finishedAt]), session.routeState && session.routeState.task, session.routeState && session.routeState.canopus,
       [...open].filter((k) => k.startsWith('more:') || k.startsWith('sub:') || k === 'ctx-closed'), subMenu]);
     if (sig === railSig) return;
     railSig = sig;

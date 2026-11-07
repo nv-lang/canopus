@@ -86,18 +86,18 @@ export const canopusSignal = Object.freeze({
 });
 
 /** Строки списка «Распознать задачи» (по порядку, номера с 1). */
-export function listedItems(crew) {
+export function listedItems(canopus) {
   return canopus.proposals.filter((p) => p.listed).map((p, i) => ({ ...p, number: i + 1 }));
 }
 
 /** Одиночное предложение, на которое отвечает кодовое слово: последнее не из списка. */
-export function singleCard(crew) {
+export function singleCard(canopus) {
   const singles = canopus.proposals.filter((p) => !p.listed);
   return singles.length > 0 ? singles[singles.length - 1] : null;
 }
 
 /** «в работе N из лимита M» (лимит 0 — без лимита). */
-export function activeText(crew) {
+export function activeText(canopus) {
   return canopus.maxActive > 0 ? t('canopustask.active_limit', { n: canopus.active, max: canopus.maxActive }) : t('canopustask.active', { n: canopus.active });
 }
 
@@ -113,7 +113,7 @@ export function kindText(p) {
  * Способ, выбранный по умолчанию в строке: то, что пометил агент, если это сейчас возможно (такая задача открыта), иначе — отдельная задача; значение вида «child:233».
  * Способ, который подразумевает задачу, которой нет, не предлагается.
  */
-export function defaultWay(p, crew = EMPTY_CREW) {
+export function defaultWay(p, canopus = EMPTY_CREW) {
   const has = (n) => canopus.targets.some((x) => x.number === n);
   if (p.kind === 'extend' && p.extends > 0 && has(p.extends)) return `extend:${p.extends}`;
   if (p.kind === 'child' && p.epic > 0 && has(p.epic)) return `child:${p.epic}`;
@@ -125,7 +125,7 @@ export function defaultWay(p, crew = EMPTY_CREW) {
  * Способы для выпадающего списка строки: Отдельная задача · Дочерняя задача эпика K (любая открытая задача) · Эпик · Дополнить K (значение «способ:номер»).
  * Нет открытых задач — только «Отдельная задача» и «Эпик».
  */
-export function wayOptions(p, crew) {
+export function wayOptions(p, canopus) {
   const out = [{ value: 'new:0', label: t('canopustask.way_new') }];
   for (const x of canopus.targets) out.push({ value: `child:${x.number}`, label: t('canopustask.way_child', { n: x.number, title: x.title }) });
   out.push({ value: 'epic:0', label: t('canopustask.way_epic') });
@@ -182,13 +182,13 @@ export function parseWay(value) {
 }
 
 /** Строки таблицы кандидатов: только открытые (у строк с пересечением или упёртым лимитом свои кнопки). */
-export function tableRows(crew) {
-  return listedItems(crew).filter((p) => p.state === 'open');
+export function tableRows(canopus) {
+  return listedItems(canopus).filter((p) => p.state === 'open');
 }
 
 /** Строки, на которые нужен отдельный ответ: пересечение файлов с идущей задачей или лимит. */
-export function problemRows(crew) {
-  return listedItems(crew).filter((p) => p.state !== 'open');
+export function problemRows(canopus) {
+  return listedItems(canopus).filter((p) => p.state !== 'open');
 }
 
 /** Сводка таблицы: сколько строк «в работу», «обсудить», «забыть» (choices: id строки -> решение; нет записи — «Обсудить»). */
@@ -204,11 +204,11 @@ export function applyLabel(counts) {
 }
 
 /** Что уходит серверу по кнопке «Применить»: по строке на каждую; «В работу» — со способом и семьёй агента. */
-export function applyPlan(rows, choices, ways, agents, crew) {
+export function applyPlan(rows, choices, ways, agents, canopus) {
   return rows.map((p) => {
     const action = choices.get(p.id) || DEFAULT_CHOICE;
     if (action !== 'work') return { id: p.id, action };
-    const { mode, target } = parseWay(ways.get(p.id) || defaultWay(p, crew));
+    const { mode, target } = parseWay(ways.get(p.id) || defaultWay(p, canopus));
     return { id: p.id, action, mode, target, agent: agents.get(p.id) || '' };
   });
 }
@@ -245,7 +245,7 @@ export function rowActions(p, way = '') {
 }
 
 /** Текст проблемы карточки: пересечение с задачей или упёртый лимит; для обычной — пусто. */
-export function problemText(p, crew) {
+export function problemText(p, canopus) {
   if (p.state === 'overlap') {
     if (p.unknown || p.withFiles.length === 0) return t('canopustask.overlap_unknown', { n: p.withN });
     return t('canopustask.overlap', { n: p.withN, files: p.withFiles.join(', ') });
@@ -255,7 +255,7 @@ export function problemText(p, crew) {
 }
 
 /** Подсказка одиночной карточки про кодовое слово: какое слово что делает в этом состоянии. */
-export function wordHint(p, crew) {
+export function wordHint(p, canopus) {
   if (p.state === 'limit') return t('canopustask.word_over', { word: canopus.overWord });
   if (p.state === 'overlap') return t('canopustask.word_wait', { word: canopus.confirmWord });
   return t('canopustask.word', { word: canopus.confirmWord });
