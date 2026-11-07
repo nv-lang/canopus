@@ -233,7 +233,7 @@ test('restricted native generator is independent of OpenCode and keeps statement
 test('Kimi restricted launch pins a tool-free profile and refuses broader launch flags', async () => {
   const {kimiPreparationArgs,KIMI_PREPARATION_PROFILE} = await import('./kimi-preparation.mjs');
   assert.equal((await readFile(new URL('./kimi-preparation.md',import.meta.url),'utf8')).replace(/\r\n/g,'\n'),KIMI_PREPARATION_PROFILE);
-  assert.match(KIMI_PREPARATION_PROFILE,/tools: \[\]/);assert.match(KIMI_PREPARATION_PROFILE,/subagents: \[\]/);
+  assert.match(KIMI_PREPARATION_PROFILE,/mcp__canopus_preparation__\*/);assert.match(KIMI_PREPARATION_PROFILE,/subagents: \[\]/);
   const args=kimiPreparationArgs(['native.mjs','acp'],'owned-profile.md','kimi/native','owned-empty-skills');
   assert.deepEqual(args,['native.mjs','--agent-file','owned-profile.md','--model','kimi/native','--skills-dir','owned-empty-skills','acp']);
   for(const launch of [['native.mjs','--yolo','acp'],['native.mjs','--agent-file','other.md','acp'],['native.mjs']])assert.throws(()=>kimiPreparationArgs(launch,'safe.md','kimi/native','skills'));
@@ -248,4 +248,18 @@ test('real restricted ACP pipe confirms the model and carries long text without 
   assert.equal(result.reply,'restricted');assert.equal(await readFile(path.join(root,'task/message.md'),'utf8'),'# Restricted draft');
   await assert.rejects(generate({model:'kimi/native',root,message:'ASK_FOR_TOOL',signal:AbortSignal.timeout(10000),generator:invoke}),/forbidden/);
   assert.equal(await readFile(path.join(root,'task/message.md'),'utf8'),'# Restricted draft');
+});
+
+test('valid JSON fences are accepted while unexpected operations remain rejected',()=>{
+ assert.equal(parseAnswer('```json\n{"reply":"ok","statement":"# draft"}\n```').reply,'ok');
+ assert.throws(()=>parseAnswer('```json\n{"reply":"ok","tools":["Bash"]}\n```'),/не разрешено/);
+ assert.throws(()=>parseAnswer('text before {"reply":"ok"}'));
+});
+test('research context includes previous chat even with an empty statement',async t=>{
+ const root=await rootOf(t);let captured='';await generate({model:'kimi/native',root,message:'Продолжай',sessionHistory:'[{"role":"user","text":"Прежняя цель"}]',research:true,generator:async ({prompt})=>{captured=prompt;return '{"reply":"Обсудим"}'}});assert.match(captured,/Прежняя цель/);assert.match(captured,/canopus_preparation/);assert.doesNotMatch(captured,/нет tools/);
+});
+test('native answer format is repaired once without replaying research; tools during repair fail closed',async t=>{
+ const {kimiGenerate}=await import('./kimi-preparation.mjs'),root=await rootOf(t);const fixture=fileURLToPath(new URL('./test/kimi-preparation-fixture.mjs',import.meta.url));const generator=input=>kimiGenerate({...input,program:process.execPath,args:[fixture,'acp']});
+ assert.equal((await generate({model:'kimi/native',root,message:'BAD_FORMAT',generator,signal:AbortSignal.timeout(10000)})).reply,'restricted');
+ await assert.rejects(generate({model:'kimi/native',root,message:'BAD_FORMAT_TOOL',generator,signal:AbortSignal.timeout(10000)}),/forbidden/);assert.equal(await readFile(path.join(root,'task/message.md'),'utf8'),'# Restricted draft');
 });

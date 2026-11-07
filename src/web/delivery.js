@@ -37,7 +37,7 @@ export function createDelivery(storage) {
   try {
     const parsed = JSON.parse(storage?.getItem(DELIVERY_KEY) || '[]');
     if (Array.isArray(parsed)) records = parsed.filter(r => r && typeof r.id === 'string' && typeof r.trace === 'string' && typeof r.text === 'string').slice(0, LIMIT)
-      .map(r => ({ ...r, images: Array.isArray(r.images) ? r.images : [], state: r.state === 'sending' ? 'unknown' : r.state, reason: r.reason ? safeError(r.reason) : '' }));
+      .map(r => ({ ...r, images: Array.isArray(r.images) ? r.images : [], state: r.state === 'sending' ? 'unknown' : r.state, restored: true, reason: r.reason ? safeError(r.reason) : '' }));
   } catch { /* unreadable storage: sending will be refused until writing works */ }
   function save(next) {
     const data = JSON.stringify(next);

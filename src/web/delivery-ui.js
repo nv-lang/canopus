@@ -5,6 +5,8 @@ import { t } from './strings.js';
 // Карточка сбоя доставки: сворачивается в компактную строку (иконка, краткая причина, кнопка раскрытия).
 // Сообщение и ошибка не скрываются из модели и не удаляются: свёрнутость — только вид тела карточки.
 export function deliveryCard(doc, item, actions) {
+  const archived = item.restored === true && item.state === 'error';
+  const timestamp = Number.isFinite(item.at) && item.at > 0 ? new Date(item.at).toLocaleString('ru-RU') : '';
   const labels = {
     sending: t('delivery.sending'), unknown: t('delivery.unknown'), not_sent: t('delivery.not_sent'),
     received: t('delivery.received'), accepted: t('delivery.accepted'), agent_error: t('delivery.agent_error'),
@@ -31,7 +33,8 @@ export function deliveryCard(doc, item, actions) {
     type: 'button', class: 'delivery-head', 'aria-expanded': String(!collapsed),
     title: collapsed ? t('delivery.expand') : t('delivery.collapse'),
   },
-    h(doc, 'strong', { text: `⚠ ${labels[item.state] || labels.unknown}` }),
+    h(doc, 'strong', { text: archived ? t('delivery.saved_error') : `⚠ ${labels[item.state] || labels.unknown}` }),
+    timestamp ? h(doc, 'time', { datetime: new Date(item.at).toISOString(), text: timestamp }) : null,
     reason ? h(doc, 'span', { class: 'delivery-brief', text: reason }) : false,
     icon(doc, 'i-chevron-right', 'chev'));
   const body = h(doc, 'div', { class: 'delivery-body', hidden: collapsed },
@@ -40,5 +43,5 @@ export function deliveryCard(doc, item, actions) {
     h(doc, 'div', { class: 'delivery-actions' }, ...(item.state === 'error' ? [] : [retry, restore]), ...(actions.forget ? [forget] : [])),
     h(doc, 'details', {}, h(doc, 'summary', { text: t('delivery.details') }), h(doc, 'pre', { text: detail }), copy));
   if (actions.toggle) head.addEventListener('click', () => actions.toggle(head, body));
-  return h(doc, 'div', { class: 'delivery-error', role: item.state === 'sending' ? 'status' : 'alert' }, head, body);
+  return h(doc, 'div', { class: archived ? 'delivery-error delivery-history' : 'delivery-error', role: archived ? 'note' : item.state === 'sending' ? 'status' : 'alert' }, head, body);
 }

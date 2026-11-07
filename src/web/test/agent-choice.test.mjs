@@ -289,3 +289,10 @@ for (const draft of [true, false]) test(`one model-row click commits a family/mo
   assert.equal(refs.main.querySelector('.agent-picker-button').getAttribute('aria-expanded'),'false');
   if(draft){assert.deepEqual(model.sessions.s.source,{family:'kimi',model:'k3',effort:'off'});assert.match(refs.main.querySelector('.agent-picker-button').textContent,/k3/);}
 });
+
+test('restored unbound error is historical above the conversation and never renders boolean false',()=>{
+ const doc=createFakeDocument(),refs={};for(const key of ['app','side','main','rail','status','overlay']){refs[key]=doc.createElement('div');doc.body.append(refs[key])}
+ const view=createView(doc,refs,{agents:[{id:'kimi'}],now:()=>10000,handlers:{queued:()=>0,queuedItems:()=>[],deliveryItems:()=>[{id:'old',trace:'s',state:'error',images:[],text:'',reason:'network',at:1000,restored:true}]}});
+ const model=reduce(initialModel(),{id:'c',trace:'s',step:0,kind:'session_created',input:{agent:'kimi',name:'Test'},time:2000});view.render(model,{selected:'s',projects:[],pins:{},theme:'system'},{state:'connected'});
+ assert.doesNotMatch(refs.main.textContent,/\bfalse\b/);const old=refs.main.querySelector('.delivery-history');assert.ok(old);assert.equal(old.querySelector('.delivery-body').hidden,true);assert.equal(old.getAttribute('role'),'note');
+});

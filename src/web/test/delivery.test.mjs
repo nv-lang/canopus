@@ -166,3 +166,12 @@ test('260: ошибка запуска до первого хода не исч�
   assert.ok(note, 'причина ошибки должна быть непосредственно в чате');
   assert.match(note.reason, /Не удалось запустить агента/);
 });
+
+test('restored session errors retain timestamp and are labelled as history, without replaying messages',()=>{
+ const storage={value:null,getItem(){return this.value},setItem(_k,v){this.value=v}};
+ const before=createDelivery(storage);before.error({id:'old',trace:'s',input:{message:'network'},time:1000});
+ const current=createDelivery(storage),record=current.items('s')[0];assert.equal(record.restored,true);assert.equal(record.at,1000);
+ const doc=createFakeDocument(),card=deliveryCard(doc,{...record,collapsed:true},{copy(){},restore(){},forget(){}});
+ assert.equal(card.getAttribute('role'),'note');assert.match(card.textContent,/Сохранённая ошибка/);assert.ok(card.querySelector('time'));assert.equal(card.querySelector('.delivery-body').hidden,true);
+ current.error({id:'new',trace:'s',input:{message:'timeout'},time:2000});assert.notEqual(current.items('s')[1].restored,true);assert.equal(JSON.parse(storage.value).length,2);
+});

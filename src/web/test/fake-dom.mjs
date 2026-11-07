@@ -74,6 +74,13 @@ export class FakeElement {
     this.style = { setProperty(key, value) { this[key] = value; }, removeProperty(key) { delete this[key]; } };
   }
 
+  insertBefore(node, reference) {
+    if (reference == null) { this.append(node); return node; }
+    if (!this.childNodes.includes(reference)) throw new Error('NotFoundError');
+    if (node === reference) return node;
+    if (node.parentNode) node.parentNode.childNodes = node.parentNode.childNodes.filter(n => n !== node);
+    this.childNodes.splice(this.childNodes.indexOf(reference), 0, node); node.parentNode = this; return node;
+  }
   get children() { return this.childNodes.filter((n) => n instanceof FakeElement); }
 
   get classList() {
