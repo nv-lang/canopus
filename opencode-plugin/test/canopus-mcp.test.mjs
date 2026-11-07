@@ -134,6 +134,21 @@ try {
   const schema = (await mcp.rpc("tools/list", {})).result.tools.find((t) => t.name === "canopus_send").inputSchema
   cell("canopus_send schema requires to and text", JSON.stringify(schema.required) === JSON.stringify(["to", "text"]), JSON.stringify(schema))
 
+  const routingDir = path.join(fixtureCore.BASE, "question-routing")
+  mkdirSync(routingDir, {recursive:true})
+  const unknownFile = path.join(routingDir, "a".repeat(64)+".json")
+  writeFileSync(unknownFile, JSON.stringify({unrecognized:"fixture"}))
+  const doctorWithUnknown = (await mcp.call("canopus_doctor")).text
+  cell("MCP doctor reports preserved unknown router records as problems", /question router/.test(doctorWithUnknown) && /pending\/разрешением не считается/.test(doctorWithUnknown), doctorWithUnknown)
+  cell("doctor does not rewrite an unknown record", readFileSync(unknownFile,"utf8") === JSON.stringify({unrecognized:"fixture"}), "unknown record changed")
+  rmSync(unknownFile)
+  const identityFile=path.join(routingDir,"b".repeat(64)+".json")
+  const identityValue={v:1,id:"b".repeat(64),project:"renamed-fixture",session:"sesCCCCCC",channel:"text",qid:"identity-fixture"}
+  writeFileSync(identityFile,JSON.stringify(identityValue))
+  const identityDoctor=(await mcp.call("canopus_doctor")).text
+  cell("MCP doctor distinguishes identity migration from corrupt JSON without trusting it", /идентичность не соответствует содержимому/.test(identityDoctor) && /pending\/разрешением не считается/.test(identityDoctor) && readFileSync(identityFile,"utf8")===JSON.stringify(identityValue), identityDoctor)
+  rmSync(identityFile)
+
   // canopus_list: the same addresses as the plugin (projects come from the plugin's option list, longest root wins)
   const pl = (await mcp.call("canopus_list")).text
   cell("MCP canopus_list marks the caller with its project.role address", /^\* nova\.worker/m.test(pl), pl)

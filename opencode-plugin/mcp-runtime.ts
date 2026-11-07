@@ -14,12 +14,13 @@
 // ЗАПУСК: mcp.ts выбирает контекст до импорта этого runtime (node >= 24 — снятие типов). Протокол — JSON-RPC 2.0 построчно в stdin/stdout.
 
 import { createInterface } from "node:readline"
-import { type Card, DEFAULT_ROLE, activityEvidence, cardFile, log, loadProjects, makeTools, projectOf, questionCall, readJson, repoLabel, saveCard, sessionFromDb } from "./core.ts"
+import { type Card, DEFAULT_ROLE, activityEvidence, cardFile, log, loadProjects, makeTools, projectOf, questionCall, questionRouterFor, readJson, repoLabel, saveCard, sessionFromDb } from "./core.ts"
 import { type Task, loadTask } from "./tasks.ts"
 import { blockingQuestion } from "./form-wait.ts"
 import { QUESTION_ROUTING_HINT } from "./question-policy.ts"
 import { getQuestionJson, inspectQuestionText, productionQuestionIO } from "./question-native.ts"
 import { refuseLegacyEnv, renamedToolHint } from "./legacy-env.ts"
+import { overdueProblems } from "./open-questions.ts"
 
 const SESSION = String(process.env.OPENCODE_CANOPUS_SESSION ?? "").trim()
 const projects = loadProjects()
@@ -60,7 +61,11 @@ export const tools = makeTools({
   picked: () => {},
   roleTaken: () => {},
   startTask,
-  doctor: async () => (SESSION ? [] : ["MCP-сервер запущен без OPENCODE_CANOPUS_SESSION — не знает, за какую вкладку действует"]),
+  doctor: async () => [
+    ...(SESSION ? [] : ["MCP-сервер запущен без OPENCODE_CANOPUS_SESSION — не знает, за какую вкладку действует"]),
+    ...(await overdueProblems(projects)),
+    ...questionRouterFor({}).problems(),
+  ],
   // задача 263: тот же блокер вопросника, что у плагина (та же база и тот же ящик)
   blocker: (s) => blockingQuestion(s, Date.now(), (x) => questionCall(x, 1)),
   activity: (s) => activityEvidence(s),

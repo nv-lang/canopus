@@ -6,7 +6,7 @@ const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-wake-receipt-"))
 process.env.XDG_DATA_HOME = tmp
 ;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 process.env.XDG_STATE_HOME = tmp
-const { advanceWake, newWake, WAKE_RETRY_MS, WAKE_DEADLINE_MS } = await import("../wake-delivery.ts")
+const { advanceWake, newWake, wakeProof, wakeDiagnostic, WAKE_RETRY_MS, WAKE_DEADLINE_MS } = await import("../wake-delivery.ts")
 const sid = "sesFIXTURE"
 const at = 1000
 const letters = [{ id: "letter-1", text: "diagnose", time: at, from_session: "sesAUTHOR", from_role: "p.integrator", to: sid, wake_qid: "qFIXTURE" }]
@@ -73,5 +73,53 @@ cell("unknown and execution pause never send", () => assert.equal(calls.length, 
 a = { ...newWake(sid, letters, "quiet", at), mode: "quiet-synthetic" }; calls = []; projected = undefined
 await step(at, idle, async input => { calls.push(input); return { id: input.id, sessionID: sid, type: "synthetic", time: { created: at }, delivery: "queue", payload: { text: input.text } } })
 cell("quiet admission completes without inventing a wake or assistant", () => { assert.equal(a.phase, "accepted"); assert.equal(a.startedAt, undefined); assert.equal(calls.length, 1) })
+// Late evidence may be older than the newest page; only native opaque cursors qualify.
+{
+ const attempt={...newWake(sid,letters,"old request",at),phase:"timeout",tries:1}
+ const input={id:attempt.id,type:"user",text:attempt.text,time:{created:at}}
+ const assistant={id:"msg_page_assistant",type:"assistant",agent:"fixture",model:{id:"fixture"},content:[],time:{created:at+5}}
+ const compact={id:"msg_auto_compaction",type:"compaction",status:"completed",reason:"auto",summary:"fixture",time:{created:at+2}}
+ let routes=[]
+ const paged=async route=>{routes.push(route);if(route.includes("/message/"))return {data:input};if(route.includes("cursor="))return {data:[assistant,compact,input],cursor:{}};return {data:[{id:"msg_later_idle",type:"idle",time:{created:at+10}}],cursor:{next:"opaque+/="}}}
+ assert.match(await wakeProof(attempt,idle,paged),/msg_page_assistant/)
+ assert.ok(routes[2].includes("cursor=opaque%2B%2F%3D")&&!routes[2].includes("order="))
+ cell("old input follows native cursor and completed automatic compaction without POST",()=>assert.equal(routes.length,3))
+ const boundaryProofs=[]
+ for(const boundary of [{...compact,status:"failed"},{...compact,reason:"manual"},{...compact,status:"running"},{id:"msg_other_user",type:"user",time:{created:at+3}},{id:"msg_early_idle",type:"idle",time:{created:at+3}}]){
+  const proof=await wakeProof(attempt,idle,async route=>route.includes("/message/")?{data:input}:{data:[assistant,boundary,input]})
+  boundaryProofs.push(proof)
+ }
+ cell("failed/manual/running compaction and intervening user or idle remain closed",()=>assert.deepEqual(boundaryProofs,Array(5).fill(undefined)))
+ let pages=0
+ const missing=async route=>{if(route.includes("/message/"))return {data:input};pages++;return {data:[{id:"msg_missing_"+pages,type:"system"}],cursor:{next:"cursor-"+pages}}}
+ const boundedProof=await wakeProof(attempt,idle,missing)
+ cell("missing historical input has a fixed twenty-page bound",()=>{assert.equal(boundedProof,undefined);assert.equal(pages,20)})
+ pages=0
+ const cycle=async route=>route.includes("/message/")?{data:input}:{data:[{id:"msg_cycle_"+(++pages),type:"system"}],cursor:{next:"repeated"}}
+ const cycleProof=await wakeProof(attempt,idle,cycle)
+ cell("repeated cursors cannot loop or fabricate proof",()=>{assert.equal(cycleProof,undefined);assert.equal(pages,2)})
+}
+{
+ const attempt=newWake(sid,letters,"diagnose",at)
+ const snapshots=[]
+ const transport=Object.assign(new Error("SECRET_TOKEN private request body"),{name:"TypeError",code:"ECONNRESET"})
+ const deps={state:idle,now:at,get:async()=>undefined,prompt:async()=>{throw transport},save:x=>snapshots.push(structuredClone(x))}
+ await advanceWake(attempt,deps)
+ await advanceWake(attempt,{...deps,now:at+WAKE_DEADLINE_MS})
+ cell("transport facts survive timeout without persisting exception secrets",()=>{
+  assert.equal(attempt.phase,"timeout");assert.equal(attempt.admission[0].errorCode,"ECONNRESET")
+  assert.equal(attempt.admission[0].errorName,"TypeError")
+  assert.ok(!JSON.stringify(attempt).includes("SECRET_TOKEN"))
+  assert.match(wakeDiagnostic(attempt),/transport TypeError ECONNRESET/)
+ })
+ const unconfirmed=newWake(sid,letters,"diagnose",at)
+ await advanceWake(unconfirmed,{...deps,prompt:async()=>({private:"SECRET_TOKEN"})})
+ cell("schema mismatch records field names only",()=>{
+  assert.equal(unconfirmed.admission[0].kind,"unconfirmed")
+  assert.ok(unconfirmed.admission[0].mismatches.includes("id"))
+  assert.ok(!JSON.stringify(unconfirmed).includes("SECRET_TOKEN"))
+ })
+ cell("historical attempts do not acquire invented transport facts",()=>assert.match(wakeDiagnostic({...newWake(sid,letters,"old",at),tries:1}),/причина транспорта неизвестна/))
+}
 console.log(`canopus-wake-receipt: ${checks} checks`)
 rmSync(tmp, { recursive: true, force: true })

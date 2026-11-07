@@ -293,7 +293,7 @@ const note = (input, me, d, task, at) => iw?.noteStep?.(input, me, { dir: d.dir,
   cell("W-9c canopus_doctor: an expired step is a note, not yet a problem", noteRows.some((x) => /015/.test(x) && /срок вышел/.test(x)) && probs0.length === 0, J([noteRows, probs0]))
   tick([t], d, NOW) // no answer: the question opens
   const probs = iw?.stepProblems?.(NOW, o) ?? []
-  cell("W-9d canopus_doctor: an open question is a problem that names the task, the minutes and what to do", probs.length === 1 && /015/.test(probs[0]) && /срок вышел, вопрос открыт/.test(probs[0]) && /canopus_step_note/.test(probs[0]), J(probs))
+  cell("W-9d canopus_doctor: an open question is a problem that names the task, the minutes and what to do", probs.length === 1 && /015/.test(probs[0]) && /срок вышел, вопрос сторожа записан/.test(probs[0]) && /canopus_step_note/.test(probs[0]), J(probs))
   const moved = mkTask(15, "submitted", { reviewer: "sesR" })
   const gone = iw?.stepRows?.(NOW, { project: "p", dir: d.dir, taskOf: () => moved }) ?? []
   cell("W-9e the step has moved on: no row and no problem from the old episode", gone.length === 0 && (iw?.stepProblems?.(NOW, { project: "p", dir: d.dir, taskOf: () => moved }) ?? []).length === 0, J(gone))

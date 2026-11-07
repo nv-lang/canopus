@@ -10,7 +10,7 @@ import { globalConfig, pluginState, pluginCache } from "./plugin-config.ts"
 import { judge as judgeGlued } from "./glued-guard.ts"
 import { type Deps as BranchDeps, branchNotes, branchProblems, noteBranch } from "./branch-guard.ts"
 import { executionHeld, gateHeld, holdScope, HOLD_SCOPE_RU, noteStep, readRecord as readStepRecord, stepNotes, stepProblems, taskHold } from "./idle-watch.ts"
-import { readWake } from "./wake-delivery.ts"
+import { readWake, wakeDiagnostic } from "./wake-delivery.ts"
 import { nativeProblems } from "./native-state.ts"
 import { execFileSync } from "node:child_process"
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync, appendFileSync } from "node:fs"
@@ -4497,7 +4497,7 @@ export function commonDoctor(sessionID?: string): string[] {
   for (const c of allCards()) {
     if (c.spawned?.status === "closed") continue
     const a = readWake(c.session)
-    if (a && ["error", "timeout"].includes(a.phase)) out.push(`пробуждение ${c.session}: ${a.phase}, ID ${a.id}, попыток ${a.tries}; ${a.why}; stuck не снимается без связанного старта`)
+    if (a && ["error", "timeout"].includes(a.phase)) out.push(`пробуждение ${c.session}: ${a.phase}, ID ${a.id}, попыток ${a.tries}; ${a.why}${wakeDiagnostic(a) ? `; ${wakeDiagnostic(a)}` : ""}; stuck не снимается без связанного старта`)
   }
   return out
 }

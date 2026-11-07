@@ -124,7 +124,7 @@ cell("F-1e /canopus: the task is marked «срок вышел, вопрос от
 const side = status.sidebarLines(list, Date.now(), P)
 cell("F-1f the side panel: a short row of the task with the expired term", side.rows.some((r) => /092/.test(r.what) && /срок/.test(r.what)), J(side.rows.map((r) => r.what)))
 const doc = (await tools.canopus_doctor.execute({}, { sessionID: "sesAUTH" })).content
-cell("F-1g canopus_doctor names the task, «срок вышел, вопрос открыт» and what to do", /092/.test(doc) && /срок вышел, вопрос открыт/.test(doc) && /canopus_step_note/.test(doc), doc)
+cell("F-1g doctor names the task and a recorded watcher question without claiming a native form", /092/.test(doc) && /срок вышел, вопрос сторожа записан/.test(doc) && /canopus_step_note/.test(doc), doc)
 
 // ---- F-2 the exceptions in the plugin
 cell("F-2a HOLD is recorded by the tool with the word of the owner", /HOLD/.test(hold?.content ?? "") && rec(95)?.hold?.kind === "HOLD", J([hold, rec(95)]))

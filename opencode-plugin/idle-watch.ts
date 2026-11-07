@@ -272,9 +272,9 @@ function summaryText(project: string, items: SummaryItem[], oldMin: number, now:
   const text =
     `Шаг стоит давно, срок вышел: ${why}. Отдельных писем им нет. Задай владельцу ОДИН вопрос инструментом question (варианты ниже, рекомендация первым вариантом с пометкой (Recommended)). ` +
     `Стоят: ${list}. ` +
-    `Вопрос: что делать с ними? Варианты: 1. Закрыть то, что мертво (canopus_task cancel) (Recommended) — задача не нужна или давно заброшена; 2. HOLD — сознательно не трогать (canopus_step_note {n, hold: "HOLD", who}); ` +
-    `3. Ждать ещё (canopus_step_note {n, decide: "wait", minutes, who}); 4. Сменить исполнителя (canopus_task reassign). ` +
-    `Рекомендация: закрыть мёртвое, остальное — HOLD. Довод: ${why}, значит, ни держатель, ни окно ими не занимаются (на ${hm(now)}). ` +
+    `Вопрос: что делать с ними? Варианты: 1. Ждать ещё (Recommended) — сохранить текущее состояние до сверки результатов и решения владельца (canopus_step_note {n, decide: "wait", minutes, who}); ` +
+    `2. Сузить задачу; 3. Сменить исполнителя; 4. Отказаться от ненужной задачи — только с подтверждением владельца. Для сознательного ожидания можно отдельно поставить HOLD (canopus_step_note {n, hold: "HOLD", who}). ` +
+    `Рекомендация: сначала сверить фактический шаг и результат; отсутствие окна или срок сами по себе не означают, что задачу нужно отменить (на ${hm(now)}). ` +
     `Решение владельца по каждой задаче: canopus_step_note {n, decide | hold, who: "владелец, <дата>, «слово»"}; пока в списке есть задача, она помечена «стоят давно, вопрос открыт».`
   return { text, why }
 }
@@ -437,7 +437,7 @@ export function watchTick(tasks: Task[], d: Deps, now: number): { letters: numbe
     const id = `idle-step-s-${safeKey(project)}-${now}`
     d.letter(author, id, text, "summary")
     d.notice(`${project} · стоят давно`, `${items.length} задач проекта не двигаются или без окна держателя: один сводный вопрос владельцу`)
-    writeSummary({ project, at: now, ns, items, question: { id, at: now, why, text, options: OPTIONS(list[0].c.extendMin), recommend: "cancel" } }, dir)
+    writeSummary({ project, at: now, ns, items, question: { id, at: now, why, text, options: OPTIONS(list[0].c.extendMin), recommend: "wait" } }, dir)
     sent++
     sum.letters++
     sum.questions++
@@ -658,10 +658,13 @@ export function stepProgressLines(now: number, o: View = {}): string[] {
 const taskProblems = (now: number, o: View): string[] =>
   live(now, o)
     .filter((x) => openQ(x.ep))
-    .map(({ rec, t, ep }) => `задача ${taskRef(t)} (проект ${rec.project}): срок вышел, вопрос открыт с ${hm(ep!.question!.at)} — шаг «${STEP_WORDS[ep!.role]}» стоит ${mins(ep!.since, now)} мин (${ep!.label}); ${ep!.question!.why} Автор спрашивает владельца (question) и пишет решение: canopus_step_note {n: ${t.n}, decide, who}`)
+    .map(({ rec, t, ep }) => `задача ${taskRef(t)} (проект ${rec.project}): срок вышел, вопрос сторожа записан с ${hm(ep!.question!.at)} — шаг «${STEP_WORDS[ep!.role]}» стоит ${mins(ep!.since, now)} мин (${ep!.label}); ${ep!.question!.why} Автор спрашивает владельца (question) и пишет решение: canopus_step_note {n: ${t.n}, decide, who}`)
 
 export function stepProblems(now: number, o: View = {}): string[] {
-  const sums = summaries(o).map(({ s, ns }) => `проект ${s.project}: задачи ${ns.map((n) => taskNo({ n })).join(", ")} стоят давно или без окна держателя, вопрос владельцу открыт с ${hm(s.question!.at)}: ${s.question!.why}; автор спрашивает владельца (question) и пишет решение по каждой: canopus_step_note {n, decide | hold, who}`)
+  const sums = summaries(o).map(({ s, ns }) => {
+    const accepted = ns.filter(n => (o.taskOf ?? loadTask)(s.project, n)?.status === "accepted")
+    return `проект ${s.project}: задачи ${ns.map(n => taskNo({ n })).join(", ")} стоят давно или без окна держателя, вопрос сторожа записан с ${hm(s.question!.at)}: ${s.question!.why}${accepted.length ? `; уже приняты и ожидают уборки: ${accepted.map(n => taskNo({ n })).join(", ")}; это не ожидание разработки` : ""}; наличие открытой формы нужно проверить отдельно; автор спрашивает владельца (question) и пишет решение по каждой: canopus_step_note {n, decide | hold, who}`
+  })
   const health = live(now, o).filter(x => x.rec.health).map(({ t, rec }) => `задача ${taskRef(t)}: аварийная остановка — ${rec.health!.why}; ${rec.health!.blocker ? `блокер диагностики: ${rec.health!.blocker.reason}` : "диагностика не подтверждена"}; HOLD/gate сохранены`)
   return [...health, ...taskProblems(now, o), ...sums]
 }

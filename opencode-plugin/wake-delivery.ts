@@ -13,12 +13,18 @@ export const WAKE_DEADLINE_MS = 120_000
 export const WAKE_RETRY_MS = 5_000
 export const WAKE_ATTEMPTS_MAX = 3
 export type WakePhase = "queued" | "sending" | "accepted" | "started" | "error" | "timeout"
+export type AdmissionDiagnostic = {
+  at: number; attempt: number; kind: "accepted" | "unconfirmed" | "transport"
+  status?: number; errorName?: string; errorCode?: string; timeout?: boolean
+  mismatches?: string[]
+}
 export type WakeAttempt = {
   mode?: "wake" | "quiet-synthetic" | "quiet-prompt"
   session: string; id: string; text: string; letters: Letter[]; phase: WakePhase
   at: number; deadline: number; tries: number; triedAt?: number; acceptedAt?: number
   startedAt?: number; proof?: string; why?: string; escalated?: boolean
   checkedAt?: number
+  admission?: AdmissionDiagnostic[]
   obligationsPrepared?: boolean
   startApplied?: boolean
 }
@@ -50,15 +56,36 @@ export async function wakeProof(a: WakeAttempt, state: NativeState, get: NativeG
   try {
     const user = (await get(`/api/session/${encodeURIComponent(a.session)}/message/${encodeURIComponent(a.id)}`))?.data
     if (user?.id !== a.id || user?.type !== "user" || user?.text !== a.text || !Number.isFinite(user?.time?.created) || user.time.created < a.at) return undefined
-    const page = await get(`/api/session/${encodeURIComponent(a.session)}/message?limit=100&order=desc`)
-    if (!Array.isArray(page?.data)) return undefined
-    const index = page.data.findIndex((m: any) => m.id === a.id && m.type === "user")
-    if (index < 0) return undefined // not on this page: unknown, not evidence
-    for (const message of page.data.slice(0, index).reverse()) {
+    const route = `/api/session/${encodeURIComponent(a.session)}/message?limit=100`
+    const messages: any[] = []
+    const ids = new Set<string>(), cursors = new Set<string>()
+    let cursor: string | undefined
+    let index = -1
+    // Bounded read-only reconciliation: a late start can leave the newest page.
+    // Follow server-issued opaque cursors only; never synthesize one from an ID.
+    for (let pageNo = 0; pageNo < 20; pageNo++) {
+      const page = await get(route + (cursor ? `&cursor=${encodeURIComponent(cursor)}` : "&order=desc"))
+      if (!Array.isArray(page?.data)) return undefined
+      for (const m of page.data) {
+        if (typeof m?.id !== "string" || ids.has(m.id)) return undefined
+        ids.add(m.id); messages.push(m)
+      }
+      index = messages.findIndex(m => m.id === a.id && m.type === "user")
+      if (index >= 0) break
+      const next = page?.cursor?.next
+      if (typeof next !== "string" || !next || cursors.has(next)) return undefined
+      cursors.add(next); cursor = next
+    }
+    if (index < 0 || messages[index].text !== user.text || messages[index].time?.created !== user.time.created) return undefined
+    for (const message of messages.slice(0, index).reverse()) {
       if (["idle", "user"].includes(message?.type)) return undefined
       if (message?.type === "assistant") {
         if (/^msg_/.test(message.id) && message.agent && message.model && Array.isArray(message.content) && Number.isFinite(message.time?.created) && message.time.created >= user.time.created) return `связанный input ${a.id} + новое поколение assistant ${message.id}`
         return undefined
+      }
+      if (message?.type === "compaction") {
+        if (message.status !== "completed" || message.reason !== "auto" || typeof message.summary !== "string" || !Number.isFinite(message.time?.created) || message.time.created < user.time.created) return undefined
+        continue // maintenance is not an assistant generation or a new user boundary
       }
       if (!["synthetic", "system", "skill", "agent-switched", "model-switched"].includes(message?.type)) return undefined
     }
@@ -90,14 +117,35 @@ export async function advanceWake(a: WakeAttempt, d: WakeDeps): Promise<WakeAtte
   try {
     const response = await d.prompt({ sessionID: a.session, id: a.id, text: a.text, delivery: "queue", metadata: { canopusWake: a.id } })
     const item = response?.data ?? response
-    if (item?.id === a.id && item?.sessionID === a.session && item?.type === (a.mode === "quiet-synthetic" ? "synthetic" : "user") && item?.payload?.text === a.text && item?.delivery === "queue" && Number.isFinite(item?.time?.created) && item.time.created >= a.at) {
+    const mismatches = [
+      item?.id !== a.id ? "id" : "",
+      item?.sessionID !== a.session ? "sessionID" : "",
+      item?.type !== (a.mode === "quiet-synthetic" ? "synthetic" : "user") ? "type" : "",
+      item?.payload?.text !== a.text ? "payload.text" : "",
+      item?.delivery !== "queue" ? "delivery" : "",
+      !Number.isFinite(item?.time?.created) || item.time.created < a.at ? "time.created" : "",
+    ].filter(Boolean)
+    ;(a.admission ??= []).push({ at: d.now, attempt: a.tries, kind: mismatches.length ? "unconfirmed" : "accepted", ...(mismatches.length ? { mismatches } : {}) })
+    if (!mismatches.length) {
       a.phase = "accepted"; a.acceptedAt ??= d.now; a.why = a.mode?.startsWith("quiet-") ? "тихое native admission подтверждено; пробуждение не запрашивалось" : "native input принят; начало хода ещё не подтверждено"
     } else a.why = "ответ native prompt не подтверждает ID; исход запроса неизвестен"
   } catch (e: any) {
     const status = e?.status ?? e?.response?.status
+    // Keep structured transport facts across timeout, never raw bodies/messages:
+    // an exception can contain the prompt, credentials or a full provider URL.
+    const safeName = typeof e?.name === "string" && /^[A-Za-z][A-Za-z0-9_.]{0,79}$/.test(e.name) ? e.name : undefined
+    const safeCode = typeof e?.code === "string" && /^[A-Z][A-Z0-9_]{0,39}$/.test(e.code) ? e.code : undefined
+    ;(a.admission ??= []).push({ at: d.now, attempt: a.tries, kind: "transport", ...(Number.isInteger(status) && status >= 100 && status <= 599 ? { status } : {}), ...(safeName ? { errorName: safeName } : {}), ...(safeCode ? { errorCode: safeCode } : {}), ...(e?.message === "native admission timeout" ? { timeout: true } : {}) })
     if ([400, 401, 403, 404, 409].includes(status)) { a.phase = "error"; a.why = `native prompt HTTP ${status}; повтор остановлен` }
     else a.why = "исход native prompt неизвестен; повтор только с прежним ID"
   }
   d.save(a)
   return a
+}
+
+/** Payload-free evidence for task show and doctor; historical attempts stay unknown. */
+export function wakeDiagnostic(a: WakeAttempt): string {
+  const last = a.admission?.at(-1)
+  if (!last) return a.tries && !a.acceptedAt ? "квитанция исходной отправки не сохранена; причина транспорта неизвестна" : ""
+  return `admission: ${last.kind}${last.status ? ` HTTP ${last.status}` : ""}${last.errorName ? ` ${last.errorName}` : ""}${last.errorCode ? ` ${last.errorCode}` : ""}${last.timeout ? " (native admission timeout)" : ""}${last.mismatches?.length ? `; не совпали поля ${last.mismatches.join(", ")}` : ""}`
 }

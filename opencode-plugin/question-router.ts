@@ -73,6 +73,7 @@ export class QuestionRouter {
     const file = this.file(id)
     if (!existsSync(file)) return undefined
     const r = JSON.parse(readFileSync(file, "utf8"))
+    if (r?.v === 1 && r.id === id && questionId(r) !== id) throw new Error(`[unknown] identity mismatch: идентичность вопроса ${id} не соответствует содержимому; требуется явный перенос с сохранением источников`)
     if (r?.v !== 1 || r.id !== id || questionId(r) !== id || !Number.isInteger(r.revision) || !Number.isInteger(r.epoch) || r.epoch < 0
       || !["routing", "ready", "applying", "unknown", "answer_queued", "answered", "settled", "owner", "blocked"].includes(r.status)
       || !["text", "mail", "form"].includes(r.channel) || typeof r.text !== "string" || !r.text.trim() || typeof r.context !== "string" || r.source?.kind !== r.channel || !Number.isFinite(r.source?.at)
@@ -93,7 +94,10 @@ export class QuestionRouter {
     if (!existsSync(this.dir)) return { records, problems }
     for (const n of readdirSync(this.dir).filter(n => /^[a-f0-9]{64}\.json$/.test(n))) {
       try { const r = this.get(n.slice(0, -5)); if (r) records.push(r) }
-      catch { problems.push(`question router ${n}: неизвестная/повреждённая запись сохранена; pending/разрешением не считается`) }
+      catch (error) {
+        const why = error instanceof Error && error.message.startsWith("[unknown] identity mismatch:") ? "идентичность не соответствует содержимому; нужен явный перенос источников" : "неизвестная/повреждённая запись"
+        problems.push(`question router ${n}: ${why}; запись сохранена, pending/разрешением не считается`)
+      }
     }
     return { records, problems }
   }
