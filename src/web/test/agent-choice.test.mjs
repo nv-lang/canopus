@@ -23,9 +23,7 @@ for (const agents of [[], [{ id: 'opencode' }]]) {
     assert.equal(group.children.length, 1);
     const buttons = group.querySelectorAll('button');
     assert.equal(buttons.length, 1);
-    const approvals = refs.main.querySelector('.family-approvals-button');
-    approvals.click();
-    assert.match(refs.main.querySelector('.family-approvals-menu').textContent, /не сообщил поддерживаемые режимы/);
+    assert.equal(refs.main.querySelector('.family-approvals-button'), null);
     if (agents.length === 0) {
       assert.equal(buttons[0].dataset.noChoices, 'true');
       assert.match(buttons[0].title, /нет настроенных|недоступны|агент/i);

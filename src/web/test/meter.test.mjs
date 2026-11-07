@@ -91,7 +91,7 @@ const cssSrc = fs.readFileSync(new URL('../app.css', import.meta.url), 'utf8');
 test('карточка: «+», поле, затем панель записи (таймер и дорожка) и строка кнопок (отмена, отправка, микрофон); «↵» в записи нет', () => {
   const box = viewSrc.match(/const box = h\(doc, 'div', \{ class: 'box' \}, attach\.row, plusButton, input,\s*([^;]*)\);/);
   assert.ok(box, 'карточка найдена');
-  assert.match(box[1], /^recPanel, h\(doc, 'div', \{ class: 'box-row' \}, cancelButton, sendButton, familyApprovals.root, micWrap\)/);
+  assert.match(box[1], /^recPanel, h\(doc, 'div', \{ class: 'box-row' \}, cancelButton, sendButton, micWrap\)/);
   assert.match(viewSrc, /const recPanel = h\(doc, 'div', \{ class: 'rec-panel' \}, micTimer, wave\);/);
   assert.match(viewSrc, /const micWrap = h\(doc, 'div', \{ class: 'mic-wrap' \}, micButton, micMore, voiceMenu\);/);
   assert.ok(!/enterButton|enter-btn/.test(viewSrc + cssSrc), 'кнопки «↵» в записи нет');
