@@ -29,6 +29,7 @@ export fn scenario_preparation_backend(settings ServerSettings) Proc Detach Time
     rig.attach(1)
     rk_project_page(rig, 1, "s-safe", "{\"name\":\"Подготовка\",\"agent\":\"opencode\",\"route\":\"planning\",\"worktree\":true}")
     c.expect(rig.until("\"kind\":\"session_created\"", 5000), "the session is created")
+    rig.page(1, "session_source", "s-safe", "{\"family\":\"opencode\",\"model\":\"fixture/selected\"}")
     ro dir = "${settings.data_dir}/s-safe/tasks/draft/task"
     ro source = "${settings.workdir}/source.nv"
     ro made = write_file(source, "original source")

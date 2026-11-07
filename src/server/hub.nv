@@ -1960,6 +1960,17 @@ fn Hub mut @source_for_turn(trace str) Proc Detach Time -> bool {
             }
         }
     }
+    if !@work_allowed(at, "execute") {
+        if actual.family != s.agent {
+            @tell_error(0, trace, s.engine.step_number(), "", "Подготовка: сначала выберите семью в обычном чате; переход к обычному ACP запрещён")
+            return false
+        }
+        ro restricted = @ensure_client(at)
+        if restricted.byte_len() > 0 { @tell_error(0, trace, s.engine.step_number(), "", restricted); return false }
+        // The immutable restricted launch already pins model and effort. Native
+        // mode presets (Plan/YOLO) must never be sent to this text-only adapter.
+        return true
+    }
     @switch_agent(trace, actual.family)
     if @sessions[at].agent != actual.family { return false }
     ro start_error = @ensure_client(at)

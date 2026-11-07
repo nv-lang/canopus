@@ -5,7 +5,7 @@ import canopus.storage.{valid_session_name, ensure_session_dir}
 import std.os.{Os, real_os}
 import std.fs.{Fs, real_fs}
 import canopus.config.{load_presets, preset_named, preset_pick, install_paths}
-import std.encoding.json.{JsonObject}
+import std.encoding.json.{JsonValue, JsonObject}
 
 // Removed public controls remain named code policy, ready for explicit future exposure.
 const PREPARATION_SERVICE_REGISTRATION = ""
@@ -47,8 +47,8 @@ export fn preparation_launch(registration str, model str, variant str, adapter s
     Ok(AcpConfig { program: "node", args: arguments, cwd: "${data}/${session}", inbox_path: "" })
 }
 
-fn Hub @preparation_config(s Dialog) -> Result[AcpConfig, str] {
-    if s.agent != "codex" && s.agent != "opencode" { return Err("Подготовка: нужен уже выбранный Codex AgentRef или его пресет") }
+fn Hub @preparation_config(mut s Dialog) -> Result[AcpConfig, str] {
+    if s.agent != "codex" && s.agent != "opencode" && s.agent != "kimi" { return Err("Подготовка: для выбранной семьи не подключён ограниченный backend; обычный ACP запрещён") }
     // Exact-session trusted injection returns before production preset and installation discovery.
     for fixture in @preparation_fixtures {
         if fixture.session == s.id {
@@ -64,6 +64,25 @@ fn Hub @preparation_config(s Dialog) -> Result[AcpConfig, str] {
     for pick in presets_for(s.chosen, s.agent) {
         if pick.setting == "model" { model = pick.value }
         if pick.setting == "effort" { variant = pick.value }
+    }
+    // Direct source selection is separate from the old per-family native presets.
+    // Read only host journal metadata, never conversation text or model-proposed paths.
+    for event in history_in(@settings.store == "pg", @settings.data_dir, s) {
+        if event.name == "session_source" || event.name == "agent_selection" || event.name == "agent_selected" {
+            match jobject(event.input) {
+                Some(source) => if jtext(source, "family") == s.agent && jtext(source, "model").byte_len() > 0 { model = jtext(source, "model"); variant = jtext(source, "effort") }
+                None => ()
+            }
+        }
+        if event.name == "setting_chosen" {
+            match jobject(event.input) {
+                Some(choice) => if jtext(choice, "agent") == s.agent {
+                    if jtext(choice, "setting") == "model" { model = jtext(choice, "value") }
+                    if jtext(choice, "setting") == "effort" { variant = jtext(choice, "value") }
+                }
+                None => ()
+            }
+        }
     }
     if model.byte_len() == 0 {
         // D454: boundary override inside non-test code, see module-conventions
@@ -90,7 +109,10 @@ fn Hub @preparation_config(s Dialog) -> Result[AcpConfig, str] {
 }
 
 fn Hub @preparation_config_at(s Dialog, registration str, model str, variant str, adapter str) -> Result[AcpConfig, str] {
-    mut config = preparation_launch(registration, model, variant, tk_canon(adapter), tk_canon(@settings.data_dir), s.id)?
+    mut config = if s.agent == "kimi" {
+        ro native = match @settings.agent("kimi") { Some(agent) => agent, None => return Err("Подготовка: Kimi не настроен") }
+        preparation_kimi_launch(native.program, native.args, model, variant, tk_canon(adapter), tk_canon(@settings.data_dir), s.id)?
+    } else { preparation_launch(registration, model, variant, tk_canon(adapter), tk_canon(@settings.data_dir), s.id)? }
     // D454: boundary override inside non-test code, see module-conventions
     ro made = with Fs = real_fs() { ensure_session_dir(@settings.data_dir, s.id) }
     if !made {
@@ -99,4 +121,13 @@ fn Hub @preparation_config_at(s Dialog, registration str, model str, variant str
     config.args.push("--context")
     config.args.push(if s.project_id.byte_len() > 0 { "Проект: ${s.project_id}; каталог: ${s.folder}. Только контекст постановки, не рабочая копия." } else { "Без проекта. Контекст, история и постановка принадлежат этой сессии." })
     Ok(config)
+}
+
+export fn preparation_kimi_launch(program str, native_args []str, model str, variant str, adapter str, data str, session str) -> Result[AcpConfig, str] {
+    if !valid_session_name(session) || program.byte_len() == 0 || model.byte_len() == 0 || adapter.byte_len() == 0 { return Err("Подготовка Kimi: неполный назначенный источник") }
+    if native_args.len() == 0 || native_args[native_args.len() - 1] != "acp" { return Err("Подготовка Kimi: нужен настроенный нативный ACP; обычный агент запрещён") }
+    mut encoded = []JsonValue.new()
+    for arg in native_args { encoded.push(JsonValue.str(arg)) }
+    ro arguments = [adapter, "--backend", "kimi", "--native-program", program, "--native-args", JsonValue.array(encoded).to_str(), "--model", model, "--variant", variant, "--root", "${data}/${session}/tasks/draft"]
+    Ok(AcpConfig { program: "node", args: arguments, cwd: "${data}/${session}", inbox_path: "" })
 }

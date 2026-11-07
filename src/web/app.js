@@ -483,7 +483,7 @@ const handlers = {
     send(...signal(trace, routeSignal.set(route)));
   },
   onDraftPreset(trace, name) { model = patchDraft(model, trace, { preset: name }); render(); },
-  onDraftSource(trace, source) { model = patchDraft(model, trace, { source }); render(); },
+  onDraftSource(trace, source) { model = patchDraft(model, trace, { source, ...(source.family ? { agent: source.family } : {}) }); render(); },
   onSessionPreset(trace, name) { send('session_preset', trace, nextStep(model, trace), { preset: name }); },
   onDraftWorktree(trace, on) { saveWorktreePref(on === true); model = patchDraft(model, trace, { worktree: on === true }); render(); },
   onWorkspace(trace, folder, choice) {

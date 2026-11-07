@@ -46,3 +46,17 @@ test "preparation launch: missing model or adapter and path escape session ident
     match preparation_launch("", "", "", "adapter.mjs", "C:/work/data", "chat") { Ok(c) => assert(false), Err(e) => assert(e.byte_len() > 0) }
     match preparation_launch("", "selected", "", "adapter.mjs", "C:/work/data", "chat") { Ok(c) => assert(false), Err(e) => assert(e.byte_len() > 0) }
 }
+
+
+test "Kimi Preparation wraps only the configured native ACP in the restricted adapter" {
+    ro config = match preparation_kimi_launch("node", ["C:/work/kimi/main.mjs", "acp"], "kimi/native", "low", "C:/work/preparation-agent.mjs", "C:/work/data", "chat-1") {
+        Ok(c) => c
+        Err(e) => panic(e)
+    }
+    assert(config.args.contains("--backend") && config.args.contains("kimi"))
+    assert(config.args.contains("--native-program") && config.args.contains("--native-args"))
+    assert(config.args.contains("C:/work/data/chat-1/tasks/draft"))
+    assert(!config.args.contains("--service-registration") && !config.args.contains("--yolo"))
+    match preparation_kimi_launch("node", ["native.mjs"], "kimi/native", "", "adapter.mjs", "C:/work/data", "chat") { Ok(c) => assert(false), Err(e) => assert(e.byte_len() > 0) }
+    match preparation_kimi_launch("node", ["native.mjs", "acp"], "kimi/native", "", "adapter.mjs", "C:/work/data", "../escape") { Ok(c) => assert(false), Err(e) => assert(e.byte_len() > 0) }
+}
