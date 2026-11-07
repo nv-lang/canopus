@@ -108,7 +108,7 @@ fn Hub @preparation_config(mut s Dialog) -> Result[AcpConfig, str] {
     @preparation_config_at(s, registration, model, variant, adapter)
 }
 
-fn Hub @preparation_config_at(s Dialog, registration str, model str, variant str, adapter str) -> Result[AcpConfig, str] {
+fn Hub @preparation_config_at(mut s Dialog, registration str, model str, variant str, adapter str) -> Result[AcpConfig, str] {
     mut config = if s.agent == "kimi" {
         ro native = match @settings.agent("kimi") { Some(agent) => agent, None => return Err("Подготовка: Kimi не настроен") }
         preparation_kimi_launch(native.program, native.args, model, variant, tk_canon(adapter), tk_canon(@settings.data_dir), s.id)?
@@ -117,6 +117,28 @@ fn Hub @preparation_config_at(s Dialog, registration str, model str, variant str
     ro made = with Fs = real_fs() { ensure_session_dir(@settings.data_dir, s.id) }
     if !made {
         return Err("Подготовка: session-owned каталог недоступен")
+    }
+    if s.agent == "kimi" {
+        mut transcript = []JsonValue.new()
+        for raw in s.lines {
+            match jobject(raw) {
+                Some(event) => {
+                    ro kind = jtext(event, "kind")
+                    if kind == "user_message" || kind == "agent_chunk" {
+                        ro input = jchild(event, "input") ?? JsonObject.new()
+                        mut item = JsonObject.new()
+                        jput(item, "role", JsonValue.str(if kind == "user_message" { "user" } else { "assistant" }))
+                        jput(item, "text", JsonValue.str(jtext(input, "text")))
+                        transcript.push(JsonValue.object(item))
+                    }
+                }
+                None => ()
+            }
+        }
+        ro history_file = "${tk_canon(@settings.data_dir)}/${s.id}/preparation-context.json"
+        if !write_file(history_file, JsonValue.array(transcript).to_str()) { return Err("Подготовка: история чата не сохранена") }
+        config.args.push("--session-history"); config.args.push(history_file)
+        config.args.push("--project"); config.args.push(tk_canon(s.folder))
     }
     config.args.push("--context")
     config.args.push(if s.project_id.byte_len() > 0 { "Проект: ${s.project_id}; каталог: ${s.folder}. Только контекст постановки, не рабочая копия." } else { "Без проекта. Контекст, история и постановка принадлежат этой сессии." })

@@ -1576,8 +1576,9 @@ export function createView(doc, refs, deps) {
     const { node } = entry;
     switch (item.type) {
       case 'delivery': {
-        node.replaceChildren(
-          item.state !== 'error' ? h(doc, 'div', { class: 'bubble' }, ...proseNodes(item.text)) : false,
+        if (item.restored && item.state === 'error' && !entry.restoredInitialized) { open.add(`hide:${item.key}`); entry.restoredInitialized = true; }
+        node.replaceChildren(...[
+          item.state !== 'error' ? h(doc, 'div', { class: 'bubble' }, ...proseNodes(item.text)) : null,
           deliveryCard(doc, { ...item, collapsed: open.has(`hide:${item.key}`) }, {
             canRetry: item.retryAllowed,
             retry: id => handlers.onRetry(currentTrace, id),
@@ -1585,7 +1586,7 @@ export function createView(doc, refs, deps) {
             copy: text => handlers.onCopy(text),
             forget: id => handlers.onForgetDelivery(id),
             toggle: (head, body) => toggleCard(item.key, head, body),
-          }));
+          })].filter(Boolean));
         break;
       }
       case 'user': {
@@ -2005,7 +2006,8 @@ export function createView(doc, refs, deps) {
       if (saved.state === 'error' && saved.turn && session.messages.some(m => m.role === 'agent' && m.turn === saved.turn && m.status === 'done' && m.doneAt >= saved.at)) continue;
       if (saved.state !== 'error' && session.messages.some(m => m.role === 'user' && m.turn === (saved.turn || saved.clientTurn))) continue;
       const user = saved.state === 'error' && saved.turn ? session.messages.find(m => m.role === 'user' && m.turn === saved.turn) : null;
-      items.push({ ...saved, ...(user ? { state: 'agent_error', text: user.text } : {}), retryAllowed: !session.draft && !isBusy(session.state), type: 'delivery', key: `delivery:${saved.id}` });
+      const card = { ...saved, ...(user ? { state: 'agent_error', text: user.text } : {}), retryAllowed: !session.draft && !isBusy(session.state), type: 'delivery', key: `delivery:${saved.id}` };
+      if (saved.restored && saved.state === 'error') items.unshift(card); else items.push(card);
     }
     // сообщения в очереди — под текущим ходом, в порядке постановки
     handlers.queuedItems(session.id).forEach((q, index) => {

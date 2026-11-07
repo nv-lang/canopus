@@ -41,7 +41,7 @@ fi
 
 mkdir -p "$kit/machines/product/libs" || { echo "FAIL: папка $kit не создаётся"; exit 1; }
 cp "$root/target/canopus.exe" "$root/target/canopus-hub.exe" "$kit/" || { echo "FAIL: программы не скопированы"; exit 1; }
-for preparation_asset in kimi-preparation.mjs kimi-preparation.md; do
+for preparation_asset in kimi-preparation.mjs kimi-preparation.md preparation-research.mjs; do
   cp "$root/src/server/$preparation_asset" "$kit/$preparation_asset" || exit 1
 done
 cp "$root/src/server/preparation-agent.mjs" "$kit/preparation-agent.mjs" || { echo "FAIL: встроенный адаптер Подготовки не скопирован"; exit 1; }
