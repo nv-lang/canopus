@@ -79,9 +79,9 @@ try {
   const claim = () => tool.execute({ action: 'claim', id: original.id, epoch: router.get(original.id).epoch }, { sessionID: author })
   await claim()
   assert.equal(router.get(original.id).recovery, undefined, 'unknown native state is not idle')
-  const { WATCH_DIR } = await import('../idle-watch.ts')
+  const { WATCH_DIR, watchFile } = await import('../idle-watch.ts')
   mkdirSync(path.join(WATCH_DIR, 'sample'), { recursive: true })
-  const holdFile = path.join(WATCH_DIR, 'sample', `${task.n}.json`)
+  const holdFile = watchFile('sample',task.n)
   writeFixtureFile(holdFile, JSON.stringify({ project: 'sample', n: task.n, hold: { kind: 'HOLD', scope: 'execution', at, who: 'fixture owner pause' } }))
   unknown = false
   await claim()

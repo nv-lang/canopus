@@ -245,9 +245,11 @@ fn Hub mut @wip_done(done TreeDone) Proc Detach Time -> () {
 /// false - the branch could not be made (the caller makes a session of its own as before).
 fn Hub mut @wip_take(at int, p Proposal, how str, queued bool) Proc Detach Time -> bool {
     ro cur = @sessions[at]
-    ro number = task_number_text(@take_task_number(cur.id))
-    ro slug = child_slug("", "", p.title)
-    ro folder = "${number}-${slug}"
+    ro reserved = @shared_task_reserve(@route_repo_dir(cur.id), p.title)
+    if !reserved.ok { @say_log(reserved.text); return false }
+    ro allocation = match jobject(reserved.text) { Some(o) => o, None => return false }
+    ro number = task_number_text(jint(allocation, "n"))
+    ro folder = jtext(allocation, "id")
     ro tree = cur.rt.wip_tree
     // the branch is made in this very tree on the current head: the commits made on the detached head and the changed files go with it
     ro made_branch = tk_branch_create(tree, "task/${folder}")
@@ -255,9 +257,8 @@ fn Hub mut @wip_take(at int, p Proposal, how str, queued bool) Proc Detach Time 
         @say_log("the branch task/${folder} of ${cur.id} is not made: ${made_branch.text}")
         return false
     }
-    ro in_tree = dir_there("${tree}/doc/tasks")
-    ro dir = if in_tree { "${tree}/doc/tasks/${folder}/task" } else { "${@settings.data_dir}/${cur.id}/tasks/${folder}/task" }
-    ro shown = if in_tree { "doc/tasks/${folder}/task" } else { dir }
+    ro dir = jtext(allocation, "dir")
+    ro shown = dir
     mut sib = ""
     mut sib_no = 0
     if how == "wait" {
@@ -303,11 +304,9 @@ fn Hub mut @wip_take(at int, p Proposal, how str, queued bool) Proc Detach Time 
     @route_save_images(at, files)
     // the way "Эпик": this very session is the epic from the start (the mark and the table of its children)
     if p.kind == "epic" { @cs_make_epic(at) }
-    // the files of the task are a part of the work: they go into the branch at once
-    if in_tree {
-        ro why = tk_commit_task_files(tree, "doc/tasks/${folder}", number)
-        if why.byte_len() > 0 { @say_log("the files of the task ${folder} are not committed: ${why}") }
-    }
+    // Freeze a versioned snapshot; live documents stay in the shared task directory.
+    ro snapshot = @shared_task_snapshot(at, false)
+    if !snapshot.ok { @say_log("the files of the task ${folder} are not committed: ${snapshot.text}") }
     @ct_drop(at, p.id, false)
     ro c = @sessions[at]
     @rt_note(at, "▸ работа стала ${if p.kind == "epic" { "эпиком" } else { "задачей" }} ${number}: ветка task/${folder} создана в дереве сессии")

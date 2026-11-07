@@ -57,9 +57,9 @@ try {
   assert.equal(loadTask('sample', small.n).rework, 1, 'retry cannot start another corrective step')
   assert.match(repeated.content, /только сданный/)
   const held = createTask({ project: 'sample', title: 'paused fixture', goal: 'g', criteria: criterion, priority: 'P2', tier: 'light', role: 'worker', author: integrator.session, author_role: 'sample.integrator', qid: 'q_fixture_hold', status: 'submitted', kind: 'assign', directory: root, executor: worker.session, route: 'small' })
-  const { WATCH_DIR } = await import('../idle-watch.ts')
+  const { WATCH_DIR, watchFile } = await import('../idle-watch.ts')
   mkdirSync(path.join(WATCH_DIR, 'sample'), { recursive: true })
-  const holdFile = path.join(WATCH_DIR, 'sample', `${held.n}.json`)
+  const holdFile = watchFile('sample',held.n)
   const holdRecord = { project: 'sample', n: held.n, hold: { kind: 'HOLD', at: 1, who: 'fixture legacy hold' } }
   writeFixtureFile(holdFile, JSON.stringify(holdRecord))
   const refused = await tools.find(t => t.name === 'canopus_task').execute({ action: 'rework', n: held.n, candidate: 'd7e541a7818e86b12bb9748aba38dc6e8450c879', text: 'Не снимать legacy HOLD' }, integrator.session)

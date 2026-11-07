@@ -82,7 +82,7 @@ cell("TT-3 cleanup and cleaned (the synonym) give the same result", H.task(a).st
 
 // ---- TT-4 old files
 const c = H.reviewing()
-const file = path.join(H.tasks.TASKS, "proj", `${c.n}.json`)
+const file = H.tasks.taskFile("proj", c.n)
 const raw = JSON.parse(readFileSync(file, "utf8"))
 raw.status = "cleaned"
 raw.history.push({ at: Date.now(), by: "x", status: "cleaned", note: "old" })

@@ -20,7 +20,7 @@ import path from "node:path"
 import { randomUUID } from "node:crypto"
 import { PLUGIN_SENDER, readJson, safeKey } from "./core.ts"
 import { BASE } from "./base.ts"
-import { type Task, type TaskStatus, isOpen, loadTask, statusRu, taskNo, taskRef } from "./tasks.ts"
+import { type Task, type TaskStatus, isOpen, loadTask, listTasks, taskFile, statusRu, taskNo, taskRef } from "./tasks.ts"
 
 export const WATCH_DIR = path.join(BASE, "idle-watch")
 const MIN = 60_000
@@ -55,7 +55,7 @@ export function stepAt(t: Task): number {
 
 /** Шаг задачи: роль, ключ (статус и начало — сменился шаг, эпизод кончился) и начало. Нет шага: задача закрыта, пауза, чужой номер, заказ взят. */
 export function stepOf(t: Task): { role: StepRole; key: string; at: number } | undefined {
-  if (t.kind === "external") return undefined
+  if (t.kind === "external" || t.kind === "application") return undefined
   let role = ROLE_OF[t.status]
   if (t.kind === "order") {
     if (t.status !== "running" || t.child || !t.order_to) return undefined // взят: шаг ведёт задача проекта-исполнителя
@@ -126,7 +126,8 @@ export function externalResult(project: string, n: number, id: string, result: E
   return true
 }
 
-const fileOf = (project: string, n: number, dir: string) => path.join(dir, safeKey(project), `${n}.json`)
+const fileOf = (project: string, n: number, dir: string) => dir===WATCH_DIR ? path.join(path.dirname(taskFile(project,n)),"watch.json") : path.join(dir, safeKey(project), `${n}.json`)
+export const watchFile = (project:string,n:number) => fileOf(project,n,WATCH_DIR)
 export const readRecord = (project: string, n: number, dir = WATCH_DIR): Rec | undefined => readJson<Rec>(fileOf(project, n, dir))
 function writeRecord(r: Rec, dir = WATCH_DIR) {
   const file = fileOf(r.project, r.n, dir)
@@ -138,6 +139,7 @@ function writeRecord(r: Rec, dir = WATCH_DIR) {
 }
 /** Все записи сторожа (проект: только его). */
 export function records(dir = WATCH_DIR, project?: string): Rec[] {
+  if(dir===WATCH_DIR)return listTasks(project).flatMap(t=>{const r=readRecord(t.project,t.n);return r?[r]:[]})
   const out: Rec[] = []
   if (!existsSync(dir)) return out
   for (const p of project ? [safeKey(project)] : readdirSync(dir)) {

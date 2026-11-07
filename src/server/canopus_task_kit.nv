@@ -62,7 +62,7 @@ export fn scenario_route_recognize(settings ServerSettings) Proc Detach Time Net
     rig.run(2500)
     ro st2 = rk_state(rig)
     ro id = jtext(rk_task(st2), "id")
-    ro dir = "${settings.data_dir}/s-r7/tasks/${id}/task"
+    ro dir = ck_dir(rig, "s-r7")
     c.expect(id.starts_with("001-"), "the task is made: ${id}")
     c.expect(rk_text("${dir}/message.1.md").contains("сделать: Работа А"), "message.1.md holds the summary of the agent")
     c.expect(rk_card_state(st2, "Работа А") == "none" && rk_card_state(st2, "Работа В") == "open", "the started work is not a card any more, the discussed one stays")

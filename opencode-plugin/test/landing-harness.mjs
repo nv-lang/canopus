@@ -138,7 +138,7 @@ export async function harness(prefix, opts = {}) {
     current: () => current,
     task: (n) => tasks.loadTask("proj", n),
     all: () => tasks.listTasks("proj"),
-    reset: () => rmSync(path.join(tasks.TASKS, "proj"), { recursive: true, force: true }),
+    reset: () => { for (const t of tasks.listTasks("proj")) rmSync(path.dirname(path.dirname(tasks.taskFile(t.project,t.n))), {recursive:true,force:true}) },
     /** a task on review for `reviewer`: its branch `t<n>` exists in the project with one commit of its own */
     reviewing: (more = {}) => {
       const t = tasks.createTask({

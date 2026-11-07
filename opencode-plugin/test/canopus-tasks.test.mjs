@@ -90,7 +90,7 @@ const childSrc = `const t = await import(${JSON.stringify(new URL("../tasks.ts",
 const runChild = () => new Promise((resolve) => { const p = require_spawn(process.execPath, ["--input-type=module", "-e", childSrc], { env: { ...process.env } }); p.on("exit", resolve) })
 import { spawn as require_spawn } from "node:child_process"
 await Promise.all([runChild(), runChild()])
-const nums = readdirSync(path.join(tasks.TASKS, "race")).map((f) => Number(f.replace(".json", ""))).sort((a, b) => a - b)
+const nums = tasks.listTasks("race").map(t => t.n).sort((a, b) => a - b)
 cell("two processes at once: 30 tasks, numbers 1..30 without gaps or repeats", nums.length === 30 && nums.every((n, i) => n === i + 1), JSON.stringify(nums))
 
 // 2. required fields of the project
@@ -139,7 +139,9 @@ for (let i = 0; i < 40 && !core.obligationsOf(s2).some((o) => o.nudges === 3); i
 await call("canopus_task", "sesINTEG1", { action: "push", n: 2, text: "доделай тесты" })
 await wait()
 cell("push wakes the executor", got(s2, "Подталкивание по задаче 002").length === 1 && got(s2, "доделай тесты").length === 1, JSON.stringify(got(s2, "Подталк")))
-cell("push resets the reminders", core.obligationsOf(s2).every((o) => o.nudges === 0), JSON.stringify(core.obligationsOf(s2)))
+const pushWake=(await import("../wake-delivery.ts")).readWake(s2)
+const pushObligations=core.obligationsOf(s2)
+cell("push resets reminders only after a correlated assistant start", pushObligations.length>0 && pushObligations.every(o=>pushWake?.phase==="started"?o.nudges===0:o.nudges>=3), JSON.stringify({phase:pushWake?.phase,obligations:pushObligations}))
 
 // 6. reassign: same number, new session, summary of what was done
 await call("canopus_send", s2, { to: "sesINTEG1", text: "сделал половину: парсер готов" })

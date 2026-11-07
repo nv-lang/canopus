@@ -39,6 +39,10 @@ def tree_files(lib_hash=None, hub=True):
             "includes": [{"hash": lib_hash or dhash(LIB), "file": "libs/call_cancel.alula.md"}]}
     files = {"nova.lock.toml": LOCK,
              "src/server/preparation-agent.mjs": "// fixture adapter\n",
+             'scripts/task-store.mjs': "// fixture shared adapter\n",
+             'opencode-plugin/shared-task-store.ts': "// fixture shared adapter\n",
+             'opencode-plugin/shared-task-config.ts': "// fixture shared adapter\n", 'opencode-plugin/shared-task-snapshot.ts': "// fixture snapshot adapter\n",
+             'opencode-plugin/task-numbers.ts': "// fixture shared adapter\n",
              "machines/product/dialog.alula.json": json.dumps(tree),
              "machines/product/dialog.alula.md": "# Машина: Диалог\n\n- alula_version: 0.28\n",
              "machines/product/work-mode.alula.json": json.dumps({"alula_version": "0.28"}),
@@ -80,11 +84,11 @@ def main():
         assert proc.returncode == 0, proc.out + proc.err
         listed = sorted(os.path.relpath(os.path.join(b, n), kit).replace("\\", "/")
                         for b, _, names in os.walk(kit) for n in names)
-        assert listed == ["canopus.exe", "canopus-hub.exe", "machines/product/dialog.alula.json",
+        assert listed == sorted([*['scripts/task-store.mjs', 'opencode-plugin/shared-task-store.ts', 'opencode-plugin/shared-task-config.ts', 'opencode-plugin/shared-task-snapshot.ts', 'opencode-plugin/task-numbers.ts'], "canopus.exe", "canopus-hub.exe", "machines/product/dialog.alula.json",
                           "machines/product/dialog.alula.md", "machines/product/family-approval.alula.json",
                           "machines/product/family-approval.alula.md", "machines/product/journal.md",
                            "machines/product/libs/call_cancel.alula.md", "machines/product/work-mode.alula.json",
-                           "machines/product/work-mode.alula.md", "preparation-agent.mjs"], listed
+                           "machines/product/work-mode.alula.md", "preparation-agent.mjs"]), listed
         assert stlib.has_line(proc, "ок: осмотрено"), proc.out
 
     def relative_kit():

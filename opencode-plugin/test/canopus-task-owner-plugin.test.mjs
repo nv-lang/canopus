@@ -40,5 +40,14 @@ try {
  await new Promise(resolve => setTimeout(resolve, 2300))
  assert.equal(tasks.loadTask(project, t.n).status, "paused"); assert.equal(prompts.filter(p => p.sessionID === t.executor).length, before)
  assert.equal(created.length, 1, "pause never creates another task or executor")
+ const appTask=tasks.createTask({project,title:"Application-owned task",goal:"application fixture",priority:"P2",tier:"light",role:"worker",author:"app_fixture",author_role:"application",qid:"",status:"running",kind:"application",executor:"app_fixture",directory:root,application:{session:"app_fixture",events:[]}})
+ const ownerForms=owner.forms.size
+ const appShow=await tools.get("canopus_task").execute({action:"show",n:appTask.n},{sessionID:caller})
+ assert.match(appShow.content,/Application-owned task/)
+ for(const action of ["pause","cancel"]){const reply=await tools.get("canopus_task").execute({action,n:appTask.n,text:"wrong controller"},{sessionID:caller});assert.match(reply.content,/управляет приложение/)}
+ const appStart=await tools.get("canopus_spawn").execute({...input,task:appTask.n},{sessionID:caller});assert.match(appStart.content,/управляет приложение/)
+ assert.equal(created.length,1,"Sharing storage does not grant another controller execution authority")
+ assert.equal(owner.forms.size,ownerForms,"Wrong-controller operations do not create unrelated owner questions")
+ assert.equal(tasks.loadTask(project,appTask.n).status,"running")
  console.log("owner plugin: native owner click completes backend workflow once; pause completes after one click and blocks wake delivery")
 } finally { clearInterval(heart); await stop?.(); rmSync(home, { recursive: true, force: true }) }

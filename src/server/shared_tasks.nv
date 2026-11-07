@@ -1,0 +1,59 @@
+// 288: shared disk adapter; owner confirmation remains in the existing route/card handlers.
+module canopus.server
+import std.os.{Command, Os, real_os}
+import std.fs.{Fs, real_fs}
+import std.encoding.json.{Json, JsonValue, JsonObject}
+import canopus.config.{install_paths}
+export fn shared_task_call(action str, root str, input str, home str) Proc -> ShellOut {
+    if home.byte_len() == 0 { return { ok: false, text: "Shared task instance root is missing" } }
+    // D454: explicit application process/filesystem boundary.
+    ro installed = with Os = real_os() { with Fs = real_fs() { install_paths() } }
+    ro script = "${installed.root}/scripts/task-store.mjs"
+    if !path_there(script) { return { ok: false, text: "Shared task adapter is missing" } }
+    mut command = Command.new("node")
+    command.arg(script)
+    command.arg(action)
+    command.arg("--config")
+    command.arg("${home}/plugin/config.json")
+    command.arg("--root")
+    command.arg(root)
+    command.arg("--json")
+    command.arg(input)
+    match command.output() {
+        Ok(out) => { ok: out.status.success(), text: if out.status.success() { out.stdout.to_str_lossy().trim_ascii() } else { out.stderr.to_str_lossy().trim_ascii() } }
+        Err(e) => { ok: false, text: "Shared task adapter could not be started" }
+    }
+}
+// Explicit legacy/test ServerSettings have a flat data root, not an implicitly selected user instance.
+fn Hub @task_store_home() -> str => if @settings.layout.home.byte_len() > 0 { @settings.layout.home } else { @settings.data_dir }
+fn Hub @shared_task_reserve(root str, title str) Proc -> ShellOut {
+    mut o = JsonObject.new()
+    js(o, "title", title)
+    shared_task_call("reserve", root, JsonValue.object(o).to_str(), @task_store_home())
+}
+
+fn Hub @shared_task_restore(mut s Dialog) Proc -> Dialog {
+    if !s.rt.task_open || s.rt.number.byte_len() == 0 { return s }
+    mut request = JsonObject.new()
+    js(request, "n", s.rt.number)
+    ro root = if s.project_id.byte_len() > 0 { @cwd_of(s.folder) } else { "" }
+    ro loaded = shared_task_call("read", root, JsonValue.object(request).to_str(), @task_store_home())
+    if !loaded.ok { return s }
+    ro record = match jobject(loaded.text) { Some(o) => o, None => return s }
+    ro application = match record.get("application") { Some(v) => match v.object() { Some(o) => o, None => return s }, None => return s }
+    if jtext(application, "session") != s.id { return s }
+    // The session journal already restored accepted events. Reapplying them here would duplicate notes/subtasks.
+    // Shared storage supplies the canonical task location; its lifecycle status is checked before execution.
+    s.rt.task_dir = jtext(record, "shared_dir")
+    s.rt.task_shown = s.rt.task_dir
+    s
+}
+
+fn Hub @shared_task_snapshot(at int, stage bool) Proc -> ShellOut {
+    ro s = @sessions[at]
+    mut request = JsonObject.new()
+    js(request, "session", s.id)
+    js(request, "n", s.rt.number)
+    jput(request, "stage", JsonValue.bool(stage))
+    shared_task_call("snapshot", @route_repo_dir(s.id), JsonValue.object(request).to_str(), @task_store_home())
+}

@@ -732,11 +732,57 @@ fn tw_push(tree str) Proc Os Fs -> GitOut {
 
 fn tw_blocked(step str, reason str) -> PublishResult => Blocked { reason, step, conflict_files: []str.new() }
 
-/// The main copy is brought up to origin/main by a fast-forward, only when it is clean, stands on `main`, and its head is an ancestor of
+// 288: shared task documents may be staged by the trusted snapshot adapter. Every staged blob must
+// match both its private receipt and the published tree. Any unrelated change keeps the old refusal.
+fn tw_shared_main_ready(main str) Proc Os Fs -> bool {
+    if tw_git(main, ["diff", "--quiet"]).code != 0 { return false }
+    ro loose = tw_git(main, ["ls-files", "--others", "--exclude-standard"])
+    if loose.code != 0 || loose.out.trim_ascii().byte_len() > 0 { return false }
+    ro changed = tw_git(main, ["-c", "core.quotepath=false", "diff", "--cached", "--name-only"])
+    if changed.code != 0 || changed.out.trim_ascii().byte_len() == 0 { return false }
+    for file in tw_lines(changed.out) {
+        mut parent = Path.from_bytes(file.bytes())
+        mut valid = false
+        mut hops = 0
+        while hops < 32 {
+            match parent.parent() { Some(p) => { parent = p }, None => break }
+            ro folder = parent.display().replace("\\", "/")
+            if folder.byte_len() == 0 { break }
+            ro receipt = match read_text(Path.from_bytes("${main}/${folder}/task/snapshot.json".bytes())) { Ok(t) => t, Err(e) => "" }
+            match Json.parse(receipt) {
+                Ok(v) => match v.object() {
+                    Some(o) => match o.get("staged") {
+                        Some(value) => match value.object() {
+                            Some(staged) => match staged.get(file) {
+                                Some(hash) => {
+                                    ro expected = hash.str() ?? ""
+                                    ro index = tw_git(main, ["rev-parse", ":${file}"])
+                                    ro published = tw_git(main, ["rev-parse", "origin/main:${file}"])
+                                    valid = expected.byte_len() > 0 && index.code == 0 && published.code == 0 && index.out.trim_ascii() == expected && published.out.trim_ascii() == expected
+                                }
+                                None => ()
+                            }
+                            None => ()
+                        }
+                        None => ()
+                    }
+                    None => ()
+                }
+                Err(e) => ()
+            }
+            if valid { break }
+            hops += 1
+        }
+        if !valid { return false }
+    }
+    true
+}
+
+/// The main copy is brought up to origin/main by a fast-forward when clean (or only verified shared documents are staged), on `main`, with its head an ancestor of
 /// origin/main. The answer: "updated" or "not updated: <reason>".
 fn tw_update_main_copy(main_copy str) Proc Os Fs -> str {
     if !tw_is_repo(main_copy) { return "not updated: the main copy is not a git repository" }
-    if !is_clean(main_copy) { return "not updated: the main copy has changes or new files" }
+    if !is_clean(main_copy) && !tw_shared_main_ready(main_copy) { return "not updated: the main copy has changes or new files" }
     ro on = tw_current_branch(main_copy)
     if on != "main" { return "not updated: the main copy stands on '${on}', not on main" }
     ro anc = tw_git(main_copy, ["merge-base", "--is-ancestor", "HEAD", "origin/main"])

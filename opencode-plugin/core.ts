@@ -1,3 +1,4 @@
+import { snapshotTaskDocuments } from "./shared-task-snapshot.ts"
 import { writeGlobalProjectSettings } from "./plugin-config.ts"
 import { runtimeValue } from "./runtime-policy.ts"
 import { resolveProjectPolicy } from "./resolved-policy.ts"
@@ -29,7 +30,7 @@ import { background } from "./async-git.ts"
 import { mergeTemplate } from "./config-template.ts"
 import { DECISION_RU, type Decision, writeApproval } from "./approvals.ts"
 import { DEFAULT_FORM, PLAN_ACCEPTANCE, PLAN_MERGE_ACCEPTANCE, type PlanForm, allSteps, nextPlanNumber, parsePlan, planProblems, planTemplate, roundRules } from "./plans.ts"
-import { type Task, type TaskPlan, type TaskSession, WORKING_STATUSES, EXECUTOR_CODE, taskRef, taskNo, sessionOf, sessionRef, sesLabel, methodSession, moveToLegacy, listLegacy, slugify, acceptedAt, ago, byPriority, rounds, createTask, fillName, isOpen, listTasks, loadTask, plannedSessionId, saveTask, statusRu, taskEvent, taskLetterId } from "./tasks.ts"
+import { type Task, type TaskPlan, type TaskSession, WORKING_STATUSES, EXECUTOR_CODE, taskRef, taskNo, sessionOf, sessionRef, sesLabel, methodSession, moveToLegacy, listLegacy, slugify, acceptedAt, ago, byPriority, rounds, createTask, fillName, isOpen, listTasks, loadTask, plannedSessionId, saveTask, statusRu, taskEvent, taskLetterId, taskFile } from "./tasks.ts"
 import { countedOpen, waitingCleanup } from "./tasks.ts"
 import { baseRef, branchExists, commitFiles, ensureBranch, findFolder, folderName, pad3, usedNumbers } from "./task-numbers.ts"
 import { firstLogLine, folderInfo, messageRefusal, nextLaunch, readFolderFile, readTaskMessage, refreshRouteStale, routeLogLine, smallMessage, taskLog, templateMessage, titleOfMessage } from "./task-folders.ts"
@@ -1715,13 +1716,13 @@ acceptor — роль приёмщика (разделяемая) при нас�
 перезапуском OpenCode, плагин подхватывает письмом «продолжай». Служебным письмам плагина не отвечают.
 Спросивший ждёт ответ canopus_wait в том же ходе — ответ приходит туда, без отдельного пробуждения.
 
-ЗАДАЧИ. Одна задача — один номер. В проекте с папками задач (настройка tasks_dir, по умолчанию doc/tasks; включена, когда
+ЗАДАЧИ. Одна задача — один номер и общий каталог приложения/плагина: <project>/<tasks_dir>/NNN-slug/, без проекта — ~/.canopus/tasks/NNN-slug/. Состояние — task/state.json. В проекте с папками задач (настройка tasks_dir, по умолчанию doc/tasks; включена, когда
 каталог есть в целевой ветке) номер задачи — номер её папки NNN-<slug>/, в показе «045»; запись плагина
 носит тот же номер. В проекте без папок у задачи номер N (сквозной в проекте, только растёт; при доработке и передаче не
 меняется), в показе тоже тремя цифрами («094»; больше тысячи — как есть): у всех задач всех проектов одна подпись, без «#» (решётка с числом — ссылка на issue GitHub). По номеру задачу называют владелец, интегратор и canopus_list; заголовок сессии — «045 исп название».
   Новая задача в проекте с папками: номер — 1 + наибольший из записей и папок во всех рабочих деревьях и ветках (локальных и
     origin); плагин пишет папку на ветку задачи и коммитит её (task/message.md — поле message дословно, без него — шаблон из полей;
-    log.md — первая строка); основную копию не трогает. Папка уже есть — canopus_spawn {task: N, goal} заводит запись с её номером.
+    log.md — первая строка). Живые документы и состояние общие, исходный код основной копии не меняется; документы в ветках — снимки. Папка уже есть — canopus_spawn {task: N, goal} заводит запись с её номером.
   Сессия задачи — один запуск агента внутри задачи (исполнитель «исп», приёмщик «прм», сессии методики С1, С2, С3п, С4…), своего
     номера у неё нет: canopus_spawn {task: N, session: "С4", goal} — сессия «045 С4-3» (код и его порядковый номер в задаче) с номером
     запуска №n (сквозной в задаче; строки «запуск №n» в progress.log и «пуск» в log.md пишет плагин). Проверяющие С2, С4, С6 по
@@ -2107,6 +2108,7 @@ export function branchDeps(projects: Projects): BranchDeps {
     },
     targetBranch: (dir) => loadConfig(dir).targetBranch,
     task: (project, n) => loadTask(project, n),
+    taskDocuments: (project,n) => path.dirname(path.dirname(taskFile(project,n))),
     openTasks: () => listTasks().filter((t) => isOpen(t)),
     holdsLock: (project, session, n) => holdsMergeLock(project, session, n),
     taskNote: (project, n, text) => {
@@ -2898,6 +2900,14 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
         taskEvent(t, me.session, "idle", `ошибка уже подтверждённого создания: папка не заведена: ${c.error}; это не отмена владельцем`)
         return { content: `Задача ${taskRef(t)} не заведена: папку ${t.folder}/ не удалось записать на ветку ${t.branch} (${c.error}). Номер ${pad3(t.n)} остаётся пропуском.` }
       }
+      // The branch commit is a versioned snapshot; the live task documents share the canonical record directory.
+      const canonicalTask = path.dirname(path.dirname(taskFile(t.project, t.n)))
+      for (const [relative, body] of Object.entries(files)) {
+        const dest = path.join(canonicalTask, relative.slice(String(t.folder).length + 1))
+        mkdirSync(path.dirname(dest), { recursive: true })
+        if (!existsSync(dest)) writeFileSync(dest, body, { flag: "wx" })
+        else if (readFileSync(dest, "utf8") !== body) throw Error("Canonical task document collision; original preserved")
+      }
       taskEvent(t, me.session, undefined, `папка ${t.folder}/ заведена на ветке ${t.branch} (коммит ${c.commit.slice(0, 8)})`)
       if (partOf !== undefined) {
         const line = `заведена подзадача ${pad3(t.n)} «${t.title.replace(/[«»]/g, "")}»: папка ${t.folder}/, ветка ${t.branch}`
@@ -2935,7 +2945,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
     description:
       [
         "Integrator only: propose a new task, get native owner confirmation, then start its independent session. No task/number/folder/worktree/executor exists before confirmation. creation_reason, checked_tasks and why_new are mandatory for a new task; the backend also finds possible duplicates. Existing task sessions do not need another creation approval. It runs in the OpenCode server even with no window. The report comes back as an answer to the task's qid: canopus_wait {qid}. Manage tasks with canopus_task. The owner reads title, goal and criteria too: write them in the owner's language named in your system block.",
-        "One task, one number. In a project with task folders (tasks_dir, default doc/tasks, present in the target branch) the task number is the number of its folder NNN-<slug>/, shown as 045; without folders it is the plugin's number, shown the same way, 094 (every task of every project is shown with three digits and no hash, 1000 above 999: a hash with a number is a GitHub issue link). A new task: the plugin takes 1 + the largest number of the records and of the folders in every working tree and branch, writes the folder (task/message.md = message word for word, or a template from the fields when message is absent; log.md with its first line) on the task branch and commits it there; the main copy is never written. task: N - a task whose folder already exists (no folder commit; refused when no folder has that number).",
+        "One task, one number. Application and plugin share <project>/<tasks_dir>/NNN-slug/ (default doc/tasks), or ~/.canopus/tasks/NNN-slug/ without a project; private state is task/state.json. In a project with task folders (tasks_dir, default doc/tasks, present in the target branch) the task number is the number of its folder NNN-<slug>/, shown as 045; without folders it is the plugin's number, shown the same way, 094 (every task of every project is shown with three digits and no hash, 1000 above 999: a hash with a number is a GitHub issue link). A new task: the plugin takes 1 + the largest number of the records and of the folders in every working tree and branch, writes the folder (task/message.md = message word for word, or a template from the fields when message is absent; log.md with its first line) on the task branch and commits it there. Live task documents and task/state.json use the canonical shared directory of the primary project; source code stays in the task worktree. task: N - a task whose folder already exists (no folder commit; refused when no folder has that number).",
         "A task session is a part of the task, not a task: session \"<code>\" (С1, С2, С3п, С4…; default исп = the executor) adds a session to task N: ident 045 С4-3 (code and its ordinal in the task) plus the launch number №n; the plugin writes the launch lines into progress.log and log.md of the folder. A method session submits to you (canopus_task submit), with no plugin review; the plugin's review of the task starts once, after canopus_task deliver. place: own (default for С2/С4/С6) - its own worktree and branch task/NNN-<code>-<k> from the task branch; task (default for the others) - the task worktree.",
         "A sub-task (part_of: N) is a task of its own: own number and folder, the first line of its task/message.md is «Часть задачи NNN «…».», a line in the parent's log.md. The rule: an own acceptance or an own landing in main - a sub-task; the next step of the same work (a check, a fix by findings, a continuation, a handover) - a session.",
         "goal, criteria - required (named code policy may require more: boundaries, open_questions). title? priority? P0..P3.",
@@ -2987,6 +2997,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
       if (input.place !== undefined && input.place !== null && !["own", "task"].includes(String(input.place))) return { content: 'Сессия не запущена: place — "own" (своё дерево и ветка от ветки задачи) или "task" (дерево задачи).' }
       // папки задач проекта (tasks_dir есть в целевой ветке): номер задачи — номер папки; задача-план живёт по своим номерам (DNC-04)
       const fm = input.kind === "plan" ? undefined : folderInfo(me.directory, cfg)
+      if(taskNum!==undefined && loadTask(project,taskNum)?.kind==="application")return {content:"Этой задачей управляет приложение Canopus. Общая запись доступна для чтения; запуск выполняется в её окне приложения."}
       if (!fm && (taskNum !== undefined || sessionCode || partOf !== undefined))
         return { content: `Задача не поставлена: в проекте ${project} нет папок задач (каталога tasks_dir «${cfg.tasksDir}» нет в целевой ветке ${cfg.targetBranch}); task, session и part_of — для проекта с папками задач.` }
       if (taskNum !== undefined && partOf !== undefined) return { content: "Задача не поставлена: task (сессия задачи) и part_of (новая подзадача) вместе не бывают." }
@@ -3244,8 +3255,10 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
         return { content: `Заказ ${taskNo(t)} «${t.title}» отправлен интегратору ${m[1]}. Его ход виден в canopus_task {action: "show", n: ${t.n}}; выполнен — придёт сводка.` }
         })
       }
-      const t = findTask(me, input.n)
+      let t: Task | undefined
+      try { t=findTask(me,input.n) } catch { return {content:`Состояние задачи ${taskNo({project,n:input.n})} не прочитано: запись повреждена или хранилище недоступно. Операция не выполнена; исходные данные сохранены.`} }
       if (!t) return { content: `Задачи ${taskNo({ project, n: input.n })} в проекте ${project} нет.` }
+      if(t.kind==="application" && !["show","questions"].includes(action))return {content:"Этой задачей управляет приложение Canopus. Операции исполнителя выполняются в её окне приложения; общая запись доступна для чтения."}
       if (t.operation_pending && !["show", "questions", "cancel", "pause", "resume", "reopen"].includes(action)) return { content: `Операция ${t.operation_pending.action} ещё не завершена; исполнение/приёмка заблокированы. Диагностика — show; повтор с прежним approval.` }
       if (["pause", "reopen"].includes(action) || (action === "resume" && t.status === "paused")) {
         if (!isIntegrator(me)) return notIntegrator(me)
@@ -3527,6 +3540,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
         const line = contourMarkText(t.route_word_ts, link, now, t.route_word_ts_kind)
         taskEvent(t, me.session, undefined, line)
         const why = taskLog(t, "документ", line, new Date(now))
+        if(!taskHold(t.project,t.n))snapshotTaskDocuments(taskFile(t.project,t.n),t,{stage:true,target:configFor(me).targetBranch})
         host.posted([])
         return { content: `${line}${why ? `\n(В log.md задачи не записано: ${why}; запиши строку сам: log_line {kind: "документ", text: "${line.replace(/"/g, "'")}"}.)` : " — записано в log.md задачи."}` }
       }
@@ -3714,6 +3728,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
           if (t.plan && !(t.plan.approval && t.plan.approval.decision !== "no")) return { content: `Задача ${taskRef(t)} сейчас в раунде перепроверки плана ${t.plan.n}: вливания нет, предпроверка не нужна. Она действует на вливание согласованного плана (после решения, статус на приёмке).` }
           if (t.status !== "reviewing") return { content: `Сначала canopus_task {action: "review", n: ${t.n}} (задача сейчас ${statusRu(t.status)}).` }
           const finishing = input.candidate !== undefined || input.result !== undefined
+          if (!finishing) snapshotTaskDocuments(taskFile(t.project,t.n),t,{target:tcfg.targetBranch})
           const pre = finishing ? await finishPrecheck(t, me.session, tcfg.targetBranch, { candidate: input.candidate, result: input.result }) : await beginPrecheck(t, me.session, tcfg.targetBranch)
           const seen = finishing ? autoTrack(loadTask(t.project, t.n) ?? t, tcfg, me.session) : []
           return { content: pre + (seen.length ? `
@@ -3726,6 +3741,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
             // ворота: замок выдаётся только на ту вершину главной ветки, на которой кандидат уже собран и проверен (задача 005)
             const g = await gateMerge(t, me.session, tcfg.targetBranch)
             if ("text" in g) return { content: g.text }
+            try { snapshotTaskDocuments(taskFile(t.project,t.n),t,{freeze:false,stage:true,candidate:t.precheck?.candidate,target:tcfg.targetBranch}) } catch(error) {unlockMerge(t,me.session);return {content:`Снимок документов не подготовлен: ${String(error)}. Данные сохранены; повтори предпроверку.`}}
             return { content: `Замок вливания проекта ${project} твой, выдан на вершину ${tcfg.targetBranch} ${g.granted}. ${landingLine(t, tcfg.targetBranch) || `Влей ${t.branch ? `ветку ${t.branch}` : "работу"} (кандидата, проверенного на этой вершине) в ${tcfg.targetBranch}, запушь`} Затем вызови canopus_task {action: "accept", n: ${t.n}, checks: {...}${t.branch ? "" : ', commit: "<хэш>"'}}. ${LOCK_RULE}` }
           }
           const r = takeMergeLock(project, me.session, t.n, tcfg.mergeLockPerTask)
@@ -3739,6 +3755,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
               return { content: `Цель публикации ${t.landing!.url}#${t.landing!.branch} занята: вливает приёмщик задачи ${pg.holder.project} ${taskNo({ project: pg.holder.project, n: pg.holder.n })} (сессия ${pg.holder.session}) с ${hhmm(pg.holder.at)}. Замок не взят; дождись освобождения цели и повтори merge.` }
             }
           }
+          try {snapshotTaskDocuments(taskFile(t.project,t.n),t,{stage:true,target:tcfg.targetBranch})}catch(error){unlockMerge(t,me.session);return {content:`Снимок документов не подготовлен: ${String(error)}. Данные сохранены.`}}
           taskEvent(t, me.session, undefined, "замок вливания взят")
           return { content: `Замок вливания проекта ${project} твой. Влей ${t.branch ? `ветку ${t.branch}` : "работу"} в ${tcfg.targetBranch}, запушь и вызови canopus_task {action: "accept", n: ${t.n}, checks: {...}${t.branch ? "" : ', commit: "<хэш>"'}}. ${LOCK_RULE}` }
         }
@@ -4328,7 +4345,7 @@ export function formatTaskLetter(t: Task): string {
   if (t.folder && s && s.code !== EXECUTOR_CODE) return sessionLetter(t, s)
   return [
     `ЗАДАЧА ${taskNo(t)} «${t.title}» от ${t.author_role} (сессия ${t.author}), приоритет ${t.priority}.`,
-    t.folder ? `ПАПКА ЗАДАЧИ: ${t.folder}/ — задание task/message.md, журнал log.md.` : "",
+    t.folder ? `ПАПКА ЗАДАЧИ: ${path.dirname(path.dirname(taskFile(t.project,t.n)))}/ — единые задание task/message.md и журнал log.md; версионный путь в ветке: ${t.folder}/.` : "",
     refinementBlock(t),
     t.refinement ? `ЦЕЛЬ (исходная; действует уточнение выше): ${t.goal}` : `ЦЕЛЬ: ${s?.goal && s.goal !== t.goal ? `${s.goal}\nЦЕЛЬ ЗАДАЧИ: ${t.goal}` : t.goal}`,
     t.criteria ? `КРИТЕРИИ ПРИЁМКИ: ${t.criteria}` : "",
@@ -4357,7 +4374,7 @@ export function sessionLetter(t: Task, s: TaskSession): string {
   const tree = s.place === "own" && s.worktree ? `WORKTREE ГОТОВ: эта сессия работает в своём дереве ${s.worktree}, ветка ${s.branch} (создал плагин от ветки задачи ${t.branch}). Правь и коммить здесь.` : t.worktree ? `WORKTREE ГОТОВ: эта сессия работает в дереве задачи ${t.worktree}, ветка ${t.branch}. Правь и коммить здесь; другой worktree не создавай.` : t.branch ? `ВЕТКА: ${t.branch}.` : ""
   return [
     `ЗАДАЧА ${taskNo(t)} «${t.title}», СЕССИЯ ${sesLabel(s)} (запуск №${s.launch}) от ${t.author_role}, приоритет ${t.priority}.`,
-    `ПАПКА ЗАДАЧИ: ${t.folder}/ — задание task/message.md, журнал log.md.`,
+    `ПАПКА ЗАДАЧИ: ${path.dirname(path.dirname(taskFile(t.project,t.n)))}/ — единые задание task/message.md и журнал log.md; версионный путь в ветке: ${t.folder}/.`,
     refinementBlock(t),
     `ЦЕЛЬ СЕССИИ: ${s.goal ?? t.goal}`,
     tree,

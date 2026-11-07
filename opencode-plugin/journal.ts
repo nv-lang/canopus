@@ -540,7 +540,7 @@ export function usageLine(input: UsageInput, base: string, env: UsageEnv): { ok:
 const kind = (input: any) => String(input?.kind ?? "").trim().toLowerCase()
 // gate (задача 062): записи вида «ворота» — open(сессия): у вкладки есть открытый вопрос владельцу; note(сессия, текст): запомнить остановку без вопроса
 export type GateOpts = { open: (sessionID: string) => boolean; note: (sessionID: string, text: string) => void }
-export async function registerJournalTools(ctx: any, log: (s: string) => void, opts: { launcher?: (sessionID: string) => boolean; gate?: GateOpts } = {}): Promise<void> {
+export async function registerJournalTools(ctx: any, log: (s: string) => void, opts: { launcher?: (sessionID: string) => boolean; gate?: GateOpts; location?: (sessionID:string,file:string) => {base:string;file:string}|undefined } = {}): Promise<void> {
   const base = () => String(ctx?.location?.directory ?? process.cwd())
   // запускающий ли вызывающая вкладка (index.ts: визитка и замок роли integrator); сбой проверки — не запускающий
   const launcherOf = (context: any): boolean => {
@@ -595,7 +595,8 @@ export async function registerJournalTools(ctx: any, log: (s: string) => void, o
           required: ["file", "code"],
         },
         execute: async (input: any, context: any) => {
-          const r = progressLine(input, base(), new Date(), { launcher: launcherOf(context) })
+          const where=opts.location?.(String(context?.sessionID??""),String(input.file??""))
+          const r = progressLine(where?{...input,file:where.file}:input, where?.base??base(), new Date(), { launcher: launcherOf(context) })
           if (!r.ok) {
             log(`progress_line refused: ${r.reason}`)
             return { content: `Не записано: ${r.reason}` }
@@ -619,7 +620,8 @@ export async function registerJournalTools(ctx: any, log: (s: string) => void, o
           required: ["file", "kind", "text"],
         },
         execute: async (input: any, context: any) => {
-          const r = logLine(input, base(), new Date(), { launcher: launcherOf(context) })
+          const where=opts.location?.(String(context?.sessionID??""),String(input.file??""))
+          const r = logLine(where?{...input,file:where.file}:input, where?.base??base(), new Date(), { launcher: launcherOf(context) })
           if (!r.ok) {
             log(`log_line refused: ${r.reason}`)
             return { content: `Не записано: ${r.reason}` }
@@ -655,7 +657,8 @@ export async function registerJournalTools(ctx: any, log: (s: string) => void, o
         },
         execute: async (input: any, context: any) => {
           const session = String(context?.sessionID ?? "")
-          const r = usageLine(input, base(), { session, card: await cardOf(session) })
+          const where=opts.location?.(session,String(input.file??""))
+          const r = usageLine(where?{...input,file:where.file}:input, where?.base??base(), { session, card: await cardOf(session) })
           if (!r.ok) {
             log(`usage_line refused: ${r.reason}`)
             return { content: `Не записано: ${r.reason}` }

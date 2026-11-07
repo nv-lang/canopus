@@ -15,8 +15,8 @@ const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-sidebar-groups-"))
 process.env.XDG_DATA_HOME = tmp
 ;await (await import("./test-home.mjs")).configureTestHome(path.join(process.env.XDG_DATA_HOME, "opencode"))
 const { sidebarLines, sideText, SIDE_WIDTH } = await import("../status.ts")
-const { WATCH_DIR } = await import("../idle-watch.ts")
-const { TASKS } = await import("../tasks.ts")
+const { watchFile } = await import("../idle-watch.ts")
+const { taskFile } = await import("../tasks.ts")
 let fail = 0
 const cell = (name, ok, detail) => {
   console.log(`${ok ? "ok  " : "FAIL"} ${name}${ok ? "" : " :: " + detail}`)
@@ -26,14 +26,14 @@ const now = new Date(2026, 9, 30, 12, 0).getTime()
 const st = (session, state, extra = {}) => ({ session, project: "nova", role: "worker", title: session, state, detail: "", watches: [], asked: [], tasks: [], updated: now, ...extra })
 // fixture files: the tasks and the hold marks of the step watcher (the real layout of the mailbox)
 const putTask = (n, status, title) => {
-  const dir = path.join(TASKS, "nova")
-  mkdirSync(dir, { recursive: true })
-  writeFixtureFile(path.join(dir, `${n}.json`), JSON.stringify({ project: "nova", n, title, status, slug: "t", goal: "", priority: "P2", tier: "medium", role: "worker", author: "a", author_role: "integrator", qid: "q", kind: "spawn", executors: [], attempt: 1, directory: ".", history: [], created: now, updated: now }))
+  const file=taskFile("nova",n)
+  mkdirSync(path.dirname(file), { recursive: true })
+  writeFixtureFile(file, JSON.stringify({ project: "nova", n, title, status, slug: "t", goal: "", priority: "P2", tier: "medium", role: "worker", author: "a", author_role: "integrator", qid: "q", kind: "spawn", executors: [], attempt: 1, directory: ".", history: [], created: now, updated: now }))
 }
 const putHold = (n, kind) => {
-  const dir = path.join(WATCH_DIR, "nova")
-  mkdirSync(dir, { recursive: true })
-  writeFixtureFile(path.join(dir, `${n}.json`), JSON.stringify({ project: "nova", n, hold: { kind, who: "владелец, 2026-10-29", at: now - 60_000 } }))
+  const file=watchFile("nova",n)
+  mkdirSync(path.dirname(file), { recursive: true })
+  writeFixtureFile(file, JSON.stringify({ project: "nova", n, hold: { kind, who: "владелец, 2026-10-29", at: now - 60_000 } }))
 }
 putTask(146, "running", "Старое дерево")
 putTask(147, "rework", "Перенос архива")

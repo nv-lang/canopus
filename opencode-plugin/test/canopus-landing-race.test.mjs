@@ -207,7 +207,7 @@ clearLock()
   mkdirSync(dir, { recursive: true })
   writeFixtureFile(tasks.taskFile("proj", n), "")
   const r = await call("canopus_task", "sesR1", { action: "merge", n })
-  cell("Г-7: an empty task record is a refusal, the lock is not issued", /Задачи 777 в проекте proj нет/.test(r) && !H.holder(), r)
+  cell("Г-7: an empty task record is a refusal, the lock is not issued", /Состояние задачи 777 не прочитано/.test(r) && !H.holder(), r)
 }
 
 done(H)

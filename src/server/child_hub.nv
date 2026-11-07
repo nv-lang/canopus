@@ -273,9 +273,12 @@ fn Hub mut @cs_spawn(at int, p Proposal, how str, queued bool) Proc Detach Time 
     ro par = if pat >= 0 { @sessions[pat] } else { cur }
     ro parent_no = if pat >= 0 { par.rt.number } else { "" }
     ro parent_slug = if pat < 0 { "" } else if par.rt.kind == "child" { task_slug(par.rt.title) } else { task_slug_of(par.rt.task_id) }
-    ro number = task_number_text(@take_task_number(cur.id))
-    ro slug = child_slug(parent_no, parent_slug, p.title)
-    ro folder = "${number}-${slug}"
+    ro reserved = @shared_task_reserve(@route_repo_dir(cur.id), p.title)
+    if !reserved.ok { @say_log(reserved.text); return }
+    ro allocation = match jobject(reserved.text) { Some(o) => o, None => return }
+    ro number = task_number_text(jint(allocation, "n"))
+    ro folder = jtext(allocation, "id")
+    ro slug = task_slug_of(folder)
     mut k = 0
     if pat >= 0 {
         for row in @cs_rows(par.id, false) { if row.k > k { k = row.k } }
@@ -298,11 +301,8 @@ fn Hub mut @cs_spawn(at int, p Proposal, how str, queued bool) Proc Detach Time 
         if !tree.ok && source.rt.result_repo.byte_len() > 0 { return }
     }
     ro cid = @cs_new_id(cur.id, @sessions.len() + 1)
-    ro own = @route_repo_dir(cur.id)
-    ro foreign = tk_is_repo(own) && !tk_same_repo(own, base)
-    ro in_tree = tree.ok && !foreign && dir_there("${tree.worktree}/doc/tasks")
-    ro dir = if in_tree { "${tree.worktree}/doc/tasks/${folder}/task" } else if foreign { "${own}/doc/tasks/${folder}/task" } else { "${@settings.data_dir}/${cid}/tasks/${folder}/task" }
-    ro shown = if in_tree { "doc/tasks/${folder}/task" } else { dir }
+    ro dir = jtext(allocation, "dir")
+    ro shown = dir
     // the family of the session: the one chosen on the card, else the one of the session where the talk is
     ro agent = if p.agent.byte_len() > 0 && @agent_ids().contains(p.agent) { p.agent } else { cur.agent }
     mut sib = ""
@@ -544,11 +544,11 @@ fn Hub mut @cs_merged(cat int) Proc Detach Time -> () {
     @route_close_agent_in(cat, s.rt.worktree)
     ro removed = tk_subtree_remove(s.rt.ptree, s.rt.worktree, s.rt.branch)
     if !removed.ok { @say_log("the tree of the child ${s.rt.task_id} is not removed: ${removed.text}") }
-    ro merged_dir = "${s.rt.ptree}/doc/tasks/${s.rt.task_id}/task"
+    ro merged_dir = s.rt.task_dir
     mut o = JsonObject.new()
     if dir_there(merged_dir) {
         js(o, "dir", merged_dir)
-        js(o, "shown", "doc/tasks/${s.rt.task_id}/task")
+        js(o, "shown", merged_dir)
     }
     @rt_task_op(cat, "child_merged", o)
     mut me = @sessions[cat]
@@ -600,14 +600,8 @@ fn Hub mut @cs_merge(cat int) Proc Detach Time -> bool {
         @cs_fail(cat, "изменения не закоммичены: ${auto.text}")
         return false
     }
-    ro rel = "doc/tasks/${s.rt.task_id}"
-    if path_there("${s.rt.worktree}/${rel}") {
-        ro why = tk_commit_task_files(s.rt.worktree, rel, s.rt.number)
-        if why.byte_len() > 0 {
-            @cs_fail(cat, "файлы задачи не закоммичены: ${why}")
-            return false
-        }
-    }
+    ro snapshot = @shared_task_snapshot(cat, false)
+    if !snapshot.ok { @cs_fail(cat, "файлы задачи не закоммичены: ${snapshot.text}"); return false }
     @route_close_agent_in(cat, s.rt.worktree)
     ro r = tk_merge(s.rt.ptree, s.rt.branch, "${s.rt.number} ${s.rt.title}")
     if r.status == "merged" {

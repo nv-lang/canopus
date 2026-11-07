@@ -1,14 +1,14 @@
 // ПАПКА ЗАДАЧИ И ЖУРНАЛЫ СЕССИЙ (задача 058): текст задания task/message.md и первая строка log.md новой задачи, название задачи по
 // её папке, номер запуска сессии и строки запуска (progress.log копии, где работает сессия, и log.md задачи), записи log.md о сдаче
 // сессии и заведении подзадачи. Формы строк — общими функциями журнала (journal.ts, задача 053). Основную копию целевой ветки модуль
-// не пишет: журналы — только в дереве задачи и в дереве сессии (AGENTS.md, пп. 3 и 11).
+// исходного кода не пишет: runtime-журналы — в едином каталоге задачи (288, configuration.md).
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { execFileSync } from "node:child_process"
 import { buildProgress, logLine, ymdhm } from "./journal.ts"
 import { parseJournal } from "./progress.ts"
 import { type FolderHit, pad3, tasksDirOn, repoTop } from "./task-numbers.ts"
-import { type Task, type TaskSession, saveTask, sesLabel, sessionRef, taskNo } from "./tasks.ts"
+import { type Task, type TaskSession, saveTask, taskFile, sesLabel, sessionRef, taskNo } from "./tasks.ts"
 import { STALE_WARNING, markStale, routeLogText } from "./route.ts"
 
 /** Папки задач проекта каталога dir включены: корень репозитория и каталог задач; иначе undefined. */
@@ -168,8 +168,10 @@ export function routeLogLine(t: Parameters<typeof routeLogText>[0], now: Date = 
 }
 
 /** Текст task/message.md задачи с папкой: из дерева задачи (на диске), а когда дерева нет — из её ветки. Прочесть нельзя — undefined (о правке ничего не известно). */
-export function readTaskMessage(t: Pick<Task, "folder" | "worktree" | "branch" | "directory">): string | undefined {
+export function readTaskMessage(t: Pick<Task, "folder" | "worktree" | "branch" | "directory" | "project" | "n">): string | undefined {
   if (!t.folder) return undefined
+  const canonical = path.join(path.dirname(path.dirname(taskFile(t.project, t.n))), "task", "message.md")
+  if (existsSync(canonical)) return readFileSync(canonical, "utf8")
   const rel = path.join(...String(t.folder).split("/"), "task", "message.md")
   if (t.worktree) {
     try {
@@ -215,7 +217,7 @@ function launchesIn(dir: string): number[] {
 }
 
 /** Каталог папки задачи в копии root (дерево задачи или сессии). */
-export const folderIn = (root: string, t: Pick<Task, "folder">) => path.join(root, ...String(t.folder).split("/"))
+export const folderIn = (_root: string, t: Pick<Task, "folder" | "project" | "n">) => path.dirname(path.dirname(taskFile(t.project, t.n)))
 
 /** Номер запуска новой сессии: 1 + наибольший из сессий записи и строк «запуск» журналов папки во всех копиях (дерево задачи и деревья сессий). */
 export function nextLaunch(t: Task): number {
@@ -237,9 +239,7 @@ const isMain = (root: string, t: Task) => path.resolve(root).toLowerCase() === p
  */
 export function writeLaunch(t: Task, s: TaskSession, sessionRoot: string, now: Date = new Date()): string | undefined {
   if (!t.folder) return undefined
-  const taskRoot = t.worktree && existsSync(t.worktree) ? t.worktree : undefined
-  if (!taskRoot || isMain(taskRoot, t)) return "дерева задачи нет — журналы в основной копии плагин не пишет"
-  if (isMain(sessionRoot, t)) return "сессия в основной копии — журналы там плагин не пишет"
+  const taskRoot = folderIn("", t)
   const sdir = folderIn(sessionRoot, t)
   mkdirSync(sdir, { recursive: true })
   let prior: ReturnType<typeof parseJournal> = []
@@ -250,7 +250,7 @@ export function writeLaunch(t: Task, s: TaskSession, sessionRoot: string, now: D
   if (!built.ok) return built.reason
   const stamp = ymdhm(now)
   // форма записи о запуске — та, что ищет страж журнала (journal-launch): «запуск №n <код>», затем время и идентификатор сессии
-  const lg = logLine({ file: `${t.folder}/log.md`, kind: "пуск", text: `запуск №${s.launch} ${s.code} [${stamp}] — ${sessionRef(t, s)} ${s.goal ? `«${s.goal.replace(/[«»\r\n]/g, " ").slice(0, 120)}»` : ""}`.trim() }, taskRoot, now, { launcher: true })
+  const lg = logLine({ file: "log.md", kind: "пуск", text: `запуск №${s.launch} ${s.code} [${stamp}] — ${sessionRef(t, s)} ${s.goal ? `«${s.goal.replace(/[«»\r\n]/g, " ").slice(0, 120)}»` : ""}`.trim() }, taskRoot, now, { launcher: true })
   if (!lg.ok) return lg.reason
   try {
     const file = path.join(sdir, "progress.log")
@@ -269,10 +269,9 @@ export function writeLaunch(t: Task, s: TaskSession, sessionRoot: string, now: D
 /** Запись в log.md задачи (в её дереве): вид и текст одной строкой. Дерева нет — отказ строкой. */
 export function taskLog(t: Task, kind: string, text: string, now: Date = new Date()): string | undefined {
   if (!t.folder) return "у задачи нет папки"
-  const root = t.worktree && existsSync(t.worktree) ? t.worktree : undefined
-  if (!root || isMain(root, t)) return "дерева задачи нет"
-  if (!existsSync(folderIn(root, t))) return "папки задачи в её дереве нет"
-  const r = logLine({ file: `${t.folder}/log.md`, kind, text: text.replace(/[\r\n]+/g, " ").slice(0, 1900) }, root, now)
+  const root = folderIn("", t)
+  mkdirSync(root, { recursive: true })
+  const r = logLine({ file: "log.md", kind, text: text.replace(/[\r\n]+/g, " ").slice(0, 1900) }, root, now)
   return r.ok ? undefined : r.reason
 }
 

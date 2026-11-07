@@ -15,7 +15,7 @@ export const DEFAULT_TASKS_DIR = "doc/tasks"
 export const pad3 = (n: number | string) => String(n).padStart(3, "0")
 const FOLDER_RE = /^(\d{3,})-(.+)$/
 
-const run = (cwd: string, args: string[], input?: string, env?: NodeJS.ProcessEnv): string =>
+const run = (cwd: string, args: string[], input?: string | Buffer, env?: NodeJS.ProcessEnv): string =>
   execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", windowsHide: true, timeout: 20_000, maxBuffer: 64 * 1024 * 1024, stdio: [input === undefined ? "ignore" : "pipe", "pipe", "ignore"], ...(input !== undefined ? { input } : {}), ...(env ? { env } : {}) })
 const runBuf = (cwd: string, args: string[], input: string): Buffer =>
   execFileSync("git", ["-C", cwd, ...args], { windowsHide: true, timeout: 20_000, maxBuffer: 256 * 1024 * 1024, stdio: ["pipe", "pipe", "ignore"], input })
@@ -152,7 +152,7 @@ export type CommitResult = { ok: true; commit: string; parent: string } | { ok: 
  * Ветка есть — коммит поверх её вершины; нет — ветка создаётся от `base`. Подпись — как у `git commit -s`: строка Signed-off-by с
  * именем и адресом из настроек git репозитория (их нет — отказ). Ветка, вынутая в рабочее дерево, не двигается (отказ).
  */
-export function commitFiles(dir: string, branch: string, base: string, files: Record<string, string>, message: string): CommitResult {
+export function commitFiles(dir: string, branch: string, base: string, files: Record<string, string | Buffer>, message: string): CommitResult {
   const top = repoTop(dir)
   if (!top) return { ok: false, error: `${dir} — не репозиторий git` }
   if (worktreesOf(top).some((w) => w.branch === branch)) return { ok: false, error: `ветка ${branch} уже вынута в рабочее дерево — плагин её не двигает` }
@@ -167,7 +167,7 @@ export function commitFiles(dir: string, branch: string, base: string, files: Re
   try {
     run(top, ["read-tree", parent], undefined, env)
     for (const [p, text] of Object.entries(files)) {
-      const blob = run(top, ["hash-object", "-w", "--stdin"], text).trim()
+      const blob = run(top, ["hash-object", "-w", "--path", p, "--stdin"], text).trim()
       run(top, ["update-index", "--add", "--cacheinfo", `100644,${blob},${p.replace(/\\/g, "/")}`], undefined, env)
     }
     const tree = run(top, ["write-tree"], undefined, env).trim()

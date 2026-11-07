@@ -1,4 +1,4 @@
-import { writeFixtureFile } from "./fixture-settings.mjs"
+import { writeFixtureFile, clearTaskFixtures } from "./fixture-settings.mjs"
 // Self-test: the slot at acceptance (task 005, AC-02..AC-06; node >= 24):  node test/canopus-landing-slot.test.mjs
 // accepted_slot "free": an accepted, not cleaned up task does not count in inflight_limit (canopus_spawn and the steps of an auto
 // plan), it is counted by cleanup_limit instead ("waits for cleanup"), P0 passes both; the texts do not say that the accepted
@@ -23,7 +23,8 @@ const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
 mkdirSync(path.join(proj, "docs", "plans"), { recursive: true })
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
-const settings = (extra) => writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ allow_default_models: true, spawn_limits: { worker: 20, reviewer: 0 }, stall_minutes: 600, accepted_reminder_min: 0.01, ...extra }))
+let taskDirectory=proj
+const settings = (extra) => writeFixtureFile(path.join(taskDirectory, ".canopus", "plugin", "config.json"), JSON.stringify({ allow_default_models: true, spawn_limits: { worker: 20, reviewer: 0 }, stall_minutes: 600, accepted_reminder_min: 0.01, ...extra }))
 settings({})
 const PLAN = [
   "# План 9 — демо", "", "**Статус:** 🟡 В РАБОТЕ", "**Источник:** задача 001", "**Зависимости:** —", "",
@@ -98,7 +99,7 @@ await call("canopus_role", { role: "integrator" })
 /** the project the helpers work in: "proj" for the cells that go through canopus_spawn, a project of its own for each AC-04 scenario */
 let PROJECT = "proj"
 const mk = (status, extra = {}) => {
-  const t = tasks.createTask({ project: PROJECT, title: `задача ${status}`, goal: "g", criteria: "c", priority: "P2", tier: "light", role: "worker", model: "claude-code/haiku", author: "sesINTEG1", author_role: "proj.integrator", qid: `q${Math.random().toString(36).slice(2, 8)}`, status, kind: "spawn", directory: proj })
+  const t = tasks.createTask({ project: PROJECT, title: `задача ${status}`, goal: "g", criteria: "c", priority: "P2", tier: "light", role: "worker", model: "claude-code/haiku", author: "sesINTEG1", author_role: "proj.integrator", qid: `q${Math.random().toString(36).slice(2, 8)}`, status, kind: "spawn", directory: taskDirectory })
   Object.assign(t, extra)
   tasks.saveTask(t)
   return t
@@ -110,7 +111,7 @@ const accepted = (ageMin, reviewer) => {
   tasks.saveTask(t)
   return t
 }
-const reset = () => rmSync(path.join(tasks.TASKS, PROJECT), { recursive: true, force: true })
+const reset = () => clearTaskFixtures(tasks,PROJECT)
 const all = () => tasks.listTasks(PROJECT)
 const spawn = (extra = {}) => call("canopus_spawn", { title: "новая", goal: "g", criteria: "c", ...extra })
 const started = (s) => /запущена/.test(s)
@@ -176,9 +177,13 @@ let planNo = 0
 // The wait is for the condition, not for a time: the pass has read the plan (plan.total is set) and put the steps the limits allow
 // (`want`); only then a short settle shows that no step comes after them. A fixed 1.4 s was not enough under load ("spawned 0").
 const scenario = async (label, cfg, prep, want) => {
-  PROJECT = `scn-${label}`
+  PROJECT = `scn-${label.replaceAll("_","-")}`
+  taskDirectory=path.join(tmp,PROJECT)
+  git(tmp,"clone","-q",proj,taskDirectory)
   settings(cfg)
-  rmSync(path.join(tasks.TASKS, PROJECT), { recursive: true, force: true })
+  git(taskDirectory,"add","--",".canopus/plugin/config.json")
+  git(taskDirectory,"commit","-q","-m","fixture project policy","--only","--",".canopus/plugin/config.json")
+  clearTaskFixtures(tasks,PROJECT)
   prep?.()
   planNo = planTask().n
   const passed = () => tasks.loadTask(PROJECT, planNo)?.plan?.total === 3
@@ -206,8 +211,9 @@ const waitingOne = all().find((t) => t.status === "accepted")
 tasks.taskEvent(waitingOne, "sesREVA", "done", "очищена")
 await until(() => spawnedOf() > 0, 60_000)
 cell("AC-04 после cleanup: one cleaned up (1 waiting < 2) and the steps are put", spawnedOf() >= 1, `spawned ${spawnedOf()}`)
+taskDirectory=proj
 settings({})
-for (const l of ["hold", "free", "cleanup_limit"]) rmSync(path.join(tasks.TASKS, `scn-${l}`), { recursive: true, force: true }) // no other cell looks at them
+for (const l of ["hold", "free", "cleanup_limit"]) clearTaskFixtures(tasks,`scn-${l.replaceAll("_","-")}`) // no other cell looks at them
 PROJECT = "proj"
 
 // ---- AC-05: the tab of an accepted task is still woken, reminded and marked

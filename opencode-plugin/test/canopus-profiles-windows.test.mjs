@@ -365,7 +365,7 @@ function lastTaskOf(project) {
 
 // ---- DNC-03: the plugin wrote only what it may ----
 cell("DNC-03 the hand-written files are the same at the end; nothing is written in the main folder", handHashes() === hand0 && !existsSync(path.join(proj, ".opencode", "opencode.json")) && !existsSync(path.join(other, ".opencode", "opencode.json")), handHashes())
-cell("DNC-03 the only lines added to info/exclude are the plugin's (comment and path)", readFileSync(path.join(proj, ".git", "info", "exclude"), "utf8").split(/\r?\n/).filter((l) => l && !l.startsWith("#") && l !== "/.opencode/opencode.json").length === 0, readFileSync(path.join(proj, ".git", "info", "exclude"), "utf8"))
+cell("DNC-03 the only lines added to info/exclude are the plugin's (comment and path)", readFileSync(path.join(proj, ".git", "info", "exclude"), "utf8").split(/\r?\n/).filter((l) => l && !l.startsWith("#") && !["/.opencode/opencode.json","**/task/state.json","**/task/watch.json","**/task/snapshot.json","**/task/tests-run.json","**/.task-store.lock/","**/.task-store.claim-*","**/imported-sources/"].includes(l)).length === 0, readFileSync(path.join(proj, ".git", "info", "exclude"), "utf8"))
 cell("DNC-10 the plugin did not touch OpenCode / provider files in the config dir", sha(globalCfg) === hand0.split(",")[0], "changed")
 
 await stop?.()

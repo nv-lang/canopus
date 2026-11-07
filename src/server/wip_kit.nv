@@ -104,7 +104,7 @@ export fn scenario_wip_flow(settings ServerSettings) Proc Detach Time Net Fs Os 
     c.expect(wk_branch(tree) == "task/${id1}", "the branch of the task is made in the same tree")
     c.expect(git_run(tree, ["ls-files", "--others", "--exclude-standard"]).text.contains("a.txt") || path_there("${tree}/a.txt"), "the changes made before stay")
     c.expect((st.get("where") ?? JsonValue.null()).is_null(), "the page has no `where` for a task")
-    ro m1 = rk_text("${tree}/doc/tasks/${id1}/task/message.md")
+    ro m1 = rk_text("${ck_dir(rig, "s-w1")}/message.md")
     c.expect(m1.contains("сделать: Первая правка") && !m1.contains("Родитель:") && !m1.contains("Эпик:"), "message.md of the task is in the same tree, no parent line: ${cut_text(m1, 60)}")
     c.expect(git_run(tree, ["ls-files", "--error-unmatch", "doc/tasks/${id1}/task/message.md"]).ok, "the files of the task are committed")
     c.expect(git_run(tree, ["log", "-1", "--format=%s"]).text.starts_with("001"), "the commit of the files begins with the number: ${git_run(tree, ["log", "-1", "--format=%s"]).text}")

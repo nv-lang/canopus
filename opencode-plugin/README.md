@@ -1008,8 +1008,7 @@ between two sessions: the last one submitted to the integrator, no review yet). 
 
 **One task, one number (task 058).** In a project with task folders (the key `tasks_dir`, default `doc/tasks`; on when that
 folder is in the target branch, `""` turns it off) the task number is the number of its folder `NNN-<slug>/`, shown as `045`
-(three digits, no `#`); the plugin's record has the same number. In a project without folders (Nova) a task has a number of the plugin
-(per project, only grows, kept through rework and reassignment), shown the same way, `094`. Every task of every project is shown
+(three digits, no `#`); the plugin's record has the same number. All projects now keep a canonical task directory; existing task numbers remain unchanged and keep the same display, `094`. Every task of every project is shown
 with its number with zeros on the left up to three digits and no `#` (`022`, `061`, `094`; above 999 as it is, `1000`), with a folder or
 without (task 086, replacing the `#N` of its first edition and the rule of task 083 that held for canopus only: one function,
 `taskNo`, writes the number everywhere). *Why no `#`:* GitHub turns every `#N` in a commit message, a description or a comment into a link
@@ -1017,7 +1016,7 @@ to an issue or a pull request of the repository and notifies its people, so the 
 pull requests, and the commit message guard (`scripts/guards/guard-commit-message.py`, rule R8) refuses it for anything else. A tab still
 titled `#33 исп …` or `61 …` is read as `033 исп` / `061` and renamed by the title pass. The owner, the integrator and `canopus_list` call a
 task by its number; a session's title is `045 исп title`. The journal is
-`tasks/<project>/<N>.json` in the mailbox.
+`<project>/<tasks_dir>/NNN-slug/task/state.json`, shared with the Canopus application (288). Without a project the root is `~/.canopus/tasks/`. The default project `tasks_dir` is `doc/tasks`; an empty legacy value uses that default. `task/watch.json` keeps the task guard and HOLD. These private records are excluded from Git. Documents in worktrees are versioned snapshots of the canonical task directory.
 
 - **A new task with a folder.** The number is 1 + the largest of the project's records and of the folder numbers in every
   working tree of the repository (`git worktree list`, uncommitted folders too) and in every local and `origin` branch
@@ -1071,7 +1070,7 @@ task by its number; a session's title is `045 исп title`. The journal is
   `scripts/guards/check-task-docs.py` (`message-title`, `message-section`, `message-owner`) checks the same rules for tasks
   started from 2026-10-17 01:00.
 - **Transition.** Old records keep their numbers and their show (`057 исп`). A closed old record with the number of a folder
-  moves unchanged to `tasks/<project>/legacy/<N>.json` when that task gets its record (shown by `canopus_task list all`); an
+  moves unchanged to `<project>/<tasks_dir>/legacy/<N>.json` when that task gets its record (shown by `canopus_task list all`); an
   open one refuses with its title. An order (`canopus_task order`) takes its number from the same count and makes no folder.
 - **The show.** The "Canopus" panel puts the task line `045 <title>` over its sessions `↳ прм`, `↳ С4-3 проверка плана`, finished
   sessions folded into `✓ сдано N сессий` (task 064); `/canopus` lists the live ones under `045 <title>` and counts the finished (`· N done`); its first line "Waiting for you" names `045 rev`, the panel's "Ждут вас" `045 прм`; notices, letters and answers name the task `045` and the

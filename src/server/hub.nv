@@ -714,6 +714,23 @@ fn Hub mut @agent_env(agent str, base []EnvEntry) -> []EnvEntry {
 
 // Make sure the session has a live agent: start one if there is none or the old one is gone. "" - well, else the reason.
 fn Hub mut @ensure_client(at int) Proc Detach Time -> str {
+    ro shared = @sessions[at]
+    if shared.rt.task_open && shared.rt.task_id != "draft" && !shared.rt.task_closed {
+        ro state = match read_file("${shared.rt.task_dir}/state.json") { Some(text) => jobject(text), None => None }
+        match state {
+            Some(t) => {
+                mut request = JsonObject.new()
+                js(request, "n", shared.rt.number)
+                ro inspected = shared_task_call("read", @route_repo_dir(shared.id), JsonValue.object(request).to_str(), @task_store_home())
+                if !inspected.ok { return "Shared task execution guard is unavailable" }
+                ro guarded = match jobject(inspected.text) { Some(o) => o, None => return "Shared task execution guard is unknown" }
+                if jtext(guarded, "execution_block").byte_len() > 0 { return jtext(guarded, "execution_block") }
+                ro status = jtext(guarded, "status")
+                if ["paused", "backlog", "cancelled", "done", "accepted"].contains(status) { return "Task execution is blocked by the shared task status: ${status}" }
+            }
+            None => return "Shared task record is missing or invalid; migrate before execution"
+        }
+    }
     mut s = @sessions[at]
     ro preparation = !@work_allowed(at, "execute")
     mut configs = []AcpConfig.new()
@@ -975,6 +992,7 @@ fn Hub mut @resume_session(id str) Proc Detach Time -> () {
                     None => ()
                 }
             }
+            s = @shared_task_restore(s)
             s.rt.normalize()
             // A projectless session never inherits the hub worktree preference. Existing trees are preserved, not cleaned up on restart.
             if s.project_id.byte_len() == 0 { s.rt.use_tree = false }

@@ -1,23 +1,72 @@
 // ЖУРНАЛ ЗАДАЧ (план 002, Ф.1). Задача — работа с номером #N (сквозной в проекте, только растёт), автором,
-// исполнителем, приоритетом и статусом; файл tasks/<проект>/<N>.json в ящике. Номер берётся атомарным созданием
-// файла (flag wx): из двух процессов, взявших один номер, проходит один, второй берёт следующий.
+// исполнителем, приоритетом и статусом; запись task/state.json в общем каталоге задачи (288).
+// Номер и публикация записи защищены общей блокировкой обоих клиентов и эксклюзивным созданием файла.
 //
 // ЗАПУСК ПОВТОРЯЕМ (замер 2026-10-05): session.create принимает свой id (начинается с "ses") и на повтор с тем же
 // id возвращает уже созданную сессию. Поэтому id сессии пишется в журнал ДО создания (`planned`), а запуск,
 // оборванный на любом шаге, повторяется с тем же id — второй сессии не будет. Письмо с задачей тоже идемпотентно:
 // его id выводится из номера и попытки, и уже лежащее (в ящике или прочитанное) повторно не кладётся.
 
-import { existsSync, mkdirSync, readdirSync, renameSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, writeFileSync } from "node:fs"
 import path from "node:path"
-import { INBOX, READ, type Priority, type Tier, readJson, safeKey } from "./core.ts"
+import { taskGitExclude } from "./shared-task-config.ts"
+import { INBOX, READ, type Priority, type Tier, readJson, safeKey, settingsContext, parseProjects } from "./core.ts"
 import { idsHas } from "./housekeeping.ts"
 import { BASE } from "./base.ts"
+import { pluginRoot, globalConfig } from "./plugin-config.ts"
+import { rawSettingsFor, mainTreeOf } from "./settings.ts"
+import { taskRoot, recordFile, taskEntries, readTaskFile, withTaskLock, slugify } from "./shared-task-store.ts"
 import type { RouteFields } from "./route.ts"
 import type { ApprovalSource } from "./task-confirmation.ts"
 import type { TaskContext } from "./task-context.ts"
 
 // путь — из paths.ts (модуль без зависимостей: core и tasks импортируют друг друга, а BASE ядра здесь ещё не готов)
-export const TASKS = path.join(BASE, "tasks")
+export const TASKS = path.join(path.dirname(pluginRoot()), "tasks")
+function taskCatalog(): Record<string,string> {
+  const file=path.join(path.dirname(TASKS),"state","task-projects.json")
+  if (!existsSync(file)) return {}
+  const catalog=JSON.parse(readFileSync(file,"utf8"))
+  if (!catalog || typeof catalog!=="object" || Array.isArray(catalog) || Object.values(catalog).some(root=>typeof root!=="string" || !path.isAbsolute(root))) throw Error("Invalid task project index; explicit recovery required")
+  return catalog
+}
+export function taskStorageProjects() {
+  const current = settingsContext().projects
+  return current.length ? current : parseProjects(globalConfig())
+}
+export function taskStorageRoot(project: string): string {
+  const ps = taskStorageProjects(), p = ps.find(p => p.name === project)
+  const catalog = taskCatalog()
+  const found = p?.rootPath ?? p?.root ?? catalog[project]
+  const root = found && existsSync(found) ? realpathSync.native(found) : found
+  return taskRoot(path.dirname(TASKS), project, root ? { root, tasksDir: rawSettingsFor(root, ps, {}, project).tasks_dir || "doc/tasks" } : undefined)
+}
+export function registerTaskProject(project: string, directory: string) {
+  if (!project || !directory || !path.isAbsolute(directory) || !existsSync(directory)) return
+  const primary = mainTreeOf(directory) ?? directory
+  const root = realpathSync.native(primary)
+  if (existsSync(path.join(root, ".git"))) {
+    const exclude = taskGitExclude(root)!
+    const previous = existsSync(exclude) ? readFileSync(exclude,"utf8") : ""
+    const patterns = ["**/task/state.json", "**/task/watch.json", "**/task/snapshot.json", "**/task/tests-run.json", "**/.task-store.lock/", "**/.task-store.claim-*", "**/imported-sources/"]
+    const missing = patterns.filter(p => !previous.split(/\r?\n/).includes(p))
+    if (missing.length) { mkdirSync(path.dirname(exclude),{recursive:true}); writeFileSync(exclude,previous + (previous.endsWith("\n")?"":"\n") + missing.join("\n") + "\n") }
+  }
+  const file = path.join(path.dirname(TASKS), "state", "task-projects.json")
+  return withTaskLock(path.join(path.dirname(file), "task-catalog"), () => {
+  const catalog = taskCatalog()
+  if (catalog[project] && (existsSync(catalog[project]) ? realpathSync.native(catalog[project]) : path.resolve(catalog[project])).toLowerCase() !== root.toLowerCase()) throw Error("Task project root collision")
+  if (catalog[project]) return
+  mkdirSync(path.dirname(file), { recursive: true })
+  const tmp = `${file}.${process.pid}.tmp`
+  writeFileSync(tmp, JSON.stringify({ ...catalog, [project]: root }, null, 2))
+  renameSync(tmp, file)
+  })
+}
+function requireTaskMigration(project: string) {
+  if(existsSync(path.join(path.dirname(TASKS),"state","task-storage-migration.lock")))throw Error("Shared task migration is in progress; writes are blocked")
+  const old = path.join(BASE, "tasks", safeKey(project))
+  if (existsSync(old) && readdirSync(old).some(n => /^\d+\.json$/.test(n))) throw Error("Task storage transition required; run the explicit shared-task migration before resuming writes")
+}
 
 // starting — записана, сессия создаётся; running — в работе; submitted — сдана (отчёт), ждёт приёмщика;
 // reviewing — на приёмке; rework — на доработке; accepted — принята (влита), ждёт очистки; done — принята и убрана, всё
@@ -149,7 +198,7 @@ export type Task = RouteFields & {
   /** spawn — сессия создана плагином; assign — задачу взяла вкладка владельца; order — заказ в другой проект (своей
    *  сессии нет: делает интегратор проекта-исполнителя своими задачами, у них parent — этот заказ); external — номер взял агент
    *  вне OpenCode (scripts/task-number.mjs, задача 058): запись только занимает номер */
-  kind: "spawn" | "assign" | "order" | "external"
+  kind: "spawn" | "assign" | "order" | "external" | "application"
   /** order: проект-исполнитель и его задача, взявшая заказ */
   order_to?: string
   child?: { project: string; n: number }
@@ -240,7 +289,7 @@ export type Task = RouteFields & {
 /** запись побочной ветки или дерева задачи: branch и/или worktree, когда и кем (auto — плагин увидел сам) */
 export type SideItem = { branch?: string; worktree?: string; at: number; by: string; auto?: boolean }
 
-export const taskFile = (project: string, n: number) => path.join(TASKS, safeKey(project), `${n}.json`)
+export const taskFile = (project: string, n: number) => { requireTaskMigration(project); return recordFile(taskStorageRoot(project), n) }
 /** Старые файлы: статус «cleaned» (так звался нынешний done) читается как done — в статусе и в истории; массовой миграции нет. */
 export function normTask<T extends Task | undefined>(t: T): T {
   if (!t) return t
@@ -249,7 +298,7 @@ export function normTask<T extends Task | undefined>(t: T): T {
   for (const h of t.history ?? []) if (old(h.status)) h.status = "done"
   return t
 }
-export const loadTask = (project: string, n: number) => normTask(readJson<Task>(taskFile(project, n)))
+export const loadTask = (project: string, n: number) => normTask(readTaskFile(taskFile(project, n)) as Task | undefined)
 export const isOpen = (t?: Task) => !!t && OPEN_STATUSES.includes(t.status)
 export const isTerminal = (t?: Task) => !!t && (t.status === "done" || t.status === "cancelled")
 export const isParked = (t?: Task) => !!t && (t.status === "paused" || t.status === "backlog")
@@ -265,7 +314,14 @@ export function tasksChanged(): boolean {
 export function saveTask(t: Task) {
   t.updated = Date.now()
   changed = true
+  return withTaskLock(taskStorageRoot(t.project), () => {
   const file = taskFile(t.project, t.n)
+  const previous = readTaskFile(file)
+  if (previous?.application) {
+    if ((previous.storage_revision??0)!==((t as any).storage_revision??0)) throw Error("Shared application task changed; reread it before saving")
+    ;(t as any).application=previous.application
+    ;(t as any).storage_revision=(previous.storage_revision??0)+1
+  }
   mkdirSync(path.dirname(file), { recursive: true })
   const tmp = `${file}.${process.pid}.${Date.now()}.tmp`
   writeFileSync(tmp, JSON.stringify(t, null, 1))
@@ -279,6 +335,7 @@ export function saveTask(t: Task) {
       if (!(e?.code === "EPERM" || e?.code === "EACCES" || e?.code === "EBUSY") || i >= 20) throw e
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25)
     }
+  })
 }
 
 /** Записать смену статуса (или заметку) в историю и сохранить. */
@@ -289,13 +346,21 @@ export function taskEvent(t: Task, by: string, status?: TaskStatus, note?: strin
 }
 
 export function listTasks(project?: string): Task[] {
+  const projects = project !== undefined ? [project] : [...new Set([
+    ...taskStorageProjects().map(p => p.name),
+    ...Object.keys(taskCatalog()),
+    ...(existsSync(TASKS) ? readdirSync(TASKS, { withFileTypes: true }).filter(d => d.isDirectory() && /^[a-z0-9][a-z0-9-]*$/.test(d.name) && !/^\d{3,}-/.test(d.name)).map(d => d.name) : []),
+    "",
+  ])]
   const out: Task[] = []
-  if (!existsSync(TASKS)) return out
-  for (const p of project ? [safeKey(project)] : readdirSync(TASKS)) {
-    const dir = path.join(TASKS, p)
-    if (!existsSync(dir)) continue
-    for (const f of readdirSync(dir).filter((f) => /^\d+\.json$/.test(f))) {
-      const t = normTask(readJson<Task>(path.join(dir, f)))
+  const seenFiles = new Set<string>()
+  for (const p of projects) {
+    requireTaskMigration(p)
+    for (const e of taskEntries(taskStorageRoot(p))) {
+      const canonicalFile = path.resolve(e.file).toLowerCase()
+      if (seenFiles.has(canonicalFile)) continue
+      seenFiles.add(canonicalFile)
+      const t = normTask(readTaskFile(e.file) as Task | undefined)
       if (t) out.push(t)
     }
   }
@@ -308,9 +373,11 @@ export function listTasks(project?: string): Task[] {
 // place — место задачи (worktree, ветка) по номеру и слагу: пишется ВМЕСТЕ с задачей, первой же записью. Раньше его
 // дописывали вторым сохранением, и сервер, подхватив задачу между ними, запускал её без места (план 002.6, дефект 3).
 export function createTask(fields: Omit<Task, "n" | "history" | "created" | "updated" | "executors" | "attempt" | "slug"> & { slug?: string }, place?: (n: number, slug: string) => Partial<Task>, opts: { used?: number[]; n?: number; fill?: (n: number, slug: string) => Partial<Task> } = {}): Task {
-  const dir = path.join(TASKS, safeKey(fields.project))
-  mkdirSync(dir, { recursive: true })
-  const used = readdirSync(dir).map((f) => /^(\d+)\.json$/.exec(f)?.[1]).filter(Boolean).map(Number)
+  requireTaskMigration(fields.project)
+  registerTaskProject(fields.project, fields.directory)
+  const dir = taskStorageRoot(fields.project)
+  return withTaskLock(dir, () => {
+  const used = taskEntries(dir).map(r => r.n)
   let n = opts.n ?? Math.max(0, ...used, ...(opts.used ?? [])) + 1
   const now = Date.now()
   for (;;) {
@@ -318,19 +385,22 @@ export function createTask(fields: Omit<Task, "n" | "history" | "created" | "upd
     if (opts.fill) Object.assign(t, opts.fill(n, t.slug))
     if (place) Object.assign(t, place(n, t.slug))
     try {
-      writeFileSync(taskFile(fields.project, n), JSON.stringify(t, null, 1), { flag: "wx" })
+      const file = recordFile(dir, n, t.slug)
+      mkdirSync(path.dirname(file), { recursive: true })
+      writeFileSync(file, JSON.stringify(t, null, 1), { flag: "wx" })
       return t
     } catch (e: any) {
       if (e?.code !== "EEXIST" || opts.n !== undefined) throw e
       n++
     }
   }
+  })
 }
 
 /** Перенести старую закрытую запись с номером n в tasks/<проект>/legacy/ без изменений (задача 058, переход): номер освобождается
  *  для задачи с папкой. Повтор номера в legacy — имя «n-2.json» и далее. Возвращает путь переноса. */
 export function moveToLegacy(project: string, n: number): string {
-  const dir = path.join(TASKS, safeKey(project), "legacy")
+  const dir = path.join(taskStorageRoot(project), "legacy")
   mkdirSync(dir, { recursive: true })
   let dest = path.join(dir, `${n}.json`)
   for (let k = 2; existsSync(dest); k++) dest = path.join(dir, `${n}-${k}.json`)
@@ -340,7 +410,7 @@ export function moveToLegacy(project: string, n: number): string {
 }
 /** Старые записи, перенесённые в legacy/ (задача 058): видны в canopus_task list all. */
 export function listLegacy(project: string): Task[] {
-  const dir = path.join(TASKS, safeKey(project), "legacy")
+  const dir = path.join(taskStorageRoot(project), "legacy")
   if (!existsSync(dir)) return []
   return readdirSync(dir)
     .filter((f) => /^\d+(-\d+)?\.json$/.test(f))
@@ -424,11 +494,7 @@ export const ago = (at: number, now = Date.now()) => {
 export const plannedSessionId = () => `ses_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`.slice(0, 30)
 
 // Название латиницей для имён веток и папок: кириллица транслитерируется, прочее — в дефисы.
-const TR: Record<string, string> = { а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z", и: "i", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "h", ц: "c", ч: "ch", ш: "sh", щ: "sch", ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya" }
-export function slugify(title: string): string {
-  const s = [...title.toLowerCase()].map((c) => TR[c] ?? c).join("")
-  return s.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40).replace(/-+$/, "") || "task"
-}
+export { slugify }
 
 /** Подстановка {repo} {n} {slug} {project} в шаблон имени ветки или папки ({n} задачи с папкой — три цифры, задача 058). */
 export const fillName = (tpl: string, v: { repo: string; n: number | string; slug: string; project: string }) =>

@@ -53,7 +53,7 @@ export fn scenario_route_auto_extend(settings ServerSettings) Proc Detach Time N
     ro p1 = ck_find(rig, 1, "Исходная работа")
     c.expect(p1 != "", "the task is a session of its own: ${p1}")
     c.expect(ck_idle(rig, p1, 60000), "its agent finishes the first turn")
-    ro file = "${ck_tree(rig, 1, p1)}/doc/tasks/${ck_task_id(rig, 1, p1)}/task/message.md"
+    ro file = "${ck_dir(rig, p1)}/message.md"
     c.expect(!rk_text(file).contains("## Дополнение"), "message.md has no addition yet")
 
     // 1. a high confidence: applied at once, no card
@@ -137,7 +137,7 @@ export fn scenario_route_scope(settings ServerSettings) Proc Detach Time Net Fs 
     ro p1 = ck_find(rig, 1, "Работа первой беседы")
     c.expect(p1 != "", "the task of the first talk is a session of its own: ${p1}")
     c.expect(ck_idle(rig, p1, 60000), "its agent finishes the first turn")
-    ro file = "${ck_tree(rig, 1, p1)}/doc/tasks/${ck_task_id(rig, 1, p1)}/task/message.md"
+    ro file = "${ck_dir(rig, p1)}/message.md"
 
     // the first talk sees its own task among the targets of the card, the second one does not
     c.expect(rk_array(ck_state(rig, 1, "s-a"), "targets").len() == 1, "the first talk has its own task as a target")

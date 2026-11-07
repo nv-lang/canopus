@@ -141,7 +141,7 @@ cell("061: no second tree — the branch stands in exactly one tree, the one mad
 cell("061: the folder of the tree the plugin would have made is not there", !existsSync(path.join(wtRoot, `proj-001-${u1.slug}`)), readdirSync(wtRoot).join(","))
 cell("061: the record of the task names the tree of the branch", same(u1?.worktree, hand1), String(u1?.worktree))
 cell("061: the session runs in that tree", same(sessions.get(ses1?.session)?.location?.directory, hand1), JSON.stringify(sessions.get(ses1?.session)?.location))
-cell("061: the launch lines are written in that tree (progress.log and log.md)", / 0\/0 \[[^\]]+\] запуск №2$/m.test(read(path.join(hand1, u1.folder, "progress.log"))) && /пуск: запуск №2 С3п/.test(read(path.join(hand1, u1.folder, "log.md"))), read(path.join(hand1, u1.folder, "progress.log")))
+cell("061: the launch lines are written in that tree (progress.log and log.md)", / 0\/0 \[[^\]]+\] запуск №2$/m.test(read(path.join(path.dirname(path.dirname(tasks.taskFile(u1.project,u1.n))), "progress.log"))) && /пуск: запуск №2 С3п/.test(read(path.join(path.dirname(path.dirname(tasks.taskFile(u1.project,u1.n))), "log.md"))), read(path.join(path.dirname(path.dirname(tasks.taskFile(u1.project,u1.n))), "progress.log")))
 cell("061: the author gets no refusal letter", !lettersTo("sesINTEG1").some((l) => /не запущена/.test(l.text)), JSON.stringify(lettersTo("sesINTEG1").map((l) => l.text.slice(0, 120))))
 // the next session of the task finds the same tree in the record (no search needed)
 await call("canopus_spawn", "sesINTEG1", { task: 1, session: "С3п", goal: "ещё правка", place: "task" })

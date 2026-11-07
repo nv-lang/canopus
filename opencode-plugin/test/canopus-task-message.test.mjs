@@ -71,7 +71,7 @@ const cell = (name, ok, detail) => {
 const wait = (ms = 300) => new Promise((r) => setTimeout(r, ms))
 const call = async (name, sid, input = {}) => (await tools[name].execute(input, { sessionID: sid })).content
 const store = (p) => path.join(tmp, "opencode", "plugin", "data", "tasks", p)
-const records = (p) => (existsSync(store(p)) ? readdirSync(store(p)).filter((f) => /^\d+\.json$/.test(f)).length : 0)
+const records = p => tasks.listTasks(p).length
 const branches = () => git(proj, "branch", "--list", "task/*").split("\n").filter(Boolean).length
 for (const sid of ["sesINTEG1", "sesFLATINT"]) {
   await hooks.context({ sessionID: sid, system: [], model: { id: "x", providerID: "y" } })

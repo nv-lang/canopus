@@ -1,4 +1,4 @@
-import { writeFixtureFile } from "./fixture-settings.mjs"
+import { writeFixtureFile, clearTaskFixtures } from "./fixture-settings.mjs"
 // Self-test: extra task fields (task 005, REQ-16..18, REQ-24; AC-23, AC-24; node >= 24):  node test/canopus-landing-extra.test.mjs
 // The project declares task_extra_fields; canopus_spawn and canopus_task assign take extra {id: line up to 300 characters}; every refusal
 // leaves no task (the number does not grow); the values reach the executor letter, the reviewer letter (with the path of the task
@@ -88,7 +88,7 @@ const FIELDS = [
   { id: "area", label: "Область" },
 ]
 settings({ task_extra_fields: FIELDS })
-const reset = () => rmSync(path.join(tasks.TASKS, "proj"), { recursive: true, force: true })
+const reset = () => clearTaskFixtures(tasks,"proj")
 const all = () => tasks.listTasks("proj")
 const started = (s) => /запущена/.test(s)
 const spawn = (extra, more = {}) => call("canopus_spawn", { title: "новая", goal: "цель", criteria: "критерий", ...(extra === undefined ? {} : { extra }), ...more })

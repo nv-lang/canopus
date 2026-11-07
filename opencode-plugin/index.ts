@@ -156,7 +156,10 @@ import { clearGate, GATE_LETTER, gateOf, markGateLetter, noteGate, WAIT_LETTER }
 import { type CleanupFact, type RunCtx, type SessionFact, clearIdle as clearIdleTab, holdIdle, idleBlockers, idleLetter, idleOf, idleWhat, newestWaiting, waitsOn } from "./idle-tab.ts" // clearIdle в setup — снятие занятости карточки
 import { APPROVALS, canonical, confirmTaskOperation, applyApprovedCreation, creationDescription, similarTasks, resumeTaskConfirmations, type TaskConfirmationIO } from "./task-confirmation.ts"
 import { lazyTaskConfirmationIO } from "./task-confirmation-native.ts"
-import { type Task, taskRef, acceptedAt, ago, byPriority, createTask, rounds, slugify, isOpen, letterExists, listTasks, loadTask, plannedSessionId, saveTask, statusRu, taskEvent, taskLetterId, tasksChanged } from "./tasks.ts"
+import { type Task, taskRef, acceptedAt, ago, byPriority, createTask, rounds, slugify, isOpen, letterExists, listTasks as allTaskRecords, taskFile, loadTask, plannedSessionId, saveTask, statusRu, taskEvent, taskLetterId, tasksChanged } from "./tasks.ts"
+
+// Shared application tasks are visible as data; this native host drives its own sessions only.
+const listTasks = (project?:string) => allTaskRecords(project).filter(t=>t.kind!=="application")
 import { countedOpen, waitingCleanup, ACCEPTED_REMINDERS_MAX, acceptedReminderId, acceptedReminders, lastAcceptedReminder, letterTime } from "./tasks.ts"
 import { EXECUTOR_CODE, sesLabel, sessionOf, sessionRef, taskNo } from "./tasks.ts"
 import { profileProblems, profileState, stateSignature, syncProjectFiles, syncSnapshot, syncTaskFile } from "./profile-layer.ts"
@@ -2673,6 +2676,18 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
     try {
       // запускающий (задача 053): вкладка держит роль integrator своего проекта и сама не исполняет и не принимает задачу
       await registerJournalTools(ctx, log, {
+        location: (sid,file) => {
+          const c=readJson<Card>(cardFile(sid))??mine.get(sid),ref=c?.task??c?.review
+          if(!c||!ref)return
+          const t=loadTask(ref.project,ref.n)
+          if(!t?.folder)return
+          const name=path.basename(file)
+          if(!["log.md","progress.log","usage.log"].includes(name))return
+          const canonical=path.dirname(path.dirname(taskFile(t.project,t.n)))
+          const local=path.resolve(c.directory,t.folder,name),requested=path.resolve(c.directory,file),shared=path.resolve(canonical,name)
+          const same=(a:string,b:string)=>path.resolve(a).toLowerCase()===path.resolve(b).toLowerCase()
+          if(same(requested,local)||same(requested,shared))return {base:canonical,file:name}
+        },
         launcher: (sid) => {
           const c = readJson<Card>(cardFile(sid)) ?? mine.get(sid)
           return !!c && isLauncherCard(c, holdsExclusive(roleKey(projOf(c), "integrator"), sid))

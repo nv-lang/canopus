@@ -935,3 +935,28 @@ test "taskwt wip: the branch task/NNN-slug is made in the tree on its current he
     assert(tg(w.origin, ["show", "main:w.txt"]) == "w")
     tt_rm(w.root)
 }
+
+
+test "288 publish: verified shared documents permit ff-only without publishing private task state" {
+    ro w = tt_world("shared-publish")
+    ro tree = tt_task(w, "288", "shared")
+    ro file = "doc/tasks/288-shared/log.md"
+    tt_commit(tree.path, file, "shared journal\n", "288 shared snapshot")
+    tt_write("${w.main}/.git/info/exclude", "**/task/state.json\n**/task/snapshot.json\n")
+    tt_write("${w.main}/${file}", "shared journal\n")
+    tt_write("${w.main}/doc/tasks/288-shared/task/state.json", "private unchanged")
+    tg(w.main, ["add", "--", file])
+    ro hash = tg(w.main, ["rev-parse", ":${file}"])
+    tt_write("${w.main}/doc/tasks/288-shared/task/snapshot.json", "{\"staged\":{\"${file}\":\"${hash}\"}}")
+    match publish(tree.path, w.main, tt_green) {
+        Published { sha, main_copy, cleanup } => { assert(main_copy == "updated"); assert(cleanup == "") }
+        Blocked { reason, step, conflict_files } => panic("shared publish blocked: ${reason}")
+    }
+    assert(tt_read("${w.main}/doc/tasks/288-shared/task/state.json") == "private unchanged")
+    assert(tw_git(w.main, ["show", "HEAD:doc/tasks/288-shared/task/state.json"]).code != 0)
+    tt_write("${w.main}/owner.txt", "owner change")
+    tg(w.main, ["add", "--", "owner.txt"])
+    assert(!tw_shared_main_ready(w.main))
+    assert(tt_read("${w.main}/owner.txt") == "owner change")
+    tt_rm(w.root)
+}

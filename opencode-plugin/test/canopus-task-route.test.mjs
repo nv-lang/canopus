@@ -22,7 +22,7 @@ process.env.XDG_DATA_HOME = tmp
 ;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
 ;await (await import("./fixture-settings.mjs")).setFixtureRuntime("SETTINGS_TTL_MS", "1")
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
-const BASE = { root: "..", worktrees: "worktrees", worktree_name: "{repo}-{n}-{slug}", branch_name: "task/{n}-{slug}", cleanup: "local", allow_default_models: true, inflight_limit: 30, spawn_limits: { worker: 20, reviewer: 0 } }
+const BASE = { worktrees: "../worktrees", worktree_name: "{repo}-{n}-{slug}", branch_name: "task/{n}-{slug}", cleanup: "local", allow_default_models: true, inflight_limit: 30, spawn_limits: { worker: 20, reviewer: 0 } }
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
 mkdirSync(path.join(proj, "doc", "tasks", "045-registry", "task"), { recursive: true })
@@ -197,7 +197,7 @@ const ctx = {
 const stop = await mod.default.setup(ctx)
 const wait = (ms = 50) => new Promise((r) => setTimeout(r, ms))
 const call = async (name, sid, input = {}) => (await tools[name].execute(input, { sessionID: sid })).content
-const store = () => path.join(tmp, "opencode", "plugin", "data", "tasks", "proj")
+const stateFile = n => {const file=tasks.taskFile("proj",n);mkdirSync(path.dirname(file),{recursive:true});return file}
 await hooks.context({ sessionID: "sesINTEG1", system: [], model: { id: "x", providerID: "y" } })
 await events["session.idle"]({ properties: { sessionID: "sesINTEG1" } })
 await call("canopus_role", "sesINTEG1", { role: "integrator" })
@@ -206,7 +206,7 @@ const branches = () => git(proj, "branch", "--list", "task/*").split("\n").filte
 const show = (t) => (t.branch ? (f) => git(proj, "show", `${t.branch}:${t.folder}/${f}`) : () => "")
 // the journal as it is now: the plugin appends to log.md in the worktree of the task (not committed), the first lines are on the branch
 const logNow = (t) => {
-  const f = t.worktree ? path.join(t.worktree, ...t.folder.split("/"), "log.md") : ""
+  const f = path.join(path.dirname(path.dirname(tasks.taskFile(t.project,t.n))), "log.md")
   return f && existsSync(f) ? readFileSync(f, "utf8") : show(t)("log.md")
 }
 
@@ -318,11 +318,11 @@ await wait(50)
 
 // ---- an old record read as is (test 14) ----
 const oldRec = { project: "proj", n: 880, title: "Старая запись", slug: "staraya", goal: "g", criteria: "c", priority: "P2", tier: "light", role: "worker", author: "sesINTEG1", author_role: "proj.integrator", qid: "qold", status: "running", kind: "spawn", executor: "sesOLD", executors: [], attempt: 1, directory: proj, history: [{ at: 1, by: "x", note: "поставлена" }], created: 1, updated: 1 }
-writeFixtureFile(path.join(store(), "880.json"), JSON.stringify(oldRec, null, 1))
+writeFixtureFile(stateFile(880), JSON.stringify(oldRec, null, 1))
 const showOld = await call("canopus_task", "sesINTEG1", { action: "show", n: 880 })
 const loaded = tasks.loadTask("proj", 880)
 cell("T92-17 (test 14) an old record is read without change: no route field appears, show works and does not call it fast", loaded && !("route" in loaded) && /Старая запись/.test(showOld) && !/быстр/.test(showOld), showOld)
-cell("T92-17 (test 14) the file of an old record is not rewritten by reading it", !("route" in JSON.parse(readFileSync(path.join(store(), "880.json"), "utf8"))), "")
+cell("T92-17 (test 14) the file of an old record is not rewritten by reading it", !("route" in JSON.parse(readFileSync(stateFile(880), "utf8"))), "")
 
 // ---- explicit, in-place migration of a folderless legacy record ----
 const migrationBrief = `ЗАДАЧА #881 «Старая задача» от proj.integrator (сессия sesINTEG1), приоритет P1.\nЦЕЛЬ: Сохранить задачу\nКРИТЕРИИ ПРИЁМКИ: Проверить результат без реконструкции\nГРАНИЦЫ (не делаем): не создавать вторую запись\nWORKTREE ГОТОВ: эта сессия уже работает в <TMP>/legacy, ветка task/092-legacy (создал плагин от целевой ветки). Правь и коммить здесь; другой worktree не создавай.\nСДЕЛАНО ПРЕЖНИМ ИСПОЛНИТЕЛЕМ (задача передана тебе):\nпроверен старый формат письма.\nКогда закончишь — сдай работу: canopus_task {action: "submit", n: 881, text: "что сделано, как проверено, что осталось"}. Упрёшься — в том же отчёте напиши, что мешает. Обычное письмо сдачей не считается. Пока работа не сдана: остановишься без сдачи — получишь напоминание.`
@@ -336,7 +336,7 @@ const legacyMigration = {
   kept: [{ path: "evidence.txt", at: 4, by: "sesREVIEW" }], side: [{ branch: "evidence-branch", worktree: "evidence-tree", at: 5, by: "sesOLD" }],
   history: [{ at: 1, by: "sesOLD", status: "running", note: "legacy history" }], created: 1, updated: 1,
 }
-writeFixtureFile(path.join(store(), "881.json"), JSON.stringify(legacyMigration, null, 1))
+writeFixtureFile(stateFile(881), JSON.stringify(legacyMigration, null, 1))
 const migrationWord = "«заводи 881 на fast» (владелец, 2026-10-20, чат)"
 const migrate = (n, over = {}) => {
   const input = { action: "migrate", n, message: migrationBrief, source_id: "task-proj-881-3", source_session: "sesINTEG1", source_to: "sesLEGACY881", source_qid: "q881", route_word: migrationWord, route_word_date: "2026-10-20", ...over }
@@ -382,19 +382,10 @@ cell("T92-18 canopus_task show: no warning while the brief is unchanged", !/по
 
 // ---- decision 51: the brief edited after the word (tests 21, 23) ----
 const editBrief = (t, fn) => {
-  const tree = t.worktree && existsSync(path.join(t.worktree, ...t.folder.split("/"), "task", "message.md")) ? t.worktree : undefined
-  if (tree) {
-    const f = path.join(tree, ...t.folder.split("/"), "task", "message.md")
-    writeFixtureFile(f, fn(readFileSync(f, "utf8")))
-    return "tree"
-  }
-  const tmpTree = path.join(tmp, `edit-${t.n}`)
-  git(proj, "worktree", "add", "-q", tmpTree, t.branch)
-  const f = path.join(tmpTree, ...t.folder.split("/"), "task", "message.md")
-  writeFixtureFile(f, fn(readFileSync(f, "utf8")))
-  git(tmpTree, "commit", "-q", "-a", "-m", "edit the brief")
-  git(proj, "worktree", "remove", "--force", tmpTree)
-  return "branch"
+  const file=path.join(path.dirname(tasks.taskFile(t.project,t.n)),"message.md")
+  writeFixtureFile(file,fn(readFileSync(file,"utf8")))
+  return "tree"
+
 }
 const rec1 = tasks.loadTask("proj", tf.n)
 rec1.clean_series = 1
@@ -586,7 +577,8 @@ const rA264w = await call("canopus_task", "sesINTEG1", { action: "accept", n: t2
 cell("T264-4 accept without the owner's word is refused (the change of the route is not an acceptance)", /Нужен text/.test(rA264w) && tasks.loadTask("proj", t264.n).status === "submitted", rA264w)
 const rA264m = await call("canopus_task", "sesINTEG1", { action: "accept", n: t264.n, text: "«проверил на контуре, принимаю» (владелец, 2026-10-30, чат)" })
 cell("T264-4 accept without the landing is refused", /Не принято/.test(rA264m) && /не влита/.test(rA264m), rA264m)
-git(proj, "merge", "--ff", t264.branch)
+await call("canopus_task",t264.executor,{action:"contour",n:t264.n,link:"http://127.0.0.1:8100/"})
+git(proj, "merge", "--ff-only", t264.branch)
 const rA264 = await call("canopus_task", "sesINTEG1", { action: "accept", n: t264.n, text: "«проверил на контуре, принимаю» (владелец, 2026-10-30, чат)" })
 cell("T264-4 after the landing the integrator accepts by the owner's word: accepted; the word is in the history and the journal", /принята словом владельца/.test(rA264) && tasks.loadTask("proj", t264.n).status === "accepted" && /решение владельца: задача \d+ принята/.test(logNow(tasks.loadTask("proj", t264.n))), rA264)
 
@@ -601,7 +593,7 @@ const stuck264 = {
   reviewer: "sesREV882", review_kind: "spawn", review_letter: "review-proj-882-1", review_qid: "rq882", report: "отчёт исполнителя 882",
   history: [{ at: 1, by: "sesEX882", status: "submitted", note: "отчёт" }, { at: 2, by: "sesREV882", status: "reviewing", note: "приёмка начата" }], created: 1, updated: 1,
 }
-writeFixtureFile(path.join(store(), "882.json"), JSON.stringify(stuck264, null, 1))
+writeFixtureFile(stateFile(882), JSON.stringify(stuck264, null, 1))
 // активная сессия приёмки (spawn, running): она собирает и держит тестовый контур — смена маршрута не должна её прерывать
 core.saveCard({ session: "sesREV882", role: "worker", auto: false, title: "прм 882", directory: proj, repo: "proj", project: "proj", review: { project: "proj", n: 882 }, spawned: { by: "sesINTEG1", task: "приёмка 882", tier: "light", status: "running", at: Date.now(), qid: "rq882" }, pid: 1, updated: Date.now() })
 cell("T264-5 the old review lock of the stuck record is taken for the probe", reviewMod.takeMergeLock("proj", "sesREV882", 882, false).ok === true && reviewMod.mergeHolder("proj")?.session === "sesREV882", "")
@@ -625,7 +617,7 @@ delete noWord264.route_word
 delete noWord264.route_word_date
 delete noWord264.route_word_ts
 delete noWord264.route_word_ts_kind
-writeFixtureFile(path.join(store(), "883.json"), JSON.stringify(noWord264, null, 1))
+writeFixtureFile(stateFile(883), JSON.stringify(noWord264, null, 1))
 const rNoWord264 = await call("canopus_task", "sesINTEG1", { action: "route", n: 883, route: "small" })
 const s883 = tasks.loadTask("proj", 883)
 cell("T264-7 an already-small record without the owner's word: the repeat does not fill it in — refused, the record untouched (still reviewing)", /малый маршрут требует/.test(rNoWord264) && s883.status === "reviewing" && !s883.route_word && s883.history.length === 2, rNoWord264)

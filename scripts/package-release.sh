@@ -42,6 +42,11 @@ fi
 mkdir -p "$kit/machines/product/libs" || { echo "FAIL: папка $kit не создаётся"; exit 1; }
 cp "$root/target/canopus.exe" "$root/target/canopus-hub.exe" "$kit/" || { echo "FAIL: программы не скопированы"; exit 1; }
 cp "$root/src/server/preparation-agent.mjs" "$kit/preparation-agent.mjs" || { echo "FAIL: встроенный адаптер Подготовки не скопирован"; exit 1; }
+# Shared task adapter has no dependency on the plugin host or native OpenCode.
+mkdir -p "$kit/scripts" "$kit/opencode-plugin" || exit 1
+for asset in scripts/task-store.mjs opencode-plugin/shared-task-store.ts opencode-plugin/shared-task-config.ts opencode-plugin/shared-task-snapshot.ts opencode-plugin/task-numbers.ts; do
+  cp "$root/$asset" "$kit/$asset" || { echo "FAIL: shared task adapter not copied: $asset"; exit 1; }
+done
 for name in dialog.alula.json dialog.alula.md work-mode.alula.json work-mode.alula.md family-approval.alula.json family-approval.alula.md journal.md; do
   cp "$root/machines/product/$name" "$kit/machines/product/" || { echo "FAIL: machines/product/$name не скопирован"; exit 1; }
 done

@@ -75,7 +75,7 @@ def main():
         return path
 
     def kit_files(extra=None, drop=None):
-        files = {"canopus.exe": b"MZ", "canopus-hub.exe": b"MZ", "preparation-agent.mjs": "// fixture adapter\n"}
+        files = {"canopus.exe": b"MZ", "canopus-hub.exe": b"MZ", "preparation-agent.mjs": "// fixture adapter\n", 'scripts/task-store.mjs': "// fixture shared adapter\n", 'opencode-plugin/shared-task-store.ts': "// fixture shared adapter\n", 'opencode-plugin/shared-task-config.ts': "// fixture shared adapter\n", 'opencode-plugin/shared-task-snapshot.ts': "// fixture snapshot adapter\n", 'opencode-plugin/task-numbers.ts': "// fixture shared adapter\n"}
         for k, v in machines().items():
             if "/tests/" not in k:
                 files[k] = v

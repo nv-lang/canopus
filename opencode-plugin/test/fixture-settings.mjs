@@ -1,6 +1,7 @@
 // Feature fixtures inject code policy explicitly. Config-contract tests use real fs/parser instead.
 import path from "node:path"
-import { writeFileSync, readFileSync, mkdirSync, existsSync, realpathSync } from "node:fs"
+import os from "node:os"
+import { writeFileSync, readFileSync, mkdirSync, existsSync, realpathSync, rmSync } from "node:fs"
 import { pluginConfigContext } from "../config-context.ts"
 import { PROJECT_KEYS, INTERNAL_POLICY, initializePolicySource } from "../resolved-policy.ts"
 
@@ -136,4 +137,15 @@ export function prepareFixturePluginContext(core, ctx) {
 export function setFixturePolicy(directory, values = {}) {
   for (const key of Object.keys(values)) if (!(key in INTERNAL_POLICY)) throw new Error(`unknown code policy dependency ${key}`)
   explicitPolicies.set(norm(directory), { ...(explicitPolicies.get(norm(directory)) ?? {}), ...values })
+}
+
+// Clear only task fixtures under the OS temporary directory; never a real user's project.
+export function clearTaskFixtures(tasks, project) {
+ const temp=realpathSync.native(os.tmpdir()).toLowerCase()
+ for(const t of tasks.listTasks(project)){
+  const folder=path.dirname(path.dirname(tasks.taskFile(t.project,t.n)))
+  const actual=realpathSync.native(folder).toLowerCase(),relative=path.relative(temp,actual)
+  if(!relative||relative.startsWith("..")||path.isAbsolute(relative))throw Error("Refusing to clear task data outside test temp")
+  rmSync(folder,{recursive:true,force:true})
+ }
 }

@@ -9,11 +9,11 @@ module canopus.server
 
 import canopus.product_machines.{dialog_machine_text, tree_machines_dir}
 import canopus.pgdb.{PgConfig}
-import canopus.config.{legacy_layout, layout_with_data_dir}
+import canopus.config.{legacy_layout, layout_with_data_dir, install_paths}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 import canopus.projects.{projects_create}
 import canopus.storage.{session_dir, session_file, session_images_dir, save_image, replace_file}
-import std.fs.{Fs, real_fs, Path, try_exists, remove_dir_all, read_dir, rename, read_text}
+import std.fs.{Fs, real_fs, Path, try_exists, remove_dir_all, read_dir, rename, read_text, canonicalize}
 import std.os.{Os, real_os, cwd, temp_dir, pid}
 
 // ----- the settings of a test -----
@@ -64,7 +64,35 @@ fn kit_data_dir(name str) -> str {
     dir.display()
 }
 
+fn kit_real_path(file str) -> str {
+    with Fs = real_fs() {
+        match canonicalize(Path.from_bytes(file.bytes())) {
+            Ok(p) => p.display().replace("\\", "/").to_ascii_lower()
+            Err(e) => panic("test installation path cannot be resolved")
+        }
+    }
+}
+
+// Test executables live in Nova's temporary installation. Give that installation the same disk adapter as a release.
+fn kit_install_task_adapter() -> () {
+    ro installed = with Os = real_os() { with Fs = real_fs() { install_paths() } }
+    ro source = kit_repo_root().display().replace("\\", "/")
+    if installed.root == source { return }
+    ro temporary = with Os = real_os() { temp_dir().display().replace("\\", "/") }
+    if !kit_real_path(installed.root).starts_with("${kit_real_path(temporary)}/") { panic("test adapter destination is not temporary") }
+    for file in ["scripts/task-store.mjs", "opencode-plugin/shared-task-store.ts", "opencode-plugin/shared-task-config.ts", "opencode-plugin/shared-task-snapshot.ts", "opencode-plugin/task-numbers.ts"] {
+        ro text = with Fs = real_fs() {
+            match read_text(Path.from_bytes("${source}/${file}".bytes())) {
+                Ok(body) => body
+                Err(e) => panic("test task adapter source is missing")
+            }
+        }
+        if !write_file("${installed.root}/${file}", text) { panic("test task adapter could not be installed") }
+    }
+}
+
 fn kit_settings(store str, name str, idle_ms int, pg PgConfig) -> ServerSettings {
+    kit_install_task_adapter()
     ro data_dir = kit_data_dir(name)
     // the folder of the sessions is a plain folder, not a repository: in a repository the modes of work open a task with a tree of its own (task 192q)
     ro work = write_file("${data_dir}/work/.keep", "")

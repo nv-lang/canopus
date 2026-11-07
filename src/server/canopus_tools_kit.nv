@@ -222,7 +222,7 @@ export fn scenario_canopus_tools(settings ServerSettings) Proc Detach Time Net F
     c.expect(ctl_notes_with(rig, p1, "▸ canopus_list") && ctl_notes_with(rig, p1, "▸ canopus_send"), "every call is written to the journal of the session")
 
     // 10. the journals of the task: the lines are built by the hub, checked against the earlier ones, written only in the folder of the task of the session
-    ro tdir = "${ck_tree(rig, 1, p1)}/doc/tasks/${ck_task_id(rig, 1, p1)}/task"
+    ro tdir = ck_dir(rig, p1)
     ro j0 = ctl_ask(rig, p1, "canopus_progress_line", "{\"code\":\"С9\",\"kind\":\"step\",\"k\":1,\"n\":2,\"text\":\"до старта\"}")
     c.expect(j0.contains("Не записано") && j0.contains("нет строки старт") && !path_there("${tdir}/progress.log"), "a step before the start is refused and no file is made: ${cut_text(j0, 160)}")
     ro j1 = ctl_ask(rig, p1, "canopus_progress_line", "{\"code\":\"С9\",\"kind\":\"start\",\"n\":2,\"text\":\"две единицы\"}")

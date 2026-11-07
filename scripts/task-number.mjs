@@ -114,15 +114,29 @@ const t = tasks.createTask(
 )
 
 const folder = path.join(top, ...t.folder.split("/"))
-if (existsSync(folder)) throw Error(`папка ${t.folder} уже есть (номер ${tn.pad3(t.n)} занят записью, папку не перезаписываю)`)
+if (existsSync(path.join(folder, "task", "message.md"))) throw Error(`папка ${t.folder} уже есть (номер ${tn.pad3(t.n)} занят записью, папку не перезаписываю)`)
 mkdirSync(path.join(folder, "task"), { recursive: true })
 writeFileSync(path.join(folder, "task", "creation.json"), JSON.stringify({ reason: input.creation_reason, checked_tasks: input.checked_tasks, why_new: input.why_new, approval: source }, null, 2) + "\n")
 writeFileSync(path.join(folder, "task", "message.md"), message.trim() ? message : folders.templateMessage({ title, goal: title, author_role: `${project}.external` }))
+// Canonical documents share the record directory; the worktree copy is a versioned snapshot.
+const canonicalFolder = path.dirname(path.dirname(tasks.taskFile(t.project, t.n)))
+for (const file of ["task/creation.json", "task/message.md"]) {
+  const target = path.join(canonicalFolder,file)
+  const body = readFileSync(path.join(folder,file))
+  mkdirSync(path.dirname(target),{recursive:true})
+  if (!existsSync(target)) writeFileSync(target,body,{flag:"wx"})
+  else if (!readFileSync(target).equals(body)) throw Error("Canonical task document collision")
+}
 let sha = ""
 try {
   sha = git("rev-parse", "--short", "HEAD")
 } catch {}
 writeFileSync(path.join(folder, "log.md"), folders.firstLogLine({ title }, message.trim() ? "текст агента (--message-file)" : "шаблон (заполнить)", `${git("rev-parse", "--abbrev-ref", "HEAD")} ${sha}`.trim()))
+const canonicalLog=path.join(canonicalFolder,"log.md")
+const initialLog=readFileSync(path.join(folder,"log.md"))
+if(!existsSync(canonicalLog)) writeFileSync(canonicalLog,initialLog,{flag:"wx"})
+else if(!readFileSync(canonicalLog).equals(initialLog)) throw Error("Canonical task log collision")
+
 tasks.taskEvent(t, "external", undefined, `номер выдан агенту вне OpenCode: папка ${t.folder}/ в дереве ветки ${git("rev-parse", "--abbrev-ref", "HEAD")}`)
 return t
 }, APPROVALS, () => canonical(candidates()) === canonical(scope.candidates))

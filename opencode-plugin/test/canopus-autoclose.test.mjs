@@ -15,7 +15,7 @@ const mk = async (n, status, updated) => {
   const t = tasks.createTask({ project: "proj", title: `t${n}`, goal: "g", criteria: "c", priority: "P2", tier: "light", role: "worker", model: "m", author: "sesI", author_role: "proj.integrator", qid: `q${n}`, status, kind: "spawn", directory: tmp })
   t.status = status
   tasks.saveTask(t)
-  const f = path.join(tasks.TASKS, "proj", `${n}.json`)
+  const f = tasks.taskFile("proj", n)
   const j = JSON.parse((await import("node:fs")).readFileSync(f, "utf8"))
   j.updated = updated
   ;await (await import("node:fs")).writeFileSync(f, JSON.stringify(j))

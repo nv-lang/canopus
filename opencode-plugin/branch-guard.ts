@@ -45,6 +45,7 @@ export type Deps = {
   projectRoot(project: string): string | undefined
   targetBranch(dir: string): string
   task(project: string, n: number): TaskLike | undefined
+  taskDocuments?(project:string,n:number): string
   /** открытые задачи (для чужих деревьев) */
   openTasks(): TaskLike[]
   /** держит ли сессия замок вливания этой задачи */
@@ -413,6 +414,14 @@ export function judgeWrite(card: CardLike, windowDir: string | undefined, tool: 
     const winOk = winHead ? judgeHead(exp, winHead, ov) : ({ ok: true } as Verdict)
     for (const f of files) {
       const abs = path.resolve(windowDir || ".", f)
+      if(exp.task&&deps.taskDocuments){
+        const root=deps.taskDocuments(exp.task.project,exp.task.n)
+        const relative=path.relative(path.resolve(root),abs).replace(/\\/g,"/")
+        if(relative&&!relative.startsWith("..")&&!path.isAbsolute(relative)){
+          if(["task/state.json","task/watch.json","task/snapshot.json"].includes(relative.toLowerCase()))return "Служебное состояние задачи изменяется только штатными API; прямое редактирование запрещено"
+          if(exp.role==="executor"||exp.role==="reviewer")continue
+        }
+      }
       let p = abs
       while (!existsSync(p) && path.dirname(p) !== p) p = path.dirname(p)
       const head = readHead(p)

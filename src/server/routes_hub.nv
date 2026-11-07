@@ -140,7 +140,27 @@ fn Hub mut @rt_journal(at int, name str, text str) Proc Detach Time -> () {
     if !route_signals().contains(name) { return }
     mut s = @sessions[at]
     accept_in(@settings.store == "pg", @settings.data_dir, s, Incoming.signal(name, text))
+    ro previous_number = s.rt.number
+    ro previous_dir = s.rt.task_dir
     s.rt.apply(name, text)
+    ro shared_number = if s.rt.task_open { s.rt.number } else { previous_number }
+    ro shared_dir = if s.rt.task_open { s.rt.task_dir } else { previous_dir }
+    if shared_number.byte_len() > 0 && shared_dir.byte_len() > 0 {
+        mut event = JsonObject.new()
+        js(event, "session", s.id)
+        js(event, "name", name)
+        js(event, "text", text)
+        ji(event, "step", s.engine.step_number())
+        ro evidence = "${@task_store_home()}/state/task-events/${s.id}.json"
+        if write_file(evidence, JsonValue.object(event).to_str()) {
+            mut request = JsonObject.new()
+            js(request, "session", s.id)
+            js(request, "evidence", evidence)
+            js(request, "n", shared_number)
+            ro saved = shared_task_call("record-event", @route_repo_dir(s.id), JsonValue.object(request).to_str(), @task_store_home())
+            if !saved.ok { @say_log("shared task persistence: ${saved.text}") }
+        } else { @say_log("shared task persistence: event evidence could not be written") }
+    }
     @sessions[at] = s
     @drain(at)
 }
@@ -278,30 +298,12 @@ fn Hub @route_trees(session str) -> str {
     }
 }
 
-// The number of the next task of the session (task 192.13): above EVERY number seen anywhere - the folders of the task in the repository, `origin/main` (after a fetch), the branches
-// local and remote, the trees, the tasks of the sessions of the hub - and above the numbers the hub has given already (`reserved`, so two sessions never take one number at once).
-fn Hub mut @take_task_number(session str) Proc Detach Time -> int {
-    ro at = @find(session)
-    mut names = []str.new()
-    if at >= 0 {
-        for n in @cs_taken_names(@sessions[at]) { names.push(n) }
-        ro base = @route_repo_dir(session)
-        if tk_is_repo(base) { for n in tk_number_names(base) { names.push(n) } }
-    }
-    ro n = next_task_number_reserved(names, @reserved)
-    @reserved.push(n)
-    n
-}
-
+// Task numbers are reserved by the shared disk store for both clients.
 fn Hub mut @route_make_task(session str, route str, text str, use_tree bool) Proc Detach Time -> TaskMade {
     ro preparation_at = @find(session)
     if preparation_at >= 0 && !@work_allowed(preparation_at, "execute") {
         ro dir = "${@settings.data_dir}/${session}/tasks/draft/task"
         return { ok: true, id: "draft", number: "", dir, shown: dir, branch: "", worktree: "", base: "", repo_dir: "" }
-    }
-    if preparation_at >= 0 && @sessions[preparation_at].project_id.byte_len() == 0 {
-        @tell_error(0, session, @sessions[preparation_at].engine.step_number(), "", "Для задачи с Git сначала выберите проект; черновик Подготовки хранится в данных сессии")
-        return no_task()
     }
     ro own = @route_repo_dir(session)
     // task 257: the result may go to another known repository (the project of `rt.result_repo`): the number and the folder of the task stay
@@ -322,24 +324,23 @@ fn Hub mut @route_make_task(session str, route str, text str, use_tree bool) Pro
     // a tree is made when the session wants one (the switch "Worktree") and the mode is not the planning (it writes the task and touches no code: the tree comes later)
     ro want_tree = repo && use_tree && route != "planning"
     // task 192.2: the mode "interactive" makes a task only for a confirmed proposal (`canopus_task`, `canopus_task_list`), see canopus_task_hub.nv
-    ro number = task_number_text(@take_task_number(session))
-    ro slug = task_slug(text)
-    ro folder = "${number}-${slug}"
+    // Reserve a directory only. Existing owner-message/card guards still decide whether a task opens.
+    ro reserved = @shared_task_reserve(own, subtask_title(text))
+    if !reserved.ok { @say_log(reserved.text); return no_task() }
+    ro allocation = match jobject(reserved.text) { Some(o) => o, None => return no_task() }
+    ro number = task_number_text(jint(allocation, "n"))
+    ro folder = jtext(allocation, "id")
+    ro slug = task_slug_of(folder)
     mut tree = TkTree { ok: false, branch: "", worktree: "", base: "", text: "" }
     if want_tree {
         tree = tk_task_tree(base, number, slug, trees)
         if !tree.ok { @say_log("the tree of the task ${folder} cannot be made: ${tree.text}") }
         if !tree.ok && explicit { return no_task() }
     }
-    // the folder of the task lives in the tree only when the tree is of the OWN repository of the session: a foreign repository is not polluted (task 257)
-    ro tasks_here = tree.ok && tk_is_repo(own) && tk_same_repo(own, tree.worktree) && dir_there("${base}/doc/tasks")
     ro repo_dir = if tree.ok { base } else { "" }
-    if tasks_here {
-        return { ok: true, id: folder, number, dir: "${tree.worktree}/doc/tasks/${folder}/task", shown: "doc/tasks/${folder}/task", branch: tree.branch, worktree: tree.worktree, base: tree.base, repo_dir }
-    }
-    ro foreign = repo && tk_is_repo(own) && !tk_same_repo(own, base)
-    ro dir = if foreign { "${own}/doc/tasks/${folder}/task" } else { "${@settings.data_dir}/${session}/tasks/${folder}/task" }
+    ro dir = jtext(allocation, "dir")
     { ok: true, id: folder, number, dir, shown: dir, branch: tree.branch, worktree: tree.worktree, base: tree.base, repo_dir }
+
 }
 
 fn Hub mut @route_write_sub(at int, n int, text str) Proc Detach Time -> () {
@@ -566,15 +567,6 @@ fn Hub mut @route_attach_tree(at int) Proc Detach Time -> bool {
     }
     mut dir = s.rt.task_dir
     mut shown = s.rt.task_shown
-    if tk_is_repo(own) && tk_same_repo(own, tree.worktree) && dir_there("${tree.worktree}/doc/tasks") {
-        ro into = "${tree.worktree}/doc/tasks/${s.rt.task_id}/task"
-        if io_copy_dir(s.rt.task_dir, into) < 0 {
-            @tell_error(0, s.id, s.engine.step_number(), "", "папка задачи не перенесена в дерево ${tree.worktree}")
-            return false
-        }
-        dir = into
-        shown = "doc/tasks/${s.rt.task_id}/task"
-    }
     mut o = JsonObject.new()
     js(o, "branch", tree.branch)
     js(o, "worktree", tree.worktree)
@@ -1466,7 +1458,7 @@ fn Hub mut @route_tree_drop(trace str, force bool) Proc Detach Time -> () {
     }
     ro own = @route_repo_dir(s.id)
     ro foreign = tk_is_repo(own) && !tk_same_repo(own, main)
-    ro out = if foreign { s.rt.task_dir } else { "${@settings.data_dir}/${s.id}/tasks/${s.rt.task_id}/task" }
+    ro out = s.rt.task_dir
     if out != s.rt.task_dir && io_copy_dir(s.rt.task_dir, out) < 0 {
         @tell_error(0, trace, s.engine.step_number(), "", "дерево не удалено: не удалось сохранить папку задачи")
         return
@@ -1588,6 +1580,11 @@ fn Hub mut @route_publish_step(at int, mode str) Proc Detach Time -> () {
         Ok(dir) => dir
         Err(e) => { @route_publish_fail(at, "репозиторий результата: ${e}"); return }
     }
+    mut snapshot = JsonObject.new()
+    js(snapshot, "n", s.rt.number)
+    js(snapshot, "session", s.id)
+    ro prepared = shared_task_call("snapshot", @route_repo_dir(s.id), JsonValue.object(snapshot).to_str(), @task_store_home())
+    if !prepared.ok { @route_publish_fail(at, "снимок документов: ${prepared.text}"); return }
     if mode == "final" || mode == "merge" { @route_close_agent_in(at, s.rt.worktree) }
     ro r = tk_publish(s.rt.worktree, main, mode)
     if r.status == "done" {
