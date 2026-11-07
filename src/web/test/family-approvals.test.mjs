@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { approvalView } from '../family-approvals.js';
 import { initialModel, reduce, addDraft, patchDraft } from '../state.js';
+import { t } from '../strings.js';
 import { createView } from '../view.js';
 import { createFakeDocument } from './fake-dom.mjs';
 
@@ -57,30 +58,28 @@ test('настройки черновика сохраняются при сме
   assert.deepEqual(m.sessions.s.approvals, session.approvals);
 });
 
-test('кнопка непосредственно перед микрофоном, меню отправляет точный id; текст и вложения не пересоздаются', () => {
+test('верхний дубль отсутствует, нижнее меню выбирает режим и сохраняет текст', () => {
   const doc = createFakeDocument();
   const refs = Object.fromEntries(['app', 'side', 'main', 'rail', 'status', 'overlay'].map(key => {
     const node = doc.createElement('div'); doc.body.append(node); return [key, node];
   }));
   const picks = [];
   const view = createView(doc, refs, { agents: [{ id: 'opencode' }], now: () => 0, handlers: {
-    queued: () => 0, queuedItems: () => [], onApproval: (...args) => picks.push(args),
+    queued: () => 0, queuedItems: () => [], onChoose: (...args) => picks.push(args),
   } });
   let m = reduce(initialModel(), { id: 'create', trace: 's', step: 0, time: 1, kind: 'session_created', input: { name: 'S', agent: 'opencode' } });
   m = reduce(m, { id: 'options', trace: 's', step: 1, time: 2, kind: 'session_model', input: { agent: 'opencode', mode: 'plan', modes } });
   const ui = { selected: 's', projects: [], pins: {}, theme: 'system' };
   view.render(m, ui, { state: 'connected' });
   const row = refs.main.querySelector('.box-row');
-  const children = [...row.children];
-  const approvals = refs.main.querySelector('.family-approvals');
-  const mic = refs.main.querySelector('.mic-btn');
-  assert.equal(children[children.indexOf(approvals) + 1], mic.parentNode);
+  assert.equal(row.querySelector('.family-approvals'), null);
+  assert.equal(refs.main.querySelector('.family-approvals-button'), null);
   const input = refs.main.querySelector('textarea'); input.value = 'Не потерять черновик';
-  refs.main.querySelector('.family-approvals-button').click();
-  const items = refs.main.querySelector('.family-approvals-menu').querySelectorAll('.menu-item');
-  assert.ok(items.every(item => item.getAttribute('aria-checked') === 'false'), 'native current without requested is not marked as an owner choice');
+  refs.main.querySelectorAll('.box-bar button').find(button => button.getAttribute('aria-label') === t('menu.mode')).click();
+  const items = refs.main.querySelectorAll('.menu').find(menu => !menu.hidden).querySelectorAll('.menu-item');
+  assert.equal(items.find(item => item.textContent.includes('План')).getAttribute('aria-checked'), 'true');
   items[0].click();
-  assert.deepEqual(picks, [['s', 'opencode', 'build']]);
+  assert.deepEqual(picks, [['s', 'mode', 'build']]);
   view.render(m, ui, { state: 'connected' });
   assert.equal(refs.main.querySelector('textarea'), input);
   assert.equal(input.value, 'Не потерять черновик');

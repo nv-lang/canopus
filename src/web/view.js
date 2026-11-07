@@ -26,7 +26,6 @@ import { createViewer } from './viewer-ui.js';
 import { createMachinesPanel } from './machines-ui.js';
 import { createRequestPanel } from './request-ui.js';
 import { createCanopusTaskUi } from './canopus-task-ui.js';
-import { createFamilyApprovals } from './family-approvals.js';
 import { subWaitsText } from './canopus-task.js';
 import { labelOf } from './labels-ru.js';
 import { createDraftStore, safeError, restoreText, afterSendText } from './delivery.js';
@@ -525,7 +524,6 @@ export function createView(doc, refs, deps) {
   const voiceList = h(doc, 'div', { class: 'menu-list' });
   voiceMenu.append(voiceList);
   const micWrap = h(doc, 'div', { class: 'mic-wrap' }, micButton, micMore, voiceMenu);
-  const familyApprovals = createFamilyApprovals(doc, (trace, family, value) => handlers.onApproval(trace, family, value));
   // Ошибки голоса — красная плашка над полем: position absolute, место в потоке не занимает, макет не прыгает
   const voiceToastText = h(doc, 'span', { class: 'voice-toast-text' });
   const voiceToastClose = h(doc, 'button', { type: 'button', class: 'voice-toast-close', title: t('voice.dismiss'), 'aria-label': t('voice.dismiss') }, icon(doc, 'i-x'));
@@ -550,7 +548,7 @@ export function createView(doc, refs, deps) {
   const recPanel = h(doc, 'div', { class: 'rec-panel' }, micTimer, wave);
   const plusButton = h(doc, 'button', { type: 'button', class: 'plus-btn', title: t('images.add'), 'aria-label': t('images.add') }, icon(doc, 'i-plus'));
   const box = h(doc, 'div', { class: 'box' }, attach.row, plusButton, input,
-    recPanel, h(doc, 'div', { class: 'box-row' }, cancelButton, sendButton, familyApprovals.root, micWrap));
+    recPanel, h(doc, 'div', { class: 'box-row' }, cancelButton, sendButton, micWrap));
   attach.bindPicker(plusButton);
   attach.bindPaste(input);
   attach.bindDrop(box);
@@ -808,7 +806,7 @@ export function createView(doc, refs, deps) {
   const spinner = h(doc, 'span', { class: 'spinner', role: 'img', 'aria-label': t('composer.working'), hidden: true });
   const menu = h(doc, 'div', { class: 'menu', role: 'menu', hidden: true });
   const agentAnchor = h(doc, 'div', { class: 'agent-picker-anchor' }, familyButton, menu);
-  // The picker owns its anchor; family approvals stay before the microphone.
+  // The model picker owns its anchor; the lower mode selector is the only visible mode control.
   const statusGroup = h(doc, 'div', { class: 'status-group' }, agentAnchor);
   // Композиция нижней панели по макету 268 (task/design/new-chat.png): режим, семья, модель и усилие —
   // пилюли одной строкой ВНУТРИ карточки композера, а не отдельной строкой под ней.
@@ -1875,7 +1873,6 @@ export function createView(doc, refs, deps) {
     options = shown.options;
     currentAgent = shown.agent;
     currentSession = session;
-    familyApprovals.render(model, session, agents, busy, session.source);
     currentRoute = session.route || INTERACTIVE_STATE.route;
     routeButton.hidden = false;
     routeButton.replaceChildren(h(doc, 'span', { text: currentRoute === 'planning' ? 'Подготовка' : routeName(currentRoute) }));
