@@ -419,7 +419,7 @@ export fn kit_routes_git(name str) Proc -> ServerSettings {
 }
 
 /// The mode interactive in a repository: the first message opens a task with a tree of its own (branch `task/NNN-...`, next to the repository), the agent works in the tree, the
-/// repository itself is untouched; closing a task that has work in its tree does not drop it ("finishing", "keep"), a kept task comes back.
+/// source in the repository is untouched; canonical task documents live there; closing a task that has work in its tree does not drop it ("finishing", "keep"), a kept task comes back.
 export fn scenario_route_tree(settings ServerSettings) Proc Detach Time Net Fs Os -> str {
     mut c = kit_check()
     mut rig = rig_open(settings)
@@ -449,7 +449,7 @@ export fn scenario_route_tree(settings ServerSettings) Proc Detach Time Net Fs O
     ro lines = rig.lines_for(1)
     ro answer = answer_of(lines, rk_last_turn(lines)).replace("\\", "/")
     c.expect(answer.contains("/repo-${id}"), "the agent works in the tree: ${answer}")
-    c.expect(rk_git(settings.workdir, ["diff", "--quiet"]) && git_run(settings.workdir, ["status", "--porcelain"]).text.byte_len() == 0, "the repository is clean")
+    c.expect(rk_git(settings.workdir, ["diff", "--quiet"]) && git_run(settings.workdir, ["status", "--porcelain", "--", ".", ":(exclude)doc/tasks/${id}"]).text.byte_len() == 0, "the repository has only its canonical task documents; source and unrelated files stay clean")
 
     // nothing was done in the tree: closing the task removes the tree
     rig.page(1, "route_new_task", "s-r3", "{}")
