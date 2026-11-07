@@ -824,7 +824,6 @@ export function createView(doc, refs, deps) {
   let options = null;
   let currentAgent = '';
   let currentSession = null;
-  let pickerDraft = null;
   let currentRoute = INTERACTIVE_STATE.route;
   let menuQuery = '';
   let menuSig = '';
@@ -867,7 +866,6 @@ export function createView(doc, refs, deps) {
     if (currentSession.draft) handlers.onDraftSource?.(currentTrace, source);
     else if (typeof handlers.onSource === 'function') handlers.onSource(currentTrace, source);
     else handlers.onNotice?.('Этот сервер не поддерживает выбор источника агента');
-    pickerDraft = null;
     closeMenu();
   }
 
@@ -897,7 +895,6 @@ export function createView(doc, refs, deps) {
   function renderMenu() {
     menuList.replaceChildren();
     if (menuKind === 'agent') {
-      const draftSelection = pickerDraft;
       menuSearch.hidden = false;
       menuSearch.placeholder = 'Поиск модели или пула';
       menuSearch.setAttribute('aria-label', 'Поиск модели или пула');
@@ -907,7 +904,7 @@ export function createView(doc, refs, deps) {
       const sourceInfo = presets() || {};
       const preset = (sourceInfo.presets || []).find((p) => p.name === (currentSession && currentSession.preset || sourceInfo.active || 'default'));
       const pools = preset && preset.pools && typeof preset.pools === 'object' ? preset.pools : {};
-      const source = draftSelection ? { family: draftSelection.family, model: draftSelection.model, effort: draftSelection.effort } : currentSession && currentSession.source;
+      const source = currentSession && currentSession.source;
       const rawMetadata = modelMetadata() || {};
       const metadata = rawMetadata.status === 'ready' && rawMetadata.expiresAt <= now()
         ? { ...rawMetadata, status: 'unavailable', reason: 'metadata_expired' }
@@ -920,10 +917,9 @@ export function createView(doc, refs, deps) {
       for (const m of allModels) {
         const chosen = source && !source.pool && source.family === m.family && source.model === m.model;
         const efforts = m.efforts;
-        const draftEffort = draftSelection && draftSelection.family === m.family && draftSelection.model === m.model;
-        const effort = draftEffort ? draftSelection.effort : chosen ? source.effort : (efforts[0] && efforts[0].id || '');
+        const effort = chosen ? source.effort : (efforts[0] && efforts[0].id || '');
         const row = menuRow({ name: m.name, description: m.family, checked: chosen,
-          onPick: () => { if (efforts.length) { pickerDraft = { family: m.family, model: m.model, efforts, effort }; renderMenu(); } else pickSource({ family: m.family, model: m.model, effort: '' }); } });
+          onPick: () => pickSource({ family: m.family, model: m.model, effort }) });
         if (efforts.length) {
           const index = Math.max(0, efforts.findIndex((e) => e.id === effort));
           const slider = h(doc, 'input', { type: 'range', class: 'effort-slider', min: '0', max: String(efforts.length - 1), step: '1', value: String(index), 'aria-label': `Усилие ${m.name}` });
@@ -944,8 +940,8 @@ export function createView(doc, refs, deps) {
           };
           paintEffort(index);
           slider.addEventListener('click', (e) => e.stopPropagation());
-          slider.addEventListener('input', () => { const at = Number(slider.value); paintEffort(at); if (pickerDraft) pickerDraft.effort = efforts[at].id; });
-          slider.addEventListener('change', () => pickSource({ family: m.family, model: m.model, effort: pickerDraft ? pickerDraft.effort : efforts[Number(slider.value)].id }));
+          slider.addEventListener('input', () => { const at = Number(slider.value); paintEffort(at); });
+          slider.addEventListener('change', () => pickSource({ family: m.family, model: m.model, effort: efforts[Number(slider.value)].id }));
           control.append(slider, sparkleLayer);
           row.append(control);
           row.classList.add('agent-model-row');
@@ -1055,7 +1051,6 @@ export function createView(doc, refs, deps) {
     menuKind = kind;
     menuTrigger = { agent: familyButton, route: routeButton, result: resultRepoButton, mode: modeButton, model: modelButton, more: modelButton, effort: effortButton }[kind] || null;
     if (kind === 'agent') agentAnchor.append(menu); else status.append(menu);
-    if (kind === 'agent') pickerDraft = null;
     menuQuery = '';
     menuSearch.value = '';
     menuSig = kind === 'route' ? currentRoute : kind === 'result' ? JSON.stringify(resultRepoShown) : JSON.stringify(options);

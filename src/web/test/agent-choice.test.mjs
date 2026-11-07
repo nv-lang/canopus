@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createView } from '../view.js';
-import { initialModel, reduce } from '../state.js';
+import { initialModel, reduce, addDraft, patchDraft } from '../state.js';
 import { createFakeDocument } from './fake-dom.mjs';
 import { t } from '../strings.js';
 import { timeline } from '../lists.js';
@@ -272,4 +272,22 @@ test('ответ отображает фактическую или явную �
   const unknown = events.filter((event) => event.kind !== 'agent_actual').reduce((current, event) => reduce(current, event), initialModel());
   view.render(unknown, { selected: 's', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
   assert.equal(refs.main.querySelector('.agent-signature').textContent, 'Автор не подтверждён');
+});
+
+for (const draft of [true, false]) test(`one model-row click commits a family/model with effort: draft=${draft}`, () => {
+  const doc = createFakeDocument(); const refs = {};
+  for (const key of ['app','side','main','rail','status','overlay']) { refs[key] = doc.createElement('div'); doc.body.append(refs[key]); }
+  let model = draft ? addDraft(initialModel(), {id:'s',agent:'opencode',now:1}) : reduce(initialModel(), {id:'c',trace:'s',step:0,time:1,kind:'session_created',input:{agent:'opencode'}});
+  const calls = [];
+  const metadata = {status:'ready',expiresAt:1000,families:{kimi:[{id:'k3',name:'K3',efforts:[{id:'off',name:'Off'},{id:'high',name:'High'}]}]}};
+  const draw = () => view.render(model, {selected:'s',projects:[],pins:{},theme:'system'}, {state:'connected'});
+  const view = createView(doc, refs, {agents:[{id:'opencode',label:'OpenCode'},{id:'kimi',label:'Kimi'}],now:()=>10,modelMetadata:()=>metadata,handlers:{
+    queued:()=>0,queuedItems:()=>[],onSource:(...args)=>calls.push(['real',...args]),onDraftSource:(trace,source)=>{calls.push(['draft',trace,source]);model=patchDraft(model,trace,{source});draw();}
+  }});
+  draw();refs.main.querySelector('.agent-picker-button').click();
+  const row=refs.main.querySelectorAll('.agent-model-row').find(r=>r.textContent.includes('K3'));
+  assert.ok(row);row.click();
+  assert.deepEqual(calls,[[draft?'draft':'real','s',{family:'kimi',model:'k3',effort:'off'}]]);
+  assert.equal(refs.main.querySelector('.agent-picker-button').getAttribute('aria-expanded'),'false');
+  if(draft){assert.deepEqual(model.sessions.s.source,{family:'kimi',model:'k3',effort:'off'});assert.match(refs.main.querySelector('.agent-picker-button').textContent,/k3/);}
 });
