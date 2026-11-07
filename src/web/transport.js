@@ -44,6 +44,24 @@ const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
 /** Parse the bound, fail-closed cold metadata snapshot; this never invents a family/model fallback. */
 export function parseModelMetadata(payload, configuredFamilies, now = Date.now()) {
   const unavailable = (reason = 'metadata_unavailable', family = '') => ({ status: 'unavailable', reason, family, models: [] });
+  if (isObject(payload) && payload.v === 2) {
+    const { observed_at: observedAt, expires_at: expiresAt, families } = payload;
+    if (!Number.isSafeInteger(observedAt) || !Number.isSafeInteger(expiresAt) || observedAt <= 0 || observedAt > now || expiresAt <= now || expiresAt <= observedAt || expiresAt - observedAt > 300000 || !Array.isArray(families)) return unavailable('metadata_expired_or_invalid');
+    const seen = new Set(); const bound = Object.create(null);
+    for (const item of families) {
+      if (!isObject(item) || !configuredFamilies.includes(item.family) || seen.has(item.family)) return unavailable('family_unbound');
+      seen.add(item.family);
+      if (item.status !== 'ready') continue;
+      if (item.source !== 'acp.session.new' || typeof item.source_version !== 'string' || !item.source_version || !Array.isArray(item.models) || !item.models.length) return unavailable('metadata_provenance_mismatch');
+      const ids = new Set();
+      for (const model of item.models) {
+        if (!isObject(model) || typeof model.id !== 'string' || !model.id.trim() || typeof model.name !== 'string' || !model.name.trim() || ids.has(model.id) || !Array.isArray(model.efforts) || model.efforts.some(e => !isObject(e) || typeof e.id !== 'string' || !e.id || typeof e.name !== 'string')) return unavailable('metadata_models_invalid');
+        ids.add(model.id);
+      }
+      bound[item.family] = item.models;
+    }
+    return {status: Object.keys(bound).length ? 'ready' : 'unavailable', reason: 'native_acp_catalog', family: '', models: [], families: bound, observedAt, expiresAt};
+  }
   if (!isObject(payload) || payload.v !== 1) return unavailable('metadata_invalid');
   if (payload.status !== 'ready') return unavailable(typeof payload.reason === 'string' && payload.reason ? payload.reason : 'metadata_unavailable', typeof payload.family === 'string' ? payload.family : '');
 

@@ -841,6 +841,7 @@ export function createView(doc, refs, deps) {
       return session.options.models.map((model) => ({ ...model, efforts: session.options.efforts }));
     }
     const metadata = modelMetadata();
+    if (metadata?.status === 'ready' && metadata.expiresAt > now() && Array.isArray(metadata.families?.[family])) return metadata.families[family];
     if (metadata && metadata.status === 'ready' && metadata.family === family && Number.isFinite(metadata.expiresAt) && metadata.expiresAt > now()) return metadata.models;
     return null;
   }

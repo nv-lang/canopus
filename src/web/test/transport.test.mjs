@@ -221,3 +221,20 @@ test('режим «нет сервера» (страница из файла б�
   assert.equal(statuses.at(-1), 'nofile');
   assert.equal(tr.send({}), false);
 });
+
+// Direct families must stay separate and stale or duplicated snapshots fail closed.
+test('native ACP catalog binds independent families without OpenCode model substitution', () => {
+  const snapshot = {v:2, observed_at:1000, expires_at:10000, families:[
+    {family:'kimi',status:'ready',source:'acp.session.new',source_version:'2.1.1',models:[{id:'kimi-local',name:'Kimi',efforts:[]}]},
+    {family:'zai',status:'ready',source:'acp.session.new',source_version:'1',models:[{id:'glm-5.3',name:'GLM',efforts:[]}]},
+    {family:'claude',status:'unavailable',models:[]},
+  ]};
+  const result = parseModelMetadata(snapshot, ['kimi','zai','claude'], 2000);
+  assert.equal(result.status, 'ready');
+  assert.equal(result.families.kimi[0].id, 'kimi-local');
+  assert.equal(result.families.zai[0].id, 'glm-5.3');
+  assert.equal(result.families.claude, undefined);
+  assert.equal(parseModelMetadata(snapshot, ['kimi','zai','claude'], 10001).status, 'unavailable');
+  assert.equal(parseModelMetadata({...snapshot,families:[snapshot.families[0],snapshot.families[0]]}, ['kimi'], 2000).status, 'unavailable');
+  assert.equal(parseModelMetadata(snapshot, ['kimi'], 2000).status, 'unavailable');
+});
