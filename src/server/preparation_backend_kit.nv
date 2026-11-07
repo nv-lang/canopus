@@ -60,6 +60,8 @@ export fn scenario_preparation_backend(settings ServerSettings) Proc Detach Time
     c.expect(rk_text("${dir}/message.md") == before, "restart preserves the statement")
     again.page(1, "session_route", "s-safe", "{\"route\":\"interactive\"}")
     again.page(1, "session_worktree", "s-safe", "{\"on\":false}")
+    // The ordinary fixture offers fake-model, not the restricted HTTP fixture model.
+    again.page(1, "session_source", "s-safe", "{\"family\":\"opencode\",\"model\":\"fake-model\"}")
     again.page(1, "user_message", "s-safe", "{\"turn\":\"normal\",\"text\":\"обычная беседа\"}")
     again.run(500)
     mut echo = ""
