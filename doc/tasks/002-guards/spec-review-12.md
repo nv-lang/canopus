@@ -162,9 +162,9 @@ unitcraft/ai-dev-methodology @ 41ba76f: task-algorithm.md; task-sessions.md — 
 - Проба 3. Защита ветки и права владельца. Чтение API через `gh` (только чтение):
 
   ```text
-  $ gh api repos/unitcraft/crew-harness/branches/main --jq '{protected: .protected}'
+  $ gh api repos/nv-lang/canopus/branches/main --jq '{protected: .protected}'
   {"protected":false}
-  $ gh api repos/unitcraft/crew-harness --jq '.permissions'
+  $ gh api repos/nv-lang/canopus --jq '.permissions'
   {"admin":true,"maintain":true,"pull":true,"push":true,"triage":true}
   ```
 

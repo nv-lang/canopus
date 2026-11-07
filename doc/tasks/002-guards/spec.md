@@ -2,8 +2,8 @@
 
 # 002 — Стражи репозитория: хуки git, проверки CI, самотесты — спецификация (Сессия С1, 2026-10-07; правки Сессии С1п, заходы 1–27, 2026-10-07…2026-10-08; ответы владельца О-01…О-07 (О-03 заменён решением 2026-10-08); объём урезан решением владельца на воротах В9, заход 11)
 
-Заказчик, принимающий и адресат вопросов: владелец репозитория `unitcraft/crew-harness` (msg, строка 3). Репозиторий
-кода: `unitcraft/crew-harness` (https://github.com/unitcraft/crew-harness, публичный), ветка `main`; разбор сделан на
+Заказчик, принимающий и адресат вопросов: владелец репозитория `nv-lang/canopus` (msg, строка 3). Репозиторий
+кода: `nv-lang/canopus` (https://github.com/nv-lang/canopus, публичный), ветка `main`; разбор сделан на
 ревизии `d963ecc`. Методика закреплена: unitcraft/ai-dev-methodology @ `41ba76f` (log.md, строка 2); отличия
 проекта — doc/canon/process.md; Канон сверен на ревизии `a71af72` (правило «агент называется кодом сессии»; машинные строки — с голым кодом; правило «в
 сообщениях владельцу нет голых кодов» относится к ответам агента и документов не касается).
@@ -38,7 +38,7 @@ doc/canon/process.md; `AG` — AGENTS.md; `ADR-NNNN` — doc/canon/decisions/; `
 | S13 | ADR-0003 (ссылка в msg) | Go сейчас, Нова потом; граница «стражи Go» | прочитан |
 | S14 | ADR-0006 (ссылка в msg) | публичный репозиторий; страж — «кандидат в задачу» | прочитан |
 | S15 | ADR-0007 | план в задаче, эпики | прочитан |
-| S16 | https://github.com/unitcraft/crew-harness (ссылка в msg) = `код` @ d963ecc | изменяемый проект | прочитан в нужной части: `.gitattributes`, `.gitignore`, `README.md`, `CLAUDE.md`, `opencode-plugin/package.json`, `opencode-plugin/test/README.md`, тесты `opencode-plugin/test/*.test.mjs` (поиском), `doc/tasks/README.md`, `doc/archive/plans/README.md`, `doc/tasks/001-crew-service/` (формы файлов), история `git log` |
+| S16 | https://github.com/nv-lang/canopus (ссылка в msg) = `код` @ d963ecc | изменяемый проект | прочитан в нужной части: `.gitattributes`, `.gitignore`, `README.md`, `CLAUDE.md`, `opencode-plugin/package.json`, `opencode-plugin/test/README.md`, тесты `opencode-plugin/test/*.test.mjs` (поиском), `doc/tasks/README.md`, `doc/archive/plans/README.md`, `doc/tasks/001-crew-service/` (формы файлов), история `git log` |
 | S17 | `замер` @ d963ecc | базовое состояние для стражей дерева | получен |
 | S18 | A: guards/ — `check-staged-secrets.sh`, `check-no-escaping-links.py`, `check-no-control-chars.sh`, `check-commit-hygiene.sh`, `check-no-manual-status-table.sh`, `check-dead-anchors.py` | доноры логики | прочитаны |
 | S19 | A: guards/ — `mojibake-scan.py`, `check-novac-selftest-proves-red.sh`, `check-guard-empty-root.py` | доноры логики | прочитаны частично: шапки и начало кода; остальное не читалось — для разбора хватает назначения и формы |
@@ -169,7 +169,7 @@ doc/canon/process.md; `AG` — AGENTS.md; `ADR-NNNN` — doc/canon/decisions/; `
 
 ### goal
 
-Механизировать правила публичного репозитория `unitcraft/crew-harness`, которые сейчас держатся памятью и ручным
+Механизировать правила публичного репозитория `nv-lang/canopus`, которые сейчас держатся памятью и ручным
 поиском: стражи (проверки) запускаются хуками git на машине и в CI GitHub, каждый доказан самотестом с красной и
 зелёной стороной, для владельца и агентов, которые коммитят в репозиторий.
 
@@ -828,7 +828,7 @@ AC-10 [выведено] Когда хук агента получает ком�
 | `git worktree remove --force <путь>` | проход |
 | `git branch -d <ветка>` | проход |
 AC-11 [выведено] Когда скрипт настроек GitHub запущен (по отдельному слову владельца, О-04), тогда
-  `gh api repos/unitcraft/crew-harness/branches/main/protection` показывает запрет силового пуша
+  `gh api repos/nv-lang/canopus/branches/main/protection` показывает запрет силового пуша
   (`allow_force_pushes.enabled: false`), запрет удаления (`allow_deletions.enabled: false`) и обязательную линейную
   историю (`required_linear_history.enabled: true`), применение к администраторам (`enforce_admins.enabled: true`),
   а правил «pull request» и «status checks» нет (`required_pull_request_reviews` и `required_status_checks` в ответе

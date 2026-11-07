@@ -1642,7 +1642,7 @@ OPENCODE_CANOPUS_SESSION=<opencode session id> node mcp.ts   # node >= 24
 ## Install
 
 ```sh
-git clone https://github.com/unitcraft/canopus C:/work/canopus
+git clone https://github.com/nv-lang/canopus C:/work/canopus
 ```
 
 `~/.config/opencode/opencode.jsonc` (the server plugin):

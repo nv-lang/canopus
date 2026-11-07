@@ -1,7 +1,7 @@
 # Задание: страж документов задачи — идентификаторы, перенос и числа, предел размера
 
-Заказчик и владелец: владелец репозитория `unitcraft/crew-harness` (он же отвечает на вопросы и принимает результат).
-Репозиторий кода: `unitcraft/crew-harness` (https://github.com/unitcraft/crew-harness, ветка `main`). Дата задания: 2026-10-10.
+Заказчик и владелец: владелец репозитория `nv-lang/canopus` (он же отвечает на вопросы и принимает результат).
+Репозиторий кода: `nv-lang/canopus` (https://github.com/nv-lang/canopus, ветка `main`). Дата задания: 2026-10-10.
 Источник: правила размера и документов [методики](https://github.com/unitcraft/ai-dev-methodology/blob/main/task-sessions.md) («Правила»), пороги проекта в [process.md](../../../canon/process.md) (бывший ADR-0012), стражи в [scripts/guards/](../../../../scripts/guards/).
 
 Задача полная: разбор, план, реализация, сдача.

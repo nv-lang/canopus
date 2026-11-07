@@ -8,7 +8,7 @@
 С1 7/38 task/research-many-agents.md
 С1 8/38 task-algorithm.md
 С1 9/38 log.md
-С1 10/38 github.com/unitcraft/crew-harness
+С1 10/38 github.com/nv-lang/canopus
 С1 11/38 ai-dev-methodology task-runner.md
 С1 12/38 github.com/unitcraft/ai-dev-methodology
 С1 13/38 github.com/ComposioHQ/agent-orchestrator
@@ -34,7 +34,7 @@
 С1 33/38 flaviocopes.com/zcode
 С1 34/38 eesel.ai (ZCode)
 С1 35/38 agentclientprotocol.com
-С1 36/38 репозиторий unitcraft/crew-harness @ 52d2439
+С1 36/38 репозиторий nv-lang/canopus @ 52d2439
 С1 37/38 репозиторий nova (https://github.com/nv-lang/nova)
 С1 38/38 проект claude-limits (https://github.com/unitcraft/claude-limits)
 С1 39/39 github.com/nv-lang/nova/tree/main/novac
@@ -48,7 +48,7 @@
 С2 7/39 task/research-many-agents.md
 С2 8/39 task-algorithm.md
 С2 9/39 log.md
-С2 10/39 github.com/unitcraft/crew-harness
+С2 10/39 github.com/nv-lang/canopus
 С2 11/39 ai-dev-methodology task-runner.md (по копии S4)
 С2 12/39 github.com/unitcraft/ai-dev-methodology (по описи)
 С2 13/39 github.com/ComposioHQ/agent-orchestrator
@@ -74,7 +74,7 @@
 С2 33/39 flaviocopes.com/zcode (по описи)
 С2 34/39 eesel.ai (по описи)
 С2 35/39 agentclientprotocol.com (по описи)
-С2 36/39 код unitcraft/crew-harness (52d2439..a49cda1)
+С2 36/39 код nv-lang/canopus (52d2439..a49cda1)
 С2 37/39 github.com/nv-lang/nova
 С2 38/39 github.com/unitcraft/claude-limits
 С2 39/39 github.com/nv-lang/nova/tree/main/novac
@@ -104,7 +104,7 @@
 С2 7/50 task/research-many-agents.md (сверка с doc/research)
 С2 8/50 task-algorithm.md
 С2 9/50 log.md
-С2 10/50 github.com/unitcraft/crew-harness (README @ 383f430)
+С2 10/50 github.com/nv-lang/canopus (README @ 383f430)
 С2 11/50 ai-dev-methodology task-runner.md (по копии S4)
 С2 12/50 github.com/unitcraft/ai-dev-methodology (README, раздел 18)
 С2 13/50 github.com/ComposioHQ/agent-orchestrator (по описи)
@@ -161,7 +161,7 @@
 С2 7/51 task/research-many-agents.md (без изменений с захода 2)
 С2 8/51 task-algorithm.md @ 41ba76f (целиком; diff с прежней копией — пусто)
 С2 9/51 log.md (7 строк)
-С2 10/51 github.com/unitcraft/crew-harness (README корня @ ce79bc8)
+С2 10/51 github.com/nv-lang/canopus (README корня @ ce79bc8)
 С2 11/51 ai-dev-methodology task-runner.md (по S4)
 С2 12/51 README методики @ 41ba76f (разделы 1-4, 17, 18, 20; completeness-check по оглавлению)
 С2 13/51 github.com/ComposioHQ/agent-orchestrator (по описи)

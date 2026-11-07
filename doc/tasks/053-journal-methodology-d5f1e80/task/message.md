@@ -1,7 +1,7 @@
 # Задание: журнал хода по методике d5f1e80
 
-Заказчик и владелец: владелец репозитория `unitcraft/crew-harness` (он же отвечает на вопросы и принимает результат).
-Репозиторий кода: `unitcraft/crew-harness` (https://github.com/unitcraft/crew-harness, ветка `main`). Дата задания: 2026-10-15.
+Заказчик и владелец: владелец репозитория `nv-lang/canopus` (он же отвечает на вопросы и принимает результат).
+Репозиторий кода: `nv-lang/canopus` (https://github.com/nv-lang/canopus, ветка `main`). Дата задания: 2026-10-15.
 Источник: разбор 050 (`doc/tasks/050-journal-correction-line/analysis.md`, п. 5.1: `progress_line` принимает строки
 той же сессии после `стоп:`, методика запрещает) и письмо окна методики: уточнения влиты в
 https://github.com/unitcraft/ai-dev-methodology, `main`, коммит `d5f1e80` (серия с `15f2cf1`; `task-runner.md`:

@@ -124,9 +124,9 @@ spec.md целиком.
   108
   $ git ls-files scripts .github .claude | wc -l
   0
-  $ gh api repos/unitcraft/crew-harness/branches/main --jq '{protected: .protected}'
+  $ gh api repos/nv-lang/canopus/branches/main --jq '{protected: .protected}'
   {"protected":false}
-  $ gh api repos/unitcraft/crew-harness/rulesets --jq 'length'
+  $ gh api repos/nv-lang/canopus/rulesets --jq 'length'
   0
   ```
 

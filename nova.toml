@@ -55,9 +55,9 @@ alula = { git = "https://github.com/nv-lang/nova-alula", version = "0.28.0" }
 [package]
 name = "canopus"
 version = "0.1.0"
-description = "Canopus product on Nova: state machine engine with self-contained events, chat session with an agent"
+description = "Local application for coordinating coding agents, project tasks and owner decisions, built with Nova and Alula"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/unitcraft/canopus"
+repository = "https://github.com/nv-lang/canopus"
 
 # [[bin]] is declared by the spec but not read by Oracle 0.1.0 (claude-limits recorded the same);
 # kept as the single record of the entry point. Build it with an explicit path:

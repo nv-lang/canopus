@@ -191,9 +191,9 @@ decisions/) и с методикой unitcraft/ai-dev-methodology @ 41ba76f: tas
   0
   $ git ls-files 'opencode-plugin/test/*.test.mjs' | wc -l
   37
-  $ gh api repos/unitcraft/crew-harness/branches/main --jq '{protected: .protected}'
+  $ gh api repos/nv-lang/canopus/branches/main --jq '{protected: .protected}'
   {"protected":false}
-  $ gh api repos/unitcraft/crew-harness/rulesets --jq 'length'
+  $ gh api repos/nv-lang/canopus/rulesets --jq 'length'
   0
   ```
 

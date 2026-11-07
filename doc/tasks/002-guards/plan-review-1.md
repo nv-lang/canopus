@@ -205,7 +205,7 @@ DNC назван хотя бы в одной строке DoD (проба 6). Н
 - Проба 7. Донорские файлы, на которые ссылается план (15 меток: A — 7 файлов guards, хук агента, dco-workflow; B —
   5 файлов guards и установщик, папка хуков): существуют все 15 из 15.
 - Проба 8. `gh` только чтением: `gh auth status` (вход есть, область токена включает `repo` и `workflow`), `gh api
-  repos/unitcraft/crew-harness` (`private: false`, права администратора `true`), `…/branches/main/protection` —
+  repos/nv-lang/canopus` (`private: false`, права администратора `true`), `…/branches/main/protection` —
   404 «Branch not protected» (защиты нет, как предполагает план), `…/actions/permissions` — `enabled: true`,
   `gh secret list` — пусто (секрета нет). Менеджер учётных данных git — отдельный (`credential.helper=manager`).
 - Проба 9. Команды DoD уровня A в одноразовом репозитории: `git ls-files -z -- 'scripts/*.sh' 'scripts/githooks/*' | xargs -0

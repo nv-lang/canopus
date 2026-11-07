@@ -260,7 +260,7 @@ Node ≥ 24 (типы снимает сам Node), git ≥ 2.56, Python 3 для
 номеру собственного запуска плагина, процессы сторонних программ не трогаются (DNC-08, process.md). Контроль «процессов не
 осталось» — список процессов **с условием на имя** (Windows: `Get-CimInstance Win32_Process -Filter "Name LIKE 'git%'"` и совпадение командной строки с портом или адресом; без условия на имя фильтр поймал бы процесс самой проверки, проба 3 plan-review-1; POSIX: `ps -eo comm,args` и строки, где `comm` начинается на `git`);
 тест остатки не убивает, а сообщает. Настоящая сеть — не в тестах; в пробе плана допустим один `git ls-remote` публичного
-репозитория `unitcraft/crew-harness`. Служба OpenCode, вкладки и настройки владельца не трогаются; рабочая копия `main` — только
+репозитория `nv-lang/canopus`. Служба OpenCode, вкладки и настройки владельца не трогаются; рабочая копия `main` — только
 чтение (AGENTS п.11).
 
 ## Находки заходов 6 и 7
@@ -753,7 +753,7 @@ AC-37 — шаг 8 — `crew-landing-gate`: `AC-37 c1` (замок снят шв
      `AC-32 precheck` в шагах 7 и 8).
    - Закрывает: REQ-09; AC-11, AC-32, AC-20 (часть); Н-02 (закрывается или идёт в Known limitations).
    - Проверка: `node test/crew-landing-tip.test.mjs` (время и число ячеек в result.md); один раз `git ls-remote` публичного
-     `https://github.com/unitcraft/crew-harness.git refs/heads/main` через `originTip` как проба (не в тесте), вывод в result.md.
+     `https://github.com/nv-lang/canopus.git refs/heads/main` через `originTip` как проба (не в тесте), вывод в result.md.
    - Коммиты: `Precheck: read the tip of the target branch without writing to the repository`.
    - Риск: сетевые случаи нестабильны на нагруженной машине — запускать одним тестом без параллельных нагрузок, срок 20 с
      фиксирован, допуск времени в ячейке ≥ срока минус секунда (РП-07).

@@ -245,11 +245,11 @@ REQ-04 ссылается на него; пример с обратным апо
   ls: cannot access '.github': No such file or directory   (так же scripts и .claude)
   $ git diff --stat a71af72 -- AGENTS.md doc/canon | wc -l
   0
-  $ gh api repos/unitcraft/crew-harness/branches/main --jq '{protected: .protected}'
+  $ gh api repos/nv-lang/canopus/branches/main --jq '{protected: .protected}'
   {"protected":false}
-  $ gh api repos/unitcraft/crew-harness/branches/main/protection
+  $ gh api repos/nv-lang/canopus/branches/main/protection
   gh: Branch not protected (HTTP 404)
-  $ gh api repos/unitcraft/crew-harness/rulesets --jq 'length'
+  $ gh api repos/nv-lang/canopus/rulesets --jq 'length'
   0
   $ ls opencode-plugin/test/*.test.mjs | wc -l ; grep -L "cell(" opencode-plugin/test/*.test.mjs
   37

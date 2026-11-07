@@ -1,7 +1,7 @@
 # Задание: параметры `tier_min` и `tier_max` вместо отдельных наборов ступеней
 
-Заказчик и владелец: владелец репозитория `unitcraft/crew-harness` (он же отвечает на вопросы и принимает результат).
-Репозиторий кода: `unitcraft/crew-harness` (https://github.com/unitcraft/crew-harness, ветка `main`). Дата задания: 2026-10-09.
+Заказчик и владелец: владелец репозитория `nv-lang/canopus` (он же отвечает на вопросы и принимает результат).
+Репозиторий кода: `nv-lang/canopus` (https://github.com/nv-lang/canopus, ветка `main`). Дата задания: 2026-10-09.
 Источник: раздел «Этапы и модель» [методики](https://github.com/unitcraft/ai-dev-methodology/blob/main/task-runner.md) и параметры проекта в [process.md](../../../canon/process.md), набор `codex-light` в `.opencode/crew-harness.json`.
 
 Задача полная: разбор, план, реализация, сдача.

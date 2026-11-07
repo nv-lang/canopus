@@ -82,4 +82,4 @@ export function rollbackBase(root = dataDir(), toLegacy: string = LEGACY_DIRS[0]
 }
 
 /** Раздел README о профилях моделей на GitHub: ответы команд и подсказки отсылают к нему прямой ссылкой (отдельным токеном: терминал делает её кликабельной). */
-export const PROFILES_README_URL = "https://github.com/unitcraft/canopus/blob/main/opencode-plugin/README.md#model-profiles-sets-of-models-and-windows-by-stage"
+export const PROFILES_README_URL = "https://github.com/nv-lang/canopus/blob/main/opencode-plugin/README.md#model-profiles-sets-of-models-and-windows-by-stage"

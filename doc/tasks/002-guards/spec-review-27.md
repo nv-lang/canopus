@@ -147,8 +147,8 @@ G 27). Перечитал все, с каждой согласен. В опис�
   ```text
   $ git rev-parse --short HEAD ; git log --oneline | wc -l ; git ls-files | wc -l
   a71af72 / 142 / 108
-  $ gh api repos/unitcraft/crew-harness/branches/main --jq '{protected}'  {"protected":false}
-  $ gh api repos/unitcraft/crew-harness/rulesets --jq length              0
+  $ gh api repos/nv-lang/canopus/branches/main --jq '{protected}'  {"protected":false}
+  $ gh api repos/nv-lang/canopus/rulesets --jq length              0
   $ ls scripts .github .claude                                            (нет ни одного)
   $ git log -1 --format=%h -- doc/canon                                   a71af72
   ```

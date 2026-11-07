@@ -122,9 +122,9 @@ spec-review-13.md прочитан целиком, spec-review-1…12 — ито
 - Проба 3. Защита ветки, только чтение через `gh`:
 
   ```text
-  $ gh api repos/unitcraft/crew-harness/branches/main --jq '{protected: .protected}'
+  $ gh api repos/nv-lang/canopus/branches/main --jq '{protected: .protected}'
   {"protected":false}
-  $ gh api repos/unitcraft/crew-harness/rulesets --jq 'length'
+  $ gh api repos/nv-lang/canopus/rulesets --jq 'length'
   0
   ```
 

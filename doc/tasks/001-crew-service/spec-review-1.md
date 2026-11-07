@@ -5,7 +5,7 @@
 Первый заход: предыдущих spec-review-*.md нет, раздела «Изменения» в spec.md нет.
 
 Прочитано: task-algorithm.md; все 7 файлов task/; spec.md целиком; log.md, progress.log, profile.log; репозиторий
-`unitcraft/crew-harness` на текущем `main` (история от 52d2439 до a49cda1, diff плагина, doc/tasks/README.md);
+`nv-lang/canopus` на текущем `main` (история от 52d2439 до a49cda1, diff плагина, doc/tasks/README.md);
 сверены по первоисточнику S16, S18, S19, S20, S21, S22, S24, S32, S37, S38, S39 и видимость репозиториев из строки 62
 spec.md. Остальные веб-источники сверены только по описи (их содержание — справка, требования на них не опираются).
 

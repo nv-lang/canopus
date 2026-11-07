@@ -188,10 +188,10 @@ REQ-01…REQ-06 для файлов и REQ-38 для сообщений; AC-23 �
   $ git ls-files --eol | awk '{print $1,$2}' | sort | uniq -c
       2 i/lf w/crlf
     106 i/lf w/lf
-  $ gh api repos/unitcraft/crew-harness --jq '{private,visibility}'          {"private":false,"visibility":"public"}
-  $ gh api repos/unitcraft/crew-harness/branches/main --jq '{protected}'     {"protected":false}
-  $ gh api repos/unitcraft/crew-harness/rulesets --jq 'length'               0
-  $ gh api repos/unitcraft/crew-harness/actions/secrets --jq '.total_count'  0
+  $ gh api repos/nv-lang/canopus --jq '{private,visibility}'          {"private":false,"visibility":"public"}
+  $ gh api repos/nv-lang/canopus/branches/main --jq '{protected}'     {"protected":false}
+  $ gh api repos/nv-lang/canopus/rulesets --jq 'length'               0
+  $ gh api repos/nv-lang/canopus/actions/secrets --jq '.total_count'  0
   ```
 
   Итог: шапка о Каноне на `a71af72` верна; бинарных файлов под git нет; защиты и секрета ещё нет.

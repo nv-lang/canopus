@@ -123,11 +123,11 @@ AGENTS.md, decisions/) и с методикой unitcraft/ai-dev-methodology @ 4
 - Проба 3. Защита ветки, только чтение через `gh`:
 
   ```text
-  $ gh api repos/unitcraft/crew-harness/branches/main --jq '{protected: .protected}'
+  $ gh api repos/nv-lang/canopus/branches/main --jq '{protected: .protected}'
   {"protected":false}
-  $ gh api repos/unitcraft/crew-harness/rulesets --jq 'length'
+  $ gh api repos/nv-lang/canopus/rulesets --jq 'length'
   0
-  $ gh api repos/unitcraft/crew-harness --jq '{visibility, default_branch, allow_merge_commit}'
+  $ gh api repos/nv-lang/canopus --jq '{visibility, default_branch, allow_merge_commit}'
   {"allow_merge_commit":true,"default_branch":"main","visibility":"public"}
   ```
 

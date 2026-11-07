@@ -119,8 +119,8 @@ G 27). Перечитал все, с каждой согласен. В опис�
 
   ```text
   $ git rev-parse --short HEAD ; git log -1 --format=%h -- doc/canon AGENTS.md      a71af72 / a71af72
-  $ gh api repos/unitcraft/crew-harness/branches/main --jq '{protected}'              {"protected":false}
-  $ gh api repos/unitcraft/crew-harness/rulesets --jq length                          0
+  $ gh api repos/nv-lang/canopus/branches/main --jq '{protected}'              {"protected":false}
+  $ gh api repos/nv-lang/canopus/rulesets --jq length                          0
   $ ls scripts .github .claude                                                        (нет ни одного)
   $ grep -n "^[0-9]*\. " AGENTS.md                                                    пункты 1…18; п.3, 4, 5, 6, 8, 15 из REQ-32 существуют
   ```

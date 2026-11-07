@@ -93,7 +93,7 @@ cell("AC-31 positive control: the same patterns find the names in a file that ho
   const url = Paths.PROFILES_README_URL
   const heading = /^## (Model profiles.*)$/m.exec(readme)?.[1]?.trim() ?? ""
   const slug = heading.toLowerCase().replace(/[^a-z0-9 -]/g, "").trim().replace(/ /g, "-") // the anchor rule of GitHub
-  cell("the link of the empty answers points to the README of the repository on GitHub with the anchor of the heading of the profiles section", url === `https://github.com/unitcraft/canopus/blob/main/opencode-plugin/README.md#${slug}` && slug.length > 10, JSON.stringify({ url, slug }))
+  cell("the link of the empty answers points to the README of the repository on GitHub with the anchor of the heading of the profiles section", url === `https://github.com/nv-lang/canopus/blob/main/opencode-plugin/README.md#${slug}` && slug.length > 10, JSON.stringify({ url, slug }))
   const empty = { project: "p", data: {}, raw: {}, state: { warnings: [] }, name: undefined }
   const t1 = Cmd.profilesTable(empty)
   const t2 = Cmd.setsTable(empty)

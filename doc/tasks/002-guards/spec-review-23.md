@@ -246,9 +246,9 @@ REQ-16, AC-10 и О-01 одинаково; защита ветки (REQ-17, AC-1
   $ git rev-parse --short HEAD ; git log --oneline | wc -l
   a71af72
   142
-  $ gh api repos/unitcraft/crew-harness/branches/main --jq '{protected: .protected}'
+  $ gh api repos/nv-lang/canopus/branches/main --jq '{protected: .protected}'
   {"protected":false}
-  $ gh api repos/unitcraft/crew-harness/rulesets --jq 'length'
+  $ gh api repos/nv-lang/canopus/rulesets --jq 'length'
   0
   ```
 

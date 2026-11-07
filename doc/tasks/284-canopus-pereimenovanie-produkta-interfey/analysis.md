@@ -55,7 +55,7 @@ protected JSON не менялся; plugin subtree `f080257398b70666a6d196dea391
   (SETTINGS_FILE и 7 мест), config-diverge.ts, core.ts, form-auto.ts, profile-cmd.ts + тесты/гольдены.
 - Ящик плагина: `paths.ts` CANOPUS_DIR = "canopus" ($XDG_DATA_HOME/opencode/crew-harness →
   .../opencode/canopus); перенос существующего ящика — явный migrateBase (см. раздел «Поправки по адресным AC»).
-- package.json плагина: name crew-harness → canopus; repository url → github.com/unitcraft/canopus
+- package.json плагина: name crew-harness → canopus; repository url → github.com/nv-lang/canopus
   (публичный URL нового repo — до switch gate только в коде, фактический переименование repo отдельно).
 
 ## Потребители и проверки

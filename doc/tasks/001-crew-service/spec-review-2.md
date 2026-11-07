@@ -3,7 +3,7 @@
 # Проверка разбора spec.md (С2, заход 2, 2026-10-07)
 
 Прочитано: task-algorithm.md; все 7 файлов task/; spec.md целиком (после правки С1п); spec-review-1.md; log.md,
-progress.log, profile.log; репозиторий `unitcraft/crew-harness`: `git diff 3a9df1a..383f430` целиком (49 файлов:
+progress.log, profile.log; репозиторий `nv-lang/canopus`: `git diff 3a9df1a..383f430` целиком (49 файлов:
 AGENTS.md, README корня, doc/process, doc/plans, ADR-0001, doc/research, 28 файлов плагина), doc/tasks/README.md,
 ADR-0002, `opencode-plugin/plans.ts` (`nextPlanNumber`); README методики https://github.com/unitcraft/ai-dev-methodology
 (оглавление, раздел 18). Один тест-файл плагина прогнан на текущем коде (проба 3). Веб-источники S13–S35 сверены по

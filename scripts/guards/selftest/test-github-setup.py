@@ -105,7 +105,7 @@ def main():
         e, state, _ = sandbox()
         proc = setup(e, "--dry-run", "protect")
         assert proc.returncode == 0, proc.out + proc.err
-        assert "repos/unitcraft/canopus/branches/main/protection" in proc.out, proc.out
+        assert "repos/nv-lang/canopus/branches/main/protection" in proc.out, proc.out
         for piece in ('"enforce_admins":true', '"required_linear_history":true', '"allow_force_pushes":false',
                       '"allow_deletions":false', '"required_pull_request_reviews":null', '"required_status_checks":null'):
             assert piece in proc.out, piece

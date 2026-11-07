@@ -130,9 +130,9 @@ REQ-38, REQ-05, REQ-09, REQ-02, К-06, строки покрытия M-14…M-17
   $ git ls-files --eol | awk '{print $1,$2}' | sort | uniq -c
       2 i/lf w/crlf
     106 i/lf w/lf
-  $ gh api repos/unitcraft/crew-harness/branches/main --jq '{protected}'    {"protected":false}
-  $ gh api repos/unitcraft/crew-harness/rulesets --jq 'length'              0
-  $ gh api repos/unitcraft/crew-harness/actions/secrets --jq .total_count   0
+  $ gh api repos/nv-lang/canopus/branches/main --jq '{protected}'    {"protected":false}
+  $ gh api repos/nv-lang/canopus/rulesets --jq 'length'              0
+  $ gh api repos/nv-lang/canopus/actions/secrets --jq .total_count   0
   $ ls scripts .github .claude                                              (нет ни одного)
   ```
 

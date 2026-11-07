@@ -1,45 +1,91 @@
 # Canopus
 
-*ИИ-команда в упряжке — обвязка для команды ИИ-агентов.*
+[![CI](https://github.com/nv-lang/canopus/actions/workflows/guards.yml/badge.svg)](https://github.com/nv-lang/canopus/actions/workflows/guards.yml)
 
-**Your AI dev team, harnessed.** Many coding agents (Claude Code, Codex, Kimi Code and others, each on its own
-subscription) work in parallel, each in its own worktree, and carry work from a plan to a merge, while the owner only
-approves and watches: plans rechecked in rounds, tasks with priorities and a queue, an independent reviewer per task,
-one merge at a time, letters between agents, a queue for heavy runs on the machine.
+**Your AI development team, coordinated.**
 
-## What is here
+Canopus coordinates coding agents, project tasks, owner decisions, reviews and delivery.
+It provides a local application with a browser interface and an OpenCode plugin.
+Agents can work in separate Git worktrees, exchange messages and queue heavy commands;
+creating and cancelling tasks requires the owner's confirmation.
 
-| Folder | What it is | State |
-|---|---|---|
-| [`opencode-plugin/`](opencode-plugin/README.md) | the crew as an OpenCode V2 plugin: Claude Code tabs of OpenCode are the agents | in use |
-| `src/` | the product on Nova: the chat session machine, the ACP client, the file and PostgreSQL handlers of the engine, the session server and hub; it depends on the package `alula` (the state machine engine and the core of the machines written as data: the tree, the translator of the tables, the interpreter, the program `alula`), which was extracted from this folder by [task 144](doc/tasks/144-alula-core-extraction/) and has a repository of its own | in use |
-| [`machines/`](machines/README.md) | the machines written as data: `product/` (the chat, the dialog, the journal codes of the product; the machines of the methodology left with [task 249](doc/tasks/249-alula-0-27-gruppa-metodiki-uhodit-iz-pro/), they live in the methodology); they are run by the program `alula` of the package ([task 158](doc/tasks/158-alula-split/)) | in use |
-| `service/` | the coordination service: tasks, letters, reviews, the merge lock, the machine queue, plans — outside any one agent program; agents reach it over MCP | planned ([task 001](doc/tasks/001-crew-service/)) |
-| `web/` | the owner's console in the browser: the board, live agent terminals, chat with pictures | planned (task 001) |
-| `scripts/` | the repository's guards: git hooks, checks run by the hooks and CI, the agent shell-command hook, their self-tests, the installer and the GitHub setup script ([rules](AGENTS.md)) | in use |
-| `.github/` | the CI workflow that runs the same guards after a push | in use |
-| `.claude/` | repository-level agent settings: registers the shell-command hook | in use |
-| `doc/` | [`canon/`](doc/canon/README.md) — the Canon, the project's development rules: differences from the [methodology](https://github.com/unitcraft/ai-dev-methodology), decisions (ADRs); [`tasks/`](doc/tasks/README.md) — one task, one folder (spec, plan, reviews), large work is an epic of tasks; [`research/`](doc/research/); [`archive/`](doc/archive/plans/README.md) — the plugin's plans before the methodology | |
+Canopus belongs to the [Nova ecosystem](https://github.com/nv-lang), is built with
+[Nova](https://github.com/nv-lang/nova) and [Alula](https://github.com/nv-lang/nova-alula),
+and can coordinate development projects written in other languages.
 
-## Landing a task
+## Components
 
-With the default `merge_precheck: required`, a reviewer checks without a merge lock:
-read the target tip with `precheck`, integrate that tip and the task changes into a candidate,
-then run the full project CI. Record the exact candidate commit and green CI result with
-`precheck {candidate, result}`. Do not hold the lock while CI runs. Only after the green
-precheck, call `merge` to take the lock and fast-forward the target from that exact checked
-candidate. If the target tip moved, discard that candidate for landing and repeat integration
-and CI against the new tip. Then push and call `accept`; with `accepted_slot: free` (the default),
-accept releases the inflight slot. Perform the returned cleanup separately and call `cleanup`;
-up to `cleanup_limit` (10) accepted tasks may wait for cleanup. See the
-[plugin's merge instructions](opencode-plugin/README.md#review-and-merge) for the full command flow.
+| Location | Purpose |
+| --- | --- |
+| [`src/`](src/) | Application, ACP integration, session server, configuration, file storage and PostgreSQL support |
+| [`src/web/`](src/web/) | Browser interface: projects, sessions, messages, task cards and owner questions |
+| [`opencode-plugin/`](opencode-plugin/README.md) | OpenCode integration: agent roles, task lifecycle, messages, reviews, diagnostics and machine queue |
+| [`machines/`](machines/README.md) | Product state machines executed by Alula |
+| [`scripts/`](scripts/) | Packaging, setup, Git hooks, guards and their self-tests |
+| [`.github/workflows/`](.github/workflows/) | Repository CI: guards, guard self-tests and browser-interface tests |
+| [`doc/`](doc/README.md) | Documentation, development rules, decisions and task records |
 
-Why a service: one OpenCode server holds every session in one process and stalls at about eight parallel tasks
-([research](doc/research/2026-10-06-many-agents.md)). The service starts each agent as its own process and keeps the
-rules itself, so an agent program is a driver, not the host.
+## Get the source
+
+```sh
+git clone https://github.com/nv-lang/canopus.git
+cd canopus
+```
+
+See the [plugin guide](opencode-plugin/README.md) for OpenCode setup and operation.
+The application uses Nova; its dependencies are declared in [`nova.toml`](nova.toml).
+The [release packaging script](scripts/package-release.sh) assembles and checks an application kit.
+
+## Configuration and data
+
+With the application executable on `PATH`, run `canopus` or `canopus serve`.
+Use `canopus serve --config <path>/config.json` to select another instance.
+The selected configuration file's parent directory defines that instance's data root.
+
+| Component | Global configuration | Project configuration |
+| --- | --- | --- |
+| Application | `~/.canopus/config.json` | `<project>/.canopus/config.json` |
+| Plugin | `~/.canopus/plugin/config.json` | `<project>/.canopus/plugin/config.json` |
+
+Precedence is **built-in defaults → global configuration → project configuration**.
+Project values override global values; there is no `local.json` layer.
+Secrets are stored separately from ordinary configuration.
+
+The application and plugin share project task storage at `<project>/<tasks_dir>/`
+(default: `doc/tasks/`), or `~/.canopus/tasks/` without a project.
+Private runtime state stays outside the versioned task documents.
+OpenCode's own configuration, data and authentication remain separate.
+
+The [configuration contract](doc/canon/configuration.md) defines the accepted fields,
+instance layout, project overrides and migration rules.
+
+## Working with tasks
+
+Create tasks through owner-confirmed proposals. Use pause and resume for temporary stops;
+resume retains the task number and history. Cancellation records its initiator, reason and
+replacement and closes outstanding questions. See the [task lifecycle rules](doc/canon/task-lifecycle.md).
+
+Delivery uses a checked candidate and a fast-forward merge. Follow the
+[plugin's review and merge instructions](opencode-plugin/README.md#review-and-merge).
+Heavy builds and test runs use the machine queue.
+
+## Development and checks
+
+Read [AGENTS.md](AGENTS.md) and the [Canon](doc/canon/README.md) before changing this repository.
+The development process follows [unitcraft/ai-dev-methodology](https://github.com/unitcraft/ai-dev-methodology).
+The plugin's test commands are documented in its [README](opencode-plugin/README.md).
+
+Repository guards:
+
+```sh
+sh scripts/guards/run-all.sh
+python scripts/guards/guard-secrets.py --tree
+python scripts/guards/check-wiring.py
+```
+
+A private-name list is required locally and through the `CANOPUS_PRIVATE_NAMES` Actions
+secret in CI. See [AGENTS.md](AGENTS.md) for setup, required checks and execution policy.
 
 ## License
 
-MIT or Apache-2.0, at your choice ([LICENSE](LICENSE)).
-
-Rules for anyone (people or AI agents) changing this repository: [AGENTS.md](AGENTS.md).
+MIT or Apache-2.0, at your choice. See [LICENSE](LICENSE).

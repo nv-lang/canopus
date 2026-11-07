@@ -21,7 +21,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 # shellcheck disable=SC1091
 . "$here/guards/lib/find-python.sh"
 
-repo=unitcraft/canopus
+repo=nv-lang/canopus
 branch=main
 dry=0
 rest=

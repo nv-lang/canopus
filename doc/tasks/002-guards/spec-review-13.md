@@ -153,11 +153,11 @@ spec-review-12.md прочитан целиком, spec-review-1…11 — ито
 - Проба 3. Защита ветки и права владельца, только чтение через `gh`:
 
   ```text
-  $ gh api repos/unitcraft/crew-harness/branches/main --jq '{protected: .protected}'
+  $ gh api repos/nv-lang/canopus/branches/main --jq '{protected: .protected}'
   {"protected":false}
-  $ gh api repos/unitcraft/crew-harness --jq '{visibility: .visibility, admin: .permissions.admin}'
+  $ gh api repos/nv-lang/canopus --jq '{visibility: .visibility, admin: .permissions.admin}'
   {"admin":true,"visibility":"public"}
-  $ gh api repos/unitcraft/crew-harness/rulesets --jq 'length'
+  $ gh api repos/nv-lang/canopus/rulesets --jq 'length'
   0
   ```
 
