@@ -3,7 +3,7 @@
 // The selected config file's parent is the instance root; default ~/.canopus/config.json.
 // Root resources: secrets.json, roles.json, presets/, modes/, prompts/; data/sessions holds durable records.
 // state/ contains process/log/diagnostic state, cache/ derived data, tools/ installed tools, backups/ safety copies.
-// File precedence: code defaults < selected global config < repository .canopus/config.json < personal .canopus/local.json.
+// File precedence: code defaults < selected global config < repository .canopus/config.json.
 // secrets.json is adjacent to the selected global file and accepts only secret/infrastructure keys.
 // Runtime environment overrides, --home, --set, --file and positional server config are retired.
 // Pure legacy parse/layout helpers remain available to the explicit transition code, not as runtime fallback.
@@ -465,7 +465,6 @@ export fn layer_files(layout ConfigLayout, server_file str) -> [](str, str) {
     if server_file.byte_len() > 0 { out.push(("server", server_file)) }
     if layout.project.byte_len() > 0 {
         out.push(("project", "${layout.project}/config.json"))
-        out.push(("local", "${layout.project}/local.json"))
     }
     if layout.config.byte_len() > 0 { out.push(("secret", "${layout.config}/secrets.json")) }
     out
@@ -473,6 +472,10 @@ export fn layer_files(layout ConfigLayout, server_file str) -> [](str, str) {
 
 /// The file layers that exist, in the order of the rule. A file that is not JSON is an error `file:line: reason`. `server_file` that is named but missing is an error too (the caller checks that).
 export fn file_layers(layout ConfigLayout, server_file str) Fs -> Result[[]Layer, str] {
+    if layout.project.byte_len() > 0 {
+        ro retired = match try_exists(Path.from_bytes("${layout.project}/local.json".bytes())) { Ok(v) => v, Err(e) => return Err("could not inspect retired project configuration") }
+        if retired { return Err("local.json was removed; run the explicit two-level configuration transition") }
+    }
     mut out = []Layer.new()
     for (origin, file) in layer_files(layout, server_file) {
         match read_layer(origin, file)? {

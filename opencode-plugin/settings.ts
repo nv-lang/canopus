@@ -1,19 +1,16 @@
 import { runtimeValue } from "./runtime-policy.ts"
-// Project settings are accepted from the canonical primary Git worktree's default branch.
+// Project settings are read from the canonical primary Git working copy.
 // Global project_settings accepts repository folders or explicit virtual {project, root} definitions.
-// Shared config contains public project settings only; private local layers have higher precedence.
+// Global defaults are weaker than the primary project working file; personal layers are retired.
 // Registration selects a file; retired aliases and shared identity overrides are rejected.
 
 import { execFileSync } from "node:child_process"
 import { background, gitAsync } from "./async-git.ts"
-import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs"
+import { existsSync, readFileSync, realpathSync } from "node:fs"
 import path from "node:path"
 import { validateProjectSettings, resolveProjectPolicy } from "./resolved-policy.ts"
-import { settingsLayers, settingsWithOrigins, validateTasksDir } from "./plugin-config.ts"
-import { log, safeKey } from "./core.ts"
+import { settingsWithOrigins, validateTasksDir, readConfig, writeProjectSettings } from "./plugin-config.ts"
 import { answerNotes } from "./answer-parse.ts"
-import { BASE } from "./base.ts"
-import { configDivergence, divergenceProblem } from "./config-diverge.ts"
 
 export const SETTINGS_FILE = path.join(".canopus", "plugin", "config.json")
 /** прежнее имя файла настроек (до плана 005, 2026-10-06) */
@@ -90,100 +87,30 @@ export function repositoryDefaultBranch(directory: string): string {
   return row.value
 }
 
-/** Закоммиченный файл настроек: текст из ветки или undefined. */
-function* showCommitted(repo: string, branch: string, file: string): GitGen<string | undefined> {
-  try {
-    return yield [repo, ["show", `${branch}:${file}`]]
-  } catch {
-    return undefined
-  }
-}
-
-const parseJson = (text: string | undefined): any => {
-  if (text === undefined) return undefined
-  try {
-    return JSON.parse(text.replace(/^\uFEFF/, ""))
-  } catch {
-    return null // файл есть, но не JSON
-  }
-}
-
 // Прочитанные файлы настроек — на несколько секунд (инструменты зовут настройки на каждое письмо, git — процесс).
 const CACHE_MS = runtimeValue("SETTINGS_TTL_MS")
-const cache = new Map<string, { at: number; value: any }>()
-const good = new Map<string, any>() // последние настройки без проблем, по папке
+const cache = new Map<string, { at: number; value: any; signature: string }>()
 
 /** Папка настроек → проект (имя, корень, сырые настройки). */
 type Folder = { project: Project; raw: any }
 function* settingsBody(dir: string): GitGen<Folder> {
+  const main = mainTreeOf(dir) ?? dir
+  let repo: string | undefined, branch: string | undefined
+  try { repo = (yield [main, ["rev-parse", "--show-toplevel"]]).trim() } catch {}
+  if (repo) branch = yield* defaultBranch(repo)
+  const file = path.join(main, SETTINGS_FILE)
+  const raw = readConfig(file)
+  validateProjectSettings(raw, "project working configuration")
+  settingsWithOrigins(raw, main) // also diagnose retired personal files; never revive a last-good overlay
+  const name = path.basename(main).toLowerCase()
   const problems: string[] = []
-  let repo: string | undefined
-  let file: string | undefined
-  let branch: string | undefined
-  let legacy: string | undefined
-  let raw: any = {}
-  try {
-    repo = (yield [dir, ["rev-parse", "--show-toplevel"]]).trim()
-  } catch {
-    problems.push(`папка настроек ${dir} не внутри git-репозитория`)
-  }
-  if (repo) {
-    const prefix = (yield [dir, ["rev-parse", "--show-prefix"]]).trim()
-    file = prefix + ".canopus/plugin/config.json" // путь в репозитории
-    branch = yield* defaultBranch(repo)
-    let j = parseJson(yield* showCommitted(repo, branch, file))
-    // Retired filenames are diagnosed below, never read as a fallback.
-    if (j === undefined) {
-      // файл в рабочей копии есть, а в ветке нет — его просто не закоммитили (claude-limits, 2026-10-07: приёмка
-      // проекта сутки не действовала, а самопроверка говорила только «нет файла»)
-      const local = [prefix + ".canopus/plugin/config.json", prefix + LEGACY_SETTINGS_NAME].find((f) => existsSync(path.join(repo!, f)))
-      problems.push(
-        local
-          ? `${local} лежит в рабочей копии ${repo}, но не закоммичен в ${branch} — плагин его не читает, настройки по умолчанию; закоммить его в ${branch}${local.endsWith(LEGACY_SETTINGS_NAME) ? ` под именем .canopus/plugin/config.json` : ""}`
-          : `в ветке ${branch} репозитория ${repo} нет ${file} — настройки по умолчанию`,
-      )
-    }
-    else if (j === null) problems.push(`${file} в ветке ${branch} — не JSON; настройки по умолчанию`)
-    else { validateProjectSettings(j, "committed project file"); raw = j }
-  }
-  const main = mainTreeOf(dir)
-  const name = path.basename(main ?? repo ?? dir).toLowerCase()
   if (!PROJECT_RE.test(name)) problems.push(`имя проекта «${name}» не годится: строчные латинские буквы, цифры, дефис`)
-  const rootAbs = main ?? repo ?? dir
-  if (!existsSync(rootAbs)) problems.push(`корень проекта ${name} (${rootAbs}) не существует`)
-  let value = { project: { name, root: normPath(rootAbs), rootPath: canon(rootAbs), dir, repo, file, branch, problems, ...(legacy ? { legacy } : {}) }, raw }
-  // ПОСЛЕДНИЕ ХОРОШИЕ НАСТРОЙКИ (2026-10-05): под нагрузкой git не ответил — и плагин молча взял умолчания: задача #6
-  // nova пошла без worktree и ветки по настройкам, а приёмка решила «очистка не нужна» — ветки и worktree остались.
-  // Чтение с проблемой при прежнем чтении без проблем — сбой, а не правка: берём последние хорошие (память, затем
-  // диск — для MCP-процессов, они живут один ход) и пишем о сбое в журнал. Чтение без проблем их обновляет.
-  const goodFile = path.join(BASE, "settings-good", `${safeKey(dir)}.json`)
-  if (!problems.length) {
-    good.set(dir, value)
-    try {
-      mkdirSync(path.dirname(goodFile), { recursive: true })
-      writeFileSync(`${goodFile}.tmp`, JSON.stringify(value))
-      renameSync(`${goodFile}.tmp`, goodFile)
-    } catch {}
-  } else {
-    let last = good.get(dir)
-    if (!last)
-      try {
-        last = JSON.parse(readFileSync(goodFile, "utf8"))
-      } catch {}
-    if (last && !last.project?.problems?.length) {
-      try {
-        validateProjectSettings(last.raw ?? {}, "last good project cache")
-        log(`settings of ${dir}: ${problems.join("; ")} -- using the last good ones`)
-        value = last
-      } catch {
-        // A cache from an older schema is evidence, not accepted configuration.
-        // Keep it intact and report the transition instead of aborting doctor.
-        problems.push(`резервный кеш настроек ${dir} несовместим с текущей схемой; сохранён без изменений, нужен явный переход настроек проекта`)
-        log(`settings of ${dir}: incompatible last good project cache retained`)
-      }
-    }
-  }
-  return value
+  return { project: { name, root: normPath(main), rootPath: canon(main), dir: main, repo, file: SETTINGS_FILE.replace(/\\/g,"/"), branch, problems }, raw }
+}
+function settingsSignature(folder: string): string {
+  const root = mainTreeOf(folder) ?? folder
+  const file = path.join(root, SETTINGS_FILE)
+  return (existsSync(file) ? readFileSync(file, "utf8") : "<absent>") + "\0" + existsSync(path.join(root, ".canopus/plugin/local.json"))
 }
 
 const sync = <R>(g: GitGen<R>): R => {
@@ -224,19 +151,29 @@ const refreshing = new Set<string>()
 export function readSettingsFolder(folder: string, now = Date.now()): Folder {
   const dir = path.resolve(folder)
   const hit = cache.get(dir)
-  if (hit && now - hit.at < CACHE_MS) return hit.value
-  if (hit && background.on) {
+  const signature = settingsSignature(dir)
+  if (hit && hit.signature !== signature) {
+    const root = mainTreeOf(dir) ?? dir
+    const raw = readConfig(path.join(root, SETTINGS_FILE))
+    validateProjectSettings(raw, "project working configuration")
+    settingsWithOrigins(raw, root)
+    const value = { project: hit.value.project, raw }
+    cache.set(dir, { at: now, value, signature })
+    return value
+  }
+  if (hit && hit.signature === signature && now - hit.at < CACHE_MS) return hit.value
+  if (hit && hit.signature === signature && background.on) {
     if (!refreshing.has(dir)) {
       refreshing.add(dir)
       void async_(settingsBody(dir))
-        .then((value) => cache.set(dir, { at: Date.now(), value }))
+        .then((value) => cache.set(dir, { at: Date.now(), value, signature }))
         .catch(() => {})
         .finally(() => refreshing.delete(dir))
     }
     return hit.value
   }
   const value = sync(settingsBody(dir))
-  cache.set(dir, { at: now, value })
+  cache.set(dir, { at: now, value, signature })
   return value
 }
 
@@ -360,11 +297,12 @@ export const legacyBase = (dir: string, p: Project | undefined): string => (p &&
 export const outsideProject = (dir: string): string =>
   `папка вкладки ${dir.replace(/\\/g, "/")} не относится к проекту: она вне корней проектов плагина (opencode.jsonc) и не рабочее дерево репозитория проекта — открой вкладку в папке проекта или в рабочем дереве его задачи`
 
-/** Сырые настройки проекта: файл из репозитория настроек (+ локальная поправка) или прежний поиск вверх от каталога. */
+/** Сырые настройки проекта: основной проектный файл поверх глобальных значений. */
 export function settingsForWithOrigins(dir: string, projects: Projects, local: Record<string, any> = {}, name?: string): { values: any; origins: Record<string, string> } {
   const p = projectFor(dir, projects, name)
   const main = mainTreeOf(dir)
-  const raw = p?.dir ? readSettingsFolder(p.dir).raw : main ? readSettingsFolder(main).raw : {}
+  const root = p?.dir ?? p?.rootPath ?? p?.root ?? main
+  const raw = root ? readSettingsFolder(root).raw : {}
   const result = settingsWithOrigins(raw, p?.dir ?? p?.rootPath ?? main ?? dir, p ? local[p.name] : {}, p?.name)
   if (typeof result.values.tasks_dir === "string") result.values.tasks_dir = validateTasksDir(result.values.tasks_dir)
   return result
@@ -373,75 +311,18 @@ export function rawSettingsFor(dir: string, projects: Projects, local: Record<st
   return settingsForWithOrigins(dir, projects, local, name).values
 }
 
-// Прежняя форма: `.canopus/plugin/config.json` вверх от каталога вкладки, рабочая копия.
-// Битый файл (не JSON) молча давал пустые настройки, и защитные ключи (merge_precheck: required и др.) выключались без
-// сообщения (задача 006): теперь берутся последние хорошие настройки этого файла, а о файле пишется в журнал и в canopus_doctor.
-const legacyGood = new Map<string, any>()
-const legacyBroken = new Map<string, string>() // файл → когда замечен битым
-function legacyFile(dir: string): string | undefined {
-  let d = dir ? path.resolve(dir) : ""
-  for (let i = 0; d && i < 32; i++) {
-    const f = path.join(d, SETTINGS_FILE)
-    if (existsSync(f)) return f
-    const up = path.dirname(d)
-    if (up === d) break
-    d = up
-  }
-  return undefined
-}
-function legacyWalk(dir: string): any {
-  const f = legacyFile(dir)
-  if (!f) return {}
-  try {
-    const raw = JSON.parse(readFileSync(f, "utf8").replace(/^﻿/, ""))
-    legacyGood.set(f, raw)
-    legacyBroken.delete(f)
-    return raw
-  } catch {
-    const last = legacyGood.get(f)
-    if (!legacyBroken.has(f)) log(`settings file ${f} is not valid JSON -- ${last ? "using the last good settings" : "defaults"}`)
-    legacyBroken.set(f, new Date().toISOString())
-    return last ?? {}
-  }
-}
-/** Битые файлы настроек прежней формы (проекты без репозитория настроек): проверка на месте, для canopus_doctor. */
-function legacyProblems(projects: Projects): string[] {
-  const out: string[] = []
-  for (const p of projects) {
-    if (p.dir) continue
-    const f = legacyFile(p.rootPath ?? p.root)
-    if (!f) continue
-    try {
-      JSON.parse(readFileSync(f, "utf8").replace(/^﻿/, ""))
-    } catch {
-      out.push(`проект ${p.name}: ${f} — не JSON; ${legacyGood.has(f) ? "действуют последние хорошие настройки" : "публичные настройки по умолчанию; встроенные защитные политики остаются включены"}; исправь файл`)
-    }
-  }
-  return out
-}
-
-/** Файл настроек в рабочей копии папки настроек (то, что правит canopus_config set; действует после коммита). */
+/** Файл настроек в рабочей копии папки настроек (то, что правит canopus_config set; действует сразу). */
 export function workingSettings(folder: string): { file: string; raw: any } {
-  const file = path.join(path.resolve(folder), SETTINGS_FILE)
-  let raw: any = {}
-  try {
-    raw = JSON.parse(readFileSync(file, "utf8").replace(/^\uFEFF/, ""))
-  } catch {}
-  return { file, raw: raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {} }
+  const root = mainTreeOf(folder) ?? path.resolve(folder)
+  const file = path.join(root, SETTINGS_FILE)
+  return { file, raw: readConfig(file) }
 }
 
-/** Записать ключи в рабочую копию (null — удалить ключ); остальное в файле не трогается. Без BOM, атомарно. */
-export function writeSettings(folder: string, values: Record<string, any>): string {
-  const { file, raw } = workingSettings(folder)
-  for (const [k, v] of Object.entries(values)) {
-    if (v === null) delete raw[k]
-    else raw[k] = v
-  }
-  mkdirSync(path.dirname(file), { recursive: true })
-  const tmp = `${file}.${process.pid}.tmp`
-  writeFileSync(tmp, JSON.stringify(raw, null, 2) + "\n")
-  renameSync(tmp, file)
-  cache.delete(path.resolve(folder))
+/** Patch the primary working copy; settings become effective immediately without a commit. */
+export function writeSettings(folder: string, values: Record<string, any>, expected?: Buffer | null): string {
+  const root = mainTreeOf(folder) ?? path.resolve(folder)
+  const file = writeProjectSettings(root, values, expected)
+  // File signatures invalidate values immediately while retaining cheap repository metadata.
   return file
 }
 
@@ -465,13 +346,6 @@ export function unconfiguredLine(name: string): string {
 
 export function settingsProblems(projects: Projects, local: Record<string, any> = {}): string[] {
   const out = [...optionLines.problems, ...projects.flatMap((p) => p.problems ?? [])]
-  // Globally registered repositories also read committed settings, but their
-  // registration has no folder diagnostics. Surface incompatible recovery caches.
-  for (const p of projects) {
-    if (p.dir) continue
-    const main = mainTreeOf(p.rootPath ?? p.root)
-    if (main) out.push(...(readSettingsFolder(main).project.problems ?? []).filter(line => line.startsWith("резервный кеш настроек ")))
-  }
   for (const p of projects) if (p.legacy) out.push(`проект ${p.name}: настройки в файле с прежним именем ${p.legacy} — переименуй в .canopus/plugin/config.json (git mv) и закоммить`)
   // настройка, которая не может сработать: ключ gate в answer_mode, режим agent, неверный answer_max (задача 007)
   for (const p of projects) {
@@ -487,12 +361,6 @@ export function settingsProblems(projects: Projects, local: Record<string, any> 
     if (policy.merge_precheck !== "off" && Array.isArray(policy.acceptance))
       for (const a of policy.acceptance) if (a && typeof a.id === "string" && describesAcceptanceOrder(a.text)) out.push(`проект ${p.name}: шаг ${a.id} описывает порядок приёмки, он задаётся плагином (canopus_help, ПРИЁМКА): оставь в шаге только проектные команды и критерии`)
   }
-  // расхождение файла рабочей копии с целевой веткой (задача 029): предупреждение, действуют настройки ветки
-  for (const p of projects) {
-    if (!p.dir) continue
-    const w = divergenceProblem(p.name, configDivergence(p.repo, p.file, p.branch))
-    if (w) out.push(w)
-  }
   // проект без определённых моделей: canopus_spawn откажет (задача 033)
   for (const p of projects) {
     if (p.problems?.length) continue // нет читаемых настроек — об этом уже сказано выше
@@ -502,3 +370,6 @@ export function settingsProblems(projects: Projects, local: Record<string, any> 
   }
   return [...new Set(out)]
 }
+
+/** Metadata only; configuration values are always read from current files. */
+export function knownSettingsProjects(): Projects { return [...cache.values()].map(item=>item.value.project) }

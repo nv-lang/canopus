@@ -7,7 +7,7 @@ module canopus.config
 
 import std.text
 import std.encoding.json.{Json, JsonValue, JsonObject}
-import std.fs.{Fs, Path, read_text, write_atomic, create_dir_all, try_exists, metadata}
+import std.fs.{Fs, Path, read_text, write_atomic, create_dir_all, try_exists, metadata, File, remove_file}
 import std.os.{Os, env}
 
 /// KeySpec: a key of the settings (dotted for the nested ones), its kind (`s` text, `i` whole number, `b` true/false, `a` list or objects of the file only) and the default as JSON text.
@@ -231,7 +231,7 @@ export fn config_get(layout ConfigLayout, server_file str, sets []str, key str, 
     Err("no such key: ${key}")
 }
 
-/// The file `config set` writes: `user` is `<home>/config.json`, `project` is `.canopus/config.json` of the project, `local` is `.canopus/local.json`.
+/// The file `config set` writes: `user` is `<home>/config.json`, `project` is `.canopus/config.json` of the project.
 /// `work` is the folder of the project when it has no `.canopus` yet. Err when the scope has no place.
 export fn set_target(layout ConfigLayout, scope str, work str) -> Result[str, str] {
     if scope == "user" {
@@ -241,8 +241,7 @@ export fn set_target(layout ConfigLayout, scope str, work str) -> Result[str, st
     ro dir = if layout.project.byte_len() > 0 { layout.project } else if work.byte_len() > 0 { "${work}/.canopus" } else { "" }
     if dir.byte_len() == 0 { return Err("the project folder is not known") }
     if scope == "project" { return Ok("${dir}/config.json") }
-    if scope == "local" { return Ok("${dir}/local.json") }
-    Err("the scope must be user, project or local")
+    Err("the scope must be user or project")
 }
 
 /// The JSON value of a text for a key of the schema, or why not.
@@ -265,16 +264,12 @@ export fn typed_value(key str, text str) -> Result[JsonValue, str] {
     Err("${key} must be true or false")
 }
 
-/// `config set <key> <value> [--project|--local]`: put the value into the file of the scope (the other keys of the file stay). Returns the line to print.
+/// `config set <key> <value> [--project]`: put the value into the file of the scope (the other keys of the file stay). Returns the line to print.
 export fn config_set(layout ConfigLayout, scope str, work str, key str, text str) Fs -> Result[str, str] {
     if is_secret_key(key) { return Err("${key} is a secret: put it in secrets.json beside the selected config file") }
     ro value = typed_value(key, text)?
     ro file = set_target(layout, scope, work)?
-    ro old = match read_layer(scope, file)? {
-        Some(l) => l.obj
-        None => JsonObject.new()
-    }
-    ro next = put_path(old, key, value)
+
     match Path.from_bytes(file.bytes()).parent() {
         Some(dir) => {
             match create_dir_all(dir) {
@@ -284,6 +279,24 @@ export fn config_set(layout ConfigLayout, scope str, work str, key str, text str
         }
         None => ()
     }
+    ro lock_path = Path.from_bytes("${file}.lock".bytes())
+    ro closed = match File.create_new(lock_path) { Ok(consume lock) => lock.close(), Err(e) => return Err("configuration has another writer; retry after it finishes") }
+    if closed.is_err() { ro removed = remove_file(lock_path); return Err("configuration writer lock cannot be closed") }
+    ro result = config_set_locked(file, scope, key, value)
+    ro removed = remove_file(lock_path)
+    if removed.is_err() { return Err("configuration writer lock cannot be removed; inspect it before retrying") }
+    result
+}
+
+fn config_set_locked(file str, scope str, key str, value JsonValue) Fs -> Result[str, str] {
+    ro before = read_layer(scope, file)?
+    ro old = match before { Some(l) => l.obj, None => JsonObject.new() }
+    ro next = put_path(old, key, value)
+    ro latest = read_layer(scope, file)?
+    if before.is_some() != latest.is_some() { return Err("configuration changed concurrently; no edit was written") }
+    ro text_before = match before { Some(l) => l.text, None => "" }
+    ro text_latest = match latest { Some(l) => l.text, None => "" }
+    if text_before != text_latest { return Err("configuration changed concurrently; no edit was written") }
     match write_atomic(Path.from_bytes(file.bytes()), "${JsonValue.object(next).to_str_pretty()}\n".bytes()) {
         Ok(done) => Ok("${key} set in ${file}")
         Err(e) => Err("${file} cannot be written")
@@ -382,7 +395,7 @@ export fn doctor(layout ConfigLayout, server_file str, home_source str, work str
         }
     }
     if layout.project.byte_len() > 0 && is_present("${layout.project}/local.json") {
-        lines.push("  note: ${layout.project}/local.json is personal: the repository must ignore it (a line `.canopus/local.json` in .gitignore)")
+        lines.push("  error: local.json was removed; run the explicit two-level configuration transition")
     }
     lines.push("old places:")
     mut old = 0

@@ -108,7 +108,7 @@ const call = async (name, sid, input = {}) => (await tools[name].execute(input, 
 const task = (project, n) => tasks.loadTask(project, n)
 // Personal profile selection follows the same layer written by the window command.
 const use = (name, dir = proj) => {
-  writeFileSync(path.join(dir,".canopus/plugin/local.json"),JSON.stringify({profile_set:name ?? false}))
+  const file=path.join(dir,".canopus/plugin/config.json");writeSettings(dir,{...readSettings(dir),profile_set:name ?? false})
 }
 const tab = async (sid, role, dir = proj) => {
   dirOf.set(sid, dir)
@@ -252,21 +252,21 @@ const hash5 = sha(W.windowPath(t5.worktree))
   const s = readSettings(proj)
   delete s.profile_sets["kimi-only"]
   writeSettings(proj, s)
-  await until(() => L.profileState(proj).state.row === 5)
+  await until(() => L.profileState(proj).state.row === 6)
   await wait(500)
-  cell("AC-37(б) row 5: the set is gone, the snapshot is there: the existing file is not changed or removed", L.profileState(proj).state.row === 5 && sha(W.windowPath(t5.worktree)) === hash5, String(L.profileState(proj).state.row))
-  await spawn("sesINTEG", {})
-  const t6 = task("proj", 6)
-  cell("REQ-09 row 5: a NEW worktree gets the file by the snapshot", !!atCreate.get(t6.executor)?.file && Object.keys(models(atCreate.get(t6.executor).file)).join() === "kimi-code-plan-global/k3-256k", String(atCreate.get(t6.executor)?.file));
+  cell("AC-37(б) row 5: the set is gone, the snapshot is there: the existing file is not changed or removed", L.profileState(proj).state.row === 6 && sha(W.windowPath(t5.worktree)) === hash5, String(L.profileState(proj).state.row))
+  const refusedWithSnapshot=await spawn("sesINTEG", {})
+  cell("289: a retained snapshot cannot create a new worktree for a missing set",/Задача не поставлена/.test(refusedWithSnapshot)&&!task("proj",6),refusedWithSnapshot)
   // row 6: no snapshot -> nothing is written, the existing file is not touched
   L.dropSnapshot("proj")
   const doctor = await call("canopus_doctor", "sesINTEG")
   await wait(500)
   cell("AC-37(г) row 6: no snapshot -> files are not changed; canopus_doctor names the set", sha(W.windowPath(t5.worktree)) === hash5 && L.profileState(proj).state.row === 6 && /kimi-only/.test(doctor), doctor.slice(0, 300))
   const ref = await spawn("sesINTEG", {})
-  cell("AC-37(г) row 6: canopus_spawn refuses naming the set, no new worktree appears", /Задача не поставлена/.test(ref) && /kimi-only/.test(ref) && !task("proj", 7), ref)
+  cell("AC-37(г) row 6: canopus_spawn refuses naming the set, no new worktree appears", /Задача не поставлена/.test(ref) && /kimi-only/.test(ref) && !task("proj", 6), ref)
   s.profile_sets["kimi-only"] = SETS["kimi-only"]
   writeSettings(proj, s)
+  const repaired=await spawn("sesINTEG", {});cell("289: restoring the current configuration permits the next task",/запущена/.test(repaired)&&!!task("proj",6),repaired)
 }
 // row 4: invalid data without a snapshot: the profile is found (conflict of windows) -> a session on the found model WITHOUT the window file
 {

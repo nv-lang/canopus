@@ -1,152 +1,51 @@
-// Real public configuration contract: no fixture writer, policy adapter or fake parser.
+// Real two-level public configuration contract, without fixture adapters.
 import assert from "node:assert/strict"
-import { execFileSync } from "node:child_process"
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs"
+import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { initializePluginConfig } from "../config-context.ts"
-const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-public-config-"))
-const config = path.join(tmp, "plugin", "config.json")
-mkdirSync(path.dirname(config), { recursive: true })
-initializePluginConfig({ config })
-const put = value => writeFileSync(config, JSON.stringify(value))
-const git = (dir, ...args) => execFileSync("git", ["-C", dir, "-c", "user.name=fixture", "-c", "user.email=fixture@example.org", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })
-try {
-  put({})
-  const core = await import("../core.ts")
-  const settings = await import("../settings.ts")
-  const { SCHEMA_KEYS, invalid } = await import("../config-schema.ts")
-  const { globalConfig } = await import("../plugin-config.ts")
-  assert.equal(SCHEMA_KEYS.length, 11)
-  assert.equal(invalid("worktrees", "../per-project-trees"), undefined)
-  assert.ok(invalid("merge_precheck", "off"))
-  put({ defaults: { merge_precheck: "off" } })
-  assert.throws(() => globalConfig(), /unsupported setting merge_precheck/)
-  put({})
-  mkdirSync(path.join(tmp, "plugin", "data"), { recursive: true })
-  writeFileSync(path.join(tmp, "plugin", "data", "projects.json"), JSON.stringify({ projects: { stale: tmp } }))
-  assert.deepEqual(core.loadProjects(), [])
-  const priorProjectOverride = process.env.OPENCODE_CANOPUS_PROJECTS
-  try {
-    process.env.OPENCODE_CANOPUS_PROJECTS = "[]"
-    assert.throws(() => core.loadProjects(), /OPENCODE_CANOPUS_PROJECTS.*project_settings/)
-    const { refuseRuntimeEnvironment } = await import("../runtime-policy.ts")
-    assert.throws(() => refuseRuntimeEnvironment({ OPENCODE_CANOPUS_PROJECTS: "not-printed-fixture" }), error => /project_settings/.test(error.message) && !error.message.includes("not-printed-fixture"))
-  } finally {
-    if (priorProjectOverride === undefined) delete process.env.OPENCODE_CANOPUS_PROJECTS
-    else process.env.OPENCODE_CANOPUS_PROJECTS = priorProjectOverride
-  }
-  const repo = path.join(tmp, "project"), tree = path.join(tmp, "unrelated-tree-name")
-  mkdirSync(path.join(repo, ".canopus", "plugin"), { recursive: true })
-  git(repo, "init", "-q", "-b", "main")
-  const file = path.join(repo, ".canopus", "plugin", "config.json")
-  writeFileSync(file, JSON.stringify({ owner_language: "Russian", inflight_limit: 7, profile_set: "shared" }))
-  git(repo, "add", "--", ".canopus/plugin/config.json"); git(repo, "commit", "-qm", "public configuration")
-  git(repo, "remote", "add", "origin", "https://example.invalid/old-name.git")
-  git(repo, "worktree", "add", "-qb", "fixture", tree)
-  writeFileSync(file, JSON.stringify({ owner_language: "English", inflight_limit: 9, profile_set: "shared" }))
-  const projects = settings.parseProjects({ project_settings: [repo] })
-  core.setProjects(projects, {})
-  assert.equal(core.loadConfig(repo).ownerLanguage, "Russian")
-  assert.equal(core.loadConfig(repo).inflightLimit, 7)
-  assert.equal(settings.parseProjects({ project_settings: [tree] })[0].name, "project")
-  assert.equal(core.projectOf(tree, projects), "project")
-  const resolved = core.loadConfig(repo)
-  assert.equal(resolved.mergePrecheck, "required"); assert.equal(resolved.acceptedSlot, "free")
-  writeFileSync(path.join(repo, ".canopus", "plugin", "local.json"), JSON.stringify({ owner_language: "English", profile_set: "personal" }))
-  assert.equal(core.loadConfig(repo).ownerLanguage, "English")
-  const { profileState } = await import("../profile-layer.ts")
-  assert.equal(profileState(repo).name, "personal")
-  const { writePersonalSettings } = await import("../plugin-config.ts")
-  writePersonalSettings(repo, { profile_set: false })
-  assert.equal(profileState(repo).name, undefined)
-  assert.equal(JSON.parse(readFileSync(file, "utf8")).profile_set, "shared")
-  const shown = core.configShowText(repo)
-  assert.match(shown, /personal/)
-  assert.doesNotMatch(shown, /merge_precheck =|stall_minutes =|branch_name =/)
-  writeFileSync(path.join(repo, ".canopus", "plugin", "local.json"), JSON.stringify({ merge_precheck: "off" }))
-  assert.throws(() => core.loadConfig(repo), /unsupported setting merge_precheck/)
-  assert.throws(() => settings.parseProjects({ projects: [repo] }), /projects was removed/)
-  // A non-main accepted branch is derived once from Git, never from the task branch.
-  const custom = path.join(tmp, "custom-default")
-  mkdirSync(path.join(custom, ".canopus/plugin"), { recursive: true })
-  git(custom, "init", "-q", "-b", "trunk")
-  writeFileSync(path.join(custom, ".canopus/plugin/config.json"), JSON.stringify({ tasks_dir: "" }))
-  git(custom, "add", ".");git(custom, "commit", "-qm", "custom default")
-  git(custom, "update-ref", "refs/remotes/origin/trunk", "HEAD")
-  git(custom, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk")
-  git(custom, "checkout", "-qb", "task/work")
-  core.setProjects(settings.parseProjects({ project_settings: [custom] }), {})
-  assert.equal(core.loadConfig(custom).targetBranch, "trunk")
-  assert.equal(core.loadConfig(custom).tasksDir, "")
-  assert.equal(core.loadConfig(custom).plansDir, "")
-  // Global-only virtual catalogs retain editing without inventing a settings-repository pointer.
-  const virtualRoot = path.join(tmp, "virtual")
-  mkdirSync(virtualRoot)
-  put({ project_settings: [{ project: "virtual", root: virtualRoot }], local: { virtual: { model_profiles: { family: { light: { model: "x/y", context: 10, output: 2 } } } } } })
-  core.setProjects(core.loadProjects(), {})
-  const layer = await import("../profile-layer.ts")
-  const beforeVirtual = layer.profileState(virtualRoot)
-  const draft = layer.draftOf(beforeVirtual)
-  layer.dSetProfile(draft, "family", "light", { model: "x/z", context: 20, output: 4 })
-  assert(layer.writeDraft(beforeVirtual, draft).ok)
-  assert.equal(layer.profileState(virtualRoot).data.profiles.family.light.model, "x/z")
-  assert.equal(globalConfig().local.virtual.model_profiles.family.light.model, "x/z")
-  assert.equal(JSON.parse(readFileSync(config, "utf8")).project_settings[0].project, "virtual")
-  // Renaming an enabled set changes two files; failure must restore both byte-for-byte.
-  const nativeFs = (await import("node:fs")).default
-  const { syncBuiltinESMExports } = await import("node:module")
-  const exerciseAtomicRename = async (root, catalogFile, virtual) => {
-    const personal = path.join(root, ".canopus/plugin/local.json")
-    mkdirSync(path.dirname(personal), {recursive:true})
-    writeFileSync(personal, JSON.stringify({owner_language:"English",profile_set:"enabled"}))
-    const before = layer.profileState(root)
-    const rename = layer.draftOf(before)
-    rename.sets = {...rename.sets, renamed: rename.sets.enabled}
-    delete rename.sets.enabled
-    rename.name = "renamed"
-    const catalogBytes = readFileSync(catalogFile), personalBytes = readFileSync(personal)
-    writeFileSync(personal, "{broken personal JSON")
-    assert.equal(layer.writeDraft(before,rename).ok,false,"bad personal layer refuses before shared catalog mutation")
-    assert.deepEqual(readFileSync(catalogFile),catalogBytes)
-    assert.equal(readFileSync(personal,"utf8"),"{broken personal JSON")
-    writeFileSync(personal,personalBytes)
-    for (const afterRename of [false,true]) {
-      const originalRename = nativeFs.renameSync
-      let injected=false
-      nativeFs.renameSync = (from,to) => {
-        if (!injected && settings.normPath(String(to)) === settings.normPath(personal)) {
-          injected=true
-          if(afterRename) originalRename(from,to)
-          throw Error("fixture personal rename fault")
-        }
-        return originalRename(from,to)
-      }
-      syncBuiltinESMExports()
-      let result
-      try { result=layer.writeDraft(before,rename) }
-      finally { nativeFs.renameSync=originalRename;syncBuiltinESMExports() }
-      assert.equal(injected,true,"fault occurs only after the shared catalog write: " + JSON.stringify(result))
-      assert.equal(result.ok,false,"write failure is reported")
-      assert.deepEqual(readFileSync(catalogFile),catalogBytes,"shared catalog rollback is exact")
-      assert.deepEqual(readFileSync(personal),personalBytes,"personal rollback also handles ambiguous post-rename failure")
-      assert.equal(layer.profileState(root).name,"enabled")
-      assert.ok(layer.profileState(root).data.sets.enabled)
-      assert.equal(layer.profileState(root).data.sets.renamed,undefined)
-    }
-    assert.equal(layer.writeDraft(before,rename).ok,true,"normal retry completes both destinations")
-    assert.equal(layer.profileState(root).name,"renamed")
-    assert.ok(layer.profileState(root).data.sets.renamed)
-    assert.equal(layer.profileState(root).data.sets.enabled,undefined)
-    if(virtual) assert.equal(globalConfig().local.untouched.inflight_limit,3,"another virtual project remains unchanged")
-  }
-  const setCells={develop:{family:"family",tier:"light"},accept:{family:"family",tier:"light"}}
-  const currentGlobal=globalConfig()
-  put({...currentGlobal,local:{...currentGlobal.local,virtual:{...currentGlobal.local.virtual,profile_sets:{enabled:setCells}},untouched:{inflight_limit:3}}})
-  await exerciseAtomicRename(virtualRoot,config,true)
-  put({project_settings:[repo]})
-  core.setProjects(core.loadProjects(),{})
-  writeFileSync(file,JSON.stringify({owner_language:"Russian",model_profiles:{family:{light:{model:"x/y",context:10,output:2}}},profile_sets:{enabled:setCells}}))
-  await exerciseAtomicRename(repo,file,false)
-  console.log("public config: exact schema, strict overrides, Git source, linked identity and no snapshot fallback passed")
-} finally { rmSync(tmp, { recursive: true, force: true }) }
+import {execFileSync} from "node:child_process"
+import {initializePluginConfig} from "../config-context.ts"
+const tmp=fs.mkdtempSync(path.join(os.tmpdir(),"canopus-public-two-level-")),config=path.join(tmp,"plugin/config.json")
+const put=(file,value)=>{fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,JSON.stringify(value))}
+const git=(dir,...args)=>execFileSync("git",["-C",dir,"-c","user.name=Fixture","-c","user.email=fixture@example.org",...args],{encoding:"utf8",windowsHide:true,stdio:["ignore","pipe","pipe"]}).trim()
+initializePluginConfig({config});put(config,{})
+try{
+ const core=await import("../core.ts"),settings=await import("../settings.ts"),cfg=await import("../plugin-config.ts"),layer=await import("../profile-layer.ts")
+ const {SCHEMA_KEYS,invalid}=await import("../config-schema.ts")
+ const previousOverride=process.env.OPENCODE_CANOPUS_PROJECTS
+ try{process.env.OPENCODE_CANOPUS_PROJECTS="[]";assert.throws(()=>core.loadProjects(),/OPENCODE_CANOPUS_PROJECTS/)}finally{if(previousOverride===undefined)delete process.env.OPENCODE_CANOPUS_PROJECTS;else process.env.OPENCODE_CANOPUS_PROJECTS=previousOverride}
+ put(path.join(core.BASE,"projects.json"),{projects:{stale:tmp}});assert.deepEqual(core.loadProjects(),[])
+ assert.equal(SCHEMA_KEYS.length,11);assert.ok(invalid("merge_precheck","off"))
+ put(config,{local:{sample:{inflight_limit:99}}});assert.throws(()=>cfg.globalConfig(),/unsupported key local/)
+ put(config,{defaults:{merge_precheck:"off"}});assert.throws(()=>cfg.globalConfig(),/unsupported setting merge_precheck/)
+ put(config,{defaults:{inflight_limit:2,owner_language:"global",spawn_limits:{worker:1,reviewer:2}}})
+ const repo=path.join(tmp,"sample"),tree=path.join(tmp,"executor"),file=path.join(repo,".canopus/plugin/config.json")
+ fs.mkdirSync(repo);git(repo,"init","-q","-b","main");put(file,{inflight_limit:7,owner_language:"project",profile_set:"shared",spawn_limits:{worker:5}})
+ git(repo,"add","--",".canopus/plugin/config.json");git(repo,"commit","-qm","configuration");git(repo,"worktree","add","-qb","task/test",tree)
+ const projects=settings.parseProjects({project_settings:[repo]});core.setProjects(projects,{})
+ assert.equal(core.loadConfig(repo).inflightLimit,7);assert.deepEqual(core.loadConfig(repo).spawnLimits,{worker:5,reviewer:2})
+ const head=git(repo,"rev-parse","HEAD")
+ settings.writeSettings(repo,{inflight_limit:9,owner_language:"changed"})
+ assert.equal(core.loadConfig(repo).inflightLimit,9);assert.equal(core.loadConfig(tree).ownerLanguage,"changed");assert.equal(git(repo,"rev-parse","HEAD"),head)
+ put(path.join(tree,".canopus/plugin/config.json"),{inflight_limit:999});assert.equal(core.loadConfig(tree).inflightLimit,9)
+ const personal=path.join(repo,".canopus/plugin/local.json");put(personal,{inflight_limit:99});assert.throws(()=>core.loadConfig(repo),/local.json was removed/);fs.rmSync(personal)
+ assert.throws(()=>core.setProjects(projects,{sample:{inflight_limit:99}}),/Programmatic project overrides/)
+ cfg.writeProjectSettings(repo,{profile_set:false});assert.equal(layer.profileState(tree).name,undefined)
+ assert.equal(JSON.parse(fs.readFileSync(file,"utf8")).profile_set,false);assert.ok(!fs.existsSync(personal))
+ const before=fs.readFileSync(file);assert.throws(()=>cfg.writeProjectSettings(repo,{inflight_limit:4},Buffer.from("stale")),/changed concurrently/);assert.deepEqual(fs.readFileSync(file),before)
+ fs.writeFileSync(file,"broken JSON");assert.throws(()=>core.loadConfig(repo),/invalid JSON/);assert.throws(()=>settings.writeSettings(repo,{inflight_limit:4}),/invalid JSON/);assert.equal(fs.readFileSync(file,"utf8"),"broken JSON")
+ fs.writeFileSync(file,before)
+ const nativeFs=(await import("node:fs")).default,{syncBuiltinESMExports}=await import("node:module"),rename=nativeFs.renameSync
+ nativeFs.renameSync=(from,to)=>{if(to===file)throw Error("fixture rename failure");return rename(from,to)};syncBuiltinESMExports()
+ try{assert.throws(()=>cfg.writeProjectSettings(repo,{inflight_limit:3}));assert.deepEqual(fs.readFileSync(file),before)}finally{nativeFs.renameSync=rename;syncBuiltinESMExports()}
+ assert.ok(!fs.existsSync(file+".lock"))
+ const write=nativeFs.writeFileSync
+ nativeFs.writeFileSync=(name,...args)=>{const result=write(name,...args);if(String(name).startsWith(file+".")&&String(name).endsWith(".tmp"))write(file,JSON.stringify({...JSON.parse(before),owner_language:"external"}));return result};syncBuiltinESMExports()
+ try{assert.throws(()=>cfg.writeProjectSettings(repo,{inflight_limit:3}),/changed concurrently/);const owner=JSON.parse(fs.readFileSync(file,"utf8"));assert.equal(owner.owner_language,"external");assert.equal(owner.inflight_limit,9)}finally{nativeFs.writeFileSync=write;syncBuiltinESMExports();write(file,before)}
+ const virtual=path.join(tmp,"virtual");fs.mkdirSync(virtual);put(path.join(virtual,".canopus/plugin/config.json"),{inflight_limit:4})
+ put(config,{project_settings:[{project:"virtual",root:virtual}],defaults:{inflight_limit:2}});core.setProjects(core.loadProjects(),{})
+ assert.equal(core.loadConfig(virtual).inflightLimit,4);settings.writeSettings(virtual,{inflight_limit:6});assert.equal(core.loadConfig(virtual).inflightLimit,6);assert.ok(!("local" in cfg.globalConfig()))
+ const trunk=path.join(tmp,"trunk-project");fs.mkdirSync(trunk);git(trunk,"init","-q","-b","trunk");put(path.join(trunk,".canopus/plugin/config.json"),{tasks_dir:""});git(trunk,"add","--",".canopus/plugin/config.json");git(trunk,"commit","-qm","trunk settings");git(trunk,"update-ref","refs/remotes/origin/trunk","HEAD");git(trunk,"symbolic-ref","refs/remotes/origin/HEAD","refs/remotes/origin/trunk");git(trunk,"checkout","-qb","task/work");core.setProjects(settings.parseProjects({project_settings:[trunk]}),{});assert.equal(core.loadConfig(trunk).targetBranch,"trunk");assert.equal(core.loadConfig(trunk).tasksDir,"")
+ assert.throws(()=>settings.parseProjects({projects:[repo]}),/projects was removed/)
+ console.log("Public contract: two levels, immediate working copy, worktree isolation, no private layers or cache fallback, safe atomic edits: green")
+}finally{fs.rmSync(tmp,{recursive:true,force:true})}

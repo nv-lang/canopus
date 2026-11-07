@@ -3,6 +3,7 @@ import path from "node:path"
 import os from "node:os"
 import { writeFileSync, readFileSync, mkdirSync, existsSync, realpathSync, rmSync } from "node:fs"
 import { pluginConfigContext } from "../config-context.ts"
+import { mergeConfig } from "../plugin-config.ts"
 import { PROJECT_KEYS, INTERNAL_POLICY, initializePolicySource } from "../resolved-policy.ts"
 
 import { initializeRuntimeSource, RUNTIME_POLICY } from "../runtime-policy.ts"
@@ -53,14 +54,9 @@ export function writeFixtureFile(file, value, ...options) {
         identities.set(norm(folder), parts.identity)
         policies.set(norm(folder), parts.policy)
         value = JSON.stringify(parts.settings)
-        const target = virtualSettings.get(norm(folder))
-        if (target) {
-          // Legacy feature fixtures edit a global-only project: use that actual public destination.
-          // Ordinary committed-project contract tests never pass through this helper.
-          const selected = pluginConfigContext().file
-          const current = JSON.parse(readFileSync(selected, "utf8"))
-          writeFileSync(selected, JSON.stringify({ ...current, local: { ...(current.local ?? {}), [target.project]: { ...parts.settings, ...target.overrides } } }))
-        }
+        const target=virtualSettings.get(norm(folder))
+        if(target){const file=path.join(target.root,".canopus/plugin/config.json");mkdirSync(path.dirname(file),{recursive:true});writeFileSync(file,JSON.stringify(mergeConfig(parts.settings,target.overrides)))}
+
       }
     } catch {} // malformed JSON tests must still write malformed JSON
   }
@@ -95,7 +91,14 @@ export function fixtureSetProjects(core, projects, local = {}) {
       policies.set(key, { ...(policies.get(key) ?? {}), ...parts.policy })
     }
   }
-  return core.setProjects(projects, clean)
+  for (const project of projects) {
+    const folder=project.dir??project.rootPath??project.root
+    const file=path.join(folder,".canopus/plugin/config.json")
+    let raw={};try{raw=JSON.parse(readFileSync(file,"utf8"))}catch{}
+    mkdirSync(path.dirname(file),{recursive:true})
+    writeFileSync(file,JSON.stringify(mergeConfig(raw,clean[project.name]??{})))
+  }
+  return core.setProjects(projects, {})
 }
 
 /** Old feature fixtures provide programmatic projects/options; write only the real new public global format. */
@@ -109,7 +112,7 @@ export function prepareFixturePluginContext(core, ctx) {
   const global = { project_settings: projects.map(project => {
     const identity = project.dir && identities.get(norm(project.dir))
     return project.dir && (!identity || !Object.keys(identity).length) ? project.dir : { project: project.name, root: project.rootPath ?? project.root }
-  }), local: {} }
+  }) }
   for (const project of projects) {
     const folder = project.dir ?? project.rootPath ?? project.root
     let settings = fixtureSettings.get(norm(folder))
@@ -118,8 +121,11 @@ export function prepareFixturePluginContext(core, ctx) {
     }
     const parts = split(options.local?.[project.name] ?? {})
     const ordinary = global.project_settings.some(entry => typeof entry === "string" && norm(entry) === norm(folder))
-    global.local[project.name] = ordinary ? parts.settings : { ...settings, ...parts.settings }
-    if (!ordinary) virtualSettings.set(norm(folder), { project: project.name, overrides: parts.settings })
+    const targetRoot = ordinary ? folder : (project.rootPath ?? project.root)
+    const file = path.join(targetRoot,".canopus/plugin/config.json")
+    mkdirSync(path.dirname(file),{recursive:true})
+    writeFileSync(file,JSON.stringify(mergeConfig(settings,parts.settings)))
+    if (!ordinary) virtualSettings.set(norm(folder), { project: project.name, root: targetRoot, overrides: parts.settings })
     const key = norm(folder)
     const policy = { ...(policies.get(key) ?? {}), ...parts.policy }
     policies.set(key, policy)

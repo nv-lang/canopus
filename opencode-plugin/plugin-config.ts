@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, mkdirSync, writeFileSync, renameSync } from "node:fs"
+import { existsSync, readFileSync, mkdirSync, writeFileSync, renameSync, openSync, closeSync, unlinkSync } from "node:fs"
 import path from "node:path"
 
 import { validateProjectSettings } from "./resolved-policy.ts"
@@ -30,13 +30,9 @@ export function mergeConfig(base: any, over: any): any {
 
 export function globalConfig(): Record<string, any> {
   const config = readConfig(pluginConfigContext().file)
-  for (const key of Object.keys(config)) if (!["project_settings", "defaults", "local", "retention_days"].includes(key)) throw new Error(`Canopus global config: unsupported key ${key}; run the explicit configuration transition`)
+  for (const key of Object.keys(config)) if (!["project_settings", "defaults", "retention_days"].includes(key)) throw new Error(`Canopus global config: unsupported key ${key}; run the explicit configuration transition`)
   if (config.project_settings !== undefined && !Array.isArray(config.project_settings)) throw new Error("Canopus project_settings: expected an array")
   if (config.defaults !== undefined) validateProjectSettings(config.defaults, "global defaults")
-  if (config.local !== undefined) {
-    if (!config.local || typeof config.local !== "object" || Array.isArray(config.local)) throw new Error("Canopus global local: expected a project map")
-    for (const [project, settings] of Object.entries(config.local)) validateProjectSettings(settings, `local ${project}`)
-  }
   if (config.retention_days !== undefined && (!Number.isInteger(config.retention_days) || config.retention_days < 0)) throw new Error("Canopus retention_days: expected a non-negative integer")
   return config
 }
@@ -44,20 +40,17 @@ export function globalConfig(): Record<string, any> {
 /** Registration chooses only one file; values belong in the file layers. */
 export function pluginOptions(options: any = {}): Record<string, any> {
   for (const key of Object.keys(options ?? {})) if (key !== "config") throw new Error(`Canopus registration: unsupported option ${key}; put settings in the config file`)
-  const { local: _local, ...global } = globalConfig()
-  return global
+  return globalConfig()
 }
 
 export function settingsWithOrigins(project: any, folder: string, launch: any = {}, projectName?: string): { values: any; origins: Record<string, string> } {
   const global = globalConfig()
   const personalFile = path.join(folder, ".canopus", "plugin", "local.json")
-  const personal = readConfig(personalFile)
+  if (existsSync(personalFile)) throw new Error(`Canopus configuration ${personalFile}: local.json was removed; run the explicit two-level configuration transition`)
+  if (Object.keys(launch ?? {}).length) throw new Error("Programmatic project overrides were removed; write the project configuration")
   const layers = [
     [global.defaults ?? {}, `global ${pluginConfigContext().file}`],
     [project ?? {}, `project ${path.join(folder, ".canopus", "plugin", "config.json")}`],
-    [global.local?.[projectName] ?? {}, `global local ${pluginConfigContext().file}`],
-    [personal, `personal ${personalFile}`],
-    [launch ?? {}, "code local dependency"],
   ] as const
   let values: any = {}
   const origins: Record<string, string> = {}
@@ -80,34 +73,30 @@ export function validateTasksDir(value: string): string {
   return rel
 }
 
-/** Personal choices never rewrite shared project defaults or another user's selection. */
-export function writePersonalSettings(folder: string, values: Record<string, unknown>): string {
-  validateProjectSettings(values, "personal update")
-  const file = path.join(folder, ".canopus", "plugin", "local.json")
-  const current = readConfig(file)
-  validateProjectSettings(current, "personal project file")
-  const next = mergeConfig(current, values)
+/** One atomic project edit. Existing source bytes are checked under an exclusive writer lock. */
+export function writeProjectSettings(folder: string, values: Record<string, unknown>, expected?: Buffer | null): string {
+  validateProjectSettings(Object.fromEntries(Object.entries(values).filter(([,v])=>v!==null)), "project update")
+  const file = path.join(folder, ".canopus", "plugin", "config.json")
   mkdirSync(path.dirname(file), { recursive: true })
+  const lock = file + ".lock"
+  let handle: number
+  try { handle = openSync(lock, "wx") } catch { throw new Error("Project configuration has another writer; retry after it finishes") }
   const tmp = `${file}.${process.pid}.tmp`
-  writeFileSync(tmp, JSON.stringify(next, null, 2) + "\n")
-  renameSync(tmp, file)
-  return file
-}
-
-/** Virtual projects have no settings repository: their catalog is stored in global.local. */
-export function writeGlobalProjectSettings(project: string, values: Record<string, unknown>): string {
-  validateProjectSettings(values, "virtual project update")
-  const current = globalConfig()
-  const next = { ...(current.local?.[project] ?? {}) }
-  for (const [key, value] of Object.entries(values)) {
-    if (value === null) delete next[key]
-    else next[key] = value
+  try {
+    const before = existsSync(file) ? readFileSync(file) : undefined
+    if (expected !== undefined && (expected === null ? before !== undefined : !before || !expected.equals(before))) throw new Error("Project configuration changed concurrently; no edit was written")
+    const current = readConfig(file)
+    validateProjectSettings(current, "project configuration")
+    const next = { ...current }
+    for (const [key, value] of Object.entries(values)) { if (value === null) delete next[key]; else next[key] = value }
+    validateProjectSettings(next, "project configuration")
+    writeFileSync(tmp, JSON.stringify(next, null, 2) + "\n", { flag: "wx" })
+    // Preserve an external writer that does not participate in our lock.
+    const latest = existsSync(file) ? readFileSync(file) : undefined
+    if (before === undefined ? latest !== undefined : !latest || !before.equals(latest)) throw new Error("Project configuration changed concurrently; no edit was written")
+    renameSync(tmp, file)
+    return file
+  } finally {
+    try { if (existsSync(tmp)) unlinkSync(tmp) } finally { closeSync(handle); unlinkSync(lock) }
   }
-  const file = pluginConfigContext().file
-  const updated = { ...current, local: { ...(current.local ?? {}), [project]: next } }
-  mkdirSync(path.dirname(file), { recursive: true })
-  const temporary = `${file}.${process.pid}.tmp`
-  writeFileSync(temporary, JSON.stringify(updated, null, 2) + "\n")
-  renameSync(temporary, file)
-  return file
 }

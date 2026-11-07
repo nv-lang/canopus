@@ -38,10 +38,9 @@ cell("same files: panel silent", !side().includes("не на ветке"), side(
 
 write({ inflight_limit: 1, owner_language: "ru" })
 p = doctor()
-cell("key only in working copy: doctor warns with key", diverge(p).length === 1 && diverge(p)[0].includes("owner_language") && diverge(p)[0].includes("действуют те, что на ветке"), JSON.stringify(p))
-cell("warning names only the differing key", !diverge(p)[0]?.includes("inflight_limit"), JSON.stringify(p))
-cell("key only in working copy: /canopus counter (⚠ off-branch, the keys are in /canopus-doctor)", sum().includes("⚠ off-branch") && sum().includes("/canopus-doctor"), sum())
-cell("key only in working copy: panel line", side().includes("не на ветке: owner_language"), side())
+cell("working copy applies immediately without an obsolete branch warning", diverge(p).length===0,JSON.stringify(p))
+cell("working copy is the source",settings.rawSettingsFor(cfgDir,settings.parseProjects({project_settings:[cfgDir]})).owner_language==="ru",JSON.stringify(p))
+cell("ordinary Git differences do not mark the configuration broken",!sum().includes("⚠ off-branch")&&!side().includes("не на ветке"),sum())
 
 commit({ inflight_limit: 1, owner_language: "ru" })
 cell("after commit: warning gone", diverge(doctor()).length === 0 && !sum().includes("⚠ off-branch"), sum())
@@ -53,6 +52,6 @@ git(bare, "commit", "-q", "--allow-empty", "-m", "i")
 writeFileSync(path.join(bare, ".canopus", "plugin", "config.json"), JSON.stringify({}))
 let q
 try { q = settings.settingsProblems(settings.parseProjects({ project_settings: [bare] })) } catch (e) { q = ["THROW " + e] }
-cell("no file on branch: plain line, no crash", q.some((x) => x.includes("s2") && x.includes("не закоммичен")) && !q.some((x) => x.startsWith("THROW")), JSON.stringify(q))
+cell("no file on branch: plain line, no crash", !q.some((x) => x.includes("не закоммичен") || x.startsWith("THROW")), JSON.stringify(q))
 console.log(fail ? `${fail} FAIL` : "all ok")
 process.exit(fail ? 1 : 0)

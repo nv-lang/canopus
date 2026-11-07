@@ -9,7 +9,8 @@ try {
  fs.mkdirSync(repo,{recursive:true})
  const selected=await (await import("./test-home.mjs")).configureTestHome(home)
  fs.mkdirSync(path.dirname(selected.file),{recursive:true})
- fs.writeFileSync(selected.file,JSON.stringify({project_settings:[{project:"sample",root:repo}],local:{sample:{tasks_dir:"docs/tasks"}}}))
+ fs.writeFileSync(selected.file,JSON.stringify({project_settings:[{project:"sample",root:repo}]}))
+ fs.mkdirSync(path.join(repo,".canopus/plugin"),{recursive:true});fs.writeFileSync(path.join(repo,".canopus/plugin/config.json"),JSON.stringify({tasks_dir:"docs/tasks"}))
  const packageRoot=path.join(tmp,"package")
  for(const file of ["scripts/task-store.mjs","opencode-plugin/shared-task-store.ts","opencode-plugin/shared-task-config.ts","opencode-plugin/shared-task-snapshot.ts","opencode-plugin/task-numbers.ts"]){
   const dest=path.join(packageRoot,file);fs.mkdirSync(path.dirname(dest),{recursive:true});fs.copyFileSync(path.resolve(import.meta.dirname,"../..",file),dest)

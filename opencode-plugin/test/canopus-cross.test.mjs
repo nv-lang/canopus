@@ -112,8 +112,11 @@ cell("no titles of integrators were touched", !updates.some((u) => u.sessionID =
 // 4. a cancelled child -> a call to the orderer
 await call("canopus_task", "sesAINT", { action: "order", to: "beta.integrator", title: "второй", goal: "g2", criteria: "c2" })
 await call("canopus_spawn", "sesBINT", { title: "второй", goal: "g2", criteria: "c2", parent: "alpha#2" })
-await call("canopus_task", "sesBINT", { action: "cancel", n: 3, text: "не будем" })
-await wait()
+const cancelled = await call("canopus_task", "sesBINT", { action: "cancel", n: 3, text: "не будем" })
+cell("the fixture owner confirms cancellation of the second child", tasks.loadTask("beta", 3)?.status === "cancelled", cancelled)
+// Parent reconciliation runs every two seconds; wait for the observable result rather than incidental Git latency.
+const cancellationDeadline = Date.now() + 10_000
+while (Date.now() < cancellationDeadline && !got("sesAINT", "Заказ 002 «второй»: задачу beta 003 отменили").some((d) => !d.synthetic)) await wait(100)
 cell("a cancelled child wakes the orderer with a call", got("sesAINT", "Заказ 002 «второй»: задачу beta 003 отменили").some((d) => !d.synthetic), JSON.stringify(got("sesAINT", "Заказ 002")))
 
 clearInterval(heart)

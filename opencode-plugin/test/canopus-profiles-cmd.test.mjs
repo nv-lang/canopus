@@ -47,7 +47,7 @@ const base = {}
 git(cfgDir, "init", "-q", "-b", "main")
 const writeFileJson = (obj) => writeFileSync(file, JSON.stringify(obj, null, 2))
 const readFileJson = () => JSON.parse(readFileSync(file, "utf8"))
-const personalFile = path.join(cfgDir, ".canopus/plugin/local.json")
+const personalFile = path.join(cfgDir, ".canopus/plugin/config.json")
 const readPersonal = () => existsSync(personalFile) ? JSON.parse(readFileSync(personalFile,"utf8")) : {}
 
 writeFileJson({ ...base, model_profiles: TABLE, profile_sets: SETS })
@@ -140,7 +140,7 @@ cell("AC-17 a refused edit leaves one `profile edit refused` line and no `profil
 r = await sets("use cross-kimi")
 cell("AC-07 use (task 075): the first line is the result, restart is not needed, the stages by words, no service words (the reviewer window is in the detailed view)", /^Набор «cross-kimi» включён$/m.test(r) && /^Новые сессии пойдут на модели набора, перезапуск не нужен\.$/m.test(r) && /^Приёмка:\s+k3-256k\s+\(было те же\)$/m.test(r) && /^Не закоммичено — это локальная настройка проекта\.$/m.test(r) && !/рукописным настройкам|Приёмка и приёмка плана: контекст профиля здесь не применяется|файлы окон/.test(r), r)
 cell("AC-07 the details of the reviewer window (the number of the hand-written settings) are in the detailed view of the stage", await (async () => { const d = await sets("show приёмка"); return /контекст профиля здесь не применяется/.test(d) && /модель kimi-code-plan-global\/k3-256k берёт контекст из рукописных и глобальных настроек: контекст 262144 · вывод до 131072/.test(d) })(), "")
-cell("AC-21 use writes profile_set into the working copy of the file at once, atomically, without a commit; the data in force are the file", sha(file) === hashFile0 && readPersonal().profile_set === "cross-kimi" && st().name === "cross-kimi" && commits() === commits0 && JSON.parse(git(cfgDir, "show", "HEAD:.canopus/plugin/config.json")).profile_set === undefined, st().name)
+cell("AC-21 use writes profile_set into the working copy of the file at once, atomically, without a commit; the data in force are the file", sha(file) !== hashFile0 && readPersonal().profile_set === "cross-kimi" && st().name === "cross-kimi" && commits() === commits0 && JSON.parse(git(cfgDir, "show", "HEAD:.canopus/plugin/config.json")).profile_set === undefined, st().name)
 cell("AC-21 the write left no temporary file and no layer file", !existsSync(`${file}.${process.pid}.tmp`) && !existsSync(L.layerFile("cmdproj")), "left")
 cell("AC-17 use leaves exactly one line of the log", editLines().length === 1 && /canopus-sets use include|canopus-sets use/.test(editLines()[0]), JSON.stringify(editLines()))
 r = await sets("")
@@ -159,7 +159,7 @@ cell("reset of /canopus-profiles is gone the same way", /Команды reset б
 r = await sets("save")
 cell("save is gone: nothing to save, the file is untouched", /Команды save больше нет/.test(r) && /сохранять и сбрасывать нечего/.test(r) && sha(file) === hashBeforeGone, r)
 // a person takes the name out of the file by hand: the set is not applied (row 1), as before
-writeFileSync(personalFile,JSON.stringify({profile_set:false}))
+writeFileSync(personalFile,JSON.stringify({...readFileJson(),profile_set:false}))
 bump()
 cell("the name taken out of the file by hand: no set enabled", st().name === undefined && st().state.row === 1, String(st().name))
 cell("AC-07 no turn of the model: every answer is a service message", prompts.length === 0 && replies.length > 0, String(prompts.length))
@@ -338,7 +338,7 @@ cell("AC-26/AC-28 and use of that set then refuses with the windows", /Не сд
   const keepF = readFileSync(file, "utf8")
   writeFileSync(file, "{ broken")
   r = await sets("new zzz")
-  cell("a working file that is not JSON: the command is refused whole, the file is not overwritten", /Не сделано/.test(r) && /not JSON|не JSON/.test(r) && readFileSync(file, "utf8") === "{ broken", r)
+  cell("a working file that is not JSON: the command is refused whole, the file is not overwritten", /Команда не выполнена/.test(r) && /invalid JSON/.test(r) && readFileSync(file, "utf8") === "{ broken", r)
   writeFileSync(file, keepF)
   bump()
 }

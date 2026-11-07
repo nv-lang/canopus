@@ -8,7 +8,8 @@ const tmp = mkdtempSync(path.join(os.tmpdir(), "canopus-command-worker-"))
 const privateHome = path.join(tmp, "home"), root = path.join(tmp, "instance"), project = path.join(tmp, "project")
 for (const folder of [privateHome, root, project]) mkdirSync(folder)
 const config = path.join(root, "selected.json")
-writeFileSync(config, JSON.stringify({ project_settings: [{ project: "demo", root: project }], local: { demo: { inflight_limit: 17 } } }))
+writeFileSync(config, JSON.stringify({ project_settings: [{ project: "demo", root: project }] }))
+mkdirSync(path.join(project,".canopus/plugin"),{recursive:true});writeFileSync(path.join(project,".canopus/plugin/config.json"),JSON.stringify({inflight_limit:17}))
 const environment = { ...process.env, HOME: privateHome, USERPROFILE: privateHome }
 delete environment.OPENCODE_CANOPUS_PROJECTS
 const entry = new URL("../cmd-worker.ts", import.meta.url)

@@ -18,14 +18,11 @@ export function sharedTaskContext(config:string,directory="",givenProject?:strin
  const main=selectedRoot?mainOf(selectedRoot):undefined
  const definition=main?definitions.find((p:any)=>p.root&&path.resolve(p.root).toLowerCase()===path.resolve(main).toLowerCase()):undefined
  const project=givenProject??definition?.project??(main?slugify(path.basename(main)):"")
- let accepted:any={}
- if(main){
-  const branch=git(main,["symbolic-ref","--short","refs/remotes/origin/HEAD"])?.replace(/^origin\//,"")??(git(main,["show-ref","--verify","--quiet","refs/heads/main"])!==undefined?"main":"master")
-  const committed=git(main,["show",`${branch}:.canopus/plugin/config.json`])
-  accepted=committed===undefined?(fs.existsSync(path.join(main,".git"))?{}:json(path.join(main,".canopus/plugin/config.json"))):JSON.parse(committed)
- }
- const personal=main?json(path.join(main,".canopus/plugin/local.json")):{}
- const tasksDir=personal.tasks_dir??global.local?.[project]?.tasks_dir??accepted.tasks_dir??global.defaults?.tasks_dir??"doc/tasks"
+ if(Object.prototype.hasOwnProperty.call(global,"local"))throw Error("Canopus global local was removed; run the explicit two-level configuration transition")
+ const personal=main?path.join(main,".canopus/plugin/local.json"):undefined
+ if(personal&&fs.existsSync(personal))throw Error("Canopus local.json was removed; run the explicit two-level configuration transition")
+ const projectConfig=main?json(path.join(main,".canopus/plugin/config.json")):{}
+ const tasksDir=projectConfig.tasks_dir??global.defaults?.tasks_dir??"doc/tasks"
  if(typeof tasksDir!=="string")throw Error("tasks_dir must be a string")
  const root=taskRoot(home,project,main?{root:main,tasksDir:tasksDir||"doc/tasks"}:undefined)
  return {home,project,main,root,catalogFile,catalog}

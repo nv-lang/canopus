@@ -153,21 +153,21 @@ test "guess_value: flags, numbers and text" {
     assert(guess_value("") == JsonValue.str(""))
 }
 
-test "layers: the files are read in the order user, server, project, local, and a missing file is skipped" {
+test "layers: global and project precedence; legacy server helper stays explicit" {
     ro root = tmp_root("layers")
     put(root, "inst/config.json", "{\"port\":1,\"store\":\"files\"}")
     put(root, "srv.json", "{\"port\":2}")
     put(root, "repo/.canopus/config.json", "{\"port\":3,\"voice\":{\"language\":\"ru\"}}")
-    put(root, "repo/.canopus/local.json", "{\"voice\":{\"model\":\"medium\"}}")
+
     ro layout = layout_in("${root}/inst", "${root}/repo/.canopus")
     match with Fs = real_fs() { file_layers(layout, "${root}/srv.json") } {
         Err(e) => assert(false)
         Ok(layers) => {
-            assert(layers.len() == 4)
-            assert(layers[0].origin == "user" && layers[1].origin == "server" && layers[2].origin == "project" && layers[3].origin == "local")
+            assert(layers.len() == 3)
+            assert(layers[0].origin == "user" && layers[1].origin == "server" && layers[2].origin == "project")
             ro m = merge_layers(layers)
             assert(m.get("port").unwrap().int() == Some(3))
-            assert(m.get("voice").unwrap().object().unwrap().get("model").unwrap().str() == Some("medium"))
+            assert(m.get("voice").unwrap().object().unwrap().get("language").unwrap().str() == Some("ru"))
             assert(m.get("store").unwrap().str() == Some("files"))
         }
     }
@@ -282,6 +282,18 @@ test "application refuses an unmarked legacy plugin data root" {
     with Fs = real_fs() {
         assert(claim_instance(root, "app").is_err())
         assert((read_text(Path.from_bytes("${root}/data/cards/one.json".bytes())) ?? "") == "{}")
+    }
+    tmp_drop(root)
+}
+
+
+test "two levels: a retired personal file refuses without quoting its values" {
+    ro root = tmp_root("retired-local")
+    put(root, "inst/config.json", "{\"port\":8099}")
+    put(root, "repo/.canopus/local.json", "{\"port\":9999,\"private\":\"not-printed-value\"}")
+    match with Fs = real_fs() { file_layers(layout_in("${root}/inst", "${root}/repo/.canopus"), "") } {
+        Ok(layers) => assert(false)
+        Err(e) => assert(e.contains("local.json was removed") && !e.contains("not-printed-value"))
     }
     tmp_drop(root)
 }

@@ -18,7 +18,7 @@ const settings=await import("../settings.ts"),core=await import("../core.ts")
 try {
  const a=path.join(tmp,"alpha"),b=path.join(tmp,"beta"),virtual=path.join(tmp,"virtual")
  repo(a,{inflight_limit:2});repo(b,{inflight_limit:3});mkdirSync(virtual)
- global({project_settings:[a,{project:"virtual",root:virtual}],defaults:{owner_language:"ru"},local:{virtual:{inflight_limit:7}}})
+ global({project_settings:[a,{project:"virtual",root:virtual}],defaults:{owner_language:"ru"}});json(path.join(virtual,SF),{inflight_limit:7})
  const config=await import("../plugin-config.ts"),ctx=await import("../config-context.ts")
  assert.deepEqual(config.pluginOptions({config:selected.file}).project_settings,[a,{project:"virtual",root:virtual}])
  for(const options of [{projects:[a]},{project_settings:[a]},{local:{}},{config:selected.file,projects:[a]}]) assert.throws(()=>config.pluginOptions(options),/registration.*unsupported/)
@@ -34,7 +34,7 @@ try {
  assert.deepEqual(loaded.map(p=>p.name).sort(),["alpha","virtual"],"MCP mailbox reads the same config-owned discovery")
  assert.equal(ctx.pluginConfigContext().file,selected.file)
  global({project_settings:[a],local:{alpha:{spawn_models:{light:"fixture/model"}}}})
- assert.throws(()=>config.globalConfig(),/spawn_models/)
+ assert.throws(()=>config.globalConfig(),/unsupported key local/)
  global({projects:[a]});assert.throws(()=>config.globalConfig(),/unsupported key projects/)
  console.log("project_settings contract: config path only, real global discovery/virtual mapping, MCP parity and rejected aliases/internal settings OK")
 } finally {rmSync(tmp,{recursive:true,force:true})}

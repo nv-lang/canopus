@@ -1,7 +1,7 @@
 // canopus.nv - the entry point of the canopus binary (task 099): the session server, its front. It serves the page
 // of src/web/ and the WebSocket /ws on 127.0.0.1 and starts the hub (src/canopus_hub.nv) as a child process. Task 192.12 adds the commands of the configuration.
 //   canopus [serve] [--config <file>]
-//   canopus config list [--show-origin] | get <key> [--show-origin] | set <key> <value> [--project|--local]
+//   canopus config list [--show-origin] | get <key> [--show-origin] | set <key> <value> [--project]
 //   canopus doctor
 //   canopus migrate [--from <data_dir>] [--dry-run]
 //   canopus                            starts the default application instance
@@ -16,7 +16,7 @@ import std.os.{args, exit_process, env}
 import std.io.{stderr}
 import std.time.{Time}
 
-const USAGE = "canopus 0.1.0 - usage:\n  canopus [serve] [--config <file>]\n  canopus config list [--show-origin]\n  canopus config get <key> [--show-origin]\n  canopus config set <key> <value> [--project|--local]\n  canopus doctor\n  canopus migrate [--from <data_dir>] [--dry-run]\n(default config: ~/.canopus/config.json; its parent owns secrets.json and instance data)"
+const USAGE = "canopus 0.1.0 - usage:\n  canopus [serve] [--config <file>]\n  canopus config list [--show-origin]\n  canopus config get <key> [--show-origin]\n  canopus config set <key> <value> [--project]\n  canopus doctor\n  canopus migrate [--from <data_dir>] [--dry-run]\n(default config: ~/.canopus/config.json; its parent owns secrets.json and instance data)"
 
 
 fn fail(text str) Os Io -> () {
@@ -131,7 +131,8 @@ fn cmd_config(cli CliArgs) Os Fs Io -> () {
     ro origin = take_flag(file.rest, "--show-origin")
     ro project = take_flag(origin.rest, "--project")
     ro local = take_flag(project.rest, "--local")
-    ro scope = if local.found { "local" } else if project.found { "project" } else { "user" }
+    if local.found { return fail("--local was removed; use --project or the selected global config") }
+    ro scope = if project.found { "project" } else { "user" }
     ro w = local.rest
     if w.len() == 0 { return fail("config needs list, get or set\n${USAGE}") }
     if w[0] == "list" {

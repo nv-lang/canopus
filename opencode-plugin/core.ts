@@ -1,5 +1,5 @@
 import { snapshotTaskDocuments } from "./shared-task-snapshot.ts"
-import { writeGlobalProjectSettings } from "./plugin-config.ts"
+
 import { runtimeValue } from "./runtime-policy.ts"
 import { resolveProjectPolicy } from "./resolved-policy.ts"
 import { globalConfig, pluginState, pluginCache } from "./plugin-config.ts"
@@ -96,8 +96,9 @@ export const parseProjects = (opt: any): Projects => parseProjectsWith(opt, log)
 let currentProjects: Projects = []
 let currentLocal: Record<string, any> = {}
 export function setProjects(projects: Projects, local: any = {}) {
+  if (Object.keys(local ?? {}).length) throw new Error("Programmatic project overrides were removed; write project config.json")
   currentProjects = projects
-  currentLocal = local && typeof local === "object" ? local : {}
+  currentLocal = {}
 }
 
 /** Проекты процесса и локальные поправки (для профилей моделей, profile-layer.ts). */
@@ -124,15 +125,17 @@ export function configShowText(dir: string, fallbackName = "?", compact = false)
   const profileKeys = ["model_profiles", "profile_sets"]
   const rows = SCHEMA.map((s) => `  ${s.key} = ${profileKeys.includes(s.key) && effective[s.key] !== undefined ? `(${Object.keys(effective[s.key] ?? {}).length} шт., таблицей ниже)` : s.key === "profile_set" && effective[s.key] === undefined ? "(не включён)" : shown(effective[s.key] ?? s.default)} — ${sourceOf(s.key)}${answerNote(s.key)}`)
   const head = p?.dir
-    ? `Проект ${p.name}: настройки ${path.join(p.dir, ".canopus", "plugin", "config.json")}, читается ветка ${p.branch} (${p.repo}).`
+    ? `Проект ${p.name}: настройки ${path.join(p.dir, ".canopus", "plugin", "config.json")}, читается основная рабочая копия, изменения действуют без коммита.`
     : p
-      ? `Проект ${p.name}: глобальное определение; настройки из выбранного глобального, принятого проектного и личного файлов.`
-      : `Папка вкладки ${dir.replace(/\\/g, "/")} не относится к проекту плагина (ни корень, ни рабочее дерево репозитория проекта): настройки — из файла вверх от этой папки, если он есть, иначе по умолчанию.`
+      ? `Проект ${p.name}: настройки из глобального и проектного config.json.`
+      : `Папка вкладки ${dir.replace(/\\/g, "/")} не относится к проекту плагина (ни корень, ни рабочее дерево репозитория проекта): настройки — из основной папки репозитория, если она определена, поверх глобальных значений и значений по умолчанию.`
   let pending = ""
-  if (p?.dir) {
+  if (p?.dir && p.repo && p.file) {
+    let committed: any = {}
+    try { committed = JSON.parse(fileAt(p.repo, "HEAD", p.file) ?? "{}") } catch {}
     const work = workingSettings(p.dir).raw
     const changed = [...new Set([...Object.keys(work), ...Object.keys(committed)])].filter((k) => JSON.stringify(work[k]) !== JSON.stringify(committed[k]))
-    if (changed.length) pending = `\nНезакоммичено (действует после коммита): ${changed.join(", ")}.`
+    if (changed.length) pending = `\nНезакоммичено (уже действует): ${changed.join(", ")}.`
   }
   let prof = ""
   try {
@@ -2793,7 +2796,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
 ` +
     `Спроси владельца инструментом question и дай варианты:
 ` +
-    `1) применить стандартный набор (codex; границы ступеней задаёт встроенная политика) — canopus_config {action: "apply_template"}, затем закоммить файл в целевую ветку проекта и повтори canopus_spawn;
+    `1) применить стандартный набор (codex; границы ступеней задаёт встроенная политика) — canopus_config {action: "apply_template"}, затем повтори canopus_spawn; настройки действуют сразу;
 ` +
     `2) использовать для воркеров модель этой сессии${sessionModel ? ` (${sessionModel})` : " (название модели сессии плагину неизвестно — спроси у владельца)"} — вызови canopus_spawn ещё раз с явным model${sessionModel ? `: "${sessionModel}"` : ""};
 ` +
@@ -3978,7 +3981,7 @@ ${lockStillYours(stillHeld.n)}` : "") }
       [
         "The project's settings (.canopus/plugin/config.json in its settings repository). One line per action: action - who may - parameters - what it does.",
         "guide - anyone - questions for the owner on every key (current value, options, recommendation, why): ask them in text and record the answers.",
-        "show - anyone - effective values and where each comes from (default, the committed file, the personal file or global local layer), plus uncommitted edits. Model profiles come first: model_profiles = families/tiers -> model, profile_sets = named sets of stages, profile_set = the enabled set (only a person changes it, /canopus-sets use|off); the summary says 'sets in the file: N; enabled: name or none' - never answer 'no sets' from 'not enabled'; details: canopus_help.",
+        "show - anyone - effective values and where each comes from (code defaults, global config or primary project working file), plus already active uncommitted edits. Model profiles come first: model_profiles = families/tiers -> model, profile_sets = named sets of stages, profile_set = the enabled set (only a person changes it, /canopus-sets use|off); the summary says 'sets in the file: N; enabled: name or none' - never answer 'no sets' from 'not enabled'; details: canopus_help.",
         "set - integrator - values {key: value; null removes a key} - checks every value and writes the working copy; it applies once committed to the settings branch. Keys changed by people only (profile_set, answer_mode) are refused.",
         "apply_template - integrator - writes the standard template (families claude/codex/kimi, explicit light-tier sets and profile_set codex) into the file; the project's own keys win; commit the file or the old state stays.",
         "Public project keys: tasks_dir, model_profiles, profile_sets, profile_set, spawn_limits, inflight_limit, machine_slots, owner_language, answer_mode, acceptance_file. Internal timing, routing, forms, cleanup and branch policies are fixed named code constants, not editable settings.",
@@ -4008,11 +4011,10 @@ ${lockStillYours(stillHeld.n)}` : "") }
       if (action === "apply_template") {
         if (!isIntegrator(me)) return notIntegrator(me)
         if (!p) return { content: outsideProject(me.directory).replace(/^./, (c) => c.toUpperCase()) + "." }
-        const { values, added } = mergeTemplate(p.dir ? workingSettings(p.dir).raw : globalConfig().local?.[p.name] ?? {})
+        const { values, added } = mergeTemplate(workingSettings(p.dir ?? p.rootPath ?? p.root).raw)
         if (!added.length) return { content: `Шаблон ничего не добавил: все его ключи у проекта уже есть (файл не тронут).` }
-        const file = p.dir ? writeSettings(p.dir, values) : writeGlobalProjectSettings(p.name, values)
-        if (!p.dir) return { content: `Стандартный шаблон записан в ${file}, local[${p.name}]; добавлены ключи: ${added.join(", ")}. Действует сразу.` }
-        return { content: `Стандартный шаблон записан в ${file}; добавлены ключи: ${added.join(", ")}; уже заданные ключи проекта не тронуты. Файл нужно закоммитить в ветку ${p.branch} репозитория ${p.repo}, иначе действует прежнее состояние (проект остаётся не настроенным).` }
+        const file = writeSettings(p.dir ?? p.rootPath ?? p.root, values)
+        return { content: `Стандартный шаблон записан в ${file}; добавлены ключи: ${added.join(", ")}; уже заданные ключи проекта не тронуты. Действует сразу; изменения видны в Git diff.` }
       }
       if (action === "set") {
         if (!isIntegrator(me)) return notIntegrator(me)
@@ -4035,13 +4037,12 @@ ${lockStillYours(stillHeld.n)}` : "") }
           if (be) return { content: `Не записано (файл не тронут):\n- ${be}` }
         }
         // связи между ключами профилей: рабочая копия плюс вносимое (два вызова подряд — справочник, затем наборы — проходят)
-        const virtualBase = globalConfig().local?.[p.name] ?? {}
+        const virtualBase = workingSettings(p.dir ?? p.rootPath ?? p.root).raw
         const virtualMerged = { ...virtualBase, ...values }
         const links = p.dir ? linkErrorsOfWrite(p.dir, values) : profileLinkProblems({ profiles: virtualMerged.model_profiles, sets: virtualMerged.profile_sets }).map(item => item.text)
         if (links.length) return { content: `Не записано (файл не тронут):\n${links.map((e) => `- ${e}`).join("\n")}` }
-        const file = p.dir ? writeSettings(p.dir, values) : writeGlobalProjectSettings(p.name, values)
-        if (!p.dir) return { content: `Записано в ${file}, local[${p.name}]: ${Object.keys(values).join(", ")}. Действует сразу; личные проектные поправки сохраняют приоритет.` }
-        return { content: `Записано в ${file}: ${Object.keys(values).join(", ")}. Действует после коммита в ветку ${p.branch} репозитория ${p.repo} (по методологии проекта); до коммита действуют прежние значения — canopus_config {action: "show"} покажет незакоммиченное.` }
+        const file = writeSettings(p.dir ?? p.rootPath ?? p.root, values)
+        return { content: `Записано в ${file}: ${Object.keys(values).join(", ")}. Действует сразу; изменения видны в Git diff.` }
       }
       return { content: `Неизвестное действие «${action}».` }
     },

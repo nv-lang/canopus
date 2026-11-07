@@ -1,15 +1,11 @@
-import { settingsLayers } from "./plugin-config.ts"
+import { globalConfig } from "./plugin-config.ts"
 import { resolveProjectPolicy } from "./resolved-policy.ts"
 import { runtimeValue } from "./runtime-policy.ts"
-// РАСХОЖДЕНИЕ НАСТРОЕК (задача 029, 2026-10-11): плагин читает .canopus/plugin/config.json с целевой ветки, а файл в рабочей
-// копии до коммита не действует. Здесь файл рабочей копии сравнивается с веткой по верхнеуровневым ключам; результат
-// кешируется на несколько секунд (git не на каждый вызов), как в acceptance-file.ts. «Рабочая копия» — папка настроек
-// проекта из реестра проектов (Project.repo + Project.file): та, что правит canopus_config set.
+// Git comparisons are informational; primary working configuration is immediately effective.
 import { execFileSync } from "node:child_process"
-import { existsSync, readdirSync, readFileSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import path from "node:path"
-import { BASE } from "./base.ts"
-import { modelsDefined, unconfiguredLine } from "./settings.ts"
+import { modelsDefined, unconfiguredLine, knownSettingsProjects, parseProjects, rawSettingsFor } from "./settings.ts"
 
 export type Divergence = { kind: "same" } | { kind: "differ"; keys: string[]; ref: string } | { kind: "note"; text: string }
 
@@ -60,48 +56,26 @@ function compute(repo: string, file: string, branch: string): Divergence {
     const keys = differingKeys(work, there)
     return keys.length ? { kind: "differ", keys, ref } : { kind: "same" }
   }
-  return { kind: "note", text: `файла ${file} нет на ветке ${branch} (или ветки нет): действуют настройки по умолчанию; расхождение не проверено` }
+  return { kind: "note", text: `файла ${file} нет на ветке ${branch} (или ветки нет): рабочие настройки действуют; расхождение не проверено` }
 }
 
 /** Предупреждение canopus_doctor по проекту; нет расхождения — undefined. */
-export function divergenceProblem(name: string, d: Divergence): string | undefined {
-  if (d.kind === "differ") return `проект ${name}: настройки в рабочей копии отличаются от целевой ветки: действуют те, что на ветке (${d.ref}); ключи: ${d.keys.join(", ")} (предупреждение, не ошибка; закоммить и влей правку или откати файл)`
-  if (d.kind === "note") return `проект ${name}: ${d.text}`
-  return undefined
-}
+export function divergenceProblem(_name: string, _d: Divergence): string | undefined { return undefined }
 
-/** Короткая строка для /canopus и боковой панели: только при расхождении (note в постоянный показ не идёт). */
-export function divergenceLine(d: Divergence): string | undefined {
-  if (d.kind !== "differ") return undefined
-  const k = d.keys.join(", ")
-  return `⚠ настройки не на ветке: ${k}`
-}
-
-/** Строка для проекта по имени: папку берём из последнего хорошего чтения настроек (settings-good), плагин окна реестра не держит. */
-export function divergenceLineFor(project: string): string | undefined {
-  try {
-    const dir = path.join(BASE, "settings-good")
-    for (const f of readdirSync(dir)) {
-      const p = JSON.parse(readFileSync(path.join(dir, f), "utf8"))?.project
-      if (p?.name === project) return divergenceLine(configDivergence(p.repo, p.file, p.branch))
-    }
-  } catch {}
-  return undefined
-}
+/** Git differences are expected: the primary working copy is authoritative. */
+export function divergenceLine(_d: Divergence): string | undefined { return undefined }
+export function divergenceLineFor(_project: string): string | undefined { return undefined }
 
 /** Строка «проект X не настроен: модели» для /canopus и боковой панели (задача 033); модели определены или настроек не читали — undefined. */
 export function unconfiguredLineFor(project: string): string | undefined {
   try {
-    const dir = path.join(BASE, "settings-good")
-    for (const f of readdirSync(dir)) {
-      const v = JSON.parse(readFileSync(path.join(dir, f), "utf8"))
-      if (v?.project?.name === project) {
-        const folder = v.project.dir ?? v.project.rootPath ?? v.project.root
-        const raw = settingsLayers(v.raw, folder, {}, project)
-        const configured = { ...raw, allow_default_models: resolveProjectPolicy(raw, folder).allow_default_models }
-        return modelsDefined(configured) ? undefined : `⚠ ${unconfiguredLine(project)}`
-      }
-    }
-  } catch {}
-  return undefined
+    let projects=knownSettingsProjects()
+    if(!projects.some(p=>p.name===project))projects=parseProjects(globalConfig())
+    const p=projects.find(p=>p.name===project)
+    if(!p)return undefined
+    const folder=p.dir??p.rootPath??p.root
+    const raw=rawSettingsFor(folder,projects,{},project)
+    const configured={...raw,allow_default_models:resolveProjectPolicy(raw,folder).allow_default_models}
+    return modelsDefined(configured)?undefined:`⚠ ${unconfiguredLine(project)}`
+  } catch { return undefined }
 }

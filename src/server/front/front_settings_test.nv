@@ -63,13 +63,12 @@ test "front public config: internal fields and retired overrides are refused" {
     }
 }
 
-test "front public layers: project and personal fields override global" {
+test "front public layers: project fields override global" {
     ro file = front_file("layers.json", "{\"port\":8100,\"voice\":{\"language\":\"ru\"}}")
     ro root = file.parent().unwrap().display().replace("\\", "/")
     with Fs = real_fs() {
         ro made = create_dir_all(Path.from_bytes("${root}/repo/.canopus".bytes()))
-        ro one = write_text(Path.from_bytes("${root}/repo/.canopus/config.json".bytes()), "{\"port\":8101}")
-        ro two = write_text(Path.from_bytes("${root}/repo/.canopus/local.json".bytes()), "{\"voice\":{\"language\":\"en\"}}")
+        ro one = write_text(Path.from_bytes("${root}/repo/.canopus/config.json".bytes()), "{\"port\":8101,\"voice\":{\"language\":\"en\"}}")
     }
     mut state = MockOs.new()
     state.set_cwd_str("${root}/repo/src")

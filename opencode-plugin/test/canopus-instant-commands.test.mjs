@@ -154,7 +154,7 @@ await new Promise((r) => setTimeout(r, 3600))
   cell("a typed use with an unknown name is refused with the list of names, nothing changed", /Не сделано/.test(msg(out)) && /cross-kimi/.test(msg(out)) && sha(file) === hashUse, JSON.stringify(last(out))?.slice(0, 200))
   script = ["__verbs", "use", "cross-kimi"]
   await slashOf(out, "canopus-sets").run()
-  cell("use <set> from the real worker writes the personal selection without changing the shared catalog", /cross-kimi/.test(msg(out)) && L.profileState(root).name === "cross-kimi" && existsSync(personalFile) && JSON.parse(readFileSync(personalFile, "utf8")).profile_set === "cross-kimi" && sha(file) === fileHash, JSON.stringify([last(out), L.profileState(root).name])?.slice(0, 300))
+  cell("use <set> from the real worker writes the project selection without a personal file", /cross-kimi/.test(msg(out)) && L.profileState(root).name === "cross-kimi" && !existsSync(personalFile) && JSON.parse(readFileSync(file, "utf8")).profile_set === "cross-kimi" && sha(file) !== fileHash, JSON.stringify([last(out), L.profileState(root).name])?.slice(0, 300))
   script = ["__verbs", "new", "zzz-two"] // typed without the verb: the verb is added
   await slashOf(out, "canopus-sets").run()
   cell("a line typed without the verb gets the verb of the item", /Готово: создан пустой набор «zzz-two»/.test(msg(out)), msg(out).slice(0, 200))

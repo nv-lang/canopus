@@ -85,7 +85,7 @@ The selected file's parent owns `data/sessions`, `state`, `cache`, `tools`, `bac
 
 ## Settings
 
-The complete public app schema is `port`, `store`, `agents`, `voice.language`, `voice.model`. `voice: false` disables voice. Values come from built-in defaults, selected global config, repository `.canopus/config.json`, then personal `.canopus/local.json`; later files override earlier ones. Objects merge; arrays replace. The instance folder cannot be discovered as a repository override.
+The complete public app schema is `port`, `store`, `agents`, `voice.language`, `voice.model`. `voice: false` disables voice. Values come from built-in defaults, selected global config, repository `.canopus/config.json`; the project file overrides the global file. Personal `local.json` files require the explicit two-level transition and are never read as settings. Objects merge; arrays replace. The instance folder cannot be discovered as a repository override.
 
 ```json
 {"port":8099,"store":"files","voice":{"language":"auto","model":"small"}}

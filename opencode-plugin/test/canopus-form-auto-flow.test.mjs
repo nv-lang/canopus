@@ -30,7 +30,6 @@ for (const d of [proj, plain]) {
   writeFixtureFile(path.join(d, ".canopus", "plugin", "config.json"), JSON.stringify({}))
 }
 const settingsFile = path.join(proj, ".canopus", "plugin", "config.json")
-const settingsBefore = readFileSync(settingsFile, "utf8")
 const db = new DatabaseSync(dbPath)
 db.exec("create table session_v2 (id text primary key, directory text, title text, parent_id text, time_archived integer, time_idle integer, time_viewed integer, time_suspended integer)")
 db.exec("create table session_message (id text primary key, session_id text, type text, seq integer, time_created integer, time_updated integer, data text)")
@@ -110,6 +109,8 @@ const tools = {}
 
 const mod = await import("./fixture-plugin.mjs")
 const stop = await mod.default.setup(ctx)
+// Capture after the fixture prepares real two-level configuration, before plugin events.
+const settingsBefore = readFileSync(settingsFile, "utf8")
 const t0 = Date.now()
 fw.handleFormEvent(form("frm_A", A, "Какой формат отчёта?", ["Короткий (Recommended)", "Длинный"]))
 fw.handleFormEvent(form("frm_T", T, "Где проверенный рабочий артефакт?", ["Угадать (Recommended)", "Выяснить"]))

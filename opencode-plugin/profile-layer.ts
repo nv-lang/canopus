@@ -1,11 +1,9 @@
 // ДЕЙСТВУЮЩИЕ ДАННЫЕ ПРОФИЛЕЙ, СНИМОК И ПРАВКА ФАЙЛА ПРОЕКТА (задача 003, ADR-0008, заменён ADR-0014: слоя нет).
 //
-// Команды окна правят три ключа файла проекта (model_profiles, profile_sets, profile_set) в рабочей копии папки настроек СРАЗУ
-// и атомарно, без коммита и без промежуточного слоя. Действующие данные = эти три ключа рабочей копии (нет файла в рабочей
-// копии или папки настроек — три ключа закоммиченного файла). Снимок — последнее допустимое состояние трёх ключей
-// (profiles/<проект>.snapshot.json), пишется проходом сервиса; читатели его только читают: работающие вкладки не падают,
-// если невалидное состояние пришло не через команды (коммит убрал профиль).
-// Файл прежнего слоя profiles/<проект>.layer.json не читается и не применяется; о нём один раз сообщается (legacyLayerNote).
+// Commands edit model_profiles, profile_sets and profile_set in the primary project configuration.
+// Global defaults are weaker. No personal file or implicit cached configuration participates.
+// Snapshots retain diagnostic history only; a missing current profile cannot launch by a snapshot.
+// Existing running sessions keep the launch models recorded in their tasks.
 
 import { createHash } from "node:crypto"
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
@@ -13,7 +11,7 @@ import path from "node:path"
 import { BASE } from "./base.ts"
 import { pluginConfigContext } from "./config-context.ts"
 import { SETTINGS_FILE, legacyBase, outsideProject, projectFor, rawSettingsFor, readSettingsFolder, settingsForWithOrigins, workingSettings, writeSettings } from "./settings.ts"
-import { globalConfig, settingsLayers, writePersonalSettings, writeGlobalProjectSettings } from "./plugin-config.ts"
+import { globalConfig, settingsLayers } from "./plugin-config.ts"
 import { limitsText, log, projectOf, settingsContext, resolveSettingsPolicy } from "./core.ts"
 import * as P from "./profiles.ts"
 import { type Task, listTasks, taskNo } from "./tasks.ts"
@@ -115,54 +113,30 @@ function workingKeys(folder: string): Record<string, any> | "bad" | undefined {
   return isObj(v) ? v : "bad"
 }
 
-/** Catalog and personal selection are validated together; failed paired writes restore their original bytes. */
+/** A profile edit changes one project file, preserving unrelated and concurrent edits. */
 export function writeDraft(ps: PState, d: Draft): { ok: true; file: string } | { ok: false; error: string } {
   if (!ps.known) return { ok: false, error: outsideProject(ps.tab) }
-  if (!ps.folder) return { ok: false, error: "проект задан прежней формой опций: писать некуда (переведи его на папку настроек: ключ project_settings в opencode.jsonc)" }
-  const pending: { file: string; before?: Buffer; expected: Buffer }[] = []
-  const bytes = (file: string) => existsSync(file) ? readFileSync(file) : undefined
-  const equalBytes = (a: Buffer | undefined, b: Buffer | undefined) => a === undefined ? b === undefined : b !== undefined && a.equals(b)
+  if (!ps.folder) return { ok: false, error: "The project folder is unknown" }
   try {
-    if (!ps.virtual && workingKeys(ps.folder) === "bad") return { ok: false, error: `${SETTINGS_FILE} in the working tree is not JSON; no edit was written` }
+    const file = path.join(ps.folder, SETTINGS_FILE)
+    const before = existsSync(file) ? readFileSync(file) : undefined
+    const latest = profileState(ps.tab, ps.project)
+    if (!same(latest.data, ps.data) || latest.name !== ps.name) return { ok: false, error: "Profiles changed concurrently; refresh before retrying" }
+    const catalog = workingKeys(ps.folder) ?? {}
+    if (!isObj(catalog)) return { ok: false, error: "Project configuration is not JSON; no edit was written" }
     const changes: Record<string, any> = {}
     if (!same(d.profiles, ps.data.profiles)) changes.model_profiles = isObj(d.profiles) && Object.keys(d.profiles).length ? d.profiles : null
     if (!same(d.sets, ps.data.sets)) changes.profile_sets = isObj(d.sets) && Object.keys(d.sets).length ? d.sets : null
-    const { projects, local } = settingsContext()
-    const origins = settingsForWithOrigins(ps.tab, projects, local, ps.project).origins
-    for (const key of Object.keys(changes)) if ((!ps.virtual && origins[key]?.startsWith("global local")) || origins[key]?.startsWith("personal") || origins[key]?.startsWith("code local")) return { ok: false, error: `${key} is overridden by ${origins[key]}; edit that source instead of the shared project file` }
-    const catalogFile = ps.virtual ? pluginConfigContext().file : path.join(ps.folder, SETTINGS_FILE)
-    const personalFile = path.join(ps.folder, ".canopus", "plugin", "local.json")
-    const catalog = ps.virtual ? globalConfig() : workingKeys(ps.folder) ?? {}
-    if (!isObj(catalog)) throw Error("Invalid catalog")
-    const personal = existsSync(personalFile) ? readJsonFile(personalFile) : {}
-    if (!isObj(personal)) throw Error("Invalid personal settings")
-    // Validate both destination layers before the first write, including an unchanged personal file.
-    settingsLayers(ps.virtual ? catalog.local?.[ps.project] ?? {} : catalog, ps.folder, d.name !== ps.name ? { profile_set: d.name ?? false } : {}, ps.project)
-    if (Object.keys(changes).length) {
-      const next = { ...(ps.virtual ? catalog.local?.[ps.project] ?? {} : catalog) }
-      for (const [key, value] of Object.entries(changes)) { if (value === null) delete next[key]; else next[key] = value }
-      const document = ps.virtual ? { ...catalog, local: { ...(catalog.local ?? {}), [ps.project]: next } } : next
-      pending.push({ file: catalogFile, before: bytes(catalogFile), expected: Buffer.from(JSON.stringify(document, null, 2) + "\n") })
-    }
-    if (d.name !== ps.name) pending.push({ file: personalFile, before: bytes(personalFile), expected: Buffer.from(JSON.stringify({ ...personal, profile_set: d.name ?? false }, null, 2) + "\n") })
-    let file = catalogFile
-    if (Object.keys(changes).length) file = ps.virtual ? writeGlobalProjectSettings(ps.project, changes) : writeSettings(ps.folder, changes)
-    if (d.name !== ps.name) file = writePersonalSettings(ps.folder, { profile_set: d.name ?? false })
+    if (d.name !== ps.name) changes.profile_set = d.name ?? false
+    const next = { ...catalog }
+    for (const [key,value] of Object.entries(changes)) { if(value===null)delete next[key];else next[key]=value }
+    const effective = settingsLayers(next, ps.folder, {}, ps.project)
+    // Removing an inherited item must never silently resurrect it from the global file.
+    if (("model_profiles" in changes && !same(effective.model_profiles ?? {}, d.profiles ?? {})) || ("profile_sets" in changes && !same(effective.profile_sets ?? {},d.sets ?? {}))) return { ok: false, error: "The removed profile or set is inherited from global configuration; edit its global source" }
+    if (Object.keys(changes).length) writeSettings(ps.folder, changes, before ?? null)
     return { ok: true, file }
   } catch {
-    let rollbackFailed = false
-    for (const item of [...pending].reverse()) {
-      try {
-        const current = bytes(item.file)
-        if (equalBytes(current, item.before)) continue
-        // Do not overwrite a concurrent owner's edit while rolling back our own bytes.
-        if (!equalBytes(current, item.expected)) { rollbackFailed = true; continue }
-        if (item.before === undefined) rmSync(item.file, { force: true })
-        else writeAtomic(item.file, item.before.toString("utf8"))
-      } catch { rollbackFailed = true }
-      finally { try { rmSync(`${item.file}.${process.pid}.tmp`, { force: true }) } catch { rollbackFailed = true } }
-    }
-    return { ok: false, error: rollbackFailed ? "Profile edit failed; automatic rollback could not be verified. Inspect catalog and personal settings before retrying; concurrent edits were preserved." : "Profile edit failed; catalog and personal settings were left unchanged." }
+    return { ok: false, error: "Profile edit failed; project configuration was preserved. Resolve invalid or concurrent edits and retry." }
   }
 }
 
@@ -176,7 +150,7 @@ export type PState = {
   known: boolean
   /** папка настроек проекта (новая форма опций; прежняя — папка найденного файла) или undefined */
   folder?: string
-  /** Global-only virtual project catalog lives in global.local, personal choice at its root. */
+  /** Registered project without a Git repository; uses the same project configuration file. */
   virtual?: boolean
   /** настройки проекта; три ключа профилей — из рабочей копии файла */
   raw: any
@@ -207,19 +181,10 @@ export function profileState(dir0: string, projectName?: string): PState {
   const project = projectOf(dir0, projects, projectName)
   const p = projectFor(dir0, projects, projectName)
   let raw = rawSettingsFor(dir0, projects, local, projectName) ?? {}
-  const w = p?.dir ? workingKeys(p.dir) : undefined
-  if (isObj(w)) {
-    const projectValues = { ...readSettingsFolder(p!.dir!).raw }
-    for (const key of P.PROFILE_KEYS) {
-      if (key in w) projectValues[key] = w[key]
-      else delete projectValues[key]
-    }
-    raw = settingsLayers(projectValues, p!.dir!, (p && local[p.name]) || {}, p?.name)
-  }
   const data: P.Data = { profiles: isObj(raw.model_profiles) ? clone(raw.model_profiles) : undefined, sets: isObj(raw.profile_sets) ? clone(raw.profile_sets) : undefined }
   const name = typeof raw.profile_set === "string" && raw.profile_set ? raw.profile_set : undefined
   const snapshot = readSnapshot(project)
-  const state = P.stateRow(name, data, snapshot)
+  const state = P.stateRow(name, data)
   state.bounds = P.boundsOf(resolveSettingsPolicy(dir0, raw))
   return { project, tab: dir0, known: !!p, folder: p?.dir ?? p?.rootPath, virtual: !!p && !p.dir, raw, data, name, snapshot, state }
 }

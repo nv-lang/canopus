@@ -59,7 +59,7 @@ export function applyEdit(dir: string, command: string, mutate: (c: MutateCtx) =
   if ("refuse" in m) return { ok: false, text: refused(ps.project, command, m.refuse) }
   const next = { data: { profiles: draft.profiles, sets: draft.sets } as P.Data, name: draft.name }
   // состояние после правки не должно стать хуже: из строк 1, 2, 7 (нет набора, допустим, имя игнорируется) — в 3…6 (REQ-28, REQ-33)
-  const rowAfter = P.stateRow(next.name, next.data, ps.snapshot)
+  const rowAfter = P.stateRow(next.name, next.data)
   if ([1, 2, 7].includes(ps.state.row) && [3, 4, 5, 6].includes(rowAfter.row)) return { ok: false, text: refused(ps.project, command, rowAfter.message || `правка сделала бы набор «${next.name}» недоступным`) }
   const before = P.checkData(ps.data, ps.name)
   const after = P.checkData(next.data, next.name)
