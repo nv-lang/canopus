@@ -15,7 +15,7 @@
 module canopus.server.front
 
 import canopus.acp.{AgentLink, connect}
-import canopus.config.{ConfigLayout, presets_reply}
+import canopus.config.{ConfigLayout, presets_reply, work_dir_now}
 import canopus.model_metadata.{MetadataHook, model_metadata_reply, read_metadata_snapshot}
 import polaris.{Router, MethodRouter, ServerRequest, ServerResponse, WebSocketUpgrade, StatusCode, HttpError}
 import polaris.static.{Static, serve_path}
@@ -23,7 +23,7 @@ import polaris.ws.{Frame, OpCode, frame_len_hint}
 import polaris.net.{ServerPolicy}
 import polaris.serve.{serve_addr}
 import std.crypto.sha256.{Sha256}
-import std.encoding.json.{JsonValue, JsonObject}
+import std.encoding.json.{Json, JsonValue, JsonObject}
 import std.concurrency.nvchan.{Chan, ChanTx, ChanRx}
 import std.fs.{DirFs, Path, Fs, real_fs, read_text}
 import std.io.{stderr}
@@ -368,9 +368,37 @@ fn catalog_route(cache_dir str, port int) -> fn(ServerRequest) -> ServerResponse
 // fiber (started by `run_front_with_metadata` when the front is given a `MetadataInput`) owns the
 // current hook; the route asks it and reads the pinned snapshot. With no observer configured the
 // stock host supplies None and the answer stays `unavailable/same_context_binding_unverified`.
-fn model_metadata_route(source Option[MetadataHook], port int) -> fn(ServerRequest) -> ServerResponse {
+// The instance launcher owns the ACP discovery worker. Bind its private, short-lived
+// snapshot to the exact configured commands; never reuse another family's options.
+fn native_acp_reply(text str, agents []AgentChoice, now int, directory str) -> str {
+    ro root = match Json.parse(text) { Ok(v) => match v.object() { Some(o) => o, None => return "" }, Err(e) => return "" }
+    mut launches = []str.new()
+    for agent in agents {
+        mut words = [agent.id, agent.program]
+        for arg in agent.args { words.push(arg) }
+        launches.push(words.join("\t"))
+    }
+    ro expected = Sha256.hash_str(launches.join("\n").bytes())
+    ro location = match root.get("directory") { Some(v) => v.str() ?? "", None => "" }
+    if location.replace("\\", "/") != directory.replace("\\", "/") { return "" }
+    ro binding = match root.get("binding") { Some(v) => v.str() ?? "", None => "" }
+    ro version = match root.get("v") { Some(v) => v.int() ?? 0, None => 0 }
+    ro observed = match root.get("observed_at") { Some(v) => v.int() ?? 0, None => 0 }
+    ro expires = match root.get("expires_at") { Some(v) => v.int() ?? 0, None => 0 }
+    if version != 2 || binding != expected || observed <= 0 || observed > now || expires <= now || expires <= observed || expires - observed > 300000 { return "" }
+    if root.get("families").is_none() { return "" }
+    text
+}
+
+fn model_metadata_route(source Option[MetadataHook], port int, state_dir str, agents []AgentChoice, directory str) -> fn(ServerRequest) -> ServerResponse {
     fn(req ServerRequest) -> ServerResponse {
         if !origin_allowed(req, port) { return json_reply(403, json_error_origin) }
+        // D454: Polaris Handler is effect-free; native IO stays at this HTTP boundary.
+        ro native = with Fs = real_fs() { read_metadata_snapshot("${state_dir}/metadata/native-acp-catalog.json") }
+        match native {
+            Some(text) => { ro reply = native_acp_reply(text, agents, Time.now().unix_millis(), directory); if reply.byte_len() > 0 { return json_reply(200, reply) } }
+            None => ()
+        }
         ro configured = match source {
             Some(hook) => hook
             None => return json_reply(200, model_metadata_reply(None, None, 0))
@@ -565,7 +593,7 @@ fn image_get_route(data_dir str) -> fn(ServerRequest) -> ServerResponse {
     }
 }
 
-fn build_router(web_dir str, port int, hub_tx ChanTx[str], reg_tx ChanTx[Reg], agents []AgentChoice, stt_url str, stt_language str, stt_model str, stt_asks ChanTx[SttAsk], stt_mgr ChanTx[SttMgrAsk], data_dir str, image_limit int, layout ConfigLayout, preset str, reviewer_order []str, metadata_source Option[MetadataHook]) -> Result[Router, HttpError] {
+fn build_router(web_dir str, port int, hub_tx ChanTx[str], reg_tx ChanTx[Reg], agents []AgentChoice, stt_url str, stt_language str, stt_model str, stt_asks ChanTx[SttAsk], stt_mgr ChanTx[SttMgrAsk], data_dir str, image_limit int, layout ConfigLayout, preset str, reviewer_order []str, metadata_source Option[MetadataHook], metadata_directory str) -> Result[Router, HttpError] {
     mut router = Router.new()
     ro r1 = router.get("/", files_route(web_dir))?
     ro r2 = router.get("/health", fn(req ServerRequest) -> ServerResponse => ServerResponse.text(StatusCode.OK, "ok"))?
@@ -594,7 +622,7 @@ fn build_router(web_dir str, port int, hub_tx ChanTx[str], reg_tx ChanTx[Reg], a
     ro r4h = router.get("/api/fs/list", fs_list_route(layout.data, layout.state, port))?
     ro r4i = router.get("/api/fs/git", fs_git_route(port))?
     ro r4o = router.get("/api/agent-catalog", catalog_route(layout.cache, port))?
-    ro metadata_added = router.get("/api/model-metadata", model_metadata_route(metadata_source, port))?
+    ro metadata_added = router.get("/api/model-metadata", model_metadata_route(metadata_source, port, layout.state, agents, metadata_directory))?
     ro r4r = router.get("/api/presets", presets_route(layout, preset, reviewer_order, port))?
     ro r4t = router.get("/api/session-trace/{id}", trace_route(data_dir, port))?
     ro r5 = router.get("/{*path}", files_route(web_dir))?
@@ -632,7 +660,7 @@ export fn run_front_with_metadata(settings FrontSettings, config_file str, passt
             ro stt_mgr = Chan[SttMgrAsk].new(16)
             ro stt_cfg = SttConfig { managed: settings.stt_managed, dir: settings.stt_dir, model: settings.stt_model, language: settings.stt_language, url: settings.stt_url, pid_file: "${settings.layout.state}/stt.pid" }
             detach { stt_manage(stt_cfg, stt_mgr.rx) }
-            match build_router(settings.web_dir, settings.port, link.out, registrations.tx, settings.agents, settings.stt_url, settings.stt_language, settings.stt_model, stt_asks.tx, stt_mgr.tx, settings.data_dir, settings.max_image_bytes, settings.layout, settings.preset, settings.reviewer_order, meta_source) {
+            match build_router(settings.web_dir, settings.port, link.out, registrations.tx, settings.agents, settings.stt_url, settings.stt_language, settings.stt_model, stt_asks.tx, stt_mgr.tx, settings.data_dir, settings.max_image_bytes, settings.layout, settings.preset, settings.reviewer_order, meta_source, work_dir_now()) {
                 Err(e) => {
                     log_line("the routes cannot be set: ${e}")
                     exit_process(2)

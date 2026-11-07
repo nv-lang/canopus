@@ -33,7 +33,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib
 import guardlib  # noqa: E402
 
 PREFIX = "machines/product/"
-KIT_PROGRAMS = ("canopus.exe", "canopus-hub.exe", "preparation-agent.mjs", 'scripts/task-store.mjs', 'opencode-plugin/shared-task-store.ts', 'opencode-plugin/shared-task-config.ts', 'opencode-plugin/shared-task-snapshot.ts', 'opencode-plugin/task-numbers.ts')
+KIT_PROGRAMS = ("start.ps1", "scripts/native-acp-catalog.mjs", "scripts/zai-acp.mjs", "canopus.exe", "canopus-hub.exe", "preparation-agent.mjs", 'scripts/task-store.mjs', 'opencode-plugin/shared-task-store.ts', 'opencode-plugin/shared-task-config.ts', 'opencode-plugin/shared-task-snapshot.ts', 'opencode-plugin/task-numbers.ts')
 KIT_MACHINES = ("dialog.alula.json", "dialog.alula.md", "work-mode.alula.json", "work-mode.alula.md", "family-approval.alula.json", "family-approval.alula.md", "journal.md")
 LOCK_VERSION = re.compile(r'name\s*=\s*"alula"[^\[]*?\bversion\s*=\s*"(\d+)\.(\d+)', re.S)
 

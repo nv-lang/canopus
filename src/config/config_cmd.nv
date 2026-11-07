@@ -62,6 +62,7 @@ fn spec_of(key str) -> Option[KeySpec] {
     for name in ["container", "volume", "host", "database", "admin_user", "admin_password", "service_user", "service_password"] {
         if key == "postgres.${name}" { return Some(ks(key, "s", "\"\"")) }
     }
+    if key == "zai.api_key" { return Some(ks(key, "s", "\"\"")) }
     if key == "db_viewer.password" { return Some(ks(key, "s", "\"\"")) }
     None
 }
