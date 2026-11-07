@@ -20,6 +20,7 @@ try {
  fs.mkdirSync(path.join(root,"001-conflict","task"),{recursive:true})
  fs.writeFileSync(path.join(root,"001-conflict","task","state.json"),JSON.stringify(t))
  assert.throws(()=>taskEntries(root),/collision/)
+ assert.throws(()=>recordFile(root,1),/collision/,"A targeted lookup must still reject duplicate active identities")
  fs.writeFileSync(file,"")
  assert.throws(()=>readTaskFile(file),/unreadable/)
  assert.equal(fs.readFileSync(file,"utf8"),"","A corrupt record is never replaced by an empty task")

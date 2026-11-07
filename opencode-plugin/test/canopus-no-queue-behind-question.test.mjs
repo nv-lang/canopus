@@ -132,7 +132,8 @@ const until = async (f, ms = 8000) => {
     if (await f()) return true
     await wait(50)
   }
-  return false
+  // Delivery can finish before the final timer wakeup; observe its state before reporting failure.
+  return !!(await f())
 }
 /** the texts standing in the server queue of the tab, oldest first */
 const queue = (s) => db.prepare("select payload from session_inbox where session_id = ? order by enqueued_seq").all(s).map((r) => JSON.parse(r.payload).text)

@@ -16,11 +16,13 @@ export function taskRoot(home: string, project: string, location?: TaskLocation)
   if (!path.relative(root, target) || path.relative(root, target).startsWith("..")) throw Error("Unsafe task directory")
   return target
 }
-export function taskEntries(root: string): { n: number; folder: string; file: string }[] {
+export function taskEntries(root: string, requested?: number): { n: number; folder: string; file: string }[] {
   if (!existsSync(root)) return []
   const out: { n: number; folder: string; file: string }[] = []
   for (const d of readdirSync(root, { withFileTypes: true })) {
     const m = /^(\d{3,})-(.+)$/.exec(d.name)
+    // A single-record lookup checks its own identity; listing still validates the complete store.
+    if (requested !== undefined && (!m || Number(m[1]) !== requested)) continue
     if (d.isSymbolicLink() && m) throw Error("Task directory must not be a symbolic link")
     if (d.isDirectory() && m && existsSync(path.join(root,d.name,"task")) && lstatSync(path.join(root,d.name,"task")).isSymbolicLink()) throw Error("Task payload directory must not be a symbolic link")
     if (d.isDirectory() && m) out.push({ n: Number(m[1]), folder: d.name, file: path.join(root, d.name, "task", "state.json") })
@@ -32,7 +34,7 @@ export function taskEntries(root: string): { n: number; folder: string; file: st
 export function recordFile(root: string, n: number, slug = "task"): string {
   if (!Number.isSafeInteger(n) || n < 1) throw Error("Invalid task number")
   if (!/^[^/\\]+$/.test(slug) || [".", ".."].includes(slug)) throw Error("Invalid task slug")
-  const matches = taskEntries(root).filter(r => r.n === n)
+  const matches = taskEntries(root, n)
   const active = matches.filter(r => existsSync(r.file))
   if (active.length === 1) return active[0].file
   const exact = matches.find(r => r.folder === `${String(n).padStart(3, "0")}-${slug}`)
