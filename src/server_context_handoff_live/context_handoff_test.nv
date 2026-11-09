@@ -1,0 +1,8 @@
+module canopus.server_context_handoff_live
+
+import canopus.server.{kit_files, scenario_context_handoff}
+
+test "context handoff switches the same chat only after success" {
+    ro report = scenario_context_handoff(kit_files("context-handoff", 30000))
+    if report.byte_len() > 0 { panic("context handoff: ${report}") }
+}

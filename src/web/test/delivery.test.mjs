@@ -195,3 +195,10 @@ test('an unknown delivery is a neutral status with a disabled retry', () => {
   assert.doesNotMatch(card.textContent, /⚠/);
   assert.equal(card.querySelector('.delivery-actions button').disabled, true);
 });
+
+test('cross-family refusal explains the context boundary without copying raw errors', () => {
+  const result = safeError('Смена семьи источника остановлена: драйвер не гарантирует полный перенос контекста без отдельного хода. token=secret');
+  assert.match(result, /создайте новую сессию/);
+  assert.doesNotMatch(result, /secret/);
+  assert.equal(safeError(result), result);
+});

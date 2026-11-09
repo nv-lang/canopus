@@ -21,7 +21,7 @@ for (const agents of [[], [{ id: 'opencode' }]]) {
     view.render(model, { selected: 's', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
     const group = refs.main.querySelector('.status-group');
     assert.equal(group.children.length, 1);
-    const buttons = group.querySelectorAll('button');
+    const buttons = group.querySelectorAll('button').filter((button) => !button.hidden);
     assert.equal(buttons.length, 1);
     assert.equal(refs.main.querySelector('.family-approvals-button'), null);
     if (agents.length === 0) {
@@ -84,20 +84,28 @@ test('компактный селектор отправляет direct source �
   const view = createView(doc, refs, { agents, now: () => 0, presets: () => presets, modelMetadata: () => metadata, handlers: {
     queued: () => 0, queuedItems: () => [], onSource: (...args) => sources.push(args), onDraftSource: (...args) => draftSources.push(args),
   } });
-  const model = reduce(initialModel(), { id: 'create', trace: 's', step: 0, time: 1, kind: 'session_created', input: { name: 'Проверка', agent: 'opencode' } });
+  const model = reduce(initialModel(), { id: 'create', trace: 's', step: 0, time: 1, kind: 'session_created', input: { name: 'Проверка', agent: 'opencode', source: { family: 'opencode', model: 'm1', effort: 'low' } } });
   view.render(model, { selected: 's', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
   const picker = refs.main.querySelector('.agent-picker-button');
   assert.ok(picker);
-  assert.equal(refs.main.querySelectorAll('.status-group .status-btn').length, 1);
+  assert.equal(refs.main.querySelectorAll('.status-group .status-btn').length, 2);
   picker.click();
   const modelRow = refs.main.querySelectorAll('.menu-item').find((r) => r.textContent.includes('Model One'));
   assert.ok(modelRow);
-  const slider = modelRow.querySelector('.effort-slider');
+  assert.equal(modelRow.querySelector('.effort-slider'), null);
+  refs.main.querySelector('.effort-picker-button').click();
+  const slider = refs.main.querySelector('.effort-slider');
   assert.ok(slider);
-  assert.equal(modelRow.querySelector('.effort-sparkles').dataset.count, '0');
+  assert.equal(refs.main.querySelector('.effort-sparkles').dataset.active, 'false');
+  const stars = refs.main.querySelectorAll('.effort-sparkle');
   slider.value = '1';
   slider.dispatchEvent({ type: 'input', bubbles: true });
-  assert.equal(modelRow.querySelector('.effort-sparkles').dataset.count, '8');
+  assert.equal(refs.main.querySelector('.effort-sparkles').dataset.active, 'true');
+  assert.ok(refs.main.querySelectorAll('.effort-sparkle').every((star, at) => star === stars[at]));
+  assert.equal(refs.main.querySelectorAll('.effort-tick').length, 2);
+  assert.deepEqual(refs.main.querySelectorAll('.effort-tick').map((tick) => tick.hidden), [false, true]);
+  const heights = refs.main.querySelectorAll('.effort-sparkle').map((star) => star.style['--star-height']);
+  assert.ok(new Set(heights).size > 2);
   slider.dispatchEvent({ type: 'change', bubbles: true });
   assert.deepEqual(sources, [['s', { family: 'opencode', model: 'm1', effort: 'high' }]]);
 });
@@ -135,11 +143,11 @@ test('partial cold metadata exposes only its bound family; other configured fami
 test('звёзды усилия декоративны, едут справа налево и неподвижны при reduced-motion', async () => {
   const { readFile } = await import('node:fs/promises');
   const css = await readFile(new URL('../app.css', import.meta.url), 'utf8');
-  assert.match(css, /\.effort-slider::-webkit-slider-runnable-track \{[^}]*height: 12px/);
+  assert.match(css, /\.effort-slider::-webkit-slider-runnable-track \{[^}]*height: 30px/);
   assert.match(css, /--effort-end:\s*#8b5cf6/);
-  assert.match(css, /linear-gradient\(to right, var\(--ok\), var\(--effort-end\)\)/);
+  assert.match(css, /linear-gradient\(to right, var\(--effort-start\), var\(--effort-end\)\)/);
   assert.doesNotMatch(css, /\.effort-slider[^}]*linear-gradient\(to right, var\(--ok\), var\(--accent\)\)/);
-  assert.match(css, /linear-gradient\(to right, var\(--ok\), var\(--effort-end\)\) 0 \/ var\(--effort-fill, 0%\) 100% no-repeat/);
+  assert.match(css, /right \/ calc\(100% - var\(--effort-fill, 0%\)\) 100% no-repeat/);
   assert.match(css, /@keyframes effort-star-drift \{[^}]*translateX\(0\)[\s\S]*?translateX\(-180px\)/);
   assert.match(css, /\.effort-sparkles \{[^}]*pointer-events: none/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{ \.effort-sparkle \{ animation: none/);
@@ -283,7 +291,7 @@ for (const draft of [true, false]) test(`one model-row click commits a family/mo
     queued:()=>0,queuedItems:()=>[],onSource:(...args)=>calls.push(['real',...args]),onDraftSource:(trace,source)=>{calls.push(['draft',trace,source]);model=patchDraft(model,trace,{source});draw();}
   }});
   draw();refs.main.querySelector('.agent-picker-button').click();
-  const row=refs.main.querySelectorAll('.agent-model-row').find(r=>r.textContent.includes('K3'));
+  const row=refs.main.querySelectorAll('.menu-item').find(r=>r.textContent.includes('K3'));
   assert.ok(row);row.click();
   assert.deepEqual(calls,[[draft?'draft':'real','s',{family:'kimi',model:'k3',effort:'off'}]]);
   assert.equal(refs.main.querySelector('.agent-picker-button').getAttribute('aria-expanded'),'false');
@@ -295,4 +303,87 @@ test('restored unbound error is historical above the conversation and never rend
  const view=createView(doc,refs,{agents:[{id:'kimi'}],now:()=>10000,handlers:{queued:()=>0,queuedItems:()=>[],deliveryItems:()=>[{id:'old',trace:'s',state:'error',images:[],text:'',reason:'network',at:1000,restored:true}]}});
  const model=reduce(initialModel(),{id:'c',trace:'s',step:0,kind:'session_created',input:{agent:'kimi',name:'Test'},time:2000});view.render(model,{selected:'s',projects:[],pins:{},theme:'system'},{state:'connected'});
  assert.doesNotMatch(refs.main.textContent,/\bfalse\b/);const old=refs.main.querySelector('.delivery-history');assert.ok(old);assert.equal(old.querySelector('.delivery-body').hidden,true);assert.equal(old.getAttribute('role'),'note');
+});
+test('Codex effort variants share one model row and use separate ACP settings', () => {
+  const doc = createFakeDocument(); const refs = {}; const sources = [];
+  for (const key of ['app', 'side', 'main', 'rail', 'status', 'overlay']) {
+    refs[key] = doc.createElement('div');
+    doc.body.append(refs[key]);
+  }
+  const variants = ['low', 'high', 'ultra'].map((effort) => ({
+    id: `gpt-6.1-sol[${effort}]`, name: `6.1 Sol (${effort})`,
+  }));
+  const view = createView(doc, refs, {
+    agents: [{ id: 'codex' }], now: () => 0,
+    modelMetadata: () => ({ status: 'ready', expiresAt: 1000, families: { codex: variants } }),
+    handlers: { queued: () => 0, queuedItems: () => [], onSource: (...args) => sources.push(args) },
+  });
+  const model = reduce(initialModel(), { id: 'create', trace: 's', step: 0, time: 1, kind: 'session_created', input: {
+    agent: 'codex', source: { family: 'codex', model: 'gpt-6.1-sol[high]', effort: 'low' },
+  } });
+  view.render(model, { selected: 's', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
+  refs.main.querySelector('.agent-picker-button').click();
+  const rows = refs.main.querySelectorAll('.menu-item');
+  assert.equal(rows.length, 1);
+  assert.match(rows[0].textContent, /6\.1 Sol/);
+  assert.doesNotMatch(rows[0].textContent, /high|low|ultra/);
+  assert.equal(rows[0].getAttribute('aria-checked'), 'true');
+  assert.equal(refs.main.querySelector('.effort-slider'), null);
+
+  refs.main.querySelector('.effort-picker-button').click();
+  const slider = refs.main.querySelector('.effort-slider');
+  assert.equal(String(slider.value), '1');
+  const middleStars = refs.main.querySelectorAll('.effort-sparkle');
+  assert.equal(middleStars.length, 8);
+  assert.equal(new Set(middleStars.map((star) => star.style['--star-height'])).size, 7);
+  assert.deepEqual(refs.main.querySelectorAll('.effort-tick').map((tick) => tick.style['--effort-stop']), ['0%', '50%', '100%']);
+  slider.value = '2';
+  slider.dispatchEvent({ type: 'change', bubbles: true });
+  const selection = { family: 'codex', model: 'gpt-6.1-sol', effort: 'ultra' };
+  assert.deepEqual(sources, [['s', selection]]);
+  const effortButton = refs.main.querySelector('.effort-picker-button');
+  assert.equal(effortButton.getAttribute('aria-expanded'), 'true');
+
+  const render = (next) => view.render(next, { selected: 's', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
+  render(model);
+  assert.ok(refs.main.querySelector('.effort-slider') === slider, 'unrelated renders preserve the slider while open');
+  const pinned = reduce(model, { id: 'pin', trace: 's', step: 1, time: 2, kind: 'session_source', input: selection });
+  render(pinned);
+  assert.ok(refs.main.querySelectorAll('.effort-sparkle').every((star, at) => star === middleStars[at]));
+  assert.equal(effortButton.textContent, 'ultra');
+  assert.equal(String(refs.main.querySelector('.effort-slider').value), '2');
+  const pending = reduce(pinned, { id: 'pending', trace: 's', step: 2, time: 3, kind: 'agent_selection', input: selection });
+  render(pending);
+  assert.equal(effortButton.getAttribute('aria-expanded'), 'true');
+  assert.equal(refs.main.querySelector('.effort-slider').disabled, true);
+  render(reduce(pending, { id: 'chosen', trace: 's', step: 3, time: 4, kind: 'agent_selected', input: { ...selection, effort: 'low' } }));
+  assert.equal(effortButton.getAttribute('aria-expanded'), 'true');
+  assert.equal(String(refs.main.querySelector('.effort-slider').value), '2');
+  assert.equal(refs.main.querySelector('.effort-slider').disabled, false);
+  assert.equal(effortButton.textContent, 'ultra');
+  effortButton.click();
+  assert.equal(effortButton.getAttribute('aria-expanded'), 'false');
+});
+test('the standard question card can confirm a local model choice', () => {
+  const doc = createFakeDocument(); const refs = {};
+  for (const key of ['app', 'side', 'main', 'rail', 'status', 'overlay']) {
+    refs[key] = doc.createElement('div');
+    doc.body.append(refs[key]);
+  }
+  const answers = [];
+  const view = createView(doc, refs, { agents: [{ id: 'kimi' }], now: () => 0, handlers: {
+    queued: () => 0, queuedItems: () => [], onAnswer: (trace, answer) => { answers.push([trace, answer]); return true; },
+  } });
+  const model = reduce(initialModel(), { id: 'create', trace: 's', step: 0, time: 1, kind: 'session_created', input: { agent: 'kimi' } });
+  const sourceQuestions = new Map([['s', { request: 'confirm-model', questions: [{
+    header: 'Модель', question: 'Применить?', multiSelect: false,
+    options: [{ label: 'Применить', description: '' }, { label: 'Отмена', description: '' }],
+  }] }]]);
+  view.render(model, { selected: 's', projects: [], pins: {}, theme: 'system', sourceQuestions }, { state: 'connected' });
+  const button = refs.main.querySelector('.ask-send');
+  assert.ok(button);
+  button.click();
+  assert.equal(answers[0][0], 's');
+  assert.equal(answers[0][1].request, 'confirm-model');
+  assert.deepEqual(answers[0][1].answers[0].selected, ['Применить']);
 });

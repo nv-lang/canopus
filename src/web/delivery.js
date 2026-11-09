@@ -23,6 +23,7 @@ export function safeError(value) {
     [/429|rate.?limit|quota/i, t('delivery.reason_limit')],
     [/timeout|timed out|Timeout/i, t('delivery.reason_timeout')],
     [/network|offline|connect|ECONN/i, t('delivery.reason_network')],
+    [/^Смена семьи источника остановлена: драйвер не гарантирует полный перенос контекста без отдельного хода\./, t('delivery.reason_family_switch')],
     [/идёт прогон шагов/i, t('delivery.reason_running')],
     [/репозиторий результата/i, t('delivery.reason_repo')],
     [/pictures|images|изображени/i, t('delivery.reason_images')],

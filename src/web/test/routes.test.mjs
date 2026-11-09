@@ -495,7 +495,7 @@ test('заглушка: пропуск шага отмечает его проп
 test('проводка: чип режима первым в нижней панели композера, aria-label «Режим работы», шеврон через CSS; меню вверх слева; страница шлёт сигналы', () => {
   assert.equal(S['route.label'], 'Режим работы');
   assert.match(view, /const routeButton = h\(doc, 'button', \{[^}]*'aria-label': t\('route\.label'\)/);
-  assert.match(view, /class: 'box-bar', 'data-empty': 'true' \},\s*routeButton, modeButton, h\(doc, 'span', \{ class: 'grow' \}\), statusGroup, modelButton, effortButton\)/);
+  assert.match(view, /class: 'box-bar', 'data-empty': 'true' \},\s*routeButton, modeButton, h\(doc, 'span', \{ class: 'grow' \}\), statusGroup, modelButton\)/);
   assert.match(view, /class: 'composer-status', 'data-empty': 'true' \}, worktreeButton, resultRepoButton, h\(doc, 'span', \{ class: 'grow' \}\), ringBox, spinner, presetSelect\)/);
   assert.doesNotMatch(view, /routeButton\.replaceChildren\([^;]*icon\(/, 'шеврона в разметке чипа нет (он — псевдоэлементом в CSS)');
   assert.match(css, /\.box-bar \.status-btn::after \{[^}]*clip-path: polygon/);

@@ -13,14 +13,14 @@ test('группа status-group: семья отдельно, модель·ус
   assert.deepEqual(names, ['agentAnchor']);
   assert.doesNotMatch(group[1], /\b(?:modeButton|modelButton|effortButton)\b/);
   assert.doesNotMatch(view, /familyApprovals\.root/);
-  assert.match(view, /const agentAnchor = h\(doc, 'div', \{ class: 'agent-picker-anchor' \}, familyButton, menu\)/);
+  assert.match(view, /const agentAnchor = h\(doc, 'div', \{ class: 'agent-picker-anchor' \}, familyButton, effortButton, menu\)/);
   const row = view.match(/const status = h\(doc, 'div', \{ class: 'composer-status', [^}]*\}, ([^;]*)\);/);
   assert.match(row[1], /ringBox, spinner, presetSelect/);
   assert.doesNotMatch(row[1], /\b(?:routeButton|modeButton|statusGroup|modelButton|effortButton)\b/);
   // Макет 268 (new-chat.png): режим, семья, модель и усилие — одной строкой внутри карточки композера.
   const bar = view.match(/const boxBar = h\(doc, 'div', \{ class: 'box-bar', 'data-empty': 'true' \},\s*([^;]*?)\);/);
   assert.ok(bar, 'нижняя панель композера есть');
-  assert.match(bar[1], /^routeButton, modeButton, h\(doc, 'span', \{ class: 'grow' \}\), statusGroup, modelButton, effortButton$/);
+  assert.match(bar[1], /^routeButton, modeButton, h\(doc, 'span', \{ class: 'grow' \}\), statusGroup, modelButton$/);
   assert.match(view, /const box = h\(doc, 'div', \{ class: 'box' \}, attach\.row, plusButton, input,\s*recPanel, h\(doc, 'div', \{ class: 'box-row' \}, cancelButton, sendButton, micWrap\)\)/);
   assert.match(view, /box\.append\(boxBar\);/);
   assert.match(view, /boxBar\.dataset\.empty = /);

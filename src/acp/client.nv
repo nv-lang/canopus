@@ -88,6 +88,7 @@ export type AcpClient {
     active str,
     cancelling bool,
     permissions []AcpPending,
+    handoff_only bool,
     ask AskSetup,
     asks []AcpAsk,
     mcp_http bool,
@@ -352,7 +353,7 @@ export fn open_client_full(config AcpConfig, trace_path str, trace_limit int, as
             }
             mut client = AcpClient {
                 config, link, phase: "initializing", next_rpc: 0, init_rpc: -1, new_rpc: -1, prompt_rpc: -1,
-                session: "", agent: "", model_name: "", modes: JsonValue.null(), models: JsonValue.null(), choices_cfg: JsonValue.null(), mode_now: "", model_now: "", sets: []AcpSet.new(), queue: []AcpQueued.new(), active: "", cancelling: false, permissions: []AcpPending.new(), ask, asks: []AcpAsk.new(), mcp_http: false, hint_due: false,
+                session: "", agent: "", model_name: "", modes: JsonValue.null(), models: JsonValue.null(), choices_cfg: JsonValue.null(), mode_now: "", model_now: "", sets: []AcpSet.new(), queue: []AcpQueued.new(), active: "", cancelling: false, permissions: []AcpPending.new(), handoff_only: false, ask, asks: []AcpAsk.new(), mcp_http: false, hint_due: false,
                 ready, taken: []AcpInboxItem.new(), next_seq: next, stderr: "", exit_code: -2, last_error: "", trace: trace_open(trace_path, trace_limit),
                 images_ok: false, attached: []AcpImage.new(), prelude: "", presets: []AcpPreset.new(), strict_source: false, dispatch_role: "dev", dispatch_family: "", required_mode: "", settled: []AcpPreset.new(), dropped: []AcpDrop.new(), marker: marker_start(), commands: []str.new()
             }
@@ -773,7 +774,7 @@ fn AcpClient mut @on_permission(id JsonValue, params JsonValue) -> () {
         None => ()
     }
     // task 192.9: a call of the tool of the hub itself (Kimi Code asks leave for every MCP tool) is allowed once, the owner is not asked
-    if @ask.mcp_url.byte_len() > 0 {
+    if !@handoff_only && @ask.mcp_url.byte_len() > 0 {
         ro call_title = match field(params, "toolCall") {
             Some(c) => field_text(c, "title") ?? ""
             None => ""
@@ -913,8 +914,8 @@ fn AcpClient mut @drive() -> () {
     @prompt_rpc = @next_id()
     // the note about the tool of questions goes before the first prompt only
     // the hidden note of the hub (the mode of work, task 192q) goes first; it is in neither the feed nor the journal
-    mut text = if @hint_due { "${@ask.hint}\n\n${next.text}" } else { next.text }
-    @hint_due = false
+    mut text = if @hint_due && !@handoff_only { "${@ask.hint}\n\n${next.text}" } else { next.text }
+    if !@handoff_only { @hint_due = false }
     if next.pre.byte_len() > 0 { text = "${next.pre}\n\n${text}" }
     mut pictures = []JsonValue.new()
     if next.images.len() > 0 {
@@ -1223,6 +1224,23 @@ export fn AcpClient mut @close() Time -> () {
             }
         }
     }
+}
+
+export fn AcpClient mut @stage_handoff() -> () { @handoff_only = true }
+
+/// Adopt the durable inbox only after a temporary handoff has completed.
+export fn AcpClient mut @adopt_inbox(path str) -> bool {
+    if @active.byte_len() > 0 || @ready.len() > 0 || @taken.len() > 0 { return false }
+    if path.byte_len() > 0 {
+        with Fs = real_fs() {
+            ro recovered = recover_inbox(path)
+            if recovered.items.len() > 0 { return false }
+            @next_seq = recovered.next
+        }
+    }
+    @config.inbox_path = path
+    @handoff_only = false
+    true
 }
 
 /// The phase: initializing, opening, ready, dead, failed or closed.
