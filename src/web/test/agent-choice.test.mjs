@@ -291,8 +291,19 @@ for (const draft of [true, false]) test(`one model-row click commits a family/mo
     queued:()=>0,queuedItems:()=>[],onSource:(...args)=>calls.push(['real',...args]),onDraftSource:(trace,source)=>{calls.push(['draft',trace,source]);model=patchDraft(model,trace,{source});draw();}
   }});
   draw();refs.main.querySelector('.agent-picker-button').click();
-  const row=refs.main.querySelectorAll('.menu-item').find(r=>r.textContent.includes('K3'));
-  assert.ok(row);row.click();
+  const filter = refs.main.querySelector('.menu-family-filter');
+  assert.equal(filter.hidden, false);
+  assert.equal(filter.value, '');
+  assert.ok(refs.main.querySelectorAll('.menu-item').length > 1);
+  filter.value = 'kimi';
+  filter.dispatchEvent({ type: 'change', bubbles: true });
+  draw();
+  assert.equal(filter.value, 'kimi');
+  const rows = refs.main.querySelectorAll('.menu-item');
+  assert.equal(rows.length, 1);
+  assert.match(rows[0].querySelector('.menu-label').textContent, /K3/);
+  assert.equal(rows[0].querySelector('.menu-family').textContent, 'Kimi');
+  rows[0].click();
   assert.deepEqual(calls,[[draft?'draft':'real','s',{family:'kimi',model:'k3',effort:'off'}]]);
   assert.equal(refs.main.querySelector('.agent-picker-button').getAttribute('aria-expanded'),'false');
   if(draft){assert.deepEqual(model.sessions.s.source,{family:'kimi',model:'k3',effort:'off'});assert.match(refs.main.querySelector('.agent-picker-button').textContent,/k3/);}

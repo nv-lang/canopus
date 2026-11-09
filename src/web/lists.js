@@ -267,7 +267,7 @@ export function timeline(session) {
       if (diffs.length > 0) items.push({ type: 'diffs', key: `d:${m.turn}`, rows: diffs, totals: diffTotals(diffs) });
 
       if (m.status === 'refused' || m.status === 'error' || m.status === 'cancelled') {
-        items.push({ type: 'note', key: `n:${m.turn}`, tone: m.status, reason: m.reason, turn: m.turn,
+        items.push({ type: 'note', key: `n:${m.turn}`, tone: m.status, reason: m.reason, turn: m.turn, partialAnswer: m.text.trim().length > 0,
           userText: session.messages.find(u => u.role === 'user' && u.turn === m.turn)?.text ?? '' });
       } else if (m.status === 'done' && m.text.trim().length > 0) {
         items.push({ type: 'actions', key: `x:${m.turn}`, text: m.text, at: m.doneAt, turn: m.turn });

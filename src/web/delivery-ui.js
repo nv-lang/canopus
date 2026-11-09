@@ -18,7 +18,9 @@ export function deliveryCard(doc, item, actions) {
   const uncertain = item.state === 'unknown' && !item.reason;
   const canRetry = item.state === 'not_sent' && !item.images.length && actions.canRetry !== false;
   const reason = item.reason ? safeError(item.reason) : '';
-  const explanation = canRetry
+  const partial = item.partialAnswer && ['agent_error', 'agent_refused'].includes(item.state);
+  const outgoing = typeof item.text === 'string' && item.text.trim();
+  const explanation = partial ? t('delivery.partial_guidance') : canRetry
     ? t('delivery.retry_action') : t('delivery.no_retry');
   const detail = [labels[item.state] || labels.unknown, reason, explanation,
     t('delivery.state', { state: Object.hasOwn(labels, item.state) ? item.state : 'unknown' }),
@@ -26,7 +28,7 @@ export function deliveryCard(doc, item, actions) {
     t('delivery.hidden')].filter(Boolean).join('\n');
   const retry = h(doc, 'button', { type: 'button', text: t('delivery.retry'), disabled: !canRetry, title: canRetry ? t('delivery.retry_hint') : explanation });
   retry.addEventListener('click', () => { if (!canRetry || retry.disabled) return; retry.disabled = true; actions.retry(item.id); });
-  const restore = h(doc, 'button', { type: 'button', text: t('msg.restore') });
+  const restore = h(doc, 'button', { type: 'button', text: t('delivery.restore_request') });
   restore.addEventListener('click', () => actions.restore(item.text));
   const copy = h(doc, 'button', { type: 'button', text: t('delivery.copy') });
   copy.addEventListener('click', () => actions.copy(detail));
@@ -38,7 +40,7 @@ export function deliveryCard(doc, item, actions) {
     received: t('delivery.short_received'), accepted: t('delivery.short_accepted'), agent_error: t('delivery.short_agent_error'),
     agent_refused: t('delivery.short_agent_refused'), error: t('delivery.short_error'),
   };
-  const status = archived ? t('delivery.saved_error') : Object.hasOwn(shortLabels, item.state) ? shortLabels[item.state] : shortLabels.unknown;
+  const status = partial ? t('delivery.short_partial') : archived ? t('delivery.saved_error') : Object.hasOwn(shortLabels, item.state) ? shortLabels[item.state] : shortLabels.unknown;
   const head = h(doc, 'button', {
     type: 'button', class: 'delivery-head', 'aria-expanded': String(!collapsed),
     title: collapsed ? t('delivery.expand') : t('delivery.collapse'),
@@ -51,7 +53,8 @@ export function deliveryCard(doc, item, actions) {
     h(doc, 'p', { class: 'delivery-reason', text: reason || labels[item.state] || labels.unknown }),
     h(doc, 'p', { class: 'delivery-guidance', text: explanation }),
     item.images.length ? h(doc, 'p', { text: t('delivery.images') }) : false,
-    h(doc, 'div', { class: 'delivery-actions' }, ...(item.state === 'error' ? [] : [retry, restore]), ...(actions.forget ? [forget] : [])),
+    outgoing ? h(doc, 'p', { class: 'delivery-request', text: t('delivery.request_preview', { text: outgoing.length > 160 ? outgoing.slice(0, 160) + '…' : outgoing }) }) : null,
+    h(doc, 'div', { class: 'delivery-actions' }, ...(item.state === 'error' ? [] : [retry, ...(outgoing ? [restore] : [])]), ...(actions.forget ? [forget] : [])),
     h(doc, 'details', {}, h(doc, 'summary', { text: t('delivery.details') }), h(doc, 'pre', { text: detail }), copy));
   if (actions.toggle) head.addEventListener('click', () => actions.toggle(head, body));
   return h(doc, 'div', { class: archived ? 'delivery-error delivery-history' : uncertain ? 'delivery-error delivery-uncertain' : 'delivery-error', role: archived ? 'note' : 'status' }, head, body);

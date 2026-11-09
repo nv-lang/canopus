@@ -86,7 +86,7 @@ try {
   assert.match(await saved.textContent(), /Доставка неизвестна/);
   assert.equal(await saved.getByRole('button', { name: 'Повторить', exact: true }).isDisabled(), true);
   await input.fill('новый черновик');
-  await saved.getByRole('button', { name: 'Вернуть в поле ввода', exact: true }).click();
+  await saved.getByRole('button', { name: 'Скопировать мой запрос в поле ввода', exact: true }).click();
   assert.equal(await input.inputValue(), 'исчезавшее сообщение\n\nновый черновик');
   await page.reload();
   await input.waitFor();
@@ -130,6 +130,15 @@ try {
   await refused.waitFor();
   assert.equal(await refused.evaluate(el => getComputedStyle(el).color), theme.danger);
   assert.equal(await refused.locator('..').evaluate(el => getComputedStyle(el).backgroundColor), 'rgba(0, 0, 0, 0)');
+  socket.send(JSON.stringify({ id: 'partial-user', trace: 's', step: 10, kind: 'user_message', input: { turn: 'partial-turn', text: 'исходный запрос' }, time: 11 }));
+  socket.send(JSON.stringify({ id: 'partial-chunk', trace: 's', step: 11, kind: 'agent_chunk', input: { turn: 'partial-turn', text: 'начало ответа' }, time: 12 }));
+  socket.send(JSON.stringify({ id: 'partial-failure', trace: 's', step: 12, kind: 'agent_refused', input: { turn: 'partial-turn', reason: 'Timeout' }, time: 13 }));
+  await page.getByText('начало ответа', { exact: true }).waitFor();
+  const partial = page.getByRole('button', { name: /Ответ прерван.*Подробнее/ });
+  await partial.click();
+  await page.getByText('Ваш запрос: «исходный запрос»', { exact: true }).waitFor();
+  await page.locator('.delivery-body:visible').getByRole('button', { name: 'Скопировать мой запрос в поле ввода' }).click();
+  assert.match(await input.inputValue(), /^исходный запрос/);
   await page.goto(base.href);
   await page.getByRole('button', { name: 'Новая сессия в проекте Без проекта', exact: true }).click();
   await input.fill('первое сообщение без подтверждения создания');

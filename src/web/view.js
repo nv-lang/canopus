@@ -827,8 +827,10 @@ export function createView(doc, refs, deps) {
   let menuSig = '';
   let menuTrigger = null;
   const menuSearch = h(doc, 'input', { type: 'search', class: 'menu-search', placeholder: t('menu.search'), 'aria-label': t('menu.search'), autocomplete: 'off', hidden: true });
+  const familyFilter = h(doc, 'select', { class: 'menu-family-filter', 'aria-label': 'Семья моделей', hidden: true });
   const menuList = h(doc, 'div', { class: 'menu-list' });
-  menu.append(menuSearch, menuList);
+  menu.append(h(doc, 'div', { class: 'menu-controls' }, menuSearch, familyFilter), menuList);
+  let familyFilterSignature = '';
   const nameOf = (list, id) => (list.find((c) => c.id === id) || { name: '' }).name;
   // Режимы и усилие — по-русски там, где перевод известен; оригинал агента остаётся в title (labels-ru.js).
   const labelFor = (kind, list, id) => labelOf(kind, list.find((c) => c.id === id) || { name: '' });
@@ -914,10 +916,11 @@ export function createView(doc, refs, deps) {
     menu.style.setProperty('--agent-menu-right', 'auto');
   }
 
-  function menuRow({ name, description, checked, number, arrow, tip, disabled = false, onPick }) {
+  function menuRow({ name, description, family, checked, number, arrow, tip, disabled = false, onPick }) {
     const row = h(doc, 'button', { type: 'button', class: 'menu-item', role: 'menuitem', 'aria-checked': checked ? 'true' : 'false', 'aria-disabled': disabled ? 'true' : undefined, disabled: disabled || undefined, title: tip || false },
       h(doc, 'span', { class: 'menu-check' }, checked ? icon(doc, 'i-check') : false),
       h(doc, 'span', { class: 'menu-label' }, h(doc, 'span', { text: name }), description ? h(doc, 'small', { text: description }) : false),
+      family ? h(doc, 'span', { class: 'menu-family', text: family }) : false,
       arrow ? h(doc, 'span', { class: 'menu-end' }, icon(doc, 'i-chevron-right')) : h(doc, 'span', { class: 'menu-end menu-num', text: number ? String(number) : '' }));
     if (!disabled) row.addEventListener('click', onPick);
     return row;
@@ -926,11 +929,22 @@ export function createView(doc, refs, deps) {
   function renderMenu() {
     menuList.replaceChildren();
     menu.dataset.kind = menuKind || '';
+    familyFilter.hidden = menuKind !== 'agent';
     if (menuKind === 'agent') {
       menuSearch.hidden = false;
       menuSearch.placeholder = 'Поиск модели или пула';
       menuSearch.setAttribute('aria-label', 'Поиск модели или пула');
       menu.dataset.side = 'right';
+      const signature = JSON.stringify(agents.map(agent => [agent.id, agentLabel(agent.id)]));
+      if (signature !== familyFilterSignature) {
+        const previous = familyFilter.value;
+        familyFilter.replaceChildren(h(doc, 'option', { value: '', text: 'Все семьи' }),
+          ...agents.map(agent => h(doc, 'option', { value: agent.id, text: agentLabel(agent.id) })));
+        familyFilter.value = agents.some(agent => agent.id === previous) ? previous : '';
+        familyFilterSignature = signature;
+      }
+      familyFilter.hidden = agents.length < 2;
+      const family = familyFilter.hidden ? '' : familyFilter.value;
       const query = menuQuery.trim().toLocaleLowerCase();
       const rows = [];
       const sourceInfo = presets() || {};
@@ -941,35 +955,38 @@ export function createView(doc, refs, deps) {
       const metadata = rawMetadata.status === 'ready' && rawMetadata.expiresAt <= now()
         ? { ...rawMetadata, status: 'unavailable', reason: 'metadata_expired' }
         : rawMetadata;
-      rows.push(h(doc, 'div', { class: 'menu-head', text: 'Модели' }));
+      rows.push(h(doc, 'div', { class: 'menu-head menu-columns' },
+        h(doc, 'span', { text: 'Модель или пул' }), h(doc, 'span', { text: 'Семья' })));
       if (metadata.status === 'ready' && metadata.complete === false) rows.push(h(doc, 'div', { class: 'menu-head menu-catalog-partial', text: 'Каталог неполный: доступны только подтверждённые модели.' }));
       const familyModels = new Map(agents.map((agent) => [agent.id, directModelsFor(agent.id)]));
       const allModels = agents.flatMap((agent) => pickerModelsFor(agent.id, familyModels.get(agent.id)))
-        .filter((m) => !query || `${m.family} ${m.name} ${m.id}`.toLocaleLowerCase().includes(query));
+        .filter((m) => (!family || m.family === family)
+          && (!query || `${m.family} ${agentLabel(m.family)} ${m.name} ${m.id}`.toLocaleLowerCase().includes(query)));
       for (const m of allModels) {
         const chosen = source && !source.pool && source.family === m.family
           && (source.model === m.id || m.aliases?.includes(source.model));
         const chosenEffort = chosen && (m.aliases?.includes(source.model) ? codexModelVariant(source.model)?.[2] : source.effort);
         const currentEffort = m.efforts.find((option) => option.id === chosenEffort);
         const effort = currentEffort?.id || m.efforts[0]?.id || '';
-        rows.push(menuRow({ name: m.name || m.id, description: m.family, checked: chosen,
+        rows.push(menuRow({ name: m.name || m.id, family: agentLabel(m.family), checked: chosen,
           onPick: () => pickSource({ family: m.family, model: m.id, effort }) }));
       }
       for (const agent of agents) {
-        if ((familyModels.get(agent.id) || []).length) continue;
+        if ((family && agent.id !== family) || (familyModels.get(agent.id) || []).length) continue;
         const reason = metadata.status === 'loading' ? 'Каталог загружается'
           : metadata.status === 'unavailable' ? metadata.family === agent.id ? `Каталог недоступен: ${metadata.reason || 'не подтверждён'}` : 'Источник этой семьи не подтверждён'
             : metadata.status === 'ready' ? 'Для этой семьи нет подтверждённого каталога'
               : 'Каталог не подтверждён';
-        if (!query || `${agent.id} ${agentLabel(agent.id)} ${reason}`.toLocaleLowerCase().includes(query)) rows.push(menuRow({ name: agentLabel(agent.id), description: reason, disabled: true }));
+        if (!query || `${agent.id} ${agentLabel(agent.id)} ${reason}`.toLocaleLowerCase().includes(query)) rows.push(menuRow({ name: agentLabel(agent.id), description: reason, family: agentLabel(agent.id), disabled: true }));
       }
       for (const [poolName, levels] of Object.entries(pools)) for (const level of ['light', 'medium', 'heavy']) {
         const choices = Array.isArray(levels && levels[level]) ? levels[level] : [];
         for (const choice of choices) {
-          if (choice.active === false || (query && !`${poolName} ${level} ${choice.family} ${choice.model}`.toLocaleLowerCase().includes(query))) continue;
-          rows.push(menuRow({ name: `${poolName} · ${level}`, description: `${choice.family} / ${choice.model}`, checked: Boolean(source && source.pool === poolName && source.level === level), onPick: () => pickSource({ pool: poolName, level }) }));
+          if (choice.active === false || (family && choice.family !== family) || (query && !`${poolName} ${level} ${choice.family} ${choice.model}`.toLocaleLowerCase().includes(query))) continue;
+          rows.push(menuRow({ name: `${poolName} · ${level}`, description: choice.model, family: agentLabel(choice.family), checked: Boolean(source && source.pool === poolName && source.level === level), onPick: () => pickSource({ pool: poolName, level }) }));
         }
       }
+      if (!rows.some(row => row.classList.contains('menu-item'))) rows.push(h(doc, 'div', { class: 'menu-head', text: 'Ничего не найдено' }));
       menuList.append(...rows);
       menu.hidden = false;
       positionAgentMenu();
@@ -1132,12 +1149,13 @@ export function createView(doc, refs, deps) {
   }
 
   menuSearch.addEventListener('input', () => { menuQuery = menuSearch.value; renderMenu(); });
+  familyFilter.addEventListener('change', () => renderMenu());
   win?.addEventListener?.('resize', positionAgentMenu);
   // стрелки ходят по строкам, Enter в поиске берёт первую найденную
   menu.addEventListener('keydown', (e) => {
     const items = [...menuList.querySelectorAll('.menu-item')].filter((item) => !item.disabled);
     const at = items.indexOf(doc.activeElement);
-    if (e.target?.classList?.contains('effort-slider')) return;
+    if (e.target === familyFilter || e.target?.classList?.contains('effort-slider')) return;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       (items[at + 1] || items[0])?.focus();
@@ -1770,7 +1788,7 @@ export function createView(doc, refs, deps) {
         node.dataset.tone = item.tone;
         if (item.tone === 'error' || item.tone === 'refused') {
           const failureState = item.turn ? (item.tone === 'refused' ? 'agent_refused' : 'agent_error') : 'error';
-          node.replaceChildren(deliveryCard(doc, { id: item.key, state: failureState, text: item.userText || '', images: [], reason: item.reason, checking: item.checking, collapsed: !open.has(`delivery-detail:${item.key}`) }, {
+          node.replaceChildren(deliveryCard(doc, { id: item.key, state: failureState, text: item.userText || '', images: [], reason: item.reason, partialAnswer: item.partialAnswer, checking: item.checking, collapsed: !open.has(`delivery-detail:${item.key}`) }, {
             copy: text => handlers.onCopy(text), restore: text => putInField(text),
             toggle: (head, body) => toggleCard(item.key, head, body),
           }));
@@ -2090,7 +2108,7 @@ export function createView(doc, refs, deps) {
       if (saved.state === 'error' && saved.turn && session.messages.some(m => m.role === 'agent' && m.turn === saved.turn && m.status === 'done' && m.doneAt >= saved.at)) continue;
       if (saved.state !== 'error' && session.messages.some(m => m.role === 'user' && m.turn === (saved.turn || saved.clientTurn))) continue;
       const user = saved.state === 'error' && saved.turn ? session.messages.find(m => m.role === 'user' && m.turn === saved.turn) : null;
-      const card = { ...saved, checking: checking && saved.restored, ...(user ? { state: 'agent_error', text: user.text, hasUserMessage: true } : {}), retryAllowed: !session.draft && !isBusy(session.state), type: 'delivery', key: `delivery:${saved.id}` };
+      const card = { ...saved, checking: checking && saved.restored, ...(user ? { state: 'agent_error', text: user.text, hasUserMessage: true, partialAnswer: session.messages.some(m => m.role === 'agent' && m.turn === saved.turn && m.text.trim().length > 0) } : {}), retryAllowed: !session.draft && !isBusy(session.state), type: 'delivery', key: `delivery:${saved.id}` };
       const userIndex = user ? items.findIndex(item => item.type === 'user' && item.turn === saved.turn) : -1;
       if (userIndex >= 0) items.splice(userIndex + 1, 0, card);
       else if (saved.restored && saved.state === 'error') items.unshift(card);
