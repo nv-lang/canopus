@@ -106,6 +106,30 @@ try {
   await page.reload();
   await input.waitFor();
   assert.equal(await page.getByText('Агент не завершил ответ', { exact: false }).count(), 0);
+  await input.fill('проверка цвета статуса');
+  const colorFrame = frames.length;
+  await page.getByRole('button', { name: 'Отправить', exact: true }).click();
+  assert.ok(frames[colorFrame]);
+  socket.send(JSON.stringify({ id: 'received-color', trace: 's', step: 7, kind: 'error',
+    input: { client_id: frames[colorFrame].id, message: 'Timeout' }, time: 8 }));
+  const received = page.locator('.delivery-label[data-state="received"]');
+  await received.waitFor();
+  const theme = await received.evaluate(el => {
+    const style = getComputedStyle(el);
+    const sample = document.createElement('span');
+    el.append(sample);
+    const color = name => { sample.style.color = `var(${name})`; return getComputedStyle(sample).color; };
+    const result = { neutral: color('--fg'), danger: color('--danger'), received: style.color };
+    sample.remove();
+    return result;
+  });
+  assert.equal(theme.received, theme.neutral);
+  socket.send(JSON.stringify({ id: 'refused-user', trace: 's', step: 8, kind: 'user_message', input: { turn: 'refused-turn', text: 'тест отказа' }, time: 9 }));
+  socket.send(JSON.stringify({ id: 'refused-agent', trace: 's', step: 9, kind: 'agent_refused', input: { turn: 'refused-turn', reason: 'Timeout' }, time: 10 }));
+  const refused = page.locator('.delivery-label[data-state="agent_refused"]');
+  await refused.waitFor();
+  assert.equal(await refused.evaluate(el => getComputedStyle(el).color), theme.danger);
+  assert.equal(await refused.locator('..').evaluate(el => getComputedStyle(el).backgroundColor), 'rgba(0, 0, 0, 0)');
   await page.goto(base.href);
   await page.getByRole('button', { name: 'Новая сессия в проекте Без проекта', exact: true }).click();
   await input.fill('первое сообщение без подтверждения создания');

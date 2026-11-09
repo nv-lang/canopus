@@ -43,7 +43,7 @@ export function deliveryCard(doc, item, actions) {
     type: 'button', class: 'delivery-head', 'aria-expanded': String(!collapsed),
     title: collapsed ? t('delivery.expand') : t('delivery.collapse'),
   },
-    h(doc, 'span', { class: 'delivery-label', 'data-warning': String(!archived && ['not_sent', 'agent_error', 'agent_refused', 'error'].includes(item.state)), text: status }),
+    h(doc, 'span', { class: 'delivery-label', 'data-state': item.state, 'data-warning': String(!archived && ['not_sent', 'agent_error', 'agent_refused', 'error'].includes(item.state)), text: status }),
     h(doc, 'span', { class: 'delivery-more', text: t('delivery.more') }),
     icon(doc, 'i-chevron-right', 'chev'));
   const body = h(doc, 'div', { class: 'delivery-body', hidden: collapsed },
