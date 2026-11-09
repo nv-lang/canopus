@@ -50,6 +50,7 @@ type Dialog {
     clients []AcpClient,
     turn str,
     lines []str,
+    dispatch DispatchHistory,
     announced bool,
     model_announced bool,
     started_at int,
@@ -61,6 +62,50 @@ type Dialog {
     rt RouteSession,
     chosen []SavedChoice,
     preset str
+}
+
+// The dispatch facts are projected from accepted inputs during live delivery and journal replay.
+type DispatchHistory {
+    receipts JsonObject,
+    source Option[JsonObject],
+    pinned Option[JsonObject],
+    selected Option[JsonObject],
+    role str,
+    weight str,
+    has_messages bool
+}
+
+fn dispatch_history_new() -> DispatchHistory {
+    DispatchHistory { receipts: JsonObject.new(), source: None, pinned: None, selected: None, role: "dev", weight: "", has_messages: false }
+}
+
+fn DispatchHistory mut @accept(e Incoming) -> () {
+    if e.kind != EventKind.Input { return }
+    if e.name == "user_message" {
+        @has_messages = true
+    } else if e.name == "message_delivery" {
+        match jobject(e.input) {
+            Some(receipt) => {
+                ro id = jtext(receipt, "client_id")
+                if id.byte_len() > 0 { jput(@receipts, id, JsonValue.object(receipt)) }
+            }
+            None => ()
+        }
+    } else if e.name == "session_preset" {
+        ro assignment = jobject(e.input) ?? JsonObject.new()
+        ro role = jtext(assignment, "role")
+        @role = if role.byte_len() == 0 { "dev" } else { role }
+        @weight = jtext(assignment, "weight")
+        @source = None
+        @pinned = None
+    } else if e.name == "session_source" {
+        @source = jobject(e.input)
+        @pinned = None
+    } else if e.name == "agent_selected" {
+        @pinned = jobject(e.input)
+    } else if e.name == "agent_selection" {
+        @selected = jobject(e.input)
+    }
 }
 
 // A choice of the owner (task 192t), kept per family: the agent, the setting (`mode`, `model`, `effort`) and the id chosen.
@@ -317,6 +362,7 @@ fn history_in(pg bool, root str, mut s Dialog) -> []Incoming {
 
 // The page line of an accepted event, None - the page has no kind for it. `s.turn` follows the user messages.
 fn line_of(mut s Dialog, e Incoming) -> Option[str] {
+    s.dispatch.accept(e)
     if e.kind == EventKind.Input && e.name == "user_message" { s.turn = e.id }
     ro shown = Incoming { id: "${s.id}/${e.id}", trace: s.id, step: e.step, kind: e.kind, name: e.name, request: e.request, input: e.input, at: e.at }
     page_event(shown, s.turn)
@@ -867,7 +913,7 @@ fn Hub mut @resume_session(id str) Proc Detach Time -> () {
     match resume_stored(pg, root, world, @machine, id) {
         None => @say_log("the session ${id} cannot be resumed: no usable snapshot")
         Some(engine) => {
-            mut s = Dialog { id, name: id, agent: "", engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), announced: false, model_announced: false, started_at: 0, slow_told: false, folder: "", project_id: "", has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
+            mut s = Dialog { id, name: id, agent: "", engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), dispatch: dispatch_history_new(), announced: false, model_announced: false, started_at: 0, slow_told: false, folder: "", project_id: "", has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
             mut saw_created = false
             // the questions of the MCP tool the journal shows open (task 263): they wait for the owner again after the restart, marked
             // late — the call of the agent died with the process, so the answer reaches the agent as a letter
@@ -1022,7 +1068,7 @@ fn Hub mut @cs_make_session(cid str, name str, agent str, folder str, project_id
     ro root = @settings.data_dir
     mut world = PgWorld.open(@settings.pg, cid)
     ro engine = begin_session_engine(pg, root, world, @machine, cid)
-    mut s = Dialog { id: cid, name, agent, engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), announced: false, model_announced: false, started_at: 0, slow_told: false, folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
+    mut s = Dialog { id: cid, name, agent, engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), dispatch: dispatch_history_new(), announced: false, model_announced: false, started_at: 0, slow_told: false, folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
     accept_in(pg, root, s, Incoming.signal("session_created", meta_text_child(name, agent, folder, "", project_id, parent, pkind)))
     @add_session(s)
     ro at = @sessions.len() - 1
@@ -1072,7 +1118,7 @@ fn Hub mut @create(conn int, trace str, input JsonObject) Proc Detach Time -> ()
             ro root = @settings.data_dir
             mut world = PgWorld.open(@settings.pg, trace)
             ro engine = begin_session_engine(pg, root, world, @machine, trace)
-            mut s = Dialog { id: trace, name, agent, engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), announced: false, model_announced: false, started_at: 0, slow_told: false, folder: launch.folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
+            mut s = Dialog { id: trace, name, agent, engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), dispatch: dispatch_history_new(), announced: false, model_announced: false, started_at: 0, slow_told: false, folder: launch.folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
             accept_in(pg, root, s, Incoming.signal("session_created", meta_text(name, agent, launch.folder, project, project_id)))
             @add_session(s)
             ro at = @sessions.len() - 1
@@ -1540,14 +1586,7 @@ fn Hub @preset_family_of(s Dialog, role str) Fs -> str {
     }
 }
 
-fn Hub @assignment_weight(s Dialog) -> str {
-    mut weight = ""
-    mut snapshot = Dialog { ...s }
-    for e in history_in(@settings.store == "pg", @settings.data_dir, snapshot) {
-        if e.kind == EventKind.Input && e.name == "session_preset" { weight = jtext(jobject(e.input) ?? JsonObject.new(), "weight") }
-    }
-    weight
-}
+fn Hub @assignment_weight(s Dialog) -> str => s.dispatch.weight
 
 fn Hub @available_sources(exclude str) -> []PoolEntry {
     mut available = []PoolEntry.new()
@@ -1869,25 +1908,10 @@ fn Hub mut @set_source(trace str, input JsonObject) Proc Detach Time -> () {
 fn Hub mut @source_for_turn(trace str) Proc Detach Time -> bool {
     ro at = @find(trace)
     mut s = @sessions[at]
-    mut source Option[JsonObject] = None
-    mut pinned Option[JsonObject] = None
-    mut role = "dev"
-    mut weight = ""
-    for e in history_in(@settings.store == "pg", @settings.data_dir, s) {
-        if e.kind == EventKind.Input && e.name == "session_preset" {
-            ro assignment = jobject(e.input) ?? JsonObject.new()
-            role = jtext(assignment, "role")
-            if role.byte_len() == 0 { role = "dev" }
-            weight = jtext(assignment, "weight")
-            source = None
-            pinned = None
-        }
-        if e.kind == EventKind.Input && e.name == "session_source" {
-            source = jobject(e.input)
-            pinned = None
-        }
-        if e.kind == EventKind.Input && e.name == "agent_selected" { pinned = jobject(e.input) }
-    }
+    mut source = s.dispatch.source
+    ro pinned = s.dispatch.pinned
+    ro role = s.dispatch.role
+    ro weight = s.dispatch.weight
     if source.is_none() {
         // D454: boundary override inside non-test code, see module-conventions
         match with Fs = real_fs() { load_presets(@settings.layout, @settings.route_reviewer_order) } {
@@ -1952,13 +1976,9 @@ fn Hub mut @source_for_turn(trace str) Proc Detach Time -> bool {
         }
         None => ()
     }
-    if s.agent != actual.family {
-        for e in history_in(@settings.store == "pg", @settings.data_dir, s) {
-            if e.kind == EventKind.Input && e.name == "user_message" {
-                @tell_error(0, trace, s.engine.step_number(), "", "Смена семьи источника остановлена: драйвер не гарантирует полный перенос контекста без отдельного хода. Сообщение не отправлено; история сохранена.")
-                return false
-            }
-        }
+    if s.agent != actual.family && s.dispatch.has_messages {
+        @tell_error(0, trace, s.engine.step_number(), "", "Смена семьи источника остановлена: драйвер не гарантирует полный перенос контекста без отдельного хода. Сообщение не отправлено; история сохранена.")
+        return false
     }
     if !@work_allowed(at, "execute") {
         if actual.family != s.agent {
@@ -2100,25 +2120,12 @@ export fn Hub mut @handle(conn int, text str) Proc Detach Time -> () {
             mut s = @sessions[before_at]
             previous_turn = s.turn
             if client_id.byte_len() > 0 {
-                mut known_text = ""
-                for e in history_in(@settings.store == "pg", @settings.data_dir, s) {
-                    if e.name == "message_delivery" {
-                        match jobject(e.input) {
-                            Some(receipt) => {
-                                if jtext(receipt, "client_id") == client_id {
-                                    known_text = e.input
-                                }
-                            }
-                            None => ()
-                        }
+                match jchild(s.dispatch.receipts, client_id) {
+                    Some(known) => {
+                        @send(conn, event_line("delivery-${client_id}", trace, s.engine.step_number(), "message_delivery", known, now_millis()))
+                        return
                     }
-                }
-                if known_text.byte_len() > 0 {
-                    match jobject(known_text) {
-                        Some(known) => @send(conn, event_line("delivery-${client_id}", trace, s.engine.step_number(), "message_delivery", known, now_millis()))
-                        None => ()
-                    }
-                    return
+                    None => ()
                 }
                 // Persist a receipt BEFORE a possible side effect. A crash between this and the final receipt is
                 // deliberately an uncertain outcome, never permission to send the same message again.
@@ -2296,11 +2303,7 @@ fn Hub mut @watch_agent(at int) Time -> () {
         if !s.model_announced {
             s.model_announced = true
             accept_in(@settings.store == "pg", @settings.data_dir, s, Incoming.signal("agent_model", s.clients[0].options()))
-            mut selected Option[JsonObject] = None
-            for e in history_in(@settings.store == "pg", @settings.data_dir, s) {
-                if e.kind == EventKind.Input && e.name == "agent_selection" { selected = jobject(e.input) }
-            }
-            match selected {
+            match s.dispatch.selected {
                 Some(o) => {
                     if jtext(o, "family") == s.agent {
                         mut confirmed = JsonObject.new()
