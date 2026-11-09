@@ -1141,6 +1141,9 @@ body { font-size: 14px; line-height: 1.55; letter-spacing: .005em; }
 .dialog.picker { width: min(520px, 100%); }
 .dialog.env { width: min(600px, 100%); }
 .dialog.modal p { margin: 0 0 8px; }
+.dialog[aria-labelledby="workspace-title"] > .field + .field { margin-top: 14px; }
+.dialog[aria-labelledby="workspace-title"] > .field + p { margin-top: 12px; }
+.dialog[aria-labelledby="workspace-title"] > .actions { margin-top: 16px; }
 .mono { font-family: var(--font-mono); font-size: 13px; }
 .proj-form { display: grid; gap: 16px; }
 .field { display: grid; gap: 6px; font-size: 13px; color: var(--fg-muted); }
