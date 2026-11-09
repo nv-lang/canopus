@@ -98,6 +98,20 @@ test('tool_call заводит инструмент, tool_call_update меняе
   assert.equal(tool.turn, 't1');
 });
 
+test('command survives output updates and duration uses the first running and terminal events', () => {
+  const m = run([
+    ...base(),
+    ev('tool_call', { id: 'cmd', title: 'Bash', kind: 'execute', status: 'pending' }, { step: 2 }),
+    ev('tool_call_update', { id: 'cmd', status: 'in_progress', detail: '{"command":"ls doc/tasks"}' }, { step: 3, time: 2000 }),
+    ev('tool_call_update', { id: 'cmd', status: 'completed', detail: 'result' }, { step: 4, time: 4500 }),
+    ev('tool_call_update', { id: 'cmd', detail: 'final output' }, { step: 5, time: 5000 }),
+  ]);
+  const [tool] = m.sessions.s1.tools;
+  assert.equal(tool.command, 'ls doc/tasks');
+  assert.equal(tool.detail, 'final output');
+  assert.equal(tool.finishedAt - tool.startedAt, 2500);
+});
+
 test('tool_call: неизвестные вид и состояние приводятся к other и pending, без id — пропуск', () => {
   const m = run([
     ...base(),

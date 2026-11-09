@@ -228,6 +228,12 @@ function lastTurn(session) {
   return '';
 }
 
+function toolCommand(detail) {
+  if (!detail.startsWith('{')) return '';
+  try { return str(JSON.parse(detail)?.command); }
+  catch { return ''; }
+}
+
 function apply(session, event) {
   const { input } = event;
   const turn = str(input.turn) || lastTurn(session);
@@ -465,15 +471,19 @@ function apply(session, event) {
     case 'tool_call': {
       const id = str(input.id);
       if (!id || session.tools.some((x) => x.id === id)) return session;
+      const detail = str(input.detail);
+      const status = pick(input.status, TOOL_STATUSES, 'pending');
+      const kind = pick(input.kind, TOOL_KINDS, 'other');
       const tool = {
         id,
         turn,
         step: event.step,
         updatedStep: event.step,
         title: str(input.title, id),
-        kind: pick(input.kind, TOOL_KINDS, 'other'),
-        status: pick(input.status, TOOL_STATUSES, 'pending'),
-        detail: str(input.detail),
+        kind, status, detail,
+        command: kind === 'execute' ? toolCommand(detail) : '',
+        startedAt: status === 'in_progress' ? event.time : null,
+        finishedAt: null,
       };
       return { ...session, tools: [...session.tools, tool] };
     }
@@ -485,7 +495,10 @@ function apply(session, event) {
       const status = pick(input.status, TOOL_STATUSES, old.status);
       const detail = typeof input.detail === 'string' ? input.detail : old.detail;
       if (status === old.status && detail === old.detail) return session;
-      return { ...session, tools: session.tools.map((x, j) => (j === i ? { ...old, status, detail, updatedStep: event.step } : x)) };
+      const startedAt = old.startedAt ?? (status === 'in_progress' ? event.time : null);
+      const finishedAt = old.finishedAt ?? (['completed', 'failed', 'cancelled'].includes(status) ? event.time : null);
+      const command = (old.kind === 'execute' && toolCommand(detail)) || old.command;
+      return { ...session, tools: session.tools.map((x, j) => (j === i ? { ...old, status, detail, command, startedAt, finishedAt, updatedStep: event.step } : x)) };
     }
 
     case 'output_file': {

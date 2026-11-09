@@ -108,6 +108,10 @@ test('timeline: подряд идущие рабочие строки — одн
   assert.deepEqual(items[1].rows.map((r) => r.type), ['tool', 'task']);
   assert.deepEqual(st.workSummary(items[1].rows), { count: 2, failed: 0, running: 1 });
   assert.deepEqual(st.workSummary(items[3].rows), { count: 1, failed: 1, running: 0 });
+  assert.equal(items[1].active, undefined);
+  assert.equal(items[3].active, true);
+  const done = st.reduce(m, ev('agent_done', { turn: 't1' }, 6));
+  assert.ok(st.timeline(done.sessions.s).filter(item => item.type === 'work').every(item => !item.active));
 });
 
 test('timeline: запрос разрешения входит в группу строкой perm, решение видно в ней', () => {

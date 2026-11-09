@@ -231,7 +231,8 @@ export function timeline(session) {
       own.forEach((r) => emitted.add(r.key));
       const stream = [
         ...m.chunks.map((c) => ({ chunk: c, step: c.step, order: 0 })),
-        ...own.map((r) => ({ row: r, step: r.step, order: 1 })),
+        ...own.map((r) => ({ row: m.status !== 'streaming' && r.type === 'tool' && ['pending', 'in_progress'].includes(r.status)
+          ? { ...r, status: 'unreported' } : r, step: r.step, order: 1 })),
       ].sort((a, b) => (a.step - b.step) || (a.order - b.order));
 
       const content = [];
@@ -253,7 +254,8 @@ export function timeline(session) {
       flushText();
       flushGroup();
       const last = content[content.length - 1];
-      if (last && last.type === 'text' && m.status === 'streaming') last.streaming = true;
+      if (m.status === 'streaming' && last?.type === 'text') last.streaming = true;
+      if (m.status === 'streaming' && last?.type === 'work' && m.turn === lastAgentTurn) last.active = true;
       if (m.status === 'done' && m.text.trim().length > 0) {
         items.push({ type: 'author', key: `author:${m.turn}`, actual: m.actual || null, turn: m.turn });
       }

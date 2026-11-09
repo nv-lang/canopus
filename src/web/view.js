@@ -63,12 +63,13 @@ const TOOL_LABEL = {
 };
 const TOOL_STATUS = {
   pending: 'status.pending', in_progress: 'status.in_progress', completed: 'status.completed',
-  failed: 'status.failed', cancelled: 'status.cancelled',
+  failed: 'status.failed', cancelled: 'status.cancelled', unreported: 'work.unreported',
 };
 const TASK_STATUS = {
   running: 'task.running', completed: 'task.completed', failed: 'task.failed', stopped: 'task.stopped',
 };
 const USAGE_STEP_KEY = { one: 'usage.step_one', few: 'usage.step_few', many: 'usage.step_many' };
+const TOOL_RESULT_ICON = { pending: 'i-clock', in_progress: 'i-play', completed: 'i-check2', failed: 'i-x', cancelled: 'i-stop', unreported: 'i-dot' };
 const TASK_ICON = { running: 'i-clock', completed: 'i-check', failed: 'i-x', stopped: 'i-stop' };
 const PERM_ICON = { allow: 'i-check', deny: 'i-x', cancelled: 'i-stop', wait: 'i-clock' };
 const FILE_ICON = { create: 'i-file-plus', edit: 'i-file-edit', delete: 'i-file-x' };
@@ -99,6 +100,7 @@ export function createView(doc, refs, deps) {
   const win = doc.defaultView;
   const drafts = createDraftStore((() => { try { return win?.localStorage; } catch { return null; } })());
   const attachDrafts = new Map(); // вложения по сессиям: как черновик, живут до отправки
+  const workToggles = new Map();
   const open = new Set(); // раскрытые строки и карточки по ключу: переживают перерисовку
   let query = '';
   let railOpen = null; // null — «как задано шириной», true/false — выбор владельца
@@ -1571,7 +1573,15 @@ export function createView(doc, refs, deps) {
   }
 
   function rowStatus(r) {
-    if (r.type === 'tool') return h(doc, 'span', { class: 'row-status', text: t(TOOL_STATUS[r.status]) });
+    if (r.type === 'tool') {
+      const started = r.startedAt > 0;
+      const live = r.status === 'in_progress' && started;
+      const elapsed = started && r.finishedAt >= r.startedAt;
+      return h(doc, 'span', { class: 'row-status' }, icon(doc, TOOL_RESULT_ICON[r.status]),
+        h(doc, 'span', { text: t(TOOL_STATUS[r.status]) }),
+        live || elapsed ? h(doc, 'span', { class: 'row-duration', 'data-since': live ? r.startedAt : undefined,
+          text: durationText((live ? now() : r.finishedAt) - r.startedAt) }) : false);
+    }
     if (r.type === 'task') {
       return r.finishedAt === null
         ? h(doc, 'span', { class: 'row-status', 'data-since': r.started, text: durationText(now() - r.started) })
@@ -1588,7 +1598,8 @@ export function createView(doc, refs, deps) {
       rowIcon(r),
       h(doc, 'div', { class: 'row-main' },
         h(doc, 'div', { class: 'row-label', text: rowLabel(r) }),
-        detail ? h(doc, 'div', { class: 'row-detail', text: detail }) : false),
+        r.command ? h(doc, 'code', { class: 'row-command', text: r.command }) : false,
+        detail && (!r.command || detail !== JSON.stringify({ command: r.command })) ? h(doc, 'div', { class: 'row-detail', text: detail }) : false),
       rowStatus(r));
   }
 
@@ -1610,19 +1621,23 @@ export function createView(doc, refs, deps) {
 
   function fillWork(entry, item) {
     const single = item.rows.length === 1 ? item.rows[0] : null;
-    const isOpen = open.has(item.key);
-    const label = single ? rowLabel(single) : summaryText(workSummary(item.rows));
+    const key = `${currentTrace}:${item.key}`;
+    const override = workToggles.get(key);
+    const active = item.active === true;
+    const isOpen = override?.active === active ? override.open : active;
+    const label = active ? t('work.current', { n: item.rows.length })
+      : single ? rowLabel(single) : summaryText(workSummary(item.rows));
     const toggle = h(doc, 'button', { type: 'button', class: 'disclosure', 'aria-expanded': String(isOpen), 'data-state': single ? rowState(single) : 'group' },
-      single ? rowIcon(single) : icon(doc, 'i-bolt'),
+      icon(doc, 'i-chevron-right', 'chev'),
       h(doc, 'span', { class: 'disc-text', text: label }),
-      single ? rowStatus(single) : false,
-      icon(doc, 'i-chevron-right', 'chev'));
-    const body = h(doc, 'div', { class: 'work-body', hidden: !isOpen }, ...(single ? [single] : item.rows).map((r) => workRow(r)));
-    if (single && !single.detail) {
-      // у одиночной строки без подробностей раскрывать нечего: показываем то, что есть
-      body.replaceChildren(h(doc, 'div', { class: 'work-row' }, h(doc, 'div', { class: 'row-main row-detail', text: t('work.no_detail') })));
-    }
-    toggle.addEventListener('click', () => toggleOpen(item.key, toggle, body));
+      single && !active ? rowStatus(single) : false);
+    const body = h(doc, 'div', { class: 'work-body', hidden: !isOpen }, ...item.rows.map(workRow));
+    toggle.addEventListener('click', () => {
+      const next = toggle.getAttribute('aria-expanded') !== 'true';
+      workToggles.set(key, { active, open: next });
+      toggle.setAttribute('aria-expanded', String(next));
+      body.hidden = !next;
+    });
     entry.node.replaceChildren(toggle, body);
   }
 

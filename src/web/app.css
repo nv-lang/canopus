@@ -555,10 +555,17 @@ pre code { font: inherit; }
 }
 .work-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 8px; padding: 5px 0; align-items: start; }
 .work-row .icon { margin-top: 3px; }
+.item-work .disclosure { min-height: 32px; width: fit-content; max-width: 100%; }
+.item-work .disclosure:hover { background: var(--hover); }
+.row-command { display: block; margin-block: 2px; color: var(--fg); overflow-wrap: anywhere; }
 .work-row[data-state="failed"] .icon { color: var(--danger); }
 .row-label { overflow-wrap: anywhere; }
 .row-detail { font: 13px/1.5 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
-.row-status { font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.row-status { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.row-status .icon { width: 13px; height: 13px; margin: 0; }
+[data-state="completed"] .row-status .icon { color: var(--ok); }
+[data-state="in_progress"] .row-status .icon { color: var(--accent); }
+.row-duration { margin-inline-start: 4px; white-space: nowrap; }
 
 .card {
   padding: 12px 16px;
