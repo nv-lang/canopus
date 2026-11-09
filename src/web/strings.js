@@ -155,7 +155,7 @@ export const S = Object.freeze({
   'handoff.preparing': 'Готовим контекст для {agent}…',
   'handoff.failed': 'Перенос не удался. Прежний агент активен, текст остался в поле ввода.',
   'handoff.unconfirmed': 'Перенос не подтверждён. Текст остался в поле ввода. Проверьте выбранного агента.',
-  'delivery.checking': 'Сверяем состояние сообщений…',
+  'delivery.checking': 'Проверяем доставку…',
   'delivery.more': 'Подробнее',
   'delivery.short_unknown': '◷ Доставка не подтверждена',
   'delivery.short_received': '◷ Приём агентом не подтверждён',

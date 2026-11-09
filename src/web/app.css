@@ -1556,3 +1556,11 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .handoff-hint[data-phase="preparing"]::before { content: ""; display: inline-block; width: 9px; height: 9px; margin-inline-end: 8px; border: 1px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
 @media (prefers-reduced-motion: reduce) { .handoff-hint[data-phase="preparing"]::before { animation: none; } }
 .handoff-hint[data-phase="error"] { color: var(--warn); }
+
+.box > textarea { flex-basis: 100%; margin: 0; padding-inline: 8px; }
+.box-bar { flex-wrap: wrap; }
+.box-bar .box-row { margin: 0; }
+.composer-status { flex-wrap: nowrap; }
+.composer-status .worktree-chip, .where-note { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.composer-status .worktree-chip { flex: 0 1 auto; }
+.worktree-chip > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }

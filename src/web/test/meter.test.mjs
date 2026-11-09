@@ -89,9 +89,10 @@ const viewSrc = fs.readFileSync(new URL('../view.js', import.meta.url), 'utf8');
 const cssSrc = fs.readFileSync(new URL('../app.css', import.meta.url), 'utf8');
 
 test('карточка: «+», поле, затем панель записи (таймер и дорожка) и строка кнопок (отмена, отправка, микрофон); «↵» в записи нет', () => {
-  const box = viewSrc.match(/const box = h\(doc, 'div', \{ class: 'box' \}, attach\.row, plusButton, input,\s*([^;]*)\);/);
+  const box = viewSrc.match(/const box = h\(doc, 'div', \{ class: 'box' \}, attach\.row, input,\s*([^;]*)\);/);
   assert.ok(box, 'карточка найдена');
-  assert.match(box[1], /^recPanel, h\(doc, 'div', \{ class: 'box-row' \}, cancelButton, sendButton, micWrap\)/);
+  assert.equal(box[1], 'recPanel');
+  assert.match(viewSrc, /class: 'box-row' \}, micWrap, cancelButton, sendButton\)/);
   assert.match(viewSrc, /const recPanel = h\(doc, 'div', \{ class: 'rec-panel' \}, micTimer, wave\);/);
   assert.match(viewSrc, /const micWrap = h\(doc, 'div', \{ class: 'mic-wrap' \}, micButton, micMore, voiceMenu\);/);
   assert.ok(!/enterButton|enter-btn/.test(viewSrc + cssSrc), 'кнопки «↵» в записи нет');
@@ -228,7 +229,7 @@ test('подсказки кнопок карточки — тёмные (data-ti
 
 test('кнопка «+» слева в карточке открывает выбор изображений: скрытый input type=file accept=image/* multiple', async () => {
   const attachUi = fs.readFileSync(new URL('../attach-ui.js', import.meta.url), 'utf8');
-  assert.match(viewSrc, /const box = h\(doc, 'div', \{ class: 'box' \}, attach\.row, plusButton, input,/);
+  assert.match(viewSrc, /const box = h\(doc, 'div', \{ class: 'box' \}, attach\.row, input,/);
   assert.match(viewSrc, /attach\.bindPicker\(plusButton\)/);
   assert.match(attachUi, /chooser\.type = 'file';\s*chooser\.accept = pickerAccept\(\);\s*chooser\.multiple = true;/);
   assert.match(attachUi, /button\.addEventListener\('click', \(\) => chooser\.click\(\)\)/);

@@ -139,7 +139,7 @@ test('Worktree новой сессии: по умолчанию выключен
   assert.match(app, /try \{ return globalThis\.localStorage\.getItem\(WORKTREE_KEY\) === '1'; \} catch/);
   assert.equal(t('where.draft_off'), 'работа пойдёт прямо в папке проекта');
   const view = fs.readFileSync(new URL('../view.js', import.meta.url), 'utf8');
-  assert.match(view, /const where = session\.draft \? \(noProject \? t\('where\.draft_no_project'\) : noRepo \? t\('where\.draft_folder'\)/);
+  assert.match(view, /whereNote\.textContent = whereNote\.hidden \? '' : whereText\(session\)/);
   assert.match(view, /workspaceText = noProject \? t\('where\.projectless_workspace'\)/);
   assert.equal(t('where.draft_no_project'), 'Переписка и черновик остаются в данных сессии; проект не выбран');
 });

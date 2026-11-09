@@ -74,7 +74,8 @@ test('restored errors show only a neutral reconciliation status while loading', 
   const doc = createFakeDocument();
   const row = deliveryCard(doc, { checking: true, state: 'received', reason: 'offline', images: [] }, {});
   assert.equal(row.getAttribute('role'), 'status');
-  assert.equal(row.textContent, 'Сверяем состояние сообщений…');
+  assert.equal(row.getAttribute('aria-label'), 'Проверяем доставку…');
+  assert.match(row.textContent, /^[А-ЯЁ][а-яё ]+…$/u);
   assert.equal(row.querySelector('button'), null);
 });
 

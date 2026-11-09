@@ -2,10 +2,20 @@ import { h, icon } from './dom.js';
 import { safeError } from './delivery.js';
 import { t } from './strings.js';
 
+const loadingWords = {
+  ru: 'Проверяем|Уточняем|Обновляем|Синхронизируем|Сопоставляем|Загружаем|Готовим|Собираем|Настраиваем|Подключаемся|Восстанавливаем|Читаем|Вычисляем|Обрабатываем|Упорядочиваем|Согласуем|Разбираем|Сверяем|Подготавливаем|Приводим в порядок'.split('|'),
+  en: 'Checking|Verifying|Updating|Syncing|Matching|Loading|Preparing|Gathering|Configuring|Connecting|Restoring|Reading|Calculating|Processing|Organizing|Coordinating|Parsing|Comparing|Arranging|Putting things in order'.split('|'),
+};
+export function deliveryLoadingWord(language, previous = '') {
+  const words = loadingWords[/^en(?:-|$)/i.test(language || '') ? 'en' : 'ru'];
+  const choices = words.filter(word => word + '…' !== previous);
+  return choices[Math.floor(Math.random() * choices.length)] + '…';
+}
+
 // Карточка сбоя доставки: сворачивается в компактную строку (иконка, краткая причина, кнопка раскрытия).
 // Сообщение и ошибка не скрываются из модели и не удаляются: свёрнутость — только вид тела карточки.
 export function deliveryCard(doc, item, actions) {
-  if (item.checking) return h(doc, 'div', { class: 'delivery-pending', role: 'status', text: t('delivery.checking') });
+  if (item.checking) return h(doc, 'div', { class: 'delivery-pending', role: 'status', 'aria-label': t('delivery.checking'), 'data-delivery-loading': '', text: deliveryLoadingWord(doc.defaultView?.navigator?.language) });
   const archived = item.restored === true && item.state === 'error';
   const timestamp = Number.isFinite(item.at) && item.at > 0 ? new Date(item.at).toLocaleString('ru-RU') : '';
   const labels = {

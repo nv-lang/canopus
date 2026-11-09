@@ -29,7 +29,7 @@ import { createCanopusTaskUi } from './canopus-task-ui.js';
 import { subWaitsText } from './canopus-task.js';
 import { labelOf } from './labels-ru.js';
 import { createDraftStore, safeError, restoreText, afterSendText } from './delivery.js';
-import { deliveryCard } from './delivery-ui.js';
+import { deliveryCard, deliveryLoadingWord } from './delivery-ui.js';
 import {
   createForm, selectOption, setOtherText, setCursor, moveCursor, setActive, isAnswered, nextUnanswered, canSubmit,
   markSent, buildAnswer, buildSkip, digitOption, otherIndex,
@@ -549,8 +549,7 @@ export function createView(doc, refs, deps) {
   // панель записи (таймер и дорожка) лежит поверх карточки справа от места микрофона: ширина поля не меняется
   const recPanel = h(doc, 'div', { class: 'rec-panel' }, micTimer, wave);
   const plusButton = h(doc, 'button', { type: 'button', class: 'plus-btn', title: t('images.add'), 'aria-label': t('images.add') }, icon(doc, 'i-plus'));
-  const box = h(doc, 'div', { class: 'box' }, attach.row, plusButton, input,
-    recPanel, h(doc, 'div', { class: 'box-row' }, cancelButton, sendButton, micWrap));
+  const box = h(doc, 'div', { class: 'box' }, attach.row, input, recPanel);
   attach.bindPicker(plusButton);
   attach.bindPaste(input);
   attach.bindDrop(box);
@@ -813,9 +812,10 @@ export function createView(doc, refs, deps) {
   // Композиция нижней панели по макету 268 (task/design/new-chat.png): режим, семья, модель и усилие —
   // пилюли одной строкой ВНУТРИ карточки композера, а не отдельной строкой под ней.
   const boxBar = h(doc, 'div', { class: 'box-bar', 'data-empty': 'true' },
-    routeButton, modeButton, h(doc, 'span', { class: 'grow' }), statusGroup, modelButton);
+    plusButton, routeButton, modeButton, h(doc, 'span', { class: 'grow' }), statusGroup, modelButton,
+    h(doc, 'div', { class: 'box-row' }, micWrap, cancelButton, sendButton));
   box.append(boxBar);
-  const status = h(doc, 'div', { class: 'composer-status', 'data-empty': 'true' }, worktreeButton, resultRepoButton, h(doc, 'span', { class: 'grow' }), ringBox, spinner, presetSelect);
+  const status = h(doc, 'div', { class: 'composer-status', 'data-empty': 'true' }, worktreeButton, whereNote, resultRepoButton, h(doc, 'span', { class: 'grow' }), ringBox, spinner, presetSelect);
 
   // Меню выбора режима, модели и усилия (задача 192): показывает только то, что агент отдал по ACP.
   // Задача 265: сюда же меню репозитория результата ('result').
@@ -1406,8 +1406,7 @@ export function createView(doc, refs, deps) {
     box,
     voiceHint,
     queueButton,
-    status,
-    whereNote);
+    status);
 
   // Кнопка «вниз»: круглая, по центру над полем; есть, только когда лента не в самом низу; точка — пришло новое, пока читали выше.
   const jumpButton = h(doc, 'button', { type: 'button', class: 'jump-btn', hidden: true, title: t('chat.to_bottom'), 'aria-label': t('chat.to_bottom') },
@@ -2012,9 +2011,16 @@ export function createView(doc, refs, deps) {
     worktreeButton.disabled = hasTree || preparingTree || Boolean(task && task.id !== 'draft') || busy || noRepo;
     const sourceBranch = session.draft ? session.sourceBranch : (session.routeState && session.routeState.sourceBranch);
     const noProject = !session.projectId;
-    const workspaceText = noProject ? t('where.projectless_workspace') : noRepo ? 'В папке проекта нет Git' : `${session.project || 'Проект'} · ${sourceBranch ? sourceBranch.replace(/^refs\/(heads|remotes)\//, '') : 'Исходная ветка'} · ${hasTree || treeOn ? 'Отдельная папка' : 'Папка проекта'}`;
-    worktreeButton.replaceChildren(icon(doc, 'i-branch'), h(doc, 'span', { text: workspaceText }));
-    worktreeButton.title = noProject ? t('where.projectless_workspace') : noRepo ? t('route.worktree_not_repo') : hasTree || preparingTree ? t('route.worktree_locked') : `${workspaceText} — исходная ветка и рабочая папка`;
+    const location = session.routeState?.where;
+    const folder = task?.worktree || location?.worktree || session.folder;
+    const folderName = folder?.split(/[\\/]/).filter(Boolean).pop() || session.project || 'Папка проекта';
+    const branch = (task?.branch || location?.branch || session.branch || sourceBranch || '').replace(/^refs\/(heads|remotes)\//, '');
+    const workspaceText = noProject ? t('where.projectless_workspace') : [folderName, branch, (hasTree || treeOn) && !noRepo ? 'Отдельная копия' : 'Локально'].filter(Boolean).join(' · ');
+    worktreeButton.replaceChildren(icon(doc, 'i-folder'), h(doc, 'span', { text: workspaceText }));
+    const workspaceHint = noRepo ? t('route.worktree_not_repo') : hasTree || preparingTree
+      ? t('route.worktree_locked') : session.draft && !treeOn ? t('where.draft_off') : whereText(session);
+    worktreeButton.title = [folder, branch, workspaceHint].filter(Boolean).join(' · ') || workspaceText;
+    if (resultRepo) resultRepoButton.title = `Учёт: ${session.folder || session.project} → результат: ${resultLabel || resultRepo}`;
     worktreeButton.setAttribute('aria-label', workspaceText);
     worktreeButton.setAttribute('aria-haspopup', 'dialog');
     routeButton.title = `${t('route.label')}: ${routeDescription(currentRoute)}`;
@@ -2032,12 +2038,8 @@ export function createView(doc, refs, deps) {
       presetSelect.value = chosen;
       presetSelect.dataset.draft = String(Boolean(session.draft));
     }
-    const where = session.draft ? (noProject ? t('where.draft_no_project') : noRepo ? t('where.draft_folder') : (treeOn ? whereText(session) : t('where.draft_off'))) : whereText(session);
-    whereNote.hidden = !where;
-    const accounting = session.folder || (projectById(session.projectId) || {}).name || 'проект сессии';
-    const resultWhere = resultRepo ? `Учёт: ${accounting} → результат: ${resultLabel || resultRepo}` : '';
-    whereNote.hidden = !where && !resultWhere;
-    whereNote.textContent = [where, resultWhere].filter(Boolean).join(' · ');
+    whereNote.hidden = !worktreeButton.hidden;
+    whereNote.textContent = whereNote.hidden ? '' : whereText(session);
     whereNote.title = whereNote.textContent;
     // Задача 265: текущий агент виден при любом числе доступных. Выбора нет (0/1 агент) — чип приглушён,
     // а подсказка называет фактическую причину, а не прячет чип.
@@ -2090,8 +2092,8 @@ export function createView(doc, refs, deps) {
     statusModel.textContent = shown.model || (shown.loading ? t('session.loading') : t('session.model_unknown'));
     statusModel.title = hasModels ? '' : paramWhy(t('status.model_unsupported'));
     spinner.hidden = !busy;
-    status.dataset.empty = String(routeButton.hidden && worktreeButton.hidden && resultRepoButton.hidden && familyButton.hidden && !busy && !session.usage);
-    boxBar.dataset.empty = String(routeButton.hidden && modeButton.hidden && familyButton.hidden && modelButton.hidden && effortButton.hidden);
+    status.dataset.empty = String(worktreeButton.hidden && !whereNote.textContent && resultRepoButton.hidden && !busy && !session.usage && presetSelect.hidden);
+    boxBar.dataset.empty = 'false';
     if (menuKind === 'agent') renderMenu();
     else if (menuKind === 'effort') {
       const sig = effortMenuSignature();
@@ -2696,6 +2698,16 @@ export function createView(doc, refs, deps) {
 
   /** Обновить «идёт 1 мин 36 с» и «5 мин назад», не трогая остальное: вызывается раз в секунду. */
   function tick() {
+    for (const node of doc.querySelectorAll('[data-delivery-loading]')) {
+      const at = now();
+      if (!node.dataset.changedAt) node.dataset.changedAt = String(at);
+      if (at - Number(node.dataset.changedAt) < 3000) continue;
+      node.dataset.changedAt = String(at);
+      node.textContent = deliveryLoadingWord(win?.navigator?.language, node.textContent);
+      if (!win?.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+        node.animate?.([{ opacity: .45 }, { opacity: 1 }], { duration: 220 });
+      }
+    }
     for (const node of doc.querySelectorAll('[data-since]')) {
       const text = durationText(now() - Number(node.dataset.since));
       if (node.textContent !== text) node.textContent = text;

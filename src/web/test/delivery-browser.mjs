@@ -43,6 +43,9 @@ try {
   });
   await page.goto(new URL('#s=s', base).href);
   const input = page.locator('#composer-input');
+  assert.equal(await page.locator('.box-bar > .plus-btn').count(), 1);
+  assert.equal(await page.locator('.box-bar .mic-btn').count(), 1);
+  assert.equal(await page.locator('.box-bar .send-btn').count(), 1);
   const fieldStyle = el => {
     const style = getComputedStyle(el);
     return [style.backgroundColor, style.borderColor, style.borderRadius, style.boxShadow];
@@ -74,7 +77,10 @@ try {
   assert.equal(await errHead.getAttribute('aria-expanded'), 'true');
   holdSnapshot = true;
   await page.reload();
-  await page.getByText('Сверяем состояние сообщений…', { exact: true }).first().waitFor();
+  const loading = page.locator('[data-delivery-loading]').first();
+  await loading.waitFor();
+  const initialWord = await loading.innerText();
+  await page.waitForFunction(word => document.querySelector('[data-delivery-loading]')?.textContent !== word, initialWord);
   assert.equal(await page.locator('.delivery-head:visible').count(), 0);
   finishSnapshot();
   holdSnapshot = false;
