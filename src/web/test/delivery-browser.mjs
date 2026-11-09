@@ -119,11 +119,11 @@ try {
     const sample = document.createElement('span');
     el.append(sample);
     const color = name => { sample.style.color = `var(${name})`; return getComputedStyle(sample).color; };
-    const result = { neutral: color('--fg'), danger: color('--danger'), received: style.color };
+    const result = { warning: color('--warn'), danger: color('--danger'), received: style.color };
     sample.remove();
     return result;
   });
-  assert.equal(theme.received, theme.neutral);
+  assert.equal(theme.received, theme.warning);
   socket.send(JSON.stringify({ id: 'refused-user', trace: 's', step: 8, kind: 'user_message', input: { turn: 'refused-turn', text: 'тест отказа' }, time: 9 }));
   socket.send(JSON.stringify({ id: 'refused-agent', trace: 's', step: 9, kind: 'agent_refused', input: { turn: 'refused-turn', reason: 'Timeout' }, time: 10 }));
   const refused = page.locator('.delivery-label[data-state="agent_refused"]');

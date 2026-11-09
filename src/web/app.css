@@ -1479,7 +1479,7 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .delivery-head:hover, .delivery-head[aria-expanded="true"] { background: var(--hover); }
 .delivery-head:focus-visible { outline-offset: 1px; }
 .delivery-label { font-weight: 600; }
-.delivery-label[data-warning="true"] { color: var(--warn); }
+.delivery-label[data-warning="true"], .delivery-label[data-state="received"] { color: var(--warn); }
 .delivery-label[data-state="agent_refused"] { color: var(--danger); }
 .delivery-more { color: var(--accent); }
 .delivery-head .chev { flex: none; transition: transform .15s; }
