@@ -585,11 +585,14 @@ async function start() {
     WebSocketImpl: globalThis.WebSocket, timers,
     onEvent(event) {
       try {
-        if (event.kind === 'message_delivery') { delivery.receipt(event.input); render(); }
+        if (event.kind === 'message_delivery') delivery.receipt(event.input);
         if (event.kind === 'error' && event.input) delivery.error(event);
         const next = reduce(model, event);
-        if (next !== model) { model = next; drain(); render(); }
+        const changed = next !== model;
+        model = next;
         delivery.reconcile(model);
+        if (changed) drain();
+        if (changed || event.kind === 'message_delivery' || event.kind === 'error') render();
       } catch (e) {
         reportError(e);
       }

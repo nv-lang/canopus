@@ -26,6 +26,7 @@ async function app(storage = memory(), sendResult = true, hash = '#s=s') {
   let callbacks;
   const sent = [];
   const timeouts = [];
+  const renderedDelivery = [];
   const context = {
     ...state, ...attention, ...strings, ...queue, ...attachments, ...routes, ...crew, ...delivery, ...loading,
     chooseMode, parseAgentRegistry,
@@ -39,7 +40,7 @@ async function app(storage = memory(), sendResult = true, hash = '#s=s') {
     fetch: async () => ({ ok: true, json: async () => ({ agents: [{ id: 'agent', label: 'Agent' }] }) }),
     createNotifier: () => ({ bellOn: () => false, soundOn: () => false, update() {} }),
     createProjectsApi: () => ({ list: async () => ({ ok: true, projects: [] }) }),
-    createView: () => ({ render() {}, tick() {}, setAgents() {} }),
+    createView: () => ({ render() { renderedDelivery.push(JSON.parse(storage.getItem(delivery.DELIVERY_KEY) || '[]')); }, tick() {}, setAgents() {} }),
     createTransport(deps) {
       callbacks = deps;
       return { start() {}, send(event) {
@@ -57,7 +58,7 @@ async function app(storage = memory(), sendResult = true, hash = '#s=s') {
   await context.started;
   const event = (kind, input = {}, extra = {}) => callbacks.onEvent({ id: `srv-${Math.random()}`, trace: 's', step: 1, kind, input, time: Date.now(), ...extra });
   event('session_created', { name: 'test', agent: 'agent' }, { step: 0 });
-  return { ...context.probe, sent, event, timeouts, status: value => callbacks.onStatus(value), storage };
+  return { ...context.probe, sent, event, timeouts, renderedDelivery, status: value => callbacks.onStatus(value), storage };
 }
 
 test('260: реальный onSend сохраняет исчезавшее сообщение до эха; reload не отправляет его снова', async () => {
@@ -164,4 +165,18 @@ test('260: поздний успешный ответ убирает сохра�
   assert.equal(first.handlers.deliveryItems('s').length, 0);
   const second = await app(first.storage);
   assert.equal(second.handlers.deliveryItems('s').length, 0);
+});
+
+test('late receipt clears a timed-out local copy before rendering the accepted echo', async () => {
+  const first = await app();
+  first.handlers.onSend('s', 'один вопрос');
+  const [saved] = first.handlers.deliveryItems('s');
+  for (const timeout of first.timeouts) timeout();
+  assert.equal(first.handlers.deliveryItems('s')[0].state, 'unknown');
+  first.event('user_message', { turn: 'engine-turn', text: 'один вопрос' });
+  first.event('message_delivery', { client_id: saved.id, accepted: true, turn: 'engine-turn' });
+  for (const timeout of first.timeouts) timeout();
+  assert.equal(first.renderedDelivery.at(-1).length, 0);
+  assert.equal(first.handlers.deliveryItems('s').length, 0);
+  assert.equal(first.sent.length, 1);
 });

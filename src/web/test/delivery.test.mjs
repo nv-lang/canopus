@@ -186,3 +186,12 @@ test('pending delivery is a status and a rejected delivery is an alert', () => {
   assert.equal(failure.getAttribute('role'), 'alert');
   assert.ok(failure.classList.contains('delivery-error'));
 });
+
+test('an unknown delivery is a neutral status with a disabled retry', () => {
+  const doc = createFakeDocument();
+  const card = deliveryCard(doc, { state: 'unknown', images: [] }, {});
+  assert.equal(card.getAttribute('role'), 'status');
+  assert.ok(card.classList.contains('delivery-uncertain'));
+  assert.doesNotMatch(card.textContent, /⚠/);
+  assert.equal(card.querySelector('.delivery-actions button').disabled, true);
+});

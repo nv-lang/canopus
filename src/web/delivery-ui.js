@@ -14,6 +14,7 @@ export function deliveryCard(doc, item, actions) {
   };
   const pending = !item.reason && ['sending', 'received', 'accepted'].includes(item.state);
   if (pending) return h(doc, 'div', { class: 'delivery-pending', role: 'status', text: labels[item.state] });
+  const uncertain = item.state === 'unknown' && !item.reason;
   const canRetry = item.state === 'not_sent' && !item.images.length && actions.canRetry !== false;
   const reason = item.reason ? safeError(item.reason) : '';
   const explanation = canRetry
@@ -35,7 +36,7 @@ export function deliveryCard(doc, item, actions) {
     type: 'button', class: 'delivery-head', 'aria-expanded': String(!collapsed),
     title: collapsed ? t('delivery.expand') : t('delivery.collapse'),
   },
-    h(doc, 'strong', { text: archived ? t('delivery.saved_error') : `⚠ ${labels[item.state] || labels.unknown}` }),
+    h(doc, 'strong', { text: archived ? t('delivery.saved_error') : uncertain ? labels.unknown : `⚠ ${labels[item.state] || labels.unknown}` }),
     timestamp ? h(doc, 'time', { datetime: new Date(item.at).toISOString(), text: timestamp }) : null,
     reason ? h(doc, 'span', { class: 'delivery-brief', text: reason }) : false,
     icon(doc, 'i-chevron-right', 'chev'));
@@ -45,5 +46,5 @@ export function deliveryCard(doc, item, actions) {
     h(doc, 'div', { class: 'delivery-actions' }, ...(item.state === 'error' ? [] : [retry, restore]), ...(actions.forget ? [forget] : [])),
     h(doc, 'details', {}, h(doc, 'summary', { text: t('delivery.details') }), h(doc, 'pre', { text: detail }), copy));
   if (actions.toggle) head.addEventListener('click', () => actions.toggle(head, body));
-  return h(doc, 'div', { class: archived ? 'delivery-error delivery-history' : 'delivery-error', role: archived ? 'note' : item.state === 'sending' ? 'status' : 'alert' }, head, body);
+  return h(doc, 'div', { class: archived ? 'delivery-error delivery-history' : uncertain ? 'delivery-error delivery-uncertain' : 'delivery-error', role: archived ? 'note' : uncertain || item.state === 'sending' ? 'status' : 'alert' }, head, body);
 }
