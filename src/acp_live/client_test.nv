@@ -526,7 +526,7 @@ test "agent: cancel answers open permissions cancelled" {
         ro before = collect_until("permission_request", 10000)
         Link.cancel("agent-1")
         ro after = collect_turn(10000)
-        assert(text_of(after) == "permission: cancelled")
+        assert(text_of(after) == "")
         assert(last_of(after).kind == EventKind.Refused)
         assert(last_of(after).input == "StoppedByHuman")
         assert(client.pending_permissions().len() == 0)
@@ -635,7 +635,7 @@ test "agent: a cancel of the turn cancels the open question and tells the page" 
         ro before = collect_until("question_request", 10000)
         Link.cancel("agent-1")
         ro after = collect_turn(10000)
-        assert(text_of(after) == "ask: {\"action\":\"cancel\"}")
+        assert(text_of(after) == "")
         ro resolved = with_name(after, "question_resolved")
         assert(resolved.len() == 1)
         assert(resolved[0].input.contains("\"request\":\"100\""))
@@ -695,7 +695,7 @@ test "agent: the server of questions goes to session/new only to an agent that t
 
 // ----- the cancel of a turn -----
 
-test "agent: cancel, late chunk, next turn works" {
+test "agent: cancelled chunks are suppressed and the next turn works" {
     mut client = start([])
     with Link = acp_link(client) {
         Link.send(req("agent-1", "slow"))
@@ -703,7 +703,7 @@ test "agent: cancel, late chunk, next turn works" {
         assert(text_of(first) == "started")
         Link.cancel("agent-1")
         ro rest = collect_turn(10000)
-        assert(text_of(rest) == "late chunk after cancel")
+        assert(text_of(rest) == "")
         for e in rest { assert(request_of(e) == "agent-1") }
         assert(last_of(rest).kind == EventKind.Refused)
         assert(last_of(rest).input == "StoppedByHuman")
