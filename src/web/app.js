@@ -472,7 +472,9 @@ const handlers = {
   onSource(trace, source) {
     const session = model.sessions[trace];
     if (!session || session.draft || isBusy(session.state)) { flash('Источник можно изменить только между ходами.', 'info'); return; }
-    const handoff = session.agent === 'kimi' && source.family === 'codex' && session.messages.some((message) => message.role === 'user');
+    const handoffPair = (session.agent === 'kimi' && source.family === 'codex')
+      || (session.agent === 'codex' && source.family === 'kimi');
+    const handoff = handoffPair && session.messages.some((message) => message.role === 'user');
     if ((!handoff && source.family !== session.agent) || session.pendingQuestion) {
       if (!session.pendingQuestion) send('session_source', trace, nextStep(model, trace), source);
       return;
@@ -482,7 +484,7 @@ const handlers = {
       questions: [{
         header: 'Модель и усилие',
         question: handoff
-          ? 'Перейти на Codex в этом чате? Кеш Kimi не переносится. Вместимость полной истории не подтверждена.'
+          ? `Перейти на ${source.family === 'kimi' ? 'Kimi' : 'Codex'} в этом чате? Кеш ${session.agent === 'kimi' ? 'Kimi' : 'Codex'} не переносится. Вместимость полной истории не подтверждена.`
           : 'Применить выбор со следующего сообщения? История останется в чате. Кеш запроса может быть пересобран.',
         multiSelect: false,
         options: [{ label: confirmSourceLabel, description: '' }, { label: 'Отмена', description: '' }],

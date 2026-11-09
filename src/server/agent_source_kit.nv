@@ -152,30 +152,31 @@ export fn scenario_agent_source(settings ServerSettings) Proc Detach Time Net Fs
     c.report()
 }
 
-export fn scenario_context_handoff(settings ServerSettings) Proc Detach Time Net Fs Os -> str {
+export fn scenario_context_handoff(settings ServerSettings, previous str, target str) Proc Detach Time Net Fs Os -> str {
     mut configured = ServerSettings { ...settings }
-    configured.agents.push(kit_agent("kimi", "--handoff-summary", ""))
-    configured.agents.push(kit_agent("codex", "--handoff-overflow", ""))
+    configured.agents.push(kit_agent(previous, "--handoff-summary", ""))
+    configured.agents.push(kit_agent(target, "--handoff-overflow", ""))
     mut rig = rig_open(configured)
     mut c = kit_check()
     rig.attach(1)
-    rig.page(1, "session_created", "s-handoff", "{\"name\":\"Handoff\",\"agent\":\"kimi\"}")
-    c.expect(kit_ask(rig, "s-handoff", "first fact").byte_len() > 0, "the original Kimi turn completed")
+    rig.page(1, "session_created", "s-handoff", "{\"name\":\"Handoff\",\"agent\":\"${previous}\"}")
+    c.expect(kit_ask(rig, "s-handoff", "first fact").byte_len() > 0, "the original turn completed")
     rig.forget()
-    rig.page(1, "session_context_handoff", "s-handoff", "{\"family\":\"codex\",\"model\":\"missing-model\"}")
-    c.expect(rig.until("Kimi остаётся активным", 15000), "a refused model keeps Kimi active")
+    rig.page(1, "session_context_handoff", "s-handoff", "{\"family\":\"${target}\",\"model\":\"missing-model\"}")
+    ro previous_name = if previous == "kimi" { "Kimi" } else { "Codex" }
+    c.expect(rig.until("${previous_name} остаётся активным", 15000), "a refused model keeps the previous agent active")
     c.expect(kit_with(rig.lines_for(1), "\"kind\":\"agent_switched\"") == 0, "failed handoff did not switch the family")
     rig.forget()
-    rig.page(1, "session_context_handoff", "s-handoff", "{\"family\":\"codex\",\"model\":\"fake-model-b\",\"effort\":\"high\"}")
+    rig.page(1, "session_context_handoff", "s-handoff", "{\"family\":\"${target}\",\"model\":\"fake-model-b\",\"effort\":\"high\"}")
     c.expect(rig.until("\"kind\":\"agent_switched\"", 15000), "the same chat switched after successful handoff")
-    c.expect(kit_ask(rig, "s-handoff", "mode") == "mode: default model: fake-model-b effort: high", "the next turn uses the chosen Codex source")
+    c.expect(kit_ask(rig, "s-handoff", "mode") == "mode: default model: fake-model-b effort: high", "the next turn uses the chosen destination source")
     rig.forget()
     rig.page(1, "user_message", "s-handoff", rk_tasklist_page("handoff-tools", []JsonValue.new()))
     c.expect(rig.until(KIT_DONE, 20000), "the task list request completed")
     ro lines = rig.lines_for(1)
     ro turn = line_input(kit_last_of(lines, "user_message"), "turn")
     ro tools = answer_of(lines, turn)
-    c.expect(tools.contains("canopus_task_list") && tools.contains("Список показан владельцу"), "the promoted Codex client can call Canopus tools")
+    c.expect(tools.contains("canopus_task_list") && tools.contains("Список показан владельцу"), "the promoted client can call Canopus tools")
     rig.shut()
     c.report()
 }

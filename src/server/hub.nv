@@ -1900,16 +1900,18 @@ fn Hub mut @start_context_handoff(trace str, source JsonObject) Proc Detach Time
     if at < 0 { return }
     ro s = @sessions[at]
     if !@takes_message_at(at) || !@work_require(at, "execute") { return }
-    if s.agent != "kimi" || jtext(source, "family") != "codex" || !s.dispatch.has_messages { return }
+    ro target = jtext(source, "family")
+    ro supported = (s.agent == "kimi" && target == "codex") || (s.agent == "codex" && target == "kimi")
+    if !supported || !s.dispatch.has_messages { return }
     for pending in @handoffs { if pending.trace == trace { return } }
-    ro config = match @open_config_for("codex", s.id, @agent_cwd(s)) {
+    ro config = match @open_config_for(target, s.id, @agent_cwd(s)) {
         Some(c) => c
-        None => { @tell_error(0, trace, s.engine.step_number(), "", "Codex не настроен"); return }
+        None => { @tell_error(0, trace, s.engine.step_number(), "", "Источник ${target} не настроен"); return }
     }
     ro temporary = acp_config_of(config.program, config.args, config.cwd, "")
-    ro ask = @ask_for("codex", s.id)
-    match open_client_full(temporary, "", 0, ask, @agent_env("codex", @env_of(s))) {
-        Err(reason) => @tell_error(0, trace, s.engine.step_number(), "", "Не удалось запустить Codex для переноса")
+    ro ask = @ask_for(target, s.id)
+    match open_client_full(temporary, "", 0, ask, @agent_env(target, @env_of(s))) {
+        Err(reason) => @tell_error(0, trace, s.engine.step_number(), "", "Не удалось запустить ${target} для переноса")
         Ok(consume started) => {
             mut client = AcpClient { ...started }
             client.stage_handoff()
@@ -1928,13 +1930,13 @@ fn Hub mut @start_context_handoff(trace str, source JsonObject) Proc Detach Time
     }
 }
 
-fn Hub mut @handoff_client(s Dialog, family str) Proc Detach Time -> Result[AcpClient, str] {
+fn Hub mut @handoff_client(s Dialog, family str, receiving bool) Proc Detach Time -> Result[AcpClient, str] {
     ro config = match @open_config_for(family, s.id, @agent_cwd(s)) {
         Some(c) => c
         None => return Err("Источник для подготовки контекста не настроен")
     }
     ro temporary = acp_config_of(config.program, config.args, config.cwd, "")
-    ro ask = if family == "codex" { @ask_for(family, s.id) } else { AskSetup { form: false, mcp_url: "", mcp_token: "", hint: "" } }
+    ro ask = if receiving { @ask_for(family, s.id) } else { no_ask() }
     open_client_full(temporary, "", 0, ask, @agent_env(family, @env_of(s)))
 }
 
@@ -1943,6 +1945,7 @@ fn Hub mut @poll_context_handoffs() Proc Detach Time -> () {
     for item in @handoffs {
         mut job = item
         ro at = @find(job.trace)
+        ro target = jtext(job.source, "family")
         mut failed = at < 0 || now_millis() >= job.deadline
         mut completed = false
         mut overflow = false
@@ -1975,8 +1978,9 @@ fn Hub mut @poll_context_handoffs() Proc Detach Time -> () {
             if job.stage == 1 && job.summary.trim().byte_len() == 0 {
                 failed = true
             } else {
-                ro family = if job.stage == 0 { "kimi" } else { "codex" }
-                match @handoff_client(s, family) {
+                ro receiving = job.stage == 1
+                ro family = if receiving { target } else { job.previous }
+                match @handoff_client(s, family, receiving) {
                     Err(reason) => { failed = true }
                     Ok(consume next) => {
                         job.client.close()
@@ -2008,12 +2012,16 @@ fn Hub mut @poll_context_handoffs() Proc Detach Time -> () {
         if completed && !failed && !job.client.adopt_inbox(job.inbox) { failed = true }
         if failed {
             job.client.close()
-            if at >= 0 { @tell_error(0, job.trace, @sessions[at].engine.step_number(), "", "Перенос контекста в Codex не завершился. Kimi остаётся активным.") }
+            if at >= 0 {
+                ro target_name = if target == "kimi" { "Kimi" } else { "Codex" }
+                ro previous_name = if job.previous == "kimi" { "Kimi" } else { "Codex" }
+                @tell_error(0, job.trace, @sessions[at].engine.step_number(), "", "Перенос контекста в ${target_name} не завершился. ${previous_name} остаётся активным.")
+            }
         } else if completed {
             mut promoted = @sessions[at]
             if promoted.clients.len() > 0 { promoted.clients[0].close() }
             promoted.clients = [job.client]
-            promoted.agent = "codex"
+            promoted.agent = target
             promoted.announced = false
             promoted.model_announced = false
             promoted.slow_told = false
