@@ -20,12 +20,12 @@ test('workspace: source and folder are independent read-only preferences in one 
   const place = s.q('#workspace-place');
   assert.equal(source.value, 'refs/heads/chosen');
   assert.equal(source.disabled, false);
-  assert.match(s.doc.body.textContent, /не новый clone/);
+  assert.match(s.doc.body.textContent, /создаст отдельную рабочую папку.*Возьмёт файлы из «chosen»/);
   assert.match(s.doc.body.textContent, /Подготовка задачи/);
   place.value = 'folder';
   place.dispatchEvent(event('change'));
   assert.equal(source.disabled, true);
-  assert.match(s.doc.body.textContent, /ветка не переключается/);
+  assert.match(s.doc.body.textContent, /Агент будет работать прямо в папке проекта на ветке «main»/);
   s.q('.primary').click();
   assert.deepEqual(await done, { worktree: false, sourceBranch: 'refs/heads/chosen' });
   assert.deepEqual(s.calls, ['C:/work/project']);

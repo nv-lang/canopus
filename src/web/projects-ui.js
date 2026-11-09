@@ -525,7 +525,6 @@ export function createProjectsUi(doc, deps) {
       h(doc, 'h3', { id: 'workspace-title', text: 'Исходная ветка и рабочая папка' }),
       h(doc, 'label', { class: 'field' }, h(doc, 'span', { text: 'Исходная ветка' }), source),
       h(doc, 'label', { class: 'field' }, h(doc, 'span', { text: 'Рабочая папка' }), place), info,
-      h(doc, 'p', { class: 'muted', text: 'Git worktree — ещё одна рабочая папка с общей историей Git, не новый clone. Копия создаётся без ветки с первым исполнением; ветка задачи — только при «В работу».' }),
       preparation ? h(doc, 'p', { class: 'plate', text: 'Подготовка задачи: выбор сохраняется для будущего исполнения. Ветки и рабочие копии сейчас не создаются.' }) : false,
       h(doc, 'div', { class: 'actions' }, cancel, save));
     const layer = pushLayer(dialog, { cancelValue: null, scrimClose: true });
@@ -545,9 +544,14 @@ export function createProjectsUi(doc, deps) {
           place.disabled = false;
           const paint = () => {
             source.disabled = place.value !== 'tree';
-            info.textContent = `Папка проекта: ${r.branch === 'HEAD' ? 'отсоединённый commit' : r.branch}. ${place.value === 'folder' ? 'Её ветка не переключается; исходная ветка применяется только к отдельной папке.' : 'Исходная ветка — предпочтение, а не текущая ветка чата.'}`;
+            const start = source.value.replace(/^refs\/(heads|remotes)\//, '');
+            const current = r.branch && r.branch !== 'HEAD' ? `на ветке «${r.branch}»` : 'на текущем коммите без ветки';
+            info.textContent = place.value === 'folder'
+              ? `Агент будет работать прямо в папке проекта ${current}. Выбор исходной ветки здесь не применяется.`
+              : `При первом запуске Canopus создаст отдельную рабочую папку. ${source.value ? `Возьмёт файлы из «${start}».` : 'Возьмёт файлы из origin/main, а если её нет — из main или текущей ветки.'} Ветка задачи появится при действии «В работу».`;
           };
           place.addEventListener('change', paint);
+          source.addEventListener('change', paint);
           paint();
           save.disabled = false;
         }
