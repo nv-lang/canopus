@@ -118,6 +118,7 @@ export const S = Object.freeze({
   'work.tool': '{kind} · {title}',
   'work.task': 'Фоновая команда {status} · {title}',
   'work.perm': 'Запрос разрешения · {action} — {decision}',
+  'work.output': 'Вывод команды, прокручиваемая область',
   'work.current': 'Текущие действия: {n}',
   'work.unreported': 'результат не получен',
 

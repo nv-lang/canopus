@@ -1594,12 +1594,19 @@ export function createView(doc, refs, deps) {
 
   function workRow(r) {
     const detail = r.type === 'task' ? '' : r.detail;
+    const showDetail = detail && (!r.command || detail !== JSON.stringify({ command: r.command }));
+    const commandOutput = r.type === 'tool' && r.kind === 'execute';
+    const clipped = commandOutput && showDetail && detail.trimEnd().split('\n').length > 11;
     return h(doc, 'div', { class: 'work-row', 'data-state': rowState(r) },
       rowIcon(r),
       h(doc, 'div', { class: 'row-main' },
         h(doc, 'div', { class: 'row-label', text: rowLabel(r) }),
         r.command ? h(doc, 'code', { class: 'row-command', text: r.command }) : false,
-        detail && (!r.command || detail !== JSON.stringify({ command: r.command })) ? h(doc, 'div', { class: 'row-detail', text: detail }) : false),
+        showDetail ? h(doc, commandOutput ? 'pre' : 'div', {
+          class: commandOutput ? 'row-detail row-output' : 'row-detail',
+          'data-clipped': clipped ? 'true' : undefined, tabindex: clipped ? '0' : undefined,
+          'aria-label': clipped ? t('work.output') : undefined, text: detail,
+        }) : false),
       rowStatus(r));
   }
 

@@ -561,6 +561,9 @@ pre code { font: inherit; }
 .work-row[data-state="failed"] .icon { color: var(--danger); }
 .row-label { overflow-wrap: anywhere; }
 .row-detail { font: 13px/1.5 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.row-output { max-block-size: 11lh; margin: 2px 0 0; overflow: auto; white-space: pre; }
+.row-output[data-clipped="true"] { mask-image: linear-gradient(transparent, var(--fg) .65lh, var(--fg) calc(100% - .65lh), transparent); }
+
 .row-status { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; font-size: 13px; font-variant-numeric: tabular-nums; }
 .row-status .icon { width: 13px; height: 13px; margin: 0; }
 [data-state="completed"] .row-status .icon { color: var(--ok); }
