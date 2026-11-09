@@ -36,7 +36,7 @@ import {
 } from './question.js';
 import {
   STATE_KEYS, sessionList, splitBlocks, filterSessions, groupSessions, descendantsOf, effectivePins, timeline, paragraphs, inlineSpans,
-  workSummary, messageTime, groupThousands, ruForm, effortChoices, shownOf, familyOf, filterModels, groupModels, usagePercent, usageLevel, tokenParts, durationLabel, agoParts, fileParts, taskSummary,
+  workSummary, messageTime, groupThousands, ruForm, shownOf, familyOf, filterModels, groupModels, usagePercent, usageLevel, tokenParts, durationLabel, agoParts, fileParts, taskSummary,
 } from './state.js';
 import { attention, SILENT_DEFAULT_MIN } from './attention.js';
 import {
@@ -739,7 +739,7 @@ export function createView(doc, refs, deps) {
   const familyButton = h(doc, 'button', { type: 'button', class: 'status-btn agent-picker-button', hidden: true, title: t('status.agent'), 'aria-label': t('status.agent'), 'aria-haspopup': 'dialog', 'aria-expanded': 'false' });
   const modeButton = h(doc, 'button', { type: 'button', class: 'status-btn', hidden: true, title: t('menu.mode'), 'aria-label': t('menu.mode'), 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
   const modelButton = h(doc, 'button', { type: 'button', class: 'status-btn', hidden: true, title: t('status.model'), 'aria-label': t('status.model'), 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
-  const effortButton = h(doc, 'button', { type: 'button', class: 'status-btn', hidden: true, title: t('menu.effort'), 'aria-label': t('menu.effort'), 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
+  const effortButton = h(doc, 'button', { type: 'button', class: 'status-btn effort-picker-button', hidden: true, title: t('menu.effort'), 'aria-label': t('menu.effort'), 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
   // Режим работы по методике (задача 192p): слева в строке статуса, плоский текст без шеврона.
   const routeButton = h(doc, 'button', { type: 'button', class: 'status-btn route-chip', hidden: true, title: t('route.label'), 'aria-label': t('route.label'), 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
   // Под полем новой сессии: Worktree · режим · агент · модель · усилие; проект выбирается только списком посреди пустого чата (задача 192.6).
@@ -805,13 +805,13 @@ export function createView(doc, refs, deps) {
   const whereNote = h(doc, 'p', { class: 'where-note', hidden: true });
   const spinner = h(doc, 'span', { class: 'spinner', role: 'img', 'aria-label': t('composer.working'), hidden: true });
   const menu = h(doc, 'div', { class: 'menu', role: 'menu', hidden: true });
-  const agentAnchor = h(doc, 'div', { class: 'agent-picker-anchor' }, familyButton, menu);
+  const agentAnchor = h(doc, 'div', { class: 'agent-picker-anchor' }, familyButton, effortButton, menu);
   // The model picker owns its anchor; the lower mode selector is the only visible mode control.
   const statusGroup = h(doc, 'div', { class: 'status-group' }, agentAnchor);
   // Композиция нижней панели по макету 268 (task/design/new-chat.png): режим, семья, модель и усилие —
   // пилюли одной строкой ВНУТРИ карточки композера, а не отдельной строкой под ней.
   const boxBar = h(doc, 'div', { class: 'box-bar', 'data-empty': 'true' },
-    routeButton, modeButton, h(doc, 'span', { class: 'grow' }), statusGroup, modelButton, effortButton);
+    routeButton, modeButton, h(doc, 'span', { class: 'grow' }), statusGroup, modelButton);
   box.append(boxBar);
   const status = h(doc, 'div', { class: 'composer-status', 'data-empty': 'true' }, worktreeButton, resultRepoButton, h(doc, 'span', { class: 'grow' }), ringBox, spinner, presetSelect);
 
@@ -834,17 +834,50 @@ export function createView(doc, refs, deps) {
   const labelFor = (kind, list, id) => labelOf(kind, list.find((c) => c.id === id) || { name: '' });
   function directModelsFor(family) {
     const session = currentSession;
+    const metadata = modelMetadata();
+    const catalogModels = metadata?.status === 'ready' && metadata.expiresAt > now() ? metadata.families?.[family] : undefined;
+    if (family === 'codex' && catalogModels?.length) return catalogModels;
     if (!session?.draft && session?.agent === family && session.optionsAgent === family && session.options.models.length > 0) {
       return session.options.models.map((model) => ({ ...model, efforts: session.options.efforts }));
     }
-    const metadata = modelMetadata();
-    if (metadata?.status === 'ready' && metadata.expiresAt > now() && Array.isArray(metadata.families?.[family])) return metadata.families[family];
+    if (catalogModels) return catalogModels;
     if (metadata && metadata.status === 'ready' && metadata.family === family && Number.isFinite(metadata.expiresAt) && metadata.expiresAt > now()) return metadata.models;
     return null;
   }
 
+  const codexModelVariant = (id) => /^(.*)\[(low|medium|high|xhigh|max|ultra)\]$/.exec(id);
+
+  // The legacy Codex catalog encodes effort in model IDs; modern ACP sets it separately.
+  function pickerModelsFor(family, models) {
+    const entries = new Map();
+    for (const model of models || []) {
+      const variant = family === 'codex' && codexModelVariant(model.id);
+      if (!variant) {
+        entries.set(model.id, { ...model, family, efforts: model.efforts || [] });
+        continue;
+      }
+      const [, id, effort] = variant;
+      if (!entries.has(id)) {
+        entries.set(id, { id, family, name: (model.name || id).replace(/ \((low|medium|high|xhigh|max|ultra)\)$/i, ''), efforts: [], aliases: [] });
+      }
+      const entry = entries.get(id);
+      entry.aliases?.push(model.id);
+      if (!entry.efforts.some((option) => option.id === effort)) {
+        entry.efforts.push(model.efforts?.find((option) => option.id === effort) || { id: effort, name: effort });
+      }
+    }
+    return [...entries.values()];
+  }
+
+  let activeEffortModel;
+  let activeEffort = '';
+  let canChooseEffort = false;
+  let syncEffortMenu;
+  const effortMenuSignature = () => JSON.stringify(activeEffortModel);
+
   function closeMenu() {
     menuKind = null;
+    syncEffortMenu = undefined;
     menu.hidden = true;
     modeButton.setAttribute('aria-expanded', 'false');
     modelButton.setAttribute('aria-expanded', 'false');
@@ -859,12 +892,12 @@ export function createView(doc, refs, deps) {
     closeMenu();
   }
 
-  function pickSource(source) {
+  function pickSource(source, { keepMenu = false } = {}) {
     if (!currentTrace || !currentSession) return;
     if (currentSession.draft) handlers.onDraftSource?.(currentTrace, source);
     else if (typeof handlers.onSource === 'function') handlers.onSource(currentTrace, source);
     else handlers.onNotice?.('Этот сервер не поддерживает выбор источника агента');
-    closeMenu();
+    if (!keepMenu) closeMenu();
   }
 
   function positionAgentMenu() {
@@ -892,6 +925,7 @@ export function createView(doc, refs, deps) {
 
   function renderMenu() {
     menuList.replaceChildren();
+    menu.dataset.kind = menuKind || '';
     if (menuKind === 'agent') {
       menuSearch.hidden = false;
       menuSearch.placeholder = 'Поиск модели или пула';
@@ -910,41 +944,16 @@ export function createView(doc, refs, deps) {
       rows.push(h(doc, 'div', { class: 'menu-head', text: 'Модели' }));
       if (metadata.status === 'ready' && metadata.complete === false) rows.push(h(doc, 'div', { class: 'menu-head menu-catalog-partial', text: 'Каталог неполный: доступны только подтверждённые модели.' }));
       const familyModels = new Map(agents.map((agent) => [agent.id, directModelsFor(agent.id)]));
-      const allModels = agents.flatMap((agent) => (familyModels.get(agent.id) || []).map((m) => ({ family: agent.id, model: m.id, name: m.name || m.id, efforts: m.efforts || [] })))
-        .filter((m) => !query || `${m.family} ${m.name} ${m.model}`.toLocaleLowerCase().includes(query));
+      const allModels = agents.flatMap((agent) => pickerModelsFor(agent.id, familyModels.get(agent.id)))
+        .filter((m) => !query || `${m.family} ${m.name} ${m.id}`.toLocaleLowerCase().includes(query));
       for (const m of allModels) {
-        const chosen = source && !source.pool && source.family === m.family && source.model === m.model;
-        const efforts = m.efforts;
-        const effort = chosen ? source.effort : (efforts[0] && efforts[0].id || '');
-        const row = menuRow({ name: m.name, description: m.family, checked: chosen,
-          onPick: () => pickSource({ family: m.family, model: m.model, effort }) });
-        if (efforts.length) {
-          const index = Math.max(0, efforts.findIndex((e) => e.id === effort));
-          const slider = h(doc, 'input', { type: 'range', class: 'effort-slider', min: '0', max: String(efforts.length - 1), step: '1', value: String(index), 'aria-label': `Усилие ${m.name}` });
-          const control = h(doc, 'div', { class: 'effort-control' });
-          const sparkleLayer = h(doc, 'span', { class: 'effort-sparkles', 'aria-hidden': 'true' });
-          const paintEffort = (at) => {
-            const ratio = efforts.length < 2 ? 1 : at / (efforts.length - 1);
-            slider.style.setProperty('--effort-fill', `${ratio * 100}%`);
-            sparkleLayer.replaceChildren();
-            const count = ratio < 0.5 ? 0 : Math.max(1, Math.round((ratio - 0.5) * 14) + 1);
-            sparkleLayer.dataset.count = String(count);
-            for (let n = 0; n < count; n += 1) {
-              const star = h(doc, 'span', { class: 'effort-sparkle', text: '✦' });
-              star.style.setProperty('--star-offset', `${n * 11}px`);
-              star.style.setProperty('--star-delay', `${n * -0.17}s`);
-              sparkleLayer.append(star);
-            }
-          };
-          paintEffort(index);
-          slider.addEventListener('click', (e) => e.stopPropagation());
-          slider.addEventListener('input', () => { const at = Number(slider.value); paintEffort(at); });
-          slider.addEventListener('change', () => pickSource({ family: m.family, model: m.model, effort: efforts[Number(slider.value)].id }));
-          control.append(slider, sparkleLayer);
-          row.append(control);
-          row.classList.add('agent-model-row');
-        }
-        rows.push(row);
+        const chosen = source && !source.pool && source.family === m.family
+          && (source.model === m.id || m.aliases?.includes(source.model));
+        const chosenEffort = chosen && (m.aliases?.includes(source.model) ? codexModelVariant(source.model)?.[2] : source.effort);
+        const currentEffort = m.efforts.find((option) => option.id === chosenEffort);
+        const effort = currentEffort?.id || m.efforts[0]?.id || '';
+        rows.push(menuRow({ name: m.name || m.id, description: m.family, checked: chosen,
+          onPick: () => pickSource({ family: m.family, model: m.id, effort }) }));
       }
       for (const agent of agents) {
         if ((familyModels.get(agent.id) || []).length) continue;
@@ -995,6 +1004,63 @@ export function createView(doc, refs, deps) {
       menu.hidden = false;
       return;
     }
+    if (menuKind === 'effort') {
+      if (!activeEffortModel || activeEffortModel.efforts.length < 2) { closeMenu(); return; }
+      menuSearch.hidden = true;
+      menu.dataset.side = 'right';
+      const efforts = activeEffortModel.efforts;
+      const index = Math.max(0, efforts.findIndex((effort) => effort.id === activeEffort));
+      const slider = h(doc, 'input', { type: 'range', class: 'effort-slider', min: '0', max: String(efforts.length - 1), step: '1', value: String(index), disabled: !canChooseEffort, 'aria-label': t('menu.effort') });
+      const control = h(doc, 'div', { class: 'effort-control' });
+      const ticks = efforts.map((_, step) => {
+        const tick = h(doc, 'span', { class: 'effort-tick' });
+        tick.style.setProperty('--effort-stop', String(100 * step / (efforts.length - 1)) + '%');
+        return tick;
+      });
+      const tickLayer = h(doc, 'span', { class: 'effort-ticks', 'aria-hidden': 'true' }, ...ticks);
+      const sparkleLayer = h(doc, 'span', { class: 'effort-sparkles', 'aria-hidden': 'true' });
+      const caption = h(doc, 'div', { class: 'menu-head' });
+      const paintEffort = (at) => {
+        const name = labelOf('effort', efforts[at]).name;
+        caption.textContent = `${name} · ${activeEffortModel.name || activeEffortModel.id}`;
+        slider.setAttribute('aria-valuetext', name);
+        const ratio = efforts.length < 2 ? 1 : at / (efforts.length - 1);
+        control.style.setProperty('--effort-fill', String(ratio * 100) + '%');
+        ticks.forEach((tick, step) => {
+          tick.hidden = step === at;
+          tick.dataset.filled = String(step < at);
+        });
+        sparkleLayer.dataset.active = String(ratio >= 0.5);
+      };
+      for (let n = 0; n < 8; n += 1) {
+        const star = h(doc, 'span', { class: 'effort-sparkle', text: '✦' });
+        star.style.setProperty('--star-height', String(10 + (n * 3 % 7) * 13) + '%');
+        star.style.setProperty('--star-offset', String(n * 11) + 'px');
+        star.style.setProperty('--star-delay', String(-1.5 * n / 8) + 's');
+        sparkleLayer.append(star);
+      }
+      let shownEffort = activeEffort;
+      paintEffort(index);
+      syncEffortMenu = () => {
+        slider.disabled = !canChooseEffort;
+        if (shownEffort === activeEffort) return;
+        shownEffort = activeEffort;
+        const at = Math.max(0, efforts.findIndex((effort) => effort.id === activeEffort));
+        slider.value = String(at);
+        paintEffort(at);
+      };
+      slider.addEventListener('input', () => { const at = Number(slider.value); paintEffort(at); });
+      slider.addEventListener('change', () => {
+        if (!canChooseEffort) return;
+        const at = Number(slider.value);
+        paintEffort(at);
+        pickSource({ family: activeEffortModel.family, model: activeEffortModel.id, effort: efforts[at].id }, { keepMenu: true });
+      });
+      control.append(slider, sparkleLayer, tickLayer);
+      menuList.append(caption, control);
+      menu.hidden = false;
+      return;
+    }
     if (!options || !menuKind) { menu.hidden = true; return; }
     const rows = [];
     const searchable = menuKind === 'model' || menuKind === 'more';
@@ -1028,9 +1094,6 @@ export function createView(doc, refs, deps) {
             name: g.provider ? c.name.replace(`${g.provider}/`, '') : c.name, description: c.description, checked: c.id === options.modelId, onPick: () => choose('model', c.id),
           })));
         }
-      } else {
-        rows.push(h(doc, 'div', { class: 'menu-head', text: t('menu.effort') }),
-          ...numbered(effortChoices(options.efforts), 'effort', options.effort));
       }
     }
     menuList.append(...rows);
@@ -1045,13 +1108,17 @@ export function createView(doc, refs, deps) {
     if (kind === 'result' && resultRepoButton.disabled) return;
     if (kind === 'mode' && !hasOpts('modes')) return;
     if ((kind === 'model' || kind === 'more') && !hasOpts('models')) return;
-    if (kind === 'effort' && !hasOpts('efforts')) return;
+    if (kind === 'effort' && !canChooseEffort) return;
     menuKind = kind;
     menuTrigger = { agent: familyButton, route: routeButton, result: resultRepoButton, mode: modeButton, model: modelButton, more: modelButton, effort: effortButton }[kind] || null;
-    if (kind === 'agent') agentAnchor.append(menu); else status.append(menu);
+    if (kind === 'agent' || kind === 'effort') agentAnchor.append(menu); else status.append(menu);
+    if (kind === 'effort') {
+      menu.style.setProperty('--agent-menu-left', 'auto');
+      menu.style.setProperty('--agent-menu-right', '0px');
+    }
     menuQuery = '';
     menuSearch.value = '';
-    menuSig = kind === 'route' ? currentRoute : kind === 'result' ? JSON.stringify(resultRepoShown) : JSON.stringify(options);
+    menuSig = kind === 'effort' ? effortMenuSignature() : kind === 'route' ? currentRoute : kind === 'result' ? JSON.stringify(resultRepoShown) : JSON.stringify(options);
     familyButton.setAttribute('aria-expanded', kind === 'agent' ? 'true' : 'false');
     routeButton.setAttribute('aria-expanded', kind === 'route' ? 'true' : 'false');
     resultRepoButton.setAttribute('aria-expanded', kind === 'result' ? 'true' : 'false');
@@ -1061,7 +1128,7 @@ export function createView(doc, refs, deps) {
     renderMenu();
     if (kind === 'result') refreshResultRepos();
     if (kind === 'model' || kind === 'more' || kind === 'agent') menuSearch.focus();
-    else menu.querySelector('.menu-item')?.focus();
+    else menu.querySelector(kind === 'effort' ? '.effort-slider' : '.menu-item')?.focus();
   }
 
   menuSearch.addEventListener('input', () => { menuQuery = menuSearch.value; renderMenu(); });
@@ -1070,6 +1137,7 @@ export function createView(doc, refs, deps) {
   menu.addEventListener('keydown', (e) => {
     const items = [...menuList.querySelectorAll('.menu-item')].filter((item) => !item.disabled);
     const at = items.indexOf(doc.activeElement);
+    if (e.target?.classList?.contains('effort-slider')) return;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       (items[at + 1] || items[0])?.focus();
@@ -1096,14 +1164,13 @@ export function createView(doc, refs, deps) {
       handlers.onNotice?.(button.title);
       return;
     }
-    if (menuKind) closeMenu(); else openMenu(kind);
+    if (menuKind === kind) closeMenu(); else openMenu(kind);
   };
   familyButton.addEventListener('click', () => toggleMenu('agent'));
   routeButton.addEventListener('click', () => toggleMenu('route'));
   modeButton.addEventListener('click', () => toggleMenu('mode'));
   modelButton.addEventListener('click', () => toggleMenu('model'));
   effortButton.addEventListener('click', () => toggleMenu('effort'));
-  // effort/model/family legacy controls are hidden; the picker owns those choices as one compact control.
   // номера строк — горячие клавиши; у строк без номера (Назад, подменю) их нет
   doc.addEventListener('keydown', (e) => {
     if (!menuKind) return;
@@ -1361,7 +1428,7 @@ export function createView(doc, refs, deps) {
     const images = attach.items();
     if (!currentTrace || uploading || (text.length === 0 && images.length === 0)) return;
     // пока вопрос агента ждёт ответа, обычное сообщение не уходит: форма просит ответить или пропустить
-    if (current.session && current.session.pendingQuestion) { nudgeAsk(); return; }
+    if (current.session && (current.session.pendingQuestion || current.ui?.sourceQuestions?.has(current.session.id))) { nudgeAsk(); return; }
     const trace = currentTrace;
     historyState = NO_HISTORY; // после отправки история с пустого поля: новое сообщение в её конце, ↑ показывает его первым
     // агент занят ходом: сообщение (и его картинки) встаёт в очередь страницы и уходит, когда ход закончится
@@ -1926,10 +1993,21 @@ export function createView(doc, refs, deps) {
     whereNote.title = whereNote.textContent;
     // Задача 265: текущий агент виден при любом числе доступных. Выбора нет (0/1 агент) — чип приглушён,
     // а подсказка называет фактическую причину, а не прячет чип.
-    const selectedModel = session.selectedModel || (session.source && !session.source.pool ? session.source.model : shown.model);
-    const selectedEffort = session.selectedEffort || (session.source && !session.source.pool ? session.source.effort : options.effort);
-    const selectedPool = session.selectedPool ? `${session.selectedPool} · ${session.selectedLevel}` : session.source && session.source.pool ? `${session.source.pool} · ${session.source.level}` : '';
-    const pickerLabel = session.selectionPending ? 'Подтверждение…' : [selectedModel || (shown.loading ? t('session.loading') : t('session.model_unknown')), selectedPool, selectedEffort].filter(Boolean).join(' / ');
+    // session_source confirms the current pin. agent_selected may describe an earlier turn.
+    const directSource = session.source && !session.source.pool ? session.source : undefined;
+    const selectedModel = directSource?.model || session.selectedModel || options.modelId || shown.model;
+    const selectedEffort = directSource ? directSource.effort : session.selectedEffort || options.effort;
+    const selectedFamily = directSource?.family || shown.agent;
+    activeEffortModel = session.source?.pool || (!directSource && session.selectedPool) ? undefined
+      : pickerModelsFor(selectedFamily, directModelsFor(selectedFamily))
+        .find((m) => m.id === selectedModel || m.aliases?.includes(selectedModel));
+    const legacyEffort = activeEffortModel?.aliases?.includes(selectedModel)
+      ? codexModelVariant(selectedModel)?.[2] : '';
+    activeEffort = legacyEffort || selectedEffort;
+    const hasEfforts = Boolean(activeEffortModel?.efforts.length > 1);
+    canChooseEffort = hasEfforts && (!busy || session.draft) && !session.selectionPending;
+    const selectedPool = directSource ? '' : session.selectedPool ? `${session.selectedPool} · ${session.selectedLevel}` : session.source && session.source.pool ? `${session.source.pool} · ${session.source.level}` : '';
+    const pickerLabel = session.selectionPending ? 'Подтверждение…' : [(selectedFamily === 'codex' && activeEffortModel?.name) || selectedModel || (shown.loading ? t('session.loading') : t('session.model_unknown')), selectedPool].filter(Boolean).join(' / ');
     familyButton.hidden = false;
     familyButton.replaceChildren(h(doc, 'span', { text: pickerLabel || 'Выбрать агента' }));
     const presetData = presets() || {};
@@ -1943,7 +2021,6 @@ export function createView(doc, refs, deps) {
     familyButton.setAttribute('aria-label', `Агент: ${pickerLabel || 'не выбран'}`);
     const hasModes = Boolean(options && options.modes.length > 0);
     const hasModels = Boolean(options && options.models.length > 0);
-    const hasEfforts = Boolean(options && options.efforts.length > 0);
     // Причина отсутствия вариантов — по факту: грузятся; у черновика без записи каталога появятся после запуска; агент не предоставляет.
     const catalogEntry = model.catalog ? model.catalog[shown.agent] : undefined;
     const paramWhy = (unsupported) => (shown.loading ? t('status.options_loading')
@@ -1955,12 +2032,12 @@ export function createView(doc, refs, deps) {
     if (!hasModes) modeButton.title = paramWhy(t('status.mode_unsupported'));
     modeButton.replaceChildren(h(doc, 'span', { text: hasModes ? (modeLabel.name || t('menu.mode')) : (shown.loading ? '…' : t('menu.mode')) }));
     modelButton.hidden = true;
-    effortButton.hidden = true;
-    effortButton.setAttribute('aria-disabled', String(!hasEfforts));
-    const effortLabel = hasEfforts ? labelFor('effort', effortChoices(options.efforts), options.effort) : { name: '', title: '' };
-    effortButton.title = effortLabel.title ? `${t('menu.effort')}: ${effortLabel.title}` : t('menu.effort');
-    if (!hasEfforts) effortButton.title = paramWhy(t('status.effort_unsupported'));
-    effortButton.replaceChildren(h(doc, 'span', { text: hasEfforts ? effortLabel.name : (shown.loading ? '…' : t('menu.effort')) }));
+    effortButton.hidden = !hasEfforts;
+    effortButton.setAttribute('aria-disabled', String(!canChooseEffort));
+    const effortLabel = labelFor('effort', activeEffortModel?.efforts || [], activeEffort);
+    effortButton.title = !hasEfforts ? paramWhy(t('status.effort_unsupported'))
+      : canChooseEffort ? effortLabel.title || t('menu.effort') : familyButton.title;
+    effortButton.replaceChildren(h(doc, 'span', { text: effortLabel.name || t('menu.effort') }));
     statusModel.hidden = true;
     statusModel.textContent = shown.model || (shown.loading ? t('session.loading') : t('session.model_unknown'));
     statusModel.title = hasModels ? '' : paramWhy(t('status.model_unsupported'));
@@ -1968,6 +2045,12 @@ export function createView(doc, refs, deps) {
     status.dataset.empty = String(routeButton.hidden && worktreeButton.hidden && resultRepoButton.hidden && familyButton.hidden && !busy && !session.usage);
     boxBar.dataset.empty = String(routeButton.hidden && modeButton.hidden && familyButton.hidden && modelButton.hidden && effortButton.hidden);
     if (menuKind === 'agent') renderMenu();
+    else if (menuKind === 'effort') {
+      const sig = effortMenuSignature();
+      if (sig !== menuSig) renderMenu();
+      else syncEffortMenu?.();
+      menuSig = sig;
+    }
     else if (menuKind === 'route') {
       if (menuSig !== currentRoute) renderMenu();
       menuSig = currentRoute;
@@ -1978,7 +2061,7 @@ export function createView(doc, refs, deps) {
         if (sig !== menuSig) renderMenu();
         menuSig = sig;
       }
-    } else if (menuKind && ((menuKind === 'mode' && !hasModes) || (menuKind === 'effort' && !hasEfforts) || ((menuKind === 'model' || menuKind === 'more') && !hasModels))) closeMenu();
+    } else if (menuKind && ((menuKind === 'mode' && !hasModes) || ((menuKind === 'model' || menuKind === 'more') && !hasModels))) closeMenu();
     else if (menuKind) {
       const sig = JSON.stringify(options);
       if (sig !== menuSig) renderMenu();
@@ -2484,9 +2567,10 @@ export function createView(doc, refs, deps) {
 
   function renderAsk(model, ui) {
     const session = ui.selected ? model.sessions[ui.selected] : undefined;
-    const pq = session ? session.pendingQuestion : null;
+    const pq = session ? session.pendingQuestion || ui.sourceQuestions?.get(session.id) : null;
     const key = pq ? `${session.id}:${pq.request}` : null;
     const open = new Set(Object.values(model.sessions).filter((s) => s.pendingQuestion).map((s) => `${s.id}:${s.pendingQuestion.request}`));
+    for (const [id, pending] of ui.sourceQuestions || []) open.add(id + ":" + pending.request);
     for (const k of [...askForms.keys()]) if (!open.has(k)) askForms.delete(k);
     if (key === askShown) return; // состояние формы ведёт сама карточка; перерисовка не нужна
     const hadFocus = askCard.contains(doc.activeElement);

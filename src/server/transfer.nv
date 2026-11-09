@@ -1,13 +1,7 @@
 // transfer.nv - task 192: the protocol of a conversation that is handed to another agent when the owner changes the family in the window.
 //
-// Pure functions over the lines of the page of a session (`Dialog.lines`): the messages of the owner and the answers of the agent come
-// WHOLE and word for word, the tools as one line (the action, the state, a short result), the earlier changes of the agent as a note.
-// A limit of size never cuts inside a message: from the end to the beginning whole messages are taken while they fit, the earlier ones
-// stay only as headers (the first words), and the caller tells the owner so.
+// Build the complete text transcript before deciding how much context the target model can use.
 module canopus.server
-
-/// The size (bytes of text) of a protocol over which the earlier messages are given only as headers.
-export const TRANSFER_LIMIT = 400000
 
 /// Transfer: the text to send, the number of the messages (of the owner and of the agent) given whole, the number of all of them,
 /// and whether the earlier ones were cut to headers.
@@ -94,77 +88,44 @@ fn t_entries(lines []str) -> []TEntry {
     out
 }
 
-// The first `n` characters of a text in one line.
-fn t_preview(text str, n int) -> str {
-    ro flat = text.replace("\n", " ")
-    mut parts = []str.new()
-    mut count = 0
-    for c in flat.chars() {
-        count += 1
-        if count <= n { parts.push("${c}") }
-    }
-    if count <= n { return flat }
-    "${parts.join("")}…"
-}
-
 fn t_render(e TEntry) -> str {
     if e.role == "user" { return "[пользователь]\n${e.text}" }
     if e.role == "agent" { return "[агент]\n${e.text}" }
     if e.role == "tool" {
         mut line = "[действие] ${e.text}: ${if e.status.byte_len() > 0 { e.status } else { "?" }}"
-        if e.detail.byte_len() > 0 { line = "${line}; ${t_preview(e.detail, 200)}" }
+        if e.detail.byte_len() > 0 { line = "${line}; ${e.detail}" }
         return line
     }
     "[${e.text}]"
 }
 
-fn t_header(e TEntry) -> str {
-    if e.role == "user" { return "- пользователь: ${t_preview(e.text, 80)}" }
-    "- агент: ${t_preview(e.text, 80)}"
-}
-
-fn t_is_message(e TEntry) -> bool => e.role == "user" || e.role == "agent"
-
-/// The protocol of the conversation `lines` for the agent that takes it over from `from_agent`; `limit` is the size over which the earlier
-/// messages shrink to headers (`TRANSFER_LIMIT` in the product).
-export fn build_transfer(lines []str, from_agent str, limit int) -> Transfer {
-    ro entries = t_entries(lines)
-    mut rendered = []str.new()
-    mut total = 0
-    for e in entries {
-        rendered.push(t_render(e))
-        if t_is_message(e) { total += 1 }
-    }
-    // from the end: whole entries while they fit; the last one goes in whatever its size
-    mut first = entries.len()
-    mut size = 0
-    while first > 0 {
-        ro next = size + rendered[first - 1].byte_len() + 2
-        if next > limit && first < entries.len() { break }
-        size = next
-        first -= 1
-    }
-    mut shown = 0
-    mut at = first
-    while at < entries.len() {
-        if t_is_message(entries[at]) { shown += 1 }
-        at += 1
-    }
+/// Produce the full recorded text. The target's budget is checked separately.
+export fn build_transfer(lines []str, from_agent str) -> Transfer {
     mut parts = []str.new()
     parts.push("Это продолжение разговора, ранее вёл ${from_agent}; ниже протокол; продолжай с последнего сообщения пользователя, ничего не отвечай на протокол.")
-    if first > 0 {
-        mut heads = []str.new()
-        mut i = 0
-        while i < first {
-            if t_is_message(entries[i]) { heads.push(t_header(entries[i])) }
-            i += 1
+    mut total = 0
+    for e in t_entries(lines) {
+        parts.push(t_render(e))
+        if e.role == "user" || e.role == "agent" { total += 1 }
+    }
+    Transfer { text: parts.join("\n\n"), shown: total, total, cut: false }
+}
+
+fn handoff_tail(lines []str) -> str {
+    ro entries = t_entries(lines)
+    mut at = entries.len()
+    mut turns = 0
+    while at > 0 {
+        at -= 1
+        if entries[at].role == "user" {
+            turns += 1
+            if turns == 2 { break }
         }
-        parts.push("Ранее в разговоре (только заголовки, ${heads.len()} сообщений):\n${heads.join("\n")}")
     }
-    mut k = first
-    while k < entries.len() {
-        parts.push(rendered[k])
-        k += 1
+    mut parts = []str.new()
+    while at < entries.len() {
+        parts.push(t_render(entries[at]))
+        at += 1
     }
-    Transfer { text: parts.join("\n\n"), shown, total, cut: first > 0 }
+    parts.join("\n\n")
 }

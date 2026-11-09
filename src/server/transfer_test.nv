@@ -1,5 +1,5 @@
 // transfer_test.nv - task 192: the protocol of a conversation that is handed to another agent (`transfer.nv`): whole messages, in order,
-// the tools as one line, a limit that cuts between messages and never inside one.
+// complete recorded tool details and named references to attachments.
 module canopus.server
 
 fn tl(kind str, input str) -> str => "{\"id\":\"x\",\"trace\":\"s\",\"step\":1,\"kind\":\"${kind}\",\"input\":${input},\"time\":0}"
@@ -16,7 +16,7 @@ fn sample() -> []str => [
 ]
 
 test "transfer: the first line says whose conversation it is, the messages come whole and in order" {
-    ro r = build_transfer(sample(), "opencode", 400000)
+    ro r = build_transfer(sample(), "opencode")
     assert(r.text.starts_with("Это продолжение разговора, ранее вёл opencode; ниже протокол; продолжай с последнего сообщения пользователя, ничего не отвечай на протокол"))
     assert(r.text.contains("first question\nwith a second line"))
     assert(r.text.contains("The answer"))
@@ -33,29 +33,19 @@ test "transfer: the first line says whose conversation it is, the messages come 
     assert(first >= 0 && first < answer && answer < second)
 }
 
-test "transfer: over the limit it goes from the end by whole messages, the earlier ones are headers only" {
-    mut lines = []str.new()
-    mut n = 0
-    while n < 20 {
-        lines.push(tl("user_message", "{\"turn\":\"t${n}\",\"text\":\"question number ${n} ........................................................................................................................\"}"))
-        lines.push(tl("agent_chunk", "{\"turn\":\"t${n}\",\"text\":\"answer number ${n} ........................................................................................................................\"}"))
-        n += 1
-    }
-    ro r = build_transfer(lines, "kimi", 1500)
-    assert(r.cut)
-    assert(r.total == 40)
-    assert(r.shown > 0 && r.shown < 40)
-    // the last message is whole, the first one is only a header (a short preview), never a half of a message
-    assert(r.text.contains("answer number 19 ........................................................................................................................"))
-    assert(r.text.contains("question number 0"))
-    assert(!r.text.contains("question number 0 ........................................................................................................................"))
-}
-
-test "transfer: one message over the limit is still given whole" {
-    ro big = "{\"turn\":\"t1\",\"text\":\"${"x".repeat(2000)}\"}"
-    ro r = build_transfer([tl("user_message", big)], "kimi", 100)
-    assert(r.text.contains("x".repeat(2000)))
-    assert(r.shown == 1)
+test "transfer: a long transcript preserves early messages and full recorded tool details" {
+    ro early = "beginning ".concat("x".repeat(410000))
+    ro detail = "y".repeat(300).concat(" tool detail end")
+    ro lines = [
+        tl("user_message", "{\"turn\":\"t1\",\"text\":\"${early}\"}"),
+        tl("tool_call", "{\"turn\":\"t1\",\"id\":\"c1\",\"title\":\"read\",\"detail\":\"${detail}\"}"),
+        tl("agent_chunk", "{\"turn\":\"t1\",\"text\":\"recent answer\"}")
+    ]
+    ro r = build_transfer(lines, "kimi")
+    assert(r.text.contains(early))
+    assert(r.text.contains(detail))
+    assert(r.text.contains("recent answer"))
+    assert(r.shown == 2 && r.total == 2 && !r.cut)
 }
 
 test "transfer: the pictures of a message go as lines with the names, never the bytes" {
@@ -68,7 +58,7 @@ test "transfer: the pictures of a message go as lines with the names, never the 
         tl("user_message", "{\"turn\":\"t2\",\"text\":\"\"}"),
         tl("user_message", "{\"turn\":\"t3\",\"text\":\"plain\"}")
     ]
-    ro r = build_transfer(lines, "opencode", 400000)
+    ro r = build_transfer(lines, "opencode")
     assert(r.text.contains("look at this\n[изображение: shot.png]\n[изображение: image-2.png]"))
     assert(r.text.contains("[пользователь]\n[изображение: alone.png]"))
     assert(r.text.contains("[пользователь]\nplain"))

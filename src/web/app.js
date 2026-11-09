@@ -13,7 +13,7 @@ import { waitingKeys, waitKey, SILENT_DEFAULT_MIN } from './attention.js';
 import { createNotifier } from './notify.js';
 import { t } from './strings.js';
 import { createView } from './view.js';
-import { createQueue } from './queue.js';
+import { createQueue, isBusy } from './queue.js';
 import { uploadImages, messageInput } from './attachments.js';
 import { chooseMode, createTransport, parseAgentRegistry, loadModelMetadata } from './transport.js';
 import { createProjectsApi } from './projects-api.js';
@@ -112,6 +112,8 @@ if (!ui.awaiting) {
 applyTheme(ui.theme);
 
 const ctx = { newId, now: () => Date.now() };
+ui.sourceQuestions = new Map();
+const confirmSourceLabel = 'Применить';
 let view = null;
 let queued = false;
 let transport = null;
@@ -250,6 +252,13 @@ async function postImage(trace, item) {
   return { n: data.n };
 }
 const signal = (trace, { kind, input }) => [kind, trace, nextStep(model, trace), input];
+
+function warnIfCodexTransferUnknown(session, source) {
+  if (!session || session.draft || source?.family !== 'codex' || session.agent === 'codex'
+      || !session.messages.some((message) => message.role === 'user')) return false;
+  flash('Переход на Codex приостановлен: вместимость полной истории неизвестна. История и новое сообщение не отправлены.', 'error');
+  return true;
+}
 
 const handlers = {
   onRetryProjects() { loadProjects(); },
@@ -391,6 +400,8 @@ const handlers = {
   // Без картинок — как раньше, сразу. С картинками — сначала они на сервер по очереди, потом сообщение с их номерами.
   onSend(trace, text, images = []) {
     const draft = model.sessions[trace];
+    if (ui.sourceQuestions.has(trace)) return false;
+    if (warnIfCodexTransferUnknown(draft, draft?.source)) return false;
     let reserved = null;
     if (draft && draft.draft) {
       // Protect the first message before even creating its session (creation may fail too).
@@ -461,7 +472,24 @@ const handlers = {
   onSource(trace, source) {
     const session = model.sessions[trace];
     if (!session || session.draft || isBusy(session.state)) { flash('Источник можно изменить только между ходами.', 'info'); return; }
-    if (!send('session_source', trace, nextStep(model, trace), source)) flash('Источник не изменён: соединение недоступно.', 'error');
+    const handoff = session.agent === 'kimi' && source.family === 'codex' && session.messages.some((message) => message.role === 'user');
+    if ((!handoff && source.family !== session.agent) || session.pendingQuestion) {
+      if (!session.pendingQuestion) send('session_source', trace, nextStep(model, trace), source);
+      return;
+    }
+    const question = {
+      request: newId(),
+      questions: [{
+        header: 'Модель и усилие',
+        question: handoff
+          ? 'Перейти на Codex в этом чате? Кеш Kimi не переносится. Вместимость полной истории не подтверждена.'
+          : 'Применить выбор со следующего сообщения? История останется в чате. Кеш запроса может быть пересобран.',
+        multiSelect: false,
+        options: [{ label: confirmSourceLabel, description: '' }, { label: 'Отмена', description: '' }],
+      }],
+    };
+    ui.sourceQuestions.set(trace, { ...question, source, handoff, previous: session.agent });
+    render();
   },
   onApproval(trace, family, value) {
     const session = model.sessions[trace];
@@ -474,6 +502,21 @@ const handlers = {
     send('session_setting', trace, nextStep(model, trace), { family, setting: 'mode', value });
   },
   onAnswer(trace, answer) {
+    const pending = ui.sourceQuestions.get(trace);
+    if (pending?.request === answer.request) {
+      const session = model.sessions[trace];
+      if (!answer.skipped && answer.answers?.[0]?.selected?.[0] === confirmSourceLabel) {
+        if (!session || session.agent !== pending.previous || isBusy(session.state)) {
+          flash('Источник можно изменить только между ходами.', 'info');
+          return false;
+        }
+        if (!send(pending.handoff ? 'session_context_handoff' : 'session_source', trace, nextStep(model, trace), pending.source)) return false;
+      }
+      ui.sourceQuestions.delete(trace);
+      render();
+      if (!pending.handoff || answer.skipped) drain();
+      return true;
+    }
     return send('question_answer', trace, nextStep(model, trace), answer);
   },
   // Режимы работы по методике (задача 192p): сигналы серверу; состояние вернётся событием route_state.
@@ -563,21 +606,34 @@ async function start() {
     main: document.getElementById('main'), rail: document.getElementById('rail'),
     status: document.getElementById('status'), overlay: document.getElementById('overlay'),
   }, { agents, now: ctx.now, handlers, registryFailed, registryPending: picked.mode === 'ws', imageSrc: mock ? mock.mockImageSrc : undefined, projectsApi, presets: () => presetInfo, modelMetadata: () => modelMetadata });
+  let metadataRequest = null;
+  function refreshModelMetadata() {
+    if (picked.mode !== 'ws' || !agentList.length || metadataRequest) return;
+    if (modelMetadata.status === 'ready' && modelMetadata.expiresAt - ctx.now() > 60000) return;
+    metadataRequest = loadModelMetadata((...args) => fetch(...args), agentList.map((agent) => agent.id))
+      .then((next) => {
+        if (next.status === 'ready' || modelMetadata.expiresAt <= ctx.now() || modelMetadata.status !== 'ready') {
+          modelMetadata = next;
+        }
+        render();
+      }).finally(() => { metadataRequest = null; });
+  }
+
   if (picked.mode === 'ws') {
     fetch('/api/agents', { cache: 'no-store' }).then(async (response) => {
       if (!response.ok) throw new Error('agent registry unavailable');
       const next = parseAgentRegistry(await response.json());
       view.setAgents(next, false); agentList = next;
-      modelMetadata = { status: 'loading', reason: 'metadata_loading', family: '', models: [] };
-      render();
-      modelMetadata = await loadModelMetadata((...args) => fetch(...args), next.map((agent) => agent.id));
+      modelMetadata = next.length ? { status: 'loading', reason: 'metadata_loading', family: '', models: [] }
+        : { status: 'unavailable', reason: 'agent_registry_empty', family: '', models: [] };
+      refreshModelMetadata();
       render();
     }).catch(() => { view.setAgents([], true); agentList = []; modelMetadata = { status: 'unavailable', reason: 'agent_registry_unavailable', family: '', models: [] }; render(); });
   }
   setInterval(() => view.tick(), TICK_MS);
-  setInterval(() => render(), 30000); // «молчит N мин» в списке обновляется сам
-  document.addEventListener('visibilitychange', () => { notifier.visibilityChanged(); render(); });
-  globalThis.addEventListener('focus', () => { notifier.visibilityChanged(); render(); });
+  setInterval(() => { refreshModelMetadata(); render(); }, 30000); // «молчит N мин» в списке обновляется сам
+  document.addEventListener('visibilitychange', () => { notifier.visibilityChanged(); refreshModelMetadata(); render(); });
+  globalThis.addEventListener('focus', () => { notifier.visibilityChanged(); refreshModelMetadata(); render(); });
   globalThis.addEventListener('blur', () => notifier.visibilityChanged());
   transport = createTransport({
     mode: picked.mode, url: picked.url,

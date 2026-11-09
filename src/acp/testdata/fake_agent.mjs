@@ -45,7 +45,7 @@ const noInitialize = args.includes("--no-initialize");
 const takesImages = args.includes("--images");
 const noSession = args.includes("--no-session");
 const authError = args.includes("--auth-error");
-const askFlag = args.includes("--ask");
+const askFlag = args.includes("--ask") || args.includes("--handoff-overflow");
 // `--no-yolo`: the list of modes has no "yolo" (an agent that changed its list)
 const noYolo = args.includes("--no-yolo");
 const rejectEffortSet = args.includes("--reject-effort-set");
@@ -111,6 +111,20 @@ async function prompt(id, params) {
   let plain = text;
   while (plain.startsWith("[canopus]") && plain.includes("\n\n")) plain = plain.slice(plain.indexOf("\n\n") + 2);
   const word = plain.split(" ")[0];
+  if (args.includes("--handoff-overflow") && plain.startsWith("Это служебная передача истории.")) {
+    return write({ jsonrpc: "2.0", id, error: { code: -32000, message: "context_window_exceeded" } });
+  }
+  if (args.includes("--handoff-summary") && plain.startsWith("Сделай сводку")) {
+    chunk("fixture: earlier decision preserved");
+    return respond(id, { stopReason: "end_turn" });
+  }
+  if (args.includes("--handoff-overflow") && plain.startsWith("Это перенос контекста.")) {
+    if (!plain.includes("fixture: earlier decision preserved") || !plain.includes("first fact")) {
+      return write({ jsonrpc: "2.0", id, error: { code: -32000, message: "missing summary or recent messages" } });
+    }
+    chunk("received the summary and recent messages");
+    return respond(id, { stopReason: "end_turn" });
+  }
   // the modes of work (task 192q): the hub asks to resolve conflicts (the files are resolved here, in the folder of the process) and to run the tests
   if (text.includes("Разреши конфликты")) {
     const files = execFileSync("git", ["diff", "--name-only", "--diff-filter=U"], { encoding: "utf8" }).split("\n").filter(Boolean);

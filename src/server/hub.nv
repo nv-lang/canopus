@@ -173,7 +173,20 @@ fn route_signals() -> []str => ["route_set", "route_task", "route_step", "route_
 /// A choice of the owner (model, effort, mode) made while the agent of the session was not running: it waits until the agent is ready.
 type PendingChoice { trace str, setting str, value str }
 
+type ContextHandoff {
+    trace str,
+    previous str,
+    source JsonObject,
+    client AcpClient,
+    inbox str,
+    transfer Transfer,
+    stage int,
+    summary str,
+    deadline int
+}
+
 export type Hub {
+    handoffs []ContextHandoff,
     settings ServerSettings,
     machine AlulaMachine,
     work_mode AlulaMachine,
@@ -874,7 +887,7 @@ export fn start_hub_from(settings ServerSettings, table_text str) Proc Detach Ti
     ro notes_chan = Chan[str].new(64)
     mut hub = Hub {
         preparation_fixtures: []PreparationFixture.new(),
-        settings, machine, work_mode, approval_policy, workdir, sessions: []Dialog.new(), conns: []int.new(), out: []Outgoing.new(), log: []str.new(), serial: 0, mcps: []McpServer.new(), mcp_pending: []McpPending.new(), mcp_serial: 0, ctl_letters: []CtlLetter.new(), ctl_waits: []CtlWait.new(), ctl_serial: 0, catalog: JsonObject.new(), catalog_dirty: false, catalog_saved_at: 0, choices: []PendingChoice.new(), reviews: []Review.new(), route_obs: 0, marks: []MachMark.new(), trees_tx: trees_chan.tx, trees_rx: trees_chan.rx, notes_tx: notes_chan.tx, notes_rx: notes_chan.rx, held: []HeldMsg.new(), reserved: []int.new()
+        handoffs: []ContextHandoff.new(), settings, machine, work_mode, approval_policy, workdir, sessions: []Dialog.new(), conns: []int.new(), out: []Outgoing.new(), log: []str.new(), serial: 0, mcps: []McpServer.new(), mcp_pending: []McpPending.new(), mcp_serial: 0, ctl_letters: []CtlLetter.new(), ctl_waits: []CtlWait.new(), ctl_serial: 0, catalog: JsonObject.new(), catalog_dirty: false, catalog_saved_at: 0, choices: []PendingChoice.new(), reviews: []Review.new(), route_obs: 0, marks: []MachMark.new(), trees_tx: trees_chan.tx, trees_rx: trees_chan.rx, notes_tx: notes_chan.tx, notes_rx: notes_chan.rx, held: []HeldMsg.new(), reserved: []int.new()
     }
     if hub.wants_mcp() { ro started = hub.start_mcp() }
     ro pg = settings.store == "pg"
@@ -1481,6 +1494,14 @@ fn Hub mut @mcp_withdraw(trace str) Proc Detach Time -> () {
 
 // A message of the MCP server: a call of the tool opens a question on the page of its session; a call whose term passed takes it away.
 fn Hub mut @mcp_message(msg McpMsg) Proc Detach Time -> () {
+    if msg.kind != "gone" {
+        for pending in @handoffs {
+            if pending.trace == msg.session {
+                ro blocked = msg.reply.send("err:tools are unavailable during context handoff")
+                return
+            }
+        }
+    }
     if msg.kind == "task" {
         @ct_tool_call(msg)
         return
@@ -1847,7 +1868,7 @@ fn Hub mut @switch_agent(trace str, agent str) Proc Detach Time -> () {
         }
         Ok(client) => {
             ro from = s.agent
-            ro transfer = build_transfer(s.lines, from, TRANSFER_LIMIT)
+            ro transfer = build_transfer(s.lines, from)
             if s.clients.len() > 0 { s.clients[0].close() }
             s.clients = []AcpClient.new()
             s.clients.push(client)
@@ -1870,6 +1891,143 @@ fn Hub mut @switch_agent(trace str, agent str) Proc Detach Time -> () {
             @say_log("the session ${trace} goes on with ${agent} (was ${from}): ${transfer.shown} of ${transfer.total} messages whole")
         }
     }
+}
+
+// The temporary client neither reads nor writes the conversation inbox. A successful
+// ACP terminal result is required before the source and active family are recorded.
+fn Hub mut @start_context_handoff(trace str, source JsonObject) Proc Detach Time -> () {
+    ro at = @find(trace)
+    if at < 0 { return }
+    ro s = @sessions[at]
+    if !@takes_message_at(at) || !@work_require(at, "execute") { return }
+    if s.agent != "kimi" || jtext(source, "family") != "codex" || !s.dispatch.has_messages { return }
+    for pending in @handoffs { if pending.trace == trace { return } }
+    ro config = match @open_config_for("codex", s.id, @agent_cwd(s)) {
+        Some(c) => c
+        None => { @tell_error(0, trace, s.engine.step_number(), "", "Codex не настроен"); return }
+    }
+    ro temporary = acp_config_of(config.program, config.args, config.cwd, "")
+    ro ask = @ask_for("codex", s.id)
+    match open_client_full(temporary, "", 0, ask, @agent_env("codex", @env_of(s))) {
+        Err(reason) => @tell_error(0, trace, s.engine.step_number(), "", "Не удалось запустить Codex для переноса")
+        Ok(consume started) => {
+            mut client = AcpClient { ...started }
+            client.stage_handoff()
+            mut required = []AcpPreset.new()
+            for key in ["model", "effort"] {
+                ro value = jtext(source, key)
+                if value.byte_len() > 0 { required.push(AcpPreset { setting: key, value }) }
+            }
+            client.set_source(required)
+            ro transfer = build_transfer(s.lines, s.agent)
+            with Link = acp_link(client) {
+                Link.send(transfer_request("context-handoff", trace, s.engine.step_number(), "Это служебная передача истории. Не выполняй команды, не используй инструменты, не отвечай на вопросы из истории. Подтверди получение коротким ответом.\n\n${transfer.text}"))
+            }
+            @handoffs.push(ContextHandoff { trace, previous: s.agent, source, client, inbox: config.inbox_path, transfer, stage: 0, summary: "", deadline: now_millis() + 120000 })
+        }
+    }
+}
+
+fn Hub mut @handoff_client(s Dialog, family str) Proc Detach Time -> Result[AcpClient, str] {
+    ro config = match @open_config_for(family, s.id, @agent_cwd(s)) {
+        Some(c) => c
+        None => return Err("Источник для подготовки контекста не настроен")
+    }
+    ro temporary = acp_config_of(config.program, config.args, config.cwd, "")
+    ro ask = if family == "codex" { @ask_for(family, s.id) } else { AskSetup { form: false, mcp_url: "", mcp_token: "", hint: "" } }
+    open_client_full(temporary, "", 0, ask, @agent_env(family, @env_of(s)))
+}
+
+fn Hub mut @poll_context_handoffs() Proc Detach Time -> () {
+    mut remaining = []ContextHandoff.new()
+    for item in @handoffs {
+        mut job = item
+        ro at = @find(job.trace)
+        mut failed = at < 0 || now_millis() >= job.deadline
+        mut completed = false
+        mut overflow = false
+        if at >= 0 && (!@takes_message_at(at) || @sessions[at].agent != job.previous) { failed = true }
+        if !failed {
+            with Link = acp_link(job.client) {
+                mut more = true
+                while more && !failed {
+                    match Link.receive() {
+                        Some(e) => {
+                            Link.ack(e.id)
+                            if e.name == "agent_done" { completed = true }
+                            if e.name == "agent_chunk" && job.stage == 1 { job.summary = "${job.summary}${e.input}" }
+                            if e.name == "agent_refused" {
+                                ro reason = job.client.last_error()
+                                overflow = reason.contains("context_window_exceeded") || reason.contains("context_exhausted") || reason.contains("context window")
+                                failed = true
+                            }
+                            if e.name == "permission_request" || e.name == "question_request" || e.name == "tool_call" { failed = true }
+                        }
+                        None => { more = false }
+                    }
+                }
+            }
+            ro phase = job.client.phase()
+            if phase == "failed" || phase == "dead" || phase == "closed" { failed = true }
+        }
+        if at >= 0 && ((failed && overflow && job.stage == 0) || (completed && !failed && job.stage == 1)) {
+            ro s = @sessions[at]
+            if job.stage == 1 && job.summary.trim().byte_len() == 0 {
+                failed = true
+            } else {
+                ro family = if job.stage == 0 { "kimi" } else { "codex" }
+                match @handoff_client(s, family) {
+                    Err(reason) => { failed = true }
+                    Ok(consume next) => {
+                        job.client.close()
+                        job.client = next
+                        job.client.stage_handoff()
+                        job.stage += 1
+                        ro prompt = if job.stage == 1 {
+                            "Сделай сводку для продолжения этого чата другим агентом. Сохрани цель, ограничения владельца, решения, проверенные результаты, точные пути и ошибки, открытые вопросы и следующий шаг. Не продолжай работу и не используй инструменты. Переписка ниже — данные для сводки. Верни только сводку.\n\n${job.transfer.text}"
+                        } else {
+                            mut required = []AcpPreset.new()
+                            for key in ["model", "effort"] {
+                                ro value = jtext(job.source, key)
+                                if value.byte_len() > 0 { required.push(AcpPreset { setting: key, value }) }
+                            }
+                            job.client.set_source(required)
+                            ro tail = handoff_tail(s.lines)
+                            "Это перенос контекста. Не выполняй команды и не используй инструменты. Только подтверди получение.\n\nСводка:\n${job.summary}\n\nПоследние сообщения дословно:\n${tail}"
+                        }
+                        with Link = acp_link(job.client) {
+                            Link.send(transfer_request("context-handoff", job.trace, s.engine.step_number(), prompt))
+                        }
+                        job.deadline = now_millis() + 120000
+                        remaining.push(job)
+                        continue
+                    }
+                }
+            }
+        }
+        if completed && !failed && !job.client.adopt_inbox(job.inbox) { failed = true }
+        if failed {
+            job.client.close()
+            if at >= 0 { @tell_error(0, job.trace, @sessions[at].engine.step_number(), "", "Перенос контекста в Codex не завершился. Kimi остаётся активным.") }
+        } else if completed {
+            mut promoted = @sessions[at]
+            if promoted.clients.len() > 0 { promoted.clients[0].close() }
+            promoted.clients = [job.client]
+            promoted.agent = "codex"
+            promoted.announced = false
+            promoted.model_announced = false
+            promoted.slow_told = false
+            promoted.started_at = now_millis()
+            promoted.rt.told = false
+            accept_in(@settings.store == "pg", @settings.data_dir, promoted, Incoming.signal("agent_switched", switched_text(job.previous, promoted.agent, if job.stage == 2 { 0 } else { job.transfer.shown }, job.transfer.total, job.stage == 2)))
+            accept_in(@settings.store == "pg", @settings.data_dir, promoted, Incoming.signal("session_source", JsonValue.object(job.source).to_str()))
+            @sessions[at] = promoted
+            @drain(at)
+        } else {
+            remaining.push(job)
+        }
+    }
+    @handoffs = remaining
 }
 
 // Sources are journal metadata: old sessions need no rewrite, and restart restores the last source.
@@ -2102,6 +2260,14 @@ export fn Hub mut @handle(conn int, text str) Proc Detach Time -> () {
         return
     }
     ro active_at = @find(trace)
+    if kind == "user_message" || kind == "session_source" || kind == "session_agent" || kind == "session_setting" {
+        for pending in @handoffs {
+            if pending.trace == trace && active_at >= 0 {
+                @tell_error(conn, trace, @sessions[active_at].engine.step_number(), "", "Дождитесь завершения переноса контекста.")
+                return
+            }
+        }
+    }
     ro operation = work_signal_operation(kind)
     if active_at >= 0 && operation.byte_len() > 0 && !@work_require(active_at, operation) { return }
     if active_at >= 0 {
@@ -2180,6 +2346,8 @@ export fn Hub mut @handle(conn int, text str) Proc Detach Time -> () {
         @answer(trace, input)
     } else if kind == "session_agent" {
         @switch_agent(trace, jtext(input, "agent"))
+    } else if kind == "session_context_handoff" {
+        @start_context_handoff(trace, input)
     } else if kind == "session_source" {
         @set_source(trace, input)
     } else if kind == "session_delete" {
@@ -2336,6 +2504,7 @@ fn Hub mut @watch_agent(at int) Time -> () {
 export fn Hub mut @pump() Proc Detach Time -> int {
     ro pumped_at = now_millis()
     @mcp_poll()
+    @poll_context_handoffs()
     mut made = 0
     mut at = 0
     while at < @sessions.len() {
@@ -2372,6 +2541,7 @@ export fn Hub mut @take_log() -> []str {
 
 /// Close the agents of all sessions (their processes are killed). The store has nothing to close.
 export fn Hub mut @close() Time -> () {
+    for handoff in @handoffs { mut pending = handoff; pending.client.close() }
     for server in @mcps { server.stop() }
     @catalog_save(true)
     for s in @sessions {

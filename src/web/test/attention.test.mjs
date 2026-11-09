@@ -150,7 +150,7 @@ test('вёрстка и проводка: выключатели в шапке �
   assert.match(view, /t\('attn\.waiting'\)/);
   assert.match(view, /silent-cancel/);
   assert.match(app, /notifier\.update\(waitingKeys\(all, ui\.acked\), names, ui\.selected \|\| ''\)/);
-  assert.match(app, /setInterval\(\(\) => render\(\), 30000\)/);
+  assert.match(app, /setInterval\(\(\) => \{ refreshModelMetadata\(\); render\(\); \}, 30000\)/);
   assert.match(css, /\.session-item\[data-blink="true"\] \.dot\[data-attn="waiting"\][^{]*\{ animation: attn-blink 2s/);
   assert.match(css, /\.session-item\[data-attn="waiting"\] \.session-name \{ font-weight: 700; \}/);
   assert.equal(t('attn.waiting'), 'ждёт вас');
