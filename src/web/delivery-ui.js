@@ -43,14 +43,13 @@ export function deliveryCard(doc, item, actions) {
     type: 'button', class: 'delivery-head', 'aria-expanded': String(!collapsed),
     title: collapsed ? t('delivery.expand') : t('delivery.collapse'),
   },
-    h(doc, 'span', { text: status }),
+    h(doc, 'span', { class: 'delivery-label', 'data-warning': String(!archived && ['not_sent', 'agent_error', 'agent_refused', 'error'].includes(item.state)), text: status }),
     h(doc, 'span', { class: 'delivery-more', text: t('delivery.more') }),
     icon(doc, 'i-chevron-right', 'chev'));
   const body = h(doc, 'div', { class: 'delivery-body', hidden: collapsed },
     timestamp ? h(doc, 'time', { datetime: new Date(item.at).toISOString(), text: timestamp }) : null,
-    h(doc, 'p', { text: labels[item.state] || labels.unknown }),
-    reason ? h(doc, 'p', { text: reason }) : null,
-    h(doc, 'p', { text: explanation }),
+    h(doc, 'p', { class: 'delivery-reason', text: reason || labels[item.state] || labels.unknown }),
+    h(doc, 'p', { class: 'delivery-guidance', text: explanation }),
     item.images.length ? h(doc, 'p', { text: t('delivery.images') }) : false,
     h(doc, 'div', { class: 'delivery-actions' }, ...(item.state === 'error' ? [] : [retry, restore]), ...(actions.forget ? [forget] : [])),
     h(doc, 'details', {}, h(doc, 'summary', { text: t('delivery.details') }), h(doc, 'pre', { text: detail }), copy));
