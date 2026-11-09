@@ -113,6 +113,7 @@ applyTheme(ui.theme);
 
 const ctx = { newId, now: () => Date.now() };
 ui.sourceQuestions = new Map();
+ui.handoffStatus = new Map();
 const confirmSourceLabel = 'Применить';
 let view = null;
 let queued = false;
@@ -218,6 +219,25 @@ function sendMessage(trace, text, images = [], retry = null) {
   return true;
 }
 
+// The confirmed selection stays local until the owner sends a message.
+function prepareHandoff(trace, choice) {
+  return new Promise(resolve => {
+    const finish = (ok, message) => {
+      timers.clear(timer);
+      if (ok) ui.handoffStatus.delete(trace);
+      else ui.handoffStatus.set(trace, { phase: 'error', message });
+      resolve(ok);
+      render();
+    };
+    const timer = timers.set(() => finish(false, t('handoff.unconfirmed')), 370000);
+    ui.handoffStatus.set(trace, { ...choice, phase: 'preparing', finish });
+    try {
+      if (send('session_context_handoff', trace, nextStep(model, trace), choice.source)) { render(); return; }
+    } catch { /* The transport could not confirm the send. */ }
+    finish(false, t('handoff.unconfirmed'));
+  });
+}
+
 // Очередь сообщений (Enter при работающем агенте): живёт только в странице, по сессиям, FIFO.
 const queue = createQueue();
 
@@ -225,12 +245,13 @@ const queue = createQueue();
 function drain() {
   queue.prune(model.sessions);
   for (const trace of queue.traces()) {
+    if (ui.handoffStatus.get(trace)?.phase === 'preparing' || ui.handoffStatus.get(trace)?.phase === 'selected') continue;
     const item = queue.take(trace, model.sessions[trace]);
     if (item === undefined) continue;
     // в очереди лежит { text, images }: картинки уходят на сервер при выдаче, а не при постановке
     const images = item.images ?? [];
     const delivered = handlers.onSend(trace, item.text, images);
-    if (images.length === 0) {
+    if (typeof delivered?.then !== 'function') {
       if (!delivered) queue.restore(trace, item);
     } else {
       Promise.resolve(delivered).then((ok) => { if (!ok) { queue.restore(trace, item); render(); } }, () => { queue.restore(trace, item); render(); });
@@ -266,7 +287,8 @@ const handlers = {
   deliveryItems(trace) { return delivery.items(trace); },
   onRetry(trace, id) {
     const session = model.sessions[trace];
-    if (!session || session.draft || ['answering', 'permission'].includes(session.state)) return;
+    if (!session || session.draft || ['answering', 'permission'].includes(session.state)
+      || ['preparing', 'selected'].includes(ui.handoffStatus.get(trace)?.phase)) return;
     const item = delivery.beginRetry(id);
     if (item) sendMessage(trace, item.text, [], item);
   },
@@ -401,6 +423,13 @@ const handlers = {
   onSend(trace, text, images = []) {
     const draft = model.sessions[trace];
     if (ui.sourceQuestions.has(trace)) return false;
+    const choice = ui.handoffStatus.get(trace);
+    if (choice?.phase === 'preparing') return false;
+    if (choice?.phase === 'selected') {
+      if (!draft || draft.agent !== choice.previous || isBusy(draft.state)) return false;
+      return prepareHandoff(trace, choice).then(ok => ok && handlers.onSend(trace, text, images));
+    }
+    if (choice?.phase === 'error') ui.handoffStatus.delete(trace);
     if (warnIfCodexTransferUnknown(draft, draft?.source)) return false;
     let reserved = null;
     if (draft && draft.draft) {
@@ -471,6 +500,7 @@ const handlers = {
   },
   onSource(trace, source) {
     const session = model.sessions[trace];
+    if (ui.handoffStatus.get(trace)?.phase === 'preparing') return;
     if (!session || session.draft || isBusy(session.state)) { flash('Источник можно изменить только между ходами.', 'info'); return; }
     const handoffPair = (session.agent === 'kimi' && source.family === 'codex')
       || (session.agent === 'codex' && source.family === 'kimi');
@@ -512,7 +542,11 @@ const handlers = {
           flash('Источник можно изменить только между ходами.', 'info');
           return false;
         }
-        if (!send(pending.handoff ? 'session_context_handoff' : 'session_source', trace, nextStep(model, trace), pending.source)) return false;
+        if (pending.handoff) ui.handoffStatus.set(trace, { phase: 'selected', previous: pending.previous, source: pending.source });
+        else {
+          if (!send('session_source', trace, nextStep(model, trace), pending.source)) return false;
+          ui.handoffStatus.delete(trace);
+        }
       }
       ui.sourceQuestions.delete(trace);
       render();
@@ -643,19 +677,44 @@ async function start() {
     WebSocketImpl: globalThis.WebSocket, timers,
     onEvent(event) {
       try {
+        const handoff = ui.handoffStatus.get(event.trace);
+        if (event.kind === 'handoff_progress') {
+          if (handoff?.phase === 'preparing' && event.input?.phase === 'compacting') {
+            handoff.compacting = true;
+            render();
+          }
+          return;
+        }
+        if (handoff?.phase === 'preparing' && event.kind === 'error' && !event.input?.turn && !event.input?.client_id) {
+          handoff.finish(false, t('handoff.failed'));
+          return;
+        }
         if (event.kind === 'message_delivery') delivery.receipt(event.input);
         if (event.kind === 'error' && event.input) delivery.error(event);
         const next = reduce(model, event);
         const changed = next !== model;
         model = next;
         delivery.reconcile(model);
-        if (changed) drain();
+        const completed = handoff?.phase === 'preparing' && event.kind === 'session_source'
+          && event.input?.family === handoff.source.family && event.input?.model === handoff.source.model
+          && model.sessions[event.trace]?.agent === handoff.source.family;
+        if (completed) handoff.finish(true);
+        else if (changed) drain();
         if (changed || event.kind === 'message_delivery' || event.kind === 'error') render();
       } catch (e) {
         reportError(e);
       }
     },
-    onStatus(next) { status = next; if (next.state === 'retry') delivery.disconnected(); render(); },
+    onStatus(next) {
+      status = next;
+      if (next.state === 'retry') {
+        delivery.disconnected();
+        for (const handoff of ui.handoffStatus.values()) {
+          if (handoff.phase === 'preparing') handoff.finish(false, t('handoff.unconfirmed'));
+        }
+      }
+      render();
+    },
     onSnapshot(phase, ids) {
       if (phase === 'loading') {
         if (loading.state.sessions.data !== null) loadProjects();

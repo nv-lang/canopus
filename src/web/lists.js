@@ -218,7 +218,9 @@ export function timeline(session) {
     } else if (m.role === 'dropped') {
       items.push({ type: 'dropped', key: m.key, setting: m.setting, value: m.value, used: m.used });
     } else if (m.role === 'switch') {
-      items.push({ type: 'switch', key: m.key, from: m.from, to: m.to, shown: m.shown, total: m.total, cut: m.cut });
+      if (!((m.from === 'kimi' && m.to === 'codex') || (m.from === 'codex' && m.to === 'kimi'))) {
+        items.push({ type: 'switch', key: m.key, from: m.from, to: m.to, shown: m.shown, total: m.total, cut: m.cut });
+      }
     } else if (m.role === 'answer') {
       items.push({ type: 'answer', key: m.key, skipped: m.skipped, lines: m.lines });
     } else if (m.role === 'auto_extend') {

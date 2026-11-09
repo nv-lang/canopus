@@ -169,6 +169,7 @@ export fn scenario_context_handoff(settings ServerSettings, previous str, target
     rig.forget()
     rig.page(1, "session_context_handoff", "s-handoff", "{\"family\":\"${target}\",\"model\":\"fake-model-b\",\"effort\":\"high\"}")
     c.expect(rig.until("\"kind\":\"agent_switched\"", 15000), "the same chat switched after successful handoff")
+    c.expect(kit_with(rig.lines_for(1), "\"kind\":\"handoff_progress\"") > 0, "overflow announces history compaction")
     c.expect(kit_ask(rig, "s-handoff", "mode") == "mode: default model: fake-model-b effort: high", "the next turn uses the chosen destination source")
     rig.forget()
     rig.page(1, "user_message", "s-handoff", rk_tasklist_page("handoff-tools", []JsonValue.new()))

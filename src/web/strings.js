@@ -150,6 +150,11 @@ export const S = Object.freeze({
   // ---- поле ввода
   'msg.copy': 'Скопировать',
   'msg.restore': 'Вернуть в поле ввода',
+  'handoff.selected': '{agent} со следующего сообщения',
+  'handoff.compacting': 'Сжимаем раннюю историю…',
+  'handoff.preparing': 'Готовим контекст для {agent}…',
+  'handoff.failed': 'Перенос не удался. Прежний агент активен, текст остался в поле ввода.',
+  'handoff.unconfirmed': 'Перенос не подтверждён. Текст остался в поле ввода. Проверьте выбранного агента.',
   'delivery.checking': 'Сверяем состояние сообщений…',
   'delivery.more': 'Подробнее',
   'delivery.short_unknown': '◷ Доставка не подтверждена',

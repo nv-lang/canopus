@@ -180,3 +180,39 @@ test('late receipt clears a timed-out local copy before rendering the accepted e
   assert.equal(first.handlers.deliveryItems('s').length, 0);
   assert.equal(first.sent.length, 1);
 });
+
+
+test('confirmed Kimi to Codex handoff starts only on send and never sends text after transfer failure', async () => {
+  for (const succeeds of [false, true]) {
+    const page = await app();
+    page.event('agent_switched', { from: 'agent', to: 'kimi' }, { step: 1 });
+    page.event('user_message', { turn: 'old', text: 'история' }, { step: 2 });
+    page.event('agent_done', { turn: 'old' }, { step: 3 });
+    page.handlers.onSource('s', { family: 'codex', model: 'test-model', effort: 'low' });
+    const question = page.getUI().sourceQuestions.get('s');
+    assert.equal(page.handlers.onAnswer('s', { request: question.request, answers: [{ selected: ['Применить'] }] }), true);
+    assert.equal(page.sent.length, 0);
+    assert.equal(page.getUI().handoffStatus.get('s').phase, 'selected');
+    const sent = page.handlers.onSend('s', 'сохранить этот текст');
+    assert.equal(page.getUI().handoffStatus.get('s').phase, 'preparing');
+    assert.equal(page.sent[0].kind, 'session_context_handoff');
+    assert.equal(page.sent[0].input.text, undefined);
+    assert.equal(page.handlers.onSend('s', 'не дублировать'), false);
+    page.event('handoff_progress', { phase: 'compacting' }, { step: 4 });
+    assert.equal(page.getUI().handoffStatus.get('s').compacting, true);
+    if (succeeds) {
+      page.event('agent_switched', { from: 'kimi', to: 'codex' }, { step: 5 });
+      assert.equal(page.sent.length, 1);
+      page.event('session_source', { family: 'codex', model: 'test-model', effort: 'low' }, { step: 6 });
+      assert.equal(await sent, true);
+      assert.equal(page.sent[1].kind, 'user_message');
+      assert.equal(page.sent[1].input.text, 'сохранить этот текст');
+    } else {
+      page.event('error', { message: 'Перенос контекста в Codex не завершился.' }, { step: 5 });
+      assert.equal(await sent, false);
+      assert.equal(page.getModel().sessions.s.agent, 'kimi');
+      assert.equal(page.sent.length, 1);
+      assert.equal(page.getUI().handoffStatus.get('s').phase, 'error');
+    }
+  }
+});

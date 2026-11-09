@@ -1399,8 +1399,10 @@ export function createView(doc, refs, deps) {
   const askCard = h(doc, 'div', { class: 'ask', role: 'dialog', hidden: true });
   const askWrap = h(doc, 'div', { class: 'ask-wrap', hidden: true }, askCard);
   log.append(askWrap);
+  const handoffHint = h(doc, 'div', { class: 'handoff-hint', role: 'status', hidden: true });
   const composer = h(doc, 'div', { class: 'composer' },
     routeOver,
+    handoffHint,
     box,
     voiceHint,
     queueButton,
@@ -1463,9 +1465,9 @@ export function createView(doc, refs, deps) {
       }
       return;
     }
-    if (images.length === 0) {
-      const done = handlers.onSend(trace, text);
-      if (done) {
+    const result = images.length ? handlers.onSend(trace, text, images) : handlers.onSend(trace, text);
+    if (typeof result?.then !== 'function') {
+      if (result) {
         input.value = '';
         fitInput();
         drafts.delete(trace);
@@ -1491,7 +1493,7 @@ export function createView(doc, refs, deps) {
       }
       fitInput();
     };
-    Promise.resolve(handlers.onSend(trace, text, images)).then(finish, () => finish(false));
+    result.then(finish, () => finish(false));
   }
   // «↵» нет совсем, пока нечего отправлять (пустое поле, нет картинок) и во время записи: правая группа не двигается, поле сжимается
   function syncSend(busy) {
@@ -1972,6 +1974,13 @@ export function createView(doc, refs, deps) {
     // Что показать про семью, модель, режим и усилие: данные показанной семьи (собственная сводка сессии, иначе каталог семьи)
     const shown = shownOf(model, session);
     const busy = isBusy(session.state);
+    const handoff = ui.handoffStatus?.get(session.id);
+    handoffHint.hidden = !handoff;
+    handoffHint.dataset.phase = handoff?.phase || '';
+    const handoffText = handoff?.phase === 'error' ? handoff.message
+      : handoff?.compacting ? t('handoff.compacting')
+      : handoff ? t(handoff.phase === 'preparing' ? 'handoff.preparing' : 'handoff.selected', { agent: agentLabel(handoff.source.family) }) : '';
+    if (handoffHint.textContent !== handoffText) handoffHint.textContent = handoffText;
     const queued = handlers.queued(session.id);
     queueButton.hidden = queued === 0;
     if (queued > 0) queueButton.textContent = t('composer.queued', { n: queued });

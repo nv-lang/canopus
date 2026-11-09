@@ -1550,3 +1550,9 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .menu[data-kind="agent"] .menu-end { display: none; }
 .menu[data-kind="agent"] .menu-label, .menu-family { overflow-wrap: anywhere; }
 .menu-family { color: var(--fg-muted); font-size: 12px; }
+
+.handoff-hint { margin: 4px 4px 8px; font-size: 13px; color: var(--fg-muted); }
+.handoff-hint[data-phase="preparing"] { color: var(--accent); }
+.handoff-hint[data-phase="preparing"]::before { content: ""; display: inline-block; width: 9px; height: 9px; margin-inline-end: 8px; border: 1px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .handoff-hint[data-phase="preparing"]::before { animation: none; } }
+.handoff-hint[data-phase="error"] { color: var(--warn); }
