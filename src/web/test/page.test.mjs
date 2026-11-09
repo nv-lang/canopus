@@ -17,6 +17,7 @@ function withCopy(mutate) {
       const src = path.join(web, f);
       if (fs.statSync(src).isFile()) fs.copyFileSync(src, path.join(dir, f));
     }
+    fs.cpSync(path.join(web, 'fonts'), path.join(dir, 'fonts'), { recursive: true });
     mutate(dir);
     return checkPage(dir).problems;
   } finally {
