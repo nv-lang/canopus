@@ -178,17 +178,11 @@ test('токены объёмной тени заданы во всех тема
   assert.match(cssSrc, /--shadow-card: 0 1px 2px rgba\(0, 0, 0, \.06\), 0 6px 20px rgba\(0, 0, 0, \.08\);/);
 });
 
-test('панель записи лежит поверх карточки (position: absolute; right) с завесой-градиентом слева; ширина поля от записи не зависит', () => {
+test('панель записи занимает свою строку и не перекрывает кнопки', () => {
   const panel = cssSrc.match(/\.rec-panel \{([^}]*)\}/)[1];
-  assert.match(panel, /position: absolute; top: 0; bottom: 0; right: \d+px/);
+  assert.match(panel, /flex: 0 0 100%/);
+  assert.doesNotMatch(panel, /position: absolute/);
   assert.match(cssSrc, /\.box\.recording \.rec-panel \{ display: flex; \}/);
-  const veil = cssSrc.match(/\.rec-panel::before \{([^}]*)\}/)[1];
-  assert.match(veil, /width: 140px/);
-  assert.match(veil, /linear-gradient\(to right, transparent, var\(--surface\) 70%\)/);
-  assert.match(veil, /pointer-events: none/);
-  const recRules = [...cssSrc.matchAll(/\.box\.recording[^{]*\{([^}]*)\}/g)].map((m) => m[0]).join('\n');
-  assert.ok(!/\.box\.recording textarea[^{]*\{[^}]*(width|padding)/.test(recRules), 'у поля в записи нет своей ширины и отступов');
-  assert.match(cssSrc, /\.box textarea \{[^}]*padding: 9px 12px 9px 0;/);
 });
 
 test('строка статуса — плоский серый текст 13 px без чипов и без шевронов: при наведении меняется только фон, ширина та же', () => {
@@ -246,9 +240,6 @@ test('геометрия правой группы: «↵» и микрофон 
   assert.match(cssSrc, /\.mic-wrap \{ gap: 0; \}/);
   assert.match(rule('.mic-more'), /margin-left: 0/);
   const panel = cssSrc.match(/\.rec-panel \{([^}]*)\}/)[1];
-  assert.match(panel, /right: 52px/); // 8 (отступ) + 32 (микрофон) + 12 (стрелка)
-  assert.match(panel, /background: var\(--surface\)/);
-  assert.match(panel, /z-index: 2/);
   assert.match(viewSrc, /input\.spellcheck = !v\.showWave;/);
 });
 
@@ -260,15 +251,7 @@ test('верх первой строки не режется: max-height пол�
   assert.ok(!/\.box\.recording textarea\s*\{/.test(cssSrc), 'у поля в записи нет своих размеров');
 });
 
-test('панель записи — непрозрачный блок на всю высоту карточки (top: 0; bottom: 0), левее микрофона; кнопка отправки в записи держит место, поле не меняет ширину', () => {
-  const panel = cssSrc.match(/\.rec-panel \{([^}]*)\}/)[1];
-  assert.match(panel, /position: absolute; top: 0; bottom: 0; right: 52px/);
-  assert.match(panel, /background: var\(--surface\)/);
-  assert.match(panel, /align-items: flex-end; padding: 0 0 8px 4px/);
-  const veil = cssSrc.match(/\.rec-panel::before \{([^}]*)\}/)[1];
-  assert.match(veil, /top: 0; bottom: 0/);
-  assert.match(viewSrc, /sendButton\.style\.visibility = recordingNow \? 'hidden' : '';/);
-});
+
 
 test('миниатюры картинок вписываются в квадрат целиком: object-fit: contain на нейтральной подложке, углы скруглены, без обрезки', () => {
   for (const cls of ['attach-img', 'thumb-img']) {
