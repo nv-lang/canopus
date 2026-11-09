@@ -175,3 +175,14 @@ test('restored session errors retain timestamp and are labelled as history, with
  assert.equal(card.getAttribute('role'),'note');assert.match(card.textContent,/Сохранённая ошибка/);assert.ok(card.querySelector('time'));assert.equal(card.querySelector('.delivery-body').hidden,true);
  current.error({id:'new',trace:'s',input:{message:'timeout'},time:2000});assert.notEqual(current.items('s')[1].restored,true);assert.equal(JSON.parse(storage.value).length,2);
 });
+test('pending delivery is a status and a rejected delivery is an alert', () => {
+  const doc = createFakeDocument();
+  for (const state of ['sending', 'received', 'accepted']) {
+    const status = deliveryCard(doc, { state, images: [] }, {});
+    assert.equal(status.getAttribute('role'), 'status');
+    assert.ok(!status.classList.contains('delivery-error'));
+  }
+  const failure = deliveryCard(doc, { state: 'received', reason: 'offline', images: [] }, {});
+  assert.equal(failure.getAttribute('role'), 'alert');
+  assert.ok(failure.classList.contains('delivery-error'));
+});

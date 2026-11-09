@@ -12,6 +12,8 @@ export function deliveryCard(doc, item, actions) {
     received: t('delivery.received'), accepted: t('delivery.accepted'), agent_error: t('delivery.agent_error'),
     agent_refused: t('delivery.agent_refused'), error: t('delivery.error'),
   };
+  const pending = !item.reason && ['sending', 'received', 'accepted'].includes(item.state);
+  if (pending) return h(doc, 'div', { class: 'delivery-pending', role: 'status', text: labels[item.state] });
   const canRetry = item.state === 'not_sent' && !item.images.length && actions.canRetry !== false;
   const reason = item.reason ? safeError(item.reason) : '';
   const explanation = canRetry

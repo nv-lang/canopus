@@ -86,6 +86,7 @@ export type AcpClient {
     sets []AcpSet,
     queue []AcpQueued,
     active str,
+    cancelling bool,
     permissions []AcpPending,
     ask AskSetup,
     asks []AcpAsk,
@@ -351,7 +352,7 @@ export fn open_client_full(config AcpConfig, trace_path str, trace_limit int, as
             }
             mut client = AcpClient {
                 config, link, phase: "initializing", next_rpc: 0, init_rpc: -1, new_rpc: -1, prompt_rpc: -1,
-                session: "", agent: "", model_name: "", modes: JsonValue.null(), models: JsonValue.null(), choices_cfg: JsonValue.null(), mode_now: "", model_now: "", sets: []AcpSet.new(), queue: []AcpQueued.new(), active: "", permissions: []AcpPending.new(), ask, asks: []AcpAsk.new(), mcp_http: false, hint_due: false,
+                session: "", agent: "", model_name: "", modes: JsonValue.null(), models: JsonValue.null(), choices_cfg: JsonValue.null(), mode_now: "", model_now: "", sets: []AcpSet.new(), queue: []AcpQueued.new(), active: "", cancelling: false, permissions: []AcpPending.new(), ask, asks: []AcpAsk.new(), mcp_http: false, hint_due: false,
                 ready, taken: []AcpInboxItem.new(), next_seq: next, stderr: "", exit_code: -2, last_error: "", trace: trace_open(trace_path, trace_limit),
                 images_ok: false, attached: []AcpImage.new(), prelude: "", presets: []AcpPreset.new(), strict_source: false, dispatch_role: "dev", dispatch_family: "", required_mode: "", settled: []AcpPreset.new(), dropped: []AcpDrop.new(), marker: marker_start(), commands: []str.new()
             }
@@ -490,7 +491,7 @@ fn AcpClient mut @on_result(id JsonValue, result JsonValue) -> () {
     if @prompt_rpc >= 0 && key == "${@prompt_rpc}" {
         ro reason = field_text(result, "stopReason") ?? ""
         ro request = @active
-        @flush_answer(request)
+        if !@cancelling { @flush_answer(request) }
         @active = ""
         @prompt_rpc = -1
         // the tokens of the turn go before its end (when the agent says them), so that they belong to the turn on the page
@@ -518,7 +519,7 @@ fn AcpClient mut @on_failure(id JsonValue, code int, message str) -> () {
     }
     if @prompt_rpc >= 0 && key == "${@prompt_rpc}" {
         ro request = @active
-        @flush_answer(request)
+        if !@cancelling { @flush_answer(request) }
         @active = ""
         @prompt_rpc = -1
         @last_error = "session/prompt failed: ${why}"
@@ -561,6 +562,8 @@ fn AcpClient mut @on_update(params JsonValue) -> () {
         @push_options()
         return
     }
+    // Cancelled prompts retain their RPC slot until the terminal reply. Late text has no consumer.
+    if @cancelling && (projected.name == "agent_chunk" || projected.name == "agent_thought") { return }
     if projected.name == "agent_chunk" && @active.byte_len() > 0 {
         // task 192.9: the fallback marker `[[canopus_task_list]] {json}` is cut out of the answer and given as an event of its own
         @push_answer_part(@active, marker_feed(@marker, projected.input, false))
@@ -751,7 +754,7 @@ export fn AcpClient mut @take_dropped() -> []AcpDrop {
 export fn AcpClient @options() -> str => @options_json()
 
 fn AcpClient mut @on_permission(id JsonValue, params JsonValue) -> () {
-    if @active.byte_len() == 0 {
+    if @active.byte_len() == 0 || @cancelling {
         // nobody is asked: no request is open, there is no owner to ask - the answer is "cancelled"
         @say(rpc_result_line(id, outcome_result("cancelled", "")))
         @note("a permission request while no turn is open: answered cancelled")
@@ -797,7 +800,7 @@ fn AcpClient mut @on_elicitation(id JsonValue, params JsonValue) -> () {
         @note("a request that is not supported: elicitation/create")
         return
     }
-    if @active.byte_len() == 0 {
+    if @active.byte_len() == 0 || @cancelling {
         @say(rpc_result_line(id, question_cancel_response()))
         @note("a question of the agent while no turn is open: answered cancelled")
         return
@@ -906,6 +909,7 @@ fn AcpClient mut @drive() -> () {
     @strict_source = false
     ro next = @queue.remove(0)
     @active = next.request
+    @cancelling = false
     @prompt_rpc = @next_id()
     // the note about the tool of questions goes before the first prompt only
     // the hidden note of the hub (the mode of work, task 192q) goes first; it is in neither the feed nor the journal
@@ -1013,6 +1017,8 @@ fn AcpClient mut @cancel_request(request_id str) -> () {
     @queue = rest
     if removed { return }
     if @active != request_id || @phase == "dead" || @phase == "closed" || @phase == "failed" { return }
+    @cancelling = true
+    @marker = marker_start()
     @say(rpc_notification_line("session/cancel", session_params(@session)))
     // the protocol: every request for permission that is still open of a cancelled turn is answered "cancelled"
     ro open = @permissions

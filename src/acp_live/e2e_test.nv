@@ -202,7 +202,7 @@ test "e2e: user cancel, late answer discarded" {
     e2e_feed(root, e, world, client, user_cancels())
     assert(e.is_finished())
     assert(answer_text(e) == "<refusal StoppedByHuman>")
-    // the agent answers late: its chunk and its stop reason are discarded, the client acknowledges them after the commit
+    // The client drops late text before journaling. The engine discards and acknowledges the terminal reply.
     mut j = 0
     while j < 300 {
         ro made = e2e_pump(root, e, world, client)
@@ -214,7 +214,7 @@ test "e2e: user cancel, late answer discarded" {
     for entry in e2e_entries(root) {
         if entry.event.code == "reply_discarded" { discarded += 1 }
     }
-    assert(discarded >= 2)
+    assert(discarded == 1)
     assert(client.unacked() == 0)
     assert(answer_text(e) == "<refusal StoppedByHuman>")
     client.close()
