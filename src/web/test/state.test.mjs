@@ -347,3 +347,22 @@ test('в заглушке есть сообщение с двумя картин
   assert.equal(withImages[0].images.length, 2);
   assert.deepEqual(run(INITIAL_JOURNAL.map((e) => ({ ...e }))), a);
 });
+
+test('permission IDs reused by ACP in a later turn open a new dialog', () => {
+  const m = run([
+    created(),
+    ev('user_message', { turn: 't1', text: 'first' }, { step: 1 }),
+    ev('permission_request', { turn: 't1', request: '0' }, { step: 2 }),
+    ev('permission_decision', { request: '0', decision: 'allow' }, { step: 3 }),
+    ev('agent_done', { turn: 't1' }, { step: 4 }),
+    ev('user_message', { turn: 't2', text: 'second' }, { step: 5 }),
+    ev('permission_request', { turn: 't2', request: '0' }, { step: 6 }),
+  ]);
+  assert.equal(m.sessions.s1.state, 'permission');
+  assert.equal(m.sessions.s1.pending.turn, 't2');
+  const stale = reduce(m, ev('permission_decision', { turn: 't1', request: '0', decision: 'deny' }, { step: 7 }));
+  assert.equal(stale.sessions.s1.pending.turn, 't2');
+  const decided = reduce(stale, ev('permission_decision', { request: '0', decision: 'deny' }, { step: 8 }));
+  assert.equal(decided.sessions.s1.pending, null);
+  assert.deepEqual(decided.sessions.s1.messages.filter(x => x.role === 'permission').map(x => x.decision), ['allow', 'deny']);
+});

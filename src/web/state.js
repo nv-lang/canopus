@@ -185,7 +185,7 @@ export function undoSwitch(model, trace) {
 
 const userKey = (turn) => `u:${turn}`;
 const agentKey = (turn) => `a:${turn}`;
-const permKey = (request) => `p:${request}`;
+const permKey = (turn, request) => `p:${turn}:${request}`;
 
 function newAgentMessage(turn, actual = null) {
   return { key: agentKey(turn), role: 'agent', turn, text: '', chunks: [], actual, status: 'streaming', reason: '', doneAt: 0 };
@@ -405,7 +405,7 @@ function apply(session, event) {
 
     case 'permission_request': {
       const request = str(input.request, event.id);
-      const key = permKey(request);
+      const key = permKey(turn, request);
       if (session.messages.some((m) => m.key === key)) return session;
       const entry = { request, turn, action: str(input.action), detail: str(input.detail) };
       return {
@@ -420,10 +420,10 @@ function apply(session, event) {
       const request = str(input.request);
       const decision = input.decision;
       if (decision !== 'allow' && decision !== 'deny') return session;
-      const i = session.messages.findIndex((m) => m.key === permKey(request));
+      const i = session.messages.findIndex((m) => m.key === permKey(turn, request));
       if (i < 0 || session.messages[i].decision !== null) return session;
       const messages = session.messages.map((m, j) => (j === i ? { ...m, decision } : m));
-      const closes = session.pending !== null && session.pending.request === request;
+      const closes = session.pending !== null && session.pending.request === request && session.pending.turn === turn;
       return {
         ...session,
         messages,
