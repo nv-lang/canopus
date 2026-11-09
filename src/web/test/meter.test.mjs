@@ -134,7 +134,7 @@ test('кнопки карточки (отправка, отмена, микро�
   assert.match(cssSrc, /\.cancel-btn \.icon \{ display: none; \}/);
   assert.match(cssSrc, /\.cancel-btn::before \{ content: ""; width: 14px; height: 14px; border-radius: 3px; background: var\(--fg\); \}/);
   assert.match(cssSrc, /\.mic-btn:hover \{ background: var\(--hover\)/);
-  assert.match(cssSrc, /:focus-visible[^{]*\{ outline: 2px solid var\(--accent\)/);
+  assert.match(cssSrc, /:focus-visible[^{]*\{ outline: 2px solid var\(--fg-muted\)/);
   assert.match(rule('.mic-more'), /width: 12px/);
 });
 
@@ -156,14 +156,14 @@ test('запись: микрофон — скруглённый квадрат 1
   assert.match(cssSrc, /prefers-reduced-motion: reduce\) \{ \.mic-btn\[data-state="recording"\] \.icon \{ animation: none; \} \}/);
   assert.match(viewSrc, /'#i-mic-fill' : '#i-mic'/);
   assert.match(fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8'), /<symbol id="i-mic-fill"[^>]*><rect[^>]*fill="currentColor"/);
-  assert.match(cssSrc, /--accent-soft: #e6eefc;/);
+  assert.match(cssSrc, /--accent-soft: #ede6f7;/);
 });
 
 test('карточка: радиус 14, отступы 4/8/4/8, объёмная двухслойная тень из токена, текст 15 px; рамка при фокусе не акцентная; высота одной строки 50 px', () => {
   assert.match(cssSrc, /\.box \{ display: flex; align-items: flex-end; gap: 6px; position: relative; padding: 4px 8px 4px 8px; border-radius: 14px; box-shadow: var\(--shadow-card\); \}/);
   assert.match(cssSrc, /\.box textarea \{ min-height: 40px; padding: 9px 12px 9px 0; font-size: 15px; line-height: 1\.45;/);
   assert.match(cssSrc, /\.box textarea::placeholder \{ color: var\(--fg-muted\)/);
-  const focusRules = [...cssSrc.matchAll(/\.box:focus-within \{([^}]*)\}/g)].map((m) => m[1]).join(' ');
+  const focusRules = [...cssSrc.matchAll(/\.box:has\(> textarea:focus\) \{([^}]*)\}/g)].map((m) => m[1]).join(' ');
   assert.ok(focusRules.length > 0 && !/accent/.test(focusRules), 'при фокусе рамка серая, не --accent');
   assert.match(focusRules, /box-shadow: var\(--shadow-card-focus\)/);
   // 40 (строка поля) + 2*4 (отступы) + 2 (рамка) = 50

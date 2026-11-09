@@ -1188,6 +1188,7 @@ export function createView(doc, refs, deps) {
     if (!menuKind) return;
     const path = e.composedPath();
     if (path.includes(status) || path.includes(agentAnchor) || (menuTrigger && path.includes(menuTrigger))) return;
+    if (menuKind === 'effort' && path.includes(askCard)) return;
     closeMenu();
   });
 
@@ -2582,7 +2583,10 @@ export function createView(doc, refs, deps) {
       askCard.hidden = true;
       askCard.replaceChildren();
       askCard.removeAttribute('aria-labelledby');
-      if (hadFocus && !chat.hidden) input.focus();
+      if (hadFocus && !chat.hidden) {
+        const slider = menuKind === 'effort' ? menu.querySelector('.effort-slider:not(:disabled)') : null;
+        (slider || (menuKind === 'effort' ? effortButton : input)).focus();
+      }
       return;
     }
     if (!askForms.has(key)) askForms.set(key, createForm(pq.questions));
