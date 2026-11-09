@@ -38,8 +38,8 @@ test('260: retry, возврат, подробности и доступност
   let retried = 0, restored = '', copied = '';
   const item = { id: 'id', state: 'not_sent', images: [], text: '<b>не HTML</b>', reason: 'offline Authorization: Bearer secret' };
   const card = deliveryCard(doc, item, { retry: () => retried++, restore: t => restored = t, copy: t => copied = t });
-  assert.equal(card.getAttribute('role'), 'alert');
-  assert.match(card.textContent, /⚠/);
+  assert.equal(card.getAttribute('role'), 'status');
+  assert.match(card.querySelector('.delivery-head').textContent, /Не отправлено.*Подробнее/);
   const buttons = card.querySelectorAll('.delivery-actions button');
   buttons[0].click(); buttons[0].click();
   assert.equal(retried, 1);
@@ -54,45 +54,28 @@ test('260: retry, возврат, подробности и доступност
   }
 });
 
-test('260: карточка сворачивается в строку с причиной и раскрывается с теми же действиями', () => {
+test('delivery defaults to a compact row and shows the reason only in details', () => {
   const doc = createFakeDocument();
   const item = { id: 'fold', state: 'not_sent', images: [], text: 'текст сообщения', reason: 'offline' };
-  // по умолчанию раскрыта
-  const open0 = deliveryCard(doc, item, {});
-  assert.equal(open0.querySelector('.delivery-head').getAttribute('aria-expanded'), 'true');
-  assert.equal(open0.querySelector('.delivery-body').hidden, false);
-  // свёрнутая: тело скрыто, строка держит иконку и краткую причину, кнопка раскрытия доступна с клавиатуры
-  const folded = deliveryCard(doc, { ...item, collapsed: true }, {});
+  const folded = deliveryCard(doc, item, {});
   const head = folded.querySelector('.delivery-head');
   assert.equal(head.tagName, 'BUTTON');
   assert.equal(head.getAttribute('aria-expanded'), 'false');
+  assert.match(head.textContent, /Не отправлено.*Подробнее/);
+  assert.doesNotMatch(head.textContent, /Соединение прервано/);
   assert.equal(folded.querySelector('.delivery-body').hidden, true);
-  assert.match(head.textContent, /⚠/);
-  assert.match(head.textContent, /Соединение прервано/);
-  assert.doesNotMatch(head.textContent, /текст сообщения/);
-  // переключатель сообщает состояние наружу: страница запоминает его по ключу карточки
-  const seen = new Set();
-  const live = deliveryCard(doc, item, {
-    toggle(headEl, body) {
-      const key = 'hide:fold';
-      if (seen.has(key)) { seen.delete(key); headEl.setAttribute('aria-expanded', 'true'); body.hidden = false; }
-      else { seen.add(key); headEl.setAttribute('aria-expanded', 'false'); body.hidden = true; }
-    }, retry() {}, restore() {}, copy() {},
-  });
-  const liveHead = live.querySelector('.delivery-head');
-  liveHead.click();
-  assert.equal(liveHead.getAttribute('aria-expanded'), 'false');
-  assert.equal(live.querySelector('.delivery-body').hidden, true);
-  // перерисовка с запомненной свёрнутостью — карточка остаётся строкой; новая карточка с другим ключом раскрыта
-  const again = deliveryCard(doc, { ...item, collapsed: seen.has('hide:fold') }, {});
-  assert.equal(again.querySelector('.delivery-head').getAttribute('aria-expanded'), 'false');
-  const other = deliveryCard(doc, { ...item, id: 'other', collapsed: seen.has('hide:other') }, {});
-  assert.equal(other.querySelector('.delivery-head').getAttribute('aria-expanded'), 'true');
-  // раскрытие возвращает те же действия
-  liveHead.click();
-  assert.equal(liveHead.getAttribute('aria-expanded'), 'true');
-  assert.equal(live.querySelector('.delivery-body').hidden, false);
-  assert.equal(live.querySelector('.delivery-actions button').textContent.length > 0, true);
+  const expanded = deliveryCard(doc, { ...item, collapsed: false }, {});
+  assert.equal(expanded.querySelector('.delivery-head').getAttribute('aria-expanded'), 'true');
+  assert.equal(expanded.querySelector('.delivery-body').hidden, false);
+  assert.match(expanded.querySelector('.delivery-body').textContent, /Соединение прервано/);
+});
+
+test('restored errors show only a neutral reconciliation status while loading', () => {
+  const doc = createFakeDocument();
+  const row = deliveryCard(doc, { checking: true, state: 'received', reason: 'offline', images: [] }, {});
+  assert.equal(row.getAttribute('role'), 'status');
+  assert.equal(row.textContent, 'Сверяем состояние сообщений…');
+  assert.equal(row.querySelector('button'), null);
 });
 
 test('260: черновик сохраняется, хранилище ограничено без вытеснения неотправленных', () => {
@@ -143,15 +126,15 @@ test('260: завершение старого хода не стирает но
   assert.deepEqual(d.items('s').map(r => r.id), ['unbound']);
 });
 
-test('260: технический отказ ответа — заметный блок принятого сообщения, не неотправка', () => {
+test('260: технический отказ ответа — компактный статус принятого сообщения', () => {
   const doc = createFakeDocument();
   let restored = '';
   for (const reason of ['ConnectionLost', 'NoResult', 'Timeout', 'MaxTokens', 'ModelRefused']) {
     const item = { id: 'accepted', state: 'agent_refused', images: [], text: 'принятый вопрос', reason };
     const card = deliveryCard(doc, item, { restore: text => restored = text, copy() {} });
-    assert.equal(card.getAttribute('role'), 'alert');
+    assert.equal(card.getAttribute('role'), 'status');
     assert.ok(card.classList.contains('delivery-error'));
-    assert.match(card.textContent, /⚠ Сообщение принято сервером/);
+    assert.match(card.textContent, /⚠ Агент не ответил/);
     assert.equal(card.querySelectorAll('.delivery-actions button')[0].disabled, true);
     card.querySelectorAll('.delivery-actions button')[1].click();
     assert.equal(restored, item.text);
@@ -175,7 +158,7 @@ test('restored session errors retain timestamp and are labelled as history, with
  assert.equal(card.getAttribute('role'),'note');assert.match(card.textContent,/Сохранённая ошибка/);assert.ok(card.querySelector('time'));assert.equal(card.querySelector('.delivery-body').hidden,true);
  current.error({id:'new',trace:'s',input:{message:'timeout'},time:2000});assert.notEqual(current.items('s')[1].restored,true);assert.equal(JSON.parse(storage.value).length,2);
 });
-test('pending delivery is a status and a rejected delivery is an alert', () => {
+test('pending and rejected deliveries are announced as statuses', () => {
   const doc = createFakeDocument();
   for (const state of ['sending', 'received', 'accepted']) {
     const status = deliveryCard(doc, { state, images: [] }, {});
@@ -183,7 +166,7 @@ test('pending delivery is a status and a rejected delivery is an alert', () => {
     assert.ok(!status.classList.contains('delivery-error'));
   }
   const failure = deliveryCard(doc, { state: 'received', reason: 'offline', images: [] }, {});
-  assert.equal(failure.getAttribute('role'), 'alert');
+  assert.equal(failure.getAttribute('role'), 'status');
   assert.ok(failure.classList.contains('delivery-error'));
 });
 

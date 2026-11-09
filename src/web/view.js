@@ -1581,12 +1581,11 @@ export function createView(doc, refs, deps) {
     if (body) body.hidden = !next;
   }
 
-  // Карточка сбоя раскрыта по умолчанию: запоминается только свёрнутость, по ключу своей карточки —
-  // чужое состояние новой карточке не достаётся, перерисовка и reconnect страницы её не сбрасывают.
+  // Подробности по умолчанию скрыты. Раскрытие сохраняется при перерисовке по ключу карточки.
   function toggleCard(key, button, body) {
-    const hideKey = `hide:${key}`;
-    const next = !open.has(hideKey);
-    if (next) open.add(hideKey); else open.delete(hideKey);
+    const detailKey = `delivery-detail:${key}`;
+    const next = open.has(detailKey);
+    if (next) open.delete(detailKey); else open.add(detailKey);
     button.setAttribute('aria-expanded', String(!next));
     body.hidden = next;
   }
@@ -1644,10 +1643,9 @@ export function createView(doc, refs, deps) {
     const { node } = entry;
     switch (item.type) {
       case 'delivery': {
-        if (item.restored && item.state === 'error' && !entry.restoredInitialized) { open.add(`hide:${item.key}`); entry.restoredInitialized = true; }
         node.replaceChildren(...[
-          item.state !== 'error' ? h(doc, 'div', { class: 'bubble' }, ...proseNodes(item.text)) : null,
-          deliveryCard(doc, { ...item, collapsed: open.has(`hide:${item.key}`) }, {
+          item.state !== 'error' && !item.hasUserMessage ? h(doc, 'div', { class: 'bubble' }, ...proseNodes(item.text)) : null,
+          deliveryCard(doc, { ...item, collapsed: !open.has(`delivery-detail:${item.key}`) }, {
             canRetry: item.retryAllowed,
             retry: id => handlers.onRetry(currentTrace, id),
             restore: text => putInField(text),
@@ -1772,7 +1770,7 @@ export function createView(doc, refs, deps) {
         node.dataset.tone = item.tone;
         if (item.tone === 'error' || item.tone === 'refused') {
           const failureState = item.turn ? (item.tone === 'refused' ? 'agent_refused' : 'agent_error') : 'error';
-          node.replaceChildren(deliveryCard(doc, { id: item.key, state: failureState, text: item.userText || '', images: [], reason: item.reason, collapsed: open.has(`hide:${item.key}`) }, {
+          node.replaceChildren(deliveryCard(doc, { id: item.key, state: failureState, text: item.userText || '', images: [], reason: item.reason, checking: item.checking, collapsed: !open.has(`delivery-detail:${item.key}`) }, {
             copy: text => handlers.onCopy(text), restore: text => putInField(text),
             toggle: (head, body) => toggleCard(item.key, head, body),
           }));
@@ -2080,7 +2078,9 @@ export function createView(doc, refs, deps) {
     canopusUi.render(session);
 
     const nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight <= NEAR_BOTTOM_PX;
-    const items = timeline(session);
+    const checking = ui.loading?.sessions.phase === 'loading';
+    const items = timeline(session).map(item => checking && item.type === 'note' && ['error', 'refused'].includes(item.tone)
+      ? { ...item, checking } : item);
     const localDelivery = handlers.deliveryItems?.(session.id) || [];
     for (let i = items.length - 1; i >= 0; i--) {
       if (localDelivery.some(r => r.errorId && items[i].key === `err:${r.errorId}`)) items.splice(i, 1);
@@ -2090,8 +2090,11 @@ export function createView(doc, refs, deps) {
       if (saved.state === 'error' && saved.turn && session.messages.some(m => m.role === 'agent' && m.turn === saved.turn && m.status === 'done' && m.doneAt >= saved.at)) continue;
       if (saved.state !== 'error' && session.messages.some(m => m.role === 'user' && m.turn === (saved.turn || saved.clientTurn))) continue;
       const user = saved.state === 'error' && saved.turn ? session.messages.find(m => m.role === 'user' && m.turn === saved.turn) : null;
-      const card = { ...saved, ...(user ? { state: 'agent_error', text: user.text } : {}), retryAllowed: !session.draft && !isBusy(session.state), type: 'delivery', key: `delivery:${saved.id}` };
-      if (saved.restored && saved.state === 'error') items.unshift(card); else items.push(card);
+      const card = { ...saved, checking: checking && saved.restored, ...(user ? { state: 'agent_error', text: user.text, hasUserMessage: true } : {}), retryAllowed: !session.draft && !isBusy(session.state), type: 'delivery', key: `delivery:${saved.id}` };
+      const userIndex = user ? items.findIndex(item => item.type === 'user' && item.turn === saved.turn) : -1;
+      if (userIndex >= 0) items.splice(userIndex + 1, 0, card);
+      else if (saved.restored && saved.state === 'error') items.unshift(card);
+      else items.push(card);
     }
     // сообщения в очереди — под текущим ходом, в порядке постановки
     handlers.queuedItems(session.id).forEach((q, index) => {

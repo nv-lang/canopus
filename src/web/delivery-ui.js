@@ -5,6 +5,7 @@ import { t } from './strings.js';
 // Карточка сбоя доставки: сворачивается в компактную строку (иконка, краткая причина, кнопка раскрытия).
 // Сообщение и ошибка не скрываются из модели и не удаляются: свёрнутость — только вид тела карточки.
 export function deliveryCard(doc, item, actions) {
+  if (item.checking) return h(doc, 'div', { class: 'delivery-pending', role: 'status', text: t('delivery.checking') });
   const archived = item.restored === true && item.state === 'error';
   const timestamp = Number.isFinite(item.at) && item.at > 0 ? new Date(item.at).toLocaleString('ru-RU') : '';
   const labels = {
@@ -31,20 +32,28 @@ export function deliveryCard(doc, item, actions) {
   copy.addEventListener('click', () => actions.copy(detail));
   const forget = h(doc, 'button', { type: 'button', text: t('delivery.forget'), title: t('delivery.forget_hint') });
   forget.addEventListener('click', () => actions.forget(item.id));
-  const collapsed = item.collapsed === true;
+  const collapsed = item.collapsed !== false;
+  const shortLabels = {
+    sending: t('delivery.short_sending'), unknown: t('delivery.short_unknown'), not_sent: t('delivery.short_not_sent'),
+    received: t('delivery.short_received'), accepted: t('delivery.short_accepted'), agent_error: t('delivery.short_agent_error'),
+    agent_refused: t('delivery.short_agent_refused'), error: t('delivery.short_error'),
+  };
+  const status = archived ? t('delivery.saved_error') : Object.hasOwn(shortLabels, item.state) ? shortLabels[item.state] : shortLabels.unknown;
   const head = h(doc, 'button', {
     type: 'button', class: 'delivery-head', 'aria-expanded': String(!collapsed),
     title: collapsed ? t('delivery.expand') : t('delivery.collapse'),
   },
-    h(doc, 'strong', { text: archived ? t('delivery.saved_error') : uncertain ? labels.unknown : `⚠ ${labels[item.state] || labels.unknown}` }),
-    timestamp ? h(doc, 'time', { datetime: new Date(item.at).toISOString(), text: timestamp }) : null,
-    reason ? h(doc, 'span', { class: 'delivery-brief', text: reason }) : false,
+    h(doc, 'span', { text: status }),
+    h(doc, 'span', { class: 'delivery-more', text: t('delivery.more') }),
     icon(doc, 'i-chevron-right', 'chev'));
   const body = h(doc, 'div', { class: 'delivery-body', hidden: collapsed },
+    timestamp ? h(doc, 'time', { datetime: new Date(item.at).toISOString(), text: timestamp }) : null,
+    h(doc, 'p', { text: labels[item.state] || labels.unknown }),
+    reason ? h(doc, 'p', { text: reason }) : null,
     h(doc, 'p', { text: explanation }),
     item.images.length ? h(doc, 'p', { text: t('delivery.images') }) : false,
     h(doc, 'div', { class: 'delivery-actions' }, ...(item.state === 'error' ? [] : [retry, restore]), ...(actions.forget ? [forget] : [])),
     h(doc, 'details', {}, h(doc, 'summary', { text: t('delivery.details') }), h(doc, 'pre', { text: detail }), copy));
   if (actions.toggle) head.addEventListener('click', () => actions.toggle(head, body));
-  return h(doc, 'div', { class: archived ? 'delivery-error delivery-history' : uncertain ? 'delivery-error delivery-uncertain' : 'delivery-error', role: archived ? 'note' : uncertain || item.state === 'sending' ? 'status' : 'alert' }, head, body);
+  return h(doc, 'div', { class: archived ? 'delivery-error delivery-history' : uncertain ? 'delivery-error delivery-uncertain' : 'delivery-error', role: archived ? 'note' : 'status' }, head, body);
 }
