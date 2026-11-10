@@ -85,6 +85,8 @@ test "routes: the number of the next task is the greatest number plus one, three
 test "routes: the slug is Latin, a-z0-9 and dashes, at most 40 characters" {
     assert(task_slug("Сделай кнопку выхода") == "sdelay-knopku-vyhoda")
     assert(task_slug("Fix the BUG in parser!") == "fix-the-bug-in-parser")
+    assert(task_slug("ЁЖ ЩУКА подъём Я") == "ezh-schuka-podem-ya")
+    assert(task_slug("AKЯ") == "a-ya")
     assert(task_slug("   ") == "task")
     assert(task_slug("!!!") == "task")
     ro long = task_slug("один два три четыре пять шесть семь восемь девять десять одиннадцать двенадцать")

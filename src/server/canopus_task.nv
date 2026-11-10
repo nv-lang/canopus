@@ -9,6 +9,7 @@
 module canopus.server
 
 import std.encoding.json.{Json, JsonValue, JsonObject}
+import std.unicode.{fold_case}
 import canopus.config.{render_prompt}
 
 /// The name of the tool.
@@ -74,31 +75,22 @@ export fn proposal_listed(p Proposal, note str) -> Proposal {
 
 // ----- the words of the owner -----
 
-const FOLD = "А:а Б:б В:в Г:г Д:д Е:е Ё:е Ж:ж З:з И:и Й:й К:к Л:л М:м Н:н О:о П:п Р:р С:с Т:т У:у Ф:ф Х:х Ц:ц Ч:ч Ш:ш Щ:щ Ъ:ъ Ы:ы Ь:ь Э:э Ю:ю Я:я ё:е й:й"
 const EDGE = ".,!?;:«»\"'()-–— \t\r\n"
 
-fn ct_fold_char(c str) -> str {
-    for pair in FOLD.split(" ") {
-        if pair.until(":") == c { return pair.after(":") }
-    }
-    c.to_ascii_lower()
-}
-
-/// The text in lower case (the Cyrillic too; `ё` is `е`) without the punctuation and the blanks at both ends: the form two words are compared in.
+/// Unicode case folding (with `ё` treated as `е`) and removal of the punctuation and blanks at both ends.
 export fn word_key(text str) -> str {
-    mut chars = []str.new()
-    for c in text.chars() { chars.push(ct_fold_char("${c}")) }
-    mut from = 0
-    while from < chars.len() && EDGE.contains(chars[from]) { from += 1 }
-    mut to = chars.len()
-    while to > from && EDGE.contains(chars[to - 1]) { to -= 1 }
-    mut out = []str.new()
-    mut i = from
-    while i < to {
-        out.push(chars[i])
-        i += 1
+    mut first = 0
+    mut last = 0
+    mut offset = 0
+    for c in text.chars() {
+        ro end = offset + c.len_utf8()
+        if !EDGE.contains(text[offset..end]) {
+            if last == 0 { first = offset }
+            last = end
+        }
+        offset = end
     }
-    joined(out, "")
+    fold_case(text[first..last]).replace("ё", "е")
 }
 
 /// Is the message of the owner just the code word (`route_confirm_word`, `route_over_limit_word`)? An empty word is never matched.

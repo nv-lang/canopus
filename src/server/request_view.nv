@@ -26,16 +26,10 @@ export const REQ_TEXT_LIMIT = 65536
 /// How many turns of a session are kept.
 export const REQ_KEEP = 20
 
-fn req_chars(text str) -> int {
-    mut n = 0
-    for c in text.chars() { n += 1 }
-    n
-}
-
 /// A part for the page: the text without secrets, cut at `REQ_TEXT_LIMIT`, the number of the characters and the approximate number of the tokens (characters / 4).
 export fn req_part_view(p ReqPart) -> JsonValue {
     ro clean = secret_redact(p.text)
-    ro chars = req_chars(clean)
+    ro chars = clean.chars().count()
     mut o = JsonObject.new()
     jput(o, "kind", JsonValue.str(p.kind))
     jput(o, "title", JsonValue.str(p.title))

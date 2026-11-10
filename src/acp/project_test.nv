@@ -316,6 +316,16 @@ test "permission: a long line is cut with a mark" {
     assert(!detail.contains("ХВОСТ")) // the tail is not shown
 }
 
+test "permission: the preview ends on a whole grapheme" {
+    mut long = ""
+    mut i = 0
+    while i < 299 { long = "${long}x"; i += 1 }
+    ro prefix = "${long}👩‍💻"
+    ro params = "{\"toolCall\":{\"rawInput\":{\"command\":\"${prefix}ХВОСТ\"}},\"options\":[]}"
+    ro detail = str_at(j(project_permission(j("12"), j(params)).input), "detail")
+    assert(detail == "${prefix}… (показаны первые 300 знаков из 305)")
+}
+
 test "permission: an unknown kind named honestly" {
     ro input = j(project_permission(j("13"), j("{\"toolCall\":{\"toolCallId\":\"c7\",\"title\":\"Teleport\",\"kind\":\"teleport\"},\"options\":[]}")).input)
     assert(str_at(input, "action") == "неизвестное действие: Teleport")

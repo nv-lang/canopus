@@ -13,6 +13,7 @@ module canopus.acp
 
 import alula.engine.{Incoming, EventKind, FailCode}
 import std.encoding.json.{Json, JsonValue, JsonObject}
+import std.unicode
 
 /// Projection: the name and the input of the engine event that an update of ACP becomes.
 export type Projection { name str, input str }
@@ -433,15 +434,17 @@ fn permission_action(kind str, title str) -> str {
 // A single line longer than the limit is cut with a mark; a multiline text is kept whole (the page scrolls it).
 fn shorten_detail(text str) -> str {
     if text.contains("\n") { return text }
-    mut total = 0
-    mut parts = []str.new()
-    for c in text.chars() {
-        total += 1
-        if total <= PERMISSION_DETAIL_CHARS { parts.push("${c}") }
-    }
+    ro graphemes = text.graphemes()
+    ro total = graphemes.count()
     if total <= PERMISSION_DETAIL_CHARS { return text }
-    ro joined = parts.join("")
-    "${joined}… (показаны первые ${PERMISSION_DETAIL_CHARS} знаков из ${total})"
+    mut end = 0
+    mut shown = 0
+    for cluster in graphemes {
+        if shown == PERMISSION_DETAIL_CHARS { break }
+        end += cluster.byte_len()
+        shown += 1
+    }
+    "${text[..end]}… (показаны первые ${PERMISSION_DETAIL_CHARS} знаков из ${total})"
 }
 
 // The detail of the dialog: the command of `rawInput.command`, else the first line of the content, else the paths of
