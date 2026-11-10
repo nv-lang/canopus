@@ -185,7 +185,8 @@ cell("unlock: отпущены оба замка (проекта и публик
 // при неизменных документах нет (воспроизведение дефекта: чужой SHA искали в репозитории постановки).
 git(proj, "config", "user.name", "t"); git(proj, "config", "user.email", "t@t") // снимок документов подписывает коммит настройками репозитория
 const t9 = H.reviewing()
-const folder9 = path.relative(proj, path.dirname(path.dirname(H.tasks.taskFile("proj", t9.n)))).replace(/\\/g, "/")
+// the folder path from the number and slug, not path.relative: under the server TEMP may be an 8.3 name while the task file goes through realpath
+const folder9 = `doc/tasks/${String(t9.n).padStart(3, "0")}-${T(t9.n).slug}`
 writeFixtureFile(path.join(proj, folder9, "task", "message.md"), "assignment 290\n")
 writeFixtureFile(path.join(proj, folder9, "log.md"), "live journal 290\n")
 { const cur = T(t9.n); cur.folder = folder9; H.tasks.saveTask(cur) }
