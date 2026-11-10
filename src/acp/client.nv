@@ -337,9 +337,11 @@ export fn open_client_env(config AcpConfig, trace_path str, trace_limit int, env
 
 /// The whole of it: the trace, the means to ask the owner and the environment of the process.
 export fn open_client_full(config AcpConfig, trace_path str, trace_limit int, ask AskSetup, env []EnvEntry) Proc Detach Time -> Result[AcpClient, str] {
+    ro began = Time.now().unix_millis()
     match connect_env(config.program, config.args, config.cwd, env) {
         Err(reason) => Err(reason)
         Ok(link) => {
+            ro connected = Time.now().unix_millis()
             mut ready = []AcpInboxItem.new()
             mut next = 1
             if config.inbox_path.byte_len() > 0 {
@@ -351,10 +353,16 @@ export fn open_client_full(config AcpConfig, trace_path str, trace_limit int, as
                     next = recovered.next
                 }
             }
+            ro inbox_ready = Time.now().unix_millis()
+            ro trace = trace_open(trace_path, trace_limit)
+            ro trace_ready = Time.now().unix_millis()
+            if trace_ready - began >= 250 {
+                trace_warn("ACP startup: connect ${connected - began} ms, inbox ${inbox_ready - connected} ms, trace ${trace_ready - inbox_ready} ms")
+            }
             mut client = AcpClient {
                 config, link, phase: "initializing", next_rpc: 0, init_rpc: -1, new_rpc: -1, prompt_rpc: -1,
                 session: "", agent: "", model_name: "", modes: JsonValue.null(), models: JsonValue.null(), choices_cfg: JsonValue.null(), mode_now: "", model_now: "", sets: []AcpSet.new(), queue: []AcpQueued.new(), active: "", cancelling: false, permissions: []AcpPending.new(), handoff_only: false, ask, asks: []AcpAsk.new(), mcp_http: false, hint_due: false,
-                ready, taken: []AcpInboxItem.new(), next_seq: next, stderr: "", exit_code: -2, last_error: "", trace: trace_open(trace_path, trace_limit),
+                ready, taken: []AcpInboxItem.new(), next_seq: next, stderr: "", exit_code: -2, last_error: "", trace,
                 images_ok: false, attached: []AcpImage.new(), prelude: "", presets: []AcpPreset.new(), strict_source: false, dispatch_role: "dev", dispatch_family: "", required_mode: "", settled: []AcpPreset.new(), dropped: []AcpDrop.new(), marker: marker_start(), commands: []str.new()
             }
             client.init_rpc = client.next_id()

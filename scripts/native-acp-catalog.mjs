@@ -6,6 +6,14 @@ import readline from 'node:readline';
 import {pathToFileURL} from 'node:url';
 
 export const CATALOG_TTL_MS=240000;
+const REFRESH_MS=180000;
+
+export function nextRefreshAt(snapshot,{cwd,binding,now}){
+ if(snapshot?.v!==2||snapshot.directory!==cwd||snapshot.binding!==binding||!Array.isArray(snapshot.families))return now;
+ const {observed_at,expires_at}=snapshot;
+ if(!Number.isFinite(observed_at)||!Number.isFinite(expires_at)||observed_at>now||expires_at<=now)return now;
+ return Math.min(observed_at+REFRESH_MS,expires_at);
+}
 export function launchBinding(agents){return createHash('sha256').update(agents.map(a=>[a.id,a.program,...(a.args||[])].join('\t')).join('\n')).digest('hex')}
 export function capabilities(session){
  const options=session.configOptions||[];
@@ -43,17 +51,34 @@ async function run(){
  const option=n=>{const i=process.argv.indexOf(n);return i<0?undefined:process.argv[i+1]};
  const config=path.resolve(option('--config'));const root=path.dirname(config),cwd=process.cwd(),owner=Number(option('--owner-pid'));
  const file=path.join(root,'state/metadata/native-acp-catalog.json');fs.mkdirSync(path.dirname(file),{recursive:true});
+ const once=process.argv.includes('--once');
  let stopping=false;const alive=()=>{if(!owner)return true;try{process.kill(owner,0);return true}catch{return false}};
  process.on('SIGTERM',()=>{stopping=true});
+ const waitUntil=async deadline=>{
+  while(!stopping&&alive()){
+   const remaining=deadline-Date.now();
+   if(remaining<=0)return;
+   await new Promise(resolve=>setTimeout(resolve,Math.min(remaining,1000)));
+  }
+ };
  while(!stopping&&alive()){
   const agents=JSON.parse(fs.readFileSync(config,'utf8').replace(/^\uFEFF/,'')).agents||[];
+  const binding=launchBinding(agents);
+  if(!once){
+   let snapshot;
+   try{snapshot=JSON.parse(fs.readFileSync(file,'utf8'))}catch{}
+   const now=Date.now(),refreshAt=nextRefreshAt(snapshot,{cwd,binding,now});
+   if(refreshAt>now){
+    await waitUntil(refreshAt);
+    continue;
+   }
+  }
   const families=await Promise.all(agents.map(a=>probeFamily(a,{cwd,configRoot:root})));
   if(stopping||!alive())break;
-  const observed=Date.now(),snapshot={v:2,directory:cwd,binding:launchBinding(agents),observed_at:observed,expires_at:observed+CATALOG_TTL_MS,families};
+  const observed=Date.now(),snapshot={v:2,directory:cwd,binding,observed_at:observed,expires_at:observed+CATALOG_TTL_MS,families};
   fs.writeFileSync(file+'.tmp',JSON.stringify(snapshot));fs.renameSync(file+'.tmp',file);
   console.log(JSON.stringify({families:families.map(f=>({family:f.family,status:f.status,models:f.models.length}))}));
-  if(option('--once')!==undefined||process.argv.includes('--once'))break;
-  for(let i=0;i<180&&!stopping&&alive();i++)await new Promise(r=>setTimeout(r,1000));
+  if(once)break;
  }
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href)await run();

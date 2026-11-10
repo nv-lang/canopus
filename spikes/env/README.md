@@ -251,9 +251,8 @@ Found by task 099 (the session server, `src/server/`); the reproductions are in 
     `E7310` "type `Request` is not generic" where the user's type is spelled `Request[str]`; `Response[R]` the same way. A user record `Session` next to the driver nova-postgres,
     which has its own `Session`, stops the driver's own file (`E_MISSING_FIELD_IN_LITERAL`). The engine types are now `PartyRequest` and `PartyResponse`, the record of the hub is
     `Dialog`. Same family as items 9, 14, 21 and 22 (and 28 of task 102); the checker does not say that two types of one name exist.
-30. **`pg_polaris_message`**: the driver nova-postgres and Polaris cannot be in one program. The driver has a variant `DecodeOutcome.Message { msg, consumed }`, Polaris has the type
-    `Message` (`polaris.ws`); a variant name and a type name share one table, and the driver's file `decode.nv:107` fails (`E7301`). Each package builds alone. The session server is
-    therefore two programs, the front (Polaris) and the hub (the driver), that talk by lines over pipes.
+30. **`pg_polaris_message`**: Oracle 0.1.0 could not compile nova-postgres and Polaris in one program. The driver has a variant `DecodeOutcome.Message { msg, consumed }`, Polaris has the type
+    `Message` (`polaris.ws`); a variant name and a type name share one table, and the driver's file `decode.nv:107` fails (`E7301`). The reproducer passes under Oracle 0.1.3, and the front and hub now run in one process.
 31. **`repro_stdin_read`** (a program): (a) `Stdin.read(buf)` is `fread` and returns only when `buf` is FULL or at the end of the stream, so a buffer of one byte is the only way to read a line
     that arrives now; (b) the call waits in C on the worker thread of the fiber that made it, and the fibers queued on that worker do not run until a byte (or the end) comes: with 16
     workers about one new fiber of sixteen starts late, in the hub "the fourth agent process starts after seconds" (here 282 of 300 short fibers finished in 2 s). The cure: the read

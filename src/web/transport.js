@@ -182,7 +182,7 @@ export function createTransport(deps) {
       for (const e of list) if (isObject(e)) {
         if (e.kind === 'sessions_ready' && Array.isArray(e.sessions)) onSnapshot('ready', e.sessions);
         else if (e.kind === 'sessions_index' && Array.isArray(e.entries)) onSessionsIndex(e.entries);
-        else if (e.kind === 'session_history' && Array.isArray(e.entries)) onSessionHistory(e.trace, e.entries);
+        else if (e.kind === 'session_history' && Array.isArray(e.entries)) onSessionHistory(e.trace, e.entries, e.unchanged === true);
         else onEvent(e);
       }
     };

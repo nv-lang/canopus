@@ -4,7 +4,7 @@
 
 Every place of the product that goes round a defect or a limit of Oracle carries a comment `// ORACLE-WORKAROUND(N): what is gone round; how to simplify when item N is fixed`, where N is an item of [README.md](README.md) ("Known problems"). `git grep ORACLE-WORKAROUND` finds them, `python scripts/oracle-workarounds.py --list` prints them by item with the line. When Nova fixes an item, open its places below, simplify the code as the mark says and remove the mark; then rerun `python scripts/oracle-workarounds.py --index`.
 
-Marks: 29 in 22 files. Items with marks: 19. Items without marks: 42 (no workaround in the code).
+Marks: 26 in 21 files. Items with marks: 18. Items without marks: 43 (no workaround in the code).
 
 | Item | What | Places (files; marks in a file if more than one) | Marks |
 |---|---|---|---|
@@ -37,7 +37,7 @@ Marks: 29 in 22 files. Items with marks: 19. Items without marks: 42 (no workaro
 | 27 | `option_try_generic_enum`: the operator `?` on an `Option` whose payload is a sum type, in a generic function instantiated with... | no workaround in the code | 0 |
 | 28 | `import_missing_name` (the test PASSES, and it must not): `import m.{Name}` of a name that `m` does not export is accepted. After... | no workaround in the code | 0 |
 | 29 | `user_request_vs_http`, `user_session_vs_postgres`: the table of type names is one for the whole program, dependencies included.... | `src/server/hub.nv` | 1 |
-| 30 | `pg_polaris_message`: the driver nova-postgres and Polaris cannot be in one program. The driver has a variant... | `src/server/front/front.nv`, `src/server/front/front_settings.nv`, `src/server/stdio.nv` | 3 |
+| 30 | `pg_polaris_message`: Oracle 0.1.0 could not compile nova-postgres and Polaris in one program. The driver has a variant... | no workaround in the code | 0 |
 | 31 | `repro_stdin_read` (a program): (a) `Stdin.read(buf)` is `fread` and returns only when `buf` is FULL or at the end of the stream... | `src/server/stdio.nv` (2) | 2 |
 | 32 | `repro_text_import` (a program): `import std.text` in one module makes a variable named `text`, bound by a record pattern... | `src/chat_delivery_fixture_tests/delivery_test.nv`, `src/request_oracle_tests/oracle_test.nv`, `src/server/agent_source_kit.nv`, `src/server/preparation_launch_test.nv`, `src/server_preparation_backend_live/backend_live_test.nv` | 5 |
 | 33 | `for_in_enum_literal`: `for c in [Pure, Writing]`, an array literal whose items are variants of a user enum without payload, does... | no workaround in the code | 0 |

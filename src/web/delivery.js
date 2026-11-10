@@ -38,7 +38,7 @@ export function createDelivery(storage) {
   try {
     const parsed = JSON.parse(storage?.getItem(DELIVERY_KEY) || '[]');
     if (Array.isArray(parsed)) records = parsed.filter(r => r && typeof r.id === 'string' && typeof r.trace === 'string' && typeof r.text === 'string').slice(0, LIMIT)
-      .map(r => ({ ...r, images: Array.isArray(r.images) ? r.images : [], state: r.state === 'sending' ? 'unknown' : r.state, restored: true, reason: r.reason ? safeError(r.reason) : '' }));
+      .map(r => ({ ...r, images: Array.isArray(r.images) ? r.images : [], state: r.state === 'sending' ? 'unknown' : r.state === 'waiting_restore' ? 'not_sent' : r.state, restored: true, reason: r.reason ? safeError(r.reason) : '' }));
   } catch { /* unreadable storage: sending will be refused until writing works */ }
   function save(next) {
     const data = JSON.stringify(next);
@@ -53,9 +53,9 @@ export function createDelivery(storage) {
   return {
     items(trace) { return records.filter(r => r.trace === trace).map(r => ({ ...r })); },
     sessions() { return records.filter(r => r.session).map(r => r.session); },
-    add(event, session = null) {
+    add(event, session = null, state = 'sending') {
       if (records.some(r => r.id === event.id)) return false;
-      return save([...records, { id: event.id, trace: event.trace, text: event.input.text || '', images: event.input.images || [], at: event.time, state: 'sending', clientTurn: event.input.turn, turn: '', reason: '', session }]);
+      return save([...records, { id: event.id, trace: event.trace, text: event.input.text || '', images: event.input.images || [], at: event.time, state, clientTurn: event.input.turn, turn: '', reason: '', session }]);
     },
     failed(id, reason) { update(id, { state: 'not_sent', reason: safeError(reason), httpStatus: httpStatus(reason) }); },
     unknown(id) { update(id, { state: 'unknown' }); },
@@ -71,9 +71,9 @@ export function createDelivery(storage) {
       if (!save([...records, record])) records = [...records, record];
     },
     canRetry(id) { return records.some(r => r.id === id && r.state === 'not_sent' && r.images.length === 0); },
-    beginRetry(id) {
+    beginRetry(id, expected = 'not_sent') {
       const r = records.find(x => x.id === id);
-      if (!r || r.state !== 'not_sent' || r.images.length) return null;
+      if (!r || r.state !== expected || r.images.length) return null;
       // Persist intent before any side effect. Double click and reload cannot issue a second attempt.
       if (!save(records.map(x => x.id === id ? { ...x, state: 'sending', reason: '' } : x))) return null;
       return { ...r };

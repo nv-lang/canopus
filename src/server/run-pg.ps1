@@ -11,8 +11,7 @@ if (Test-Path -LiteralPath $Config) {
     if ($settings.store -ne 'pg') { throw 'The selected config does not choose store pg. Change it explicitly before running PostgreSQL setup.' }
 }
 $front = Join-Path $root 'target/canopus.exe'
-$hub = Join-Path $root 'target/canopus-hub.exe'
-foreach ($binary in @($front, $hub)) { if (-not (Test-Path -LiteralPath $binary)) { throw 'Build canopus.exe and canopus-hub.exe before launching.' } }
+if (-not (Test-Path -LiteralPath $front)) { throw 'Build canopus.exe before launching.' }
 $db = Join-Path $root 'src/pg/db.ps1'
 & powershell -NoProfile -File $db up -Config $secretFile
 if ($LASTEXITCODE -ne 0) { exit 1 }

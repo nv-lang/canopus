@@ -2,7 +2,6 @@
 // Named internal defaults preserve the full resolved structure and its consumers.
 // Pure parsers accept explicit resolved input for internal callers; runtime files reject removed keys.
 // The selected config parent owns data and tools. No environment/--set/positional-file runtime layer.
-// ORACLE-WORKAROUND(30): the front reads its own part of the settings, because the module of the settings holds the hub, which holds the PostgreSQL driver, and the driver and Polaris cannot be in one program; use `ServerSettings` when item 30 is fixed
 module canopus.server.front
 
 import std.text

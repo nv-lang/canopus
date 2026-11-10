@@ -64,25 +64,20 @@ main_copy=$(CDPATH= cd -- "$(git rev-parse --git-common-dir)/.." && pwd)
 if git diff --name-only main...HEAD -- src/ | grep -v '^src/web/' | grep -q .; then build=1; fi
 
 front="$tree/target/canopus"
-hub="$tree/target/canopus-hub"
 exe=""
 case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) exe=".exe" ;; esac
 if [ "$build" -eq 1 ]; then
-    echo "building the server programs of THIS tree..."
-    nova build "src/canopus_hub.nv" -o "target/canopus-hub$exe"
+    echo "building the server of THIS tree..."
     nova build "src/canopus.nv" -o "target/canopus$exe"
 else
     front="$main_copy/target/canopus"
-    hub="$main_copy/target/canopus-hub"
-    if [ ! -x "$front$exe" ] || [ ! -x "$hub$exe" ]; then
-        echo "The built programs of the main copy are not there ($front$exe). Build them in the main copy:" >&2
-        echo "  nova build src/canopus_hub.nv -o target/canopus-hub$exe" >&2
+    if [ ! -x "$front$exe" ]; then
+        echo "The built server of the main copy is not there ($front$exe). Build it in the main copy:" >&2
         echo "  nova build src/canopus.nv -o target/canopus$exe" >&2
         exit 1
     fi
 fi
 front="$front$exe"
-hub="$hub$exe"
 
 if [ -f "$pidfile" ] && kill -0 "$(cat "$pidfile")" 2>/dev/null; then
     echo "the contour of this tree is already running: http://127.0.0.1:$(cat "$dir/contour.port")/ (pid $(cat "$pidfile"); stop: sh scripts/test-contour.sh --stop)"
@@ -103,9 +98,9 @@ agent="opencode"
 [ -n "$exe" ] && agent="opencode.cmd"
 mkdir -p "$dir/data"
 config="$dir/server.json"
-python - "$config" "$port" "$dir/data" "$tree/src/web" "$hub" "$agent" <<'EOF'
+python - "$config" "$port" "$dir/data" "$tree/src/web" "$agent" <<'EOF'
 import json, sys
-path, port, data, web, hub, agent = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6]
+path, port, data, web, agent = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4], sys.argv[5]
 json.dump({
     "port": port,
     "data_dir": data,
@@ -114,7 +109,6 @@ json.dump({
     "idle_term_seconds": 900,
     "workdir": "",
     "web_dir": web,
-    "hub": {"program": hub, "args": []},
 }, open(path, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 EOF
 

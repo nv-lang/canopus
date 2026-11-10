@@ -2,7 +2,7 @@
 module canopus.acp
 
 import std.encoding.json.{Json, JsonValue}
-import std.fs.{Fs, real_fs, Path, remove_dir_all, create_dir_all, read_text, try_exists}
+import std.fs.{Fs, real_fs, Path, remove_dir_all, create_dir_all, read_text, try_exists, write}
 import std.os.{Os, real_os, temp_dir, pid}
 
 fn trace_dir(name str) -> Path {
@@ -94,6 +94,18 @@ test "trace: the file is only appended to, also by a second open" {
     mut b = trace_open(path, TRACE_LIMIT)
     b.record("in", "two")
     assert(trace_lines(path).len() == 2)
+}
+
+test "trace: opening a large file counts newlines across read boundaries" {
+    ro path = trace_dir("large").join("s1.acp.jsonl")
+    ro text = "x".repeat(256 * 1024 - 1).concat("\n\r\nlast line without newline")
+    match with Fs = real_fs() { write(path, text.bytes()) } {
+        Ok(done) => ()
+        Err(err) => panic("cannot create trace fixture")
+    }
+    ro trace = trace_open(path.display(), TRACE_LIMIT)
+    assert(trace.line_count() == 2)
+    assert(trace.size == text.byte_len())
 }
 
 test "trace: over the limit the file becomes .1 and a new one begins; an older .1 is replaced" {

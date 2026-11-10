@@ -10,7 +10,7 @@
     nova.lock.toml (0.28.0 -> 0.28); хеш каждого подключения библиотеки (includes дерева, строки
     «- Файл:»/«- Хеш:» таблицы) равен definitions_hash файла библиотеки (SHA-256 нормализованного
     текста, 12 букв); подключённая библиотека есть. С --kit <папка> — то же на папке комплекта и
-    его состав: canopus.exe, canopus-hub.exe, machines/product/ с dialog.alula.json,
+    его состав: canopus.exe, machines/product/ с dialog.alula.json,
     dialog.alula.md, journal.md и подключёнными библиотеками; лишнего нет (tests/, чата,
     других файлов).
 Не проверяет: что программы комплекта собраны из этого дерева, смысл машин (это alula test и тесты
@@ -33,7 +33,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib
 import guardlib  # noqa: E402
 
 PREFIX = "machines/product/"
-KIT_PROGRAMS = ("kimi-preparation.mjs", "kimi-preparation.md", "preparation-research.mjs", "start.ps1", "scripts/native-acp-catalog.mjs", "scripts/zai-acp.mjs", "canopus.exe", "canopus-hub.exe", "preparation-agent.mjs", 'scripts/task-store.mjs', 'opencode-plugin/shared-task-store.ts', 'opencode-plugin/shared-task-config.ts', 'opencode-plugin/shared-task-snapshot.ts', 'opencode-plugin/task-numbers.ts')
+KIT_PROGRAMS = ("kimi-preparation.mjs", "kimi-preparation.md", "preparation-research.mjs", "start.ps1", "scripts/native-acp-catalog.mjs", "scripts/zai-acp.mjs", "canopus.exe", "preparation-agent.mjs", 'scripts/task-store.mjs', 'opencode-plugin/shared-task-store.ts', 'opencode-plugin/shared-task-config.ts', 'opencode-plugin/shared-task-snapshot.ts', 'opencode-plugin/task-numbers.ts')
 KIT_MACHINES = ("dialog.alula.json", "dialog.alula.md", "work-mode.alula.json", "work-mode.alula.md", "family-approval.alula.json", "family-approval.alula.md", "journal.md")
 LOCK_VERSION = re.compile(r'name\s*=\s*"alula"[^\[]*?\bversion\s*=\s*"(\d+)\.(\d+)', re.S)
 

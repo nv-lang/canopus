@@ -23,6 +23,11 @@ export function deliveryCard(doc, item, actions) {
     received: t('delivery.received'), accepted: t('delivery.accepted'), agent_error: t('delivery.agent_error'),
     agent_refused: t('delivery.agent_refused'), error: t('delivery.error'),
   };
+  if (item.state === 'waiting_restore') {
+    const cancel = h(doc, 'button', { class: 'link-btn', type: 'button', text: t('delivery.restore_cancel') });
+    cancel.addEventListener('click', () => actions.forget(item.id));
+    return h(doc, 'div', { class: 'delivery-pending', role: 'status' }, t('delivery.waiting_restore'), ' ', cancel);
+  }
   const pending = !item.reason && ['sending', 'received', 'accepted'].includes(item.state);
   if (pending) return h(doc, 'div', { class: 'delivery-pending', role: 'status', text: labels[item.state] });
   const uncertain = item.state === 'unknown' && !item.reason;

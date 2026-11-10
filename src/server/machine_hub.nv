@@ -81,7 +81,7 @@ fn Hub @machine_event_text(at int, since int) -> str {
     jput(input, "started", machine_part(snapshot, "started"))
     jput(input, "last_input", machine_part(snapshot, "input"))
     jput(input, "data", machine_part(snapshot, "data"))
-    jput(input, "journal", machine_journal(history_in(@settings.store == "pg", @settings.data_dir, s)))
+    jput(input, "journal", machine_journal(s.machine_tail))
     event_line("srv-${@serial}", s.id, @serial, "machine_state", input, now_millis())
 }
 

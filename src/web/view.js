@@ -1478,7 +1478,7 @@ export function createView(doc, refs, deps) {
     const trace = currentTrace;
     historyState = NO_HISTORY; // после отправки история с пустого поля: новое сообщение в её конце, ↑ показывает его первым
     // агент занят ходом: сообщение (и его картинки) встаёт в очередь страницы и уходит, когда ход закончится
-    if (current.session && isBusy(current.session.state)) {
+    if (current.session && !current.ui?.historyPending?.has(trace) && isBusy(current.session.state)) {
       if (handlers.onQueue(trace, text, images)) {
         input.value = '';
         attach.clear();
@@ -1523,7 +1523,10 @@ export function createView(doc, refs, deps) {
     const can = canSend(input.value, attach.items(), uploading);
     // в записи место кнопки остаётся (visibility), чтобы поле не меняло ширину и текст не перетекал в нижнюю строку
     sendButton.hidden = !can || recordingNow;
-    sendButton.disabled = !can || recordingNow;
+    const restoring = current.ui?.historyPending?.has(currentTrace);
+    const unavailable = current.ui?.restoreQueued?.has(currentTrace) || (restoring
+      && (!current.ui.historyPreview?.has(currentTrace) || attach.items().length > 0));
+    sendButton.disabled = !can || recordingNow || unavailable;
   }
   // Авторазмер: высота по содержимому, не выше 5 строк (дальше — внутренняя прокрутка, см. max-height в app.css).
   function fitInput() {
@@ -1963,6 +1966,7 @@ export function createView(doc, refs, deps) {
     const awaitingHistory = Boolean(ui.historyPending?.has(session.id));
     chat.dataset.historyPending = String(awaitingHistory);
     const preview = ui.historyPreview?.has(session.id);
+    chat.dataset.historyPreview = String(Boolean(preview));
     historyLoading.textContent = preview ? t('loading.history_connect') : t('loading.history');
     historyLoading.hidden = !awaitingHistory;
 

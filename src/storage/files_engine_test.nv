@@ -4,7 +4,7 @@
 // that did not commit).
 module canopus.storage
 
-import alula.engine.{Engine, Incoming, JournalEntry, Journal, Store, Link, Time, MemoryWorld, start_engine, resume_engine, memory_link, memory_time, journal_event, param}
+import alula.engine.{Engine, Incoming, JournalEntry, Journal, Store, Link, Time, MemoryWorld, start_engine, resume_engine, memory_link, memory_time, journal_event, journal_line, param}
 import canopus.chat.{ChatSession, ChatState, chat_session, encode_chat_state, user_says, agent_chunk, agent_done}
 import std.fs.{Fs, real_fs, remove_dir_all}
 import std.os.{Os, real_os, temp_dir, pid}
@@ -30,6 +30,30 @@ fn resumed(root str, mut world MemoryWorld) -> Engine[ChatSession, ChatState] {
     with Journal = file_journal(root, "chat-1"), Store = file_store(root), Link = memory_link(world), Time = memory_time(world) {
         match resume_engine(chat_session(), "chat-1") {
             Some(e) => e
+            None => panic("no snapshot to resume from")
+        }
+    }
+}
+
+fn resumed_once(root str, mut world MemoryWorld, committed_step int) -> Engine[ChatSession, ChatState] {
+    with Journal = file_replay_journal(root, "chat-1"), Store = file_store(root), Time = memory_time(world) {
+        match resume_engine(chat_session(), "chat-1") {
+            Some(restored) => {
+                // Reading again in the same scope includes the persisted restart marker.
+                ro journal = Journal.read_all()
+                assert(journal[journal.len() - 1].event.code == "engine_resumed")
+                ro baseline = restored.history()
+                ro indexed = replay_history(journal, restored.trace(), restored.step_number())
+                assert(indexed.len() == baseline.len())
+                mut at = 0
+                for event in indexed {
+                    ro expected = baseline[at]
+                    assert(event.id == expected.id && event.step == expected.step && event.kind == expected.kind && event.name == expected.name && event.input == expected.input && event.request == expected.request && event.at == expected.at)
+                    assert(event.step <= committed_step)
+                    at += 1
+                }
+                restored
+            }
             None => panic("no snapshot to resume from")
         }
     }
@@ -102,6 +126,8 @@ test "death between the journal write and the snapshot save: the lines of the st
     mut world = MemoryWorld.at(1000)
     mut e1 = begin(root, world)
     feed(root, e1, world, user_says("hi"))
+    feed(root, e1, world, agent_chunk("foreign-request", "discarded"))
+    assert(of_code(entries_of(root), "reply_discarded").len() == 1)
     ro committed_step = e1.step_number()
     ro committed_state = encode_chat_state(e1.state())
     // The step committed_step + 1 writes its journal lines ... and the process dies before the snapshot is saved.
@@ -111,7 +137,7 @@ test "death between the journal write and the snapshot save: the lines of the st
         Journal.write(stale_entry(e1.trace(), committed_step + 1, "agent_chunk"))
     }
     assert(entries_of(root).len() > 0)
-    mut e2 = resumed(root, world)
+    mut e2 = resumed_once(root, world, committed_step)
     // the snapshot is the commit point: the machine is where it was after the last commit
     assert(encode_chat_state(e2.state()) == committed_state)
     assert(e2.step_number() == committed_step + 1)       // the restart is a step of its own
@@ -145,4 +171,29 @@ test "death between the snapshot save and the send: the request is sent once aft
     mut e3 = resumed(root, world)
     assert(pump(root, e3, world) == 0)
     assert(world.sent.len() == 1)
+}
+
+test "files: parallel replay preserves journal order and skips malformed rows" {
+    ro root = engine_root("parallel-replay")
+    assert(open_data_dir(root))
+    assert(ensure_session_dir(root, "chat-1"))
+    ro path = session_file(root, "chat-1", "journal").unwrap()
+    mut lines = []str.new()
+    mut step = 1
+    while step <= 4103 {
+        if step == 1025 { lines.push("malformed") }
+        lines.push(journal_line(stale_entry("trace", step, "agent_chunk")))
+        step += 1
+    }
+    lines.push("{\"torn\":")
+    assert(replace_file(path, lines.join("\n")))
+    with Journal = file_replay_journal(root, "chat-1") {
+        ro replay = Journal.read_all()
+        assert(replay.len() == 4103)
+        mut at = 0
+        for entry in replay {
+            assert(entry.step == at + 1 && entry.trace == "trace" && entry.event.code == "agent_chunk")
+            at += 1
+        }
+    }
 }

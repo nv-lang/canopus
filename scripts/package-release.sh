@@ -1,12 +1,12 @@
 #!/bin/sh
 # Зачем: собрать релизный комплект продукта одной командой (задача 248): машины продукта не вшиты в
-#     программы, хаб читает их из machines/product рядом с собой, поэтому комплект — это программы и
+#     программу, сервер читает их из machines/product рядом с собой, поэтому комплект — это программа и
 #     эта папка; руками её не собирают, а собранное проверяет страж.
-# Проверяет: target/canopus.exe и target/canopus-hub.exe есть (с --build собирает их nova build);
-#     папка комплекта пуста или её нет; кладёт обе программы и machines/product: dialog.alula.json,
+# Проверяет: target/canopus.exe есть (с --build собирает его nova build);
+#     папка комплекта пуста или её нет; кладёт программу и machines/product: dialog.alula.json,
 #     dialog.alula.md, work-mode.*, family-approval.*, journal.md и libs/ (без tests/, без чата chat.*);
 #     затем зовёт стража scripts/guards/check-release-kit.py --kit на собранной папке.
-# Не проверяет: что программы собраны из этого дерева без --build, что nova в PATH (без --build не нужна).
+# Не проверяет: что программа собрана из этого дерева без --build, что nova в PATH (без --build не нужна).
 # Правило: задача 248; AGENTS.md п.14 (не должно быть ручных команд там, где их может сделать программа).
 #
 # Использование: sh scripts/package-release.sh <папка комплекта> [--build]
@@ -29,18 +29,15 @@ PYTHON=${PYTHON:-python}
 here=$(cd "$(dirname "$0")" && pwd)
 
 if [ "$build" = 1 ]; then
-  (cd "$root" && nova build src/canopus_hub.nv -o target/canopus-hub.exe) || { echo "FAIL: nova build canopus-hub"; exit 1; }
-  (cd "$root" && nova build src/canopus.nv -o target/canopus.exe) || { echo "FAIL: nova build canopus"; exit 1; }
+  (cd "$root" && nova build --mode release src/canopus.nv -o target/canopus.exe) || { echo "FAIL: nova build canopus"; exit 1; }
 fi
-for program in canopus.exe canopus-hub.exe; do
-  [ -f "$root/target/$program" ] || { echo "FAIL: предпосылка: нет target/$program; соберите (--build)"; exit 1; }
-done
+[ -f "$root/target/canopus.exe" ] || { echo "FAIL: предпосылка: нет target/canopus.exe; соберите (--build)"; exit 1; }
 if [ -e "$kit" ] && [ -n "$(ls -A "$kit" 2>/dev/null)" ]; then
   echo "FAIL: предпосылка: папка комплекта $kit не пуста"; exit 1
 fi
 
 mkdir -p "$kit/machines/product/libs" || { echo "FAIL: папка $kit не создаётся"; exit 1; }
-cp "$root/target/canopus.exe" "$root/target/canopus-hub.exe" "$kit/" || { echo "FAIL: программы не скопированы"; exit 1; }
+cp "$root/target/canopus.exe" "$kit/" || { echo "FAIL: программа не скопирована"; exit 1; }
 for preparation_asset in kimi-preparation.mjs kimi-preparation.md preparation-research.mjs; do
   cp "$root/src/server/$preparation_asset" "$kit/$preparation_asset" || exit 1
 done

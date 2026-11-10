@@ -11,7 +11,7 @@
 module canopus.acp
 
 import std.encoding.json.{JsonValue, JsonObject}
-import std.fs.{Fs, real_fs, File, Path, rename, metadata, remove_file, read}
+import std.fs.{Fs, real_fs, File, Path, rename, metadata, remove_file}
 import std.io.{write_all, stderr}
 
 /// The limit of one trace file: 50 MB.
@@ -41,13 +41,36 @@ export fn trace_open(path str, limit int) -> AcpTrace {
 
 // The number of the lines already in the file (task 192.11: the view of the request names the lines of a turn in `acp.jsonl`); 0 when it cannot be read.
 fn trace_count_lines(path Path) Fs -> int {
-    match read(path) {
-        Ok(bytes) => {
-            mut n = 0
-            for b in bytes { if b == (10 as u8) { n += 1 } }
-            n
+    consume file = match File.open(path) {
+        Ok(consume opened) => opened
+        Err(err) => return 0
+    }
+    // Count in place. The generic read() copies the whole trace and issues an
+    // asynchronous file read per 8 KiB, competing with the rest of a cold start.
+    mut buffer = []u8.new()
+    buffer.resize(256 * 1024, 0 as u8)
+    mut lines = 0
+    mut failed = false
+    loop {
+        match file.read(buffer) {
+            Ok(0) => break
+            Ok(size) => {
+                mut i = 0
+                while i < size {
+                    if buffer[i] == (10 as u8) { lines += 1 }
+                    i += 1
+                }
+            }
+            Err(err) => {
+                if err.is_interrupted() { continue }
+                failed = true
+                break
+            }
         }
-        Err(e) => 0
+    }
+    match file.close() {
+        Ok(done) => if failed { 0 } else { lines }
+        Err(err) => 0
     }
 }
 

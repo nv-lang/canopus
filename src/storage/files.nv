@@ -16,6 +16,7 @@ module canopus.storage
 
 import alula.engine.{Journal, Store, JournalEntry, Snapshot, journal_line, parse_journal_line}
 import std.encoding.json.{Json, JsonValue, JsonObject}
+import std.concurrency.nvchan.{Chan, ChanTx, ChanRx}
 import std.fs.{Fs, real_fs, File, Path, read, read_dir, create_dir_all, rename, metadata, remove_file, try_exists}
 import std.io.{write_all}
 
@@ -85,20 +86,49 @@ export fn append_line(path Path, line str) Fs -> bool {
     }
 }
 
+// The storage logs may be many megabytes. Amortize the asynchronous file reads
+// and reserve the existing file size before accumulating the bytes.
+fn read_log(path Path) Fs -> Option[[]u8] {
+    consume file = match File.open(path) {
+        Ok(consume opened) => opened
+        Err(err) => return None
+    }
+    ro capacity = match file.metadata() { Ok(meta) => meta.len(), Err(err) => 0 }
+    mut bytes = []u8.new(cap: capacity)
+    mut buffer = []u8.new()
+    buffer.resize(256 * 1024, 0 as u8)
+    mut failed = false
+    loop {
+        match file.read(buffer) {
+            Ok(0) => break
+            Ok(size) => bytes.append(buffer[..size])
+            Err(err) => {
+                if err.is_interrupted() { continue }
+                failed = true
+                break
+            }
+        }
+    }
+    match file.close() {
+        Ok(done) => if failed { None } else { Some(bytes) }
+        Err(err) => None
+    }
+}
+
 /// The non-empty lines of a file in order ("\r" at the end cut); a missing or unreadable file has none. The bytes are read
 /// as they are and a broken UTF-8 sequence (a tear inside a letter) is replaced, so one torn line never hides the others.
 export fn read_lines(path Path) Fs -> []str {
     mut out = []str.new()
-    match read(path) {
-        Err(e) => out
-        Ok(bytes) => {
+    match read_log(path) {
+        None => ()
+        Some(bytes) => {
             for raw in bytes.to_str_lossy().split("\n") {
                 ro line = raw.strip_suffix("\r") ?? raw
                 if line.byte_len() > 0 { out.push(line) }
             }
-            out
         }
     }
+    out
 }
 
 /// Replace the whole file: the text goes to a temporary file beside it, is synced, and the file is renamed over the old
@@ -176,33 +206,92 @@ fn append_in_session(root str, session str, path Path, line str) Fs -> bool {
     append_line(path, line)
 }
 
-/// The handler of `Journal` for one session: `<root>/<session>/journal`. Lines that are not entries (a torn last line) are
-/// skipped by `read_all`. A session name that is not safe stops the program at once.
+fn write_journal_entry(root str, session str, path Path, entry JournalEntry) -> () {
+    with Fs = real_fs() {
+        if !append_in_session(root, session, path, journal_line(entry)) {
+            panic("the journal cannot be written: ${path.display()}")
+        }
+    }
+}
+
+fn parse_journal_entries(lines []str) -> []JournalEntry {
+    mut out = []JournalEntry.new(cap: lines.len())
+    for line in lines {
+        match parse_journal_line(line) {
+            Some(entry) => out.push(entry)
+            None => ()
+        }
+    }
+    out
+}
+
+fn journal_entries(path Path) -> []JournalEntry {
+    ro lines = with Fs = real_fs() { read_lines(path) }
+    parse_journal_entries(lines)
+}
+
+type ParsedJournalBatch { entries []JournalEntry }
+
+fn parse_journal_batch(tx ChanTx[ParsedJournalBatch], lines []str) -> () {
+    ro sent = tx.send(ParsedJournalBatch { entries: parse_journal_entries(lines) })
+}
+
+fn append_journal_batch(mut entries []JournalEntry, rx ChanRx[ParsedJournalBatch]) -> () {
+    match rx.recv() {
+        Some(batch) => for entry in batch.entries { entries.push(entry) }
+        None => panic("journal parse batch ended without its entries")
+    }
+}
+
+// Parsing each complete JSON line is independent. Read the file once, then join
+// the batches in file order before the engine inspects the journal.
+fn replay_journal_entries(path Path) -> []JournalEntry {
+    ro lines = with Fs = real_fs() { read_lines(path) }
+    if lines.len() < 4096 { return parse_journal_entries(lines) }
+
+    ro batch_size = lines.len() / 4
+    ro second = Chan[ParsedJournalBatch].new(1)
+    ro third = Chan[ParsedJournalBatch].new(1)
+    ro fourth = Chan[ParsedJournalBatch].new(1)
+    mut entries = []JournalEntry.new()
+    supervised {
+        spawn { parse_journal_batch(second.tx, lines[batch_size..2 * batch_size]) }
+        spawn { parse_journal_batch(third.tx, lines[2 * batch_size..3 * batch_size]) }
+        spawn { parse_journal_batch(fourth.tx, lines[3 * batch_size..]) }
+        entries = parse_journal_entries(lines[..batch_size])
+        append_journal_batch(entries, second.rx)
+        append_journal_batch(entries, third.rx)
+        append_journal_batch(entries, fourth.rx)
+    }
+    entries
+}
+
+/// The handler of `Journal` for one session. A torn last line is skipped on read.
 export fn file_journal(root str, session str) -> Effect[Journal] {
     ro path = path_or_stop(root, session, "journal")
     effect Journal {
-        write(entry) -> () {
-            // D454: boundary override inside non-test code, see module-conventions (the op body of a handler literal cannot declare the effect in its signature)
-            with Fs = real_fs() {
-                if !append_in_session(root, session, path, journal_line(entry)) {
-                    panic("the journal cannot be written: ${path.display()}")
-                }
-            }
-        }
-        read_all() -> []JournalEntry {
-            mut out = []JournalEntry.new()
-            // D454: boundary override inside non-test code, see module-conventions (the op body of a handler literal cannot declare the effect in its signature)
-            with Fs = real_fs() {
-                for line in read_lines(path) {
-                    match parse_journal_line(line) {
-                        Some(entry) => out.push(entry)
-                        None => ()
-                    }
-                }
-            }
-            out
-        }
+        write(entry) -> () { write_journal_entry(root, session, path, entry) }
+        read_all() -> []JournalEntry { journal_entries(path) }
     }
+}
+
+type ReplayJournal { entries []JournalEntry }
+
+fn replay_journal(root str, session str, path Path, mut replay ReplayJournal) -> Effect[Journal] {
+    effect Journal {
+        write(entry) -> () {
+            write_journal_entry(root, session, path, entry)
+            replay.entries.push(entry)
+        }
+        read_all() -> []JournalEntry { replay.entries }
+    }
+}
+
+/// A private journal view for the one restore operation, including entries appended during restart.
+export fn file_replay_journal(root str, session str) -> Effect[Journal] {
+    ro path = path_or_stop(root, session, "journal")
+    mut replay = ReplayJournal { entries: replay_journal_entries(path) }
+    replay_journal(root, session, path, replay)
 }
 
 /// The handler of `Store`: `<root>/<id>/snapshot` per session. `save` replaces the file as a whole; `load` of a missing

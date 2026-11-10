@@ -137,7 +137,7 @@ fn Hub mut @route_attach(conn int) Time -> () {
 // ----- the journal -----
 
 fn Hub mut @rt_journal(at int, name str, text str) Proc Detach Time -> () {
-    if !route_signals().contains(name) { return }
+    if !is_route_signal(name) { return }
     mut s = @sessions[at]
     accept_in(@settings.store == "pg", @settings.data_dir, s, Incoming.signal(name, text))
     ro previous_number = s.rt.number
@@ -1718,7 +1718,7 @@ fn Hub mut @route_pump() Proc Detach Time -> () {
     @cs_pump()
     @ctl_pump()
     if @reviews.len() > 0 { @route_pump_reviews() }
-    if now_millis() - @route_obs >= OBSERVE_MS {
+    if @restoring.keys().len() == 0 && now_millis() - @route_obs >= OBSERVE_MS && !@prioritize_agent_start() {
         @route_obs = now_millis()
         mut k = 0
         while k < @sessions.len() {

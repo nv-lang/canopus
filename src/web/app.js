@@ -103,6 +103,7 @@ const linked = /^#s=(.+)$/.exec(globalThis.location ? globalThis.location.hash :
 const ui = {
   historyPending: new Set(),
   historyPreview: new Set(),
+  restoreQueued: new Map(),
   selected: null, projects: null, pane: 'list', flash: '', flashTone: 'error', awaiting: linked ? decodeURIComponent(linked[1]) : null, theme: readTheme(), pins: readPins(), unread: readUnread(), acked: {}, silentMin: SILENT_DEFAULT_MIN, notify: { bell: notifier.bellOn(), sound: notifier.soundOn(), denied: false },
 };
 // A failed first create has no server row to select. Reopen its saved local copy on reload;
@@ -152,7 +153,10 @@ function watchCreated(trace) {
 
 let sessionTransportReady = false;
 const requestedHistory = new Set();
+const warmedHistory = new Set();
 const requestedPreview = new Set();
+const attemptedPreview = new Set();
+const previewVersion = new Map();
 
 function applySessionIndex(entries) {
   for (const event of entries) {
@@ -189,25 +193,36 @@ function replayHistory(trace, entries) {
 }
 
 function requestHistoryPreview(trace) {
-  if (requestedPreview.has(trace) || ui.historyPreview.has(trace)) return;
+  if (attemptedPreview.has(trace) || ui.historyPreview.has(trace)) return;
+  attemptedPreview.add(trace);
   requestedPreview.add(trace);
-  fetch('/api/session-history/' + encodeURIComponent(trace), { cache: 'no-store' })
+  fetch('/api/session-history/' + encodeURIComponent(trace), { cache: 'no-store', signal: AbortSignal.timeout(3500) })
     .then(response => response.ok ? response.json() : null)
     .then(entries => {
       if (!ui.historyPending.has(trace) || !model.sessions[trace] || !Array.isArray(entries)) return;
       if (replayHistory(trace, entries)) {
         ui.historyPreview.add(trace);
+        previewVersion.set(trace, { count: entries.length, last: entries.at(-1)?.id });
         render();
       }
-    }).catch(() => { /* The authoritative history request remains available. */ });
+    }).catch(() => { /* The authoritative history request remains available. */ })
+    .finally(() => {
+      requestedPreview.delete(trace);
+      if (ui.selected === trace || ui.restoreQueued.has(trace)) requestHistory(trace);
+      render();
+    });
 }
 
-function requestSelectedHistory() {
-  const trace = ui.selected;
+function requestHistory(trace) {
   if (!ui.historyPending.has(trace)) return;
   requestHistoryPreview(trace);
   if (!sessionTransportReady || requestedHistory.has(trace)) return;
-  if (transport.send(makeEvent('session_history_get', trace, 0, {}, ctx))) requestedHistory.add(trace);
+  if (requestedPreview.has(trace)) {
+    // Start authoritative recovery while HTTP still loads the transcript preview.
+    if (!warmedHistory.has(trace) && transport.send(makeEvent('session_warm', trace, 0, {}, ctx))) warmedHistory.add(trace);
+    return;
+  }
+  if (transport.send(makeEvent('session_history_get', trace, 0, previewVersion.get(trace) || {}, ctx))) requestedHistory.add(trace);
 }
 
 function draw() {
@@ -233,8 +248,9 @@ function draw() {
   for (const x of all) names[x.id] = x.name;
   notifier.update(waitingKeys(all, ui.acked), names, ui.selected || '');
   ui.notify = { bell: notifier.bellOn(), sound: notifier.soundOn(), denied: ui.notify.denied };
+  requestHistory(ui.selected);
+  for (const trace of ui.restoreQueued.keys()) if (trace !== ui.selected) requestHistory(trace);
   view.render(model, ui, status);
-  requestSelectedHistory();
 }
 
 // Перерисовка склеивает близкие события в один кадр. Вторая страховка — таймер: в скрытой
@@ -305,9 +321,49 @@ function prepareHandoff(trace, choice) {
 const queue = createQueue();
 
 /** Ход закончился — следующее сообщение очереди уходит как обычная отправка; сессии нет в модели — очередь сброшена. */
+function restoreTarget(session) {
+  return JSON.stringify([session.agent, session.source, normalizeRoute(session.route)]);
+}
+
+const waitingRoute = new Set();
+function sendAfterRestore(trace, text, images) {
+  const session = model.sessions[trace];
+  if (!ui.historyPreview.has(trace) || !session || !text || images.length || ui.restoreQueued.has(trace)) return false;
+  if (session.source?.family === 'codex' && session.agent !== 'codex') return false;
+  const event = makeEvent('user_message', trace, 0, messageInput(newId(), text, []), ctx);
+  if (!delivery.add(event, savedSession(trace), 'waiting_restore')) {
+    flash(t('delivery.storage'));
+    return false;
+  }
+  ui.restoreQueued.set(trace, { id: event.id, target: restoreTarget(session) });
+  render();
+  return true;
+}
+
+function drainRestoreQueue() {
+  const sent = new Set();
+  for (const [trace, queued] of ui.restoreQueued) {
+    if (ui.historyPending.has(trace) || waitingRoute.has(trace) || !sessionTransportReady) continue;
+    const session = model.sessions[trace];
+    if (session && (isBusy(session.state) || session.pendingQuestion)) continue;
+    ui.restoreQueued.delete(trace);
+    if (!session || restoreTarget(session) !== queued.target || ui.sourceQuestions.has(trace)
+        || ['preparing', 'selected'].includes(ui.handoffStatus.get(trace)?.phase)) {
+      delivery.failed(queued.id, t('delivery.restore_target_changed'));
+      continue;
+    }
+    const item = delivery.beginRetry(queued.id, 'waiting_restore');
+    if (item) { sendMessage(trace, item.text, [], item); sent.add(trace); }
+    else delivery.failed(queued.id, t('delivery.storage'));
+  }
+  return sent;
+}
+
 function drain() {
+  const justSent = drainRestoreQueue();
   queue.prune(model.sessions);
   for (const trace of queue.traces()) {
+    if (justSent.has(trace) || ui.restoreQueued.has(trace) || ui.historyPending.has(trace)) continue;
     if (ui.handoffStatus.get(trace)?.phase === 'preparing' || ui.handoffStatus.get(trace)?.phase === 'selected') continue;
     const item = queue.take(trace, model.sessions[trace]);
     if (item === undefined) continue;
@@ -354,12 +410,16 @@ const handlers = {
   deliveryItems(trace) { return delivery.items(trace); },
   onRetry(trace, id) {
     const session = model.sessions[trace];
-    if (!session || session.draft || ['answering', 'permission'].includes(session.state)
+    if (!session || session.draft || ui.historyPending.has(trace) || ['answering', 'permission'].includes(session.state)
       || ['preparing', 'selected'].includes(ui.handoffStatus.get(trace)?.phase)) return;
     const item = delivery.beginRetry(id);
     if (item) sendMessage(trace, item.text, [], item);
   },
-  onForgetDelivery(id) { delivery.forget(id); render(); },
+  onForgetDelivery(id) {
+    if (!delivery.forget(id)) return;
+    for (const [trace, item] of ui.restoreQueued) if (item.id === id) ui.restoreQueued.delete(trace);
+    render();
+  },
   queued(trace) { return queue.count(trace); },
   onQueue(trace, text, images = []) {
     queue.push(trace, { text, images });
@@ -385,6 +445,7 @@ const handlers = {
     ui.selected = trace;
     ui.pane = 'chat';
     if (ui.unread[trace]) { ui.unread = { ...ui.unread, [trace]: false }; saveUnread(ui.unread); }
+    requestHistory(trace);
     render();
   },
   async onBell() {
@@ -489,7 +550,9 @@ const handlers = {
   // Без картинок — как раньше, сразу. С картинками — сначала они на сервер по очереди, потом сообщение с их номерами.
   onSend(trace, text, images = []) {
     const draft = model.sessions[trace];
-    if (ui.historyPending.has(trace) || ui.sourceQuestions.has(trace)) return false;
+    if (ui.sourceQuestions.has(trace)) return false;
+    if (ui.historyPending.has(trace)) return sendAfterRestore(trace, text, images);
+    if (ui.restoreQueued.has(trace)) return false;
     const choice = ui.handoffStatus.get(trace);
     if (choice?.phase === 'preparing') return false;
     if (choice?.phase === 'selected') {
@@ -774,6 +837,12 @@ async function start() {
           handoff.finish(false, t('handoff.failed'));
           return;
         }
+        if (event.kind === 'route_state') waitingRoute.delete(event.trace);
+        if (event.kind === 'session_deleted') {
+          const queued = ui.restoreQueued.get(event.trace);
+          if (queued) delivery.failed(queued.id, t('delivery.restore_target_changed'));
+          ui.restoreQueued.delete(event.trace);
+        }
         if (event.kind === 'message_delivery') delivery.receipt(event.input);
         if (event.kind === 'error' && event.input) delivery.error(event);
         const next = reduce(model, event);
@@ -801,15 +870,19 @@ async function start() {
       render();
     },
     onSessionsIndex(entries) { applySessionIndex(entries); },
-    onSessionHistory(trace, entries) {
+    onSessionHistory(trace, entries, unchanged) {
       if (!requestedHistory.delete(trace)) return;
-      if (!replayHistory(trace, entries)) {
+      if (!(unchanged && ui.historyPreview.has(trace)) && !replayHistory(trace, entries)) {
         flash(t('loading.history_error'));
         return;
       }
+      if (ui.restoreQueued.has(trace)) waitingRoute.add(trace);
       ui.historyPending.delete(trace);
+      warmedHistory.delete(trace);
       ui.historyPreview.delete(trace);
       requestedPreview.delete(trace);
+      attemptedPreview.delete(trace);
+      previewVersion.delete(trace);
       delivery.reconcile(model);
       drain();
       render();
@@ -818,18 +891,26 @@ async function start() {
       if (phase === 'loading') {
         sessionTransportReady = false;
         requestedHistory.clear();
+        warmedHistory.clear();
         if (loading.state.sessions.data !== null) loadProjects();
         else loading.sessionsStart();
       }
       else if (phase === 'error') {
         sessionTransportReady = false;
         requestedHistory.clear();
+        warmedHistory.clear();
         if (loading.state.sessions.data === null) loading.sessionsError();
       }
       else {
         // Удалённые за время разрыва сессии исчезают только после полного снимка.
         if (ids) {
           const keep = new Set(ids);
+          for (const [trace, queued] of ui.restoreQueued) {
+            if (keep.has(trace)) continue;
+            delivery.failed(queued.id, t('delivery.restore_target_changed'));
+            ui.restoreQueued.delete(trace);
+            waitingRoute.delete(trace);
+          }
           model = { ...model, sessions: Object.fromEntries(Object.entries(model.sessions).filter(([id, s]) => s.draft || keep.has(id))) };
         }
         sessionTransportReady = true;

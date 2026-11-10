@@ -95,6 +95,25 @@ fn req_first_word(title str) -> str {
     t[..k]
 }
 
+// Remember the first observation of each tool as its journal event is projected.
+fn req_note_tool(mut tools []str, input JsonObject) -> () {
+    if tools.len() >= 40 { return }
+    ro title = jtext(input, "title")
+    ro kind = jtext(input, "kind")
+    ro word = req_first_word(title)
+    ro name = if word.byte_len() > 0 { word } else { kind }
+    if name.byte_len() == 0 { return }
+    for entry in tools {
+        ro known = jobject(entry) ?? JsonObject.new()
+        if jtext(known, "name") == name && jtext(known, "kind") == kind { return }
+    }
+    mut entry = JsonObject.new()
+    jput(entry, "name", JsonValue.str(name))
+    jput(entry, "kind", JsonValue.str(kind))
+    jput(entry, "title", JsonValue.str(secret_redact(cut_text(title, 200))))
+    tools.push(JsonValue.object(entry).to_str())
+}
+
 /// What the agent has shown of its tools: the entries `{name, kind, title}` (JSON texts) of `known` and of the lines of the feed from `from` on that are `tool_call`; one entry for a name and a kind, at most 40.
 export fn req_agent_tools_scan(lines []str, from int, known []str) -> []str {
     mut out = []str.new()
@@ -109,23 +128,7 @@ export fn req_agent_tools_scan(lines []str, from int, known []str) -> []str {
             Err(e) => JsonObject.new()
         }
         ro input = (o.get("input") ?? JsonValue.null()).object() ?? JsonObject.new()
-        ro title = jtext(input, "title")
-        ro kind = jtext(input, "kind")
-        ro word = req_first_word(title)
-        ro name = if word.byte_len() > 0 { word } else { kind }
-        if name.byte_len() == 0 || out.len() >= 40 { continue }
-        mut seen = false
-        for e in out {
-            ro eo = jobject(e) ?? JsonObject.new()
-            if jtext(eo, "name") == name && jtext(eo, "kind") == kind { seen = true }
-        }
-        if !seen {
-            mut e = JsonObject.new()
-            jput(e, "name", JsonValue.str(name))
-            jput(e, "kind", JsonValue.str(kind))
-            jput(e, "title", JsonValue.str(secret_redact(cut_text(title, 200))))
-            out.push(JsonValue.object(e).to_str())
-        }
+        req_note_tool(out, input)
     }
     out
 }
@@ -229,8 +232,6 @@ fn Hub mut @req_commit(at int, label str, extra []ReqPart) -> () {
     for p in s.rt.req_parts { parts.push(p) }
     s.rt.req_parts = []ReqPart.new()
     s.rt.req_turn += 1
-    s.rt.req_tools = req_agent_tools_scan(s.lines, s.rt.req_seen, s.rt.req_tools)
-    s.rt.req_seen = s.lines.len()
     ro ask = @ask_for(s.agent, s.id)
     mut model = ""
     mut from_line = 0

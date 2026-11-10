@@ -1,14 +1,15 @@
 // canopus.nv - the entry point of the canopus binary (task 099): the session server, its front. It serves the page
-// of src/web/ and the WebSocket /ws on 127.0.0.1 and starts the hub (src/canopus_hub.nv) as a child process. Task 192.12 adds the commands of the configuration.
+// of src/web/ and the WebSocket /ws on 127.0.0.1, with an in-process session hub.
 //   canopus [serve] [--config <file>]
 //   canopus config list [--show-origin] | get <key> [--show-origin] | set <key> <value> [--project]
 //   canopus doctor
 //   canopus migrate [--from <data_dir>] [--dry-run]
 //   canopus                            starts the default application instance
 // The selected config parent is the instance root; default ~/.canopus/config.json.
-// Build both programs: nova build src/canopus_hub.nv -o target/canopus-hub.exe; nova build src/canopus.nv -o target/canopus.exe
+// Build: nova build src/canopus.nv -o target/canopus.exe
 module canopus.canopus
 
+import canopus.server.{server_settings_selected}
 import canopus.server.front.{run_front_with_metadata, front_settings_selected, FrontSettings}
 import canopus.model_metadata.{MetadataInput, MetadataHook, static_hook, default_opencode_program}
 import canopus.config.{split_cli_args, canopus_home, layout_in, find_project_dir, work_dir_now, config_list, config_get, config_set, doctor, command_layers, effective_entries, plan_migration, plan_text, run_migration, ConfigLayout, ConfigSelection, claim_instance, retired_env_problem, select_config, layout_for_config, CliArgs}
@@ -81,18 +82,6 @@ fn cmd_serve(cli CliArgs) Proc Net Time Detach Io Os Fs -> () {
         match select_config(cli.config, work_dir_now(), "") { Ok(s) => s, Err(reason) => return fail(reason) }
     } else { ConfigSelection { file: "", root: canopus_home(cli.home) } }
     ro file = if selected.file.byte_len() == 0 && cli.rest.len() > 2 { cli.rest[2] } else { "" }
-    mut pass = []str.new()
-    if selected.file.byte_len() > 0 {
-        pass.push("--config")
-        pass.push(selected.file)
-    } else if cli.home.byte_len() > 0 {
-        pass.push("--home")
-        pass.push(cli.home)
-    }
-    for s in cli.sets {
-        pass.push("--set")
-        pass.push(s)
-    }
     match front_settings_selected(file, selected.root, cli.sets, selected.file) {
         Err(reason) => fail(reason)
         Ok(settings) => {
@@ -103,7 +92,10 @@ fn cmd_serve(cli CliArgs) Proc Net Time Detach Io Os Fs -> () {
             // the effect is in this signature already; the handler comes from the caller
             // (one with at the entry - the module-conventions rule), no per-call wrapper
             ro hook = match input { Some(i) => static_hook(i), None => None }
-            run_front_with_metadata(settings, file, pass, hook)
+            match server_settings_selected(file, selected.root, cli.sets, selected.file) {
+                Ok(hub_settings) => run_front_with_metadata(settings, hub_settings, hook)
+                Err(reason) => fail(reason)
+            }
         }
     }
 }

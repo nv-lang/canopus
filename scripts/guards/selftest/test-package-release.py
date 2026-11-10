@@ -3,9 +3,9 @@
 
 Зачем: комплект — то, что владелец запускает; сборщик, который забыл файл машины, положил тесты,
     чат или чужие машины или не позвал стража, выдаёт комплект, который не стартует или несёт лишнее.
-Проверяет: зелёные — из дерева с программами в target/ собирается комплект: две программы,
+Проверяет: зелёные — из дерева с программами в target/ собирается комплект: программа,
     machines/product с dialog.*, work-mode.*, family-approval.*, journal.md и libs/, без tests/ и chat.*,
-    страж комплекта зелёный; красные — нет target/canopus-hub.exe; папка комплекта не пуста; машины
+    страж комплекта зелёный; красные — нет target/canopus.exe; папка комплекта не пуста; машины
     дерева несогласованы (страж красный); без папки комплекта — отказ с кодом 2.
 Не проверяет: сборку программ nova build (флаг --build), сам страж (его самотест test-check-release-kit.py).
 Правило: задача 248.
@@ -34,7 +34,7 @@ def dhash(text):
     return hashlib.sha256(("\n".join(lines) + "\n").encode("utf-8")).hexdigest()[:12]
 
 
-def tree_files(lib_hash=None, hub=True):
+def tree_files(lib_hash=None, executable=True):
     tree = {"kind": "machine", "alula_version": "0.28",
             "includes": [{"hash": lib_hash or dhash(LIB), "file": "libs/call_cancel.alula.md"}]}
     files = {"src/server/preparation-research.mjs": "// fixture read-only tools\n", "src/server/kimi-preparation.mjs": "// fixture restricted native backend\n", "src/server/kimi-preparation.md": "tools: []\n", "scripts/start-live.ps1": "# fixture launcher\n", "scripts/native-acp-catalog.mjs": "// fixture catalog\n", "scripts/zai-acp.mjs": "// fixture Z.ai ACP\n", "nova.lock.toml": LOCK,
@@ -54,10 +54,9 @@ def tree_files(lib_hash=None, hub=True):
              "machines/product/journal.md": "# Журнал\n",
              "machines/product/libs/call_cancel.alula.md": LIB,
              "machines/product/tests/dialog-x.alula.test.json": "{}\n",
-             "machines/other/agent_step.alula.json": "{}\n",
-             "target/canopus.exe": "MZ"}
-    if hub:
-        files["target/canopus-hub.exe"] = "MZ"
+             "machines/other/agent_step.alula.json": "{}\n"}
+    if executable:
+        files["target/canopus.exe"] = "MZ"
     return files
 
 
@@ -76,7 +75,7 @@ def main():
 
     def kit_path():
         counter[0] += 1
-        return os.path.join(base, "kit%d" % counter[0])
+        return os.path.join(base, "kit%d" % counter[0]).replace(os.sep, "/")
 
     def legit():
         kit = kit_path()
@@ -84,7 +83,7 @@ def main():
         assert proc.returncode == 0, proc.out + proc.err
         listed = sorted(os.path.relpath(os.path.join(b, n), kit).replace("\\", "/")
                         for b, _, names in os.walk(kit) for n in names)
-        assert listed == sorted([*['kimi-preparation.mjs', 'kimi-preparation.md', 'preparation-research.mjs', 'start.ps1', 'scripts/native-acp-catalog.mjs', 'scripts/zai-acp.mjs', 'scripts/task-store.mjs', 'opencode-plugin/shared-task-store.ts', 'opencode-plugin/shared-task-config.ts', 'opencode-plugin/shared-task-snapshot.ts', 'opencode-plugin/task-numbers.ts'], "canopus.exe", "canopus-hub.exe", "machines/product/dialog.alula.json",
+        assert listed == sorted([*['kimi-preparation.mjs', 'kimi-preparation.md', 'preparation-research.mjs', 'start.ps1', 'scripts/native-acp-catalog.mjs', 'scripts/zai-acp.mjs', 'scripts/task-store.mjs', 'opencode-plugin/shared-task-store.ts', 'opencode-plugin/shared-task-config.ts', 'opencode-plugin/shared-task-snapshot.ts', 'opencode-plugin/task-numbers.ts'], "canopus.exe", "machines/product/dialog.alula.json",
                           "machines/product/dialog.alula.md", "machines/product/family-approval.alula.json",
                           "machines/product/family-approval.alula.md", "machines/product/journal.md",
                            "machines/product/libs/call_cancel.alula.md", "machines/product/work-mode.alula.json",
@@ -95,11 +94,11 @@ def main():
         repo = fresh(tree_files())
         proc = package(repo, "relative-kit")
         assert proc.returncode == 0, proc.out + proc.err
-        assert os.path.isfile(os.path.join(repo, "relative-kit", "canopus-hub.exe"))
+        assert os.path.isfile(os.path.join(repo, "relative-kit", "canopus.exe"))
 
-    def no_hub():
-        proc = package(fresh(tree_files(hub=False)), kit_path())
-        assert proc.returncode == 1 and stlib.has_line(proc, "нет target/canopus-hub.exe"), proc.out
+    def no_executable():
+        proc = package(fresh(tree_files(executable=False)), kit_path())
+        assert proc.returncode == 1 and stlib.has_line(proc, "нет target/canopus.exe"), proc.out
 
     def not_empty():
         kit = kit_path()
@@ -121,9 +120,9 @@ def main():
         proc = package(fresh(files), kit_path())
         assert proc.returncode == 1 and stlib.has_line(proc, name), proc.out
 
-    pr.probe("законное", "комплект: две программы и машины диалога, без tests/, чата и чужих машин", legit)
+    pr.probe("законное", "комплект: программа и машины диалога, без tests/, чата и чужих машин", legit)
     pr.probe("иной-синтаксис", "относительный путь комплекта разрешается от рабочего каталога", relative_kit)
-    pr.probe("красная", "нет target/canopus-hub.exe", no_hub)
+    pr.probe("красная", "нет target/canopus.exe", no_executable)
     pr.probe("красная", "папка комплекта не пуста", not_empty)
     pr.probe("красная", "хеш подключения не равен хешу библиотеки — страж красный", broken_hash)
     for name in ("family-approval.alula.json", "family-approval.alula.md"):

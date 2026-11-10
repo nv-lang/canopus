@@ -45,27 +45,19 @@ The first slice of the MVP: **open the page in a browser, create a session, talk
 (`alula.engine` of the package `alula`) per session: the machine of a many-turn dialog, **written as data in Alula and run by `AlulaMachine`**
 (task 114, "The chat runs on Alula" below), the store and the journal in files ([`src/storage`](../storage/files.nv)) or in PostgreSQL
 ([`src/pg`](../pg/README.md)), the agent over ACP ([`src/acp`](../acp/README.md), by default `opencode acp`). Task 099
-(`doc/tasks/099-session-server/`). Built by **Nova Oracle 0.1.0 on Windows (Clang)**.
+(`doc/tasks/099-session-server/`). The integrated Windows build is verified with **Nova Oracle 0.1.3 (Clang)**.
 
-## Two programs
+## Canopus process
 
-```
-browser <--HTTP, WebSocket /ws--> canopus (the front, Polaris)  <--lines over pipes-->  canopus-hub (the hub)
-                                                                                              |-- engines, one per session
-                                                                                              |-- the store: files or PostgreSQL
-                                                                                              '-- agent processes (ACP over stdio)
-```
+The HTTP/WebSocket front (Polaris) and the session hub run in one process. The front serves the panel and `/ws` on
+`127.0.0.1`. Internal channels carry commands and events between the front and the hub. The hub runs one engine per
+session and manages the file or PostgreSQL store and the ACP agent subprocesses.
 
-| Program | Source | What it does |
-|---|---|---|
-| `canopus` (the front) | `src/canopus.nv`, `src/server/front/` | HTTP on `127.0.0.1`: the files of the page (CSP `default-src 'self'`, as `src/web/serve.mjs`), `/health`, the WebSocket `/ws`; starts the hub as a child process and passes the page through |
-| `canopus-hub` (the hub) | `src/canopus_hub.nv`, `src/server/` | the sessions: engines, agents, the store; speaks lines over its stdin and stdout; ends when its stdin is closed (so it never outlives the front) |
-
-**Why two programs.** The PostgreSQL driver and Polaris cannot be in one program on Oracle 0.1.0: the driver has a variant
-`Message`, Polaris has a type `Message`, and the compiler keeps one table of names for the whole program
-(`spikes/env/repro_server/src/pg_polaris_message`). The front and the hub talk by lines, so each is built with what it needs.
-The front must not import the module `canopus.server` (it holds the hub, hence the driver): it reads its own few settings
-(`src/server/front/front_settings.nv`).
+The original Oracle 0.1.0 compiler conflict between nova-postgres and Polaris is covered by
+`spikes/env/repro_server/src/pg_polaris_message`. The reproducer passes with Oracle 0.1.3. For a combined build with the pinned nova-postgres 0.1.0,
+Oracle 0.1.3 also needs the command completion in the driver's src/session.nv qualified as
+`PgEvent.Complete { tag: command_tag_of(msg) }`. Apply that one-line compatibility fix in a copy
+of the pinned driver and point an untracked nova.override.toml replacement for postgres at the copy.
 
 ## Connections of the front (task 192)
 
@@ -73,15 +65,14 @@ Polaris counts every open connection against `max_inflight` (16 by default): an 
 
 ## Run
 
-Build the two current executables, then run `target/canopus.exe`. The ordinary launch starts the default instance. `canopus serve` is equivalent; `canopus --help` prints usage. `--config <file>` is the only configuration selector. For example:
+Build the executable, then run `target/canopus.exe`. The ordinary launch starts the default instance. `canopus serve` is equivalent; `canopus --help` prints usage. `--config <file>` is the only configuration selector. For example:
 
 ```powershell
-nova build src/canopus_hub.nv -o target/canopus-hub.exe
 nova build src/canopus.nv -o target/canopus.exe
 .\target\canopus.exe --config C:/work/instances/demo/config.json
 ```
 
-The selected file's parent owns `data/sessions`, `state`, `cache`, `tools`, `backups`, and `secrets.json`. The default file is `~/.canopus/config.json`. Runtime paths, hub executable and web resources are derived; they are not editable JSON keys. This release still has a hub implementation; removing it is outside task286.
+The selected file's parent owns `data/sessions`, `state`, `cache`, `tools`, `backups`, and `secrets.json`. The default file is `~/.canopus/config.json`. Runtime paths and web resources are derived.
 
 ## Settings
 
@@ -367,7 +358,7 @@ Since task 114 the hub runs every session on the machine of the many-turn chat w
   the `alula_version` of the tree, the table and every library is the version of the engine (0.28), the hash of every connection is the `definitions_hash` of the file of the library. A failure stops the start
   with the path (`the hub cannot start: the machines of the product cannot be read: <path>: ...`); there is no copy to fall back on. The hub writes the folder to its log
   (`the machines of the product: <folder> (DialogSession)`). `src/server/alula.nv` makes `AlulaMachine` once from the tree read; a machine that cannot be made stops the start with the message
-  `the dialog machine cannot be made: ...`. The release kit is `sh scripts/package-release.sh <folder> [--build]`: `canopus.exe`, `canopus-hub.exe` and `machines/product` (the dialog, the journal, `libs/`;
+  `the dialog machine cannot be made: ...`. The release kit is `sh scripts/package-release.sh <folder> [--build]`: `canopus.exe` and `machines/product` (the dialog, the journal, `libs/`;
   no `tests/`, no chat), checked by `scripts/guards/check-release-kit.py --kit <folder>`.
 - **The states.** `Idle` (waits for a message), `Awaiting` (a request to the agent is open) and the end `Closed`. After an answer, a refusal, an idle term and a cancel the session
   goes back to `Idle` and forgets the turn (the data of the turn are cleared, as the state `Idle` of the machine in Nova holds nothing). The journal codes and their parameters, the numbers of requests
@@ -604,7 +595,7 @@ nova test src --jobs 4 --skip src/canopus.nv --skip src/canopus_hub.nv  # all te
 nova test src/server_live                              # the scenarios over files: about 25 s
 nova test src/server_pg                                # the same over PostgreSQL: about 30 s
 powershell -File src/pg/testdb.ps1 -Stop
-nova build src/canopus_hub.nv -o target/canopus-hub.exe; nova build src/canopus.nv -o target/canopus.exe
+nova build src/canopus.nv -o target/canopus.exe
 node src/server/test/e2e.mjs                           # the whole server, 35 checks (fake agent)
 powershell -File src/pg/testdb.ps1                     # the same on PostgreSQL: the temporary container, then
 node src/server/test/e2e.mjs --pg                      #   39 checks (the sessions and the journal are looked for in the database)

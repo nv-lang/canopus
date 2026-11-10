@@ -26,7 +26,7 @@ import canopus.config.{pick_prompt, ConfigLayout, load_presets, preset_named, pr
 import canopus.config.{PoolEntry, ModelPool, parse_agent_source, preset_pick_weight, pick_source_json, pool_level_ok, resolve_pool_pinned}
 import canopus.config.{load_roles, role_of}
 import canopus.projects.{EnvEntry, projects_get, parse_dotenv, normalize_folder_path, project_has_folder, valid_project_id}
-import canopus.storage.{remove_session_dir, open_data_dir, file_journal, file_store, list_sessions, valid_session_name, session_file_made, migrate_flat_sessions, image_ext, decode_image, save_image, find_image, replace_file}
+import canopus.storage.{remove_session_dir, open_data_dir, file_journal, file_replay_journal, replay_history, file_store, list_sessions, valid_session_name, session_file_made, migrate_flat_sessions, image_ext, decode_image, save_image, find_image, replace_file}
 import canopus.pgstore.{PgWorld, pg_journal, pg_store}
 import canopus.pgdb.{pg_list}
 import std.concurrency.nvchan.{Chan, ChanTx, ChanRx}
@@ -50,6 +50,7 @@ type Dialog {
     clients []AcpClient,
     turn str,
     lines []str,
+    machine_tail []Incoming,
     dispatch DispatchHistory,
     announced bool,
     model_announced bool,
@@ -167,7 +168,10 @@ fn Hub mut @mcp_recovery_letter(session str, key str, text str) -> () {
 }
 
 // The signals of the journal that carry the mode of work (task 192q, `routes_hub.nv`).
-fn route_signals() -> []str => ["route_set", "route_task", "route_step", "route_note", "route_review", "context_compacted", "task_extended", "task_extend_undone"]
+fn is_route_signal(name str) -> bool {
+    name == "route_set" || name == "route_task" || name == "route_step" || name == "route_note" ||
+        name == "route_review" || name == "context_compacted" || name == "task_extended" || name == "task_extend_undone"
+}
 
 /// Hub: the sessions, the pages, the output not yet taken, the log.
 /// A choice of the owner (model, effort, mode) made while the agent of the session was not running: it waits until the agent is ready.
@@ -185,6 +189,13 @@ type ContextHandoff {
     deadline int
 }
 
+type PreparedRestore {
+    engine Engine[AlulaMachine, AlulaState],
+    events []Incoming
+}
+type RestoreDone { id str, prepared Option[PreparedRestore], replay_ms int }
+type RestoreCommand { conn int, trace str, text str }
+
 export type Hub {
     handoffs []ContextHandoff,
     settings ServerSettings,
@@ -194,6 +205,12 @@ export type Hub {
     preparation_fixtures []PreparationFixture,
     workdir str,
     sessions []Dialog,
+    restoring JsonObject,
+    restore_jobs []str,
+    restore_commands []RestoreCommand,
+    legacy_open []int,
+    restore_tx ChanTx[RestoreDone],
+    restore_rx ChanRx[RestoreDone],
     conns []int,
     out []Outgoing,
     log []str,
@@ -299,31 +316,6 @@ fn begin_session_engine(pg bool, root str, mut world PgWorld, machine AlulaMachi
     }
 }
 
-fn resume_stored(pg bool, root str, mut world PgWorld, machine AlulaMachine, id str) Time -> Option[Engine[AlulaMachine, AlulaState]] {
-    if pg {
-        with Journal = pg_journal(world), Store = pg_store(world) {
-            // a damaged snapshot would stop the process (`resume_engine`): look at it first
-            match Store.load(id) {
-                None => None
-                Some(snapshot) => match decode_snapshot(machine, snapshot) {
-                    None => None
-                    Some(state) => resume_engine(machine, id)
-                }
-            }
-        }
-    } else {
-        with Journal = file_journal(root, id), Store = file_store(root) {
-            match Store.load(id) {
-                None => None
-                Some(snapshot) => match decode_snapshot(machine, snapshot) {
-                    None => None
-                    Some(state) => resume_engine(machine, id)
-                }
-            }
-        }
-    }
-}
-
 fn accept_in(pg bool, root str, mut s Dialog, event Incoming) Time -> () {
     if pg {
         with Journal = pg_journal(s.world), Store = pg_store(s.world) {
@@ -360,14 +352,16 @@ fn pump_in(pg bool, root str, mut s Dialog) Time -> int {
     }
 }
 
-fn history_in(pg bool, root str, mut s Dialog) -> []Incoming {
+fn history_in(pg bool, root str, mut s Dialog) -> []Incoming => history_of(pg, root, s.world, s.id, s.engine)
+
+fn history_of(pg bool, root str, mut world PgWorld, id str, engine Engine[AlulaMachine, AlulaState]) -> []Incoming {
     if pg {
-        with Journal = pg_journal(s.world) {
-            s.engine.history()
+        with Journal = pg_journal(world) {
+            replay_history(Journal.read_all(), engine.trace(), engine.step_number())
         }
     } else {
-        with Journal = file_journal(root, s.id) {
-            s.engine.history()
+        with Journal = file_journal(root, id) {
+            replay_history(Journal.read_all(), engine.trace(), engine.step_number())
         }
     }
 }
@@ -379,7 +373,14 @@ fn line_of(mut s Dialog, e Incoming) -> Option[str] {
     s.dispatch.accept(e)
     if e.kind == EventKind.Input && e.name == "user_message" { s.turn = e.id }
     ro shown = Incoming { id: "${s.id}/${e.id}", trace: s.id, step: e.step, kind: e.kind, name: e.name, request: e.request, input: e.input, at: e.at }
-    page_event(shown, s.turn)
+    ro projected = page_event(shown, s.turn)
+    if e.name == "tool_call" && projected.is_some() {
+        match jobject(e.input) {
+            Some(input) => req_note_tool(s.rt.req_tools, input)
+            None => ()
+        }
+    }
+    projected
 }
 
 fn meta_text(name str, agent str, folder str, project str, project_id str) -> str => meta_text_child(name, agent, folder, project, project_id, "", "")
@@ -477,6 +478,8 @@ fn Hub mut @send(conn int, text str) -> () {
 fn Hub mut @drain(at int) Time -> () {
     mut s = @sessions[at]
     for e in s.engine.take_events() {
+        if s.machine_tail.len() == MACHINE_JOURNAL_LINES { s.machine_tail.remove(0) }
+        s.machine_tail.push(e)
         if e.name == "agent_model" && @work_allowed(at, "execute") { @catalog_note(s.agent, e.input) }
         match line_of(s, e) {
             Some(line) => {
@@ -569,6 +572,12 @@ export fn Hub @catalog_agents() -> []str => @catalog.keys()
 /// Small, journal-derived index. No message, request, or tool output is included.
 export fn Hub @session_index() -> str {
     mut entries = []str.new()
+    for key in @restoring.keys() {
+        match @restoring.get(key) {
+            Some(entry) => entries.push(entry.to_str())
+            None => ()
+        }
+    }
     for s in @sessions {
         mut input = JsonObject.new()
         if s.lines.len() > 0 {
@@ -595,6 +604,7 @@ export fn Hub @session_index() -> str {
 
 fn Hub mut @send_sessions_ready(conn int) -> () {
     mut ids = []JsonValue.new()
+    for key in @restoring.keys() { ids.push(JsonValue.str(key)) }
     for s in @sessions { ids.push(JsonValue.str(s.id)) }
     mut ready = JsonObject.new()
     jput(ready, "kind", JsonValue.str("sessions_ready"))
@@ -624,11 +634,16 @@ export fn Hub mut @save_history_previews() Fs -> () {
     }
 }
 
-fn Hub mut @send_history(conn int, trace str) Time -> () {
+fn Hub mut @send_history(conn int, trace str, known JsonObject) Time -> () {
     ro at = @find(trace)
     if at < 0 { return }
     ro s = @sessions[at]
-    @send(conn, "{\"kind\":\"session_history\",\"trace\":${JsonValue.str(trace).to_str()},\"entries\":${array_text(s.lines)}}")
+    ro count = s.lines.len()
+    ro last = if count > 0 { jobject(s.lines[count - 1]) ?? JsonObject.new() } else { JsonObject.new() }
+    ro unchanged = count > 0 && jnumber(known, "count") == count && jtext(known, "last") == jtext(last, "id")
+    ro entries = if unchanged { "[]" } else { array_text(s.lines) }
+    ro same = if unchanged { "true" } else { "false" }
+    @send(conn, "{\"kind\":\"session_history\",\"trace\":${JsonValue.str(trace).to_str()},\"unchanged\":${same},\"entries\":${entries}}")
     @route_line(conn, trace, @route_state_text(at))
     @machine_line(conn, at, @machine_since(trace))
     for line in s.rt.reqs { @send(conn, line) }
@@ -636,6 +651,7 @@ fn Hub mut @send_history(conn int, trace str) Time -> () {
 
 /// Legacy clients receive the full snapshot on attach.
 export fn Hub mut @attach(conn int) -> () {
+    if @restoring.keys().len() > 0 { @legacy_open.push(conn); return }
     if !@conns.contains(conn) { @conns.push(conn) }
     ro known = @catalog_lines()
     if known.len() > 0 { @send(conn, array_text(known)) }
@@ -655,6 +671,12 @@ export fn Hub mut @release(conn int) -> () {
         if c != conn { rest.push(c) }
     }
     @conns = rest
+    mut opens = []int.new()
+    for pending in @legacy_open { if pending != conn { opens.push(pending) } }
+    @legacy_open = opens
+    mut commands = []RestoreCommand.new()
+    for pending in @restore_commands { if pending.conn != conn { commands.push(pending) } }
+    @restore_commands = commands
 }
 
 // The file of the raw exchange with the agent (`<id>/acp.jsonl`, the folder is made); "" - the trace is off (`acp_trace` false) or the id is not a safe name.
@@ -923,7 +945,13 @@ export fn start_hub(settings ServerSettings) Proc Detach Time Net Fs Os -> Resul
 
 /// The same over the text of the JSON of the machine of the sessions ("" - `dialog.alula.json` of the folder of the machines; the tests run a changed
 /// copy of the table: a state with another name).
-export fn start_hub_from(settings ServerSettings, table_text str) Proc Detach Time Net Fs Os -> Result[Hub, str] {
+export fn start_hub_from(settings ServerSettings, table_text str) Proc Detach Time Net Fs Os -> Result[Hub, str] =>
+    start_hub_mode(settings, table_text, false)
+
+export fn start_hub_for_pages(settings ServerSettings) Proc Detach Time Net Fs Os -> Result[Hub, str] =>
+    start_hub_mode(settings, "", true)
+
+fn start_hub_mode(settings ServerSettings, table_text str, background bool) Proc Detach Time Net Fs Os -> Result[Hub, str] {
     settings.check()?
     // the effects are in this signature; the handler comes from the caller (one with at the entry)
     ro argv = args()
@@ -948,9 +976,10 @@ export fn start_hub_from(settings ServerSettings, table_text str) Proc Detach Ti
     ro approval_policy = work_mode_machine(machines.text("family-approval.alula.json"), registry)?
     ro trees_chan = Chan[TreeDone].new(64)
     ro notes_chan = Chan[str].new(64)
+    ro restores = Chan[RestoreDone].new(64)
     mut hub = Hub {
         preparation_fixtures: []PreparationFixture.new(),
-        handoffs: []ContextHandoff.new(), settings, machine, work_mode, approval_policy, workdir, sessions: []Dialog.new(), conns: []int.new(), out: []Outgoing.new(), log: []str.new(), serial: 0, mcps: []McpServer.new(), mcp_pending: []McpPending.new(), mcp_serial: 0, ctl_letters: []CtlLetter.new(), ctl_waits: []CtlWait.new(), ctl_serial: 0, catalog: JsonObject.new(), catalog_dirty: false, history_saved: JsonObject.new(), catalog_saved_at: 0, choices: []PendingChoice.new(), reviews: []Review.new(), route_obs: 0, marks: []MachMark.new(), trees_tx: trees_chan.tx, trees_rx: trees_chan.rx, notes_tx: notes_chan.tx, notes_rx: notes_chan.rx, held: []HeldMsg.new(), reserved: []int.new()
+        handoffs: []ContextHandoff.new(), settings, machine, work_mode, approval_policy, workdir, sessions: []Dialog.new(), restoring: JsonObject.new(), restore_jobs: []str.new(), restore_commands: []RestoreCommand.new(), legacy_open: []int.new(), restore_tx: restores.tx, restore_rx: restores.rx, conns: []int.new(), out: []Outgoing.new(), log: []str.new(), serial: 0, mcps: []McpServer.new(), mcp_pending: []McpPending.new(), mcp_serial: 0, ctl_letters: []CtlLetter.new(), ctl_waits: []CtlWait.new(), ctl_serial: 0, catalog: JsonObject.new(), catalog_dirty: false, history_saved: JsonObject.new(), catalog_saved_at: 0, choices: []PendingChoice.new(), reviews: []Review.new(), route_obs: 0, marks: []MachMark.new(), trees_tx: trees_chan.tx, trees_rx: trees_chan.rx, notes_tx: notes_chan.tx, notes_rx: notes_chan.rx, held: []HeldMsg.new(), reserved: []int.new()
     }
     if hub.wants_mcp() { ro started = hub.start_mcp() }
     ro pg = settings.store == "pg"
@@ -974,29 +1003,142 @@ export fn start_hub_from(settings ServerSettings, table_text str) Proc Detach Ti
     } else {
         list_sessions(settings.data_dir)
     }
+    if background && !pg {
+        ro cache = match read_text(Path.from_bytes("${settings.layout.cache}/sessions-index.json".bytes())) {
+            Ok(text) => text
+            Err(e) => ""
+        }
+        ro cached = match Json.parse(cache) {
+            Ok(value) => value.array() ?? []JsonValue.new()
+            Err(e) => []JsonValue.new()
+        }
+        for entry in cached {
+            match entry.object() {
+                Some(meta) => {
+                    ro id = jtext(meta, "trace")
+                    if ids.contains(id) { jput(hub.restoring, id, entry) }
+                }
+                None => ()
+            }
+        }
+        // New questions must not reuse ids of a session whose journal is still restoring.
+        if hub.restoring.keys().len() > 0 {
+            hub.mcp_serial = now_millis()
+            hub.route_obs = now_millis()
+        }
+    }
     for id in ids {
-        hub.resume_session(id)
+        if hub.restoring.get(id).is_none() { hub.resume_session(id) }
     }
     hub.say_log("the machines of the product: ${machines_dir} (${machine.name()})")
     hub.say_log("started: ${settings.describe()}; ${hub.sessions.len()} session(s) resumed")
     Ok(hub)
 }
 
+fn prepare_from_journal(machine AlulaMachine, id str) Journal Store Time -> Option[PreparedRestore] {
+    match Store.load(id) {
+        None => None
+        Some(snapshot) => match decode_snapshot(machine, snapshot) {
+            None => None
+            Some(state) => match resume_engine(machine, id) {
+                None => None
+                Some(restored) => Some(PreparedRestore { engine: restored, events: replay_history(Journal.read_all(), restored.trace(), restored.step_number()) })
+            }
+        }
+    }
+}
+
+fn prepare_restore(pg bool, root str, mut world PgWorld, machine AlulaMachine, id str) Time -> Option[PreparedRestore] {
+    ro result = if pg {
+        with Journal = pg_journal(world), Store = pg_store(world) {
+            prepare_from_journal(machine, id)
+        }
+    } else {
+        with Journal = file_replay_journal(root, id), Store = file_store(root) {
+            prepare_from_journal(machine, id)
+        }
+    }
+    result
+}
+
+fn restore_job(tx ChanTx[RestoreDone], settings ServerSettings, machine AlulaMachine, id str) Time -> () {
+    mut world = PgWorld.open(settings.pg, id)
+    ro began = now_millis()
+    ro prepared = prepare_restore(false, settings.data_dir, world, machine, id)
+    ro sent = tx.send(RestoreDone { id, prepared, replay_ms: now_millis() - began })
+}
+
+fn Hub mut @start_restore(id str) Detach Time -> () {
+    if @restore_jobs.contains(id) { return }
+    @restore_jobs.push(id)
+    ro tx = @restore_tx
+    ro settings = @settings
+    ro machine = @machine
+    detach { restore_job(tx, settings, machine, id) }
+}
+
+export fn Hub mut @pump_restores() Proc Detach Time -> () {
+    if @prioritize_agent_start() { return }
+    match @restore_rx.try_recv() {
+        Some(done) => {
+            mut remaining = []str.new()
+            for id in @restore_jobs { if id != done.id { remaining.push(id) } }
+            @restore_jobs = remaining
+            mut waiting = JsonObject.new()
+            for key in @restoring.keys() {
+                if key != done.id {
+                    match @restoring.get(key) { Some(value) => jput(waiting, key, value), None => () }
+                }
+            }
+            @restoring = waiting
+            ro installing = now_millis()
+            @install_restore(done.id, done.prepared)
+            ro install_ms = now_millis() - installing
+            if done.replay_ms + install_ms >= 500 {
+                @say_log("restore ${done.id}: journal ${done.replay_ms} ms, install ${install_ms} ms")
+            }
+            ro commands = @restore_commands
+            @restore_commands = []RestoreCommand.new()
+            for cmd in commands {
+                if cmd.trace == done.id || (cmd.trace == "" && @restoring.keys().len() == 0) { @handle(cmd.conn, cmd.text) }
+                else { @restore_commands.push(cmd) }
+            }
+            if @restoring.keys().len() == 0 {
+                ro opens = @legacy_open
+                @legacy_open = []int.new()
+                for conn in opens { @attach(conn) }
+            }
+        }
+        None => ()
+    }
+    // At most one speculative restore. An explicitly opened chat can proceed alongside it.
+    if @restore_jobs.len() == 0 {
+        ro ids = @restoring.keys()
+        if ids.len() > 0 { @start_restore(ids[0]) }
+    }
+}
+
 fn Hub mut @resume_session(id str) Proc Detach Time -> () {
-    ro pg = @settings.store == "pg"
-    ro root = @settings.data_dir
     mut world = PgWorld.open(@settings.pg, id)
-    match resume_stored(pg, root, world, @machine, id) {
+    @install_restore(id, prepare_restore(@settings.store == "pg", @settings.data_dir, world, @machine, id))
+}
+
+fn Hub mut @install_restore(id str, prepared Option[PreparedRestore]) Proc Detach Time -> () {
+    mut world = PgWorld.open(@settings.pg, id)
+    match prepared {
         None => @say_log("the session ${id} cannot be resumed: no usable snapshot")
-        Some(engine) => {
-            mut s = Dialog { id, name: id, agent: "", engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), dispatch: dispatch_history_new(), announced: false, model_announced: false, started_at: 0, slow_told: false, folder: "", project_id: "", has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
+        Some(restored) => {
+            ro engine = restored.engine
+            mut s = Dialog { id, name: id, agent: "", engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, model_announced: false, started_at: 0, slow_told: false, folder: "", project_id: "", has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
+            ro tail_start = if restored.events.len() > MACHINE_JOURNAL_LINES { restored.events.len() - MACHINE_JOURNAL_LINES } else { 0 }
+            s.machine_tail = restored.events[tail_start..restored.events.len()]
             mut saw_created = false
             // the questions of the MCP tool the journal shows open (task 263): they wait for the owner again after the restart, marked
             // late — the call of the agent died with the process, so the answer reaches the agent as a letter
             mut open_mcp = []McpPending.new()
             mut recoveries = []McpRecovery.new()
             mut recovery_read = []str.new()
-            for e in history_in(pg, root, s) {
+            for e in restored.events {
                 if e.name == "session_created" && e.kind == EventKind.Input && !saw_created {
                     saw_created = true
                     match jobject(e.input) {
@@ -1095,7 +1237,7 @@ fn Hub mut @resume_session(id str) Proc Detach Time -> () {
                 }
                 if e.kind == EventKind.Input && e.name == "mcp_recovery_read" { recovery_read.push(e.input) }
                 // the mode of work and its task come back from the journal (task 192q)
-                if e.kind == EventKind.Input && route_signals().contains(e.name) { s.rt.apply(e.name, e.input) }
+                if e.kind == EventKind.Input && is_route_signal(e.name) { s.rt.apply(e.name, e.input) }
                 // the choices of the owner, per family: the last word of the journal (task 192t)
                 if e.kind == EventKind.Input && (e.name == "setting_chosen" || e.name == "setting_dropped") {
                     match jobject(e.input) {
@@ -1144,7 +1286,7 @@ fn Hub mut @cs_make_session(cid str, name str, agent str, folder str, project_id
     ro root = @settings.data_dir
     mut world = PgWorld.open(@settings.pg, cid)
     ro engine = begin_session_engine(pg, root, world, @machine, cid)
-    mut s = Dialog { id: cid, name, agent, engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), dispatch: dispatch_history_new(), announced: false, model_announced: false, started_at: 0, slow_told: false, folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
+    mut s = Dialog { id: cid, name, agent, engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, model_announced: false, started_at: 0, slow_told: false, folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
     accept_in(pg, root, s, Incoming.signal("session_created", meta_text_child(name, agent, folder, "", project_id, parent, pkind)))
     @add_session(s)
     ro at = @sessions.len() - 1
@@ -1194,7 +1336,7 @@ fn Hub mut @create(conn int, trace str, input JsonObject) Proc Detach Time -> ()
             ro root = @settings.data_dir
             mut world = PgWorld.open(@settings.pg, trace)
             ro engine = begin_session_engine(pg, root, world, @machine, trace)
-            mut s = Dialog { id: trace, name, agent, engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), dispatch: dispatch_history_new(), announced: false, model_announced: false, started_at: 0, slow_told: false, folder: launch.folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
+            mut s = Dialog { id: trace, name, agent, engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, model_announced: false, started_at: 0, slow_told: false, folder: launch.folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
             accept_in(pg, root, s, Incoming.signal("session_created", meta_text(name, agent, launch.folder, project, project_id)))
             @add_session(s)
             ro at = @sessions.len() - 1
@@ -2336,7 +2478,21 @@ export fn Hub mut @handle(conn int, text str) Proc Detach Time -> () {
         @say_log("a message without a trace from page ${conn}")
         return
     }
-    if kind == "session_history_get" { @send_history(conn, trace); return }
+    // These commands compute ordering across the entire project.
+    if (kind == "session_reorder" || kind == "session_move") && @restoring.keys().len() > 0 {
+        @restore_commands.push(RestoreCommand { conn, trace: "", text })
+        return
+    }
+    if kind == "session_warm" {
+        if @restoring.get(trace).is_some() { @start_restore(trace) }
+        return
+    }
+    if @restoring.get(trace).is_some() {
+        @restore_commands.push(RestoreCommand { conn, trace, text })
+        @start_restore(trace)
+        return
+    }
+    if kind == "session_history_get" { @send_history(conn, trace, input); return }
     ro active_at = @find(trace)
     if kind == "user_message" || kind == "session_source" || kind == "session_agent" || kind == "session_setting" {
         for pending in @handoffs {
@@ -2576,6 +2732,19 @@ fn Hub mut @watch_agent(at int) Time -> () {
     }
     @sessions[at] = s
     if model_arrived { @drain(at) }
+}
+
+// Bound how long a foreground handshake can postpone background work.
+const AGENT_START_PRIORITY_MS = 4000
+
+fn Hub @prioritize_agent_start() Time -> bool {
+    ro now = now_millis()
+    for s in @sessions {
+        if s.clients.len() == 0 || now - s.started_at >= AGENT_START_PRIORITY_MS { continue }
+        ro phase = s.clients[0].phase()
+        if (phase == "initializing" || phase == "opening") && s.engine.open_ids().len() > 0 { return true }
+    }
+    false
 }
 
 /// The work of a moment: the agents are asked for what they have, the engines take it. Returns the number of steps made.

@@ -1,0 +1,48 @@
+// Accepted history from the committed journal. Keep the same replay rules as Alula Engine.history.
+module canopus.storage
+
+import alula.engine.{Incoming, EventKind, JournalEntry}
+import std.collections.hash_map.{HashMap}
+
+fn replay_incoming(entry JournalEntry) -> Option[Incoming] {
+    ro kind = EventKind.parse(entry.event.value_of("kind")?)?
+    ro name = entry.event.value_of("name")?
+    ro input = entry.event.value_of("input") ?? ""
+    ro request = if entry.request.byte_len() > 0 { Some(entry.request) } else { None }
+    Some(Incoming { id: entry.cause, trace: entry.trace, step: entry.step, kind, name, request, input, at: entry.at })
+}
+
+/// Index discarded steps once. Looking for each accepted step in a list of discards
+/// makes restoring a journal with many discarded replies quadratic.
+export fn replay_history(journal []JournalEntry, trace str, committed_step int) -> []Incoming {
+    mut candidates = []int.new()
+    mut dropped = HashMap[int, bool].new()
+    mut cut = -1
+    mut i = journal.len() - 1
+    while i >= 0 {
+        ro entry = journal[i]
+        if entry.trace == trace && (cut < 0 || entry.step < cut) {
+            if entry.event.code == "engine_resumed" {
+                cut = entry.step
+            } else if entry.event.code == "reply_discarded" {
+                ro replaced = dropped.insert(entry.step, true)
+            } else if entry.event.code == "event_accepted" && entry.step <= committed_step {
+                candidates.push(i)
+            }
+        }
+        i -= 1
+    }
+    mut out = []Incoming.new(cap: candidates.len())
+    i = candidates.len() - 1
+    while i >= 0 {
+        ro entry = journal[candidates[i]]
+        if !dropped.contains(entry.step) {
+            match replay_incoming(entry) {
+                Some(event) => out.push(event)
+                None => ()
+            }
+        }
+        i -= 1
+    }
+    out
+}

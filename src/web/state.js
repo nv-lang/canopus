@@ -346,13 +346,17 @@ function apply(session, event) {
       const pendingActual = session.pendingActual && session.pendingActual[turn];
       const { index, message } = agentMessageFor(session.messages, turn, pendingActual || null);
       if (message.status !== 'streaming' && message.status !== 'error') return session; // после отмены/отказа/конца — запоздалый
-      if (message.chunks.some((c) => c.step === event.step)) return session; // другой id, тот же шаг: уже есть
-      const chunks = [...message.chunks, { step: event.step, text: str(input.text) }].sort((a, b) => a.step - b.step);
+      const chunk = { step: event.step, text: str(input.text) };
+      const append = message.chunks.length === 0 || message.chunks.at(-1).step < chunk.step;
+      if (!append && message.chunks.some((c) => c.step === chunk.step)) return session;
+      const chunks = [...message.chunks, chunk];
+      if (!append) chunks.sort((a, b) => a.step - b.step);
+      const text = append ? message.text + chunk.text : chunks.map((c) => c.text).join('');
       return {
         ...session,
         state: session.state === 'permission' ? 'permission' : 'answering',
         pendingActual: pendingActual ? Object.fromEntries(Object.entries(session.pendingActual).filter(([key]) => key !== turn)) : session.pendingActual,
-        messages: putMessage(session.messages, index, { ...message, status: 'streaming', reason: '', chunks, text: chunks.map((c) => c.text).join('') }),
+        messages: putMessage(session.messages, index, { ...message, status: 'streaming', reason: '', chunks, text }),
       };
     }
 

@@ -1,7 +1,21 @@
-import assert from 'node:assert/strict';import {capabilities,launchBinding} from './native-acp-catalog.mjs';
+import assert from 'node:assert/strict';import {capabilities,launchBinding,nextRefreshAt} from './native-acp-catalog.mjs';
 assert.deepEqual(capabilities({configOptions:[{category:'model',options:[{value:'k',name:'Kimi'}]},{category:'thought_level',options:[{value:'high',name:'High'}]}]}),[{id:'k',name:'Kimi',efforts:[{id:'high',name:'High'}]}]);
 assert.deepEqual(capabilities({models:{availableModels:[{modelId:'codex',name:'Codex'}]},configOptions:[]}),[{id:'codex',name:'Codex',efforts:[]}]);
 assert.notEqual(launchBinding([{id:'kimi',program:'one',args:[]}]),launchBinding([{id:'kimi',program:'two',args:[]}]));
 assert.notEqual(launchBinding([{id:'kimi',program:'one',args:[]}]),launchBinding([{id:'zai',program:'one',args:[]}]));
 assert.deepEqual(capabilities({}),[]);
 console.log('Direct ACP capability normalization and launch binding: PASS');
+
+const cwd='/project';
+const binding=launchBinding([{id:'codex',program:'codex-acp'}]);
+const snapshot={v:2,directory:cwd,binding,observed_at:1000,expires_at:241000,families:[]};
+const params={cwd,binding,now:2000};
+assert.equal(nextRefreshAt(snapshot,params),181000);
+assert.equal(nextRefreshAt(snapshot,{...params,now:181000}),181000);
+assert.equal(nextRefreshAt(snapshot,{...params,now:241000}),241000);
+assert.equal(nextRefreshAt(snapshot,{...params,now:900}),900);
+assert.equal(nextRefreshAt(snapshot,{...params,cwd:'/other'}),params.now);
+assert.equal(nextRefreshAt(snapshot,{...params,binding:'changed'}),params.now);
+assert.equal(nextRefreshAt({...snapshot,expires_at:3000},params),3000);
+assert.equal(nextRefreshAt(undefined,params),params.now);
+console.log('Native ACP catalog refresh schedule: PASS');

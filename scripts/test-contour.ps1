@@ -53,19 +53,14 @@ if ($LASTEXITCODE -ne 0) { [Console]::Error.WriteLine('git diff main...HEAD fail
 $buildHere = $Build -or $serverChange.Count -gt 0
 
 $front = Join-Path $tree 'target/canopus.exe'
-$hub = Join-Path $tree 'target/canopus-hub.exe'
 if ($buildHere) {
-    Write-Output ('building the server programs of THIS tree (' + ($(if ($Build) { '-Build' } else { 'src/ changed' })) + ')...')
-    & nova build src/canopus_hub.nv -o target/canopus-hub.exe
-    if ($LASTEXITCODE -ne 0) { [Console]::Error.WriteLine('nova build src/canopus_hub.nv failed'); exit 1 }
+    Write-Output ('building the server of THIS tree (' + ($(if ($Build) { '-Build' } else { 'src/ changed' })) + ')...')
     & nova build src/canopus.nv -o target/canopus.exe
     if ($LASTEXITCODE -ne 0) { [Console]::Error.WriteLine('nova build src/canopus.nv failed'); exit 1 }
 } else {
     $front = Join-Path $mainCopy 'target/canopus.exe'
-    $hub = Join-Path $mainCopy 'target/canopus-hub.exe'
-    if (-not ((Test-Path $front) -and (Test-Path $hub))) {
-        [Console]::Error.WriteLine("The built programs of the main copy are not there ($front). Build them in the main copy:")
-        [Console]::Error.WriteLine('  nova build src/canopus_hub.nv -o target/canopus-hub.exe')
+    if (-not (Test-Path $front)) {
+        [Console]::Error.WriteLine("The built server of the main copy is not there ($front). Build it in the main copy:")
         [Console]::Error.WriteLine('  nova build src/canopus.nv -o target/canopus.exe')
         exit 1
     }
@@ -104,7 +99,6 @@ $settings = @{
     idle_term_seconds = 900
     workdir = ''
     web_dir = (Join-Path $tree 'src/web')
-    hub = @{ program = $hub; args = @() }
 }
 $config = Join-Path $dir 'server.json'
 # без BOM: разбор JSON сервера его не принимает

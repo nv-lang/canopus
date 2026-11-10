@@ -13,8 +13,7 @@
 #
 # Dependencies (foreign packages, read only): the PostgreSQL driver `postgres` (nova-postgres) for the PostgreSQL handlers of
 # `Journal` and `Store` in `src/pg*` (task 098), and Polaris (`polaris`, with its `http` and `tls`) for the front of the session
-# server, `src/server/front/` (task 099). The two cannot be in one program on Oracle 0.1.0, so the hub (`src/canopus_hub.nv`) holds
-# the driver and the front (`src/canopus.nv`) holds Polaris; the rest uses `std` and `alula`. `nova.lock.toml` fixes the build.
+# server, `src/server/front/` (task 099). The front and hub are built together on Oracle 0.1.3. `nova.lock.toml` fixes the build.
 
 [lib]
 src = "src"
