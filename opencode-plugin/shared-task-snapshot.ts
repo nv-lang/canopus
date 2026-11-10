@@ -1,13 +1,24 @@
 // 288: versioned task documents are snapshots of the shared live directory.
 // Called only inside the existing authorized contour/precheck/publication operations.
+// 290: when the result repository is bound (landing) and has its own object base, the frozen result candidate lives
+// there and is verified by its own SHA; the documents stay with the managing repository and are verified against the
+// frozen commit of the task branch. Neither SHA replaces the other; the marker links both snapshots.
 import fs from "node:fs"
 import path from "node:path"
 import {execFileSync} from "node:child_process"
 import {commitFiles} from "./task-numbers.ts"
-type SnapshotTask={n:number;directory:string;branch?:string;worktree?:string;folder?:string;kind?:string}
+type SnapshotTask={n:number;directory:string;branch?:string;worktree?:string;folder?:string;kind?:string;landing?:{dir:string}}
 const git=(dir:string,args:string[],input?:string|Buffer)=>execFileSync("git",["-C",dir,...args],{encoding:"utf8",input,windowsHide:true,stdio:["pipe","pipe","pipe"]}).trim()
 const canonical=(p:string)=>fs.existsSync(p)?fs.realpathSync.native(p):path.resolve(p)
 const maybe=(dir:string,args:string[])=>{try{return git(dir,args)}catch{return undefined}}
+// 290: the bound result repository, when its object base differs from the managing one — the frozen candidate is
+// looked up there, never in the managing repository. Same object base (or no binding): the legacy single-base check.
+const foreignRepo=(t:SnapshotTask,gitDir:string)=>{
+ if(!t.landing?.dir||!fs.existsSync(t.landing.dir))return undefined
+ const common=maybe(t.landing.dir,["rev-parse","--git-common-dir"])
+ if(!common)return undefined
+ return canonical(path.resolve(t.landing.dir,common)).toLowerCase()!==gitDir.toLowerCase()?t.landing.dir:undefined
+}
 export function snapshotTaskDocuments(file:string,t:SnapshotTask,options:{stage?:boolean;freeze?:boolean;candidate?:string;target?:string;withdraw?:string}={}) {
  if(!t.branch||(!t.folder&&t.kind!=="application"))return {files:0}
  const common=maybe(t.directory,["rev-parse","--git-common-dir"])
@@ -74,11 +85,19 @@ export function snapshotTaskDocuments(file:string,t:SnapshotTask,options:{stage?
  if(options.stage){
   for(const n of names){const rel=n.slice(prefix.length+1),current=fs.readFileSync(path.join(folder,rel));if(git(main,["hash-object","--path",n,"--stdin"],current)!==hashes[n])throw Error("Shared documents changed during snapshot; retry without discarding them")}
   const candidate=options.candidate??t.branch
-  for(const n of names)if(maybe(main,["rev-parse",candidate+":"+n])!==hashes[n])throw Error("Shared documents changed after the candidate was frozen; repeat verification")
+  const candidateRepo=options.candidate?foreignRepo(t,gitDir):undefined
+  if(candidateRepo){
+   // 290: the candidate lives in the bound result repository. The documents are verified against the frozen commit of
+   // the task branch in the managing repository; the candidate is verified by its own SHA in the result repository.
+   for(const n of names)if(maybe(main,["rev-parse",t.branch+":"+n])!==hashes[n])throw Error("Shared documents changed after the candidate was frozen; repeat verification")
+   if(!maybe(candidateRepo,["rev-parse","--verify","--quiet",`${candidate}^{commit}`]))throw Error("The frozen result candidate is not in the bound result repository; repeat verification")
+  }else{
+   for(const n of names)if(maybe(main,["rev-parse",candidate+":"+n])!==hashes[n])throw Error("Shared documents changed after the candidate was frozen; repeat verification")
+  }
   // Staging exactly matching documents lets ff-only retain untracked live files. Other index entries stay unchanged.
   const physicallyHere=canonical(folder).toLowerCase()===canonical(path.resolve(main,prefix)).toLowerCase()
   if(physicallyHere)git(main,["add","--",...names])
-  fs.mkdirSync(path.dirname(marker),{recursive:true});fs.writeFileSync(marker,JSON.stringify({branch:t.branch,staged:physicallyHere?hashes:{},commit},null,2))
+  fs.mkdirSync(path.dirname(marker),{recursive:true});fs.writeFileSync(marker,JSON.stringify({branch:t.branch,staged:physicallyHere?hashes:{},commit,...(options.candidate?{candidate:options.candidate}:{})},null,2))
  }
  return {files:names.length,commit}
 }
