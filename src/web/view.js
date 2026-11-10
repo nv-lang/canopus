@@ -10,6 +10,7 @@
 //     ставится свойством --fill / --ring через CSSOM, а не атрибутом style (его запрещает CSP).
 
 import { t } from './strings.js';
+import { approvalView } from './family-approvals.js';
 import { BARS, barHeights, createMeter, recordingView } from './meter.js';
 import { createDictation, speechCtor, createMicPress, micTitleKey, clockText } from './voice.js';
 import { createLocalDictation } from './recorder.js';
@@ -738,7 +739,7 @@ export function createView(doc, refs, deps) {
 
   const statusModel = h(doc, 'span', { class: 'status-model' });
   const familyButton = h(doc, 'button', { type: 'button', class: 'status-btn agent-picker-button', hidden: true, title: t('status.agent'), 'aria-label': t('status.agent'), 'aria-haspopup': 'dialog', 'aria-expanded': 'false' });
-  const modeButton = h(doc, 'button', { type: 'button', class: 'status-btn', hidden: true, title: t('menu.mode'), 'aria-label': t('menu.mode'), 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
+  const modeButton = h(doc, 'button', { type: 'button', class: 'status-btn', hidden: true, title: t('menu.agent_permissions'), 'aria-label': t('menu.agent_permissions'), 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
   const modelButton = h(doc, 'button', { type: 'button', class: 'status-btn', hidden: true, title: t('status.model'), 'aria-label': t('status.model'), 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
   const effortButton = h(doc, 'button', { type: 'button', class: 'status-btn effort-picker-button', hidden: true, title: t('menu.effort'), 'aria-label': t('menu.effort'), 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
   // Режим работы по методике (задача 192p): слева в строке статуса, плоский текст без шеврона.
@@ -765,7 +766,7 @@ export function createView(doc, refs, deps) {
   function fillResultRepos(selected = '', label = '') {
     resultRepoShown = { selected, label };
     const record = resultRepoRecords.find((p) => p.id === selected);
-    const text = selected ? `Результат: ${record ? `${record.dir} → ${record.remote}/${record.branch}` : (label || selected)}` : 'Результат: свой репозиторий';
+    const text = selected ? `Сдача в: ${record ? `${record.dir} → ${record.remote}/${record.branch}` : (label || selected)}` : 'Сдача в репозиторий проекта';
     resultRepoButton.replaceChildren(h(doc, 'span', { text }));
     resultRepoButton.title = text;
     resultRepoButton.setAttribute('aria-label', text);
@@ -805,14 +806,14 @@ export function createView(doc, refs, deps) {
   // Задача 192.6: подпись — отдельной строкой под строкой чипов, чтобы не отнимать у них ширину
   const whereNote = h(doc, 'p', { class: 'where-note', hidden: true });
   const spinner = h(doc, 'span', { class: 'spinner', role: 'img', 'aria-label': t('composer.working'), hidden: true });
-  const menu = h(doc, 'div', { class: 'menu', role: 'menu', hidden: true });
+  const menu = h(doc, 'div', { class: 'menu composer-menu', role: 'menu', hidden: true });
   const agentAnchor = h(doc, 'div', { class: 'agent-picker-anchor' }, familyButton, effortButton, menu);
   // The model picker owns its anchor; the lower mode selector is the only visible mode control.
   const statusGroup = h(doc, 'div', { class: 'status-group' }, agentAnchor);
   // Композиция нижней панели по макету 268 (task/design/new-chat.png): режим, семья, модель и усилие —
   // пилюли одной строкой ВНУТРИ карточки композера, а не отдельной строкой под ней.
   const boxBar = h(doc, 'div', { class: 'box-bar', 'data-empty': 'true' },
-    plusButton, routeButton, modeButton, h(doc, 'span', { class: 'grow' }), statusGroup, modelButton,
+    plusButton, routeButton, h(doc, 'span', { class: 'grow' }), statusGroup, modelButton,
     h(doc, 'div', { class: 'box-row' }, micWrap, cancelButton, sendButton));
   box.append(boxBar);
   const status = h(doc, 'div', { class: 'composer-status', 'data-empty': 'true' }, worktreeButton, whereNote, resultRepoButton, h(doc, 'span', { class: 'grow' }), ringBox, spinner, presetSelect);
@@ -904,18 +905,27 @@ export function createView(doc, refs, deps) {
     if (!keepMenu) closeMenu();
   }
 
-  function positionAgentMenu() {
-    if (menuKind !== 'agent' || menu.hidden || typeof familyButton.getBoundingClientRect !== 'function' || typeof menu.getBoundingClientRect !== 'function') return;
-    const trigger = familyButton.getBoundingClientRect();
-    const anchor = agentAnchor.getBoundingClientRect();
-    const popover = menu.getBoundingClientRect();
-    const viewportWidth = Number(win && win.innerWidth) || Number(doc.documentElement && doc.documentElement.clientWidth);
-    if (!(viewportWidth > 0) || !Number.isFinite(popover.width) || popover.width <= 0) return;
-    const minLeft = 8;
-    const maxLeft = Math.max(minLeft, viewportWidth - popover.width - 8);
-    const left = Math.min(Math.max(minLeft, trigger.left), maxLeft);
-    menu.style.setProperty('--agent-menu-left', `${left - anchor.left}px`);
-    menu.style.setProperty('--agent-menu-right', 'auto');
+  function positionMenu() {
+    if (menu.hidden || !menuTrigger?.getBoundingClientRect || !menu.getBoundingClientRect) return;
+    const trigger = menuTrigger.getBoundingClientRect();
+    const viewportWidth = win?.innerWidth || doc.documentElement?.clientWidth;
+    const viewportHeight = win?.innerHeight || doc.documentElement?.clientHeight;
+    if (!viewportWidth || !viewportHeight) return;
+    const bounds = menuKind === 'mode' ? { left: 0, right: viewportWidth } : chat.getBoundingClientRect();
+    const gap = 8;
+    const minLeft = Math.max(gap, bounds.left + gap);
+    const right = Math.min(viewportWidth, bounds.right) - gap;
+    menu.style.maxWidth = `${Math.max(0, right - minLeft)}px`;
+    menu.style.minWidth = menuKind === 'agent' || menuKind === 'effort' ? '0' : `${Math.min(250, right - minLeft)}px`;
+    const above = trigger.top - gap * 2;
+    const below = viewportHeight - trigger.bottom - gap * 2;
+    const openBelow = above < 180 && below > above;
+    menu.style.top = openBelow ? `${trigger.bottom + gap}px` : 'auto';
+    menu.style.bottom = openBelow ? 'auto' : `${viewportHeight - trigger.top + gap}px`;
+    menu.style.maxHeight = `${Math.max(0, openBelow ? below : above)}px`;
+    const width = menu.getBoundingClientRect().width;
+    const desiredLeft = ['agent', 'effort', 'model', 'more'].includes(menuKind) ? trigger.right - width : trigger.left;
+    menu.style.left = `${Math.max(minLeft, Math.min(desiredLeft, right - width))}px`;
   }
 
   function menuRow({ name, description, family, checked, number, arrow, tip, disabled = false, onPick }) {
@@ -991,7 +1001,7 @@ export function createView(doc, refs, deps) {
       if (!rows.some(row => row.classList.contains('menu-item'))) rows.push(h(doc, 'div', { class: 'menu-head', text: 'Ничего не найдено' }));
       menuList.append(...rows);
       menu.hidden = false;
-      positionAgentMenu();
+      positionMenu();
       return;
     }
     if (menuKind === 'route') {
@@ -1080,6 +1090,28 @@ export function createView(doc, refs, deps) {
       menu.hidden = false;
       return;
     }
+    if (menuKind === 'mode' && current.session) {
+      menuSearch.hidden = true;
+      const { groups } = approvalView(current.model, current.session, agents, agents.length ? { pool: true } : {});
+      const busy = isBusy(current.session.state);
+      for (const group of groups) {
+        menuList.append(h(doc, 'div', { class: 'menu-head', text: agentLabel(group.family) }));
+        if (group.unavailable) menuList.append(h(doc, 'div', { class: 'menu-head', text: group.unavailable }));
+        if (group.pending) menuList.append(h(doc, 'div', { class: 'menu-head', text: 'Выбор ожидает подтверждения агента' }));
+        for (const mode of group.modes) {
+          const label = labelOf('mode', mode);
+          menuList.append(menuRow({
+            name: label.name, description: label.description, checked: mode.id === group.selected, disabled: busy,
+            onPick: () => {
+              if (!isBusy(current.session.state)) handlers.onApproval(current.session.id, group.family, mode.id);
+              closeMenu();
+            },
+          }));
+        }
+      }
+      menu.hidden = false;
+      return;
+    }
     if (!options || !menuKind) { menu.hidden = true; return; }
     const rows = [];
     const searchable = menuKind === 'model' || menuKind === 'more';
@@ -1091,28 +1123,23 @@ export function createView(doc, refs, deps) {
         name: l.name, description: l.description, tip: l.title, checked: c.id === current, number: i < 9 ? i + 1 : 0, onPick: () => choose(setting, c.id),
       });
     });
-    if (menuKind === 'mode') {
-      menu.dataset.side = 'right';
-      rows.push(h(doc, 'div', { class: 'menu-head', text: t('menu.mode') }), ...numbered(options.modes, 'mode', options.mode));
-    } else {
-      menu.dataset.side = 'right';
-      if (searching) {
-        const found = filterModels(options.models, menuQuery);
-        if (found.length === 0) rows.push(h(doc, 'div', { class: 'menu-head', text: t('menu.none') }));
-        rows.push(...found.map((c) => menuRow({ name: c.name, description: c.description, checked: c.id === options.modelId, onPick: () => choose('model', c.id) })));
-      } else if (menuKind === 'model') {
-        rows.push(...numbered(options.models.slice(0, MENU_MODELS), 'model', options.modelId));
-        if (options.models.length > MENU_MODELS) rows.push(h(doc, 'div', { class: 'menu-sep', role: 'separator' }));
-        if (options.models.length > MENU_MODELS) rows.push(menuRow({ name: t('menu.more_models'), arrow: true, onPick: () => openMenu('more') }));
-      } else if (menuKind === 'more') {
-        rows.push(menuRow({ name: t('menu.back'), onPick: () => openMenu('model') }));
-        const groups = groupModels(options.models);
-        for (const g of groups) {
-          if (g.provider) rows.push(h(doc, 'div', { class: 'menu-head', text: g.provider }));
-          rows.push(...g.models.map((c) => menuRow({
-            name: g.provider ? c.name.replace(`${g.provider}/`, '') : c.name, description: c.description, checked: c.id === options.modelId, onPick: () => choose('model', c.id),
-          })));
-        }
+    menu.dataset.side = 'right';
+    if (searching) {
+      const found = filterModels(options.models, menuQuery);
+      if (found.length === 0) rows.push(h(doc, 'div', { class: 'menu-head', text: t('menu.none') }));
+      rows.push(...found.map((c) => menuRow({ name: c.name, description: c.description, checked: c.id === options.modelId, onPick: () => choose('model', c.id) })));
+    } else if (menuKind === 'model') {
+      rows.push(...numbered(options.models.slice(0, MENU_MODELS), 'model', options.modelId));
+      if (options.models.length > MENU_MODELS) rows.push(h(doc, 'div', { class: 'menu-sep', role: 'separator' }));
+      if (options.models.length > MENU_MODELS) rows.push(menuRow({ name: t('menu.more_models'), arrow: true, onPick: () => openMenu('more') }));
+    } else if (menuKind === 'more') {
+      rows.push(menuRow({ name: t('menu.back'), onPick: () => openMenu('model') }));
+      const groups = groupModels(options.models);
+      for (const g of groups) {
+        if (g.provider) rows.push(h(doc, 'div', { class: 'menu-head', text: g.provider }));
+        rows.push(...g.models.map((c) => menuRow({
+          name: g.provider ? c.name.replace(`${g.provider}/`, '') : c.name, description: c.description, checked: c.id === options.modelId, onPick: () => choose('model', c.id),
+        })));
       }
     }
     menuList.append(...rows);
@@ -1125,16 +1152,12 @@ export function createView(doc, refs, deps) {
   function openMenu(kind) {
     if (kind === 'agent' && agents.length === 0 && !Object.values((presets() || {}).presets || {}).some((p) => p && p.pools)) return;
     if (kind === 'result' && resultRepoButton.disabled) return;
-    if (kind === 'mode' && !hasOpts('modes')) return;
+    if (kind === 'mode' && !current.session) return;
     if ((kind === 'model' || kind === 'more') && !hasOpts('models')) return;
     if (kind === 'effort' && !canChooseEffort) return;
     menuKind = kind;
     menuTrigger = { agent: familyButton, route: routeButton, result: resultRepoButton, mode: modeButton, model: modelButton, more: modelButton, effort: effortButton }[kind] || null;
     if (kind === 'agent' || kind === 'effort') agentAnchor.append(menu); else status.append(menu);
-    if (kind === 'effort') {
-      menu.style.setProperty('--agent-menu-left', 'auto');
-      menu.style.setProperty('--agent-menu-right', '0px');
-    }
     menuQuery = '';
     menuSearch.value = '';
     menuSig = kind === 'effort' ? effortMenuSignature() : kind === 'route' ? currentRoute : kind === 'result' ? JSON.stringify(resultRepoShown) : JSON.stringify(options);
@@ -1145,6 +1168,7 @@ export function createView(doc, refs, deps) {
     modelButton.setAttribute('aria-expanded', kind === 'model' || kind === 'more' ? 'true' : 'false');
     effortButton.setAttribute('aria-expanded', kind === 'effort' ? 'true' : 'false');
     renderMenu();
+    positionMenu();
     if (kind === 'result') refreshResultRepos();
     if (kind === 'model' || kind === 'more' || kind === 'agent') menuSearch.focus();
     else menu.querySelector(kind === 'effort' ? '.effort-slider' : '.menu-item')?.focus();
@@ -1152,7 +1176,8 @@ export function createView(doc, refs, deps) {
 
   menuSearch.addEventListener('input', () => { menuQuery = menuSearch.value; renderMenu(); });
   familyFilter.addEventListener('change', () => renderMenu());
-  win?.addEventListener?.('resize', positionAgentMenu);
+  win?.addEventListener?.('resize', positionMenu);
+  win?.addEventListener?.('scroll', positionMenu, true);
   // стрелки ходят по строкам, Enter в поиске берёт первую найденную
   menu.addEventListener('keydown', (e) => {
     const items = [...menuList.querySelectorAll('.menu-item')].filter((item) => !item.disabled);
@@ -1201,13 +1226,11 @@ export function createView(doc, refs, deps) {
       if (at >= 0) { e.preventDefault(); rows[at].closest('.menu-item').click(); }
     }
   });
-  // Клик вне меню закрывает его. Меню живёт в двух местах (agentAnchor в нижней панели box-bar,
-  // остальные — в строке статуса), а триггер всегда рядом со своим меню: закрытие — только когда
-  // клик пришёсь мимо меню, мимо триггера и мимо обоих контейнеров.
+  // Клик вне меню и его кнопки закрывает меню.
   doc.addEventListener('click', (e) => {
     if (!menuKind) return;
     const path = e.composedPath();
-    if (path.includes(status) || path.includes(agentAnchor) || (menuTrigger && path.includes(menuTrigger))) return;
+    if (path.includes(menu) || path.includes(menuTrigger)) return;
     if (menuKind === 'effort' && path.includes(askCard)) return;
     closeMenu();
   });
@@ -1498,8 +1521,7 @@ export function createView(doc, refs, deps) {
   function syncSend(busy) {
     const can = canSend(input.value, attach.items(), uploading);
     // в записи место кнопки остаётся (visibility), чтобы поле не меняло ширину и текст не перетекал в нижнюю строку
-    sendButton.hidden = !can && !recordingNow;
-    sendButton.style.visibility = recordingNow ? 'hidden' : '';
+    sendButton.hidden = !can || recordingNow;
     sendButton.disabled = !can || recordingNow;
   }
   // Авторазмер: высота по содержимому, не выше 5 строк (дальше — внутренняя прокрутка, см. max-height в app.css).
@@ -1935,7 +1957,7 @@ export function createView(doc, refs, deps) {
     pick.hidden = Boolean(session);
     chat.hidden = !session;
     titleBlock.hidden = !session;
-    if (!session) { browseTicket += 1; currentTrace = null; return; }
+    if (!session) { browseTicket += 1; currentTrace = null; closeMenu(); return; }
     chat.dataset.draft = String(Boolean(session.draft));
 
     if (currentTrace !== session.id) {
@@ -1990,14 +2012,16 @@ export function createView(doc, refs, deps) {
     currentSession = session;
     currentRoute = session.route || INTERACTIVE_STATE.route;
     routeButton.hidden = false;
-    routeButton.replaceChildren(h(doc, 'span', { text: currentRoute === 'planning' ? 'Подготовка' : routeName(currentRoute) }));
+    routeButton.dataset.route = currentRoute;
+    routeButton.replaceChildren(h(doc, 'span', { text: routeName(currentRoute) }));
     // проект и Worktree: у черновика — выбор; у открытой сессии без дерева — переключатель на следующую задачу
     const task = session.routeState && session.routeState.task;
     const hasTree = Boolean((task && task.worktree) || (session.routeState && session.routeState.where && session.routeState.where.kind === 'wip'));
     const resultRepo = session.routeState ? session.routeState.resultRepo : '';
     const resultLabel = session.routeState ? session.routeState.resultLabel : '';
-    resultRepoButton.hidden = Boolean(session.draft) || currentRoute === 'planning' || !session.projectId;
     resultRepoButton.disabled = Boolean(task) || hasTree || busy || Boolean(session.routeState && session.routeState.where && session.routeState.where.kind === 'preparing');
+    resultRepoButton.hidden = Boolean(session.draft) || currentRoute === 'planning' || !session.projectId
+      || (resultRepoButton.disabled && !resultRepo);
     fillResultRepos(resultRepo || '', resultLabel);
     const treeOn = session.draft ? session.worktree !== false : (session.routeState ? session.routeState.useTree !== false : true);
     worktreeButton.hidden = currentRoute === 'planning' || !session.projectId;
@@ -2015,7 +2039,7 @@ export function createView(doc, refs, deps) {
     const folder = task?.worktree || location?.worktree || session.folder;
     const folderName = folder?.split(/[\\/]/).filter(Boolean).pop() || session.project || 'Папка проекта';
     const branch = (task?.branch || location?.branch || session.branch || sourceBranch || '').replace(/^refs\/(heads|remotes)\//, '');
-    const workspaceText = noProject ? t('where.projectless_workspace') : [folderName, branch, (hasTree || treeOn) && !noRepo ? 'Отдельная копия' : 'Локально'].filter(Boolean).join(' · ');
+    const workspaceText = noProject ? t('where.projectless_workspace') : [(hasTree || treeOn) && !noRepo ? 'Работа в отдельной папке' : 'Работа в папке проекта', session.project || folderName, branch].filter(Boolean).join(' · ');
     worktreeButton.replaceChildren(icon(doc, 'i-folder'), h(doc, 'span', { text: workspaceText }));
     const workspaceHint = noRepo ? t('route.worktree_not_repo') : hasTree || preparingTree
       ? t('route.worktree_locked') : session.draft && !treeOn ? t('where.draft_off') : whereText(session);
@@ -2069,18 +2093,13 @@ export function createView(doc, refs, deps) {
     familyButton.dataset.noChoices = String(!canChoose);
     familyButton.title = busy && !session.draft ? 'Выбор источника доступен между ходами' : canChoose ? t('menu.agent') : registryPending ? t('status.agents_loading') : t(registryFailed ? 'sessions.agents_unavailable' : (agents.length === 1 ? 'status.agent_one' : 'sessions.agents_none'));
     familyButton.setAttribute('aria-label', `Агент: ${pickerLabel || 'не выбран'}`);
-    const hasModes = Boolean(options && options.modes.length > 0);
     const hasModels = Boolean(options && options.models.length > 0);
     // Причина отсутствия вариантов — по факту: грузятся; у черновика без записи каталога появятся после запуска; агент не предоставляет.
     const catalogEntry = model.catalog ? model.catalog[shown.agent] : undefined;
     const paramWhy = (unsupported) => (shown.loading ? t('status.options_loading')
       : !catalogEntry && session.draft ? t('status.options_after_start') : unsupported);
     modeButton.hidden = false;
-    modeButton.setAttribute('aria-disabled', String(!hasModes));
-    const modeLabel = hasModes ? labelFor('mode', options.modes, options.mode) : { name: '', title: '' };
-    modeButton.title = modeLabel.title ? `${t('menu.mode')}: ${modeLabel.title}` : t('menu.mode');
-    if (!hasModes) modeButton.title = paramWhy(t('status.mode_unsupported'));
-    modeButton.replaceChildren(h(doc, 'span', { text: hasModes ? (modeLabel.name || t('menu.mode')) : (shown.loading ? '…' : t('menu.mode')) }));
+    modeButton.textContent = t('menu.agent_permissions');
     modelButton.hidden = true;
     effortButton.hidden = !hasEfforts;
     effortButton.setAttribute('aria-disabled', String(!canChooseEffort));
@@ -2111,7 +2130,11 @@ export function createView(doc, refs, deps) {
         if (sig !== menuSig) renderMenu();
         menuSig = sig;
       }
-    } else if (menuKind && ((menuKind === 'mode' && !hasModes) || ((menuKind === 'model' || menuKind === 'more') && !hasModels))) closeMenu();
+    } else if (menuKind === 'mode') {
+      const sig = JSON.stringify([session.approvals, options, model.catalog, busy]);
+      if (sig !== menuSig) renderMenu();
+      menuSig = sig;
+    } else if ((menuKind === 'model' || menuKind === 'more') && !hasModels) closeMenu();
     else if (menuKind) {
       const sig = JSON.stringify(options);
       if (sig !== menuSig) renderMenu();
@@ -2204,6 +2227,11 @@ export function createView(doc, refs, deps) {
     return button;
   }
 
+  const agentSettingsTitle = h(doc, 'summary', { text: t('rail.agent_settings') });
+  const agentSettings = h(doc, 'details', { class: 'agent-settings' }, agentSettingsTitle, modeButton);
+
+  agentSettings.addEventListener('toggle', () => { if (!agentSettings.open && menuKind === 'mode') closeMenu(); });
+
   function envCard(s) {
     const row = (iconId, labelKey, value) => h(doc, 'div', { class: 'env-row' },
       icon(doc, iconId),
@@ -2213,7 +2241,8 @@ export function createView(doc, refs, deps) {
       row('i-folder', 'rail.project', s.project),
       row('i-folder', 'rail.folder', s.folder),
       row('i-branch', 'rail.branch', s.branch),
-      row('i-terminal', 'rail.agent', agentLabel(s.agent))));
+      row('i-terminal', 'rail.agent', agentLabel(s.agent))),
+      agentSettings);
   }
 
   function meterNode(pct) {
@@ -2386,6 +2415,7 @@ export function createView(doc, refs, deps) {
   const railTabs = h(doc, 'div', { class: 'rail-tabs', role: 'tablist', 'aria-label': t('rail.tabs') }, railTabInfo, railTabMachines, railTabRequest);
   function pickRailTab(tab) {
     if (railTab === tab) return;
+    if (menuKind === 'mode') closeMenu();
     railTab = tab;
     try { if (win && win.localStorage) win.localStorage.setItem(RAIL_TAB_KEY, tab); } catch (e) { /* выбор вкладки не сохранится */ }
     if (tab === 'machines' && current.session && handlers.onMachineGet) handlers.onMachineGet(current.session.id);

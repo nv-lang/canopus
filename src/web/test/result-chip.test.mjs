@@ -53,13 +53,12 @@ test('текущий агент виден при любом числе дост
 test('режим остаётся видимым, усилие доступно для модели с вариантами и между ходами', () => {
   assert.doesNotMatch(view, /modeButton\.hidden = !hasModes/);
   assert.match(view, /effortButton\.hidden = !hasEfforts/);
-  assert.match(view, /modeButton\.setAttribute\('aria-disabled', String\(!hasModes\)\)/);
+  assert.match(view, /disabled: busy/);
   assert.match(view, /effortButton\.setAttribute\('aria-disabled', String\(!canChooseEffort\)\)/);
   assert.match(view, /t\('status\.options_loading'\)/, 'варианты ещё грузятся');
   assert.match(view, /t\('status\.options_after_start'\)/, 'черновик без записи каталога — параметры появятся после запуска');
-  assert.match(view, /t\('status\.mode_unsupported'\)/);
   assert.match(view, /t\('status\.effort_unsupported'\)/);
-  assert.match(view, /if \(kind === 'mode' && !hasOpts\('modes'\)\) return;/, 'меню режима не открывается без вариантов');
+  assert.match(view, /if \(kind === 'mode' && !current\.session\) return;/);
   assert.match(view, /if \(kind === 'effort' && !canChooseEffort\) return;/, 'меню усилия не открывается без вариантов');
 });
 

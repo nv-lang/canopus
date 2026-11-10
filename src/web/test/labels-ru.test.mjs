@@ -47,7 +47,7 @@ test('view.js берёт названия режима и усилия из labe
   const web = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
   const view = fs.readFileSync(path.join(web, 'view.js'), 'utf8');
   assert.match(view, /from '\.\/labels-ru\.js'/);
-  assert.match(view, /modeButton\.title = modeLabel\.title/);
+  assert.match(view, /name: label\.name, description: label\.description/);
   assert.match(view, /canChooseEffort \? effortLabel\.title \|\| t\('menu\.effort'\)/);
   assert.match(view, /tip: l\.title/);
 });

@@ -216,3 +216,19 @@ test('confirmed Kimi to Codex handoff starts only on send and never sends text a
     }
   }
 });
+
+test('сохранённый выбор Codex в чате Kimi снова открывает штатное подтверждение', async () => {
+  const page = await app();
+  const source = { family: 'codex', model: 'test-model', effort: 'low' };
+  page.event('agent_switched', { from: 'agent', to: 'kimi' }, { step: 1 });
+  page.event('user_message', { turn: 'old', text: 'история' }, { step: 2 });
+  page.event('agent_done', { turn: 'old' }, { step: 3 });
+  page.event('session_source', source, { step: 4 });
+  assert.equal(page.handlers.onSend('s', 'оставить в поле ввода'), false);
+  const question = page.getUI().sourceQuestions.get('s');
+  assert.equal(question.handoff, true);
+  assert.equal(page.sent.length, 0);
+  page.handlers.onAnswer('s', { request: question.request, answers: [{ selected: ['Применить'] }] });
+  assert.equal(page.getUI().handoffStatus.get('s').phase, 'selected');
+  assert.equal(page.getModel().sessions.s.agent, 'kimi');
+});

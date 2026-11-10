@@ -274,10 +274,14 @@ async function postImage(trace, item) {
 }
 const signal = (trace, { kind, input }) => [kind, trace, nextStep(model, trace), input];
 
-function warnIfCodexTransferUnknown(session, source) {
+function confirmPendingCodexTransfer(session, source) {
   if (!session || session.draft || source?.family !== 'codex' || session.agent === 'codex'
       || !session.messages.some((message) => message.role === 'user')) return false;
-  flash('Переход на Codex приостановлен: вместимость полной истории неизвестна. История и новое сообщение не отправлены.', 'error');
+  if (session.agent === 'kimi') {
+    handlers.onSource(session.id, source);
+  } else {
+    flash('Перенос истории в Codex из этого агента пока недоступен. Выберите текущего агента, чтобы продолжить этот чат.', 'error');
+  }
   return true;
 }
 
@@ -430,7 +434,7 @@ const handlers = {
       return prepareHandoff(trace, choice).then(ok => ok && handlers.onSend(trace, text, images));
     }
     if (choice?.phase === 'error') ui.handoffStatus.delete(trace);
-    if (warnIfCodexTransferUnknown(draft, draft?.source)) return false;
+    if (confirmPendingCodexTransfer(draft, draft?.source)) return false;
     let reserved = null;
     if (draft && draft.draft) {
       // Protect the first message before even creating its session (creation may fail too).

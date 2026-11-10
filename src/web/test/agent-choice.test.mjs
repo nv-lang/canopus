@@ -174,7 +174,7 @@ test('Escape из поиска закрывает picker и возвращает
 
 test('anchor-position clamps a right-edge trigger inside a narrow viewport', () => {
   const doc = createFakeDocument(); const refs = {};
-  doc.defaultView = { innerWidth: 360, addEventListener() {}, matchMedia: () => ({ matches: false }) };
+  doc.defaultView = { innerWidth: 360, innerHeight: 600, addEventListener() {}, matchMedia: () => ({ matches: false }) };
   for (const key of ['app', 'side', 'main', 'rail', 'status', 'overlay']) { refs[key] = doc.createElement('div'); doc.body.append(refs[key]); }
   const view = createView(doc, refs, { agents: [{ id: 'codex', label: 'Codex' }], now: () => 0, handlers: { queued: () => 0, queuedItems: () => [] } });
   const model = reduce(initialModel(), { id: 'create', trace: 's', step: 0, time: 1, kind: 'session_created', input: { name: 'x', agent: 'codex' } });
@@ -182,12 +182,12 @@ test('anchor-position clamps a right-edge trigger inside a narrow viewport', () 
   const anchor = refs.main.querySelector('.agent-picker-anchor');
   const picker = refs.main.querySelector('.agent-picker-button');
   const menu = anchor.querySelector('.menu');
-  anchor.getBoundingClientRect = () => ({ left: 300, right: 360, width: 60 });
-  picker.getBoundingClientRect = () => ({ left: 300, right: 360, width: 60 });
+  refs.main.querySelector('.chat').getBoundingClientRect = () => ({ left: 0, right: 360 });
+  picker.getBoundingClientRect = () => ({ left: 300, right: 360, width: 60, top: 500, bottom: 530 });
   menu.getBoundingClientRect = () => ({ left: 0, right: 250, width: 250 });
   picker.click();
-  assert.equal(menu.style['--agent-menu-left'], '-198px');
-  assert.equal(menu.style['--agent-menu-right'], 'auto');
+  assert.equal(menu.style.left, '102px');
+  assert.equal(menu.style.bottom, '108px');
 });
 
 test('session_source принимает плоский direct/pool wire без смешения уровня и effort', () => {

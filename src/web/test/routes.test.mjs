@@ -23,7 +23,7 @@ test('четыре режима по порядку, у каждого назв�
   assert.deepEqual(ROUTES.map((r) => r.id), ['interactive', 'fast', 'full', 'planning']);
   assert.deepEqual(CHAT_MODES.map((r) => r.id), ['interactive', 'planning']);
   assert.equal(DEFAULT_ROUTE, 'interactive');
-  assert.equal(routeName('interactive'), 'Интерактивный');
+  assert.equal(routeName('interactive'), 'Выполнение');
   assert.equal(routeName('fast'), 'Быстрая задача');
   assert.equal(routeName('full'), 'Полный путь');
   assert.equal(routeName('planning'), 'Подготовка задачи');
@@ -495,7 +495,7 @@ test('заглушка: пропуск шага отмечает его проп
 test('проводка: чип режима первым в нижней панели композера, aria-label «Режим работы», шеврон через CSS; меню вверх слева; страница шлёт сигналы', () => {
   assert.equal(S['route.label'], 'Режим работы');
   assert.match(view, /const routeButton = h\(doc, 'button', \{[^}]*'aria-label': t\('route\.label'\)/);
-  assert.match(view, /class: 'box-bar', 'data-empty': 'true' \},\s*plusButton, routeButton, modeButton, h\(doc, 'span', \{ class: 'grow' \}\), statusGroup, modelButton,/);
+  assert.match(view, /class: 'box-bar', 'data-empty': 'true' \},\s*plusButton, routeButton, h\(doc, 'span', \{ class: 'grow' \}\), statusGroup, modelButton,/);
   assert.match(view, /class: 'composer-status', 'data-empty': 'true' \}, worktreeButton, whereNote, resultRepoButton, h\(doc, 'span', \{ class: 'grow' \}\), ringBox, spinner, presetSelect\)/);
   assert.doesNotMatch(view, /routeButton\.replaceChildren\([^;]*icon\(/, 'шеврона в разметке чипа нет (он — псевдоэлементом в CSS)');
   assert.match(css, /\.box-bar \.status-btn::after \{[^}]*clip-path: polygon/);

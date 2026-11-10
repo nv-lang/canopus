@@ -6,7 +6,7 @@ import fs from 'node:fs';
 const view = fs.readFileSync(new URL('../view.js', import.meta.url), 'utf8');
 const css = fs.readFileSync(new URL('../app.css', import.meta.url), 'utf8');
 
-test('группа status-group: семья отдельно, модель·усилие рядом; режим только в нижней панели', () => {
+test('группа status-group: семья отдельно, модель·усилие рядом; права вынесены в сведения', () => {
   const group = view.match(/const statusGroup = h\(doc, 'div', \{ class: 'status-group' \}, ([^)]*)\);/);
   assert.ok(group, 'группа есть');
   const names = group[1].split(',').map((x) => x.trim());
@@ -20,7 +20,7 @@ test('группа status-group: семья отдельно, модель·ус
   // Макет 268 (new-chat.png): режим, семья, модель и усилие — одной строкой внутри карточки композера.
   const bar = view.match(/const boxBar = h\(doc, 'div', \{ class: 'box-bar', 'data-empty': 'true' \},\s*([^;]*?)\);/);
   assert.ok(bar, 'нижняя панель композера есть');
-  assert.match(bar[1], /^plusButton, routeButton, modeButton, h\(doc, 'span', \{ class: 'grow' \}\), statusGroup, modelButton,\s*h\(doc, 'div', \{ class: 'box-row' \}, micWrap, cancelButton, sendButton\)$/);
+  assert.match(bar[1], /^plusButton, routeButton, h\(doc, 'span', \{ class: 'grow' \}\), statusGroup, modelButton,\s*h\(doc, 'div', \{ class: 'box-row' \}, micWrap, cancelButton, sendButton\)$/);
   assert.match(view, /const box = h\(doc, 'div', \{ class: 'box' \}, attach\.row, input, recPanel\)/);
   assert.match(view, /box\.append\(boxBar\);/);
   assert.match(view, /boxBar\.dataset\.empty = /);
@@ -29,7 +29,7 @@ test('группа status-group: семья отдельно, модель·ус
 test('у каждого чипа title и aria-label; группа прижата вправо, на узком экране переносится влево', () => {
   for (const name of ['familyButton', 'modeButton', 'modelButton', 'effortButton']) {
     const line = view.split('\n').find((l) => l.includes(`const ${name} = h(doc, 'button'`));
-    assert.match(line, /title: t\('(status\.agent|menu\.mode|status\.model|menu\.effort)'\), 'aria-label': t\('(status\.agent|menu\.mode|status\.model|menu\.effort)'\)/, name);
+    assert.match(line, /title: t\('(status\.agent|menu\.agent_permissions|status\.model|menu\.effort)'\), 'aria-label': t\('(status\.agent|menu\.agent_permissions|status\.model|menu\.effort)'\)/, name);
   }
   assert.match(css, /\.status-group \{[^}]*margin-left: auto/);
   assert.match(css, /@media \(max-width: 760px\)[^\r\n]*\.status-group \{ margin-left: 0/);

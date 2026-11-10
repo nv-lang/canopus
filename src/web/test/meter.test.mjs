@@ -106,7 +106,7 @@ test('в записи Enter останавливает её и вставляе�
 test('таймер мелкий серый фиксированной ширины, стрелка провайдера в записи скрыта, зазоры 6–8 px', () => {
   assert.match(cssSrc, /\.mic-timer \{[^}]*width: 34px[^}]*color: var\(--fg-muted\)/);
   assert.ok(!/\.mic-timer \{[^}]*--danger/.test(cssSrc));
-  assert.match(cssSrc, /\.box\.recording \.mic-more \{ visibility: hidden; \}/);
+  assert.match(cssSrc, /\.box\.recording \.mic-more \{ display: none; \}/);
   assert.match(cssSrc, /\.box \{ display: flex; align-items: flex-end; gap: 6px;/);
   assert.match(cssSrc, /\.box-row \{ flex: none; gap: 2px; margin-bottom: 4px; \}/);
   assert.match(cssSrc, /\.mic-wrap \{ gap: 0; \}/);
@@ -203,7 +203,7 @@ test('строка статуса — плоский серый текст 13 px
 });
 
 test('«↵» отправки: есть только когда есть что отправлять и не идёт запись; поле сжимается, а не двигается правая группа', () => {
-  assert.match(viewSrc, /function syncSend\(busy\) \{\s*const can = canSend\(input\.value, attach\.items\(\), uploading\);[\s\S]*?sendButton\.hidden = !can && !recordingNow;[\s\S]*?sendButton\.style\.visibility = recordingNow \? 'hidden' : '';/);
+  assert.match(viewSrc, /function syncSend\(busy\) \{\s*const can = canSend\(input\.value, attach\.items\(\), uploading\);[\s\S]*?sendButton\.hidden = !can \|\| recordingNow;/);
   assert.ok(!/sendButton\.hidden = v\.hideSend/.test(viewSrc));
   assert.match(cssSrc, /\.send-btn\[hidden\] \{ display: none; \}/);
   assert.match(cssSrc, /\.box-row \{ flex: none; gap: 2px; margin-bottom: 4px; \}/);

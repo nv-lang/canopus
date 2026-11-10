@@ -37,7 +37,7 @@ type WsOut { kind int, text str }
 const PING_EVERY_MS = 25000
 
 // A page that comes to the router (or goes: `gone`): its number and the channel to its writer.
-type Reg { id int, out ChanTx[WsOut], gone bool }
+type Reg { id int, out ChanTx[WsOut], gone bool, ack ChanTx[int] }
 
 type Peer { id int, out ChanTx[WsOut] }
 
@@ -162,7 +162,10 @@ fn serve_page(stream TcpStream, hub_tx ChanTx[str], reg_tx ChanTx[Reg]) Net -> (
     // ORACLE-WORKAROUND(56): the stream of the hook has a copy held by the server loop, so it cannot be split into halves (`into_split()` panics): the writer gets a second owner of the same socket (`share`), the socket is closed by the last one; split the stream when item 56 is fixed
     consume wr = conn.share()
     ro outbound = Chan[WsOut].new(4096)
-    ro registered = reg_tx.send(Reg { id, out: outbound.tx, gone: false })
+    ro registered = Chan[int].new(1)
+    ro queued = reg_tx.send(Reg { id, out: outbound.tx, gone: false, ack: registered.tx })
+    // The hub can answer immediately. Wait until the router has installed this peer.
+    ro installed = registered.rx.recv()
     ro opened = hub_tx.send("open\t${id}")
     supervised {
         spawn consume wr { write_pump(wr, outbound.rx) }
@@ -170,7 +173,7 @@ fn serve_page(stream TcpStream, hub_tx ChanTx[str], reg_tx ChanTx[Reg]) Net -> (
         // the page is gone: the writer ends when its channel is closed
         outbound.tx.close()
     }
-    ro left = reg_tx.send(Reg { id, out: outbound.tx, gone: true })
+    ro left = reg_tx.send(Reg { id, out: outbound.tx, gone: true, ack: registered.tx })
     ro closed = hub_tx.send("close\t${id}")
 }
 
@@ -218,6 +221,7 @@ fn route_loop(link AgentLink, reg_rx ChanRx[Reg]) Io Time Os -> () {
                     }
                     if !r.gone { kept.push(peer_of(r.id, r.out)) }
                     peers = kept
+                    if !r.gone { ro acknowledged = r.ack.try_send(1) }
                 }
                 None => { more = false }
             }

@@ -42,7 +42,7 @@ test('поздний ответ выбора папки не применяет 
   const view = viewSrc;
   assert.match(view, /const trace = currentTrace;[\s\S]*const ticket = \+\+browseTicket;[\s\S]*await projectsUi\.pickFolder\(''\)[\s\S]*ticket !== browseTicket \|\| currentTrace !== trace/);
   assert.match(view, /const invalidateBrowse = \(\) => \{ browseTicket \+= 1; \};[\s\S]*const ticket = \+\+browseTicket;/);
-  assert.match(view, /if \(!session\) \{ browseTicket \+= 1; currentTrace = null; return; \}/);
+  assert.match(view, /if \(!session\) \{ browseTicket \+= 1; currentTrace = null; closeMenu\(\); return; \}/);
   assert.match(view, /draftFolder\.addEventListener\('change', \(\) => \{ invalidateBrowse\(\);/);
   assert.match(view, /row\.addEventListener\('click', \(\) => \{ invalidateBrowse\(\);/);
   assert.match(view, /path === null \|\| ticket !== browseTicket \|\| currentTrace !== trace \|\| current\.session\?\.draft !== true/);

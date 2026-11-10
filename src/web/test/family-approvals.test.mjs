@@ -58,14 +58,14 @@ test('настройки черновика сохраняются при сме
   assert.deepEqual(m.sessions.s.approvals, session.approvals);
 });
 
-test('верхний дубль отсутствует, нижнее меню выбирает режим и сохраняет текст', () => {
+test('права вынесены в сведения и меняются только у выбранной семьи', () => {
   const doc = createFakeDocument();
   const refs = Object.fromEntries(['app', 'side', 'main', 'rail', 'status', 'overlay'].map(key => {
     const node = doc.createElement('div'); doc.body.append(node); return [key, node];
   }));
   const picks = [];
   const view = createView(doc, refs, { agents: [{ id: 'opencode' }], now: () => 0, handlers: {
-    queued: () => 0, queuedItems: () => [], onChoose: (...args) => picks.push(args),
+    queued: () => 0, queuedItems: () => [], onApproval: (...args) => picks.push(args),
   } });
   let m = reduce(initialModel(), { id: 'create', trace: 's', step: 0, time: 1, kind: 'session_created', input: { name: 'S', agent: 'opencode' } });
   m = reduce(m, { id: 'options', trace: 's', step: 1, time: 2, kind: 'session_model', input: { agent: 'opencode', mode: 'plan', modes } });
@@ -75,11 +75,12 @@ test('верхний дубль отсутствует, нижнее меню в
   assert.equal(row.querySelector('.family-approvals'), null);
   assert.equal(refs.main.querySelector('.family-approvals-button'), null);
   const input = refs.main.querySelector('textarea'); input.value = 'Не потерять черновик';
-  refs.main.querySelectorAll('.box-bar button').find(button => button.getAttribute('aria-label') === t('menu.mode')).click();
+  assert.equal(refs.main.querySelectorAll('.box-bar button').some(button => button.getAttribute('aria-label') === t('menu.agent_permissions')), false);
+  refs.rail.querySelector('.agent-settings button').click();
   const items = refs.main.querySelectorAll('.menu').find(menu => !menu.hidden).querySelectorAll('.menu-item');
   assert.equal(items.find(item => item.textContent.includes('План')).getAttribute('aria-checked'), 'true');
   items[0].click();
-  assert.deepEqual(picks, [['s', 'mode', 'build']]);
+  assert.deepEqual(picks, [['s', 'opencode', 'build']]);
   view.render(m, ui, { state: 'connected' });
   assert.equal(refs.main.querySelector('textarea'), input);
   assert.equal(input.value, 'Не потерять черновик');
