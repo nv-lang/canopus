@@ -229,8 +229,9 @@ const fresh = (t: Task, session: string): Task | undefined => {
 }
 const REREAD = "за время чтения вершины задача изменилась (статус, приёмщик или запись); запись не тронута, повтори"
 
-/** Начало предпроверки: прочитать вершину целевой ветки и записать «идёт» на ней (REQ-06). Замок не берётся. */
-export async function beginPrecheck(t: Task, session: string, target: string): Promise<string> {
+/** Начало предпроверки: прочитать вершину целевой ветки и записать «идёт» на ней (REQ-06). Замок не берётся.
+ *  docs (задача 290) — неподвижный SHA заморозки документов в управляющем репозитории, записывается в запись. */
+export async function beginPrecheck(t: Task, session: string, target: string, docs?: string): Promise<string> {
   const dir = landingDir(t)
   target = landingTarget(t, target)
   const tip = await readTip(dir, target, landingRemote(t))
@@ -246,7 +247,7 @@ export async function beginPrecheck(t: Task, session: string, target: string): P
     return `Предпроверка уже идёт с ${hm(rec.at)} на вершине ${rec.base} (${target}). Влей эту вершину в кандидата, прогони CI и заверши: canopus_task {action: "precheck", n: ${t.n}, candidate: "<ветка или хеш>", result: "<чем подтверждено>"}.${neighbourHints(cur, "running")}`
   }
   const now = Date.now()
-  cur.precheck = { state: "running", base: tip.tip, at: now, by: session, round: roundOf(cur), ...(snap ? { landing: snap } : {}) }
+  cur.precheck = { state: "running", base: tip.tip, at: now, by: session, round: roundOf(cur), ...(docs ? { docs } : {}), ...(snap ? { landing: snap } : {}) }
   const held = mergeHolder(cur.project)
   const note = isLive(rec) ? `предпроверка начата заново на ${short(tip.tip)} (прежняя на ${short(rec.base)}: ${rec.state === "green" ? "зелёная" : "шла"}, ${target} сдвинулась)` : `предпроверка начата на ${short(tip.tip)}`
   taskEvent(cur, session, undefined, note)
@@ -311,7 +312,7 @@ export async function finishPrecheck(t: Task, session: string, target: string, i
   }
   const now = Date.now()
   const replaced = rec.state === "green"
-  cur.precheck = { state: "green", base: rec.base, at: rec.at, by: rec.by, round: rec.round, candidate: cand, ...(branchTip ? { branch_tip: branchTip } : {}), result: result.slice(0, 500), green_at: now, ...(published ? { published: true } : {}), ...(rec.landing ? { landing: rec.landing } : {}) }
+  cur.precheck = { state: "green", base: rec.base, at: rec.at, by: rec.by, round: rec.round, candidate: cand, ...(rec.docs ? { docs: rec.docs } : {}), ...(branchTip ? { branch_tip: branchTip } : {}), result: result.slice(0, 500), green_at: now, ...(published ? { published: true } : {}), ...(rec.landing ? { landing: rec.landing } : {}) }
   taskEvent(cur, session, undefined, replaced ? `предпроверка: запись заменена на ${short(rec.base)} (кандидат ${short(rec.candidate ?? "")} → ${short(cand)}): ${result.slice(0, 200)}` : `предпроверка зелёная на ${short(rec.base)} (кандидат ${short(cand)}${published ? ", уже опубликован" : ""}): ${result.slice(0, 200)}`)
   const moved = tip.tip !== rec.base
   const pubNote = published ? ` Кандидат уже опубликован: он предок вершины ${target} (${short(tip.tip)}) на ${landingRemote(t)} — вливание не нужно, merge зафиксирует учёт, затем accept {n, commit: "${cand}"}.` : ""

@@ -7,12 +7,14 @@ import { writeFixtureFile } from "./fixture-settings.mjs"
 // репозиторию результата, чужой SHA привязанную задачу не удовлетворяет, сдвиг main пакета — «сдвинулась», уже
 // опубликованный кандидат (предок вершины) закрывается без вливания, снятие привязки возвращает прежний контур.
 // Ячейки «290:» — задача с папкой документов в репозитории постановки и кандидатом в репозитории результата (задача
-// 290): merge сверяет документы с замороженным коммитом ветки задачи, а кандидата по его SHA в привязанном
-// репозитории; маркер снимка связывает оба SHA; изменение документа после заморозки по-прежнему блокирует merge.
+// 290): запись предпроверки хранит неподвижный SHA заморозки документов; merge сверяет документы с ним, а кандидата
+// по его SHA в привязанном репозитории; маркер снимка связывает оба SHA; совместный сдвиг ветки и живых документов
+// после заморозки блокирует merge (находка приёмки, круг 1), повторная предпроверка лечит контур штатно.
 //   node test/canopus-landing-crossrepo.test.mjs
 import { mkdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { harness, reporter } from "./landing-harness.mjs"
+import { commitFiles } from "../task-numbers.ts"
 
 const { cell, done } = reporter("canopus-landing-crossrepo.test")
 const H = await harness("canopus-landing-crossrepo", { settings: { merge_precheck: "required" } })
@@ -180,9 +182,11 @@ const rUnl = await call("canopus_task", REV, { action: "unlock", n: t7.n })
 cell("unlock: отпущены оба замка (проекта и публикации), запись устарела", /отпущен/.test(rUnl) && !H.holder() && !H.review.pubHolder(pubKey) && T(t7.n).precheck.state === "stale", rUnl)
 
 // ---- задача 290: документы задачи заморожены в репозитории постановки, кандидат — в репозитории результата (две
-// независимые базы объектов). merge сверяет каждый снимок в своём репозитории: документы — с замороженным коммитом
-// ветки задачи, кандидата — по его SHA в привязанном репозитории; ложного «changed after the candidate was frozen»
-// при неизменных документах нет (воспроизведение дефекта: чужой SHA искали в репозитории постановки).
+// независимые базы объектов). merge сверяет каждый снимок в своём репозитории: документы — с НЕПОДВИЖНЫМ SHA
+// заморозки из записи предпроверки (не с подвижной вершиной ветки), кандидата — по его SHA в привязанном репозитории;
+// ложного «changed after the candidate was frozen» при неизменных документах нет, совместный сдвиг ветки и живых
+// документов после заморозки не проходит (воспроизведение дефектов: чужой SHA искали в репозитории постановки;
+// сверка с подвижной веткой пропускала подмену заморозки — находка приёмки, круг 1).
 git(proj, "config", "user.name", "t"); git(proj, "config", "user.email", "t@t") // снимок документов подписывает коммит настройками репозитория
 const t9 = H.reviewing()
 // the folder path from the number and slug, not path.relative: under the server TEMP may be an 8.3 name while the task file goes through realpath
@@ -193,9 +197,11 @@ writeFixtureFile(path.join(proj, folder9, "log.md"), "live journal 290\n")
 await bind(t9, { dir: pkg, word: WORD })
 const rBegin9 = await call("canopus_task", REV, { action: "precheck", n: t9.n })
 const branch9 = T(t9.n).branch
-cell("290: precheck начата по репозиторию результата, документы заморожены на ветке задачи в репозитории постановки",
+const frozen9 = git(proj, "rev-parse", branch9)
+cell("290: precheck начата по репозиторию результата, документы заморожены на ветке задачи в репозитории постановки, запись хранит НЕПОДВИЖНЫЙ SHA заморозки",
   T(t9.n).precheck?.state === "running" && T(t9.n).precheck.base === git(pkgBare, "rev-parse", "refs/heads/main")
-    && git(proj, "show", `${branch9}:${folder9}/task/message.md`) === "assignment 290", rBegin9)
+    && T(t9.n).precheck.docs === frozen9
+    && git(proj, "show", `${branch9}:${folder9}/task/message.md`) === "assignment 290", rBegin9 + " " + JSON.stringify(T(t9.n).precheck))
 // кандидат собран в репозитории результата от вершины её main, сама вершина не двигается
 git(pkg, "switch", "-q", "-C", "cand290", "main")
 writeFixtureFile(path.join(pkg, "result-290.txt"), "result 290\n")
@@ -203,22 +209,35 @@ git(pkg, "add", "-A"); git(pkg, "commit", "-q", "-m", "result 290")
 const cand290 = git(pkg, "rev-parse", "HEAD")
 git(pkg, "switch", "-q", "main")
 const rFin9 = await call("canopus_task", REV, { action: "precheck", n: t9.n, candidate: cand290, result: "ci пакета 290" })
-cell("290: зелёная предпроверка с кандидатом из репозитория результата", T(t9.n).precheck?.state === "green" && T(t9.n).precheck.candidate === cand290, rFin9)
+cell("290: зелёная предпроверка с кандидатом из репозитория результата, SHA заморозки перенесён в зелёную запись",
+  T(t9.n).precheck?.state === "green" && T(t9.n).precheck.candidate === cand290 && T(t9.n).precheck.docs === frozen9, rFin9)
 const rMerge9 = await call("canopus_task", REV, { action: "merge", n: t9.n })
 const marker9 = (() => { try { return JSON.parse(readFileSync(path.join(proj, folder9, "task", "snapshot.json"), "utf8")) } catch { return {} } })()
 cell("290: merge — замок выдан: документы сверены с замороженными в репозитории постановки, кандидат — по своему SHA в репозитории результата",
   /твой, выдан на вершину main/.test(rMerge9) && H.holder()?.session === REV && H.holder()?.n === t9.n, rMerge9)
-cell("290: маркер снимка связывает оба снимка (ветка источника и SHA кандидата), документы подготовлены к ff-only",
-  marker9.branch === branch9 && marker9.candidate === cand290 && git(proj, "show", `:${folder9}/log.md`).includes("live journal 290")
+cell("290: маркер снимка связывает оба снимка (неподвижный SHA источника и SHA кандидата), документы подготовлены к ff-only",
+  marker9.branch === branch9 && marker9.source === frozen9 && marker9.candidate === cand290 && git(proj, "show", `:${folder9}/log.md`).includes("live journal 290")
     && !Object.keys(marker9.staged ?? {}).some((k) => /(?:^|\/)(?:state|watch|snapshot|tests-run)\.json$/.test(k)), JSON.stringify(marker9))
 const rUnlock9 = await call("canopus_task", REV, { action: "unlock", n: t9.n })
 cell("290: unlock освобождает оба замка", /отпущен/.test(rUnlock9) && !H.holder() && !H.review.pubHolder(H.review.pubKeyOf(T(t9.n))), rUnlock9)
-// истинное изменение включённого документа после заморозки по-прежнему блокирует merge
+// находка приёмки (круг 1): совместный сдвиг ветки задачи и живых документов после заморозки — merge обязан отказать
 await call("canopus_task", REV, { action: "precheck", n: t9.n })
 await call("canopus_task", REV, { action: "precheck", n: t9.n, candidate: cand290, result: "ci пакета 290" })
+const shifted9 = commitFiles(proj, branch9, branch9, { [`${folder9}/log.md`]: "live journal 290\nchanged after freeze\n" }, `${String(t9.n).padStart(3, "0")} Shift the documents after the freeze`)
+if (!shifted9.ok) throw Error(shifted9.error)
 writeFixtureFile(path.join(proj, folder9, "log.md"), "live journal 290\nchanged after freeze\n")
 const rMerge9b = await call("canopus_task", REV, { action: "merge", n: t9.n })
-cell("290: изменение документа после заморозки блокирует merge (замок отпущен, предпроверка устарела)",
+cell("290: совместный сдвиг ветки и живых документов после заморозки блокирует merge (замок отпущен, предпроверка устарела)",
   /Снимок документов не подготовлен/.test(rMerge9b) && /changed after the candidate was frozen/.test(rMerge9b) && !H.holder() && T(t9.n).precheck.state === "stale", rMerge9b)
+// повторная предпроверка перезамораживает документы и переписывает неподвижный SHA — контур лечится штатно
+await call("canopus_task", REV, { action: "precheck", n: t9.n })
+const frozen9b = git(proj, "rev-parse", branch9)
+cell("290: повторный precheck переписывает SHA заморозки на сдвинутый коммит", T(t9.n).precheck?.state === "running" && T(t9.n).precheck.docs === frozen9b && frozen9b === shifted9.commit && frozen9b !== frozen9, JSON.stringify(T(t9.n).precheck))
+await call("canopus_task", REV, { action: "precheck", n: t9.n, candidate: cand290, result: "ci пакета 290" })
+// и истинное изменение живого документа без коммита по-прежнему блокирует merge
+writeFixtureFile(path.join(proj, folder9, "log.md"), "live journal 290\nchanged after freeze\nsecond change without a commit\n")
+const rMerge9c = await call("canopus_task", REV, { action: "merge", n: t9.n })
+cell("290: изменение живого документа после заморозки (без коммита) блокирует merge",
+  /Снимок документов не подготовлен/.test(rMerge9c) && /changed after the candidate was frozen/.test(rMerge9c) && !H.holder() && T(t9.n).precheck.state === "stale", rMerge9c)
 
 done(H)

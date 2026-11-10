@@ -3731,8 +3731,8 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
           if (t.plan && !(t.plan.approval && t.plan.approval.decision !== "no")) return { content: `Задача ${taskRef(t)} сейчас в раунде перепроверки плана ${t.plan.n}: вливания нет, предпроверка не нужна. Она действует на вливание согласованного плана (после решения, статус на приёмке).` }
           if (t.status !== "reviewing") return { content: `Сначала canopus_task {action: "review", n: ${t.n}} (задача сейчас ${statusRu(t.status)}).` }
           const finishing = input.candidate !== undefined || input.result !== undefined
-          if (!finishing) snapshotTaskDocuments(taskFile(t.project,t.n),t,{target:tcfg.targetBranch})
-          const pre = finishing ? await finishPrecheck(t, me.session, tcfg.targetBranch, { candidate: input.candidate, result: input.result }) : await beginPrecheck(t, me.session, tcfg.targetBranch)
+          const snap = finishing ? undefined : snapshotTaskDocuments(taskFile(t.project,t.n),t,{target:tcfg.targetBranch})
+          const pre = finishing ? await finishPrecheck(t, me.session, tcfg.targetBranch, { candidate: input.candidate, result: input.result }) : await beginPrecheck(t, me.session, tcfg.targetBranch, snap?.frozen)
           const seen = finishing ? autoTrack(loadTask(t.project, t.n) ?? t, tcfg, me.session) : []
           return { content: pre + (seen.length ? `
 Записано для уборки (cleanup уберёт): ${seen.map((i) => i.branch ?? i.worktree).join(", ")}.` : "") }
@@ -3744,7 +3744,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
             // ворота: замок выдаётся только на ту вершину главной ветки, на которой кандидат уже собран и проверен (задача 005)
             const g = await gateMerge(t, me.session, tcfg.targetBranch)
             if ("text" in g) return { content: g.text }
-            try { snapshotTaskDocuments(taskFile(t.project,t.n),t,{freeze:false,stage:true,candidate:t.precheck?.candidate,target:tcfg.targetBranch}) } catch(error) {unlockMerge(t,me.session);return {content:`Снимок документов не подготовлен: ${String(error)}. Данные сохранены; повтори предпроверку.`}}
+            try { snapshotTaskDocuments(taskFile(t.project,t.n),t,{freeze:false,stage:true,candidate:t.precheck?.candidate,source:t.precheck?.docs,target:tcfg.targetBranch}) } catch(error) {unlockMerge(t,me.session);return {content:`Снимок документов не подготовлен: ${String(error)}. Данные сохранены; повтори предпроверку.`}}
             return { content: `Замок вливания проекта ${project} твой, выдан на вершину ${tcfg.targetBranch} ${g.granted}. ${landingLine(t, tcfg.targetBranch) || `Влей ${t.branch ? `ветку ${t.branch}` : "работу"} (кандидата, проверенного на этой вершине) в ${tcfg.targetBranch}, запушь`} Затем вызови canopus_task {action: "accept", n: ${t.n}, checks: {...}${t.branch ? "" : ', commit: "<хэш>"'}}. ${LOCK_RULE}` }
           }
           const r = takeMergeLock(project, me.session, t.n, tcfg.mergeLockPerTask)
