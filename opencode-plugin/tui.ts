@@ -30,8 +30,9 @@ import { installDialogGuard } from "./dialog-guard.ts"
 import { listTasks, loadTask, taskNo } from "./tasks.ts"
 import { DECISION_RU, type Decision, writeApproval } from "./approvals.ts"
 
+import type { Op } from "./cmd-ops.ts"
+
 const BEAT_MS = 1_000
-const AUTOCLOSE_MS = runtimeValue("AUTOCLOSE_MS")
 
 export default {
   id: "canopus.window",
@@ -43,6 +44,8 @@ export default {
     const notices = path.join(NOTICES, String(process.pid))
 
     let closeCheckedAt = 0
+    let checkingClose = false
+    let disposed = false
     const closedTabs = new Set<string>()
     const beat = () => {
       let route: string | undefined
@@ -67,17 +70,19 @@ export default {
       // (Ctrl+P → Switch session). С ВЛИТОЙ, А НЕ С УБРАННОЙ (2026-10-07, #26 nova): пока открыта вкладка сессии из дерева
       // задачи, сервер держит экземпляр этой папки со слежкой за файлами, и Windows не даёт её удалить — уборка ждала
       // закрытия вкладки, а вкладка ждала уборки. Закрыли вкладки — пустой каталог удалился.
-      if (Date.now() - closeCheckedAt > 10_000) {
+      if (!checkingClose && Date.now() - closeCheckedAt > 10_000) {
         closeCheckedAt = Date.now()
-        for (const t of tabs) {
-          if (t.active || closedTabs.has(t.sessionID)) continue
-          try {
-            const card = readJson<any>(cardFile(t.sessionID))
-            const ref = card?.spawned ? (card.task ?? card.review) : undefined
-            const task = ref ? loadTask(ref.project, ref.n) : undefined
-            if (t.busy || !task || !["accepted", "done", "cancelled"].includes(task.status) || Date.now() - task.updated < AUTOCLOSE_MS) continue
-            if (api.ui?.tabs?.close?.(t.sessionID)) closedTabs.add(t.sessionID)
-          } catch {}
+        const sessions = tabs.filter((t) => !t.active && !t.busy && !closedTabs.has(t.sessionID)).map((t) => t.sessionID)
+        if (sessions.length) {
+          checkingClose = true
+          // Task storage resolution can run Git. Keep it off the input thread.
+          void windowRequest({ kind: "autoclose", sessions }).then((ready) => {
+            if (disposed || !Array.isArray(ready)) return
+            for (const t of api.ui?.tabs?.list?.() ?? []) {
+              if (t.active || t.busy || closedTabs.has(t.sessionID) || !ready.includes(t.sessionID)) continue
+              if (api.ui?.tabs?.close?.(t.sessionID)) closedTabs.add(t.sessionID)
+            }
+          }).catch(() => {}).finally(() => { checkingClose = false })
         }
       }
       try {
@@ -115,7 +120,7 @@ export default {
     let worker: any
     const pending = new Map<number, (m: any) => void>()
     let seq = 0
-    const inline = async (op: any): Promise<string> => {
+    const inline = async (op: Exclude<Op, { kind: "autoclose" }>): Promise<string | string[]> => {
       await new Promise((r) => setTimeout(r, 30)) // дать окну нарисовать «Загрузка…» до блокирующей работы
       try {
         return await (await import("./cmd-ops.ts")).execOp(op)
@@ -124,9 +129,12 @@ export default {
         return `Команда не выполнена: ${(e as any)?.message ?? e}`
       }
     }
-    const offThread = (op: any): Promise<string> =>
+    const windowRequest = (op: Op): Promise<string | string[]> =>
       new Promise((resolve) => {
-        const fallback = () => void inline(op).then(resolve)
+        const fallback = () => {
+          if (op.kind === "autoclose") resolve([])
+          else void inline(op).then(resolve)
+        }
         if (runtimeValue("NO_WORKER")) return fallback()
         import("node:worker_threads")
           .then(({ Worker }) => {
@@ -158,6 +166,10 @@ export default {
             fallback()
           })
       })
+    const offThread = async (op: Exclude<Op, { kind: "autoclose" }>): Promise<string> => {
+      const result = await windowRequest(op)
+      return typeof result === "string" ? result : ""
+    }
     // /canopus: кто чего ждёт — свой проект первым
     const showStatus = () => {
       let route: string | undefined
@@ -372,6 +384,7 @@ export default {
     beat()
     const timer = setInterval(beat, BEAT_MS)
     return () => {
+      disposed = true
       clearInterval(timer)
       unguard()
       clearTimeout(warmTimer)

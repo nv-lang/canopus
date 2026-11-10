@@ -18,7 +18,7 @@ const keep = setInterval(() => {
 keep.unref?.()
 
 parentPort?.on("message", async (m: { id: number; op: any }) => {
-  lastUse = Date.now()
+  if (m.op.kind !== "autoclose") lastUse = Date.now()
   try {
     parentPort!.postMessage({ id: m.id, out: await execOp(m.op) })
   } catch (e) {

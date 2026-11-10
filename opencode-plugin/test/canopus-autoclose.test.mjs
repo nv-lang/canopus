@@ -27,6 +27,7 @@ await mk(4, "done", Date.now())
 await mk(5, "cancelled", old)
 await mk(6, "accepted", old)
 await mk(7, "accepted", old)
+await mk(8, "done", old)
 const card = (session, extra) => core.saveCard({ session, role: "worker", auto: false, title: session, directory: tmp, repo: "r", project: "proj", pid: 1, updated: Date.now(), ...extra })
 const spawned = { by: "sesI", task: "x", tier: "light", status: "closed", at: old, qid: "q" }
 card("sesDONE", { spawned, task: { project: "proj", n: 1 } })
@@ -36,9 +37,10 @@ card("sesFRESH", { spawned, task: { project: "proj", n: 4 } })
 card("sesREV", { spawned, review: { project: "proj", n: 5 } })
 card("sesMERGED", { spawned, review: { project: "proj", n: 6 } })
 card("sesBUSY", { spawned, review: { project: "proj", n: 7 } })
+card("sesBECAMEBUSY", { spawned, task: { project: "proj", n: 8 } })
 card("sesOWNER", { task: { project: "proj", n: 1 } }) // the owner's tab took task #1 by assign: never closed
 
-const tabs = ["sesDONE", "sesSHOWN", "sesRUN", "sesFRESH", "sesREV", "sesMERGED", "sesBUSY", "sesOWNER"].map((sessionID) => ({ sessionID, active: sessionID === "sesSHOWN", busy: sessionID === "sesBUSY" }))
+const tabs = ["sesDONE", "sesSHOWN", "sesRUN", "sesFRESH", "sesREV", "sesMERGED", "sesBUSY", "sesBECAMEBUSY", "sesOWNER"].map((sessionID) => ({ sessionID, active: sessionID === "sesSHOWN", busy: sessionID === "sesBUSY" }))
 const closed = []
 const api = {
   ui: {
@@ -52,6 +54,10 @@ const api = {
 }
 const mod = await import("../tui.ts")
 const stop = mod.default.setup(api)
+if (closed.length) throw Error("autoclose must wait for the worker")
+tabs.find((tab) => tab.sessionID === "sesBECAMEBUSY").busy = true
+const deadline = Date.now() + 10_000
+while (closed.length < 3 && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 20))
 let fail = 0
 const cell = (name, ok, detail) => {
   console.log(`${ok ? "ok  " : "FAIL"} ${name}${ok ? "" : " :: " + detail}`)
@@ -61,6 +67,7 @@ cell("an accepted task's tab not on screen is closed", closed.includes("sesDONE"
 cell("a cancelled task's review tab is closed", closed.includes("sesREV"), JSON.stringify(closed))
 cell("a merged (accepted) task's tab is closed before its cleanup: it would hold the tree", closed.includes("sesMERGED"), JSON.stringify(closed))
 cell("a tab whose turn is going is not closed", !closed.includes("sesBUSY"), JSON.stringify(closed))
+cell("a tab that became busy during the check is not closed", !closed.includes("sesBECAMEBUSY"), JSON.stringify(closed))
 cell("the tab on screen is not closed", !closed.includes("sesSHOWN"), JSON.stringify(closed))
 cell("a running task's tab is not closed", !closed.includes("sesRUN"), JSON.stringify(closed))
 cell("a task closed a moment ago is not closed yet", !closed.includes("sesFRESH"), JSON.stringify(closed))
