@@ -54,10 +54,9 @@ The HTTP/WebSocket front (Polaris) and the session hub run in one process. The f
 session and manages the file or PostgreSQL store and the ACP agent subprocesses.
 
 The original Oracle 0.1.0 compiler conflict between nova-postgres and Polaris is covered by
-`spikes/env/repro_server/src/pg_polaris_message`. The reproducer passes with Oracle 0.1.3. For a combined build with the pinned nova-postgres 0.1.0,
-Oracle 0.1.3 also needs the command completion in the driver's src/session.nv qualified as
-`PgEvent.Complete { tag: command_tag_of(msg) }`. Apply that one-line compatibility fix in a copy
-of the pinned driver and point an untracked nova.override.toml replacement for postgres at the copy.
+`spikes/env/repro_server/src/pg_polaris_message`. The current Oracle 0.1.3 Windows kit builds
+both dependencies together from the public revisions pinned in `nova.lock.toml`, with a fresh
+dependency cache and no `nova.override.toml`.
 
 ## Connections of the front (task 192)
 
@@ -65,10 +64,10 @@ Polaris counts every open connection against `max_inflight` (16 by default): an 
 
 ## Run
 
-Build the executable, then run `target/canopus.exe`. The ordinary launch starts the default instance. `canopus serve` is equivalent; `canopus --help` prints usage. `--config <file>` is the only configuration selector. For example:
+Load the Oracle kit environment with its setup-env.ps1, build the executable, then run `target/canopus.exe`. The ordinary launch starts the default instance. `canopus serve` is equivalent; `canopus --help` prints usage. `--config <file>` is the only configuration selector. For example:
 
 ```powershell
-nova build src/canopus.nv -o target/canopus.exe
+nova-compat.exe build --mode release src/canopus.nv -o target/canopus.exe
 .\target\canopus.exe --config C:/work/instances/demo/config.json
 ```
 
@@ -595,7 +594,7 @@ nova test src --jobs 4 --skip src/canopus.nv --skip src/canopus_hub.nv  # all te
 nova test src/server_live                              # the scenarios over files: about 25 s
 nova test src/server_pg                                # the same over PostgreSQL: about 30 s
 powershell -File src/pg/testdb.ps1 -Stop
-nova build src/canopus.nv -o target/canopus.exe
+nova-compat.exe build --mode release src/canopus.nv -o target/canopus.exe
 node src/server/test/e2e.mjs                           # the whole server, 35 checks (fake agent)
 powershell -File src/pg/testdb.ps1                     # the same on PostgreSQL: the temporary container, then
 node src/server/test/e2e.mjs --pg                      #   39 checks (the sessions and the journal are looked for in the database)
