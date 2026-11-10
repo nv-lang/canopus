@@ -19,7 +19,7 @@ const memory = () => {
   const map = new Map();
   return { getItem: k => map.get(k) ?? null, setItem: (k, v) => map.set(k, v), removeItem: k => map.delete(k) };
 };
-async function app(storage = memory(), sendResult = true, hash = '#s=s') {
+async function app(storage = memory(), sendResult = true, hash = '#s=s', sessionIndex, preview = {}) {
   const source = process.env.RED_260 === '1'
     ? execFileSync('git', ['show', 'f8b08227:src/web/app.js'], { encoding: 'utf8' })
     : fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
@@ -30,14 +30,14 @@ async function app(storage = memory(), sendResult = true, hash = '#s=s') {
   const context = {
     ...state, ...attention, ...strings, ...queue, ...attachments, ...routes, ...crew, ...delivery, ...loading,
     chooseMode, parseAgentRegistry,
-    console, URLSearchParams, Date, Math, Promise,
+    console, URL, URLSearchParams, AbortSignal, Date, Math, Promise,
     crypto: { randomUUID: () => `client-${sent.length}-${Math.random()}` },
     localStorage: storage, sessionStorage: memory(),
     location: { search: '', protocol: 'http:', host: 'test.invalid', hash },
     document: { documentElement: { setAttribute() {}, removeAttribute() {} }, getElementById() {}, addEventListener() {} },
     addEventListener() {}, requestAnimationFrame() {},
     setInterval() {}, setTimeout(fn) { timeouts.push(fn); return timeouts.length; }, clearTimeout() {},
-    fetch: async () => ({ ok: true, json: async () => ({ agents: [{ id: 'agent', label: 'Agent' }] }) }),
+    fetch: async (url) => ({ ok: true, json: async () => url === '/api/sessions-index' ? sessionIndex : url.startsWith('/api/session-history/') ? preview[url.split('/').at(-1)] : ({ agents: [{ id: 'agent', label: 'Agent' }] }) }),
     createNotifier: () => ({ bellOn: () => false, soundOn: () => false, update() {} }),
     createProjectsApi: () => ({ list: async () => ({ ok: true, projects: [] }) }),
     createView: () => ({ render() { renderedDelivery.push(JSON.parse(storage.getItem(delivery.DELIVERY_KEY) || '[]')); }, tick() {}, setAgents() {} }),
@@ -53,12 +53,12 @@ async function app(storage = memory(), sendResult = true, hash = '#s=s') {
   vm.createContext(context);
   const code = source.replace(/import\s+[\s\S]*?\s+from\s+['"][^'"]+['"];\s*/g, '')
     .replace('start().then(', 'globalThis.started = start().then(')
-    + '\nglobalThis.probe = { handlers, getModel: () => model, getUI: () => ui };';
+    + '\nglobalThis.probe = { handlers, getModel: () => model, getUI: () => ui, draw };';
   vm.runInContext(code, context);
   await context.started;
   const event = (kind, input = {}, extra = {}) => callbacks.onEvent({ id: `srv-${Math.random()}`, trace: 's', step: 1, kind, input, time: Date.now(), ...extra });
   event('session_created', { name: 'test', agent: 'agent' }, { step: 0 });
-  return { ...context.probe, sent, event, timeouts, renderedDelivery, status: value => callbacks.onStatus(value), storage };
+  return { ...context.probe, sent, event, timeouts, renderedDelivery, status: value => callbacks.onStatus(value), storage, callbacks };
 }
 
 test('260: реальный onSend сохраняет исчезавшее сообщение до эха; reload не отправляет его снова', async () => {
@@ -231,4 +231,28 @@ test('сохранённый выбор Codex в чате Kimi снова отк
   page.handlers.onAnswer('s', { request: question.request, answers: [{ selected: ['Применить'] }] });
   assert.equal(page.getUI().handoffStatus.get('s').phase, 'selected');
   assert.equal(page.getModel().sessions.s.agent, 'kimi');
+});
+
+test('индекс показывает сессии до готовности сокета, история приходит только выбранной', async () => {
+  const entry = (trace, kind, input, step) => ({ id: trace + ':' + kind, trace, kind, input, step, time: step + 1 });
+  const index = ['one', 'two'].map(trace => entry(trace, 'session_created', { name: trace, agent: 'kimi' }, 0));
+  const old = entry('two', 'user_message', { text: 'история из файла', turn: 'turn' }, 1);
+  const page = await app(memory(), true, '', { entries: index }, { two: [index[1], old] });
+  assert.deepEqual(Object.keys(page.getModel().sessions).filter(id => id !== 's'), ['one', 'two']);
+  page.handlers.onSelect('two');
+  page.draw();
+  assert.equal(page.sent.length, 0);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(page.getModel().sessions.two.messages[0].text, 'история из файла');
+  assert.equal(page.getUI().historyPreview.has('two'), true);
+  assert.equal(page.handlers.onSend('two', 'пока не отправлять'), false);
+  page.callbacks.onSnapshot('ready', ['one', 'two']);
+  page.draw();
+  assert.equal(page.sent.length, 1);
+  assert.equal(page.sent[0].kind, 'session_history_get');
+  assert.equal(page.sent[0].trace, 'two');
+  page.callbacks.onSessionHistory('two', [index[1], entry('two', 'user_message', { text: 'тест истории', turn: 'turn' }, 1)]);
+  assert.equal(page.getModel().sessions.two.messages[0].text, 'тест истории');
+  assert.equal(page.getModel().sessions.one.messages.length, 0);
+  assert.equal(page.getUI().historyPending.has('two'), false);
 });

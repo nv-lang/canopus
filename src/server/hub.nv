@@ -206,6 +206,7 @@ export type Hub {
     ctl_serial int,
     catalog JsonObject,
     catalog_dirty bool,
+    history_saved JsonObject,
     catalog_saved_at int,
     choices []PendingChoice,
     reviews []Review,
@@ -565,7 +566,75 @@ fn Hub @catalog_lines() -> []str {
 /// The ids of the agents that have a record in the catalog, in the order they were first given.
 export fn Hub @catalog_agents() -> []str => @catalog.keys()
 
-/// A page is attached: it gets the catalog of the families, then everything that happened in every session, one message per session.
+/// Small, journal-derived index. No message, request, or tool output is included.
+export fn Hub @session_index() -> str {
+    mut entries = []str.new()
+    for s in @sessions {
+        mut input = JsonObject.new()
+        if s.lines.len() > 0 {
+            ro first = jobject(s.lines[0]) ?? JsonObject.new()
+            if jtext(first, "kind") == "session_created" {
+                ro created = jchild(first, "input") ?? JsonObject.new()
+                for key in ["project", "parent", "parent_kind"] {
+                    match created.get(key) {
+                        Some(value) => jput(input, key, value)
+                        None => ()
+                    }
+                }
+            }
+        }
+        jput(input, "name", JsonValue.str(s.name))
+        jput(input, "agent", JsonValue.str(s.agent))
+        jput(input, "folder", JsonValue.str(s.folder))
+        jput(input, "project_id", JsonValue.str(s.project_id))
+        if s.has_rank { jput(input, "rank", JsonValue.int(s.rank)) }
+        entries.push(event_line("summary-${s.id}", s.id, 0, "session_created", input, s.rt.active_at))
+    }
+    array_text(entries)
+}
+
+fn Hub mut @send_sessions_ready(conn int) -> () {
+    mut ids = []JsonValue.new()
+    for s in @sessions { ids.push(JsonValue.str(s.id)) }
+    mut ready = JsonObject.new()
+    jput(ready, "kind", JsonValue.str("sessions_ready"))
+    jput(ready, "sessions", JsonValue.array(ids))
+    @send(conn, JsonValue.object(ready).to_str())
+}
+
+export fn Hub mut @attach_lazy(conn int) -> () {
+    if !@conns.contains(conn) { @conns.push(conn) }
+    @send(conn, "{\"kind\":\"sessions_index\",\"entries\":${@session_index()}}")
+    @send_sessions_ready(conn)
+    ro known = @catalog_lines()
+    if known.len() > 0 { @send(conn, array_text(known)) }
+}
+
+/// Keep a read-only projection of the last settled transcript beside its journal.
+export fn Hub mut @save_history_previews() Fs -> () {
+    for s in @sessions {
+        ro count = s.lines.len()
+        if count == 0 || jnumber(@history_saved, s.id) == count || s.engine.open_ids().len() > 0 { continue }
+        match session_file_made(@settings.data_dir, s.id, "history-preview.json") {
+            Some(path) => {
+                if replace_file(path, array_text(s.lines)) { jput(@history_saved, s.id, JsonValue.int(count)) }
+            }
+            None => ()
+        }
+    }
+}
+
+fn Hub mut @send_history(conn int, trace str) Time -> () {
+    ro at = @find(trace)
+    if at < 0 { return }
+    ro s = @sessions[at]
+    @send(conn, "{\"kind\":\"session_history\",\"trace\":${JsonValue.str(trace).to_str()},\"entries\":${array_text(s.lines)}}")
+    @route_line(conn, trace, @route_state_text(at))
+    @machine_line(conn, at, @machine_since(trace))
+    for line in s.rt.reqs { @send(conn, line) }
+}
+
+/// Legacy clients receive the full snapshot on attach.
 export fn Hub mut @attach(conn int) -> () {
     if !@conns.contains(conn) { @conns.push(conn) }
     ro known = @catalog_lines()
@@ -576,13 +645,7 @@ export fn Hub mut @attach(conn int) -> () {
     @route_attach(conn)
     @machine_attach(conn)
     @req_attach(conn)
-    // Transport control message, not a session event: even an empty hub completes its snapshot.
-    mut ids = []JsonValue.new()
-    for s in @sessions { ids.push(JsonValue.str(s.id)) }
-    mut ready = JsonObject.new()
-    jput(ready, "kind", JsonValue.str("sessions_ready"))
-    jput(ready, "sessions", JsonValue.array(ids))
-    @send(conn, JsonValue.object(ready).to_str())
+    @send_sessions_ready(conn)
 }
 
 /// A page is gone (it is not told anything more).
@@ -887,7 +950,7 @@ export fn start_hub_from(settings ServerSettings, table_text str) Proc Detach Ti
     ro notes_chan = Chan[str].new(64)
     mut hub = Hub {
         preparation_fixtures: []PreparationFixture.new(),
-        handoffs: []ContextHandoff.new(), settings, machine, work_mode, approval_policy, workdir, sessions: []Dialog.new(), conns: []int.new(), out: []Outgoing.new(), log: []str.new(), serial: 0, mcps: []McpServer.new(), mcp_pending: []McpPending.new(), mcp_serial: 0, ctl_letters: []CtlLetter.new(), ctl_waits: []CtlWait.new(), ctl_serial: 0, catalog: JsonObject.new(), catalog_dirty: false, catalog_saved_at: 0, choices: []PendingChoice.new(), reviews: []Review.new(), route_obs: 0, marks: []MachMark.new(), trees_tx: trees_chan.tx, trees_rx: trees_chan.rx, notes_tx: notes_chan.tx, notes_rx: notes_chan.rx, held: []HeldMsg.new(), reserved: []int.new()
+        handoffs: []ContextHandoff.new(), settings, machine, work_mode, approval_policy, workdir, sessions: []Dialog.new(), conns: []int.new(), out: []Outgoing.new(), log: []str.new(), serial: 0, mcps: []McpServer.new(), mcp_pending: []McpPending.new(), mcp_serial: 0, ctl_letters: []CtlLetter.new(), ctl_waits: []CtlWait.new(), ctl_serial: 0, catalog: JsonObject.new(), catalog_dirty: false, history_saved: JsonObject.new(), catalog_saved_at: 0, choices: []PendingChoice.new(), reviews: []Review.new(), route_obs: 0, marks: []MachMark.new(), trees_tx: trees_chan.tx, trees_rx: trees_chan.rx, notes_tx: notes_chan.tx, notes_rx: notes_chan.rx, held: []HeldMsg.new(), reserved: []int.new()
     }
     if hub.wants_mcp() { ro started = hub.start_mcp() }
     ro pg = settings.store == "pg"
@@ -2273,6 +2336,7 @@ export fn Hub mut @handle(conn int, text str) Proc Detach Time -> () {
         @say_log("a message without a trace from page ${conn}")
         return
     }
+    if kind == "session_history_get" { @send_history(conn, trace); return }
     ro active_at = @find(trace)
     if kind == "user_message" || kind == "session_source" || kind == "session_agent" || kind == "session_setting" {
         for pending in @handoffs {

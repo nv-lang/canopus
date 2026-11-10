@@ -621,6 +621,7 @@ export function reduce(model, event) {
       branch: str(event.input.branch),
       parent: str(event.input.parent),
       pinned: event.input.pinned === true,
+      rank: Number.isFinite(event.input.rank) ? event.input.rank : undefined,
       usage: null,
       tools: [],
       outputs: [],

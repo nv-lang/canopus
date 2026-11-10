@@ -15,6 +15,8 @@
 module canopus.server
 
 import canopus.acp.{LineSplitter}
+import canopus.storage.{replace_file}
+import std.fs.{Path}
 import std.concurrency.nvchan.{Chan, ChanTx, ChanRx}
 import std.io.{stdin, stdout, stderr, Stdin, IoError}
 
@@ -76,6 +78,8 @@ fn apply_command(mut hub Hub, line str) Proc Detach Time -> bool {
     ro rest = line[first + 1..]
     if verb == "open" {
         hub.attach(conn_of(rest))
+    } else if verb == "open_lazy" {
+        hub.attach_lazy(conn_of(rest))
     } else if verb == "close" {
         hub.release(conn_of(rest))
     } else if verb == "msg" {
@@ -103,6 +107,9 @@ export fn run_hub_stdio(settings ServerSettings) Proc Detach Time Net Fs Os Io -
             detach { read_stdin(commands.tx) }
             for line in running_hub.hub.take_log() { to_log(line) }
             to_front("ready")
+            running_hub.hub.save_history_previews()
+            ro index_path = Path.from_bytes("${settings.layout.cache}/sessions-index.json".bytes())
+            mut saved_index = ""
             mut running = true
             while running {
                 mut busy = false
@@ -123,7 +130,13 @@ export fn run_hub_stdio(settings ServerSettings) Proc Detach Time Net Fs Os Io -
                     ro made = running_hub.hub.pump()
                     if made > 0 { busy = true }
                 }
-                for o in running_hub.hub.take_output() {
+                ro outgoing = running_hub.hub.take_output()
+                if outgoing.len() > 0 { running_hub.hub.save_history_previews() }
+                if saved_index.byte_len() == 0 || outgoing.len() > 0 {
+                    ro index = running_hub.hub.session_index()
+                    if index != saved_index && replace_file(index_path, index) { saved_index = index }
+                }
+                for o in outgoing {
                     to_front("${o.conn}\t${o.text}")
                     busy = true
                 }

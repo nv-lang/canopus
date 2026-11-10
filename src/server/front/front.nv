@@ -26,6 +26,7 @@ import std.crypto.sha256.{Sha256}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 import std.concurrency.nvchan.{Chan, ChanTx, ChanRx}
 import std.fs.{DirFs, Path, Fs, real_fs, read_text}
+import canopus.storage.{session_file}
 import std.io.{stderr}
 import std.net.{TcpStream, real_net}
 import std.os.{exit_process, real_os}
@@ -156,7 +157,7 @@ fn read_pump(consume rd TcpStream, id int, hub_tx ChanTx[str], out ChanTx[WsOut]
     rd.close()
 }
 
-fn serve_page(stream TcpStream, hub_tx ChanTx[str], reg_tx ChanTx[Reg]) Net -> () {
+fn serve_page(stream TcpStream, hub_tx ChanTx[str], reg_tx ChanTx[Reg], lazy bool) Net -> () {
     consume conn = stream
     ro id = conn.peer_port()
     // ORACLE-WORKAROUND(56): the stream of the hook has a copy held by the server loop, so it cannot be split into halves (`into_split()` panics): the writer gets a second owner of the same socket (`share`), the socket is closed by the last one; split the stream when item 56 is fixed
@@ -166,7 +167,8 @@ fn serve_page(stream TcpStream, hub_tx ChanTx[str], reg_tx ChanTx[Reg]) Net -> (
     ro queued = reg_tx.send(Reg { id, out: outbound.tx, gone: false, ack: registered.tx })
     // The hub can answer immediately. Wait until the router has installed this peer.
     ro installed = registered.rx.recv()
-    ro opened = hub_tx.send("open\t${id}")
+    ro verb = if lazy { "open_lazy" } else { "open" }
+    ro opened = hub_tx.send("${verb}\t${id}")
     supervised {
         spawn consume wr { write_pump(wr, outbound.rx) }
         read_pump(conn, id, hub_tx, outbound.tx)
@@ -279,9 +281,10 @@ fn ws_route(hub_tx ChanTx[str], reg_tx ChanTx[Reg], port int) -> fn(ServerReques
         }
         match WebSocketUpgrade.from_request(req) {
             Ok(up) => {
+                ro lazy = (req.query_param("history") ?? "") == "lazy"
                 mut resp = up.accept_response(None)
                 resp.upgrade(fn(stream TcpStream) Net -> () {
-                    serve_page(stream, hub_tx, reg_tx)
+                    serve_page(stream, hub_tx, reg_tx, lazy)
                 })
                 resp
             }
@@ -354,6 +357,32 @@ fn presets_route(layout ConfigLayout, active str, order []str, port int) -> fn(S
 // ----- the catalog of the families: GET /api/agent-catalog (task 192o) -----
 
 // The file the hub keeps (`<cache>/agents.json`, written whole by a rename), as it is; the front reads it each time, so it never holds a stale copy.
+fn history_preview_route(data_dir str, port int) -> fn(ServerRequest) -> ServerResponse {
+    fn(req ServerRequest) -> ServerResponse {
+        if !origin_allowed(req, port) { return json_reply(403, "{\"error\":\"origin not allowed\"}") }
+        match session_file(data_dir, req.param("id") ?? "", "history-preview.json") {
+            Some(path) => match with Fs = real_fs() { read_text(path) } {
+                Ok(text) => json_reply(200, text)
+                Err(e) => json_reply(404, "null")
+            }
+            None => json_reply(404, "null")
+        }
+    }
+}
+
+fn session_index_route(cache_dir str, port int) -> fn(ServerRequest) -> ServerResponse {
+    fn(req ServerRequest) -> ServerResponse {
+        if !origin_allowed(req, port) { return json_reply(403, "{\"error\":\"origin not allowed\"}") }
+        ro index = with Fs = real_fs() {
+            match read_text(Path.from_bytes("${cache_dir}/sessions-index.json".bytes())) {
+                Ok(text) => text
+                Err(e) => "null"
+            }
+        }
+        json_reply(200, "{\"entries\":${index}}")
+    }
+}
+
 fn catalog_route(cache_dir str, port int) -> fn(ServerRequest) -> ServerResponse {
     fn(req ServerRequest) -> ServerResponse {
         if !origin_allowed(req, port) { return json_reply(403, "{\"error\":\"origin not allowed\"}") }
@@ -629,6 +658,8 @@ fn build_router(web_dir str, port int, hub_tx ChanTx[str], reg_tx ChanTx[Reg], a
     ro metadata_added = router.get("/api/model-metadata", model_metadata_route(metadata_source, port, layout.state, agents, metadata_directory))?
     ro r4r = router.get("/api/presets", presets_route(layout, preset, reviewer_order, port))?
     ro r4t = router.get("/api/session-trace/{id}", trace_route(data_dir, port))?
+    ro sessions = router.get("/api/sessions-index", session_index_route(layout.cache, port))?
+    ro history = router.get("/api/session-history/{id}", history_preview_route(data_dir, port))?
     ro r5 = router.get("/{*path}", files_route(web_dir))?
     Ok(router)
 }

@@ -123,7 +123,7 @@ export async function loadModelMetadata(fetchFn, configuredFamilies, now = Date.
  * @param deps.onStatus       (статус) => void
  */
 export function createTransport(deps) {
-  const { mode, server, url, WebSocketImpl, timers, onEvent, onStatus, onSnapshot = () => {} } = deps;
+  const { mode, server, url, WebSocketImpl, timers, onEvent, onStatus, onSnapshot = () => {}, onSessionsIndex = () => {}, onSessionHistory = () => {} } = deps;
 
   // ---- заглушка ----
   const scheduled = new Map(); // id таймера -> trace
@@ -181,6 +181,8 @@ export function createTransport(deps) {
       const list = Array.isArray(data) ? data : [data];
       for (const e of list) if (isObject(e)) {
         if (e.kind === 'sessions_ready' && Array.isArray(e.sessions)) onSnapshot('ready', e.sessions);
+        else if (e.kind === 'sessions_index' && Array.isArray(e.entries)) onSessionsIndex(e.entries);
+        else if (e.kind === 'session_history' && Array.isArray(e.entries)) onSessionHistory(e.trace, e.entries);
         else onEvent(e);
       }
     };

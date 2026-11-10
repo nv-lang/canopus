@@ -490,6 +490,8 @@ input, select, textarea {
 /* ---- центр: разговор ---- */
 
 .chat { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.chat[data-history-pending="true"] .composer, .chat[data-history-pending="true"] .jump-wrap { display: none; }
+.history-loading { margin: 20px auto; text-align: center; color: var(--fg-muted); }
 
 .log { flex: 1; min-height: 0; overflow-y: auto; }
 .thread {

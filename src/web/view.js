@@ -510,7 +510,8 @@ export function createView(doc, refs, deps) {
 
   const pick = h(doc, 'p', { class: 'pick', text: t('chat.pick') });
   const thread = h(doc, 'div', { class: 'thread' });
-  const log = h(doc, 'div', { class: 'log', role: 'log', 'aria-live': 'off' }, thread);
+  const historyLoading = h(doc, 'p', { class: 'history-loading', role: 'status', hidden: true, text: t('loading.history') });
+  const log = h(doc, 'div', { class: 'log', role: 'log', 'aria-live': 'off' }, thread, historyLoading);
   const emptyChat = h(doc, 'p', { class: 'empty', text: t('chat.empty') });
 
   // поле ввода
@@ -1959,6 +1960,11 @@ export function createView(doc, refs, deps) {
     titleBlock.hidden = !session;
     if (!session) { browseTicket += 1; currentTrace = null; closeMenu(); return; }
     chat.dataset.draft = String(Boolean(session.draft));
+    const awaitingHistory = Boolean(ui.historyPending?.has(session.id));
+    chat.dataset.historyPending = String(awaitingHistory);
+    const preview = ui.historyPreview?.has(session.id);
+    historyLoading.textContent = preview ? t('loading.history_connect') : t('loading.history');
+    historyLoading.hidden = !awaitingHistory;
 
     if (currentTrace !== session.id) {
       browseTicket += 1;

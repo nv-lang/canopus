@@ -101,6 +101,8 @@ function saveUnread(value) {
 // ссылка на сессию (#s=<id>): после загрузки журнала страница её открывает
 const linked = /^#s=(.+)$/.exec(globalThis.location ? globalThis.location.hash : '');
 const ui = {
+  historyPending: new Set(),
+  historyPreview: new Set(),
   selected: null, projects: null, pane: 'list', flash: '', flashTone: 'error', awaiting: linked ? decodeURIComponent(linked[1]) : null, theme: readTheme(), pins: readPins(), unread: readUnread(), acked: {}, silentMin: SILENT_DEFAULT_MIN, notify: { bell: notifier.bellOn(), sound: notifier.soundOn(), denied: false },
 };
 // A failed first create has no server row to select. Reopen its saved local copy on reload;
@@ -148,6 +150,66 @@ function watchCreated(trace) {
   }, CREATE_WAIT_MS);
 }
 
+let sessionTransportReady = false;
+const requestedHistory = new Set();
+const requestedPreview = new Set();
+
+function applySessionIndex(entries) {
+  for (const event of entries) {
+    if (event?.kind !== 'session_created' || typeof event.trace !== 'string') continue;
+    const previous = model.sessions[event.trace];
+    if (previous?.draft) continue;
+    if (!previous) model = reduce(model, event);
+    else {
+      const { name, agent, folder, project_id, rank } = event.input;
+      model = { ...model, sessions: { ...model.sessions, [event.trace]: {
+        ...previous, name, agent, folder, projectId: project_id, rank,
+        updatedAt: Math.max(previous.updatedAt, event.time),
+      } } };
+    }
+    ui.historyPending.add(event.trace);
+  }
+}
+
+function replayHistory(trace, entries) {
+  let history = { ...initialModel(), catalog: model.catalog };
+  const seen = Object.create(null);
+  for (const event of entries) {
+    if (event.trace !== trace || seen[event.id]) continue;
+    // The reducer normally copies the growing seen map. A replay owns its map
+    // and collects only the new marker returned by each event.
+    history = reduce({ ...history, seen: {} }, event);
+    Object.assign(seen, history.seen);
+  }
+  if (!history.sessions[trace]) return false;
+  model = { ...model, seen: { ...model.seen, ...seen }, sessions: {
+    ...model.sessions, [trace]: history.sessions[trace],
+  } };
+  return true;
+}
+
+function requestHistoryPreview(trace) {
+  if (requestedPreview.has(trace) || ui.historyPreview.has(trace)) return;
+  requestedPreview.add(trace);
+  fetch('/api/session-history/' + encodeURIComponent(trace), { cache: 'no-store' })
+    .then(response => response.ok ? response.json() : null)
+    .then(entries => {
+      if (!ui.historyPending.has(trace) || !model.sessions[trace] || !Array.isArray(entries)) return;
+      if (replayHistory(trace, entries)) {
+        ui.historyPreview.add(trace);
+        render();
+      }
+    }).catch(() => { /* The authoritative history request remains available. */ });
+}
+
+function requestSelectedHistory() {
+  const trace = ui.selected;
+  if (!ui.historyPending.has(trace)) return;
+  requestHistoryPreview(trace);
+  if (!sessionTransportReady || requestedHistory.has(trace)) return;
+  if (transport.send(makeEvent('session_history_get', trace, 0, {}, ctx))) requestedHistory.add(trace);
+}
+
 function draw() {
   if (!queued) return;
   queued = false;
@@ -172,6 +234,7 @@ function draw() {
   notifier.update(waitingKeys(all, ui.acked), names, ui.selected || '');
   ui.notify = { bell: notifier.bellOn(), sound: notifier.soundOn(), denied: ui.notify.denied };
   view.render(model, ui, status);
+  requestSelectedHistory();
 }
 
 // Перерисовка склеивает близкие события в один кадр. Вторая страховка — таймер: в скрытой
@@ -426,7 +489,7 @@ const handlers = {
   // Без картинок — как раньше, сразу. С картинками — сначала они на сервер по очереди, потом сообщение с их номерами.
   onSend(trace, text, images = []) {
     const draft = model.sessions[trace];
-    if (ui.sourceQuestions.has(trace)) return false;
+    if (ui.historyPending.has(trace) || ui.sourceQuestions.has(trace)) return false;
     const choice = ui.handoffStatus.get(trace);
     if (choice?.phase === 'preparing') return false;
     if (choice?.phase === 'selected') {
@@ -675,8 +738,26 @@ async function start() {
   document.addEventListener('visibilitychange', () => { notifier.visibilityChanged(); refreshModelMetadata(); render(); });
   globalThis.addEventListener('focus', () => { notifier.visibilityChanged(); refreshModelMetadata(); render(); });
   globalThis.addEventListener('blur', () => notifier.visibilityChanged());
+  let socketUrl = picked.url;
+  if (picked.mode === 'ws') {
+    try {
+      const response = await fetch('/api/sessions-index', { cache: 'no-store', signal: AbortSignal.timeout(1500) });
+      if (response.ok) {
+        const index = await response.json();
+        if (index && Object.hasOwn(index, 'entries')) {
+          const url = new URL(socketUrl);
+          url.searchParams.set('history', 'lazy');
+          socketUrl = url.href;
+          if (Array.isArray(index.entries)) {
+            applySessionIndex(index.entries);
+            loading.sessionsReady();
+          }
+        }
+      }
+    } catch { /* Older servers and missing indexes fall back to the socket snapshot. */ }
+  }
   transport = createTransport({
-    mode: picked.mode, url: picked.url,
+    mode: picked.mode, url: socketUrl,
     server: mock ? mock.createMockServer({ now: ctx.now, machines: true }) : undefined,
     WebSocketImpl: globalThis.WebSocket, timers,
     onEvent(event) {
@@ -719,18 +800,39 @@ async function start() {
       }
       render();
     },
+    onSessionsIndex(entries) { applySessionIndex(entries); },
+    onSessionHistory(trace, entries) {
+      if (!requestedHistory.delete(trace)) return;
+      if (!replayHistory(trace, entries)) {
+        flash(t('loading.history_error'));
+        return;
+      }
+      ui.historyPending.delete(trace);
+      ui.historyPreview.delete(trace);
+      requestedPreview.delete(trace);
+      delivery.reconcile(model);
+      drain();
+      render();
+    },
     onSnapshot(phase, ids) {
       if (phase === 'loading') {
+        sessionTransportReady = false;
+        requestedHistory.clear();
         if (loading.state.sessions.data !== null) loadProjects();
-        loading.sessionsStart();
+        else loading.sessionsStart();
       }
-      else if (phase === 'error') loading.sessionsError();
+      else if (phase === 'error') {
+        sessionTransportReady = false;
+        requestedHistory.clear();
+        if (loading.state.sessions.data === null) loading.sessionsError();
+      }
       else {
         // Удалённые за время разрыва сессии исчезают только после полного снимка.
         if (ids) {
           const keep = new Set(ids);
           model = { ...model, sessions: Object.fromEntries(Object.entries(model.sessions).filter(([id, s]) => s.draft || keep.has(id))) };
         }
+        sessionTransportReady = true;
         loading.sessionsReady();
       }
     },
