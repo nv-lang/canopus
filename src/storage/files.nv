@@ -86,42 +86,13 @@ export fn append_line(path Path, line str) Fs -> bool {
     }
 }
 
-// The storage logs may be many megabytes. Amortize the asynchronous file reads
-// and reserve the existing file size before accumulating the bytes.
-fn read_log(path Path) Fs -> Option[[]u8] {
-    consume file = match File.open(path) {
-        Ok(consume opened) => opened
-        Err(err) => return None
-    }
-    ro capacity = match file.metadata() { Ok(meta) => meta.len(), Err(err) => 0 }
-    mut bytes = []u8.new(cap: capacity)
-    mut buffer = []u8.new()
-    buffer.resize(256 * 1024, 0 as u8)
-    mut failed = false
-    loop {
-        match file.read(buffer) {
-            Ok(0) => break
-            Ok(size) => bytes.append(buffer[..size])
-            Err(err) => {
-                if err.is_interrupted() { continue }
-                failed = true
-                break
-            }
-        }
-    }
-    match file.close() {
-        Ok(done) => if failed { None } else { Some(bytes) }
-        Err(err) => None
-    }
-}
-
 /// The non-empty lines of a file in order ("\r" at the end cut); a missing or unreadable file has none. The bytes are read
 /// as they are and a broken UTF-8 sequence (a tear inside a letter) is replaced, so one torn line never hides the others.
 export fn read_lines(path Path) Fs -> []str {
     mut out = []str.new()
-    match read_log(path) {
-        None => ()
-        Some(bytes) => {
+    match read(path, buffer_size: 256 * 1024) {
+        Err(e) => ()
+        Ok(bytes) => {
             for raw in bytes.to_str_lossy().split("\n") {
                 ro line = raw.strip_suffix("\r") ?? raw
                 if line.byte_len() > 0 { out.push(line) }

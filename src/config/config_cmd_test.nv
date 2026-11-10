@@ -69,7 +69,7 @@ test "list: only the five public fields are shown with their file origins" {
     put3(root, "repo/.canopus/config.json", "{\"port\":8101,\"voice\":{\"language\":\"ru\"}}")
     ro layout = layout_in("${root}/inst", "${root}/repo/.canopus")
     ro text = listing(layout, "", []str.new(), true, []str.new())
-    assert(text.split("\n").collect().len() == 5)
+    assert(text.split("\n").count() == 5)
     assert(line_of(text, "port").starts_with("port=8101\tproject\t"))
     assert(line_of(text, "store").starts_with("store=files\tdefault"))
     assert(line_of(text, "voice.model").starts_with("voice.model=medium\tuser"))
@@ -82,7 +82,7 @@ test "list: plain output has no origins and runtime overrides are refused" {
     ro root = tmp3("plain")
     ro layout = layout_in("${root}/inst", "")
     ro text = listing(layout, "", []str.new(), false, []str.new())
-    assert(!text.contains("\t") && text.split("\n").collect().len() == 5)
+    assert(!text.contains("\t") && text.split("\n").count() == 5)
     mut state = MockOs.new()
     state.put_env("CANOPUS_PG_PASSWORD", "not-printed-value")
     match with Os = mock_os(state), Fs = real_fs() { config_list(layout, "", []str.new(), true) } {

@@ -434,16 +434,13 @@ fn permission_action(kind str, title str) -> str {
 // A single line longer than the limit is cut with a mark; a multiline text is kept whole (the page scrolls it).
 fn shorten_detail(text str) -> str {
     if text.contains("\n") { return text }
-    ro graphemes = text.graphemes()
-    ro total = graphemes.count()
-    if total <= PERMISSION_DETAIL_CHARS { return text }
+    mut total = 0
     mut end = 0
-    mut shown = 0
-    for cluster in graphemes {
-        if shown == PERMISSION_DETAIL_CHARS { break }
-        end += cluster.byte_len()
-        shown += 1
+    for cluster in text.graphemes() {
+        total += 1
+        if total <= PERMISSION_DETAIL_CHARS { end += cluster.byte_len() }
     }
+    if total <= PERMISSION_DETAIL_CHARS { return text }
     "${text[..end]}… (показаны первые ${PERMISSION_DETAIL_CHARS} знаков из ${total})"
 }
 

@@ -301,13 +301,7 @@ fn st_env_flag(key str, fallback bool) Os -> Result[bool, str] {
     }
 }
 
-fn st_split(text str) -> []str {
-    mut out = []str.new()
-    for part in text.split(" ") {
-        if part.byte_len() > 0 { out.push(part) }
-    }
-    out
-}
+fn st_split(text str) -> []str => text.split(" ").filter(|part| part.byte_len() > 0).collect()
 
 fn st_env_number(key str) Os -> Result[Option[int], str] {
     match st_env(key) {

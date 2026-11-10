@@ -75,6 +75,12 @@ Read [AGENTS.md](AGENTS.md) and the [Canon](doc/canon/README.md) before changing
 The development process follows [unitcraft/ai-dev-methodology](https://github.com/unitcraft/ai-dev-methodology).
 The plugin's test commands are documented in its [README](opencode-plugin/README.md).
 
+For builds with Oracle v0.1.3, use the `std/src/fs/fs.nv` from Nova commit
+[`dd0e65f59`](https://github.com/nv-lang/nova/commit/dd0e65f59c43dbbe013f23ca6ce5306b59fde724).
+Canopus uses the `buffer_size` argument introduced there. Copy the release's `std` directory,
+replace `src/fs/fs.nv` in that copy with the file from the pinned commit, and point
+`NOVA_STD_PATH` at the copy after running the Oracle environment setup.
+
 Repository guards:
 
 ```sh

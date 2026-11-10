@@ -106,11 +106,7 @@ fn tw_parent(p str) -> str {
     }
 }
 
-fn tw_split(s str, sep str) -> []str {
-    mut out = []str.new()
-    for part in s.split(sep) { out.push(part) }
-    out
-}
+fn tw_split(s str, sep str) -> []str => s.split(sep).collect()
 
 /// The non-empty trimmed lines of a text.
 fn tw_lines(s str) -> []str {
