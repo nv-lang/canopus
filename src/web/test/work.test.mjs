@@ -276,6 +276,10 @@ test('long search output stays scrollable and manually opened actions stay open'
   assert.equal(refs.main.querySelector('.row-action'), null);
   assert.ok(refs.main.querySelector('.row-status .sr-only'));
   assert.equal(refs.main.querySelector('.row-content').hidden, true);
+  assert.equal(refs.main.querySelector('.work-body').hidden, false);
+  const responding = st.reduce(done, ev('agent_chunk', { text: 'Готово' }, { step: 4 }));
+  render(responding);
+  assert.equal(refs.main.querySelector('.work-body').hidden, true);
   refs.main.querySelector('.item-work .disclosure').click();
   refs.main.querySelector('.row-toggle').click();
   render(st.reduce(done, ev('agent_done', {}, { step: 4 })));

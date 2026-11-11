@@ -274,10 +274,10 @@ test('ответ отображает фактическую или явную �
   ];
   const model = events.reduce((current, event) => reduce(current, event), initialModel());
   view.render(model, { selected: 's', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
-  assert.equal(refs.main.querySelector('.agent-signature').textContent, 'family-x · model-x · native-x');
+  assert.equal(refs.main.querySelector('.agent-signature').textContent, 'Агент: family-x model-x / Native-x');
   const unknown = events.filter((event) => event.kind !== 'agent_actual').reduce((current, event) => reduce(current, event), initialModel());
   view.render(unknown, { selected: 's', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
-  assert.equal(refs.main.querySelector('.agent-signature').textContent, 'Автор не подтверждён');
+  assert.equal(refs.main.querySelector('.agent-signature').textContent, 'Агент не подтверждён');
 });
 
 for (const draft of [true, false]) test(`one model-row click commits a family/model with effort: draft=${draft}`, () => {

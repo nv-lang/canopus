@@ -39,6 +39,9 @@ test('сводка: нет чисел или не объект — ничего 
   assert.equal(usageSummary({}), null);
   assert.equal(usageSummary({ reason: 'end_turn' }), null);
   assert.equal(usageSummary('много'), null);
+  assert.equal(usageSummary({ new: 0, cached: 0, output: 0, total: 0 }), null);
+  assert.equal(usageSummary({ new: 0, total: 120 }).latest.total, 120);
+  assert.equal(usageSummary({ new: 0, cached: 120 }).latest.new, 0);
 });
 
 test('в ленте строка расхода есть под завершённым ходом с usage и нет без него', () => {

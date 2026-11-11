@@ -227,6 +227,8 @@ export function createView(doc, refs, deps) {
     const attn = attention(s, { now: now(), silentMin: ui.silentMin ?? SILENT_DEFAULT_MIN, unread, acked: (ui.acked || {})[s.id] || '' });
     const attnText = attn.state === 'waiting' ? t('attn.waiting') : attn.state === 'silent' ? t('attn.silent', { n: attn.minutes }) : attn.state === 'error' ? t('attn.error') : '';
     const merge = mergeLabel(s.routeState && s.routeState.task);
+    const nameText = h(doc, 'span', { class: 'session-name-text', text: s.name });
+    const name = h(doc, 'span', { class: 'session-name' }, nameText);
     const item = sideKit.isRenaming(s.id) ? sideKit.renameField(s) : h(doc, 'button', {
       type: 'button',
       class: 'session-item',
@@ -240,7 +242,7 @@ export function createView(doc, refs, deps) {
     depth > 0 ? h(doc, 'span', { class: 'sr', text: t('sessions.child') }) : false,
     unread ? h(doc, 'span', { class: 'unread', role: 'img', 'aria-label': t('session.unread'), title: t('session.unread') }) : false,
     taskInfo ? h(doc, 'span', { class: 'task-no', text: taskInfo.number, title: taskInfo.title ? t('route.task_no_title', { number: taskInfo.number, title: taskInfo.title }) : t('route.task_head_bare', { number: taskInfo.number }) }) : false,
-    h(doc, 'span', { class: 'session-name', text: s.name }),
+    name,
     s.pendingQuestion ? h(doc, 'span', { class: 'ask-line' }, askBadge()) : false,
     attnText ? h(doc, 'span', { class: 'attn-label', 'data-attn': attn.state, text: attnText }) : false,
     h(doc, 'span', { class: 'dot', 'data-state': s.state, 'data-attn': attn.state, 'aria-hidden': 'true' }),
@@ -261,6 +263,23 @@ export function createView(doc, refs, deps) {
       });
     }
     const li = h(doc, 'li', { class: `${cls}${kids > 0 ? ' has-kids' : ''}`, 'data-depth': Math.min(depth, 2) }, fold, item, sideKit.moreButton(s), sideKit.menuFor(s, { pinned, unread }) || false);
+    let titleScroll;
+    li.addEventListener('pointerenter', () => {
+      if (win?.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+      const distance = name.scrollWidth - name.clientWidth;
+      if (distance <= 1 || !nameText.animate) return;
+      name.classList.add('is-scrolling');
+      titleScroll = nameText.animate([
+        { transform: 'translateX(0)' },
+        { transform: 'translateX(0)', offset: 0.12 },
+        { transform: `translateX(-${distance}px)`, offset: 0.88 },
+        { transform: `translateX(-${distance}px)` },
+      ], { duration: Math.max(1800, distance * 22), fill: 'forwards' });
+    });
+    li.addEventListener('pointerleave', () => {
+      titleScroll?.cancel();
+      name.classList.remove('is-scrolling');
+    });
     sideKit.rowDnd(li, { id: s.id, group: gctx.key, ids: gctx.ids, projectId: s.projectId || '', enabled: gctx.draggable });
     return li;
   }
@@ -1729,7 +1748,7 @@ export function createView(doc, refs, deps) {
     const key = `${currentTrace}:${item.key}`;
     const override = workToggles.get(key);
     const active = item.rows.some(r => ['pending', 'in_progress', 'running'].includes(r.status));
-    const isOpen = override ?? active;
+    const isOpen = override ?? (active || item.active === true);
     const label = active ? t('work.current', { n: item.rows.length })
       : summaryText(workSummary(item.rows));
     const toggle = h(doc, 'button', { type: 'button', class: 'disclosure', 'aria-expanded': String(isOpen), 'data-state': single ? single.status : 'group' },
@@ -1833,10 +1852,17 @@ export function createView(doc, refs, deps) {
         node.replaceChildren(h(doc, 'span', { class: 'sr', text: t('chat.agent') }), h(doc, 'div', { class: 'prose' }, ...proseNodes(item.text)));
         break;
       case 'author': {
-        const label = item.actual
-          ? [item.actual.family, item.actual.model, item.actual.effort || 'усилие не подтверждено'].join(' · ')
-          : 'Автор не подтверждён';
-        node.replaceChildren(h(doc, 'span', { class: 'agent-signature', text: label, 'aria-label': `Фактический автор ответа: ${label}` }));
+        const actual = item.actual;
+        let label = 'Агент не подтверждён';
+        if (actual) {
+          const variant = actual.family === 'codex' ? codexModelVariant(actual.model) : null;
+          const id = variant?.[1] || actual.model;
+          const models = pickerModelsFor(actual.family, directModelsFor(actual.family) ?? current.model.catalog[actual.family]?.models);
+          const model = modelLabel(actual.family, nameOf(models, id) || id) || agentLabel(actual.family);
+          const effort = actual.effort || variant?.[2];
+          label = t('chat.agent_signature', { model, effort: effort ? ' / ' + effort[0].toUpperCase() + effort.slice(1) : '' });
+        }
+        node.replaceChildren(h(doc, 'span', { class: 'agent-signature', text: label }));
         break;
       }
       case 'work':

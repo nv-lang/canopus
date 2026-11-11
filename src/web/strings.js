@@ -95,6 +95,7 @@ export const S = Object.freeze({
   'chat.empty': 'Напишите агенту первое сообщение.',
   'chat.back': 'К сессиям',
   'chat.you': 'Вы:',
+  'chat.agent_signature': 'Агент: {model}{effort}',
   'chat.agent': 'Агент:',
   'chat.input_label': 'Сообщение агенту',
   'chat.send': 'Отправить',

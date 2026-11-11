@@ -264,7 +264,14 @@ export function timeline(session) {
         group = [];
       };
       for (const part of stream) {
-        if (part.chunk) { flushGroup(); text += part.chunk.text; } else { flushText(); group.push(part.row); }
+        if (part.chunk) {
+          if (group.length > 0 && !part.chunk.text.trim()) continue;
+          flushGroup();
+          text += part.chunk.text;
+        } else {
+          flushText();
+          group.push(part.row);
+        }
       }
       flushText();
       flushGroup();
@@ -294,7 +301,7 @@ export function timeline(session) {
   }
 
   const orphans = rows.filter((r) => !emitted.has(r.key) && !agentTurns.has(r.turn)).sort((a, b) => a.step - b.step);
-  if (orphans.length > 0) items.push({ type: 'work', key: `w:orphans:${orphans[0].key}`, rows: orphans });
+  if (orphans.length > 0) items.push({ type: 'work', key: `w:orphans:${orphans[0].key}`, rows: orphans, active: session.state === 'answering' });
 
   if (session.state === 'answering') items.push({ type: 'running', key: 'running', since: session.turnStartedAt, last: Math.max(session.updatedAt || 0, session.turnStartedAt || 0) });
   // задача 192.14: ход закончен, а агент ждёт ответа обычным текстом или пунктом чек-листа: полоса под его последним сообщением, пока владелец не ответит
@@ -575,15 +582,16 @@ export function usageSummary(usage) {
     const fresh = num(r.new);
     const cached = num(r.cached);
     const given = num(r.total);
-    const total = fresh !== undefined || cached !== undefined ? (fresh ?? 0) + (cached ?? 0) : given;
+    const inputTotal = (fresh ?? 0) + (cached ?? 0);
+    const total = inputTotal > 0 ? inputTotal : given;
     return { label, new: fresh, cached, total };
   };
   const listed = Array.isArray(usage.steps) ? usage.steps.filter((x) => x && typeof x === 'object') : [];
   const rows = listed.length > 0
     ? listed.map((x, i) => row(typeof x.label === 'string' && x.label ? x.label : String(i + 1), x))
     : [row(STOP_LABEL[usage.reason] ?? (typeof usage.reason === 'string' && usage.reason ? usage.reason : 'stop'), usage)];
-  const latest = rows[rows.length - 1];
-  if (latest.new === undefined && latest.cached === undefined && latest.total === undefined) return null;
+  const latest = rows.findLast((r) => r.total > 0);
+  if (!latest) return null;
   return { steps: rows.length, rows, latest, expandable: rows.length > 1 };
 }
 

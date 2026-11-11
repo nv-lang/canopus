@@ -122,10 +122,11 @@ test('поиск по сессиям: как поле ввода сообщен�
   assert.match(cssSrc, /\.dialog\.modal \{ width: min\(640px, 100%\);/);
 });
 
-test('строка проекта выделена: значок папки, жирное имя, фон шапки, у активного фон темнее и без акцентной полоски', () => {
+test('проект обозначен иконкой, подсветка применяется к строкам сессий', () => {
   assert.match(viewSrc, /icon\(doc, 'i-folder', 'group-icon'\)/);
   assert.match(cssSrc, /\.group\[data-project="true"\] h3 \{[^}]*font-size: inherit; font-weight: 500/);
-  assert.match(cssSrc, /\.group\[data-project="true"\]\[data-active="true"\] \.group-head \{ background: var\(--hover\); \}/);
+  assert.doesNotMatch(cssSrc, /\.group\[data-project="true"\][^{}]*\.group-head[^{}]*\{[^}]*background:/);
+  assert.match(cssSrc, /\.session\.is-active \{ background: var\(--hover\); \}/);
   assert.doesNotMatch(cssSrc, /inset 2px 0 var\(--accent\)/);
 });
 
