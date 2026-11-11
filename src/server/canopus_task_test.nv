@@ -319,6 +319,8 @@ test "context: a fall of used by more than the percent is a compaction; a smalle
     ro first = ctx_scan([ctx_line("usage_update", 1000, 200000)], 0, 0, 40)
     assert(first.before == 0 && first.used == 1000)
     assert(ctx_scan([], 5, 9, 40).used == 5)
+    ro missing = ctx_scan([ctx_line("usage_update", 0, 200000)], 80189, 200000, 40)
+    assert(missing.before == 0 && missing.used == 80189)
 }
 
 test "context: the view holds the used / size and the history of the compactions; the reminder names the mode, the step and the place; the rules are in the tools" {

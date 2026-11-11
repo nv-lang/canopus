@@ -623,6 +623,8 @@ export function reduce(model, event) {
       route: INTERACTIVE_STATE.route,
       routeState: INTERACTIVE_STATE,
       routeStep: -1,
+      indexTaskNumber: str(event.input.task_number),
+      indexTaskTitle: str(event.input.task_title),
       machine: null,
       machineAt: 0,
       requests: [],

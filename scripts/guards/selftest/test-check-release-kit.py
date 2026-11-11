@@ -76,6 +76,8 @@ def main():
 
     def kit_files(extra=None, drop=None):
         files = {"preparation-research.mjs": "// fixture read-only tools\n", "kimi-preparation.mjs": "// fixture restricted backend\n", "kimi-preparation.md": "tools: []\n", "start.ps1": "# fixture launcher\n", "scripts/native-acp-catalog.mjs": "// fixture catalog\n", "scripts/zai-acp.mjs": "// fixture Z.ai ACP\n", "canopus.exe": b"MZ", "preparation-agent.mjs": "// fixture adapter\n", 'scripts/task-store.mjs': "// fixture shared adapter\n", 'opencode-plugin/shared-task-store.ts': "// fixture shared adapter\n", 'opencode-plugin/shared-task-config.ts': "// fixture shared adapter\n", 'opencode-plugin/shared-task-snapshot.ts': "// fixture snapshot adapter\n", 'opencode-plugin/task-numbers.ts': "// fixture shared adapter\n"}
+        for route in ("fast", "full", "interactive", "planning"):
+            files["doc/routes/%s.md" % route] = "# Маршрут\n"
         for k, v in machines().items():
             if "/tests/" not in k:
                 files[k] = v
@@ -114,6 +116,7 @@ def main():
     pr.probe("красная", "библиотека изменена после сборки машины",
              red_tree(machines(lib=LIB + "Лишняя строка.\n"), "library-hash"))
     pr.probe("красная", "подключённой библиотеки нет", red_tree(machines(with_lib=False), "library-missing"))
+    pr.probe("красная", "в комплекте нет полного маршрута", red_kit(kit_files(drop=["doc/routes/full.md"]), "kit-route"))
     pr.probe("красная", "в комплекте нет canopus.exe", red_kit(kit_files(drop=["canopus.exe"]), "kit-program"))
     pr.probe("красная", "в комплекте нет journal.md", red_kit(kit_files(drop=["machines/product/journal.md"]), "kit-machine"))
     for name in ("family-approval.alula.json", "family-approval.alula.md"):

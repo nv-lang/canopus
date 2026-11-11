@@ -216,14 +216,19 @@ export function createView(doc, refs, deps) {
   /** Номер и название задачи сессии, если у неё есть задача с номером; иначе null. */
   function sessionTask(s) {
     const task = s.routeState && s.routeState.task;
-    return task && task.number ? { number: task.number, title: task.title || '' } : null;
+    return task?.number ? { number: task.number, title: task.title || '' } : null;
+  }
+
+  function sidebarTask(s) {
+    return sessionTask(s) || (s.routeStep < 0 && s.indexTaskNumber
+      ? { number: s.indexTaskNumber, title: s.indexTaskTitle } : null);
   }
 
   function sessionRow({ session: s, depth, kids = 0, collapsed = false }, ui, pins, gctx) {
     const active = s.id === ui.selected;
     const pinned = pins.has(s.id);
     const unread = Boolean(ui.unread && ui.unread[s.id] === true);
-    const taskInfo = sessionTask(s);
+    const taskInfo = sidebarTask(s);
     const stateLabel = t(STATE_KEYS[s.state]);
     const attn = attention(s, { now: now(), silentMin: ui.silentMin ?? SILENT_DEFAULT_MIN, unread, acked: (ui.acked || {})[s.id] || '' });
     const attnText = attn.state === 'waiting' ? t('attn.waiting') : attn.state === 'silent' ? t('attn.silent', { n: attn.minutes }) : attn.state === 'error' ? t('attn.error') : '';
@@ -468,7 +473,7 @@ export function createView(doc, refs, deps) {
     const pins = effectivePins(all, ui.pins);
     const filtered = filterSessions(all, query);
     const groups = groupSessions(filtered, { pinned: pins, projects: projectsList, includeEmpty: query.trim() === '', collapsed: foldedParents });
-    const rowSig = (r) => [r.depth, r.kids, r.collapsed, r.session.parent, r.session.id, r.session.name, r.session.state, r.session.updatedAt, r.session.rank, r.session.projectId, (sessionTask(r.session) || {}).number, ui.unread ? ui.unread[r.session.id] : undefined, Boolean(r.session.pendingQuestion), (mergeLabel(r.session.routeState && r.session.routeState.task) || {}).text, (() => { const a = attention(r.session, { now: now(), silentMin: ui.silentMin ?? SILENT_DEFAULT_MIN, unread: Boolean(ui.unread && ui.unread[r.session.id] === true), acked: (ui.acked || {})[r.session.id] || '' }); return `${a.state}:${a.blink}:${a.minutes}`; })()];
+    const rowSig = (r) => [r.depth, r.kids, r.collapsed, r.session.parent, r.session.id, r.session.name, r.session.state, r.session.updatedAt, r.session.rank, r.session.projectId, (sidebarTask(r.session) || {}).number, ui.unread ? ui.unread[r.session.id] : undefined, Boolean(r.session.pendingQuestion), (mergeLabel(r.session.routeState && r.session.routeState.task) || {}).text, (() => { const a = attention(r.session, { now: now(), silentMin: ui.silentMin ?? SILENT_DEFAULT_MIN, unread: Boolean(ui.unread && ui.unread[r.session.id] === true), acked: (ui.acked || {})[r.session.id] || '' }); return `${a.state}:${a.blink}:${a.minutes}`; })()];
     const sig = JSON.stringify([loading?.sessions.phase, ui.selected, activeProject, query, groupMenu, [...expandedGroups], sideKit.sig(), groups.pinned.map(rowSig), groups.projects.map((p) => [p.project, p.id, p.rows.map(rowSig)])]);
     const shown = groups.pinned.length + groups.projects.length;
     listEmpty.hidden = Boolean(loading && (loading.projects.phase !== 'ready' || loading.sessions.phase !== 'ready')) || all.length > 0 || (projectsList !== null && projectsList.length > 0);

@@ -609,6 +609,10 @@ export fn Hub @session_index() -> str {
         jput(input, "folder", JsonValue.str(s.folder))
         jput(input, "project_id", JsonValue.str(s.project_id))
         if s.has_rank { jput(input, "rank", JsonValue.int(s.rank)) }
+        if s.rt.task_open && s.rt.number.byte_len() > 0 {
+            jput(input, "task_number", JsonValue.str(s.rt.number))
+            jput(input, "task_title", JsonValue.str(s.rt.title))
+        }
         entries.push(event_line("summary-${s.id}", s.id, 0, "session_created", input, s.rt.active_at))
     }
     array_text(entries)

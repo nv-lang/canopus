@@ -684,6 +684,7 @@ export fn ctx_scan(lines []str, prev_used int, prev_size int, drop_percent int) 
             ro used = ctx_num(line, "used")
             ro sz = ctx_num(line, "size")
             if sz > 0 { size = sz }
+            if used <= 0 { continue }
             if drop_percent > 0 && prev > 0 && used * 100 < prev * (100 - drop_percent) {
                 before = prev
                 after = used

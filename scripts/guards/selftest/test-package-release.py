@@ -55,6 +55,8 @@ def tree_files(lib_hash=None, executable=True):
              "machines/product/libs/call_cancel.alula.md": LIB,
              "machines/product/tests/dialog-x.alula.test.json": "{}\n",
              "machines/other/agent_step.alula.json": "{}\n"}
+    for route in ("fast", "full", "interactive", "planning"):
+        files["doc/routes/%s.md" % route] = "# Маршрут\n"
     if executable:
         files["target/canopus.exe"] = "MZ"
     return files
@@ -87,7 +89,8 @@ def main():
                           "machines/product/dialog.alula.md", "machines/product/family-approval.alula.json",
                           "machines/product/family-approval.alula.md", "machines/product/journal.md",
                            "machines/product/libs/call_cancel.alula.md", "machines/product/work-mode.alula.json",
-                           "machines/product/work-mode.alula.md", "preparation-agent.mjs"]), listed
+                           "machines/product/work-mode.alula.md", "preparation-agent.mjs",
+                           *("doc/routes/%s.md" % route for route in ("fast", "full", "interactive", "planning"))]), listed
         assert stlib.has_line(proc, "ок: осмотрено"), proc.out
 
     def relative_kit():

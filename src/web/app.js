@@ -166,9 +166,10 @@ function applySessionIndex(entries) {
     const previous = model.sessions[event.trace];
     if (!previous || previous.draft) model = reduce(model, event);
     else {
-      const { name, agent, folder, project_id, rank } = event.input;
+      const { name, agent, folder, project_id, rank, task_number, task_title } = event.input;
       model = { ...model, sessions: { ...model.sessions, [event.trace]: {
         ...previous, name, agent, folder, projectId: project_id, rank,
+        indexTaskNumber: task_number || '', indexTaskTitle: task_title || '',
         updatedAt: Math.max(previous.updatedAt, event.time),
       } } };
     }

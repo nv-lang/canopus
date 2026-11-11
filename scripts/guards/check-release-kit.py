@@ -34,6 +34,7 @@ import guardlib  # noqa: E402
 
 PREFIX = "machines/product/"
 KIT_PROGRAMS = ("kimi-preparation.mjs", "kimi-preparation.md", "preparation-research.mjs", "start.ps1", "scripts/native-acp-catalog.mjs", "scripts/zai-acp.mjs", "canopus.exe", "preparation-agent.mjs", 'scripts/task-store.mjs', 'opencode-plugin/shared-task-store.ts', 'opencode-plugin/shared-task-config.ts', 'opencode-plugin/shared-task-snapshot.ts', 'opencode-plugin/task-numbers.ts')
+KIT_ROUTES = tuple("doc/routes/%s.md" % name for name in ("fast", "full", "interactive", "planning"))
 KIT_MACHINES = ("dialog.alula.json", "dialog.alula.md", "work-mode.alula.json", "work-mode.alula.md", "family-approval.alula.json", "family-approval.alula.md", "journal.md")
 LOCK_VERSION = re.compile(r'name\s*=\s*"alula"[^\[]*?\bversion\s*=\s*"(\d+)\.(\d+)', re.S)
 
@@ -160,6 +161,10 @@ def judge_kit(kit, root, rep):
         full = os.path.join(kit, program)
         if not os.path.isfile(full) or os.path.getsize(full) == 0:
             rep.add("%s/%s" % (kit, program), None, "kit-program", "программы нет в комплекте")
+    for route in KIT_ROUTES:
+        full = os.path.join(kit, route)
+        if not os.path.isfile(full) or os.path.getsize(full) == 0:
+            rep.add(full, None, "kit-route", "описания маршрута нет в комплекте")
     for name in KIT_MACHINES:
         if name not in files:
             rep.add("%s/%s%s" % (kit, PREFIX, name), None, "kit-machine", "файла машин нет в комплекте")
@@ -179,7 +184,7 @@ def judge_kit(kit, root, rep):
                 needed.add(lib)
     for path in listed:
         inside = path[len(PREFIX):] if path.startswith(PREFIX) else None
-        if path in KIT_PROGRAMS or (inside is not None and inside in needed):
+        if path in KIT_PROGRAMS or path in KIT_ROUTES or (inside is not None and inside in needed):
             continue
         rep.add("%s/%s" % (kit, path), None, "kit-extra",
                 "лишний файл в комплекте: в нём только программы и machines/product без tests/ и чата")
