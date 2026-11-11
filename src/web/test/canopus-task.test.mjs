@@ -88,8 +88,8 @@ test('полоса и таблица: кнопка «Распознать зад
   const { ui, log } = mount();
   const el = ui.el;
   const byText = (text) => el.querySelectorAll('button').filter((b) => b.textContent === text);
-  assert.equal(byText('Распознать задачи').length, 1);
-  byText('Распознать задачи')[0].click();
+  assert.equal(byText('Распознать задачи').length, 0);
+  ui.bar.querySelector('button').click();
   assert.deepEqual(log.pop(), ['recognize', 's1']);
   // таблица: заголовки и две строки, у каждой три переключателя, выбран «Обсудить»
   assert.deepEqual(el.querySelectorAll('th').map((x) => x.textContent), ['№', 'Название', 'Краткое содержание', 'Затронет', 'Решение', 'Способ']);
@@ -106,8 +106,8 @@ test('полоса и таблица: кнопка «Распознать зад
   // одиночная карточка
   byText('Только обсуждение')[0].click();
   assert.deepEqual(log.pop(), ['prop', 's1', 3, 'dismiss']);
-  assert.match(el.textContent, /в работе 2 из лимита 3/);
-  assert.match(el.textContent, /Кандидаты: 1/);
+  assert.match(ui.bar.textContent, /в работе 2 из лимита 3/);
+  assert.match(ui.bar.textContent, /Кандидаты: 1/);
   assert.doesNotMatch(el.textContent, /или напишите слово/);
   assert.match(byText('В работу').at(-1).getAttribute('title'), /Enter в поле ввода со словом «задача» тоже подтверждает/);
 });
@@ -165,7 +165,8 @@ test('без списка и карточек остаётся только по
   const ui = createCanopusTaskUi(doc, { onCanopusProp() {}, onCanopusRecognize() {}, onCanopusApply() {} });
   const empty = { id: 's2', routeState: parseRouteState({ route: 'interactive' }) };
   ui.render(empty);
-  assert.equal(ui.el.hidden, false);
+  assert.equal(ui.bar.hidden, false);
+  assert.equal(ui.el.hidden, true);
   assert.equal(ui.el.querySelectorAll('.route-card').length, 0);
   const panel = ui.panel(empty);
   assert.match(panel.textContent, /Задач нет/);

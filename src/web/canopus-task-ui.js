@@ -25,6 +25,7 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
   const runs = new Map(); // «сессия:карточка» -> режим выполнения (interactive | fast | full)
   const kidsOff = new Map(); // «сессия:карточка» -> множество номеров частей эпика, с которых снята отметка
   const el = h(doc, 'div', { class: 'canopus-over', hidden: true });
+  const bar = h(doc, 'div', { class: 'canopus-bar', hidden: true });
   let sig = '';
 
   const button = (text, cls, run) => {
@@ -84,7 +85,7 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
       return h(doc, 'tr', { class: 'canopus-row', 'data-choice': choiceOf(p), 'data-id': String(p.id) },
         h(doc, 'td', { class: 'canopus-no', text: String(p.number) }),
         h(doc, 'td', { class: 'canopus-title', text: p.title }),
-        h(doc, 'td', { class: 'canopus-summary muted', title: p.summary, text: p.summary }),
+        h(doc, 'td', { class: 'canopus-summary muted' }, h(doc, 'span', { title: p.summary, text: p.summary })),
         h(doc, 'td', { class: 'canopus-touches muted', text: p.touches.join(', ') }),
         h(doc, 'td', { class: 'canopus-choices' }, ...radios),
         h(doc, 'td', { class: 'canopus-way-cell' }, choiceOf(p) === 'work' ? wayControls(session, canopus, p) : false));
@@ -104,8 +105,7 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
       h(doc, 'span', { class: 'route-actions' }, ...rowActions(p, '').map((a) => button(actionLabel(a, session), a.primary ? 'primary' : '', () => press(session, canopus, p, a.action)))))));
     return h(doc, 'section', { class: 'route-card canopus-list', 'data-card': 'canopus-list' },
       h(doc, 'strong', { class: 'route-card-title', text: t('canopustask.list_title') }),
-      table,
-      problemList,
+      h(doc, 'div', { class: 'canopus-list-body', tabindex: '0', 'aria-label': t('canopustask.list_title') }, table, problemList),
       rows.length > 0 ? h(doc, 'div', { class: 'canopus-apply-row' }, apply) : false);
   }
 
@@ -202,6 +202,7 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
   /** Перерисовать по сессии (вызывается из render() view.js). */
   let current = null;
   function render(session) {
+    const scrollTop = current?.id === session?.id ? el.querySelector('.canopus-list-body')?.scrollTop : undefined;
     current = session;
     const canopus = (session && session.routeState && session.routeState.canopus) || EMPTY_CREW;
     const rows = tableRows(canopus);
@@ -211,13 +212,16 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
     const next = JSON.stringify([session && session.id, session && session.route, show, canopus, [...ways], [...agents], [...choices], [...runs], [...kidsOff].map(([k, v]) => [k, [...v]]), agentList()]);
     if (next === sig) return;
     sig = next;
-    if (!show) { el.hidden = true; el.replaceChildren(); return; }
-    const bar = h(doc, 'div', { class: 'canopus-bar' },
+    bar.hidden = !show;
+    if (!show) { el.hidden = true; el.replaceChildren(); bar.replaceChildren(); return; }
+    bar.replaceChildren(...[
       h(doc, 'span', { class: 'canopus-count muted', text: activeText(canopus) }),
       canopus.candidates > 0 ? h(doc, 'span', { class: 'canopus-count muted', text: t('canopustask.candidates', { n: canopus.candidates }) }) : false,
-      button(t('canopustask.recognize'), '', () => handlers.onCanopusRecognize(session.id)));
-    el.replaceChildren(...[bar, rows.length + problems.length > 0 ? tableCard(session, canopus, rows, problems) : false, single ? singleCardEl(session, canopus, single) : false].filter(Boolean));
-    el.hidden = false;
+      button(t('canopustask.recognize'), '', () => handlers.onCanopusRecognize(session.id))].filter(Boolean));
+    el.replaceChildren(...[rows.length + problems.length > 0 ? tableCard(session, canopus, rows, problems) : false, single ? singleCardEl(session, canopus, single) : false].filter(Boolean));
+    el.hidden = el.children.length === 0;
+    const listBody = el.querySelector('.canopus-list-body');
+    if (listBody && scrollTop !== undefined) listBody.scrollTop = scrollTop;
   }
 
   /** Блок правой панели: сколько в работе и кандидаты (нет задач и нет кандидатов — подсказка, как они появляются). */
@@ -259,5 +263,5 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
       hasSubs || list ? false : h(doc, 'p', { class: 'muted', text: t('canopustask.none') }));
   }
 
-  return { el, render, panel };
+  return { el, bar, render, panel };
 }

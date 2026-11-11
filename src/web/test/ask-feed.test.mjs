@@ -8,7 +8,7 @@ const view = fs.readFileSync(new URL('../view.js', import.meta.url), 'utf8');
 const css = fs.readFileSync(new URL('../app.css', import.meta.url), 'utf8');
 
 test('форма вопроса в конце ленты над полем ввода', () => {
-  assert.match(view, /const log = h\(doc, 'div', [^;]*thread, historyLoading, permissionWrap, askWrap\);/);
+  assert.match(view, /const log = h\(doc, 'div', [^;]*thread, historyLoading, permissionWrap, canopusUi\.el, askWrap\);/);
   assert.match(view, /permissionWrap\.replaceChildren\(dialog\);/);
 });
 

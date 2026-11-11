@@ -619,7 +619,8 @@ export function createView(doc, refs, deps) {
   const permissionWrap = h(doc, 'div', { class: 'permission-wrap', hidden: true });
   const askCard = h(doc, 'div', { class: 'ask', role: 'dialog', hidden: true });
   const askWrap = h(doc, 'div', { class: 'ask-wrap', hidden: true }, askCard);
-  const log = h(doc, 'div', { class: 'log', role: 'log', 'aria-live': 'off' }, thread, historyLoading, permissionWrap, askWrap);
+  const canopusUi = createCanopusTaskUi(doc, handlers, { agents: () => Object.keys((current.model && current.model.catalog) || {}).sort() });
+  const log = h(doc, 'div', { class: 'log', role: 'log', 'aria-live': 'off' }, thread, historyLoading, permissionWrap, canopusUi.el, askWrap);
   const emptyChat = h(doc, 'p', { class: 'empty', text: t('chat.empty') });
 
   // поле ввода
@@ -1520,8 +1521,7 @@ export function createView(doc, refs, deps) {
     routeCards.hidden = cards.length === 0;
   }
 
-  const canopusUi = createCanopusTaskUi(doc, handlers, { agents: () => Object.keys((current.model && current.model.catalog) || {}).sort() });
-  const routeOver = h(doc, 'div', { class: 'route-over' }, canopusUi.el, routeCards, routeBanner, routeStrip);
+  const routeOver = h(doc, 'div', { class: 'route-over' }, canopusUi.bar, routeCards, routeBanner, routeStrip);
 
   const composer = h(doc, 'div', { class: 'composer' },
     routeOver,
@@ -2660,7 +2660,7 @@ export function createView(doc, refs, deps) {
     const session = ui.selected ? model.sessions[ui.selected] : undefined;
     const pending = session ? session.pending : null;
     const host = pending ? nodes.get('permission-slot')?.node ?? log : log;
-    if (permissionWrap.parentNode !== host) host.insertBefore(permissionWrap, host === log ? askWrap : null);
+    if (permissionWrap.parentNode !== host) host.insertBefore(permissionWrap, host === log ? canopusUi.el : null);
     if (!pending) {
       if (shownRequest !== null) {
         shownRequest = null;

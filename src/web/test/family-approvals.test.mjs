@@ -75,7 +75,7 @@ test('режим разрешений можно менять в поле вво
   view.render(m, ui, { state: 'connected' });
   const permission = refs.main.querySelector('.permission-wrap');
   const log = refs.main.querySelector('.log');
-  assert.equal(log.children[log.children.length - 2], permission);
+  assert.equal(log.children[log.children.length - 3], permission);
   assert.equal(log.children[log.children.length - 1], refs.main.querySelector('.ask-wrap'));
   assert.equal(permission.hidden, false);
   assert.equal(refs.main.querySelector('.composer').contains(permission), false);

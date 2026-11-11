@@ -1422,13 +1422,13 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .mach-leaf .mach-val { min-width: 0; word-break: break-word; }
 
 /* ---- распознавание задач (задача 192.2) */
-.canopus-over { display: flex; flex-direction: column; gap: 6px; }
+.canopus-over { display: flex; flex-direction: column; gap: 6px; width: min(var(--column), 100%); margin: 0 auto; padding: 0 var(--chat-inset) 12px; }
 .canopus-over[hidden] { display: none; }
 .canopus-bar { display: flex; align-items: center; gap: 6px 12px; flex-wrap: wrap; font-size: 13px; }
 .canopus-bar > button { margin-inline-start: auto; }
 .canopus-list, .canopus-single { align-items: stretch; flex-direction: column; }
 .canopus-rows { margin: 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
-.canopus-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.canopus-rows > .canopus-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
 .canopus-row-text { flex: 1; min-width: 200px; overflow-wrap: anywhere; }
 .canopus-row-summary { flex-basis: 100%; font-size: 12px; }
 .canopus-row-problem { flex-basis: 100%; color: var(--fg-muted); font-size: 12px; }
@@ -1467,24 +1467,36 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .ctx-list { list-style: none; margin: 4px 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .ctx-row { display: flex; gap: 8px; font-size: 13px; }
 /* задача 192.5: таблица кандидатов, «папка деревьев» проекта, служебные подсказки агенту */
+.canopus-list { display: flex; flex-direction: column; flex-wrap: nowrap; align-items: stretch; min-width: 0; }
+.canopus-list-body { container: canopus-tasks / inline-size; max-block-size: min(42dvh, 360px); overflow: auto; scrollbar-gutter: stable; }
 .canopus-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.canopus-table th { text-align: left; font-weight: 600; color: var(--fg-muted); padding: 4px 8px 4px 0; white-space: nowrap; }
+.canopus-table th { text-align: left; font-weight: 600; color: var(--fg-muted); padding: 4px 8px 4px 0; }
 .canopus-table td { padding: 6px 8px 6px 0; vertical-align: top; border-top: 1px solid var(--border); }
 .canopus-no { width: 1%; color: var(--fg-muted); }
 .canopus-title { font-weight: 600; min-width: 120px; overflow-wrap: anywhere; }
-.canopus-summary { max-width: 260px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.canopus-summary { max-width: 260px; overflow-wrap: anywhere; }
+.canopus-summary > span { overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
 .canopus-touches { max-width: 200px; overflow-wrap: anywhere; font-size: 12px; }
-.canopus-choices { white-space: nowrap; }
-.canopus-choice { display: inline-flex; align-items: center; gap: 3px; margin-right: 8px; cursor: pointer; }
+.canopus-choice { display: inline-flex; align-items: center; gap: 3px; margin-right: 8px; white-space: nowrap; cursor: pointer; }
 .canopus-way-cell { min-width: 150px; }
-.canopus-apply-row { display: flex; justify-content: flex-end; margin-top: 8px; }
+.canopus-apply-row { display: flex; flex: none; justify-content: flex-end; padding-top: 6px; border-top: 1px solid var(--border); }
+.canopus-apply { max-inline-size: 100%; white-space: normal; }
 .proj-trees .field-hint, .field-hint { font-size: 12px; margin: 2px 0 0; }
 .hint-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .hint-head { display: flex; align-items: center; gap: 8px; }
 .hint-kind { font-weight: 600; flex: 1; }
 .hint-text { margin: 4px 0 0; padding: 6px 8px; max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid var(--border); border-radius: 8px; font-size: 12px; }
 .canopus-merge-all { margin-top: 6px; }
-@media (max-width: 720px) { .canopus-table thead { display: none; } .canopus-table tr { display: block; padding: 6px 0; } .canopus-table td { display: block; border: 0; padding: 2px 0; max-width: none; } }
+@container canopus-tasks (max-width: 700px) {
+  .canopus-table thead { display: none; }
+  .canopus-table tbody { display: block; }
+  .canopus-table tr { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 8px; padding: 6px 0; }
+  .canopus-table tr + tr { border-top: 1px solid var(--border); }
+  .canopus-table td { display: block; border: 0; padding: 2px 0; max-width: none; }
+  .canopus-table td:nth-child(n + 3) { grid-column: 2; }
+  .canopus-table .canopus-no { width: auto; }
+  .canopus-table .canopus-way-cell:empty { display: none; }
+}
 
 /* ---- вкладка «Запрос» (задача 192.11) ---- */
 .req-border { font-size: 12px; margin: 2px 0 8px; overflow-wrap: anywhere; }
