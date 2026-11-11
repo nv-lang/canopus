@@ -78,6 +78,13 @@ test('режим разрешений можно менять в поле вво
   assert.equal(log.children[log.children.length - 1], permission);
   assert.equal(permission.hidden, false);
   assert.equal(refs.main.querySelector('.composer').contains(permission), false);
+  m = reduce(m, { id: 'tool', trace: 's', step: 3, time: 3, kind: 'tool_call', input: { turn: 't', id: 'read', kind: 'read', status: 'pending' } });
+  view.render(m, ui, { state: 'connected' });
+  const thread = refs.main.querySelector('.thread');
+  const slot = thread.querySelector('.item-permission');
+  assert.equal(permission.parentNode, slot);
+  const feedItems = Array.from(thread.children);
+  assert.ok(feedItems[feedItems.indexOf(slot) - 1].classList.contains('item-work'));
   const row = refs.main.querySelector('.box-row');
   assert.equal(row.querySelector('.family-approvals'), null);
   assert.equal(refs.main.querySelector('.family-approvals-button'), null);

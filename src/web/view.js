@@ -1726,8 +1726,7 @@ export function createView(doc, refs, deps) {
     });
     return h(doc, 'div', { class: 'work-row', 'data-state': r.status },
       rowIcon(r),
-      h(doc, 'div', { class: 'row-main' }, heading, details),
-      rowStatus(r));
+      heading, rowStatus(r), details);
   }
 
   function toggleOpen(key, button, body) {
@@ -1870,6 +1869,8 @@ export function createView(doc, refs, deps) {
         node.replaceChildren(h(doc, 'span', { class: 'agent-signature', text: label }));
         break;
       }
+      case 'permission':
+        break;
       case 'work':
         fillWork(entry, item);
         break;
@@ -2297,6 +2298,14 @@ export function createView(doc, refs, deps) {
     handlers.queuedItems(session.id).forEach((q, index) => {
       items.push({ type: 'queued', key: `queued:${index}:${q.text.length}:${q.text.slice(0, 24)}`, text: q.text, images: q.images ?? [], index });
     });
+    const pending = session.pending;
+    if (pending) {
+      const anchor = items.findLastIndex(item => item.type === 'work' && item.rows.some(row =>
+        row.type === 'tool' && row.turn === pending.turn && (pending.toolCall
+          ? row.id === pending.toolCall
+          : row.step <= pending.step && ['pending', 'in_progress'].includes(row.status))));
+      if (anchor >= 0) items.splice(anchor + 1, 0, { type: 'permission', key: 'permission-slot' });
+    }
     if (items.length === 0) {
       if (session.draft) {
         syncProjectPicker(session);
@@ -2574,6 +2583,8 @@ export function createView(doc, refs, deps) {
   function renderDialog(model, ui) {
     const session = ui.selected ? model.sessions[ui.selected] : undefined;
     const pending = session ? session.pending : null;
+    const host = pending ? nodes.get('permission-slot')?.node ?? log : log;
+    if (permissionWrap.parentNode !== host) host.append(permissionWrap);
     if (!pending) {
       if (shownRequest !== null) {
         shownRequest = null;

@@ -579,7 +579,7 @@ pre code { font: inherit; }
   border-left: 1px solid var(--border);
   color: var(--fg-muted);
 }
-.work-row { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 8px; padding: 3px 0; align-items: start; }
+.work-row { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; column-gap: 8px; padding: 3px 0; align-items: start; }
 .work-row .row-leading { width: 13px; height: 13px; margin-top: 4px; }
 .work-row:is([data-state="completed"], [data-state="allow"]) .row-leading { color: var(--ok); }
 .work-row:is([data-state="failed"], [data-state="deny"]) .row-leading { color: var(--danger-icon); }
@@ -597,7 +597,8 @@ pre code { font: inherit; }
 .row-label > span:first-child { flex: none; }
 .row-secondary { color: color-mix(in srgb, var(--fg-muted) 80%, var(--surface)); }
 .item-work .disclosure .chev { width: 23px; height: 23px; padding: 5px; border: 1px solid var(--border); border-radius: 7px; }
-.row-content { margin: 2px 0 4px; padding: 6px 9px; max-block-size: calc(11lh + 12px); overflow: auto; font: 11.5px/1.6 var(--font-mono); border-radius: 6px; background: var(--surface-2); color: var(--fg-muted); }
+.work-row > .row-status { grid-column: 3; grid-row: 1; }
+.row-content { grid-column: 2 / -1; margin: 2px 0 4px; padding: 6px 9px; max-block-size: calc(11lh + 12px); overflow: auto; font: 11.5px/1.6 var(--font-mono); border-radius: 6px; background: var(--surface-2); color: var(--fg-muted); }
 .row-content[hidden] { display: none; }
 .row-command, .row-detail { font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
 .row-command { display: block; color: var(--fg); }
@@ -1080,6 +1081,7 @@ body { font-size: 13px; line-height: 1.55; letter-spacing: .005em; }
 .ask-wrap { margin-top: 8px; max-height: min(38vh, 360px); overflow-y: auto; }
 .ask-wrap[hidden], .permission-wrap[hidden] { display: none; }
 .permission-wrap { width: min(var(--column), 100%); margin: 0 auto; padding: 0 var(--chat-inset) 12px; }
+.item-permission .permission-wrap { width: 100%; padding: 0 0 0 22px; }
 .permission-wrap .dialog { width: min(600px, 100%); border-color: var(--border); box-shadow: none; }
 .ask-status { display: flex; align-items: center; padding: 12px 6px 0; }
 .ask { display: flex; flex-direction: column; width: min(600px, 100%); overflow: hidden; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }

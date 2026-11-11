@@ -212,7 +212,7 @@ test('диалог разрешения открывается запросом 
   ]);
   const s = base.sessions.s1;
   assert.equal(s.state, 'permission');
-  assert.deepEqual(s.pending, { request: 'p1', turn: 't1', action: 'Записать файл', detail: 'a.txt' });
+  assert.deepEqual(s.pending, { request: 'p1', turn: 't1', action: 'Записать файл', detail: 'a.txt', toolCall: '', step: 2 });
 
   const allowed = reduce(base, ev('permission_decision', { request: 'p1', decision: 'allow' }, { step: 3 }));
   assert.equal(allowed.sessions.s1.pending, null);

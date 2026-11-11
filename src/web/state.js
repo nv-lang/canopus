@@ -417,12 +417,12 @@ function apply(session, event) {
       const request = str(input.request, event.id);
       const key = permKey(turn, request);
       if (session.messages.some((m) => m.key === key)) return session;
-      const entry = { request, turn, action: str(input.action), detail: str(input.detail) };
+      const entry = { request, turn, action: str(input.action), detail: str(input.detail), toolCall: str(input.tool_call), step: event.step };
       return {
         ...session,
         state: 'permission',
         pending: session.pending || entry,
-        messages: [...session.messages, { key, role: 'permission', ...entry, step: event.step, decision: null }],
+        messages: [...session.messages, { key, role: 'permission', ...entry, decision: null }],
       };
     }
 
@@ -436,7 +436,7 @@ function apply(session, event) {
       const closes = session.pending !== null && session.pending.request === request && session.pending.turn === turn;
       const next = closes ? messages.find(m => m.role === 'permission' && m.turn === turn && m.decision === null) : null;
       const pending = closes
-        ? next && { request: next.request, turn: next.turn, action: next.action, detail: next.detail }
+        ? next && { request: next.request, turn: next.turn, action: next.action, detail: next.detail, toolCall: next.toolCall, step: next.step }
         : session.pending;
       return {
         ...session,
