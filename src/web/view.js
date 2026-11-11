@@ -1656,17 +1656,16 @@ export function createView(doc, refs, deps) {
     const output = isCommand ? detail.split('\n').filter(line => !/^terminal: (?:exec-[\da-f-]+|[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}|\?)\s*$/iu.test(line)).join('\n') : detail;
     const command = isCommand ? (r.command || (r.title !== r.id && !/^(?:bash|shell|terminal|command|execute|powershell|pwsh|cmd)$/iu.test(r.title.trim()) ? r.title : '')) : '';
     const showDetail = output && (!r.command || output !== JSON.stringify({ command: r.command }));
-    const clipped = r.type === 'tool' && showDetail && output.trimEnd().split('\n').length > 11;
+    const clipped = [command, showDetail && output].filter(Boolean).join('\n').trimEnd().split('\n').length > 11;
     const toolOutput = r.type === 'tool';
     const label = rowLabel(r);
     const key = `${currentTrace}:row:${r.key}`;
     const active = ['pending', 'in_progress', 'running'].includes(r.status);
     const expanded = workToggles.get(key) ?? active;
-    const details = command || showDetail ? h(doc, 'div', { class: 'row-content', hidden: !expanded },
+    const details = command || showDetail ? h(doc, 'div', { class: 'row-content', hidden: !expanded, tabindex: '0', 'data-clipped': clipped ? 'true' : undefined },
       command ? h(doc, 'code', { class: 'row-command', text: command }) : false,
       showDetail ? h(doc, toolOutput ? 'pre' : 'div', {
         class: toolOutput ? 'row-detail row-output' : 'row-detail',
-        'data-clipped': clipped ? 'true' : undefined, tabindex: toolOutput ? '0' : undefined,
         'aria-label': toolOutput ? t('work.output') : undefined, text: output,
       }) : false) : null;
     const actionIcon = r.type === 'tool' ? TOOL_ACTION_ICON[r.kind] : 'i-bolt';
@@ -2147,10 +2146,11 @@ export function createView(doc, refs, deps) {
       ? codexModelVariant(selectedModel)?.[2] : '';
     activeEffort = legacyEffort || selectedEffort;
     const hasEfforts = Boolean(activeEffortModel?.efforts.length > 1);
-    canChooseEffort = hasEfforts && (!busy || session.draft) && !session.selectionPending;
+    const preparingSource = handoff?.phase === 'preparing';
+    canChooseEffort = hasEfforts && !preparingSource && !session.selectionPending;
     const selectedPool = directSource ? '' : session.selectedPool ? `${session.selectedPool} · ${session.selectedLevel}` : session.source && session.source.pool ? `${session.source.pool} · ${session.source.level}` : '';
     const modelName = modelLabel(selectedFamily, activeEffortModel?.name || selectedModel);
-    const pickerLabel = session.selectionPending ? 'Подтверждение…' : [modelName || (shown.loading ? t('session.loading') : t('session.model_unknown')), selectedPool].filter(Boolean).join(' / ');
+    const pickerLabel = session.selectionPending && !handoff?.source ? 'Подтверждение…' : [modelName || (shown.loading ? t('session.loading') : t('session.model_unknown')), selectedPool].filter(Boolean).join(' / ');
     familyButton.hidden = false;
     familyButton.replaceChildren(h(doc, 'span', { text: pickerLabel || 'Выбрать агента' }));
     const presetData = presets() || {};
@@ -2158,9 +2158,9 @@ export function createView(doc, refs, deps) {
     const availablePools = activePreset && activePreset.pools && Object.values(activePreset.pools).some((levels) => Object.values(levels || {}).some((entries) => Array.isArray(entries) && entries.some((e) => e.active !== false)));
     const hasConfiguredFamilies = agents.length > 0;
     const canChoose = Boolean(hasConfiguredFamilies || availablePools);
-    familyButton.setAttribute('aria-disabled', String(busy && !session.draft));
+    familyButton.setAttribute('aria-disabled', String(preparingSource));
     familyButton.dataset.noChoices = String(!canChoose);
-    familyButton.title = busy && !session.draft ? 'Выбор источника доступен между ходами' : canChoose ? t('menu.agent') : registryPending ? t('status.agents_loading') : t(registryFailed ? 'sessions.agents_unavailable' : (agents.length === 1 ? 'status.agent_one' : 'sessions.agents_none'));
+    familyButton.title = preparingSource ? handoffHint.textContent : busy && canChoose ? t('handoff.choose_next') : canChoose ? t('menu.agent') : registryPending ? t('status.agents_loading') : t(registryFailed ? 'sessions.agents_unavailable' : (agents.length === 1 ? 'status.agent_one' : 'sessions.agents_none'));
     familyButton.setAttribute('aria-label', `Агент: ${pickerLabel || 'не выбран'}`);
     const hasModels = Boolean(options && options.models.length > 0);
     // Причина отсутствия вариантов — по факту: грузятся; у черновика без записи каталога появятся после запуска; агент не предоставляет.

@@ -354,12 +354,29 @@ function drainRestoreQueue() {
   return sent;
 }
 
+function applyDeferredSource(trace) {
+  const choice = ui.handoffStatus.get(trace);
+  if (choice?.phase !== 'deferred') return true;
+  const session = model.sessions[trace];
+  if (!session) { ui.handoffStatus.delete(trace); return false; }
+  if (isBusy(session.state) || session.pendingQuestion || ui.historyPending.has(trace)) return false;
+  if (needsContextHandoff(session, choice.source)) {
+    ui.handoffStatus.set(trace, { ...choice, phase: 'selected', previous: session.agent });
+    return true;
+  }
+  if (!send('session_source', trace, nextStep(model, trace), choice.source)) return false;
+  ui.handoffStatus.delete(trace);
+  return true;
+}
+
 function drain() {
+  for (const trace of ui.handoffStatus.keys()) applyDeferredSource(trace);
   const justSent = drainRestoreQueue();
   queue.prune(model.sessions);
   for (const trace of queue.traces()) {
     if (justSent.has(trace) || ui.restoreQueued.has(trace) || ui.historyPending.has(trace)) continue;
-    if (ui.handoffStatus.get(trace)?.phase === 'preparing' || ui.handoffStatus.get(trace)?.phase === 'selected') continue;
+    const phase = ui.handoffStatus.get(trace)?.phase;
+    if (phase === 'preparing' || phase === 'deferred' || (phase === 'selected' && model.sessions[trace]?.pendingQuestion)) continue;
     const item = queue.take(trace, model.sessions[trace]);
     if (item === undefined) continue;
     // в очереди лежит { text, images }: картинки уходят на сервер при выдаче, а не при постановке
@@ -540,11 +557,11 @@ const handlers = {
   onSend(trace, text, images = []) {
     const draft = model.sessions[trace];
     if (ui.historyPending.has(trace)) return sendAfterRestore(trace, text, images);
-    if (ui.restoreQueued.has(trace)) return false;
+    if (ui.restoreQueued.has(trace) || !applyDeferredSource(trace)) return false;
     const choice = ui.handoffStatus.get(trace);
     if (choice?.phase === 'preparing') return false;
     if (choice?.phase === 'selected') {
-      if (!draft || draft.agent !== choice.previous || isBusy(draft.state)) return false;
+      if (!draft || draft.agent !== choice.previous || isBusy(draft.state) || draft.pendingQuestion) return false;
       return prepareHandoff(trace, choice).then(ok => ok && handlers.onSend(trace, text, images));
     }
     if (choice?.phase === 'error') ui.handoffStatus.delete(trace);
@@ -623,8 +640,12 @@ const handlers = {
   onSource(trace, source) {
     const session = model.sessions[trace];
     if (ui.handoffStatus.get(trace)?.phase === 'preparing') return;
-    if (!session || session.draft || isBusy(session.state)) { flash('Источник можно изменить только между ходами.', 'info'); return; }
-    if (session.pendingQuestion) return;
+    if (!session || session.draft) return;
+    if (isBusy(session.state) || session.pendingQuestion || ui.historyPending.has(trace)) {
+      ui.handoffStatus.set(trace, { phase: 'deferred', source });
+      render();
+      return;
+    }
     if (needsContextHandoff(session, source)) {
       ui.handoffStatus.set(trace, { phase: 'selected', previous: session.agent, source });
       render();
@@ -878,6 +899,7 @@ async function start() {
         }
         sessionTransportReady = true;
         loading.sessionsReady();
+        drain();
       }
     },
   });

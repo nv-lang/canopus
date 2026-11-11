@@ -561,8 +561,7 @@ pre code { font: inherit; }
 .work-body {
   margin: 0 0 5px 18px;
   padding: 2px 0 2px 12px;
-  border-left: 2px solid var(--border);
-  font-size: 15px;
+  border-left: 1px solid var(--border);
   color: var(--fg-muted);
 }
 .work-row { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 8px; padding: 3px 0; align-items: start; }
@@ -573,8 +572,7 @@ pre code { font: inherit; }
 .work-row:is([data-state="in_progress"], [data-state="running"]) .row-leading { color: var(--accent); }
 .item-work .disclosure { min-height: 32px; width: fit-content; max-width: 100%; }
 .item-work .disclosure:hover { background: var(--hover); }
-.row-command { display: block; font-family: var(--font-mono); margin-block: 2px; color: var(--fg); overflow-wrap: anywhere; }
-.item-work .disclosure, .work-body { font-size: .875rem; }
+.item-work .disclosure, .work-body { font-size: 12.5px; }
 .row-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row-toggle span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .row-toggle { display: flex; min-height: 22px; align-items: baseline; gap: 4px; max-width: 100%; border: 0; padding: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
@@ -582,12 +580,15 @@ pre code { font: inherit; }
 .row-heading { display: flex; align-items: center; gap: 4px; }
 .row-heading span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .row-label .row-action { width: .9em; height: .9em; flex: none; align-self: center; }
+.row-content { margin: 2px 0 4px; padding: 6px 9px; max-block-size: calc(11lh + 12px); overflow: auto; font: 11.5px/1.6 var(--font-mono); border-radius: 6px; background: var(--surface-2); color: var(--fg-muted); }
 .row-content[hidden] { display: none; }
-.row-detail { font: 13px/1.5 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
-.row-output { max-block-size: 11lh; margin: 2px 0 0; overflow: auto; white-space: pre; }
-.row-output[data-clipped="true"] { mask-image: linear-gradient(transparent, var(--fg) .65lh, var(--fg) calc(100% - .65lh), transparent); }
+.row-command, .row-detail { font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
+.row-command { display: block; color: var(--fg); }
+.row-command + .row-detail { margin-top: 4px; }
+.row-output { margin: 0; padding: 0; border: 0; background: transparent; color: inherit; overflow: visible; white-space: pre; }
+.row-content[data-clipped="true"] { mask-image: linear-gradient(transparent, var(--fg) .65lh, var(--fg) calc(100% - .65lh), transparent); }
 
-.row-status { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.row-status { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; font-size: 11.5px; font-variant-numeric: tabular-nums; }
 .row-status .icon { width: 13px; height: 13px; margin: 0; }
 [data-state="completed"] .row-status .icon { color: var(--ok); }
 [data-state="in_progress"] .row-status .icon { color: var(--accent); }
@@ -894,7 +895,7 @@ pre code { font: inherit; }
   --radius-card: 11px;
   --radius-box: 14px;
 }
-body { font-size: 14px; line-height: 1.55; letter-spacing: .005em; }
+body { font-size: 13px; line-height: 1.55; letter-spacing: .005em; }
 .app { background: var(--bg); }
 .side-col { border-right-color: color-mix(in srgb, var(--border) 65%, transparent); }
 .side-head { padding-top: 12px; }
@@ -906,10 +907,10 @@ body { font-size: 14px; line-height: 1.55; letter-spacing: .005em; }
 .group-head { min-height: 34px; }
 .session { min-height: var(--hit); }
 
-.session-item { min-height: var(--hit); font-size: 13.5px; }
+.session-item { min-height: var(--hit); font-size: 12.5px; }
 .session-item:focus-visible { position: relative; z-index: 1; }
 .topbar { height: 46px; padding-inline: 24px; }
-.title-block h2 { font-size: 17px; letter-spacing: -.025em; }
+.title-block h2 { font-size: 15px; letter-spacing: -.025em; }
 .thread { gap: 19px; padding-top: 30px; }
 .item-user { max-width: min(78%, 620px); }
 .bubble { padding: 11px 15px; }
@@ -917,7 +918,7 @@ body { font-size: 14px; line-height: 1.55; letter-spacing: .005em; }
 /* Композер задачи 192: карточка в одну строку, круглая кнопка со стрелкой прижата к правому нижнему краю. */
 .box { display: flex; align-items: flex-end; gap: 6px; position: relative; padding: 4px 8px 4px 8px; border-radius: 14px; box-shadow: var(--shadow-card); }
 .box:has(> textarea:focus) { outline: none; border-color: color-mix(in srgb, var(--fg) 30%, var(--border)); box-shadow: var(--shadow-card-focus); }
-.box textarea { min-height: 40px; padding: 9px 12px 9px 0; font-size: 15px; line-height: 1.45; max-height: calc(1.45em * 5 + 18px); margin-left: -2px; }
+.box textarea { min-height: 40px; padding: 9px 12px 9px 0; font-size: 13px; line-height: 1.45; max-height: calc(1.45em * 5 + 18px); margin-left: -2px; }
 .box textarea::placeholder { color: var(--fg-muted); opacity: 1; }
 /* Подсказка пустого поля — в одну строку: не помещается — обрезается многоточием, высота карточки не растёт; набранный текст переносится как обычно */
 .box textarea:placeholder-shown { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -182,6 +182,40 @@ test('late receipt clears a timed-out local copy before rendering the accepted e
 });
 
 
+test('выбор модели и усилия во время хода применяется перед сообщением из очереди', async () => {
+  const page = await app();
+  page.event('agent_switched', { from: 'agent', to: 'codex' }, { step: 1 });
+  page.event('user_message', { turn: 'active', text: 'текущий запрос' }, { step: 2 });
+  const source = { family: 'codex', model: 'gpt-test', effort: 'high' };
+  page.handlers.onSource('s', { ...source, effort: 'low' });
+  page.handlers.onSource('s', source);
+  page.handlers.onQueue('s', 'следующий запрос');
+  assert.equal(page.getUI().handoffStatus.get('s').phase, 'deferred');
+  assert.deepEqual(page.getUI().handoffStatus.get('s').source, source);
+  assert.equal(page.sent.length, 0);
+  page.event('agent_done', { turn: 'active' }, { step: 3 });
+  assert.deepEqual(page.sent.map(item => item.kind), ['session_source', 'user_message']);
+  assert.deepEqual(page.sent[0].input, source);
+  assert.equal(page.sent[1].input.text, 'следующий запрос');
+});
+
+test('выбор другой семьи во время хода ждёт завершения и переносит контекст для очереди', async () => {
+  const page = await app();
+  page.event('agent_switched', { from: 'agent', to: 'kimi' }, { step: 1 });
+  page.event('user_message', { turn: 'active', text: 'текущий запрос' }, { step: 2 });
+  const source = { family: 'codex', model: 'gpt-test', effort: 'high' };
+  page.handlers.onSource('s', source);
+  page.handlers.onQueue('s', 'следующий запрос');
+  assert.equal(page.sent.length, 0);
+  page.event('agent_done', { turn: 'active' }, { step: 3 });
+  assert.deepEqual(page.sent.map(item => item.kind), ['session_context_handoff']);
+  page.event('agent_switched', { from: 'kimi', to: 'codex' }, { step: 4 });
+  page.event('session_source', source, { step: 5 });
+  await Promise.resolve();
+  assert.deepEqual(page.sent.map(item => item.kind), ['session_context_handoff', 'user_message']);
+  assert.equal(page.sent[1].input.text, 'следующий запрос');
+});
+
 test('Kimi to Codex handoff without a question starts only on send and never sends text after transfer failure', async () => {
   for (const succeeds of [false, true]) {
     const page = await app();

@@ -363,6 +363,10 @@ test('Codex effort variants share one model row and use separate ACP settings', 
   assert.ok(refs.main.querySelectorAll('.effort-sparkle').every((star, at) => star === middleStars[at]));
   assert.equal(effortButton.textContent, 'ultra');
   assert.equal(String(refs.main.querySelector('.effort-slider').value), '2');
+  render(reduce(pinned, { id: 'working', trace: 's', step: 2, time: 3, kind: 'user_message', input: { turn: 'active', text: 'work' } }));
+  assert.equal(refs.main.querySelector('.agent-picker-button').getAttribute('aria-disabled'), 'false');
+  assert.equal(effortButton.getAttribute('aria-disabled'), 'false');
+  assert.equal(refs.main.querySelector('.effort-slider').disabled, false);
   const pending = reduce(pinned, { id: 'pending', trace: 's', step: 2, time: 3, kind: 'agent_selection', input: selection });
   render(pending);
   assert.equal(effortButton.getAttribute('aria-expanded'), 'true');

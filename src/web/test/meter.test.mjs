@@ -162,7 +162,7 @@ test('запись: микрофон — скруглённый квадрат 1
 
 test('карточка: радиус 14, отступы 4/8/4/8, объёмная двухслойная тень из токена, текст 15 px; рамка при фокусе не акцентная; высота одной строки 50 px', () => {
   assert.match(cssSrc, /\.box \{ display: flex; align-items: flex-end; gap: 6px; position: relative; padding: 4px 8px 4px 8px; border-radius: 14px; box-shadow: var\(--shadow-card\); \}/);
-  assert.match(cssSrc, /\.box textarea \{ min-height: 40px; padding: 9px 12px 9px 0; font-size: 15px; line-height: 1\.45;/);
+  assert.match(cssSrc, /\.box textarea \{ min-height: 40px; padding: 9px 12px 9px 0; font-size: 13px; line-height: 1\.45;/);
   assert.match(cssSrc, /\.box textarea::placeholder \{ color: var\(--fg-muted\)/);
   const focusRules = [...cssSrc.matchAll(/\.box:has\(> textarea:focus\) \{([^}]*)\}/g)].map((m) => m[1]).join(' ');
   assert.ok(focusRules.length > 0 && !/accent/.test(focusRules), 'при фокусе рамка серая, не --accent');

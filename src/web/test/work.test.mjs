@@ -269,7 +269,7 @@ test('long search output stays scrollable and manually opened actions stay open'
   render(model);
   assert.equal(refs.main.querySelector('.row-content').hidden, false);
   const output = refs.main.querySelector('.row-output');
-  assert.equal(output.getAttribute('data-clipped'), 'true');
+  assert.equal(refs.main.querySelector('.row-content').getAttribute('data-clipped'), 'true');
   assert.equal(output.textContent, detail);
   render(done);
   assert.equal(refs.main.querySelector('.row-leading use').getAttribute('href'), '#i-circle-check');
