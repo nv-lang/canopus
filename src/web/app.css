@@ -58,7 +58,7 @@
   --accent-soft: #ede6f7;
   --tip-bg: #1f1f1f;
   --tip-fg: #ffffff;
-  --ok: #17692e;
+  --ok: #17656a;
   --warn: #8f5600;
   --warn-soft: #fbf0d9;
   --danger: #a42528;
@@ -68,9 +68,7 @@
   --code-fg: #191919;
   --md-heading: #673b91;
   --md-link: #165d9c;
-  --md-inline: #17656a;
   --md-keyword: #673b91;
-  --md-string: #236532;
   --md-comment: #62606a;
   --user-bg: #f3f3f3;
   --user-fg: #191919;
@@ -124,9 +122,7 @@
   --code-fg: #cbc7da;
   --md-heading: #d0a7f1;
   --md-link: #91caff;
-  --md-inline: #81d8d2;
   --md-keyword: #d0a7f1;
-  --md-string: #9ddc9c;
   --md-comment: #aaa4ba;
   --user-bg: #25203a;
   --user-fg: #e8e8ee;
@@ -506,7 +502,7 @@ input, select, textarea {
 .md-heading:is(h3, h4, h5, h6) { font-size: 1.05em; }
 .md-link { color: var(--md-link); text-decoration: underline; overflow-wrap: anywhere; }
 .code-keyword { color: var(--md-keyword); }
-.code-string { color: var(--md-string); }
+.code-string { color: var(--ok); }
 .code-comment { color: var(--md-comment); }
 .prose > :last-child { margin-bottom: 0; }
 
@@ -514,7 +510,7 @@ code.inline {
   padding: 1px 6px;
   border-radius: 6px;
   background: var(--code-bg);
-  color: var(--md-inline);
+  color: var(--ok);
   font: .9em var(--font-mono);
   font-weight: inherit;
 }
