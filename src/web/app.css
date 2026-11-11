@@ -28,8 +28,7 @@
 /* app.css — токены темы и раскладка пульта: три колонки (сессии, разговор, сведения).
  *
  * Тема. Светлая (нейтральная, без бежевого; палитра владельца, задача 192) — по умолчанию. Тёмная включается двумя путями с ОДНИМИ значениями:
- * по системе (prefers-color-scheme, если владелец не выбрал светлую вручную) и вручную
- * (:root[data-theme="dark"]). Выбор владельца ставит атрибут data-theme на <html> (theme.js и app.js).
+ * по умолчанию. Явный выбор светлой темы ставит data-theme="light" (theme.js и app.js).
  * Блоки тёмной темы дублируют друг друга намеренно (CSS не умеет «или» для разных условий); их равенство
  * проверяет test/theme.test.mjs вместе с контрастом текста и фона (не ниже 4,5:1).
  * Все цвета в правилах — только через var(--...). Шрифты системные: чужих адресов у страницы нет.
@@ -63,6 +62,7 @@
   --warn: #8f5600;
   --warn-soft: #fbf0d9;
   --danger: #a42528;
+  --danger-icon: var(--danger);
   --danger-soft: #fbe4e1;
   --code-bg: #f3f3f3;
   --code-fg: #191919;
@@ -96,49 +96,7 @@
   --hit: 40px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-    scrollbar-color: var(--scrollbar-thumb) var(--side);
-    --bg: #13111d;
-    --side: #181526;
-    --center: #13111d;
-    --surface: #1e1a2e;
-    --surface-2: #25203a;
-    --hover: #25203a;
-    --active: #2a2542;
-    --border: #322c4a;
-    --fg: #e8e8ee;
-    --fg-muted: #9b95b5;
-    --accent: #c79ee8;
-    --accent-fg: #0f0f14;
-    --accent-soft: #2a1e3a;
-    --tip-bg: #181526;
-    --tip-fg: #e8e8ee;
-    --ok: #6fcf8c;
-    --warn: #e0b04a;
-    --warn-soft: #362b1e;
-    --danger: #f98e89;
-    --danger-soft: #2f1a2e;
-    --code-bg: #181526;
-    --code-fg: #cbc7da;
-    --md-heading: #d0a7f1;
-    --md-link: #91caff;
-    --md-inline: #81d8d2;
-    --md-keyword: #d0a7f1;
-    --md-string: #9ddc9c;
-    --md-comment: #aaa4ba;
-    --user-bg: #25203a;
-    --user-fg: #e8e8ee;
-    --shadow: 0 10px 30px rgba(0, 0, 0, .6);
-    --shadow-soft: 0 1px 3px rgba(0, 0, 0, .35);
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, .45), 0 6px 20px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .04);
-    --shadow-card-focus: 0 1px 2px rgba(0, 0, 0, .5), 0 8px 26px rgba(0, 0, 0, .6), inset 0 1px 0 rgba(255, 255, 255, .06);
-    --scrim: rgba(0, 0, 0, .6);
-  }
-}
-
-:root[data-theme="dark"] {
+:root:not([data-theme="light"]) {
   color-scheme: dark;
   scrollbar-color: var(--scrollbar-thumb) var(--side);
   --bg: #13111d;
@@ -156,10 +114,11 @@
   --accent-soft: #2a1e3a;
   --tip-bg: #181526;
   --tip-fg: #e8e8ee;
-  --ok: #6fcf8c;
+  --ok: #81d8d2;
   --warn: #e0b04a;
   --warn-soft: #362b1e;
-  --danger: #f98e89;
+  --danger: #f0716b;
+  --danger-icon: #e0554f;
   --danger-soft: #2f1a2e;
   --code-bg: #181526;
   --code-fg: #cbc7da;
@@ -517,14 +476,14 @@ input, select, textarea {
 .chat[data-history-pending="true"] .box-row > :not(.send-btn) { display: none; }
 .history-loading { margin: 20px auto; text-align: center; color: var(--fg-muted); }
 
-.log { flex: 1; min-height: 0; overflow-y: auto; }
+.log { flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable both-edges; }
 .thread {
   display: flex;
   flex-direction: column;
   gap: 15px;
   width: min(var(--column), 100%);
   margin: 0 auto;
-  padding: 25px 20px 12px;
+  padding: 25px var(--chat-inset) 12px;
 }
 
 .item-user { align-self: flex-end; max-width: min(80%, 640px); }
@@ -601,7 +560,7 @@ pre code { font: inherit; }
 .disclosure .disc-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .disclosure .chev { transition: transform .15s; }
 .disclosure[aria-expanded="true"] .chev { transform: rotate(90deg); }
-.disclosure[data-state="failed"] .icon:first-child { color: var(--danger); }
+.disclosure[data-state="failed"] .icon:first-child { color: var(--danger-icon); }
 
 .work-body {
   margin: 0 0 5px 18px;
@@ -613,7 +572,7 @@ pre code { font: inherit; }
 .work-row { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 8px; padding: 3px 0; align-items: start; }
 .work-row .row-leading { width: 13px; height: 13px; margin-top: 4px; }
 .work-row:is([data-state="completed"], [data-state="allow"]) .row-leading { color: var(--ok); }
-.work-row:is([data-state="failed"], [data-state="deny"]) .row-leading { color: var(--danger); }
+.work-row:is([data-state="failed"], [data-state="deny"]) .row-leading { color: var(--danger-icon); }
 .work-row:is([data-state="pending"], [data-state="wait"], [data-state="cancelled"], [data-state="stopped"], [data-state="unreported"]) .row-leading { color: var(--warn); }
 .work-row:is([data-state="in_progress"], [data-state="running"]) .row-leading { color: var(--accent); }
 .item-work .disclosure { min-height: 32px; width: fit-content; max-width: 100%; }
@@ -671,7 +630,7 @@ pre code { font: inherit; }
 
 /* ---- центр: поле ввода ---- */
 
-.composer { position: relative; width: min(var(--column), 100%); margin: 0 auto; padding: 5px 20px 15px; }
+.composer { position: relative; width: min(var(--column), calc(100% - var(--log-gutters, 0px))); margin: 0 auto; padding: 8px var(--chat-inset) 16px; }
 .box {
   padding: 10px 10px 6px 15px;
   border: 1px solid var(--border);
@@ -821,7 +780,7 @@ pre code { font: inherit; }
 
 .task-row { display: flex; align-items: center; gap: 8px; min-height: 32px; }
 .task-row .icon { color: var(--fg-muted); }
-.task-row[data-state="failed"] .icon { color: var(--danger); }
+.task-row[data-state="failed"] .icon { color: var(--danger-icon); }
 .task-row[data-state="completed"] .icon { color: var(--ok); }
 .task-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .task-time { font-size: 13px; color: var(--fg-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -924,8 +883,6 @@ pre code { font: inherit; }
   .app[data-pane="list"] .main, .app[data-pane="list"] .rail { display: none; }
   .app[data-pane="chat"] .side-col { display: none; }
   .chat-back { display: inline-grid; }
-  .thread { padding: 16px 15px 8px; }
-  .composer { padding: 5px 12px 12px; }
   .topbar { padding-left: 12px; }
   .item-user { max-width: 92%; }
 }
@@ -935,6 +892,7 @@ pre code { font: inherit; }
   --side-width: 264px;
   --rail-width: 288px;
   --column: 800px;
+  --chat-inset: 24px;
   --radius: 8px;
   --radius-card: 11px;
   --radius-box: 14px;
@@ -959,7 +917,6 @@ body { font-size: 14px; line-height: 1.55; letter-spacing: .005em; }
 .item-user { max-width: min(78%, 620px); }
 .bubble { padding: 11px 15px; }
 .prose { line-height: 1.65; }
-.composer { padding: 8px 24px 16px; }
 /* Композер задачи 192: карточка в одну строку, круглая кнопка со стрелкой прижата к правому нижнему краю. */
 .box { display: flex; align-items: flex-end; gap: 6px; position: relative; padding: 4px 8px 4px 8px; border-radius: 14px; box-shadow: var(--shadow-card); }
 .box:has(> textarea:focus) { outline: none; border-color: color-mix(in srgb, var(--fg) 30%, var(--border)); box-shadow: var(--shadow-card-focus); }
@@ -1017,12 +974,13 @@ body { font-size: 14px; line-height: 1.55; letter-spacing: .005em; }
 .status { padding: 9px 14px; font-size: 12px; }
 @media (max-width: 1100px) {
   .topbar { padding-inline: 16px; }
-  .composer { padding-inline: 16px; }
+  .chat { --chat-inset: 16px; }
 }
 @media (max-width: 799px) {
   .topbar { height: 46px; padding-inline: 10px; }
-  .thread { padding: 16px 14px 8px; }
-  .composer { padding: 6px 10px 10px; }
+  .chat { --chat-inset: 10px; }
+  .thread { padding-block: 16px 8px; }
+  .composer { padding-block: 6px 10px; }
   .item-user { max-width: 94%; }
 }
 
@@ -1580,9 +1538,9 @@ input[aria-invalid="true"] { border-color: var(--danger); }
   border-color: color-mix(in srgb, var(--fg) 30%, var(--border));
 }
 
-.menu[data-kind="agent"] { width: min(600px, calc(100vw - 16px)); min-width: 0; max-width: none; }
+.menu[data-kind="agent"] { width: min(440px, calc(100vw - 16px)); min-width: 0; max-width: none; }
 .menu[data-kind="agent"] :is(.menu-controls, .menu-columns, .menu-item) {
-  display: grid; grid-template-columns: clamp(105px, 20vw, 150px) minmax(0, 1fr); gap: 8px; padding-inline: 10px;
+  display: grid; grid-template-columns: clamp(95px, 16vw, 115px) minmax(0, 1fr); gap: 8px; padding-inline: 10px;
 }
 .menu[data-kind="agent"] .menu-controls { align-items: center; padding-block: 2px 6px; }
 .menu[data-kind="agent"] :is(.menu-search, .menu-family-filter) { min-width: 0; width: 100%; height: 40px; padding: 7px 10px; margin: 0; }

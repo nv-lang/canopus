@@ -37,12 +37,11 @@ function newId() {
 
 // Тема: выбор владельца живёт в localStorage (без внешних запросов); недоступное хранилище не ломает страницу.
 function readTheme() {
-  try { return normalizeTheme(globalThis.localStorage.getItem(THEME_KEY)); } catch { return 'system'; }
+  try { return normalizeTheme(globalThis.localStorage.getItem(THEME_KEY)); } catch { return normalizeTheme(); }
 }
 function saveTheme(value) {
   try {
-    if (value === 'system') globalThis.localStorage.removeItem(THEME_KEY);
-    else globalThis.localStorage.setItem(THEME_KEY, value);
+    globalThis.localStorage.setItem(THEME_KEY, value);
   } catch { /* закрытое хранилище: выбор живёт до перезагрузки */ }
 }
 // Переключатель Worktree новой сессии: по умолчанию выключен, последний выбор помнится на уровне пульта.
@@ -55,8 +54,7 @@ function saveWorktreePref(on) {
 }
 function applyTheme(value) {
   const root = document.documentElement;
-  if (value === 'system') root.removeAttribute('data-theme');
-  else root.setAttribute('data-theme', value);
+  root.setAttribute('data-theme', value);
 }
 
 document.title = t('app.title');

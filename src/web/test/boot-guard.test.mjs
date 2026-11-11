@@ -127,8 +127,8 @@ test('сброс без хранилища не бросает', () => {
   assert.equal(reloads.length, 1);
 });
 
-test('сохранённая тема неверной формы читается как «система», а не бросает', () => {
-  for (const bad of [null, undefined, '', '{"a":1}', 42, 'purple', {}, []]) assert.equal(normalizeTheme(bad), 'system');
+test('сохранённая тема неверной формы читается как «тёмная», а не бросает', () => {
+  for (const bad of [null, undefined, '', '{"a":1}', 42, 'purple', {}, []]) assert.equal(normalizeTheme(bad), 'dark');
   assert.equal(normalizeTheme('dark'), 'dark');
 });
 

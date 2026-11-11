@@ -1,12 +1,10 @@
-// theme.js — выбранная тема до первой отрисовки. Обычный скрипт, не модуль: должен выполниться
-// синхронно, пока страница не нарисована. Берёт выбор из localStorage ('light' | 'dark'); нет выбора или
-// хранилище недоступно — страница следует системе (prefers-color-scheme в app.css). Сам выбор по клику
-// меняет app.js; ключ здесь тот же, что THEME_KEY в state.js.
+// Применяем сохранённый выбор до первой отрисовки. По умолчанию тема тёмная.
 (function applyStoredTheme() {
+  var theme = 'dark';
   try {
-    var value = window.localStorage.getItem('canopus-console-theme');
-    if (value === 'light' || value === 'dark') document.documentElement.setAttribute('data-theme', value);
+    if (window.localStorage.getItem('canopus-console-theme') === 'light') theme = 'light';
   } catch (e) {
-    // хранилище закрыто (приватное окно, запрет сайтов): остаётся тема системы
+    // При недоступном хранилище используем тёмную тему.
   }
+  document.documentElement.setAttribute('data-theme', theme);
 }());

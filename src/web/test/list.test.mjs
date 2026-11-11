@@ -234,15 +234,15 @@ test('fileParts: имя и путь-пояснение, обратные кос�
   assert.deepEqual(st.fileParts('a\\b\\c.txt'), { dir: 'a/b', name: 'c.txt' });
 });
 
-test('тема: нормализация и цикл система -> светлая -> тёмная', () => {
+test('тема: тёмная по умолчанию и два состояния', () => {
   assert.equal(st.normalizeTheme('dark'), 'dark');
   assert.equal(st.normalizeTheme('light'), 'light');
-  assert.equal(st.normalizeTheme('system'), 'system');
-  assert.equal(st.normalizeTheme('что-то'), 'system');
-  assert.equal(st.normalizeTheme(null), 'system');
+  assert.equal(st.normalizeTheme('system'), 'dark');
+  assert.equal(st.normalizeTheme('что-то'), 'dark');
+  assert.equal(st.normalizeTheme(null), 'dark');
   assert.equal(st.nextTheme('system'), 'light');
   assert.equal(st.nextTheme('light'), 'dark');
-  assert.equal(st.nextTheme('dark'), 'system');
+  assert.equal(st.nextTheme('dark'), 'light');
   assert.equal(st.nextTheme('мусор'), 'light');
   assert.equal(typeof st.THEME_KEY, 'string');
 });

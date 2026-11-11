@@ -2,6 +2,7 @@
 // тёмная тема по системе и по ручному выбору — одни и те же значения.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { runInNewContext } from "node:vm";
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,8 +20,7 @@ function block(selector) {
 }
 
 const light = block(':root');
-const dark = { ...light, ...block(':root[data-theme="dark"]') };
-const darkBySystem = { ...light, ...block(':root:not([data-theme="light"])') };
+const dark = { ...light, ...block(':root:not([data-theme="light"])') };
 
 function luminance(hex) {
   const v = hex.replace('#', '');
@@ -72,9 +72,17 @@ for (const [name, theme] of [['светлая', light], ['тёмная', dark]])
   });
 }
 
-test('тёмная тема по системе и по ручному выбору задают одни и те же значения', () => {
-  assert.deepEqual(darkBySystem, dark);
-  assert.notDeepEqual(dark, light, 'тёмная тема должна отличаться от светлой');
+test('первичная отрисовка сохраняет светлую тему и выбирает тёмную без явного выбора', () => {
+  const script = fs.readFileSync(path.join(web, 'theme.js'), 'utf8');
+  for (const [saved, expected] of [['light', 'light'], ['dark', 'dark'], ['system', 'dark'], [null, 'dark']]) {
+    let applied;
+    runInNewContext(script, {
+      window: { localStorage: { getItem: () => saved } },
+      document: { documentElement: { setAttribute: (name, value) => { if (name === 'data-theme') applied = value; } } },
+    });
+    assert.equal(applied, expected);
+  }
+  assert.doesNotMatch(css, /prefers-color-scheme/);
 });
 
 test('цели нажатия: токен --hit не меньше 40 px', () => {

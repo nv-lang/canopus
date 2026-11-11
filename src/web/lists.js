@@ -441,14 +441,11 @@ export function fileParts(path) {
 }
 
 export function normalizeTheme(v) {
-  return v === 'light' || v === 'dark' ? v : 'system';
+  return v === 'light' || v === 'dark' ? v : 'dark';
 }
 
-/** Цикл переключателя темы: как в системе -> светлая -> тёмная -> как в системе. */
 export function nextTheme(current) {
-  const c = normalizeTheme(current);
-  if (c === 'system') return 'light';
-  return c === 'light' ? 'dark' : 'system';
+  return normalizeTheme(current) === 'light' ? 'dark' : 'light';
 }
 
 // ---- выбор модели: поиск и группы по провайдеру (задача 192) -------------------------------

@@ -26,8 +26,7 @@ function rule(selector) {
 }
 
 const light = tokens(':root');
-const darkBySystem = tokens(':root:not([data-theme="light"])');
-const darkByHand = tokens(':root[data-theme="dark"]');
+const dark = tokens(':root:not([data-theme="light"])');
 
 test('в светлой теме центральная подложка белая: --center: #ffffff', () => {
   assert.equal(light['--center'], '#ffffff');
@@ -46,11 +45,9 @@ test('палитра светлой темы со скрина владельц�
   assert.equal(light['--danger'], '#a42528');
 });
 
-test('в тёмной теме --center равен прежнему --bg (тёмная тема не меняется)', () => {
-  for (const [name, dark] of [['по системе', darkBySystem], ['по выбору', darkByHand]]) {
-    assert.equal(dark['--center'], dark['--bg'], `тёмная ${name}: --center должен повторять --bg`);
-    assert.notEqual(dark['--center'], '#ffffff', `тёмная ${name}: центр не должен быть белым`);
-  }
+test('в тёмной теме центральная подложка совпадает с фоном', () => {
+  assert.equal(dark['--center'], dark['--bg']);
+  assert.notEqual(dark['--center'], '#ffffff');
 });
 
 test('--center применён на центральную область: верхняя полоса, лента, правая колонка', () => {

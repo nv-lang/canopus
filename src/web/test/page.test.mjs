@@ -115,7 +115,7 @@ test('проба: импорт несуществующего модуля — �
 });
 
 test('проба: убрана тёмная тема — краснеет', () => {
-  const problems = withCopy((d) => edit(d, 'app.css', (s) => s.replaceAll('prefers-color-scheme', 'prefers-contrast')));
+  const problems = withCopy((d) => edit(d, 'app.css', (s) => s.replace('color-scheme: dark', 'color-scheme: light')));
   assert.ok(problems.some((p) => p.includes('тёмной')), problems.join('\n'));
 });
 
@@ -134,5 +134,5 @@ test('страница не скроллится: html и body без прокр
   assert.match(app, /height: 100vh;\s*height: 100dvh;/);
   assert.match(app, /grid-template-rows: minmax\(0, 1fr\)/);
   assert.ok(!/min-height: 100(vh|dvh)/.test(css), 'нигде нет min-height: 100vh');
-  assert.match(css, /\.log \{ flex: 1; min-height: 0; overflow-y: auto; \}/);
+  assert.match(css, /\.log \{ flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable both-edges; \}/);
 });

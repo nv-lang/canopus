@@ -36,7 +36,7 @@ import {
   markSent, buildAnswer, buildSkip, digitOption, otherIndex,
 } from './question.js';
 import {
-  STATE_KEYS, sessionList, splitBlocks, filterSessions, groupSessions, descendantsOf, effectivePins, timeline, paragraphs, inlineSpans, codeSpans,
+  STATE_KEYS, sessionList, splitBlocks, filterSessions, groupSessions, descendantsOf, effectivePins, timeline, paragraphs, inlineSpans, codeSpans, normalizeTheme,
   workSummary, messageTime, groupThousands, ruForm, shownOf, familyOf, filterModels, groupModels, usagePercent, usageLevel, tokenParts, durationLabel, agoParts, fileParts, taskSummary,
 } from './state.js';
 import { attention, SILENT_DEFAULT_MIN } from './attention.js';
@@ -70,8 +70,8 @@ const TOOL_RESULT_ICON = { pending: 'i-clock', in_progress: 'i-play', completed:
 const TOOL_ACTION_ICON = { read: 'i-eye', edit: 'i-pencil', delete: 'i-trash', move: 'i-move', search: 'i-search', execute: 'i-terminal', think: 'i-think', fetch: 'i-globe', other: 'i-bolt' };
 const TASK_ICON = { running: 'i-clock', completed: 'i-check', failed: 'i-x', stopped: 'i-stop' };
 const FILE_ICON = { create: 'i-file-plus', edit: 'i-file-edit', delete: 'i-file-x' };
-const THEME_ICON = { system: 'i-monitor', light: 'i-sun', dark: 'i-moon' };
-const THEME_LABEL = { system: 'theme.system', light: 'theme.light', dark: 'theme.dark' };
+const THEME_ICON = { light: 'i-sun', dark: 'i-moon' };
+const THEME_LABEL = { light: 'theme.light', dark: 'theme.dark' };
 const UNIT_KEY = { d: 'unit.d', h: 'unit.h', m: 'unit.m', s: 'unit.s' };
 const AGO_KEY = { now: 'ago.now', min: 'ago.min', hour: 'ago.hour', day: 'ago.day' };
 
@@ -1466,12 +1466,16 @@ export function createView(doc, refs, deps) {
     if (typeof log.scrollTo === 'function') log.scrollTo({ top: log.scrollHeight, behavior: 'smooth' });
     else followLatest();
   });
+  const chat = h(doc, 'section', { class: 'chat', hidden: true }, log, jumpWrap, composer);
   if (win?.ResizeObserver) {
-    const watchFeedSize = new win.ResizeObserver(followLatest);
+    const watchFeedSize = new win.ResizeObserver(() => {
+      const gutters = String(log.offsetWidth - log.clientWidth) + 'px';
+      if (chat.style.getPropertyValue('--log-gutters') !== gutters) chat.style.setProperty('--log-gutters', gutters);
+      followLatest();
+    });
     watchFeedSize.observe(log);
     watchFeedSize.observe(thread);
   }
-  const chat = h(doc, 'section', { class: 'chat', hidden: true }, log, jumpWrap, composer);
   refs.main.replaceChildren(topbar, pick, chat);
 
   backButton.addEventListener('click', () => handlers.onBack());
@@ -2769,7 +2773,8 @@ export function createView(doc, refs, deps) {
   // ---------------------------------------------------------------- тема и время
 
   let themeSig = '';
-  function renderTheme(theme) {
+  function renderTheme(value) {
+    const theme = normalizeTheme(value);
     if (theme === themeSig) return;
     themeSig = theme;
     const label = t(THEME_LABEL[theme]);

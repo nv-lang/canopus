@@ -73,9 +73,8 @@ export const S = Object.freeze({
   'chat.project_search': 'Найти проект',
   'sessions.time_title': '{state}. Последнее событие: {time}',
 
-  'theme.system': 'Тема: как в системе. Нажмите, чтобы выбрать светлую',
   'theme.light': 'Тема: светлая. Нажмите, чтобы выбрать тёмную',
-  'theme.dark': 'Тема: тёмная. Нажмите, чтобы вернуть как в системе',
+  'theme.dark': 'Тема: тёмная. Нажмите, чтобы выбрать светлую',
 
   'agent.opencode': 'OpenCode',
   'agent.second': 'Второй агент — позже',

@@ -113,7 +113,7 @@ export function checkPage(webDir) {
   }
 
   // 5. тёмная тема есть и переопределяет те же переменные
-  if (!/prefers-color-scheme\s*:\s*dark/.test(cssClean)) problems.push('app.css: нет тёмной темы (prefers-color-scheme: dark)');
+  if (!/:root:not\(\[data-theme="light"\]\)\s*\{[^}]*\bcolor-scheme:\s*dark\b/.test(cssClean)) problems.push('app.css: нет тёмной темы по умолчанию');
 
   // 6. разметка из данных
   for (const name of jsNames) {

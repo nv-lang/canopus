@@ -171,10 +171,10 @@ test('карточка: радиус 14, отступы 4/8/4/8, объёмна�
   assert.equal(40 + 8 + 2, 50);
 });
 
-test('токены объёмной тени заданы во всех темах: светлой и обоих блоках тёмной, в тёмной есть светлая внутренняя кромка', () => {
-  assert.equal([...cssSrc.matchAll(/--shadow-card: /g)].length, 3);
-  assert.equal([...cssSrc.matchAll(/--shadow-card-focus: /g)].length, 3);
-  assert.equal([...cssSrc.matchAll(/--shadow-card: [^;]*inset 0 1px 0 rgba\(255, 255, 255, \.04\)/g)].length, 2);
+test('токены объёмной тени заданы во всех темах: светлой и тёмной, в тёмной есть светлая внутренняя кромка', () => {
+  assert.equal([...cssSrc.matchAll(/--shadow-card: /g)].length, 2);
+  assert.equal([...cssSrc.matchAll(/--shadow-card-focus: /g)].length, 2);
+  assert.equal([...cssSrc.matchAll(/--shadow-card: [^;]*inset 0 1px 0 rgba\(255, 255, 255, \.04\)/g)].length, 1);
   assert.match(cssSrc, /--shadow-card: 0 1px 2px rgba\(0, 0, 0, \.06\), 0 6px 20px rgba\(0, 0, 0, \.08\);/);
 });
 
