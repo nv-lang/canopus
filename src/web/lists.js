@@ -298,8 +298,7 @@ export function timeline(session) {
       if (diffs.length > 0) items.push({ type: 'diffs', key: `d:${m.turn}`, turn: m.turn, rows: diffs, totals: diffTotals(diffs) });
 
       if (m.status === 'refused' && m.expiredQuestion) {
-        items.push({ type: 'question-timeout', key: `n:${m.turn}`, turn: m.turn, questions: m.expiredQuestion.questions.map(q => q.question),
-          userText: session.messages.find(u => u.role === 'user' && u.turn === m.turn)?.text ?? '' });
+        items.push({ type: 'question-timeout', key: `n:${m.turn}`, turn: m.turn, questions: m.expiredQuestion.questions });
       } else if (m.status === 'refused' || m.status === 'error' || m.status === 'cancelled') {
         items.push({ type: 'note', key: `n:${m.turn}`, tone: m.status, reason: m.reason, turn: m.turn, partialAnswer: m.text.trim().length > 0,
           userText: session.messages.find(u => u.role === 'user' && u.turn === m.turn)?.text ?? '' });

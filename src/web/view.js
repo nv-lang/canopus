@@ -2050,17 +2050,13 @@ export function createView(doc, refs, deps) {
         node.replaceChildren(h(doc, 'span', { text: t(NOTE_KEY[item.action], { n: item.n }) }));
         break;
       case 'question-timeout': {
-        const expanded = open.has(`delivery-detail:${item.key}`);
-        const head = h(doc, 'button', { type: 'button', class: 'delivery-head', 'aria-expanded': String(expanded) },
-          h(doc, 'span', { class: 'delivery-label', 'data-state': 'received', text: t('ask.timeout') }),
-          h(doc, 'span', { class: 'delivery-more', text: t('delivery.more') }), icon(doc, 'i-chevron-right', 'chev'));
-        const restore = item.userText && h(doc, 'button', { type: 'button', text: t('delivery.restore_request') });
-        restore && restore.addEventListener('click', () => putInField(item.userText));
-        const body = h(doc, 'div', { class: 'delivery-body', hidden: !expanded },
-          ...item.questions.map(question => h(doc, 'p', { text: question })),
-          restore ? h(doc, 'div', { class: 'delivery-actions' }, restore) : false);
-        head.addEventListener('click', () => toggleCard(item.key, head, body));
-        node.replaceChildren(h(doc, 'div', { class: 'delivery-error delivery-uncertain' }, head, body));
+        const questions = item.questions.map(q => h(doc, 'section', {},
+          h(doc, 'h3', { class: 'ask-q', text: q.question }),
+          h(doc, 'ol', { class: 'ask-options' }, ...q.options.map((o, index) =>
+            h(doc, 'li', { class: 'ask-opt' }, h(doc, 'span', { class: 'ask-key', 'aria-hidden': 'true', text: String(index + 1) }),
+              askOptionText(o.label, o.description))))));
+        node.replaceChildren(h(doc, 'div', { class: 'ask ask-expired' }, ...questions),
+          h(doc, 'div', { class: 'ask-status' }, askBadge(t('ask.timeout'))));
         break;
       }
       case 'note': {
@@ -2753,6 +2749,12 @@ export function createView(doc, refs, deps) {
   askCard.addEventListener('keydown', (e) => { if (askUi) askUi.onKey(e); });
   function nudgeAsk() { if (askUi) askUi.nudge(); }
 
+  function askOptionText(name, description) {
+    return h(doc, 'span', { class: 'ask-text' },
+      h(doc, 'span', { class: 'ask-name', text: name }),
+      description ? h(doc, 'span', { class: 'ask-desc', text: description }) : false);
+  }
+
   function buildAsk(trace, pq, key) {
     const { questions } = pq;
     const get = () => askForms.get(key);
@@ -2831,10 +2833,8 @@ export function createView(doc, refs, deps) {
       const input = h(doc, 'input', {
         type: q.multiSelect ? 'checkbox' : 'radio', class: 'ask-input', name: `ask-${qi}`, 'data-oi': oi,
       });
-      const text = h(doc, 'span', { class: 'ask-text' },
-        h(doc, 'span', { class: 'ask-name', text: name }),
-        description ? h(doc, 'span', { class: 'ask-desc', text: description }) : false);
-      const row = h(doc, 'label', { class: 'ask-opt' }, input, h(doc, 'span', { class: 'ask-key', 'aria-hidden': 'true', text: String(oi + 1) }), text);
+      const row = h(doc, 'label', { class: 'ask-opt' }, input,
+        h(doc, 'span', { class: 'ask-key', 'aria-hidden': 'true', text: String(oi + 1) }), askOptionText(name, description));
       input.addEventListener('change', () => put(selectOption(get(), questions, qi, oi)));
       return { row, input };
     };
