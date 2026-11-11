@@ -97,6 +97,12 @@ function saveUnread(value) {
   try { globalThis.localStorage.setItem(UNREAD_KEY, JSON.stringify(value)); } catch { /* закрытое хранилище: пометки живут до перезагрузки */ }
 }
 // ссылка на сессию (#s=<id>): после загрузки журнала страница её открывает
+const LAST_SESSION_KEY = 'canopus.last-session';
+function readLastSession() {
+  try { return globalThis.localStorage.getItem(LAST_SESSION_KEY); } catch { return null; }
+}
+let savedSessionId = readLastSession();
+
 const linked = /^#s=(.+)$/.exec(globalThis.location ? globalThis.location.hash : '');
 const ui = {
   historyPending: new Set(),
@@ -108,7 +114,7 @@ const ui = {
 // an explicit session link always takes precedence. This never resends anything.
 if (!ui.awaiting) {
   const recovery = delivery.sessions().at(-1);
-  if (recovery) ui.awaiting = recovery.id;
+  ui.awaiting = savedSessionId || recovery?.id || null;
 }
 applyTheme(ui.theme);
 
@@ -236,6 +242,10 @@ function draw() {
   if (viewing && opened && !opened.draft) {
     const key = waitKey(opened);
     if (key !== '' && ui.acked[opened.id] !== key) ui.acked = { ...ui.acked, [opened.id]: key };
+  }
+  if (opened && !opened.draft && savedSessionId !== opened.id) {
+    savedSessionId = opened.id;
+    try { globalThis.localStorage.setItem(LAST_SESSION_KEY, opened.id); } catch { /* storage unavailable */ }
   }
   const all = Object.values(model.sessions);
   for (const x of all) { const m = x.routeState && x.routeState.canopus ? x.routeState.canopus.silentMinutes : -1; if (m >= 0) { ui.silentMin = m; break; } }
@@ -464,6 +474,7 @@ const handlers = {
     render();
   },
   onSelect(trace) {
+    ui.awaiting = null;
     ui.selected = trace;
     ui.pane = 'chat';
     if (ui.unread[trace]) { ui.unread = { ...ui.unread, [trace]: false }; saveUnread(ui.unread); }
@@ -505,6 +516,7 @@ const handlers = {
     model = addDraft(dropDrafts(model), {
       id, agent, projectId: project ? project.id : '', project: project ? project.name : '', folder: folder ? folder.path : '', branch: folder && folder.branch ? folder.branch : '', worktree: Boolean(project) && readWorktreePref(), now: Date.now(),
     });
+    ui.awaiting = null;
     ui.selected = id;
     ui.pane = 'chat';
     render();

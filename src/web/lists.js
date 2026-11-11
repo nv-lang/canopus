@@ -301,7 +301,7 @@ export function timeline(session) {
   }
 
   const orphans = rows.filter((r) => !emitted.has(r.key) && !agentTurns.has(r.turn)).sort((a, b) => a.step - b.step);
-  if (orphans.length > 0) items.push({ type: 'work', key: `w:orphans:${orphans[0].key}`, rows: orphans, active: session.state === 'answering' });
+  if (orphans.length > 0) items.push({ type: 'work', key: `w:orphans:${orphans[0].key}`, rows: orphans, active: session.state === 'answering' || session.state === 'permission' });
 
   if (session.state === 'answering') items.push({ type: 'running', key: 'running', since: session.turnStartedAt, last: Math.max(session.updatedAt || 0, session.turnStartedAt || 0) });
   // задача 192.14: ход закончен, а агент ждёт ответа обычным текстом или пунктом чек-листа: полоса под его последним сообщением, пока владелец не ответит

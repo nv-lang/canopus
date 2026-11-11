@@ -17,6 +17,7 @@ import { createLocalDictation } from './recorder.js';
 import { createToast } from './toast.js';
 import { h, icon } from './dom.js';
 import { createProjectsUi } from './projects-ui.js';
+import { moveInOrder } from './lists.js';
 import { createSideKit } from './session-row.js';
 import { LANGS, createVoiceSettings, langFor, pageLang } from './stt.js';
 import { isBusy, keyAction } from './queue.js';
@@ -297,13 +298,56 @@ export function createView(doc, refs, deps) {
     return row;
   }
 
+  const sidebarKey = 'canopus.sidebar-layout';
+  const defaultSections = ['pinned', 'recent', 'projects'];
+  let sidebarLayout;
+  try { sidebarLayout = JSON.parse(win?.localStorage?.getItem(sidebarKey) || '{}'); } catch { sidebarLayout = {}; }
+  const customSections = Array.isArray(sidebarLayout?.custom)
+    ? sidebarLayout.custom.filter(section => typeof section?.id === 'string' && section.id.startsWith('custom:') && typeof section.title === 'string')
+    : [];
+  const sectionIds = [...defaultSections, ...customSections.map(section => section.id)];
+  const projectSections = new Map(Array.isArray(sidebarLayout?.projects)
+    ? sidebarLayout.projects.filter(entry => Array.isArray(entry) && typeof entry[0] === 'string' && sectionIds.includes(entry[1]))
+    : []);
+  const collapsedGroups = new Set(Array.isArray(sidebarLayout?.collapsed) ? sidebarLayout.collapsed : []);
+  let sectionOrder = [...new Set([
+    ...(Array.isArray(sidebarLayout?.order) ? sidebarLayout.order.filter(id => sectionIds.includes(id)) : []),
+    ...sectionIds,
+  ])];
+
+  function saveSidebar() {
+    try { win?.localStorage?.setItem(sidebarKey, JSON.stringify({ order: sectionOrder, collapsed: [...collapsedGroups], custom: customSections, projects: [...projectSections] })); }
+    catch { /* storage unavailable */ }
+  }
+
+  function collapseControl(button, body, id) {
+    const apply = () => {
+      body.hidden = collapsedGroups.has(id);
+      button.setAttribute('aria-expanded', String(!body.hidden));
+    };
+    apply();
+    button.addEventListener('click', () => {
+      if (collapsedGroups.has(id)) collapsedGroups.delete(id); else collapsedGroups.add(id);
+      saveSidebar();
+      apply();
+    });
+  }
+
+  function reorderSection(moved, target, after) {
+    sectionOrder = moveInOrder(sectionOrder, moved, target, after);
+    saveSidebar();
+    listSig = '';
+    renderList(current.model, current.ui);
+  }
+
   /** Группа сессий. group.id пуст — «Без проекта» или проект только по имени (меню «⋯» только у настоящих проектов). */
-  function groupNode(title, rows, ui, pins, group = null) {
+  function groupNode(title, rows, ui, pins, group = null, sectionId = '') {
     const isProject = Boolean(group) && group.id !== '';
     // перетаскивание сессий: внутри группы проекта; в «Закреплённых» порядок по активности
     const gctx = { key: group ? `${group.id}|${title}` : '', ids: rows.map((r) => r.session.id), draggable: Boolean(group) };
-    const head = h(doc, 'div', { class: 'group-head' },
-      h(doc, 'div', { class: 'group-title' }, isProject ? icon(doc, 'i-folder', 'group-icon') : false, h(doc, 'h3', { text: title })));
+    const toggle = h(doc, 'button', { type: 'button', class: 'sidebar-section-toggle group-toggle' },
+      isProject ? icon(doc, 'i-folder', 'group-icon') : false, h(doc, 'span', { text: title }), icon(doc, 'i-chevron-down', 'group-chevron'));
+    const head = h(doc, 'div', { class: 'group-head' }, h(doc, 'h3', { class: 'group-title' }, toggle));
     if (group) {
       const actions = h(doc, 'div', { class: 'group-actions' });
       const label = isProject ? t('sessions.group_add', { project: title }) : t('sessions.new_chat');
@@ -324,6 +368,15 @@ export function createView(doc, refs, deps) {
         if (groupMenu === group.id) {
           const project = projectById(group.id);
           head.append(h(doc, 'div', { class: 'menu group-menu', role: 'menu', 'data-side': 'right' },
+            ...[{ id: 'projects', title: t('projects.title') }, ...customSections]
+              .filter(section => section.id !== (projectSections.get(group.id) || 'projects'))
+              .map(section => menuAction(t('sidebar.move_section', { title: section.title }), 'i-folder', () => {
+                if (section.id === 'projects') projectSections.delete(group.id);
+                else projectSections.set(group.id, section.id);
+                saveSidebar();
+                listSig = '';
+                closeGroupMenu();
+              })),
             menuAction(t('projects.edit'), 'i-pencil', () => { closeGroupMenu(); projectsUi.openEditor(group.id); }),
             menuAction(t('projects.delete'), 'i-trash', () => { closeGroupMenu(); if (project) projectsUi.removeProject(project); }, true)));
         }
@@ -353,21 +406,32 @@ export function createView(doc, refs, deps) {
       })();
     const active = Boolean(group) && activeProject !== null && group.id === activeProject;
     const section = h(doc, 'section', { class: 'group', 'data-active': active ? 'true' : false, 'data-project': isProject ? 'true' : false }, head, body);
+    collapseControl(toggle, body, sectionId || `project:${group.id}`);
     if (group) sideKit.projectDnd({ section, head, projectId: group.id, free: Boolean(group.free) });
+    if (sectionId) sideKit.sectionDnd(section, head, sectionId, reorderSection);
     return section;
   }
 
   const projectsHeadNew = h(doc, 'button', { type: 'button', class: 'icon-btn small projects-new', title: t('projects.new'), 'aria-label': t('projects.new') }, icon(doc, 'i-plus'));
   projectsHeadNew.addEventListener('click', () => projectsUi.createByFolder((projectsList || []).map((p) => p.name)));
-  let projectsExpanded = true;
-  const projectsToggle = h(doc, 'button', { type: 'button', class: 'sidebar-section-toggle', 'aria-expanded': 'true', 'aria-controls': 'sidebar-projects' }, t('projects.title'), icon(doc, 'i-chevron-down'));
+  const projectsToggle = h(doc, 'button', { type: 'button', class: 'sidebar-section-toggle', 'aria-controls': 'sidebar-projects' }, t('projects.title'), icon(doc, 'i-chevron-down'));
   const projectGroups = h(doc, 'div', { id: 'sidebar-projects' });
-  projectsToggle.addEventListener('click', () => {
-    projectsExpanded = !projectsExpanded;
-    projectsToggle.setAttribute('aria-expanded', String(projectsExpanded));
-    projectGroups.hidden = !projectsExpanded;
+  const newSection = h(doc, 'button', { type: 'button', class: 'icon-btn small projects-new', title: t('sidebar.new_section'), 'aria-label': t('sidebar.new_section') }, icon(doc, 'i-folder'));
+  newSection.addEventListener('click', () => {
+    const title = win?.prompt?.(t('sidebar.section_name'))?.trim().slice(0, 100);
+    if (!title) return;
+    const id = 'custom:' + globalThis.crypto.randomUUID();
+    customSections.push({ id, title });
+    sectionOrder.push(id);
+    saveSidebar();
+    listSig = '';
+    renderList(current.model, current.ui);
   });
-  const projectsHead = h(doc, 'div', { class: 'projects-head' }, h(doc, 'h3', {}, projectsToggle), projectsHeadNew);
+  const projectsHead = h(doc, 'div', { class: 'projects-head' }, h(doc, 'h3', {}, projectsToggle),
+    h(doc, 'div', { class: 'group-actions' }, newSection, projectsHeadNew));
+  const projectsSection = h(doc, 'section', { class: 'sidebar-projects-section' }, projectsHead, projectGroups);
+  collapseControl(projectsToggle, projectGroups, 'projects');
+  sideKit.sectionDnd(projectsSection, projectsHead, 'projects', reorderSection);
 
   function renderList(model, ui) {
     const loading = ui.loading;
@@ -413,15 +477,25 @@ export function createView(doc, refs, deps) {
     if (sig === listSig) return;
     if (sideKit.isDragging()) { sideKit.deferRender(); return; } // пока тащат, список не пересобирается
     listSig = sig;
-    const nodes = [];
-    if (groups.pinned.length > 0) nodes.push(groupNode(t('sessions.pinned'), groups.pinned, ui, pins));
     const named = groups.projects.filter((p) => p.project !== '');
-    const free = groups.projects.filter((p) => p.project === '');
-    for (const p of free) nodes.push(groupNode(t('sessions.recent'), p.rows, ui, pins, { id: '', free: true }));
-    nodes.push(projectsHead, projectGroups);
+    const recent = groups.projects.find((p) => p.project === '');
     sideKit.rebuild(() => {
-      projectGroups.replaceChildren(...named.map((p) => groupNode(p.project, p.rows, ui, pins, { id: p.id })));
-      groupsBox.replaceChildren(...nodes);
+      const sections = { projects: projectsSection };
+      if (groups.pinned.length > 0) sections.pinned = groupNode(t('sessions.pinned'), groups.pinned, ui, pins, null, 'pinned');
+      if (recent) sections.recent = groupNode(t('sessions.recent'), recent.rows, ui, pins, { id: '', free: true }, 'recent');
+      const projectNodes = (id) => named.filter(p => (projectSections.get(p.id) || 'projects') === id)
+        .map(p => groupNode(p.project, p.rows, ui, pins, { id: p.id }));
+      projectGroups.replaceChildren(...projectNodes('projects'));
+      for (const { id, title } of customSections) {
+        const toggle = h(doc, 'button', { type: 'button', class: 'sidebar-section-toggle' }, title, icon(doc, 'i-chevron-down'));
+        const head = h(doc, 'div', { class: 'projects-head' }, h(doc, 'h3', {}, toggle));
+        const body = h(doc, 'div', {}, ...projectNodes(id));
+        const section = h(doc, 'section', { class: 'sidebar-projects-section' }, head, body);
+        collapseControl(toggle, body, id);
+        sideKit.sectionDnd(section, head, id, reorderSection);
+        sections[id] = section;
+      }
+      groupsBox.replaceChildren(...sectionOrder.map(id => sections[id]).filter(Boolean));
     });
     sideKit.afterRender(groupsBox);
   }
@@ -1750,7 +1824,7 @@ export function createView(doc, refs, deps) {
     const key = `${currentTrace}:${item.key}`;
     const override = workToggles.get(key);
     const active = item.rows.some(r => ['pending', 'in_progress', 'running'].includes(r.status));
-    const isOpen = override ?? (active || item.active === true);
+    const isOpen = override ?? (item.active === true);
     const label = active ? t('work.current', { n: item.rows.length })
       : summaryText(workSummary(item.rows));
     const toggle = h(doc, 'button', { type: 'button', class: 'disclosure', 'aria-expanded': String(isOpen), 'data-state': single ? single.status : 'group' },
@@ -1758,7 +1832,7 @@ export function createView(doc, refs, deps) {
       h(doc, 'span', { class: 'disc-text', text: label }),
       single && !active ? rowStatus(single) : false);
     const rows = item.rows.map(workRowDetails);
-    const latest = active || item.active ? rows.findLast(row => row.expandable) : undefined;
+    const latest = item.active ? rows.findLast(row => row.expandable) : undefined;
     const body = h(doc, 'div', { class: 'work-body', hidden: !isOpen }, ...rows.map(row => workRow(row, row === latest)));
     toggle.addEventListener('click', () => {
       const next = toggle.getAttribute('aria-expanded') !== 'true';

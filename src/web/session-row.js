@@ -264,9 +264,11 @@ export function createSideKit(doc, deps) {
   function projectDnd({ section, head, projectId, free = false }) {
     const real = projectId !== '';
     if (real) {
+      const toggle = head.querySelector('.sidebar-section-toggle');
+      toggle?.setAttribute('draggable', 'true');
       head.setAttribute('draggable', 'true');
       head.addEventListener('dragstart', (e) => {
-        if (e.target !== head) return; // сессии внутри тащатся своими обработчиками
+        if (e.target !== head && e.target !== toggle) return;
         startDrag(e, section, { kind: 'project', id: projectId, group: '', project: projectId });
       });
       head.addEventListener('dragend', endDrag);
@@ -301,8 +303,28 @@ export function createSideKit(doc, deps) {
     });
   }
 
+  function sectionDnd(section, head, id, reorder) {
+    head.querySelector('.sidebar-section-toggle')?.setAttribute('draggable', 'true');
+    head.setAttribute('draggable', 'true');
+    head.addEventListener('dragstart', (e) => startDrag(e, section, { kind: 'section', id }));
+    head.addEventListener('dragend', endDrag);
+    head.addEventListener('dragover', (e) => {
+      if (drag?.kind !== 'section' || drag.id === id) return;
+      accept(e);
+      setMark(section, isAfter(head, e) ? 'drop-after' : 'drop-before');
+    });
+    head.addEventListener('dragleave', (e) => { if (marked?.el === section && !head.contains(e.relatedTarget)) clearMark(); });
+    head.addEventListener('drop', (e) => {
+      if (drag?.kind !== 'section' || drag.id === id) return;
+      e.preventDefault();
+      const moved = drag.id;
+      endDrag();
+      reorder(moved, id, isAfter(head, e));
+    });
+  }
+
   return {
-    menuFor, moreButton, headButton, renameField, afterRender, rowDnd, projectDnd,
+    menuFor, moreButton, headButton, renameField, afterRender, rowDnd, projectDnd, sectionDnd,
     isRenaming: (id) => renaming !== null && renaming.id === id,
     isDragging: () => drag !== null,
     /** Перерисовку отложили, пока тащат: после броска она выполнится сама. */
