@@ -17,7 +17,7 @@ import { createLocalDictation } from './recorder.js';
 import { createToast } from './toast.js';
 import { h, icon } from './dom.js';
 import { createProjectsUi } from './projects-ui.js';
-import { isAskTool, displayQuestions, moveInOrder } from './lists.js';
+import { isAskTool, displayQuestions, expiredReplyPrefix, moveInOrder } from './lists.js';
 import { createSideKit } from './session-row.js';
 import { LANGS, createVoiceSettings, langFor, pageLang } from './stt.js';
 import { isBusy, keyAction } from './queue.js';
@@ -854,6 +854,7 @@ export function createView(doc, refs, deps) {
   const modelButton = h(doc, 'button', { type: 'button', class: 'status-btn', hidden: true, title: t('status.model'), 'aria-label': t('status.model'), 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
   const effortButton = h(doc, 'button', { type: 'button', class: 'status-btn effort-picker-button', hidden: true, title: t('menu.effort'), 'aria-label': t('menu.effort'), 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
   // Режим работы по методике (задача 192p): слева в строке статуса, плоский текст без шеврона.
+  const taskRouteLabel = h(doc, 'span', { class: 'task-route-label muted', hidden: true });
   const routeButton = h(doc, 'button', { type: 'button', class: 'status-btn route-chip', hidden: true, title: t('route.label'), 'aria-label': t('route.label'), 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
   // Под полем новой сессии: Worktree · режим · агент · модель · усилие; проект выбирается только списком посреди пустого чата (задача 192.6).
   const worktreeButton = h(doc, 'button', { type: 'button', class: 'status-btn worktree-chip', hidden: true, 'aria-pressed': 'true', title: t('route.worktree_on') },
@@ -923,7 +924,7 @@ export function createView(doc, refs, deps) {
   // Композиция нижней панели по макету 268 (task/design/new-chat.png): режим, семья, модель и усилие —
   // пилюли одной строкой ВНУТРИ карточки композера, а не отдельной строкой под ней.
   const boxBar = h(doc, 'div', { class: 'box-bar', 'data-empty': 'true' },
-    plusButton, routeButton, h(doc, 'span', { class: 'grow' }), modeButton, statusGroup, modelButton,
+    plusButton, routeButton, taskRouteLabel, h(doc, 'span', { class: 'grow' }), modeButton, statusGroup, modelButton,
     h(doc, 'div', { class: 'box-row' }, micWrap, cancelButton, sendButton));
   box.append(boxBar);
   const status = h(doc, 'div', { class: 'composer-status', 'data-empty': 'true' }, worktreeButton, whereNote, resultRepoButton, h(doc, 'span', { class: 'grow' }), presetSelect);
@@ -1920,6 +1921,7 @@ export function createView(doc, refs, deps) {
     const { node } = entry;
     switch (item.type) {
       case 'delivery': {
+        node.classList.toggle('item-user', item.state !== 'error' && !item.hasUserMessage);
         node.replaceChildren(...[
           item.state !== 'error' && !item.hasUserMessage ? h(doc, 'div', { class: 'bubble' }, ...proseNodes(item.text)) : null,
           deliveryCard(doc, { ...item, collapsed: !open.has(`delivery-detail:${item.key}`) }, {
@@ -2041,7 +2043,7 @@ export function createView(doc, refs, deps) {
         const lines = item.skipped
           ? [t('ask.skipped', { question: item.lines.length > 0 ? item.lines[0].question : '' })]
           : item.lines.map((l) => t('ask.answer', { question: l.question, choice: l.choice }));
-        node.replaceChildren(...lines.map((text) => h(doc, 'div', { text })));
+        node.replaceChildren(h(doc, 'div', { class: 'bubble' }, ...lines.map((text) => h(doc, 'div', { text }))));
         break;
       }
       case 'autoext': {
@@ -2253,7 +2255,10 @@ export function createView(doc, refs, deps) {
     options = shown.options;
     currentAgent = shown.agent;
     currentSession = session;
-    currentRoute = session.route || INTERACTIVE_STATE.route;
+    const executionRoute = session.route || INTERACTIVE_STATE.route;
+    currentRoute = executionRoute === 'planning' ? 'planning' : 'interactive';
+    taskRouteLabel.hidden = !session.routeState?.task || executionRoute === 'planning';
+    taskRouteLabel.textContent = t('route.task_path', { name: executionRoute === 'interactive' ? t('canopustask.run_interactive') : routeName(executionRoute) });
     routeButton.hidden = false;
     routeButton.dataset.route = currentRoute;
     routeButton.replaceChildren(h(doc, 'span', { text: routeName(currentRoute) }));
@@ -2748,13 +2753,14 @@ export function createView(doc, refs, deps) {
   askCard.addEventListener('keydown', (e) => { if (askUi) askUi.onKey(e); });
   function nudgeAsk() { if (askUi) askUi.nudge(); }
 
-  const expiredReplies = new Set();
+  const expiredReplies = new Map();
 
   function fillExpiredQuestion(node, item) {
     const trace = currentTrace;
     const key = `${trace}:${item.key}`;
     const card = h(doc, 'div', { class: 'ask ask-expired' });
-    const status = h(doc, 'div', { class: 'ask-status ask-expired-status', hidden: expiredReplies.has(key) }, askBadge(t('ask.timeout')));
+    const selected = () => item.selected || expiredReplies.get(key);
+    const status = h(doc, 'div', { class: 'ask-status ask-expired-status', hidden: Boolean(selected()) }, askBadge(t('ask.timeout')));
     node.replaceChildren(card, status);
 
     function sections(interactive) {
@@ -2771,7 +2777,9 @@ export function createView(doc, refs, deps) {
           placeholder: t('ask.other_placeholder'), 'aria-label': t('ask.other_label') }) : null;
         const title = q.question || t('ask.question');
         const section = h(doc, 'section', {}, h(doc, 'h3', { class: 'ask-q', text: title }),
-          h(doc, interactive ? 'div' : 'ol', { class: 'ask-options' }, ...choices.map(choice => choice.row)));
+          !interactive && selected()?.[qi] ? h(doc, 'div', { class: 'ask-opt', 'data-on': 'true' },
+            icon(doc, 'i-check'), askOptionText(selected()[qi], '')) :
+            h(doc, interactive ? 'div' : 'ol', { class: 'ask-options' }, ...choices.map(choice => choice.row)));
         return { section, title, answer, choices, multiSelect: q.multiSelect };
       });
     }
@@ -2829,10 +2837,9 @@ export function createView(doc, refs, deps) {
           feedback.textContent = t('ask.reply_busy');
           return;
         }
-        const text = values().map((value, i) => t('ask.reply_draft', {
-          question: item.questions[i].question ? ` «${questions[i].title}»` : '',
-        }) + value.join(', ')).join('\n');
-        expiredReplies.add(key);
+        const selectedValues = values().map(value => value.join(', '));
+        const text = selectedValues.map((value, i) => expiredReplyPrefix(item.questions[i]) + value).join('\n');
+        expiredReplies.set(key, selectedValues);
         sync();
         cancel.disabled = true;
         let sent = false;

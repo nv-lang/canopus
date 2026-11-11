@@ -5,7 +5,7 @@ import {
   normalizeQuestions, createForm, selectOption, setOtherText, moveCursor, setCursor, setActive, isAnswered, nextUnanswered,
   canSubmit, markSent, buildAnswer, buildSkip, digitOption, summarize, otherIndex,
 } from '../question.js';
-import { initialModel, reduce, timeline } from '../state.js';
+import { initialModel, reduce, timeline, expiredReplyPrefix } from '../state.js';
 import { INITIAL_JOURNAL, createMockServer } from '../mock.js';
 
 const RAW = [
@@ -180,6 +180,18 @@ test('таймер хода скрыт до ответа и исключает �
   const answer = { ...ev('question_answer', { request: 'r1', skipped: true }, 3), time: question.time + 60000 };
   const resumed = reduce(waiting, answer).sessions.s1;
   assert.equal(timeline(resumed).find((item) => item.type === 'running').since, start.time + 60000);
+});
+
+test('ответ новым ходом сохраняет выбранный вариант в карточке после восстановления истории', () => {
+  const question = RAW[0];
+  const answer = expiredReplyPrefix(question) + 'Б';
+  const m = run([created(), ev('user_message', { turn: 't1', text: 'привет' }, 1),
+    ev('question_request', { turn: 't1', request: 'r1', questions: [question] }, 2),
+    ev('agent_refused', { turn: 't1', reason: 'Timeout' }, 3),
+    ev('user_message', { turn: 't2', text: answer }, 4)]);
+  const card = timeline(m.sessions.s1).find(item => item.type === 'question-timeout');
+  assert.deepEqual(card.selected, ['Б']);
+  assert.equal(card.canReply, false);
 });
 
 test('question_request без годных вопросов игнорируется', () => {

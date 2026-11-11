@@ -133,10 +133,8 @@ export function wayOptions(p, canopus) {
   return out;
 }
 
-/** Режим выполнения, выбранный в карточке по умолчанию: тот, что предложил агент, иначе «Супер быстро» (режим сессии по умолчанию — «Интерактивный»). */
-export function defaultRun(p) {
-  return p.mode || 'interactive';
-}
+/** Без явного выбора задача идёт малым путём. */
+export const DEFAULT_RUN = 'interactive';
 
 /** Режимы для выпадающего списка: значение, подпись и пояснение. */
 export function runOptions() {
@@ -209,7 +207,7 @@ export function applyPlan(rows, choices, ways, agents, canopus, runs = new Map()
     const action = choices.get(p.id) || DEFAULT_CHOICE;
     if (action !== 'work') return { id: p.id, action };
     const { mode, target } = parseWay(ways.get(p.id) || defaultWay(p, canopus));
-    return { id: p.id, action, mode, target, agent: agents.get(p.id) || '', run: runs.get(p.id) || defaultRun(p) };
+    return { id: p.id, action, mode, target, agent: agents.get(p.id) || '', run: runs.get(p.id) || DEFAULT_RUN };
   });
 }
 

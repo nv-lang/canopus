@@ -1134,7 +1134,9 @@ body { font-size: 13px; line-height: 1.55; letter-spacing: .005em; }
 .ask-skip, .ask-send { display: inline-flex; flex: none; white-space: nowrap; align-items: center; gap: 8px; min-height: 36px; padding: 0 14px; border-radius: 8px; font-weight: 400; }
 .ask-send kbd { font: inherit; font-size: 11px; font-weight: 400; opacity: .65; }
 .ask-send:disabled { border-color: var(--hover); background: var(--hover); color: var(--fg-muted); opacity: 1; }
-.item-answer { color: var(--fg-muted); font-size: 13px; }
+.item-answer { align-self: flex-end; max-width: min(94%, 620px); }
+.task-route-label { white-space: nowrap; font-size: 12px; }
+.task-route-label[hidden] { display: none; }
 
 /* ---- проекты: группы в левой колонке и окна (задача 192n) ---- */
 

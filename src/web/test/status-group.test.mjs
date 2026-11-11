@@ -20,7 +20,7 @@ test('группа status-group: семья отдельно, модель·ус
   // Макет 268 (new-chat.png): режим, семья, модель и усилие — одной строкой внутри карточки композера.
   const bar = view.match(/const boxBar = h\(doc, 'div', \{ class: 'box-bar', 'data-empty': 'true' \},\s*([^;]*?)\);/);
   assert.ok(bar, 'нижняя панель композера есть');
-  assert.match(bar[1], /^plusButton, routeButton, h\(doc, 'span', \{ class: 'grow' \}\), modeButton, statusGroup, modelButton,\s*h\(doc, 'div', \{ class: 'box-row' \}, micWrap, cancelButton, sendButton\)$/);
+  assert.match(bar[1], /^plusButton, routeButton, taskRouteLabel, h\(doc, 'span', \{ class: 'grow' \}\), modeButton, statusGroup, modelButton,\s*h\(doc, 'div', \{ class: 'box-row' \}, micWrap, cancelButton, sendButton\)$/);
   assert.match(view, /const box = h\(doc, 'div', \{ class: 'box' \}, attach\.row, input, recPanel\)/);
   assert.match(view, /box\.append\(boxBar\);/);
   assert.match(view, /boxBar\.dataset\.empty = /);

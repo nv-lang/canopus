@@ -12,6 +12,7 @@ const hasRank = (s) => Number.isFinite(s.rank);
  * Порядок сессий внутри проекта (задача 192): место, которое владелец задал перетаскиванием (rank, меньше — выше), сильнее
  * сортировки по активности; сессии без места (новые) стоят над всеми, свежие выше.
  */
+import { t } from './strings.js';
 import { needsOwnerReason } from './attention.js';
 
 export const byOrder = (a, b) => {
@@ -202,6 +203,23 @@ export function displayQuestions(session, form) {
   });
 }
 
+export const expiredReplyPrefix = q => t('ask.reply_draft', { question: q.question ? ` «${q.question}»` : '' });
+
+function replayedReply(questions, text) {
+  const prefixes = questions.map(expiredReplyPrefix);
+  let rest = text;
+  const selected = [];
+  for (const [i, prefix] of prefixes.entries()) {
+    if (!rest.startsWith(prefix)) return null;
+    rest = rest.slice(prefix.length);
+    const end = i === prefixes.length - 1 ? rest.length : rest.indexOf('\n' + prefixes[i + 1]);
+    if (end < 0 || !rest.slice(0, end).trim()) return null;
+    selected.push(rest.slice(0, end).trim());
+    rest = rest.slice(end + 1);
+  }
+  return selected;
+}
+
 function workRows(session) {
   const rows = [];
   const questionTurns = new Set(session.messages.flatMap(m => m.expiredQuestion || m.role === 'answer' ? [m.turn] : []));
@@ -234,8 +252,13 @@ export function timeline(session) {
   const emitted = new Set();
   const lastQuestion = [...session.messages].reverse().find(m => m.expiredQuestion || m.role === 'answer');
 
+  let expired = null;
   for (const m of session.messages) {
     if (m.role === 'user') {
+      if (expired && !expired.selected) {
+        expired.selected = replayedReply(expired.questions, m.text);
+        if (expired.selected) expired.canReply = false;
+      }
       items.push({ type: 'user', key: m.key, text: m.text, turn: m.turn, images: m.images ?? [], at: m.at ?? 0 });
     } else if (m.role === 'skipped') {
       items.push({ type: 'skipped', key: m.key, agent: m.agent, count: m.count });
@@ -318,7 +341,8 @@ export function timeline(session) {
       if (diffs.length > 0) items.push({ type: 'diffs', key: `d:${m.turn}`, turn: m.turn, rows: diffs, totals: diffTotals(diffs) });
 
       if (m.status === 'refused' && m.expiredQuestion) {
-        items.push({ type: 'question-timeout', key: `n:${m.turn}`, turn: m.turn, questions: displayQuestions(session, m.expiredQuestion), canReply: m === lastQuestion && !session.pendingQuestion });
+        expired = { type: 'question-timeout', key: `n:${m.turn}`, turn: m.turn, questions: displayQuestions(session, m.expiredQuestion), canReply: m === lastQuestion && !session.pendingQuestion };
+        items.push(expired);
       } else if (m.status === 'refused' || m.status === 'error' || m.status === 'cancelled') {
         items.push({ type: 'note', key: `n:${m.turn}`, tone: m.status, reason: m.reason, turn: m.turn, partialAnswer: m.text.trim().length > 0,
           userText: session.messages.find(u => u.role === 'user' && u.turn === m.turn)?.text ?? '' });

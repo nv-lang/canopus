@@ -241,7 +241,7 @@ test('карточка: подписи «Как оформить / Кто дел
   assert.deepEqual(way.querySelectorAll('option').map((o) => o.textContent), ['Сделать одной задачей', 'Дочерняя задача к 5 · Своя', 'Оформить как эпик и разбить на дочерние задачи', 'Дополнить 5 · Своя']);
   assert.equal(way.value, 'epic:0', 'выбран вариант агента');
   assert.deepEqual(el.querySelectorAll('.canopus-run')[0].querySelectorAll('option').map((o) => o.textContent), ['Малый путь', 'Быстрая задача (6 шагов)', 'Полный путь (8 шагов)']);
-  assert.equal(el.querySelectorAll('.canopus-run')[0].value, 'full', 'режим агента выбран');
+  assert.equal(el.querySelectorAll('.canopus-run')[0].value, 'interactive', 'рекомендация агента не выбирает полный маршрут');
   assert.equal(el.querySelectorAll('.canopus-agent')[0].querySelectorAll('option')[0].textContent, 'этот же агент (codex)');
   assert.match(text, /делится на дочерние/, 'у способа есть пояснение мелким серым');
 });
@@ -267,7 +267,7 @@ test('карточка эпика: дочерние строками с флаж
   assert.deepEqual(kids.map((k) => k.querySelectorAll('input')[0].checked), [true, true]);
   // все отмечены: части не перечисляются (создать все), режим агента уходит
   el.querySelectorAll('button').filter((b) => b.textContent === 'В работу')[0].click();
-  assert.deepEqual(log.pop(), ['prop', 's1', 7, 'start', { mode: 'epic', target: 0, agent: '', run: 'full', children: '' }]);
+  assert.deepEqual(log.pop(), ['prop', 's1', 7, 'start', { mode: 'epic', target: 0, agent: '', run: 'interactive', children: '' }]);
   // снять вторую часть: уходит «0»
   const second = mountSingle();
   const box = second.el.querySelectorAll('.canopus-child')[1].querySelectorAll('input')[0];

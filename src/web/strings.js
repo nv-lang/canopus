@@ -450,11 +450,12 @@ export const S = Object.freeze({
   'ask.answer': 'Ответ: {question} → {choice}',
   'ask.skipped': 'Вопрос пропущен: {question}',
   // ---- режимы работы по методике (задача 192p)
+  'route.task_path': 'Маршрут: {name}',
   'route.label': 'Режим работы',
   'preset.label': 'Набор: кто какую роль делает',
   'preset.default_name': 'по умолчанию',
   'route.interactive': 'Выполнение',
-  'route.interactive_desc': 'Пишем задачи, они делаются по супербыстрому пути, шагов нет',
+  'route.interactive_desc': 'Общаемся с агентом и выполняем задачи',
   'route.fast': 'Быстрая задача',
   'route.fast_desc': 'Быстрый маршрут: короткая постановка, одна независимая проверка',
   'route.full': 'Полный путь',

@@ -6,7 +6,7 @@ import { t } from './strings.js';
 import { h } from './dom.js';
 import {
   EMPTY_CREW, CHOICES, DEFAULT_CHOICE, singleCard, activeText, tableRows, problemRows, rowText, rowActions, problemText, wordHint, recognizeShown, kindText, defaultWay, wayOptions, parseWay,
-  applyCounts, applyLabel, applyPlan, defaultRun, runOptions, proposesText, wayHint, childrenPicked,
+  applyCounts, applyLabel, applyPlan, DEFAULT_RUN, runOptions, proposesText, wayHint, childrenPicked,
 } from './canopus-task.js';
 
 // подписи переключателей: ключи литералами (проверка strings.test.mjs ищет их в исходниках)
@@ -74,7 +74,7 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
       family.value = agent;
       family.addEventListener('change', () => { agents.set(key, family.value); });
     }
-    const run = runs.get(key) || defaultRun(p);
+    const run = runs.get(key) || DEFAULT_RUN;
     const runSelect = h(doc, 'select', { class: 'canopus-run', 'aria-label': t('canopustask.run_label') },
       ...runOptions().map((o) => h(doc, 'option', { value: o.value, text: o.label, selected: o.value === run })));
     runSelect.value = run;
@@ -88,7 +88,7 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
     const work = action === 'start' || action === 'extend';
     if (work) {
       const key = `${session.id}:${p.id}`;
-      const opts = { mode, target, agent, run: runs.get(key) || defaultRun(p) };
+      const opts = { mode, target, agent, run: runs.get(key) || DEFAULT_RUN };
       if (mode === 'epic' && p.children.length > 0) opts.children = childrenPicked(p.children.length, kidsOff.get(key) || new Set());
       submit(session, canopus, [p.id], () => handlers.onCanopusProp(session.id, p.id, action, opts));
     } else submit(session, canopus, [p.id], () => handlers.onCanopusProp(session.id, p.id, action));
@@ -177,7 +177,7 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
         sel.addEventListener('change', () => { agents.set(key, sel.value); });
         who = field(t('canopustask.who_label'), sel, h(doc, 'small', { class: 'canopus-field-hint muted', text: t('canopustask.who_hint') }));
       }
-      const run = runs.get(key) || defaultRun(p);
+      const run = runs.get(key) || DEFAULT_RUN;
       const runList = runOptions();
       const runHint = h(doc, 'small', { class: 'canopus-field-hint muted', text: (runList.find((o) => o.value === run) || runList[0]).hint });
       const runSelect = h(doc, 'select', { class: 'canopus-run', 'aria-label': t('canopustask.run_label') },
