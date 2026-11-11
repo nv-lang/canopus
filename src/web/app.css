@@ -893,6 +893,7 @@ pre code { font: inherit; }
   --rail-width: 288px;
   --column: 800px;
   --chat-inset: 24px;
+  --composer-text-inset: 16px;
   --radius: 8px;
   --radius-card: 11px;
   --radius-box: 14px;
@@ -974,11 +975,11 @@ body { font-size: 14px; line-height: 1.55; letter-spacing: .005em; }
 .status { padding: 9px 14px; font-size: 12px; }
 @media (max-width: 1100px) {
   .topbar { padding-inline: 16px; }
-  .chat { --chat-inset: 16px; }
+  .chat { --chat-inset: 16px; --composer-text-inset: 12px; }
 }
 @media (max-width: 799px) {
   .topbar { height: 46px; padding-inline: 10px; }
-  .chat { --chat-inset: 10px; }
+  .chat { --chat-inset: 10px; --composer-text-inset: 6px; }
   .thread { padding-block: 16px 8px; }
   .composer { padding-block: 6px 10px; }
   .item-user { max-width: 94%; }
@@ -1560,7 +1561,8 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 @media (prefers-reduced-motion: reduce) { .handoff-hint[data-phase="preparing"]::before { animation: none; } }
 .handoff-hint[data-phase="error"] { color: var(--warn); }
 
-.box > textarea { flex-basis: 100%; margin: 0; padding-inline: 8px; }
+.box { margin-inline: calc(0px - var(--composer-text-inset)); padding-inline: calc(var(--composer-text-inset) - 1px); }
+.box > textarea { flex-basis: 100%; margin: 0; padding-inline: 0; }
 .box-bar { flex-wrap: wrap; }
 .box-bar .box-row { margin: 0; }
 .composer-status { flex-wrap: nowrap; }
