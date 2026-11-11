@@ -61,6 +61,7 @@ test('виды событий: девять прежних, шесть рабо�
     'session_source',
     'setting_chosen',
     'setting_dropped',
+    'task_details',
     'tool_call',
     'tool_call_update',
     'turn_request',

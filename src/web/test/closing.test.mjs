@@ -171,7 +171,7 @@ test('задача 192.6: в строке нового чата нет меню 
 
 test('задача 192.6: шапка чата — только название, номер задачи и шеврон с меню действий; второй строки нет', () => {
   assert.match(view, /const titleBlock = h\(doc, 'div', \{ class: 'title-block', hidden: true \}, title, headMenu\)/);
-  assert.match(view, /const title = h\(doc, 'h2', \{ class: 'title' \}, crumb, crumbSep, titleText, taskNo, titleInput\)/);
+  assert.match(view, /const title = h\(doc, 'h2', \{ class: 'title' \}, crumb, crumbSep, taskNo, titleText, titleInput\)/);
   assert.ok(!/agentText|modelText|stateBadge|placeText|subRow|session-model-slot/.test(view), 'агента, модели, статуса, проекта и папки в шапке нет');
   assert.ok(!/\.sub\b|\.place\b|session-model-slot/.test(css), 'стилей второй строки нет');
   assert.match(read('session-row.js'), /function headButton\(session\)[\s\S]*icon\(doc, 'i-chevron-down'\)/);

@@ -255,11 +255,15 @@ export function timeline(session) {
   let expired = null;
   for (const m of session.messages) {
     if (m.role === 'user') {
+      let reply = null;
+      let replyTo;
       if (expired && !expired.selected) {
         expired.selected = replayedReply(expired.questions, m.text);
-        if (expired.selected) expired.canReply = false;
+        if (expired.selected) { expired.canReply = false; reply = expired.selected; replyTo = expired.key; }
       }
-      items.push({ type: 'user', key: m.key, text: m.text, turn: m.turn, images: m.images ?? [], at: m.at ?? 0 });
+      items.push({ type: 'user', key: m.key, text: reply ? t('ask.reply_in_feed', { answer: reply.join(' · ') }) : m.text, ...(replyTo ? { replyTo } : {}), turn: m.turn, images: m.images ?? [], at: m.at ?? 0 });
+    } else if (m.role === 'service_note') {
+      items.push({ type: 'text', key: m.key, text: m.text, streaming: false });
     } else if (m.role === 'skipped') {
       items.push({ type: 'skipped', key: m.key, agent: m.agent, count: m.count });
     } else if (m.role === 'session_error') {
@@ -310,7 +314,12 @@ export function timeline(session) {
         text = '';
       };
       const flushGroup = () => {
-        if (group.length > 0) content.push({ type: 'work', key: `w:${m.turn}:${group[0].key}`, turn: m.turn, rows: group });
+        if (group.length > 0) {
+          const preceding = content.at(-1);
+          const purpose = group.length >= 4 && preceding?.type === 'text' && preceding.text.trim().length <= 180
+            ? preceding.text.trim().replace(/\s+/g, ' ') : '';
+          content.push({ type: 'work', key: `w:${m.turn}:${group[0].key}`, turn: m.turn, rows: group, purpose });
+        }
         group = [];
       };
       for (const part of stream) {

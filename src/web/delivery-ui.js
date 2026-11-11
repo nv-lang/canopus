@@ -45,6 +45,8 @@ export function deliveryCard(doc, item, actions) {
   retry.addEventListener('click', () => { if (!canRetry || retry.disabled) return; retry.disabled = true; actions.retry(item.id); });
   const restore = h(doc, 'button', { type: 'button', text: t('delivery.restore_request') });
   restore.addEventListener('click', () => actions.restore(item.text));
+  const resume = h(doc, 'button', { type: 'button', text: t('delivery.resume') });
+  resume.addEventListener('click', () => actions.restore(t('delivery.resume_draft')));
   const copy = h(doc, 'button', { type: 'button', text: t('delivery.copy') });
   copy.addEventListener('click', () => actions.copy(detail));
   const forget = h(doc, 'button', { type: 'button', text: t('delivery.forget'), title: t('delivery.forget_hint') });
@@ -65,11 +67,11 @@ export function deliveryCard(doc, item, actions) {
     icon(doc, 'i-chevron-right', 'chev'));
   const body = h(doc, 'div', { class: 'delivery-body', hidden: collapsed },
     timestamp ? h(doc, 'time', { datetime: new Date(item.at).toISOString(), text: timestamp }) : null,
-    h(doc, 'p', { class: 'delivery-reason', text: reason || labels[item.state] || labels.unknown }),
+    !partial || reason ? h(doc, 'p', { class: 'delivery-reason', text: reason || labels[item.state] || labels.unknown }) : false,
     h(doc, 'p', { class: 'delivery-guidance', text: explanation }),
     item.images.length ? h(doc, 'p', { text: t('delivery.images') }) : false,
     outgoing ? h(doc, 'p', { class: 'delivery-request', text: t('delivery.request_preview', { text: outgoing.length > 160 ? outgoing.slice(0, 160) + '…' : outgoing }) }) : null,
-    h(doc, 'div', { class: 'delivery-actions' }, ...(item.state === 'error' ? [] : [retry, ...(outgoing ? [restore] : [])]), ...(actions.forget ? [forget] : [])),
+    h(doc, 'div', { class: 'delivery-actions' }, ...(item.state === 'error' ? [] : [...(canRetry ? [retry] : []), ...(partial ? [resume] : []), ...(outgoing ? [restore] : [])]), ...(actions.forget ? [forget] : [])),
     h(doc, 'details', {}, h(doc, 'summary', { text: t('delivery.details') }), h(doc, 'pre', { text: detail }), copy));
   if (actions.toggle) head.addEventListener('click', () => actions.toggle(head, body));
   return h(doc, 'div', { class: archived ? 'delivery-error delivery-history' : uncertain ? 'delivery-error delivery-uncertain' : 'delivery-error', role: archived ? 'note' : 'status' }, head, body);

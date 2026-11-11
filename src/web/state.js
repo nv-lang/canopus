@@ -46,6 +46,7 @@ export const KINDS = Object.freeze([
   'turn_usage',
   // задача 192p: режим работы по методике и его шаги (сервер -> страница)
   'route_state',
+  'task_details',
   // задача 192.1: отладочное состояние машины диалога (сервер -> страница); в журнал сессии не пишется и порядок списка не меняет
   'machine_state',
   // задача 192.11: состав запроса к агенту на ход (сервер -> страница); в журнал сессии не пишется
@@ -671,6 +672,10 @@ export function reduce(model, event) {
     // состояние для просмотра, не история: id не запоминается (событий много), запоздавший (старее принятого по времени) отбрасывается; порядок сессий и шаг цепочки не трогает
     if (event.time < session.machineAt) return model;
     return { ...model, sessions: { ...model.sessions, [event.trace]: { ...session, machine: parseMachineState(event.input), machineAt: event.time } } };
+  }
+
+  if (event.kind === 'task_details') {
+    return { ...model, sessions: { ...model.sessions, [event.trace]: { ...session, taskDetails: event.input } } };
   }
 
   if (event.kind === 'turn_request') {

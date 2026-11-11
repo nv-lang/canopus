@@ -414,7 +414,12 @@ input, select, textarea {
 .session-menu .is-danger { color: var(--danger); }
 .session-menu .menu-end { margin-left: auto; color: var(--fg-muted); }
 .task-no { flex: none; color: var(--fg-muted); font-size: 12px; font-weight: 400; font-variant-numeric: tabular-nums; }
-.title .task-no { margin-left: 8px; font-size: 13px; }
+.title .task-no { margin-right: 8px; font-size: 13px; }
+.task-progress-link { align-self: flex-start; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.task-progress-link[hidden] { display: none; }
+.task-details-prose { overflow-wrap: anywhere; }
+.task-details-prose pre { overflow: auto; }
+.rail-tab[hidden] { display: none; }
 .task-no[hidden] { display: none; }
 .unread { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
 .session-item.is-renaming { padding: 0 4px 0 6px; }
@@ -1308,6 +1313,7 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .rsub-items { padding: 6px 0 0 18px; }
 .rsub-items[hidden] { display: none; }
 .rsub-item { display: flex; align-items: flex-start; gap: 8px; min-height: 24px; font-size: 13px; }
+.rsub-item > span:last-child { min-width: 0; overflow-wrap: anywhere; }
 .rsub-item[data-done="true"] { color: var(--fg-muted); }
 .rsub-box { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 14px; height: 14px; margin-top: 3px; border: 1px solid var(--fg-muted); border-radius: 3px; }
 .rsub-box .icon { width: 12px; height: 12px; color: var(--ok); }
@@ -1405,9 +1411,9 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .group-icon { width: 15px; height: 15px; margin-right: 6px; align-self: center; color: var(--fg-muted); }
 
 /* ---- правая колонка: вкладки и «Машины» (задача 192.1) ---- */
-.rail-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); }
+.rail-tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--border); }
 .rail-tab {
-  flex: 1; padding: 6px 8px; border: 0; border-bottom: 2px solid transparent; background: transparent;
+  flex: 1 0 auto; white-space: nowrap; padding: 6px 8px; border: 0; border-bottom: 2px solid transparent; background: transparent;
   color: var(--fg-muted); font: inherit; font-size: 13px; cursor: pointer;
 }
 .rail-tab.on { color: var(--fg); border-bottom-color: var(--accent); }
@@ -1608,3 +1614,22 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .composer-status .worktree-chip, .where-note { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .composer-status .worktree-chip { flex: 0 1 auto; }
 .worktree-chip > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+.panel-grip { position: absolute; z-index: 12; inset-block: 0; width: 9px; cursor: col-resize; touch-action: none; }
+.panel-grip-left { left: calc(var(--side-width) - 4px); }
+.panel-grip-right { right: calc(var(--rail-width) - 4px); }
+.panel-grip:is(:hover, :focus-visible, :active) { background: var(--border); }
+.app[data-rail="closed"] .panel-grip-right { display: none; }
+@media (max-width: 1100px) {
+  .app:not([data-rail="open"]) .panel-grip-right { display: none; }
+  .panel-grip-right { inset-block-start: 56px; }
+}
+@media (max-width: 799px) {
+  .panel-grip-left { display: none; }
+}
+.task-route-stages { padding-inline-start: 1.5em; }
+.task-route-stages li { padding: 5px 0; overflow-wrap: anywhere; }
+.task-route-stages small { display: block; color: var(--fg-muted); }
+.task-route-stages [aria-current="step"] { color: var(--accent); }
+.task-route-actions { flex-wrap: wrap; justify-content: flex-start; }
+.work-purpose { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg-muted); }

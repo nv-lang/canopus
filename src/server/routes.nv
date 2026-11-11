@@ -923,7 +923,7 @@ fn rv_tests(rec TestsRec, head str, source str) -> JsonValue {
 
 /// The input of the page event `route_state`: `{route, steps:[{n,title,state}], running, task:{...}|null, suggest_new_task, next_subtask}`.
 /// `titles` are the titles of the steps of the mode now (from its file), `progress` the boxes of each subtask in the order of `rt.subs`, `extra` what the disk and git say.
-export fn route_view_text(rt RouteSession, titles []str, progress []Progress, suggest bool, now int, extra TaskExtra) -> str {
+export fn route_view_text(rt RouteSession, titles []str, progress []Progress, suggest bool, now int, extra TaskExtra, required []bool = []) -> str {
     mut steps = []JsonValue.new()
     mut i = 0
     while i < titles.len() {
@@ -931,6 +931,7 @@ export fn route_view_text(rt RouteSession, titles []str, progress []Progress, su
         jput(s, "n", JsonValue.int(i + 1))
         jput(s, "title", JsonValue.str(titles[i]))
         jput(s, "state", JsonValue.str(rt.step_state(i + 1)))
+        if i < required.len() { jput(s, "required", JsonValue.bool(required[i])) }
         steps.push(JsonValue.object(s))
         i += 1
     }

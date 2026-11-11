@@ -269,6 +269,7 @@ export function parseRouteState(input) {
   const steps = (Array.isArray(src.steps) ? src.steps : []).filter(isObject).map((s, i) => ({
     n: Number.isInteger(s.n) ? s.n : i + 1,
     title: str(s.title),
+    ...(typeof s.required === 'boolean' ? { required: s.required } : {}),
     state: STEP_STATES.includes(s.state) ? s.state : 'pending',
   }));
   return { route, stepless: false, steps, running: src.running === true, useTree, sourceBranch, resultRepo, resultLabel, task: parseTask(src.task), where: parseWhere(src.where), canopus: parseCanopusTask(src), kids: parseKids(src), hints: parseHints(src), context: parseContext(src) };

@@ -92,7 +92,7 @@ try {
   assert.match(await saved.textContent(), /Доставка неизвестна/);
   assert.equal(await saved.getByRole('button', { name: 'Повторить', exact: true }).isDisabled(), true);
   await input.fill('новый черновик');
-  await saved.getByRole('button', { name: 'Скопировать мой запрос в поле ввода', exact: true }).click();
+  await saved.getByRole('button', { name: 'Вернуть запрос в поле ввода', exact: true }).click();
   assert.equal(await input.inputValue(), 'исчезавшее сообщение\n\nновый черновик');
   await page.reload();
   await input.waitFor();
@@ -143,7 +143,7 @@ try {
   const partial = page.getByRole('button', { name: /Ответ прерван.*Подробнее/ });
   await partial.click();
   await page.getByText('Ваш запрос: «исходный запрос»', { exact: true }).waitFor();
-  await page.locator('.delivery-body:visible').getByRole('button', { name: 'Скопировать мой запрос в поле ввода' }).click();
+  await page.locator('.delivery-body:visible').getByRole('button', { name: 'Вернуть запрос в поле ввода' }).click();
   assert.match(await input.inputValue(), /^исходный запрос/);
   await page.goto(base.href);
   await page.locator('.sidebar-new').click();

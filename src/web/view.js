@@ -42,7 +42,7 @@ import {
 } from './state.js';
 import { attention, SILENT_DEFAULT_MIN } from './attention.js';
 import {
-  CHAT_MODES, STEP_ICON, STEP_STATE_KEY, SUBTASK_STATE_KEY, routeName, routeDescription, counterText, stepToSkip, showStrip, stripActions,
+  CHAT_MODES, STEP_STATE_KEY, SUBTASK_STATE_KEY, routeName, routeDescription, showStrip, stripActions,
   subtaskPercent, subtaskProgressText, showSubtasks, INTERACTIVE_STATE, NOTE_KEY, taskHeading, subtaskActions, hasSubtaskActions, bannerCount, subtaskCountText,
   mergeLabel, diffTotals, finishPrompt, readyPrompt, overlapPrompt, commitsText, filesText, branchTestsText, mainTestsText, testsRunnable, stalePrompt, whereText, wipStalePrompt,
 } from './routes.js';
@@ -101,6 +101,45 @@ export function createView(doc, refs, deps) {
   let query = '';
   let railOpen = null; // null — «как задано шириной», true/false — выбор владельца
   let current = { session: undefined, ui: undefined };
+
+  for (const [side, panel, min, max] of [['left', refs.side, 220, 460], ['right', refs.rail, 260, 560]]) {
+    const css = side === 'left' ? '--side-width' : '--rail-width';
+    const key = `canopus-panel-${side}`;
+    const grip = h(doc, 'div', { class: `panel-grip panel-grip-${side}`, role: 'separator', tabindex: '0',
+      'aria-orientation': 'vertical', 'aria-label': t(side === 'left' ? 'layout.resize_left' : 'layout.resize_right'), 'aria-valuemin': min, 'aria-valuemax': max });
+    const setWidth = (width, save = false) => {
+      const size = Math.round(Math.max(min, Math.min(max, width)));
+      refs.app.style.setProperty(css, `${size}px`);
+      grip.setAttribute('aria-valuenow', String(size));
+      if (save) try { win.localStorage.setItem(key, String(size)); } catch {}
+    };
+    try {
+      const stored = Number(win.localStorage.getItem(key));
+      if (stored >= min && stored <= max) setWidth(stored);
+    } catch {}
+    let drag = null;
+    grip.addEventListener('pointerdown', event => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      drag = { x: event.clientX, width: panel.getBoundingClientRect().width };
+      grip.setPointerCapture(event.pointerId);
+    });
+    grip.addEventListener('pointermove', event => {
+      if (drag) setWidth(drag.width + (event.clientX - drag.x) * (side === 'left' ? 1 : -1));
+    });
+    grip.addEventListener('lostpointercapture', () => {
+      if (drag) setWidth(panel.getBoundingClientRect().width, true);
+      drag = null;
+    });
+    grip.addEventListener('keydown', event => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      event.preventDefault();
+      const direction = event.key === 'ArrowRight' ? 1 : -1;
+      setWidth(panel.getBoundingClientRect().width + direction * (side === 'left' ? 16 : -16), true);
+    });
+    refs.app.append(grip);
+  }
+
 
   const agentLabel = (id) => {
     const a = agents.find((x) => x.id === id);
@@ -521,12 +560,13 @@ export function createView(doc, refs, deps) {
   const titleText = h(doc, 'span', { class: 'title-text', title: t('chat.rename'), tabindex: '0', role: 'button' });
   const titleInput = h(doc, 'input', { class: 'title-input', type: 'text', maxlength: '200', autocomplete: 'off', 'aria-label': t('chat.rename'), hidden: true });
   // номер задачи сессии (если есть): приглушённо рядом с названием, без решётки
-  const taskNo = h(doc, 'span', { class: 'task-no', hidden: true });
+  const taskNo = h(doc, 'button', { type: 'button', class: 'task-no link-btn', hidden: true });
+  taskNo.addEventListener('click', () => openTaskDetails(current.session));
   // «родитель › ребёнок» (задача 192.3): у дочерней сессии перед названием стоит название родителя, клик открывает его чат
   const crumb = h(doc, 'button', { type: 'button', class: 'title-parent', hidden: true });
   const crumbSep = h(doc, 'span', { class: 'title-sep', 'aria-hidden': 'true', text: '›', hidden: true });
   crumb.addEventListener('click', () => { if (crumb.dataset.parent) handlers.onSelect(crumb.dataset.parent); });
-  const title = h(doc, 'h2', { class: 'title' }, crumb, crumbSep, titleText, taskNo, titleInput);
+  const title = h(doc, 'h2', { class: 'title' }, crumb, crumbSep, taskNo, titleText, titleInput);
   let renaming = false;
   function finishRename(save) {
     if (!renaming) return;
@@ -1352,42 +1392,42 @@ export function createView(doc, refs, deps) {
     closeMenu();
   });
 
-  // Полоса шагов режима (задача 192p): абсолютно над полем ввода, макет не сдвигает.
-  const routeStrip = h(doc, 'section', { class: 'route-strip', hidden: true, 'aria-label': t('route.label') });
-  let stripSig = '';
-  function renderRouteStrip(session) {
-    const rs = session.routeState;
-    if (!showStrip(rs)) {
-      if (stripSig !== '') { stripSig = ''; routeStrip.hidden = true; routeStrip.replaceChildren(); }
-      return;
-    }
-    const folded = open.has('route-folded');
-    const sig = JSON.stringify([session.id, rs, folded]);
-    if (sig === stripSig) return;
-    stripSig = sig;
-    const acts = stripActions(rs);
-    const skipStep = stepToSkip(rs.steps);
-    const fold = h(doc, 'button', { type: 'button', class: 'route-fold', 'aria-expanded': String(!folded), title: t('route.fold') },
-      icon(doc, 'i-chevron-down', 'chev'),
-      h(doc, 'span', { class: 'route-title', text: t('route.steps_title', { name: routeName(rs.route) }) }),
-      h(doc, 'span', { class: 'route-count', text: counterText(rs.steps) }));
-    fold.addEventListener('click', () => {
-      if (open.has('route-folded')) open.delete('route-folded'); else open.add('route-folded');
-      stripSig = '';
-      renderRouteStrip(current.session);
-    });
-    const run = h(doc, 'button', { type: 'button', class: 'route-btn primary', text: t('route.run'), disabled: !acts.run });
-    const skip = h(doc, 'button', { type: 'button', class: 'route-btn', text: t('route.skip'), disabled: !acts.skip });
-    const stop = h(doc, 'button', { type: 'button', class: 'route-btn danger', text: t('route.stop'), disabled: !acts.stop });
-    run.addEventListener('click', () => handlers.onRouteRun(session.id));
-    skip.addEventListener('click', () => handlers.onRouteSkip(session.id, skipStep));
-    stop.addEventListener('click', () => handlers.onRouteStop(session.id));
-    const steps = h(doc, 'ol', { class: 'route-steps', hidden: folded }, ...rs.steps.map((x) => h(doc, 'li', {
-      class: 'route-step', 'data-state': x.state, title: t(STEP_STATE_KEY[x.state]), 'aria-label': `${x.title}: ${t(STEP_STATE_KEY[x.state])}`,
-    }, icon(doc, STEP_ICON[x.state]), h(doc, 'span', { text: x.title }))));
-    routeStrip.replaceChildren(h(doc, 'div', { class: 'route-head' }, fold, h(doc, 'div', { class: 'route-actions' }, run, skip, stop)), steps);
-    routeStrip.dataset.running = String(rs.running);
-    routeStrip.hidden = false;
+  function taskRouteProgress(session) {
+    const route = session.routeState;
+    if (!showStrip(route)) return false;
+    const actions = stripActions(route);
+    const current = route.steps.find(step => step.state === 'running');
+    const next = route.steps.find(step => step.state === 'pending');
+    const done = route.steps.filter(step => step.state === 'done').length;
+    const skipped = route.steps.filter(step => step.state === 'skipped').length;
+    const action = (text, run, style = '') => {
+      const button = h(doc, 'button', { type: 'button', class: 'route-btn ' + style, text });
+      button.addEventListener('click', () => {
+        button.disabled = true;
+        run();
+        win.setTimeout(() => { button.disabled = false; }, 1000);
+      });
+      return button;
+    };
+    const candidate = current || next;
+    const skip = candidate?.required === false
+      ? action(t('route.skip_named', { title: candidate.title }), () => handlers.onRouteSkip(session.id, candidate.n)) : false;
+    const stageHelp = {
+      'Красная проба': t('route.help_red'),
+      'Независимая приёмка': t('route.help_review'),
+      'Регистр и документы': t('route.help_docs'),
+    };
+    return h(doc, 'section', { class: 'task-route-progress' },
+      h(doc, 'h4', { text: t('route.progress_title') }),
+      h(doc, 'p', { text: [t('route.counter', { done, total: route.steps.length }), skipped ? t('route.skipped_total', { n: skipped }) : ''].filter(Boolean).join(' · ') }),
+      current ? false : next ? h(doc, 'p', { text: t('route.next_stage', { title: next.title }) }) : false,
+      h(doc, 'div', { class: 'route-actions task-route-actions' },
+        actions.run ? action(t(done || skipped ? 'route.resume_route' : 'route.start_route'), () => handlers.onRouteRun(session.id), 'primary') : false,
+        actions.stop ? action(t('route.pause_route'), () => handlers.onRouteStop(session.id)) : false, skip),
+      h(doc, 'ol', { class: 'task-route-stages' }, ...route.steps.map(step =>
+        h(doc, 'li', { 'data-state': step.state, 'aria-current': step === current ? 'step' : undefined },
+          h(doc, 'span', { text: step.title }),
+          h(doc, 'small', { text: [t(STEP_STATE_KEY[step.state]), stageHelp[step.title]].filter(Boolean).join(' · ') })))));
   }
 
   // Баннер «Задача разрослась»: над полем, рядом с полосой шагов; «Продолжить» запоминается до следующей подзадачи.
@@ -1532,7 +1572,9 @@ export function createView(doc, refs, deps) {
     routeCards.hidden = cards.length === 0;
   }
 
-  const routeOver = h(doc, 'div', { class: 'route-over' }, canopusUi.bar, routeCards, routeBanner, routeStrip);
+  const taskProgressLink = h(doc, 'button', { type: 'button', class: 'link-btn task-progress-link', hidden: true });
+  taskProgressLink.addEventListener('click', () => openTaskDetails(current.session));
+  const routeOver = h(doc, 'div', { class: 'route-over' }, canopusUi.bar, routeCards, routeBanner, taskProgressLink);
 
   const composer = h(doc, 'div', { class: 'composer' },
     routeOver,
@@ -1777,13 +1819,16 @@ export function createView(doc, refs, deps) {
     const detail = r.type === 'task' ? '' : r.detail;
     const output = isCommand ? detail.split('\n').filter(line => !/^terminal: (?:exec-[\da-f-]+|[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}|\?)\s*$/iu.test(line)).join('\n') : detail;
     const command = isCommand ? (r.command || (r.title !== r.id && !/^(?:bash|shell|terminal|command|execute|powershell|pwsh|cmd)$/iu.test(r.title.trim()) ? r.title : '')) : '';
-    const result = r.response || (output && (!r.command || output !== JSON.stringify({ command: r.command })) ? output : '');
+    const rawResult = r.response || (output && (!r.command || output !== JSON.stringify({ command: r.command })) ? output : '');
+    const result = rawResult.replace(/^\s*\x60{3}(?:[\w+-]+)?[ \t]*\r?\n([\s\S]*?)\r?\n\x60{3}[ \t]*\s*$/iu, '$1');
+    const readableResult = /^unknown tool: canopus_task$/iu.test(result.trim()) ? t('work.canopus_task_unavailable') : result;
+    const distinctResult = command && readableResult.trim() === command.trim() ? '' : readableResult;
     const [label, secondary] = rowLabel(r);
     const webSearch = r.kind === 'search' && /^web search(?::|$)/iu.test(r.title);
     const query = r.query || (webSearch ? secondary : '');
     const input = r.toolInput || (query ? JSON.stringify({ query }, null, 2) : '');
-    return { r, label, secondary, command, input, result, webSearch,
-      expandable: Boolean(command || input || result || webSearch), key: `${currentTrace}:row:${r.key}` };
+    return { r, label, secondary, command, input, result: distinctResult, webSearch,
+      expandable: Boolean(command || input || distinctResult || webSearch), key: `${currentTrace}:row:${r.key}` };
   }
 
   function workDetails({ r, command, input, result, webSearch }) {
@@ -1868,7 +1913,8 @@ export function createView(doc, refs, deps) {
       : summaryText(workSummary(item.rows));
     const toggle = single ? null : h(doc, 'button', { type: 'button', class: 'disclosure', 'aria-expanded': String(isOpen), 'data-state': 'group' },
       icon(doc, 'i-chevron-right', 'chev'),
-      h(doc, 'span', { class: 'disc-text', text: label }));
+      h(doc, 'span', { class: 'disc-text', text: label }),
+      item.purpose ? h(doc, 'span', { class: 'work-purpose', text: item.purpose, title: item.purpose }) : false);
     const rows = item.rows.map(workRowDetails);
     const latest = item.active ? rows.findLast(row => row.expandable) : undefined;
     const automatic = latest && !workToggles.has(latest.key)
@@ -1951,8 +1997,10 @@ export function createView(doc, refs, deps) {
             return button;
           }))
           : false;
+        const question = item.replyTo ? h(doc, 'button', { type: 'button', class: 'link-btn', text: t('ask.reply_question_link') }) : null;
+        question?.addEventListener('click', () => nodes.get(item.replyTo)?.node.scrollIntoView({ block: 'nearest' }));
         node.replaceChildren(h(doc, 'span', { class: 'sr', text: t('chat.you') }),
-          h(doc, 'div', { class: 'bubble' }, thumbs, ...(item.text.trim().length > 0 ? proseNodes(item.text) : [])),
+          h(doc, 'div', { class: 'bubble' }, thumbs, ...(item.text.trim().length > 0 ? proseNodes(item.text) : []), question),
           messageActions(item));
         break;
       }
@@ -2262,7 +2310,7 @@ export function createView(doc, refs, deps) {
     currentSession = session;
     const executionRoute = session.route || INTERACTIVE_STATE.route;
     currentRoute = executionRoute === 'planning' ? 'planning' : 'interactive';
-    taskRouteLabel.hidden = !session.routeState?.task || executionRoute === 'planning';
+    taskRouteLabel.hidden = !session.routeState?.task || executionRoute === 'planning' || showStrip(session.routeState);
     taskRouteLabel.textContent = t('route.task_path', { name: executionRoute === 'interactive' ? t('canopustask.run_interactive') : routeName(executionRoute) });
     routeButton.hidden = false;
     routeButton.dataset.route = currentRoute;
@@ -2398,7 +2446,18 @@ export function createView(doc, refs, deps) {
       menuSig = sig;
     }
 
-    renderRouteStrip(session);
+    const stage = session.routeState.steps.find((step) => step.state === 'running');
+    taskProgressLink.hidden = !taskInfo;
+    if (taskInfo) {
+      const details = currentTaskDetails(session);
+      const entries = details?.progress?.trim().split(/\r?\n/).filter(line => line.trim()) || [];
+      const lastHeading = entries.findLast(line => /^#{2,6}\s+/.test(line));
+      const latest = lastHeading?.replace(/^#{2,6}\s+/, '') || entries.findLast(line => !line.startsWith('#'));
+      const progress = stage ? t('route.current_stage', { n: stage.n, total: session.routeState.steps.length, title: stage.title }) : [taskStatusLabel(details?.status || session.routeState.task.state), latest, showStrip(session.routeState) ? routeName(session.route) + ' · ' + t('route.counter', { done: session.routeState.steps.filter(step => step.state === 'done').length, total: session.routeState.steps.length }) : ''].filter(Boolean).join(' · ');
+      const label = [t('route.task_head_bare', taskInfo), progress].join(' · ');
+      if (taskProgressLink.textContent !== label) taskProgressLink.textContent = label;
+      taskProgressLink.title = label;
+    }
     renderRouteBanner(session);
     renderTaskCards(session);
     canopusUi.render(session);
@@ -2628,12 +2687,11 @@ export function createView(doc, refs, deps) {
   function subtasksCard(s) {
     const task = s.routeState && s.routeState.task;
     if (!task) return false;
-    const withSubs = showSubtasks(s.routeState);
-    const list = h(doc, 'ul', { class: 'rsub-list' }, ...task.subtasks.map((sub) => subtaskRow(s, task, sub)));
     const newTask = h(doc, 'button', { type: 'button', class: 'link-btn', text: t('route.new_task') });
     newTask.addEventListener('click', () => handlers.onRouteNewTask(s.id));
     const label = mergeLabel(task);
     return card(taskHeading(task),
+      task.number ? taskDetailsButton(s) : false,
       label ? h(doc, 'p', { class: 'rsub-label', 'data-kind': label.kind, text: label.text }) : false,
       task.branch ? h(doc, 'p', { class: 'rsub-task', text: t('route.task_branch', { branch: task.branch }) }) : false,
       task.worktree ? h(doc, 'p', { class: 'rsub-task', text: t('route.task_tree', { worktree: task.worktree }) }) : false,
@@ -2642,8 +2700,6 @@ export function createView(doc, refs, deps) {
       task.worktree && testsRunnable(task) ? panelTestsButton(s) : false,
       task.worktree && task.testsRunning ? h(doc, 'p', { class: 'rsub-tests muted', text: t('route.tests_running') }) : false,
       task.stale ? h(doc, 'p', { class: 'rsub-label', 'data-kind': 'unmerged', text: t('route.stale_title', { days: task.idleDays }) }) : false,
-      withSubs && task.subtasks.length === 0 ? h(doc, 'p', { class: 'muted', text: t('route.sub_none') }) : false,
-      withSubs && task.subtasks.length > 0 ? list : false,
       newTask);
   }
 
@@ -2664,10 +2720,57 @@ export function createView(doc, refs, deps) {
     fetchTrace: (id, from, to) => win.fetch(`/api/session-trace/${encodeURIComponent(id)}?from=${from}&to=${to}`, { cache: 'no-store' }).then((r) => r.json()),
     rerender: () => { railSig = ''; renderRail(current.session); },
   });
+  function taskDetailsButton(session) {
+    const button = h(doc, 'button', { type: 'button', class: 'link-btn', text: t('task.details') });
+    button.addEventListener('click', () => openTaskDetails(session));
+    return button;
+  }
+
+  function openTaskDetails(session) {
+    if (!session || !sessionTask(session)) return;
+    railOpen = true;
+    refs.app.dataset.rail = 'open';
+    railButton.setAttribute('aria-pressed', 'true');
+    if (railTab === 'task') handlers.onTaskDetailsGet?.(session.id);
+    else pickRailTab('task');
+  }
+
+  function currentTaskDetails(session) {
+    const details = session.taskDetails;
+    return !details?.number || details.number === session.routeState.task?.number ? details : undefined;
+  }
+
+  function taskStatusLabel(status) {
+    return status === 'running' || status === 'active' ? t('task.details_active') : status;
+  }
+
+  function taskDetailsCard(session) {
+    const task = session.routeState.task;
+    if (!task?.number) return card(t('task.details'), h(doc, 'p', { text: t('task.details_missing') }));
+    const details = currentTaskDetails(session);
+    const step = session.routeState.steps.find((item) => item.state === 'running');
+    const status = details?.status || task.state;
+    const stage = details?.stage || step?.title;
+    const progress = details?.progress?.trim().split('\n').slice(-24).join('\n');
+    return card(taskHeading(task),
+      h(doc, 'p', { text: `${t('task.details_status')} · ${taskStatusLabel(status)}` }),
+      h(doc, 'p', { text: t('route.task_path', { name: routeName(session.route) }) }),
+      stage ? h(doc, 'p', { text: `${t('task.details_stage')} · ${stage}` }) : false,
+      taskRouteProgress(session),
+      showSubtasks(session.routeState) && task.subtasks.length ? h(doc, 'section', {},
+        h(doc, 'h4', { text: t('task.checklist') }),
+        h(doc, 'ul', { class: 'rsub-list' }, ...task.subtasks.map(sub => subtaskRow(session, task, sub)))) : false,
+      h(doc, 'h4', { text: t('task.details_statement') }),
+      h(doc, 'div', { class: 'task-details-prose' }, ...proseNodes(details?.message || t(details ? 'task.details_missing' : 'task.details_loading'))),
+      h(doc, 'h4', { text: t('task.details_progress') }),
+      h(doc, 'div', { class: 'task-details-prose' }, ...proseNodes(progress || t(details ? 'task.details_missing' : 'task.details_loading'))));
+  }
+
+  const railTabTask = h(doc, 'button', { type: 'button', class: 'rail-tab', role: 'tab', 'data-tab': 'task', text: t('task.tab'), hidden: true });
   const railTabInfo = h(doc, 'button', { type: 'button', class: 'rail-tab', role: 'tab', 'data-tab': 'info', text: t('rail.tab_info') });
   const railTabMachines = h(doc, 'button', { type: 'button', class: 'rail-tab', role: 'tab', 'data-tab': 'machines', text: t('rail.tab_machines') });
   const railTabRequest = h(doc, 'button', { type: 'button', class: 'rail-tab', role: 'tab', 'data-tab': 'request', text: t('rail.tab_request') });
-  const railTabs = h(doc, 'div', { class: 'rail-tabs', role: 'tablist', 'aria-label': t('rail.tabs') }, railTabInfo, railTabMachines, railTabRequest);
+  const railTabs = h(doc, 'div', { class: 'rail-tabs', role: 'tablist', 'aria-label': t('rail.tabs') }, railTabInfo, railTabMachines, railTabRequest, railTabTask);
   function pickRailTab(tab) {
     if (railTab === tab) return;
     if (menuKind === 'mode') closeMenu();
@@ -2678,30 +2781,41 @@ export function createView(doc, refs, deps) {
     railSig = '';
     renderRail(current.session);
   }
+  railTabTask.addEventListener('click', () => openTaskDetails(current.session));
   railTabInfo.addEventListener('click', () => pickRailTab('info'));
   railTabMachines.addEventListener('click', () => pickRailTab('machines'));
   railTabRequest.addEventListener('click', () => pickRailTab('request'));
 
   let railSig = '';
+  let requestedTask = '';
   function renderRail(raw) {
     // при смене семьи правая панель называет уже новую (задача 192o)
     const session = raw ? { ...raw, agent: familyOf(raw) } : raw;
     if (!session) {
+      requestedTask = '';
       if (railSig !== 'none') { railSig = 'none'; refs.rail.replaceChildren(h(doc, 'p', { class: 'rail-pick', text: t('rail.pick') })); }
       return;
     }
     const queued = handlers.queuedItems ? handlers.queuedItems(session.id) : [];
-    const sig = JSON.stringify([railTab, railTab === 'machines' ? machinesPanel.signature(session, queued) : '', railTab === 'request' ? requestPanel.signature(session) : '', session.id, session.project, session.folder, session.branch, session.agent, session.usage, session.outputs,
+    if (railTab === 'task' && !sessionTask(session)) railTab = 'info';
+    railTabTask.hidden = !sessionTask(session);
+    const task = session.routeState?.task;
+    const needsDetails = task?.number && (railTab === 'task' || !session.routeState.steps.some(step => step.state === 'running'));
+    const taskKey = needsDetails ? `${session.id}:${task.id}:${session.state}` : '';
+    if (taskKey !== requestedTask) {
+      requestedTask = taskKey && handlers.onTaskDetailsGet?.(session.id) !== false ? taskKey : '';
+    }
+    const sig = JSON.stringify([railTab, railTab === 'task' ? session.taskDetails : null, session.routeState?.steps, railTab === 'machines' ? machinesPanel.signature(session, queued) : '', railTab === 'request' ? requestPanel.signature(session) : '', session.id, session.project, session.folder, session.branch, session.agent, session.usage, session.outputs,
       session.tasks.map((x) => [x.id, x.title, x.status, x.started, x.finishedAt]), session.routeState && session.routeState.task, session.routeState && session.routeState.canopus,
       [...open].filter((k) => k.startsWith('more:') || k.startsWith('sub:') || k === 'ctx-closed'), subMenu]);
     if (sig === railSig) return;
     railSig = sig;
-    for (const b of [railTabInfo, railTabMachines, railTabRequest]) {
+    for (const b of [railTabInfo, railTabMachines, railTabRequest, railTabTask]) {
       const on = b.dataset.tab === railTab;
       b.setAttribute('aria-selected', String(on));
       b.classList.toggle('on', on);
     }
-    const cards = railTab === 'machines'
+    const cards = railTab === 'task' ? [taskDetailsCard(session)] : railTab === 'machines'
       ? machinesPanel.render(session, queued)
       : railTab === 'request'
         ? requestPanel.render(session)

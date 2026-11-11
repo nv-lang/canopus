@@ -2634,6 +2634,7 @@ export fn Hub mut @handle(conn int, text str) Proc Detach Time -> () {
         return
     }
     if kind == "session_history_get" { @send_history(conn, trace, input); return }
+    if kind == "task_details_get" { @task_details_get(conn, trace); return }
     ro active_at = @find(trace)
     if kind == "user_message" || kind == "session_source" || kind == "session_agent" || kind == "session_setting" {
         for pending in @handoffs {

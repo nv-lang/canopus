@@ -50,7 +50,7 @@ test('260: retry, возврат, подробности и доступност
   assert.doesNotMatch(card.textContent + copied, /Bearer|secret/);
   for (const state of ['unknown', 'received', 'accepted', 'agent_error']) {
     const c = deliveryCard(doc, { ...item, state }, {});
-    assert.equal(c.querySelector('.delivery-actions button').disabled, true);
+    assert.ok(!c.querySelectorAll('.delivery-actions button').some(button => button.textContent === 'Повторить'));
   }
 });
 
@@ -136,8 +136,8 @@ test('260: технический отказ ответа — компактны
     assert.equal(card.getAttribute('role'), 'status');
     assert.ok(card.classList.contains('delivery-error'));
     assert.match(card.textContent, /⚠ Агент не ответил/);
-    assert.equal(card.querySelectorAll('.delivery-actions button')[0].disabled, true);
-    card.querySelectorAll('.delivery-actions button')[1].click();
+    assert.equal(card.querySelectorAll('.delivery-actions button').length, 1);
+    card.querySelectorAll('.delivery-actions button')[0].click();
     assert.equal(restored, item.text);
     assert.doesNotMatch(safeError(reason), /Точная причина недоступна/);
   }
@@ -171,13 +171,13 @@ test('pending and rejected deliveries are announced as statuses', () => {
   assert.ok(failure.classList.contains('delivery-error'));
 });
 
-test('an unknown delivery is a neutral status with a disabled retry', () => {
+test('an unknown delivery is a neutral status without a retry button', () => {
   const doc = createFakeDocument();
   const card = deliveryCard(doc, { state: 'unknown', images: [] }, {});
   assert.equal(card.getAttribute('role'), 'status');
   assert.ok(card.classList.contains('delivery-uncertain'));
   assert.doesNotMatch(card.textContent, /⚠/);
-  assert.equal(card.querySelector('.delivery-actions button').disabled, true);
+  assert.equal(card.querySelectorAll('.delivery-actions button').length, 0);
 });
 
 test('cross-family refusal explains the context boundary without copying raw errors', () => {

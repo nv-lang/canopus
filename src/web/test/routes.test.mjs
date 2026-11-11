@@ -528,8 +528,8 @@ test('номер задачи сессии показывается без ре�
   const fs = await import('node:fs');
   const view = fs.readFileSync(new URL('../view.js', import.meta.url), 'utf8');
   const strings = fs.readFileSync(new URL('../strings.js', import.meta.url), 'utf8');
-  assert.match(view, /const taskNo = h\(doc, 'span', \{ class: 'task-no', hidden: true \}\)/);
-  assert.match(view, /h\(doc, 'h2', \{ class: 'title' \}, crumb, crumbSep, titleText, taskNo, titleInput\)/);
+  assert.match(view, /const taskNo = h\(doc, 'button', \{ type: 'button', class: 'task-no link-btn', hidden: true \}\)/);
+  assert.match(view, /h\(doc, 'h2', \{ class: 'title' \}, crumb, crumbSep, taskNo, titleText, titleInput\)/);
   assert.match(view, /class: 'task-no', text: taskInfo\.number/);
   assert.match(strings, /'route\.task_no_title': 'Задача \{number\}: \{title\}'/);
   assert.doesNotMatch(strings, /'[^']*#\{number\}/);
@@ -546,7 +546,8 @@ test('режим без шагов: подзадач в интерфейсе н�
   assert.deepEqual(subtaskNotes(inter.task, parseRouteState({ route: 'interactive', task: taskRaw({ subtasks: [...subs, { n: 3 }] }) }).task, true), []);
   const card = view.slice(view.indexOf('function subtasksCard'), view.indexOf('// Вкладки правой колонки'));
   assert.doesNotMatch(card, /parallel|route\.messages/, 'ни «параллельно», ни журнала сообщений');
-  assert.match(card, /withSubs && task\.subtasks\.length > 0 \? list : false/);
+  assert.doesNotMatch(card, /subtaskRow/);
+  assert.match(view, /showSubtasks\(session.routeState\) && task\.subtasks\.length/);
 });
 
 test('задача 192.4: подпись, где идёт работа — прямо в main, прямо в ветке папки, своя ветка wip/…, ветка задачи, черновик', () => {
