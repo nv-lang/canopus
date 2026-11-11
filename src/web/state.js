@@ -378,12 +378,14 @@ function apply(session, event) {
     case 'agent_refused': {
       const { index, message } = agentMessageFor(session.messages, turn);
       if (message.status !== 'streaming') return session;
+      const question = session.pendingQuestion;
+      const expiredQuestion = input.reason === 'Timeout' && input.turn === question?.turn && !session.pending ? question : null;
       return {
         ...session,
         state: 'refused',
         pending: null,
         pendingQuestion: null,
-        messages: putMessage(session.messages, index, { ...message, status: 'refused', reason: str(input.reason) }),
+        messages: putMessage(session.messages, index, { ...message, status: 'refused', reason: str(input.reason), expiredQuestion }),
       };
     }
 

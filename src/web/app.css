@@ -582,6 +582,7 @@ pre code { font: inherit; }
   border-left: 1px solid var(--border);
   color: var(--fg-muted);
 }
+.work-body.work-single { margin-inline-start: 0; padding-inline-start: 0; border-inline-start: 0; }
 .work-row { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; column-gap: 8px; padding: 3px 0; align-items: start; }
 .work-row .row-leading { width: 13px; height: 13px; margin-top: 4px; }
 .work-row:is([data-state="completed"], [data-state="allow"]) .row-leading { color: var(--ok); }
@@ -1089,7 +1090,7 @@ body { font-size: 13px; line-height: 1.55; letter-spacing: .005em; }
 .item-permission .permission-wrap { width: 100%; padding: 0 0 0 22px; }
 .permission-wrap .dialog { width: min(600px, 100%); border-color: var(--border); box-shadow: none; }
 .ask-status { display: flex; align-items: center; padding: 12px 6px 0; }
-.ask { display: flex; flex-direction: column; width: min(600px, 100%); overflow: hidden; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.ask { display: flex; flex-direction: column; width: 100%; overflow: hidden; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
 .ask[hidden] { display: none; }
 .ask-tabs { display: flex; flex: none; gap: 6px; padding: 10px 14px 0; background: var(--hover); overflow-x: auto; }
 .ask-tab { display: inline-flex; align-items: center; gap: 5px; min-height: 26px; padding: 0 11px; border: 1px solid var(--border); border-radius: 13px; background: var(--surface); color: var(--fg-muted); font-size: 12.5px; white-space: nowrap; cursor: pointer; }
@@ -1112,8 +1113,9 @@ body { font-size: 13px; line-height: 1.55; letter-spacing: .005em; }
 .ask-opt[data-on="true"] .ask-key { background: var(--hover); }
 .ask-question-text { min-width: 0; }
 .ask-text-input { display: block; flex: 1 1 120px; min-width: 0; min-height: 34px; max-height: 100px; margin: 0; padding: 6px 0; border: 0; background: transparent; resize: none; }
-.ask-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; margin: 8px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 12px; }
-.ask-foot:focus-within { border-color: var(--accent); }
+.ask-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; padding: 8px 16px 12px; }
+.ask-foot:has(.ask-text-input:focus) { background: var(--surface-2); }
+.ask-foot .ask-text-input:focus { outline: none; box-shadow: none; }
 .ask-foot > .icon { width: 15px; height: 15px; color: var(--fg-muted); }
 .ask-mic[data-state="recording"] { color: var(--accent); }
 .ask-prev, .ask-next { min-height: 26px; width: 26px; height: 26px; padding: 0; }
@@ -1126,8 +1128,6 @@ body { font-size: 13px; line-height: 1.55; letter-spacing: .005em; }
 .ask-send kbd { font: inherit; font-size: 11px; font-weight: 400; opacity: .65; }
 .ask-send:disabled { border-color: var(--hover); background: var(--hover); color: var(--fg-muted); opacity: 1; }
 .item-answer { color: var(--fg-muted); font-size: 13px; }
-@media (max-width: 1100px) { .ask { left: 16px; right: 16px; } }
-@media (max-width: 799px) { .ask { left: 10px; right: 10px; } }
 
 /* ---- проекты: группы в левой колонке и окна (задача 192n) ---- */
 

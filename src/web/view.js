@@ -17,7 +17,7 @@ import { createLocalDictation } from './recorder.js';
 import { createToast } from './toast.js';
 import { h, icon } from './dom.js';
 import { createProjectsUi } from './projects-ui.js';
-import { moveInOrder } from './lists.js';
+import { isAskTool, moveInOrder } from './lists.js';
 import { createSideKit } from './session-row.js';
 import { LANGS, createVoiceSettings, langFor, pageLang } from './stt.js';
 import { isBusy, keyAction } from './queue.js';
@@ -1848,36 +1848,35 @@ export function createView(doc, refs, deps) {
   }
 
   function fillWork(entry, item) {
-    const single = item.rows.length === 1 ? item.rows[0] : null;
+    const single = item.rows.length === 1;
     const key = `${currentTrace}:${item.key}`;
     const override = workToggles.get(key);
     const active = item.rows.some(r => ['pending', 'in_progress', 'running'].includes(r.status));
-    const isOpen = override ?? (item.active === true);
+    const isOpen = single || (override ?? (item.active === true));
     const label = active ? t('work.current', { n: item.rows.length })
       : summaryText(workSummary(item.rows));
-    const toggle = h(doc, 'button', { type: 'button', class: 'disclosure', 'aria-expanded': String(isOpen), 'data-state': single ? single.status : 'group' },
+    const toggle = single ? null : h(doc, 'button', { type: 'button', class: 'disclosure', 'aria-expanded': String(isOpen), 'data-state': 'group' },
       icon(doc, 'i-chevron-right', 'chev'),
-      h(doc, 'span', { class: 'disc-text', text: label }),
-      single && !active ? rowStatus(single) : false);
+      h(doc, 'span', { class: 'disc-text', text: label }));
     const rows = item.rows.map(workRowDetails);
     const latest = item.active ? rows.findLast(row => row.expandable) : undefined;
     const automatic = latest && !workToggles.has(latest.key)
-      && !/^(?:ask[ _-]?user(?:[ _-]?question)?|askuserquestion)$/iu.test(latest.r.title?.trim() || '') ? latest : undefined;
+      && !isAskTool(latest.r.title) ? latest : undefined;
     const animate = updateWorkPreview(entry, automatic, isOpen);
     const refresh = (index) => {
       const focused = doc.activeElement === entry.node.querySelectorAll('.work-row')[index]?.querySelector('.row-toggle');
       fillWork(entry, item);
       if (focused) entry.node.querySelectorAll('.work-row')[index]?.querySelector('.row-toggle')?.focus({ preventScroll: true });
     };
-    const body = h(doc, 'div', { class: 'work-body', hidden: !isOpen },
+    const body = h(doc, 'div', { class: single ? 'work-body work-single' : 'work-body', hidden: !isOpen },
       ...rows.map((row, index) => workRow(row, row === automatic, () => refresh(index))), entry.workPreview);
-    toggle.addEventListener('click', () => {
+    toggle?.addEventListener('click', () => {
       const next = toggle.getAttribute('aria-expanded') !== 'true';
       workToggles.set(key, next);
       toggle.setAttribute('aria-expanded', String(next));
       body.hidden = !next;
     });
-    entry.node.replaceChildren(toggle, body);
+    entry.node.replaceChildren(...(toggle ? [toggle, body] : [body]));
     animate();
   }
 
@@ -2050,6 +2049,20 @@ export function createView(doc, refs, deps) {
       case 'routenote':
         node.replaceChildren(h(doc, 'span', { text: t(NOTE_KEY[item.action], { n: item.n }) }));
         break;
+      case 'question-timeout': {
+        const expanded = open.has(`delivery-detail:${item.key}`);
+        const head = h(doc, 'button', { type: 'button', class: 'delivery-head', 'aria-expanded': String(expanded) },
+          h(doc, 'span', { class: 'delivery-label', 'data-state': 'received', text: t('ask.timeout') }),
+          h(doc, 'span', { class: 'delivery-more', text: t('delivery.more') }), icon(doc, 'i-chevron-right', 'chev'));
+        const restore = item.userText && h(doc, 'button', { type: 'button', text: t('delivery.restore_request') });
+        restore && restore.addEventListener('click', () => putInField(item.userText));
+        const body = h(doc, 'div', { class: 'delivery-body', hidden: !expanded },
+          ...item.questions.map(question => h(doc, 'p', { text: question })),
+          restore ? h(doc, 'div', { class: 'delivery-actions' }, restore) : false);
+        head.addEventListener('click', () => toggleCard(item.key, head, body));
+        node.replaceChildren(h(doc, 'div', { class: 'delivery-error delivery-uncertain' }, head, body));
+        break;
+      }
       case 'note': {
         let text = t('chat.cancelled');
         if (item.tone === 'refused') text = item.reason ? t('chat.refused', { reason: safeError(item.reason) }) : t('chat.refused_plain');
@@ -2759,11 +2772,10 @@ export function createView(doc, refs, deps) {
     function sync() {
       const f = get();
       panels.forEach((p, qi) => {
-        const q = questions[qi];
         const a = f.answers[qi];
         p.node.hidden = qi !== f.active;
         p.inputs.forEach((inp, oi) => {
-          const on = oi === otherIndex(q) ? a.other : a.picked.includes(oi);
+          const on = a.picked.includes(oi);
           inp.checked = on;
           p.rows[oi].dataset.on = String(on);
         });
@@ -2814,7 +2826,7 @@ export function createView(doc, refs, deps) {
     prev.addEventListener('click', () => visit(get().active - 1));
     next.addEventListener('click', () => visit(get().active + 1));
 
-    const optionRow = (qi, oi, name, description, isOther) => {
+    const optionRow = (qi, oi, name, description) => {
       const q = questions[qi];
       const input = h(doc, 'input', {
         type: q.multiSelect ? 'checkbox' : 'radio', class: 'ask-input', name: `ask-${qi}`, 'data-oi': oi,
@@ -2822,23 +2834,19 @@ export function createView(doc, refs, deps) {
       const text = h(doc, 'span', { class: 'ask-text' },
         h(doc, 'span', { class: 'ask-name', text: name }),
         description ? h(doc, 'span', { class: 'ask-desc', text: description }) : false);
-      const row = h(doc, 'label', { class: isOther ? 'ask-opt ask-opt-other' : 'ask-opt' }, input, h(doc, 'span', { class: 'ask-key', 'aria-hidden': 'true', text: String(oi + 1) }), text);
-      input.addEventListener('change', () => {
-        put(selectOption(get(), questions, qi, oi));
-        if (isOther && get().answers[qi].other) answer.focus();
-      });
+      const row = h(doc, 'label', { class: 'ask-opt' }, input, h(doc, 'span', { class: 'ask-key', 'aria-hidden': 'true', text: String(oi + 1) }), text);
+      input.addEventListener('change', () => put(selectOption(get(), questions, qi, oi)));
       return { row, input };
     };
 
     panels = questions.map((q, qi) => {
-      const rows = q.options.map((o, oi) => optionRow(qi, oi, o.label, o.description, false));
-      const other = optionRow(qi, otherIndex(q), t('ask.other'), '', true);
+      const rows = q.options.map((o, oi) => optionRow(qi, oi, o.label, o.description));
       const heading = h(doc, 'h3', { class: 'ask-q', id: `ask-q-${qi}` },
         h(doc, 'span', { class: 'ask-question-text', text: q.question }),
         q.multiSelect ? h(doc, 'span', { class: 'ask-multi', text: t('ask.multi') }) : false);
-      const list = h(doc, 'div', { class: 'ask-options', role: q.multiSelect ? 'group' : 'radiogroup', 'aria-labelledby': `ask-q-${qi}` }, ...rows.map((r) => r.row), other.row);
+      const list = h(doc, 'div', { class: 'ask-options', role: q.multiSelect ? 'group' : 'radiogroup', 'aria-labelledby': `ask-q-${qi}` }, ...rows.map((r) => r.row));
       const node = h(doc, 'div', { class: 'ask-panel', id: `ask-panel-${qi}`, role: multi ? 'tabpanel' : false, hidden: true }, heading, list);
-      return { node, inputs: [...rows, other].map((r) => r.input), rows: [...rows, other].map((r) => r.row) };
+      return { node, inputs: rows.map((r) => r.input), rows: rows.map((r) => r.row) };
     });
 
     tabs = multi ? questions.map((q, qi) => {
@@ -2899,7 +2907,7 @@ export function createView(doc, refs, deps) {
       const onButton = target.tagName === 'BUTTON';
       if (e.key === 'Escape') { e.preventDefault(); if (answerVoice?.active()) answerVoice.cancel?.(); else doSkip(); return; }
       if (e.key === 'Enter') {
-        if (onText && e.shiftKey) return; // перенос строки в «Другом»
+        if (onText && e.shiftKey) return; // перенос строки в свободном ответе
         if (onButton && !e.ctrlKey && !e.metaKey) return; // Enter на кнопке нажимает её
         e.preventDefault();
         doSend();
@@ -2908,10 +2916,10 @@ export function createView(doc, refs, deps) {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const digit = digitOption(e.key);
       if (digit >= 0 && !onText) {
-        if (digit > otherIndex(q)) return;
+        if (digit >= otherIndex(q)) return;
         e.preventDefault();
         put(selectOption(f, questions, qi, digit));
-        focusRow(qi, digit, digit === otherIndex(q));
+        focusRow(qi, digit, false);
         return;
       }
       if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
