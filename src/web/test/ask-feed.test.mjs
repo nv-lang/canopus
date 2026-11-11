@@ -1,4 +1,3 @@
-// Форма вопроса агента — элемент ленты сообщений, как на эталоне (задача 192): внутри контейнера ленты, 600 px слева, под ней строка «Нужен ваш ответ».
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -8,16 +7,12 @@ import { createForm, buildAnswer, buildSkip, canSubmit, selectOption, digitOptio
 const view = fs.readFileSync(new URL('../view.js', import.meta.url), 'utf8');
 const css = fs.readFileSync(new URL('../app.css', import.meta.url), 'utf8');
 
-test('карточка вопроса лежит в ленте (log), а не в композере: прокручивается вместе с ней', () => {
-  assert.match(view, /const askWrap = h\(doc, 'div', \{ class: 'ask-wrap', hidden: true \}, askCard\);\s*log\.append\(askWrap\);/);
-  const composer = view.match(/const composer = h\(doc, 'div', \{ class: 'composer' \},([^;]*)\);/)[1];
-  assert.ok(!/askCard|askWrap/.test(composer), 'в композере карточки нет');
-  assert.match(css, /\.log \{ flex: 1; min-height: 0; overflow-y: auto; \}/);
-  assert.ok(!/\.ask \{[^}]*position: absolute/.test(css), 'карточка не накладывается поверх поля ввода');
+test('разрешения над полем ввода, вопросы под ним', () => {
+  assert.match(view, /const composer = h\(doc, 'div', \{ class: 'composer' \},[^;]*permissionWrap,\s*box,[^;]*askWrap,/);
+  assert.match(view, /permissionWrap\.replaceChildren\(dialog\);/);
 });
 
-test('при появлении вопроса лента прокручивается к карточке, строка «Нужен ваш ответ» под карточкой, вне неё', () => {
-  assert.match(view, /askWrap\.hidden = false;\s*log\.scrollTop = log\.scrollHeight;/);
+test('строка «Нужен ваш ответ» остаётся под карточкой', () => {
   assert.match(view, /askWrap\.replaceChildren\(askCard, h\(doc, 'div', \{ class: 'ask-status' \}, badge\)\);/);
   assert.ok(!/const foot = h\(doc, 'div', \{ class: 'ask-foot' \}, badge/.test(view), 'бейдж не в подвале карточки');
   assert.equal(t('ask.need'), 'Нужен ваш ответ');

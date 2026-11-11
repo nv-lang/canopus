@@ -519,6 +519,9 @@ input, select, textarea {
 .prose p { margin: 0 0 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .prose ul, .prose ol { margin: 0 0 10px; padding-left: 22px; }
 .prose li { margin: 2px 0; overflow-wrap: anywhere; }
+.canopus-list-note { display: flex; align-items: center; gap: 6px; margin-block: 0 10px; color: var(--fg-muted); font-size: .875rem; }
+.canopus-list-note .icon { width: 14px; height: 14px; }
+.prose a { color: var(--accent); overflow-wrap: anywhere; }
 .prose > :last-child { margin-bottom: 0; }
 
 code.inline {
@@ -579,13 +582,24 @@ pre code { font: inherit; }
   font-size: 15px;
   color: var(--fg-muted);
 }
-.work-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 8px; padding: 5px 0; align-items: start; }
-.work-row .icon { margin-top: 3px; }
+.work-row { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 8px; padding: 3px 0; align-items: start; }
+.work-row .row-leading { width: 13px; height: 13px; margin-top: 4px; }
+.work-row:is([data-state="completed"], [data-state="allow"]) .row-leading { color: var(--ok); }
+.work-row:is([data-state="failed"], [data-state="deny"]) .row-leading { color: var(--danger); }
+.work-row:is([data-state="pending"], [data-state="wait"], [data-state="cancelled"], [data-state="stopped"], [data-state="unreported"]) .row-leading { color: var(--warn); }
+.work-row:is([data-state="in_progress"], [data-state="running"]) .row-leading { color: var(--accent); }
 .item-work .disclosure { min-height: 32px; width: fit-content; max-width: 100%; }
 .item-work .disclosure:hover { background: var(--hover); }
 .row-command { display: block; font-family: var(--font-mono); margin-block: 2px; color: var(--fg); overflow-wrap: anywhere; }
-.work-row[data-state="failed"] .icon { color: var(--danger); }
-.row-label { overflow-wrap: anywhere; }
+.item-work .disclosure, .work-body { font-size: .875rem; }
+.row-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-toggle span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.row-toggle { display: flex; min-height: 22px; align-items: baseline; gap: 4px; max-width: 100%; border: 0; padding: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.row-toggle:hover { color: var(--fg); }
+.row-heading { display: flex; align-items: center; gap: 4px; }
+.row-heading span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.row-label .row-action { width: .9em; height: .9em; flex: none; align-self: center; }
+.row-content[hidden] { display: none; }
 .row-detail { font: 13px/1.5 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 .row-output { max-block-size: 11lh; margin: 2px 0 0; overflow: auto; white-space: pre; }
 .row-output[data-clipped="true"] { mask-image: linear-gradient(transparent, var(--fg) .65lh, var(--fg) calc(100% - .65lh), transparent); }
@@ -659,6 +673,7 @@ pre code { font: inherit; }
    пилюли с шевроном; строка целиком скрывается, когда в ней ничего нет. */
 .box-bar { flex-basis: 100%; display: flex; align-items: center; gap: 8px; padding: 6px 2px 2px; border-top: 1px solid var(--border); }
 .box-bar[data-empty="true"] { display: none; }
+.box-bar > .status-group { margin-left: 0; }
 .box-bar .status-btn { min-height: 28px; padding: 0 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); white-space: nowrap; }
 .box-bar .status-btn:hover, .box-bar .status-btn[aria-expanded="true"] { background: var(--hover); }
 .box-bar .status-btn::after { content: ''; flex: none; width: 8px; height: 8px; margin-left: 6px; background: currentColor; opacity: .55; clip-path: polygon(0 15%, 100% 15%, 50% 100%); }
@@ -696,9 +711,6 @@ pre code { font: inherit; }
 .menu[data-side="left"] { left: 0; }
 .menu[data-side="right"] { right: 0; }
 .menu.composer-menu { position: fixed; box-sizing: border-box; right: auto; overflow: auto; }
-.agent-settings { margin-top: 12px; }
-.agent-settings > summary { cursor: pointer; }
-.agent-settings > .status-btn { margin-top: 8px; }
 .menu-list { max-height: min(60vh, 420px); overflow-y: auto; }
 .menu-search { display: block; width: 100%; margin: 0 0 6px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: inherit; font: inherit; }
 .menu-search[hidden] { display: none; }
@@ -740,19 +752,6 @@ pre code { font: inherit; }
 .spinner[hidden] { display: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .composer-meta { display: flex; align-items: center; gap: 8px; min-height: 30px; }
-.ring-box { display: inline-grid; place-items: center; width: var(--hit); height: var(--hit); }
-.ring { width: 22px; height: 22px; }
-.ring-track { fill: none; stroke: var(--border); stroke-width: 3; }
-.ring-fill {
-  fill: none;
-  stroke: var(--accent);
-  stroke-width: 3;
-  stroke-linecap: round;
-  stroke-dasharray: var(--ring, 0) 100;
-  transform: rotate(-90deg);
-  transform-origin: center;
-}
-.ring[data-level="high"] .ring-fill { stroke: var(--danger); }
 
 /* ---- правая колонка: карточки ---- */
 
@@ -1075,8 +1074,10 @@ body { font-size: 14px; line-height: 1.55; letter-spacing: .005em; }
 /* ---- форма вопросов агента (задача 192) ----
    Карточка над полем ввода: position absolute, место в потоке не занимает (макет не прыгает). Краски — только токены темы. */
 /* Вопрос агента - элемент ленты (как на эталоне): карточка 600 px слева, под сообщением владельца; под ней строка «Нужен ваш ответ» */
-.ask-wrap { width: min(var(--column), 100%); margin: 0 auto; padding: 4px 20px 22px; }
-.ask-wrap[hidden] { display: none; }
+.ask-wrap, .permission-wrap { margin-top: 8px; max-height: min(38vh, 360px); overflow-y: auto; }
+.ask-wrap[hidden], .permission-wrap[hidden] { display: none; }
+.permission-wrap { margin-block: 0 8px; }
+.permission-wrap .dialog { width: min(600px, 100%); border-color: var(--border); box-shadow: none; }
 .ask-status { display: flex; align-items: center; padding: 12px 6px 0; }
 .ask { display: flex; flex-direction: column; width: min(600px, 100%); overflow: hidden; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
 .ask[hidden] { display: none; }
@@ -1416,6 +1417,7 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .canopus-over { display: flex; flex-direction: column; gap: 6px; }
 .canopus-over[hidden] { display: none; }
 .canopus-bar { display: flex; align-items: center; gap: 6px 12px; flex-wrap: wrap; font-size: 13px; }
+.canopus-bar > button { margin-inline-start: auto; }
 .canopus-list, .canopus-single { align-items: stretch; flex-direction: column; }
 .canopus-rows { margin: 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
 .canopus-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
@@ -1537,28 +1539,31 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .delivery-error summary { cursor: pointer; margin-top: 8px; }
 
 /* Text fields use the same surface and focus treatment as the message composer. */
-:is(.menu-search, .project-search, .picker-search, .picker-path-row input, .field input, .env-text, .ask-text-input, .title-input, .session-rename) {
+:is(.menu-search, .menu-family-filter, .project-search, .picker-search, .picker-path-row input, .field input, .env-text, .ask-text-input, .title-input, .session-rename) {
   border-radius: 14px;
   background: var(--surface);
   box-shadow: var(--shadow-card);
 }
-:is(.menu-search, .project-search, .picker-search, .picker-path-row input, .field input, .env-text, .ask-text-input, .title-input, .session-rename):focus {
+:is(.menu-search, .menu-family-filter, .project-search, .picker-search, .picker-path-row input, .field input, .env-text, .ask-text-input, .title-input, .session-rename):focus {
   outline: none;
   box-shadow: var(--shadow-card-focus);
 }
-:is(.menu-search, .project-search, .picker-search, .picker-path-row input, .field input, .env-text, .ask-text-input, .title-input, .session-rename):focus:not([aria-invalid="true"]) {
+:is(.menu-search, .menu-family-filter, .project-search, .picker-search, .picker-path-row input, .field input, .env-text, .ask-text-input, .title-input, .session-rename):focus:not([aria-invalid="true"]) {
   border-color: color-mix(in srgb, var(--fg) 30%, var(--border));
 }
 
 .menu[data-kind="agent"] { width: min(600px, calc(100vw - 16px)); min-width: 0; max-width: none; }
-.menu[data-kind="agent"] .menu-controls { display: flex; align-items: center; gap: 8px; padding: 2px 2px 6px; }
-.menu[data-kind="agent"] .menu-search { flex: 1; min-width: 0; margin: 0; }
-.menu-family-filter { flex: 0 1 auto; width: min(42%, 150px); }
-.menu-family-filter[hidden] { display: none; }
-.menu[data-kind="agent"] .menu-columns, .menu[data-kind="agent"] .menu-item {
-  display: grid; grid-template-columns: 14px minmax(0, 1fr) clamp(82px, 24%, 145px); gap: 8px; padding-inline: 10px;
+.menu[data-kind="agent"] :is(.menu-controls, .menu-columns, .menu-item) {
+  display: grid; grid-template-columns: clamp(105px, 20vw, 150px) minmax(0, 1fr); gap: 8px; padding-inline: 10px;
 }
-.menu-columns > :first-child { grid-column: 2; }
+.menu[data-kind="agent"] .menu-controls { align-items: center; padding-block: 2px 6px; }
+.menu[data-kind="agent"] :is(.menu-search, .menu-family-filter) { min-width: 0; width: 100%; height: 40px; padding: 7px 10px; margin: 0; }
+.menu[data-kind="agent"] .menu-search { grid-column: 2; }
+.menu-family-filter[hidden] { display: none; }
+.menu-family-filter[hidden] + .menu-search { grid-column: 1 / -1; }
+.menu[data-kind="agent"] .menu-item { position: relative; }
+.menu[data-kind="agent"] .menu-label { padding-inline-end: 20px; }
+.menu[data-kind="agent"] .menu-check { position: absolute; inset-inline-end: 10px; top: 50%; transform: translateY(-50%); }
 .menu[data-kind="agent"] .menu-end { display: none; }
 .menu[data-kind="agent"] .menu-label, .menu-family { overflow-wrap: anywhere; }
 .menu-family { color: var(--fg-muted); font-size: 12px; }

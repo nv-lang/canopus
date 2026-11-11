@@ -366,3 +366,22 @@ test('permission IDs reused by ACP in a later turn open a new dialog', () => {
   assert.equal(decided.sessions.s1.pending, null);
   assert.deepEqual(decided.sessions.s1.messages.filter(x => x.role === 'permission').map(x => x.decision), ['allow', 'deny']);
 });
+
+test('параллельные запросы разрешения показываются до последнего решения', () => {
+  const base = run([
+    created(),
+    ev('user_message', { turn: 't1', text: 'q' }, { step: 1 }),
+    ev('permission_request', { turn: 't1', request: 'p1' }, { step: 2 }),
+    ev('permission_request', { turn: 't1', request: 'p2' }, { step: 3 }),
+    ev('permission_request', { turn: 't1', request: 'p3' }, { step: 4 }),
+  ]);
+  assert.equal(base.sessions.s1.pending.request, 'p1');
+  const secondDecided = reduce(base, ev('permission_decision', { request: 'p2', decision: 'allow' }, { step: 5 }));
+  assert.equal(secondDecided.sessions.s1.pending.request, 'p1');
+  const firstDecided = reduce(secondDecided, ev('permission_decision', { request: 'p1', decision: 'deny' }, { step: 6 }));
+  assert.equal(firstDecided.sessions.s1.pending.request, 'p3');
+  assert.equal(firstDecided.sessions.s1.state, 'permission');
+  const allDecided = reduce(firstDecided, ev('permission_decision', { request: 'p3', decision: 'deny' }, { step: 7 }));
+  assert.equal(allDecided.sessions.s1.pending, null);
+  assert.equal(allDecided.sessions.s1.state, 'answering');
+});

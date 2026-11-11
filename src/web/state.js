@@ -421,7 +421,7 @@ function apply(session, event) {
       return {
         ...session,
         state: 'permission',
-        pending: entry,
+        pending: session.pending || entry,
         messages: [...session.messages, { key, role: 'permission', ...entry, step: event.step, decision: null }],
       };
     }
@@ -434,11 +434,15 @@ function apply(session, event) {
       if (i < 0 || session.messages[i].decision !== null) return session;
       const messages = session.messages.map((m, j) => (j === i ? { ...m, decision } : m));
       const closes = session.pending !== null && session.pending.request === request && session.pending.turn === turn;
+      const next = closes ? messages.find(m => m.role === 'permission' && m.turn === turn && m.decision === null) : null;
+      const pending = closes
+        ? next && { request: next.request, turn: next.turn, action: next.action, detail: next.detail }
+        : session.pending;
       return {
         ...session,
         messages,
-        pending: closes ? null : session.pending,
-        state: closes ? 'answering' : session.state,
+        pending: pending || null,
+        state: closes ? (pending ? 'permission' : 'answering') : session.state,
       };
     }
 

@@ -114,15 +114,14 @@ test('timeline: подряд идущие рабочие строки — одн
   assert.ok(st.timeline(done.sessions.s).filter(item => item.type === 'work').every(item => !item.active));
 });
 
-test('timeline: запрос разрешения входит в группу строкой perm, решение видно в ней', () => {
+test('timeline: запрос разрешения остаётся в состоянии сессии и скрыт в ленте', () => {
   const m = run([
     ...head(),
     ev('permission_request', { turn: 't1', request: 'p1', action: 'Записать', detail: 'a.txt' }, 2),
     ev('permission_decision', { request: 'p1', decision: 'allow' }, 3),
   ]);
-  const work = st.timeline(m.sessions.s).find((i) => i.type === 'work');
-  assert.equal(work.rows[0].type, 'perm');
-  assert.equal(work.rows[0].decision, 'allow');
+  assert.equal(m.sessions.s.messages.find(message => message.role === 'permission').decision, 'allow');
+  assert.ok(st.timeline(m.sessions.s).every(item => item.type !== 'work'));
 });
 
 test('timeline: идущий ход даёт строку running с началом хода; законченный — строку действий с текстом', () => {
@@ -285,4 +284,14 @@ test('усилие: общее первое слово имён (Kimi «Thinking
   assert.equal(st.commonWordPrefix(['Thinking High']), '');
   assert.equal(st.commonWordPrefix(['Fast mode', 'Slow mode']), '');
   assert.equal(st.commonWordPrefix(['Low', 'High']), '');
+});
+
+test('inlineSpans разбирает жирный текст и ссылки HTTP(S), сохраняя код и опасные адреса текстом', () => {
+  assert.deepEqual(st.inlineSpans('**+1…+4 °C** [Прогноз](https://example.org/11-%D0%BD) `**код**`'), [
+    { text: '+1…+4 °C', strong: true }, { text: ' ', code: false },
+    { text: 'Прогноз', href: 'https://example.org/11-%D0%BD' }, { text: ' ', code: false },
+    { text: '**код**', code: true },
+  ]);
+  const unsafe = '[ссылка](javascript:alert(1)) <img>';
+  assert.deepEqual(st.inlineSpans(unsafe), [{ text: unsafe, code: false }]);
 });

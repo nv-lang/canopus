@@ -185,19 +185,12 @@ function workRows(session) {
   const rows = [];
   for (const x of session.tools) rows.push({ ...x, type: 'tool', key: `t:${x.id}` });
   for (const x of session.tasks) rows.push({ ...x, type: 'task', key: `b:${x.id}` });
-  for (const m of session.messages) {
-    if (m.role === 'permission') {
-      rows.push({
-        type: 'perm', key: m.key, step: m.step ?? 0, turn: m.turn, request: m.request, action: m.action, detail: m.detail, decision: m.decision,
-      });
-    }
-  }
   return rows;
 }
 
 /**
  * Лента разговора в порядке шагов: сообщения владельца, куски текста агента, рабочие строки (инструменты,
- * запросы разрешений, фоновые задачи) сгруппированы подряд, карточка правок хода, заметки об исходе,
+ * фоновые задачи) сгруппированы подряд, карточка правок хода, заметки об исходе,
  * действия под ответом и строка идущей работы. Ничего не знает о DOM; ключи устойчивы для повторного рисования.
  */
 export function timeline(session) {
@@ -242,12 +235,13 @@ export function timeline(session) {
       let group = [];
       let segment = 0;
       const flushText = () => {
+        text = text.replace(/(▸ агент не нашёл новых задач)\s*Готово:\s*0 работ\.?\s*$/u, "$1");
         if (text.trim().length > 0) content.push({ type: 'text', key: `${m.key}:s${segment}`, text, streaming: false, turn: m.turn });
         if (text.length > 0) segment += 1;
         text = '';
       };
       const flushGroup = () => {
-        if (group.length > 0) content.push({ type: 'work', key: `w:${m.turn}:${group[0].key}`, rows: group });
+        if (group.length > 0) content.push({ type: 'work', key: `w:${m.turn}:${group[0].key}`, turn: m.turn, rows: group });
         group = [];
       };
       for (const part of stream) {
@@ -265,10 +259,10 @@ export function timeline(session) {
 
       // расход токенов хода (задача 192): строка под ответом агента, только если агент его сообщил
       const used = usageSummary(m.usage);
-      if (used && m.status !== 'streaming') items.push({ type: 'usage', key: `tok:${m.turn}`, ...used, context: m.turn === lastAgentTurn && session.usage ? { used: session.usage.used, size: session.usage.size } : null });
+      if (used && m.status !== 'streaming') items.push({ type: 'usage', key: `tok:${m.turn}`, turn: m.turn, ...used, context: m.turn === lastAgentTurn && session.usage ? { used: session.usage.used, size: session.usage.size } : null });
 
       const diffs = session.diffs.filter((d) => d.turn === m.turn);
-      if (diffs.length > 0) items.push({ type: 'diffs', key: `d:${m.turn}`, rows: diffs, totals: diffTotals(diffs) });
+      if (diffs.length > 0) items.push({ type: 'diffs', key: `d:${m.turn}`, turn: m.turn, rows: diffs, totals: diffTotals(diffs) });
 
       if (m.status === 'refused' || m.status === 'error' || m.status === 'cancelled') {
         items.push({ type: 'note', key: `n:${m.turn}`, tone: m.status, reason: m.reason, turn: m.turn, partialAnswer: m.text.trim().length > 0,
@@ -290,27 +284,35 @@ export function timeline(session) {
 
 // ---- безопасный разбор абзацев и кода в строке -------------------------------------------------
 
-/** Разбить строку на обычный текст и `код` (парные обратные кавычки); непарная остаётся символом. */
+/** Поддерживаемые элементы Markdown в строке. HTML остаётся текстом. */
 export function inlineSpans(text) {
   const spans = [];
-  const push = (value, code) => {
-    if (value.length === 0) return;
-    const last = spans[spans.length - 1];
-    if (last && !code && !last.code) last.text += value;
-    else spans.push({ text: value, code });
-  };
   const s = String(text);
+  const tokens = /`([^\x60\n]+)`|\*\*([^\n]+?)\*\*|__([^\n]+?)__|\[([^\]\n]+)\]\(((?:[^()\s]|\([^()\s]*\))+)\)/gu;
+  const pushText = (value) => {
+    if (!value) return;
+    const last = spans.at(-1);
+    if (last && !last.code && !last.strong && !last.href) last.text += value;
+    else spans.push({ text: value, code: false });
+  };
   let pos = 0;
-  while (pos < s.length) {
-    const open = s.indexOf('`', pos);
-    if (open < 0) { push(s.slice(pos), false); break; }
-    const close = s.indexOf('`', open + 1);
-    if (close < 0) { push(s.slice(pos), false); break; }
-    push(s.slice(pos, open), false);
-    if (close === open + 1) push('``', false);
-    else push(s.slice(open + 1, close), true);
-    pos = close + 1;
+  for (const match of s.matchAll(tokens)) {
+    const [raw, code, stars, underscores, label, destination] = match;
+    pushText(s.slice(pos, match.index));
+    if (code !== undefined) spans.push({ text: code, code: true });
+    else if (stars !== undefined || underscores !== undefined) spans.push({ text: stars ?? underscores, strong: true });
+    else {
+      try {
+        const url = new URL(destination);
+        if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) pushText(raw);
+        else spans.push({ text: label, href: url.href });
+      } catch {
+        pushText(raw);
+      }
+    }
+    pos = match.index + raw.length;
   }
+  pushText(s.slice(pos));
   return spans;
 }
 
@@ -325,6 +327,11 @@ export function paragraphs(text) {
   };
   for (const line of String(text).split('\n')) {
     if (line.trim() === '') { flush(); continue; }
+    if (/^▸ canopus_list\s+\{\s*\}\s*$/u.test(line)) {
+      flush();
+      blocks.push({ type: 'canopus-list' });
+      continue;
+    }
     const bullet = /^\s*[-*]\s+(.*)$/.exec(line);
     const numbered = /^\s*\d+[.)]\s+(.*)$/.exec(line);
     let type = 'p';

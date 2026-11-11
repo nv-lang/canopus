@@ -75,8 +75,10 @@ test('права вынесены в сведения и меняются тол
   assert.equal(row.querySelector('.family-approvals'), null);
   assert.equal(refs.main.querySelector('.family-approvals-button'), null);
   const input = refs.main.querySelector('textarea'); input.value = 'Не потерять черновик';
-  assert.equal(refs.main.querySelectorAll('.box-bar button').some(button => button.getAttribute('aria-label') === t('menu.agent_permissions')), false);
-  refs.rail.querySelector('.agent-settings button').click();
+  const buttons = refs.main.querySelectorAll('.box-bar button');
+  const permissions = buttons.find(button => button.getAttribute('aria-label') === t('menu.agent_permissions'));
+  assert.ok(buttons.indexOf(permissions) < buttons.indexOf(refs.main.querySelector('.agent-picker-button')));
+  permissions.click();
   const items = refs.main.querySelectorAll('.menu').find(menu => !menu.hidden).querySelectorAll('.menu-item');
   assert.equal(items.find(item => item.textContent.includes('План')).getAttribute('aria-checked'), 'true');
   items[0].click();

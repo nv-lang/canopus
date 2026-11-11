@@ -306,7 +306,7 @@ for (const draft of [true, false]) test(`one model-row click commits a family/mo
   rows[0].click();
   assert.deepEqual(calls,[[draft?'draft':'real','s',{family:'kimi',model:'k3',effort:'off'}]]);
   assert.equal(refs.main.querySelector('.agent-picker-button').getAttribute('aria-expanded'),'false');
-  if(draft){assert.deepEqual(model.sessions.s.source,{family:'kimi',model:'k3',effort:'off'});assert.match(refs.main.querySelector('.agent-picker-button').textContent,/k3/);}
+  if(draft){assert.deepEqual(model.sessions.s.source,{family:'kimi',model:'k3',effort:'off'});assert.match(refs.main.querySelector('.agent-picker-button').textContent,/Kimi K3/);}
 });
 
 test('restored unbound error is historical above the conversation and never renders boolean false',()=>{
@@ -375,26 +375,30 @@ test('Codex effort variants share one model row and use separate ACP settings', 
   effortButton.click();
   assert.equal(effortButton.getAttribute('aria-expanded'), 'false');
 });
-test('the standard question card can confirm a local model choice', () => {
-  const doc = createFakeDocument(); const refs = {};
+
+test('a queued family switch shows the chosen model before the next message', () => {
+  const doc = createFakeDocument();
+  const refs = {};
   for (const key of ['app', 'side', 'main', 'rail', 'status', 'overlay']) {
     refs[key] = doc.createElement('div');
     doc.body.append(refs[key]);
   }
-  const answers = [];
-  const view = createView(doc, refs, { agents: [{ id: 'kimi' }], now: () => 0, handlers: {
-    queued: () => 0, queuedItems: () => [], onAnswer: (trace, answer) => { answers.push([trace, answer]); return true; },
+  const view = createView(doc, refs, {
+    agents: [{ id: 'zai' }, { id: 'qoder', label: 'Qoder' }],
+    now: () => 0,
+    modelMetadata: () => ({ status: 'ready', expiresAt: 1000, families: { qoder: [{ id: 'sonus', name: 'Sonus' }] } }),
+    handlers: { queued: () => 0, queuedItems: () => [] },
+  });
+  const model = reduce(initialModel(), { id: 'create', trace: 's', step: 0, time: 1, kind: 'session_created', input: {
+    agent: 'zai', source: { family: 'zai', model: 'glm-5.3-flash', effort: 'low' },
   } });
-  const model = reduce(initialModel(), { id: 'create', trace: 's', step: 0, time: 1, kind: 'session_created', input: { agent: 'kimi' } });
-  const sourceQuestions = new Map([['s', { request: 'confirm-model', questions: [{
-    header: 'Модель', question: 'Применить?', multiSelect: false,
-    options: [{ label: 'Применить', description: '' }, { label: 'Отмена', description: '' }],
-  }] }]]);
-  view.render(model, { selected: 's', projects: [], pins: {}, theme: 'system', sourceQuestions }, { state: 'connected' });
-  const button = refs.main.querySelector('.ask-send');
-  assert.ok(button);
-  button.click();
-  assert.equal(answers[0][0], 's');
-  assert.equal(answers[0][1].request, 'confirm-model');
-  assert.deepEqual(answers[0][1].answers[0].selected, ['Применить']);
+  const handoffStatus = new Map([['s', { phase: 'selected', previous: 'zai', source: { family: 'qoder', model: 'sonus', effort: '' } }]]);
+  view.render(model, { selected: 's', projects: [], pins: {}, theme: 'system', handoffStatus }, { state: 'connected' });
+  const picker = refs.main.querySelector('.agent-picker-button');
+  assert.equal(picker.textContent, 'Qoder Sonus');
+  assert.equal(refs.main.querySelector('.effort-picker-button').hidden, true);
+  assert.equal(refs.main.querySelector('.ring-box'), null);
+  picker.click();
+  const row = refs.main.querySelectorAll('.menu-item').find(item => item.textContent.includes('Sonus'));
+  assert.equal(row?.getAttribute('aria-checked'), 'true');
 });

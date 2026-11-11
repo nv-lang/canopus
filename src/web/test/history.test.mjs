@@ -150,11 +150,11 @@ test('кнопка «вниз»: порог 40 px, плавная прокрут
   const view = read('view.js');
   const css = read('app.css');
   assert.match(view, /const NEAR_BOTTOM_PX = 40;/);
-  assert.match(view, /const away = distanceFromBottom\(\) > NEAR_BOTTOM_PX;/);
+  assert.match(view, /const away = distanceFromBottom\(\) > \(followTail \? NEAR_BOTTOM_PX : 1\);/);
   assert.match(view, /if \(!away\) unseen = false;/);
   assert.match(view, /log\.scrollTo\(\{ top: log\.scrollHeight, behavior: 'smooth' \}\)/);
-  assert.match(view, /if \(nearBottom \|\| created === items\.length\) log\.scrollTop = log\.scrollHeight;\s*else if \(changed \|\| created > 0\) unseen = true;\s*syncJump\(\);/);
-  assert.match(view, /log\.addEventListener\('scroll', syncJump\)/);
+  assert.match(view, /if \(followTail && currentTrace\) \{\s*log\.scrollTop = log\.scrollHeight;/);
+  assert.match(view, /if \(!followTail && changed\) unseen = true;/);
   assert.match(css, /\.jump-btn \{[^}]*left: 50%[^}]*border-radius: 50%/);
   assert.equal(S['chat.to_bottom'], 'Вниз');
 });

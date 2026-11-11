@@ -182,15 +182,14 @@ test('late receipt clears a timed-out local copy before rendering the accepted e
 });
 
 
-test('confirmed Kimi to Codex handoff starts only on send and never sends text after transfer failure', async () => {
+test('Kimi to Codex handoff without a question starts only on send and never sends text after transfer failure', async () => {
   for (const succeeds of [false, true]) {
     const page = await app();
     page.event('agent_switched', { from: 'agent', to: 'kimi' }, { step: 1 });
     page.event('user_message', { turn: 'old', text: 'история' }, { step: 2 });
     page.event('agent_done', { turn: 'old' }, { step: 3 });
     page.handlers.onSource('s', { family: 'codex', model: 'test-model', effort: 'low' });
-    const question = page.getUI().sourceQuestions.get('s');
-    assert.equal(page.handlers.onAnswer('s', { request: question.request, answers: [{ selected: ['Применить'] }] }), true);
+    assert.equal(page.getModel().sessions.s.pendingQuestion, null);
     assert.equal(page.sent.length, 0);
     assert.equal(page.getUI().handoffStatus.get('s').phase, 'selected');
     const sent = page.handlers.onSend('s', 'сохранить этот текст');
@@ -217,20 +216,34 @@ test('confirmed Kimi to Codex handoff starts only on send and never sends text a
   }
 });
 
-test('сохранённый выбор Codex в чате Kimi снова открывает штатное подтверждение', async () => {
+test('сохранённый выбор другой семьи запускает перенос при первой отправке', async () => {
   const page = await app();
-  const source = { family: 'codex', model: 'test-model', effort: 'low' };
+  const source = { family: 'second', model: 'test-model', effort: 'low' };
   page.event('agent_switched', { from: 'agent', to: 'kimi' }, { step: 1 });
   page.event('user_message', { turn: 'old', text: 'история' }, { step: 2 });
   page.event('agent_done', { turn: 'old' }, { step: 3 });
   page.event('session_source', source, { step: 4 });
-  assert.equal(page.handlers.onSend('s', 'оставить в поле ввода'), false);
-  const question = page.getUI().sourceQuestions.get('s');
-  assert.equal(question.handoff, true);
-  assert.equal(page.sent.length, 0);
-  page.handlers.onAnswer('s', { request: question.request, answers: [{ selected: ['Применить'] }] });
-  assert.equal(page.getUI().handoffStatus.get('s').phase, 'selected');
+  const sent = page.handlers.onSend('s', 'оставить в поле ввода');
+  assert.equal(page.getUI().handoffStatus.get('s').phase, 'preparing');
+  assert.equal(page.sent[0].kind, 'session_context_handoff');
   assert.equal(page.getModel().sessions.s.agent, 'kimi');
+  page.event('error', { message: 'Перенос контекста не завершился.' }, { step: 5 });
+  assert.equal(await sent, false);
+});
+
+test('серверный чат заменяет локальный черновик, сохраняя копию сообщения', async () => {
+  const storage = memory();
+  const saved = delivery.createDelivery(storage);
+  assert.equal(saved.add({ id: 'out', trace: 'two', time: 1, input: { text: 'локальная копия' } },
+    { id: 'two', agent: 'codex', projectId: 'canopus', createdAt: 1 }), true);
+  const created = { id: 'server-create', trace: 'two', kind: 'session_created', step: 0, time: 2,
+    input: { name: 'Существующий чат', agent: 'codex', project_id: 'canopus' } };
+  const page = await app(storage, true, '#s=two', { entries: [created] });
+  assert.equal(Boolean(page.getModel().sessions.two.draft), false);
+  assert.equal(page.getModel().sessions.two.name, 'Существующий чат');
+  assert.equal(page.getUI().historyPending.has('two'), true);
+  assert.equal(page.handlers.deliveryItems('two')[0].text, 'локальная копия');
+  assert.equal(page.sent.some(event => event.kind === 'session_created' || event.kind === 'user_message'), false);
 });
 
 test('индекс показывает сессии до готовности сокета, история приходит только выбранной', async () => {

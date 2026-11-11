@@ -3,6 +3,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as st from '../state.js';
+import { createView } from '../view.js';
+import { createFakeDocument, event } from './fake-dom.mjs';
 
 let counter = 0;
 function ev(kind, input = {}, { trace = 's1', step = 0, id, time = 1000 + step } = {}) {
@@ -245,4 +247,139 @@ test('инструмент без хода привязывается к пос�
     ev('tool_call', { id: 'c2', title: 'y', kind: 'read', status: 'pending', turn: 'tx' }, { step: 3 }),
   ]);
   assert.deepEqual(m.sessions.s1.tools.map((t) => t.turn), ['t1', 'tx']);
+});
+
+test('long search output stays scrollable and manually opened actions stay open', () => {
+  const doc = createFakeDocument();
+  const refs = {};
+  for (const name of ['app', 'side', 'main', 'rail', 'status', 'overlay']) {
+    refs[name] = doc.createElement('div');
+    doc.body.append(refs[name]);
+  }
+  const view = createView(doc, refs, {
+    agents: [{ id: 'opencode' }], now: () => 0,
+    handlers: { queued: () => 0, queuedItems: () => [] },
+  });
+  const render = model => view.render(model, { selected: 's1', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
+  const detail = Array.from({ length: 169 }, (_, i) => 'line ' + i).join('\n');
+  const model = run([...base(),
+    ev('tool_call', { id: 'search', kind: 'search', title: 'Search', status: 'in_progress', detail }, { step: 2 }),
+  ]);
+  const done = st.reduce(model, ev('tool_call_update', { id: 'search', status: 'completed' }, { step: 3 }));
+  render(model);
+  assert.equal(refs.main.querySelector('.row-content').hidden, false);
+  const output = refs.main.querySelector('.row-output');
+  assert.equal(output.getAttribute('data-clipped'), 'true');
+  assert.equal(output.textContent, detail);
+  render(done);
+  assert.equal(refs.main.querySelector('.row-leading use').getAttribute('href'), '#i-circle-check');
+  assert.equal(refs.main.querySelector('.row-action use').getAttribute('href'), '#i-search');
+  assert.ok(refs.main.querySelector('.row-status .sr-only'));
+  assert.equal(refs.main.querySelector('.row-content').hidden, true);
+  refs.main.querySelector('.item-work .disclosure').click();
+  refs.main.querySelector('.row-toggle').click();
+  render(st.reduce(done, ev('agent_done', {}, { step: 4 })));
+  assert.equal(refs.main.querySelector('.work-body').hidden, false);
+  assert.equal(refs.main.querySelector('.row-content').hidden, false);
+});
+
+test('копирование остаётся доступным при переходе через строку токенов и зазор', () => {
+  const doc = createFakeDocument();
+  const refs = {};
+  for (const name of ['app', 'side', 'main', 'rail', 'status', 'overlay']) {
+    refs[name] = doc.createElement('div');
+    doc.body.append(refs[name]);
+  }
+  const copied = [];
+  const view = createView(doc, refs, {
+    agents: [{ id: 'opencode' }], now: () => 3000,
+    handlers: { queued: () => 0, queuedItems: () => [], onCopy: text => copied.push(text) },
+  });
+  const model = run([...base(),
+    ev('agent_chunk', { turn: 't1', text: '**Ответ**' }, { step: 2 }),
+    ev('turn_usage', { turn: 't1', new: 2, reason: 'end_turn' }, { step: 3 }),
+    ev('agent_done', { turn: 't1' }, { step: 4 }),
+  ]);
+  view.render(model, { selected: 's1', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
+  const thread = refs.main.querySelector('.thread');
+  const actions = thread.querySelector('.item-actions');
+  const copy = actions.querySelector('button');
+  for (const target of [thread.querySelector('.prose strong'), thread, thread.querySelector('.item-usage'), copy]) {
+    target.dispatchEvent(event('mouseover'));
+    assert.equal(actions.dataset.hot, 'on');
+  }
+  copy.click();
+  assert.deepEqual(copied, ['**Ответ**']);
+  thread.dispatchEvent(event('mouseleave'));
+  assert.equal(actions.dataset.hot, undefined);
+});
+
+test('лента показывает Markdown и команду с терминалом как отдельные читаемые элементы', () => {
+  const doc = createFakeDocument();
+  const refs = {};
+  for (const name of ['app', 'side', 'main', 'rail', 'status', 'overlay']) {
+    refs[name] = doc.createElement('div');
+    doc.body.append(refs[name]);
+  }
+  const view = createView(doc, refs, {
+    agents: [{ id: 'opencode' }], now: () => 3000,
+    handlers: { queued: () => 0, queuedItems: () => [] },
+  });
+  const model = run([...base(),
+    ev('agent_chunk', { turn: 't1', text: '▸ canopus_list {}\n\n- **138** — [задача](https://example.org/138)\n- **`doc/tasks/NNN-название/`**' }, { step: 2 }),
+    ev('tool_call', { id: 'exec1', kind: 'execute', title: 'Get-Content nova.toml', status: 'in_progress', detail: 'terminal: exec-d4060c62-0fc8-4cc5-a8fc-b4901b90ac4b' }, { step: 3 }),
+  ]);
+  view.render(model, { selected: 's1', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
+  assert.equal(refs.main.querySelector('.canopus-list-note').textContent, 'Список задач');
+  assert.equal(refs.main.querySelector('.prose li strong').textContent, '138');
+  assert.equal(refs.main.querySelector('.prose li strong code').textContent, 'doc/tasks/NNN-название/');
+  assert.equal(refs.main.querySelector('.prose li a').getAttribute('href'), 'https://example.org/138');
+  assert.equal(refs.main.querySelector('.row-command').textContent, 'Get-Content nova.toml');
+  assert.equal(refs.main.querySelector('.row-output'), null);
+  assert.ok(refs.main.querySelector('.row-status .sr-only'));
+});
+
+test('лента следует за ответом после изменения высоты и останавливается после ручной прокрутки', () => {
+  const doc = createFakeDocument();
+  const refs = {};
+  for (const name of ['app', 'side', 'main', 'rail', 'status', 'overlay']) {
+    refs[name] = doc.createElement('div');
+    doc.body.append(refs[name]);
+  }
+  const view = createView(doc, refs, {
+    agents: [{ id: 'opencode' }], now: () => 3000,
+    handlers: { queued: () => 0, queuedItems: () => [] },
+  });
+  const log = refs.main.querySelector('.log');
+  let top = 0;
+  let height = 1000;
+  let viewport = 400;
+  Object.defineProperties(log, {
+    scrollHeight: { get: () => height },
+    clientHeight: { get: () => viewport },
+    scrollTop: { get: () => top, set: value => { top = Math.min(value, height - viewport); } },
+  });
+  const ui = { selected: 's1', projects: [], pins: {}, theme: 'system' };
+  const render = model => view.render(model, ui, { state: 'connected' });
+  let model = run(base());
+  render(model);
+  assert.equal(top, 600);
+  viewport = 320;
+  log.dispatchEvent(event('scroll'));
+  height = 1200;
+  model = st.reduce(model, ev('agent_chunk', { turn: 't1', text: 'Начало' }, { step: 2 }));
+  render(model);
+  assert.equal(top, 880);
+  log.scrollTop -= 20;
+  log.dispatchEvent(event('scroll'));
+  height = 1350;
+  model = st.reduce(model, ev('agent_chunk', { turn: 't1', text: 'Продолжение' }, { step: 3 }));
+  render(model);
+  assert.equal(top, 860);
+  assert.equal(refs.main.querySelector('.jump-dot').hidden, false);
+  log.scrollTop = height;
+  log.dispatchEvent(event('scroll'));
+  height = 1500;
+  render(model);
+  assert.equal(top, 1180);
 });

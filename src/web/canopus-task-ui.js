@@ -213,9 +213,9 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
     sig = next;
     if (!show) { el.hidden = true; el.replaceChildren(); return; }
     const bar = h(doc, 'div', { class: 'canopus-bar' },
-      button(t('canopustask.recognize'), '', () => handlers.onCanopusRecognize(session.id)),
       h(doc, 'span', { class: 'canopus-count muted', text: activeText(canopus) }),
-      canopus.candidates > 0 ? h(doc, 'span', { class: 'canopus-count muted', text: t('canopustask.candidates', { n: canopus.candidates }) }) : false);
+      canopus.candidates > 0 ? h(doc, 'span', { class: 'canopus-count muted', text: t('canopustask.candidates', { n: canopus.candidates }) }) : false,
+      button(t('canopustask.recognize'), '', () => handlers.onCanopusRecognize(session.id)));
     el.replaceChildren(...[bar, rows.length + problems.length > 0 ? tableCard(session, canopus, rows, problems) : false, single ? singleCardEl(session, canopus, single) : false].filter(Boolean));
     el.hidden = false;
   }

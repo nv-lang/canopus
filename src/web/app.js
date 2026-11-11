@@ -115,9 +115,7 @@ if (!ui.awaiting) {
 applyTheme(ui.theme);
 
 const ctx = { newId, now: () => Date.now() };
-ui.sourceQuestions = new Map();
 ui.handoffStatus = new Map();
-const confirmSourceLabel = 'Применить';
 let view = null;
 let queued = false;
 let transport = null;
@@ -162,8 +160,7 @@ function applySessionIndex(entries) {
   for (const event of entries) {
     if (event?.kind !== 'session_created' || typeof event.trace !== 'string') continue;
     const previous = model.sessions[event.trace];
-    if (previous?.draft) continue;
-    if (!previous) model = reduce(model, event);
+    if (!previous || previous.draft) model = reduce(model, event);
     else {
       const { name, agent, folder, project_id, rank } = event.input;
       model = { ...model, sessions: { ...model.sessions, [event.trace]: {
@@ -329,7 +326,7 @@ const waitingRoute = new Set();
 function sendAfterRestore(trace, text, images) {
   const session = model.sessions[trace];
   if (!ui.historyPreview.has(trace) || !session || !text || images.length || ui.restoreQueued.has(trace)) return false;
-  if (session.source?.family === 'codex' && session.agent !== 'codex') return false;
+  if (session.source?.family && session.source.family !== session.agent) return false;
   const event = makeEvent('user_message', trace, 0, messageInput(newId(), text, []), ctx);
   if (!delivery.add(event, savedSession(trace), 'waiting_restore')) {
     flash(t('delivery.storage'));
@@ -347,7 +344,7 @@ function drainRestoreQueue() {
     const session = model.sessions[trace];
     if (session && (isBusy(session.state) || session.pendingQuestion)) continue;
     ui.restoreQueued.delete(trace);
-    if (!session || restoreTarget(session) !== queued.target || ui.sourceQuestions.has(trace)
+    if (!session || restoreTarget(session) !== queued.target
         || ['preparing', 'selected'].includes(ui.handoffStatus.get(trace)?.phase)) {
       delivery.failed(queued.id, t('delivery.restore_target_changed'));
       continue;
@@ -393,15 +390,9 @@ async function postImage(trace, item) {
 }
 const signal = (trace, { kind, input }) => [kind, trace, nextStep(model, trace), input];
 
-function confirmPendingCodexTransfer(session, source) {
-  if (!session || session.draft || source?.family !== 'codex' || session.agent === 'codex'
-      || !session.messages.some((message) => message.role === 'user')) return false;
-  if (session.agent === 'kimi') {
-    handlers.onSource(session.id, source);
-  } else {
-    flash('Перенос истории в Codex из этого агента пока недоступен. Выберите текущего агента, чтобы продолжить этот чат.', 'error');
-  }
-  return true;
+function needsContextHandoff(session, source) {
+  return Boolean(session && !session.draft && source?.family && source.family !== session.agent
+    && session.messages.some((message) => message.role === 'user'));
 }
 
 const handlers = {
@@ -550,7 +541,6 @@ const handlers = {
   // Без картинок — как раньше, сразу. С картинками — сначала они на сервер по очереди, потом сообщение с их номерами.
   onSend(trace, text, images = []) {
     const draft = model.sessions[trace];
-    if (ui.sourceQuestions.has(trace)) return false;
     if (ui.historyPending.has(trace)) return sendAfterRestore(trace, text, images);
     if (ui.restoreQueued.has(trace)) return false;
     const choice = ui.handoffStatus.get(trace);
@@ -560,7 +550,11 @@ const handlers = {
       return prepareHandoff(trace, choice).then(ok => ok && handlers.onSend(trace, text, images));
     }
     if (choice?.phase === 'error') ui.handoffStatus.delete(trace);
-    if (confirmPendingCodexTransfer(draft, draft?.source)) return false;
+    if (needsContextHandoff(draft, draft?.source)) {
+      if (draft.pendingQuestion || isBusy(draft.state)) return false;
+      return prepareHandoff(trace, { previous: draft.agent, source: draft.source })
+        .then(ok => ok && handlers.onSend(trace, text, images));
+    }
     let reserved = null;
     if (draft && draft.draft) {
       // Protect the first message before even creating its session (creation may fail too).
@@ -632,26 +626,16 @@ const handlers = {
     const session = model.sessions[trace];
     if (ui.handoffStatus.get(trace)?.phase === 'preparing') return;
     if (!session || session.draft || isBusy(session.state)) { flash('Источник можно изменить только между ходами.', 'info'); return; }
-    const handoffPair = (session.agent === 'kimi' && source.family === 'codex')
-      || (session.agent === 'codex' && source.family === 'kimi');
-    const handoff = handoffPair && session.messages.some((message) => message.role === 'user');
-    if ((!handoff && source.family !== session.agent) || session.pendingQuestion) {
-      if (!session.pendingQuestion) send('session_source', trace, nextStep(model, trace), source);
+    if (session.pendingQuestion) return;
+    if (needsContextHandoff(session, source)) {
+      ui.handoffStatus.set(trace, { phase: 'selected', previous: session.agent, source });
+      render();
       return;
     }
-    const question = {
-      request: newId(),
-      questions: [{
-        header: 'Модель и усилие',
-        question: handoff
-          ? `Перейти на ${source.family === 'kimi' ? 'Kimi' : 'Codex'} в этом чате? Кеш ${session.agent === 'kimi' ? 'Kimi' : 'Codex'} не переносится. Вместимость полной истории не подтверждена.`
-          : 'Применить выбор со следующего сообщения? История останется в чате. Кеш запроса может быть пересобран.',
-        multiSelect: false,
-        options: [{ label: confirmSourceLabel, description: '' }, { label: 'Отмена', description: '' }],
-      }],
-    };
-    ui.sourceQuestions.set(trace, { ...question, source, handoff, previous: session.agent });
-    render();
+    if (send('session_source', trace, nextStep(model, trace), source)) {
+      ui.handoffStatus.delete(trace);
+      render();
+    }
   },
   onApproval(trace, family, value) {
     const session = model.sessions[trace];
@@ -664,25 +648,6 @@ const handlers = {
     send('session_setting', trace, nextStep(model, trace), { family, setting: 'mode', value });
   },
   onAnswer(trace, answer) {
-    const pending = ui.sourceQuestions.get(trace);
-    if (pending?.request === answer.request) {
-      const session = model.sessions[trace];
-      if (!answer.skipped && answer.answers?.[0]?.selected?.[0] === confirmSourceLabel) {
-        if (!session || session.agent !== pending.previous || isBusy(session.state)) {
-          flash('Источник можно изменить только между ходами.', 'info');
-          return false;
-        }
-        if (pending.handoff) ui.handoffStatus.set(trace, { phase: 'selected', previous: pending.previous, source: pending.source });
-        else {
-          if (!send('session_source', trace, nextStep(model, trace), pending.source)) return false;
-          ui.handoffStatus.delete(trace);
-        }
-      }
-      ui.sourceQuestions.delete(trace);
-      render();
-      if (!pending.handoff || answer.skipped) drain();
-      return true;
-    }
     return send('question_answer', trace, nextStep(model, trace), answer);
   },
   // Режимы работы по методике (задача 192p): сигналы серверу; состояние вернётся событием route_state.
