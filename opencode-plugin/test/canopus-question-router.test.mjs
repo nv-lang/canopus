@@ -1,7 +1,7 @@
 import { writeFixtureFile } from "./fixture-settings.mjs"
 // 280: isolated durable routing; no SDK, service registration, credentials or native state.
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs"
 import os from 'node:os'
 import path from 'node:path'
 
@@ -27,6 +27,144 @@ try {
   const dir = path.join(tmp, 'routing')
   let router = new QuestionRouter(dir, deps)
   const request = (qid, channel = 'form') => ({ qid, project: 'sample', task: 87, session: 'ses_worker', channel, text: 'Не найдена команда Alula. Какой проверенный путь?', context: 'WC-1; рекомендация не источник', source: { kind: channel, id: qid, at: 100 }, ...(channel === 'form' ? { form: { id: `frm_${qid}`, fingerprint: 'original', field: 'q0' } } : {}) })
+  await cell('291: historical lock isolates one record, preserves evidence and native outcome across restart/concurrency', async () => {
+    const isolated = path.join(tmp, 'locked-record')
+    const posts = new Map(), native = [], inspected = []
+    const local = { ...deps, target: r => `${r.project}.integrator`,
+      scope: () => ({ assignment: 'fixture', digest: 'c'.repeat(64) }), scopeRepair: () => undefined,
+      inspect: async r => { inspected.push(r.id); return { state: 'pending' } },
+      post: (to, text, id) => { if (!posts.has(id)) posts.set(id, { to, text }) },
+      reply: async r => { native.push(r.id); await Promise.resolve(); return { state: 'applied' } },
+    }
+    let q = new QuestionRouter(isolated, local)
+    // Choose the historical record by actual scan order, never by filesystem insertion order.
+    const records = Array.from({ length: 8 }, (_, i) => q.open({ ...request(`lock-${i}`), project: `project${i % 2}` }))
+      .sort((a, b) => a.id.localeCompare(b.id))
+    const history = records[0], ready = records[1]
+    await q.tick(101)
+    await q.resolve(ready.id, local.target(ready), 1, 'проверенная команда', [source], 102)
+    const file = path.join(isolated, `${history.id}.json`), lock = `${file}.lock`
+    writeFixtureFile(file, JSON.stringify({ ...q.get(history.id), status: 'unknown', attempted: 90,
+      answer: 'исторический ответ', sources: [source], observed: { state: 'unknown', why: 'historical native outcome' },
+      blocker: { to: local.target(history), at: 99, deadline: 100, why: 'historical blocker' } }))
+    mkdirSync(lock)
+    writeFixtureFile(path.join(lock, 'owner'), 'historical lock; never steal by age')
+    const before = readFileSync(file, 'utf8')
+    // New independent questions have no route yet and sort after the locked record.
+    const fresh = records.slice(2)
+    for (const r of fresh) writeFixtureFile(path.join(isolated, `${r.id}.json`), JSON.stringify(r))
+    posts.clear()
+    inspected.length = 0
+    const result = await q.tick(103)
+    assert.equal(result.locked.length, 1)
+    assert.equal(result.locked[0].id, history.id)
+    assert.match(result.locked[0].why, /\[locked\]/)
+    for (const r of fresh) {
+      assert.equal(q.get(r.id).target, local.target(r))
+      assert.equal(q.get(r.id).epoch, 1)
+      assert.ok(posts.has(`question-route-${r.id}-1`))
+    }
+    assert.equal(q.get(ready.id).status, 'answered')
+    assert.deepEqual(native, [ready.id])
+    assert.ok(q.problems().some(p => p.includes(history.id) && p.includes('[locked]')))
+    q = new QuestionRouter(isolated, local)
+    const count = posts.size
+    await Promise.all([q.tick(104), new QuestionRouter(isolated, local).tick(104)])
+    await q.tick(105 + 16 * 60_000)
+    assert.deepEqual(native, [ready.id])
+    assert.equal(posts.size, count + fresh.length) // only the existing deadline blockers
+    assert.equal(readFileSync(file, 'utf8'), before)
+    assert.equal(readFileSync(path.join(lock, 'owner'), 'utf8'), 'historical lock; never steal by age')
+    assert.ok(!inspected.includes(history.id), 'lock detected before native inspection when scope repair is enabled')
+  })
+  await cell('291: only typed directory contention is isolated; schema and transport failures stay visible', async () => {
+    const { QuestionLockedError } = await import('../question-router.ts')
+    const q = new QuestionRouter(path.join(tmp, 'narrow-lock'), { ...deps })
+    const x = q.open(request('narrow'))
+    const lock = path.join(q.dir, `${x.id}.json.lock`)
+    // A file at the lock path is corruption, not a competing lock-directory owner.
+    writeFixtureFile(lock, 'not a lock directory')
+    await assert.rejects(q.tick(101), e => e.code === 'EEXIST' && !(e instanceof QuestionLockedError))
+    assert.ok(q.problems().some(p => p.includes('[unknown]') && p.includes(x.id)))
+    rmSync(lock)
+    q.deps.post = () => { throw new Error('[locked] transport failure is not lock contention') }
+    await assert.rejects(q.tick(102), /transport failure/)
+    q.deps.post = () => { throw new QuestionLockedError('f'.repeat(64)) }
+    await assert.rejects(q.tick(103), e => e instanceof QuestionLockedError && e.id !== x.id)
+    writeFixtureFile(path.join(q.dir, `${x.id}.json`), '{broken')
+    const result = await q.tick(104)
+    assert.equal(result.problems.length, 1)
+    assert.match(result.problems[0], /повреждённая/)
+    assert.deepEqual(result.locked, [])
+  })
+  await cell('291: locked first record cannot bypass owner/unknown/HOLD or duplicate route/answer/native outboxes', async () => {
+    const isolated = path.join(tmp, 'locked-policy'), posts = new Map(), attempts = []
+    let held, owner
+    const local = { ...deps, target: r => `${r.project}.integrator`,
+      scope: () => ({ assignment: 'fixture', digest: 'd'.repeat(64) }), scopeRepair: () => undefined,
+      ownerGate: r => r.id === owner,
+      canReply: r => r.id === held ? 'execution_pause HOLD' : undefined,
+      post: (to, text, id) => { if (!posts.has(id)) posts.set(id, { to, text }) },
+      reply: async r => { attempts.push(r.id); await Promise.resolve(); return { state: 'applied' } },
+    }
+    let q = new QuestionRouter(isolated, local)
+    const records = Array.from({ length: 7 }, (_, i) => q.open({ ...request(`policy-${i}`), project: `project${i % 2}` }))
+      .sort((a, b) => a.id.localeCompare(b.id))
+    const [history, native, , hold, unknown, gate, fresh] = records
+    await q.tick(101)
+    held = hold.id; owner = gate.id
+    for (const r of [native, hold]) await q.resolve(r.id, local.target(r), 1, 'проверенная команда', [source], 102)
+    // Open an independent mail request rather than altering identity/channel of a stored form.
+    const mail = q.open({ ...request('policy-mail', 'mail'), project: 'project1' })
+    // Resolve requires a route. This preparatory tick must not deliver the ready native forms yet.
+    local.canReply = r => r.id === held || r.id === native.id ? 'execution_pause HOLD' : undefined
+    await q.tick(102)
+    await q.resolve(mail.id, local.target(mail), 1, 'проверенная команда', [source], 102)
+    local.canReply = r => r.id === held ? 'execution_pause HOLD' : undefined
+    writeFixtureFile(path.join(isolated, `${unknown.id}.json`), JSON.stringify({ ...q.get(unknown.id), status: 'unknown', attempted: 90, why: 'ambiguous native outcome' }))
+    writeFixtureFile(path.join(isolated, `${fresh.id}.json`), JSON.stringify(fresh))
+    mkdirSync(path.join(isolated, `${history.id}.json.lock`))
+    assert.equal((await q.tick(103)).locked[0].id, history.id)
+    assert.equal(q.get(native.id).status, 'answered')
+    assert.equal(q.get(mail.id).status, 'answer_queued')
+    assert.equal(q.get(hold.id).status, 'ready')
+    assert.equal(q.get(hold.id).attempted, undefined)
+    assert.equal(q.get(gate.id).status, 'owner')
+    assert.equal(q.get(unknown.id).status, 'unknown')
+    assert.equal(q.get(unknown.id).attempted, 90)
+    assert.equal(q.get(fresh.id).epoch, 1)
+    assert.equal(q.get(fresh.id).target, local.target(fresh))
+    const count = posts.size
+    q = new QuestionRouter(isolated, local)
+    await Promise.all([q.tick(104), new QuestionRouter(isolated, local).tick(104)])
+    await q.tick(105)
+    assert.equal(posts.size, count)
+    assert.deepEqual(attempts, [native.id])
+    assert.equal(q.get(gate.id).status, 'owner')
+    assert.equal(q.get(unknown.id).status, 'unknown')
+    assert.equal(q.get(hold.id).attempted, undefined)
+  })
+  await cell('291: lock acquired after native POST does not claim no delivery or cause a second POST', async () => {
+    const isolated = path.join(tmp, 'late-lock')
+    let attempts = 0
+    const local = { ...deps, reply: async r => {
+      attempts++
+      mkdirSync(path.join(isolated, `${r.id}.json.lock`))
+      return { state: 'applied' }
+    } }
+    let q = new QuestionRouter(isolated, local)
+    const x = q.open(request('late-lock'))
+    await q.tick(101)
+    await q.resolve(x.id, target, 1, 'проверенная команда', [source], 102)
+    const result = await q.tick(103)
+    assert.equal(result.locked[0].id, x.id)
+    assert.doesNotMatch(result.locked[0].why, /попытки доставки не было/)
+    assert.equal(q.get(x.id).status, 'applying')
+    assert.equal(q.get(x.id).attempted, 103)
+    q = new QuestionRouter(isolated, local)
+    await q.tick(104)
+    assert.equal(attempts, 1)
+  })
   await cell('worker/reviewer with/without Recommended route to integrator', async () => {
     for (const role of ['worker', 'reviewer']) for (const rec of ['', ' (Recommended)']) {
       const r = router.open({ ...request(`${role}${rec ? 'rec' : 'none'}`), text: request('x').text + rec, context: role })

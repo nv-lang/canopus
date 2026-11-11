@@ -2,7 +2,7 @@
 // A route is an outbox, not a receipt. A native attempt is persisted BEFORE I/O and is never POSTed twice:
 // after a crash/timeout we only reconcile the authoritative form state. Unknown is never permission.
 import { createHash, randomUUID } from "node:crypto"
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmdirSync, writeFileSync } from "node:fs"
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, rmdirSync, writeFileSync } from "node:fs"
 import path from "node:path"
 
 export type QuestionSource = { kind: "text" | "mail" | "form"; id: string; at: number }
@@ -61,6 +61,17 @@ export const questionId = (r: Pick<QuestionRequest, "project" | "session" | "cha
 const original = (r: QuestionRequest) => JSON.stringify([r.qid, r.project, r.task, r.session, r.channel, r.text, r.context, r.source, r.form, r.proposals])
 const DEFAULT_LIMITS = ["same_assigned_work", "no_unverified_fact", "no_owner_gate", "no_hold_release", "no_ci_rerun_by_diagnosis", "stop_at_assigned_boundary"] as const
 
+/** Local lock contention only, not a schema, policy or transport failure. Never authorizes lock recovery. */
+export class QuestionLockedError extends Error {
+  readonly id: string
+  constructor(id: string) {
+    super(`[locked] вопрос ${id} заблокирован; lock сохранён, обработка этой записи отложена`)
+    this.name = "QuestionLockedError"
+    this.id = id
+  }
+}
+export type QuestionTickResult = { locked: { id: string; why: string }[]; problems: string[] }
+
 export class QuestionRouter {
   readonly dir: string
   readonly deps: QuestionRouterDeps
@@ -102,13 +113,23 @@ export class QuestionRouter {
     return { records, problems }
   }
   list(): QuestionRecord[] { return this.scan().records }
-  problems(): string[] { return this.scan().problems }
+  problems(): string[] {
+    const { records, problems } = this.scan()
+    for (const r of records) {
+      const lock = `${this.file(r.id)}.lock`
+      if (existsSync(lock)) problems.push(lstatSync(lock).isDirectory() ? new QuestionLockedError(r.id).message : `[unknown] вопрос ${r.id}: путь lock не является каталогом; требуется диагностика`)
+    }
+    return problems
+  }
   // Only synchronous local mutations under the lock; never await or perform transport inside it.
   // A crashed lock is visible/fail-closed, not guessed stale and stolen by a second process.
   private change(id: string, fn: (r: QuestionRecord | undefined) => QuestionRecord | undefined): QuestionRecord | undefined {
     mkdirSync(this.dir, { recursive: true })
     const file = this.file(id), lock = `${file}.lock`
-    try { mkdirSync(lock) } catch { throw new Error(`[locked] вопрос ${id} заблокирован; попытки доставки не было`) }
+    try { mkdirSync(lock) } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code === "EEXIST" && lstatSync(lock).isDirectory()) throw new QuestionLockedError(id)
+      throw error
+    }
     try {
       const prev = this.get(id), next = fn(prev)
       if (!next) return prev
@@ -269,8 +290,12 @@ export class QuestionRouter {
       ...current, status: "ready", sources: verified, defaulted: now, answer: "Продолжай только неблокированную часть той же уже порученной работы. Недостающий факт не угадан и исходный вопрос не объявлен решённым. На порученной границе сохрани отчёт/состояние и остановись; если продолжение невозможно, верни адресный blocker ответственному интегратору. Это не новое разрешение: owner gates/HOLD/новая работа/live/деньги/публикация не разрешены сроком. Разрешённая диагностика не разрешает CI autorerun, merge или увеличение timeout.", updated: now,
     })!
   }
-  async tick(now = Date.now()) {
-    for (let r of this.list()) {
+  async tick(now = Date.now()): Promise<QuestionTickResult> {
+    const { records, problems } = this.scan()
+    const locked: QuestionTickResult["locked"] = []
+    // Each record has its own durable lock/outbox. A busy record cannot stall unrelated questions.
+    // Do not catch arbitrary errors (including look-alike messages from transports or malformed data).
+    for (let r of records) try {
       if (terminal(r)) continue
       r = this.repair(r.id, now) ?? r
       if (r.form && !r.recovery && r.attempted === undefined && r.status !== "owner" && this.deps.ownerGate?.(r)) {
@@ -359,7 +384,11 @@ export class QuestionRouter {
       if (!claimed) continue
       const result = await this.deps.reply(r, answerLetter(r)).catch(e => ({ state: "unknown" as const, why: String(e) }))
       this.change(r.id, c => !c || !["applying", "unknown"].includes(c.status) || c.attempted !== r.attempted ? undefined : { ...c, status: result.state === "applied" ? "answered" : result.state === "settled" ? "settled" : "unknown", why: result.why, updated: now })
+    } catch (error) {
+      if (!(error instanceof QuestionLockedError) || error.id !== r.id) throw error
+      locked.push({ id: r.id, why: error.message })
     }
+    return { locked, problems }
   }
   /** Also checked by native delivery immediately before admission, not just at outbox enqueue. */
   async recoveryBlock(id: string): Promise<string | undefined> {
