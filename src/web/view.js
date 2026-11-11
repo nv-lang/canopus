@@ -679,14 +679,19 @@ export function createView(doc, refs, deps) {
   });
   const voiceChange = () => { fitInput(); if (currentTrace) drafts.set(currentTrace, input.value); };
   // Запись: «Слушаю…» вместо подсказки, дорожка уровня, «↵» вместо отправки (задача 192)
-  const waveBars = [...wave.children];
-  const paintWave = (levels) => { const px = barHeights(levels, 3, 22); waveBars.forEach((bar, i) => { bar.style.height = `${px[i]}px`; }); };
-  const meter = createMeter({
-    mediaDevices: win && win.navigator ? win.navigator.mediaDevices : undefined,
-    AudioCtx: win ? (win.AudioContext || win.webkitAudioContext) : undefined,
-    getMic: () => voiceSettings.state.mic,
-    onLevels: paintWave,
-  });
+  function meterForWave(track) {
+    const bars = [...track.children];
+    return createMeter({
+      mediaDevices: win?.navigator?.mediaDevices,
+      AudioCtx: win ? (win.AudioContext || win.webkitAudioContext) : undefined,
+      getMic: () => voiceSettings.state.mic,
+      onLevels: levels => {
+        const heights = barHeights(levels, 3, 22);
+        bars.forEach((bar, i) => { bar.style.height = `${heights[i]}px`; });
+      },
+    });
+  }
+  const meter = meterForWave(wave);
   let recordingNow = false;
   function paintRecording(state) {
     const v = recordingView(state);
@@ -2188,6 +2193,7 @@ export function createView(doc, refs, deps) {
     pick.hidden = Boolean(session);
     chat.hidden = !session;
     titleBlock.hidden = !session;
+    if (currentTrace && currentTrace !== session?.id) activeAnswerMic?.();
     if (!session) { browseTicket += 1; currentTrace = null; closeMenu(); return; }
     chat.dataset.draft = String(Boolean(session.draft));
     const awaitingHistory = Boolean(ui.historyPending?.has(session.id));
@@ -2748,7 +2754,7 @@ export function createView(doc, refs, deps) {
     const trace = currentTrace;
     const key = `${trace}:${item.key}`;
     const card = h(doc, 'div', { class: 'ask ask-expired' });
-    const status = h(doc, 'div', { class: 'ask-status ask-expired-status' }, askBadge(t('ask.timeout')));
+    const status = h(doc, 'div', { class: 'ask-status ask-expired-status', hidden: expiredReplies.has(key) }, askBadge(t('ask.timeout')));
     node.replaceChildren(card, status);
 
     function sections(interactive) {
@@ -2776,7 +2782,7 @@ export function createView(doc, refs, deps) {
     const reply = h(doc, 'button', { type: 'button', class: 'link-btn', text: t('ask.reply_new') });
     status.append(reply);
     reply.addEventListener('click', () => {
-      reply.hidden = true;
+      status.hidden = true;
       card.classList.remove('ask-expired');
       const questions = sections(true);
       const send = h(doc, 'button', { type: 'submit', class: 'primary ask-send', text: t('ask.send'), disabled: true });
@@ -2812,7 +2818,7 @@ export function createView(doc, refs, deps) {
         stopMicrophones();
         card.classList.add('ask-expired');
         renderPreview();
-        reply.hidden = false;
+        status.hidden = false;
         reply.focus({ preventScroll: true });
       });
       form.addEventListener('submit', async event => {
@@ -2847,12 +2853,31 @@ export function createView(doc, refs, deps) {
     });
   }
 
+  let activeAnswerMic = null;
+
   function bindAnswerMic(mic, answer, sync) {
     let voice = null;
+    const wave = h(doc, 'span', { class: 'wave ask-wave', hidden: true, 'aria-hidden': 'true' },
+      ...Array.from({ length: BARS }, () => h(doc, 'i')));
+    const meter = meterForWave(wave);
+    const stop = (finish = false) => {
+      if (!voice?.active()) return false;
+      if (finish) voice.stop(); else voice.cancel?.();
+      return true;
+    };
     mic.addEventListener('click', () => {
       if (voice?.active()) { voice.stop(); return; }
       if (dictation.active()) return;
+      activeAnswerMic?.();
+      activeAnswerMic = stop;
+      mic.parentNode?.insertBefore(wave, mic);
       const status = ({ state, reason }) => {
+        const recording = recordingView(state).showWave;
+        if (recording === wave.hidden) {
+          wave.hidden = !recording;
+          if (recording) meter.start(); else meter.stop();
+        }
+        if (state !== 'recording' && state !== 'processing' && activeAnswerMic === stop) activeAnswerMic = null;
         mic.dataset.state = state;
         mic.setAttribute('aria-pressed', String(state === 'recording'));
         mic.title = reason || t(micTitleKey(state));
@@ -2863,11 +2888,7 @@ export function createView(doc, refs, deps) {
       answer.focus();
       voice.start();
     });
-    return (finish = false) => {
-      if (!voice?.active()) return false;
-      if (finish) voice.stop(); else voice.cancel?.();
-      return true;
-    };
+    return stop;
   }
 
   function askOptionText(name, description) {
