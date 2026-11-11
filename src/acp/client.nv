@@ -643,6 +643,7 @@ fn AcpClient mut @settle_set(key str, result JsonValue) -> bool {
     // a choice of the owner that the agent took is told to the hub, which keeps it (the ones the client made itself are not)
     if done.owner { @settled.push(AcpPreset { setting: done.setting, value: done.value }) }
     @push_options()
+    if done.setting == "model" && @presets.len() > 0 { @apply_presets() }
     true
 }
 
@@ -706,7 +707,14 @@ fn AcpClient @current_of(setting str) -> str {
 fn AcpClient mut @apply_presets() -> () {
     ro list = @presets
     @presets = []AcpPreset.new()
+    mut model_pending = false
+    for s in @sets { if s.setting == "model" { model_pending = true } }
     for p in list {
+        // Some agents advertise the selected model's effort options only after the model reply.
+        if @strict_source && p.setting == "effort" && model_pending {
+            @presets.push(p)
+            continue
+        }
         if p.setting == "mode" { @required_mode = p.value }
         if p.setting == "mode" && setting_call(p.setting, p.value, @modes, @models, @choices_cfg).is_none() {
             @fail_handshake("agent mode not offered: ${p.value}")
@@ -716,6 +724,8 @@ fn AcpClient mut @apply_presets() -> () {
         if !@send_set(p.setting, p.value, false) {
             if @strict_source || p.setting == "mode" { @fail_handshake("agent source not offered: ${p.setting}=${p.value}"); return }
             @dropped.push(AcpDrop { setting: p.setting, value: p.value, used: @current_of(p.setting) })
+        } else if p.setting == "model" {
+            model_pending = true
         }
     }
 }

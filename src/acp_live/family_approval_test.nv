@@ -68,8 +68,8 @@ test "approvals contract: an unknown immediate choice fails closed, not a recove
     client.close()
 }
 
-test "approvals contract: native mode preserves pending exact model and effort before handshake" {
-    mut client = start([])
+test "approvals contract: native mode preserves model and effort announced after model selection" {
+    mut client = start(["--effort-after-model"])
     client.set_source([AcpPreset { setting: "model", value: "fake-model-b" }, AcpPreset { setting: "effort", value: "high" }])
     client.require_mode("plan")
     with Link = acp_link(client) {

@@ -58,10 +58,10 @@ function modeList() {
   return args.includes('--reverse-modes') ? list.reverse() : list;
 }
 function configOptions() {
-  return [
-    { id: "model", category: "model", type: "select", currentValue: choice.model, options: [{ value: "fake-model", name: "Fake Model" }, { value: "fake-model-b", name: "Fake Model B" }] },
-    { id: "effort", category: "thought_level", type: "select", currentValue: choice.effort, options: [{ value: "low", name: "Low" }, { value: "medium", name: "Medium" }, { value: "high", name: "High" }] },
-  ];
+  const model = { id: "model", category: "model", type: "select", currentValue: choice.model, options: [{ value: "fake-model", name: "Fake Model" }, { value: "fake-model-b", name: "Fake Model B" }] };
+  const effort = { id: "effort", category: "thought_level", type: "select", currentValue: choice.effort, options: [{ value: "low", name: "Low" }, { value: "medium", name: "Medium" }, { value: "high", name: "High" }] };
+  if (args.includes("--effort-after-model") && choice.model === "fake-model") return [model];
+  return [model, effort];
 }
 let mcpServers = [];
 const streamMarkerArg = args.find((arg) => arg.startsWith("--stream-marker="));
