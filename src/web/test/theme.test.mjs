@@ -43,6 +43,12 @@ const PAIRS = {
   '--ok': ['--bg', '--side', '--center', '--surface'],
   '--warn': ['--bg', '--side', '--center', '--surface', '--surface-2', '--warn-soft'],
   '--code-fg': ['--code-bg'],
+  '--md-heading': ['--center', '--user-bg'],
+  '--md-link': ['--center', '--user-bg'],
+  '--md-inline': ['--code-bg'],
+  '--md-keyword': ['--code-bg'],
+  '--md-string': ['--code-bg'],
+  '--md-comment': ['--code-bg'],
   '--user-fg': ['--user-bg'],
 };
 

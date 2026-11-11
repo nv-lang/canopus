@@ -326,7 +326,7 @@ test('лента показывает Markdown и команду с термин
     handlers: { queued: () => 0, queuedItems: () => [] },
   });
   const model = run([...base(),
-    ev('agent_chunk', { turn: 't1', text: '▸ canopus_list {}\n\n- **138** — [задача](https://example.org/138)\n- **`doc/tasks/NNN-название/`**' }, { step: 2 }),
+    ev('agent_chunk', { turn: 't1', text: '▸ canopus_list {}\n\n- **138** — [задача](https://example.org/138)\n- **`doc/tasks/NNN-название/`**\n\n## Пример\n\n```js\nconst value = "hello"; // заметка\n```' }, { step: 2 }),
     ev('tool_call', { id: 'exec1', kind: 'execute', title: 'Get-Content nova.toml', status: 'in_progress', detail: 'terminal: exec-d4060c62-0fc8-4cc5-a8fc-b4901b90ac4b' }, { step: 3 }),
   ]);
   view.render(model, { selected: 's1', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
@@ -334,6 +334,11 @@ test('лента показывает Markdown и команду с термин
   assert.equal(refs.main.querySelector('.prose li strong').textContent, '138');
   assert.equal(refs.main.querySelector('.prose li strong code').textContent, 'doc/tasks/NNN-название/');
   assert.equal(refs.main.querySelector('.prose li a').getAttribute('href'), 'https://example.org/138');
+  assert.equal(refs.main.querySelector('h2.md-heading').textContent, 'Пример');
+  assert.equal(refs.main.querySelector('.code-keyword').textContent, 'const');
+  assert.equal(refs.main.querySelector('.code-string').textContent, '"hello"');
+  assert.equal(refs.main.querySelector('.code-comment').textContent, '// заметка');
+  assert.equal(refs.main.querySelector('.prose pre code').textContent, 'const value = "hello"; // заметка');
   assert.equal(refs.main.querySelector('.row-command').textContent, 'Get-Content nova.toml');
   assert.equal(refs.main.querySelector('.row-output'), null);
   assert.ok(refs.main.querySelector('.row-status .sr-only'));

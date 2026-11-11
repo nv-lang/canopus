@@ -65,6 +65,12 @@
   --danger-soft: #fbe4e1;
   --code-bg: #f3f3f3;
   --code-fg: #191919;
+  --md-heading: #673b91;
+  --md-link: #165d9c;
+  --md-inline: #17656a;
+  --md-keyword: #673b91;
+  --md-string: #236532;
+  --md-comment: #62606a;
   --user-bg: #f3f3f3;
   --user-fg: #191919;
   --shadow: 0 10px 30px rgba(0, 0, 0, .18);
@@ -91,33 +97,36 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #262624;
-    --side: #1f1e1d;
-    /* В тёмной теме центр — прежний --bg: тёмная тема не меняется (задача 190). */
-    --center: #262624;
-    --surface: #30302e;
-    --surface-2: #3a3935;
-    --hover: #353430;
-    --active: #3f3e3a;
-    --border: #4a4842;
-    --fg: #ece9e1;
-    --fg-muted: #b4b0a5;
+    --bg: #13111d;
+    --side: #181526;
+    --center: #13111d;
+    --surface: #1e1a2e;
+    --surface-2: #25203a;
+    --hover: #25203a;
+    --active: #2a2542;
+    --border: #322c4a;
+    --fg: #e8e8ee;
+    --fg-muted: #9b95b5;
     --accent: #c79ee8;
     --accent-fg: #0f0f14;
     --accent-soft: #2a1e3a;
-  --tip-bg: #1f1f1f;
-  --tip-fg: #ffffff;
-    --tip-bg: #1f1f1f;
-    --tip-fg: #ffffff;
+    --tip-bg: #181526;
+    --tip-fg: #e8e8ee;
     --ok: #6fcf8c;
-    --warn: #f0b050;
-    --warn-soft: #3b2f17;
-    --danger: #ff9a91;
-    --danger-soft: #45211f;
-    --code-bg: #1b1a19;
-    --code-fg: #e6e3da;
-    --user-bg: #3a3935;
-    --user-fg: #ece9e1;
+    --warn: #e0b04a;
+    --warn-soft: #362b1e;
+    --danger: #f98e89;
+    --danger-soft: #2f1a2e;
+    --code-bg: #181526;
+    --code-fg: #cbc7da;
+    --md-heading: #d0a7f1;
+    --md-link: #91caff;
+    --md-inline: #81d8d2;
+    --md-keyword: #d0a7f1;
+    --md-string: #9ddc9c;
+    --md-comment: #aaa4ba;
+    --user-bg: #25203a;
+    --user-fg: #e8e8ee;
     --shadow: 0 10px 30px rgba(0, 0, 0, .6);
     --shadow-soft: 0 1px 3px rgba(0, 0, 0, .35);
     --shadow-card: 0 1px 2px rgba(0, 0, 0, .45), 0 6px 20px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .04);
@@ -127,29 +136,36 @@
 }
 
 :root[data-theme="dark"] {
-  --bg: #262624;
-  --side: #1f1e1d;
-  /* В тёмной теме центр — прежний --bg: тёмная тема не меняется (задача 190). */
-  --center: #262624;
-  --surface: #30302e;
-  --surface-2: #3a3935;
-  --hover: #353430;
-  --active: #3f3e3a;
-  --border: #4a4842;
-  --fg: #ece9e1;
-  --fg-muted: #b4b0a5;
+  --bg: #13111d;
+  --side: #181526;
+  --center: #13111d;
+  --surface: #1e1a2e;
+  --surface-2: #25203a;
+  --hover: #25203a;
+  --active: #2a2542;
+  --border: #322c4a;
+  --fg: #e8e8ee;
+  --fg-muted: #9b95b5;
   --accent: #c79ee8;
   --accent-fg: #0f0f14;
   --accent-soft: #2a1e3a;
+  --tip-bg: #181526;
+  --tip-fg: #e8e8ee;
   --ok: #6fcf8c;
-  --warn: #f0b050;
-  --warn-soft: #3b2f17;
-  --danger: #ff9a91;
-  --danger-soft: #45211f;
-  --code-bg: #1b1a19;
-  --code-fg: #e6e3da;
-  --user-bg: #3a3935;
-  --user-fg: #ece9e1;
+  --warn: #e0b04a;
+  --warn-soft: #362b1e;
+  --danger: #f98e89;
+  --danger-soft: #2f1a2e;
+  --code-bg: #181526;
+  --code-fg: #cbc7da;
+  --md-heading: #d0a7f1;
+  --md-link: #91caff;
+  --md-inline: #81d8d2;
+  --md-keyword: #d0a7f1;
+  --md-string: #9ddc9c;
+  --md-comment: #aaa4ba;
+  --user-bg: #25203a;
+  --user-fg: #e8e8ee;
   --shadow: 0 10px 30px rgba(0, 0, 0, .6);
   --shadow-soft: 0 1px 3px rgba(0, 0, 0, .35);
   --shadow-card: 0 1px 2px rgba(0, 0, 0, .45), 0 6px 20px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .04);
@@ -521,15 +537,22 @@ input, select, textarea {
 .prose li { margin: 2px 0; overflow-wrap: anywhere; }
 .canopus-list-note { display: flex; align-items: center; gap: 6px; margin-block: 0 10px; color: var(--fg-muted); font-size: .875rem; }
 .canopus-list-note .icon { width: 14px; height: 14px; }
-.prose a { color: var(--accent); overflow-wrap: anywhere; }
+.md-heading { margin: .65em 0 .35em; color: var(--md-heading); line-height: 1.3; overflow-wrap: anywhere; }
+.md-heading:is(h1, h2) { font-size: 1.25em; }
+.md-heading:is(h3, h4, h5, h6) { font-size: 1.05em; }
+.md-link { color: var(--md-link); text-decoration: underline; overflow-wrap: anywhere; }
+.code-keyword { color: var(--md-keyword); }
+.code-string { color: var(--md-string); }
+.code-comment { color: var(--md-comment); }
 .prose > :last-child { margin-bottom: 0; }
 
 code.inline {
   padding: 1px 6px;
   border-radius: 6px;
   background: var(--code-bg);
-  color: var(--code-fg);
+  color: var(--md-inline);
   font: .9em var(--font-mono);
+  font-weight: inherit;
 }
 pre {
   margin: 0 0 10px;

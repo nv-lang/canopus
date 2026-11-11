@@ -332,6 +332,12 @@ export function paragraphs(text) {
       blocks.push({ type: 'canopus-list' });
       continue;
     }
+    const heading = /^ {0,3}(#{1,6})[ \t]+(.+?)\s*$/u.exec(line);
+    if (heading) {
+      flush();
+      blocks.push({ type: 'heading', level: heading[1].length, text: heading[2].replace(/\s+#+$/u, '') });
+      continue;
+    }
     const bullet = /^\s*[-*]\s+(.*)$/.exec(line);
     const numbered = /^\s*\d+[.)]\s+(.*)$/.exec(line);
     let type = 'p';
@@ -342,6 +348,43 @@ export function paragraphs(text) {
   }
   flush();
   return blocks;
+}
+
+const JS_KEYWORDS = 'async await break case catch class const continue default delete do else export extends false finally for from function if import in instanceof let new null of return static super switch this throw true try typeof undefined var void while yield';
+const CODE_LANGUAGES = [
+  [/^(js|javascript|jsx)$/i, 'slash', JS_KEYWORDS],
+  [/^(ts|typescript|tsx)$/i, 'slash', JS_KEYWORDS + ' abstract as declare enum implements infer interface keyof namespace never private protected public readonly satisfies type unknown'],
+  [/^(nv|nova)$/i, 'slash', 'assert break case const consume continue do else enum export false fn for if import in match module mut None return ro Some struct true type while with'],
+  [/^(py|python)$/i, 'hash', 'and as assert async await break case class continue def del elif else except False finally for from global if import in is lambda match None nonlocal not or pass raise return True try while with yield'],
+  [/^(bash|sh|zsh|shell)$/i, 'hash', 'case do done elif else esac exit export fi for function if in local read return select set then until while'],
+  [/^(powershell|pwsh|ps1)$/i, 'hash', 'begin break catch class continue do else elseif end enum exit filter finally for foreach function if in param process return switch throw trap try until using while', true],
+  [/^json$/i, 'json', 'false null true'],
+].map(([aliases, style, words, ignoreCase]) => ({ aliases, style, words: new Set(words.split(' ')), ignoreCase }));
+
+const CODE_TOKENS = {
+  slash: /(?<comment>[/][/][^\n]*|[/][*][\s\S]*?(?:[*][/]|$))|(?<string>"(?:\\[\s\S]|[^"\\\n])*"|'(?:\\[\s\S]|[^'\\\n])*'|\x60(?:\\[\s\S]|[^\x60\\])*\x60)|(?<word>[$\w]+)/gu,
+  hash: /(?<comment>#[^\n]*)|(?<string>"{3}[\s\S]*?"{3}|[']{3}[\s\S]*?[']{3}|"(?:\\[\s\S]|[^"\\\n])*"|'(?:\\[\s\S]|[^'\\\n])*')|(?<word>[$\w]+)/gu,
+  json: /(?<string>"(?:\\[\s\S]|[^"\\\n])*")|(?<word>[$\w]+)/gu,
+};
+
+/** Лёгкая подсветка для явно указанного языка. Все части остаются текстом. */
+export function codeSpans(text, lang) {
+  const language = CODE_LANGUAGES.find(entry => entry.aliases.test(lang));
+  if (!language) return [{ text }];
+  const parts = [];
+  let start = 0;
+  for (const token of text.matchAll(CODE_TOKENS[language.style])) {
+    const { comment, string, word } = token.groups;
+    const key = language.ignoreCase ? word?.toLowerCase() : word;
+    const kind = comment !== undefined ? 'comment' : string !== undefined ? 'string'
+      : language.words.has(key) ? 'keyword' : '';
+    if (!kind) continue;
+    if (token.index > start) parts.push({ text: text.slice(start, token.index) });
+    parts.push({ text: token[0], kind });
+    start = token.index + token[0].length;
+  }
+  if (start < text.length) parts.push({ text: text.slice(start) });
+  return parts;
 }
 
 // ---- числа и подписи -------------------------------------------------------------------------------

@@ -36,7 +36,7 @@ import {
   markSent, buildAnswer, buildSkip, digitOption, otherIndex,
 } from './question.js';
 import {
-  STATE_KEYS, sessionList, splitBlocks, filterSessions, groupSessions, descendantsOf, effectivePins, timeline, paragraphs, inlineSpans,
+  STATE_KEYS, sessionList, splitBlocks, filterSessions, groupSessions, descendantsOf, effectivePins, timeline, paragraphs, inlineSpans, codeSpans,
   workSummary, messageTime, groupThousands, ruForm, shownOf, familyOf, filterModels, groupModels, usagePercent, usageLevel, tokenParts, durationLabel, agoParts, fileParts, taskSummary,
 } from './state.js';
 import { attention, SILENT_DEFAULT_MIN } from './attention.js';
@@ -1585,7 +1585,7 @@ export function createView(doc, refs, deps) {
     return inlineSpans(text).map((span) => {
       if (span.code) return h(doc, 'code', { class: 'inline', text: span.text });
       if (span.strong) return h(doc, 'strong', {}, ...spans(span.text));
-      if (span.href) return h(doc, 'a', { href: span.href, target: '_blank', rel: 'noopener noreferrer', text: span.text });
+      if (span.href) return h(doc, 'a', { class: 'md-link', href: span.href, target: '_blank', rel: 'noopener noreferrer', text: span.text });
       return doc.createTextNode(span.text);
     });
   }
@@ -1594,11 +1594,15 @@ export function createView(doc, refs, deps) {
     const out = [];
     for (const b of splitBlocks(text)) {
       if (b.type === 'code') {
-        out.push(h(doc, 'pre', {}, h(doc, 'code', { text: b.text, 'data-lang': b.lang || undefined })));
+        const code = codeSpans(b.text, b.lang).map(part => part.kind
+          ? h(doc, 'span', { class: 'code-' + part.kind, text: part.text })
+          : doc.createTextNode(part.text));
+        out.push(h(doc, 'pre', {}, h(doc, 'code', { 'data-lang': b.lang || undefined }, ...code)));
         continue;
       }
       for (const p of paragraphs(b.text)) {
         if (p.type === 'p') out.push(h(doc, 'p', {}, ...spans(p.text)));
+        else if (p.type === 'heading') out.push(h(doc, 'h' + p.level, { class: 'md-heading' }, ...spans(p.text)));
         else if (p.type === 'canopus-list') out.push(h(doc, 'div', { class: 'canopus-list-note' }, icon(doc, 'i-file'), h(doc, 'span', { text: t('work.canopus_list') })));
         else out.push(h(doc, p.type, {}, ...p.items.map((item) => h(doc, 'li', {}, ...spans(item)))));
       }
