@@ -275,9 +275,15 @@ test('long search output stays scrollable and manually opened actions stay open'
   assert.equal(refs.main.querySelector('.row-leading use').getAttribute('href'), '#i-circle-check');
   assert.equal(refs.main.querySelector('.row-action'), null);
   assert.ok(refs.main.querySelector('.row-status .sr-only'));
-  assert.equal(refs.main.querySelector('.row-content').hidden, true);
+  assert.equal(refs.main.querySelector('.row-content').hidden, false);
   assert.equal(refs.main.querySelector('.work-body').hidden, false);
-  const responding = st.reduce(done, ev('agent_chunk', { text: 'Готово' }, { step: 4 }));
+  const next = st.reduce(done, ev('tool_call', { id: 'next', kind: 'search', title: 'Search again', status: 'in_progress', detail: 'next result' }, { step: 4 }));
+  render(next);
+  assert.deepEqual(refs.main.querySelectorAll('.row-content').map(row => row.hidden), [true, false]);
+  const finished = st.reduce(next, ev('tool_call_update', { id: 'next', status: 'completed' }, { step: 5 }));
+  render(finished);
+  assert.deepEqual(refs.main.querySelectorAll('.row-content').map(row => row.hidden), [true, false]);
+  const responding = st.reduce(finished, ev('agent_chunk', { text: 'Готово' }, { step: 6 }));
   render(responding);
   assert.equal(refs.main.querySelector('.work-body').hidden, true);
   refs.main.querySelector('.item-work .disclosure').click();

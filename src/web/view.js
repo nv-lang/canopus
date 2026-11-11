@@ -1687,7 +1687,7 @@ export function createView(doc, refs, deps) {
     return false;
   }
 
-  function workRow(r) {
+  function workRowDetails(r) {
     const isCommand = r.type === 'tool' && r.kind === 'execute' && !r.title.startsWith('mcp.');
     const detail = r.type === 'task' ? '' : r.detail;
     const output = isCommand ? detail.split('\n').filter(line => !/^terminal: (?:exec-[\da-f-]+|[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}|\?)\s*$/iu.test(line)).join('\n') : detail;
@@ -1697,12 +1697,15 @@ export function createView(doc, refs, deps) {
     const webSearch = r.kind === 'search' && /^web search(?::|$)/iu.test(r.title);
     const query = r.query || (webSearch ? secondary : '');
     const input = r.toolInput || (query ? JSON.stringify({ query }, null, 2) : '');
+    return { r, label, secondary, command, input, result, webSearch,
+      expandable: Boolean(command || input || result || webSearch), key: `${currentTrace}:row:${r.key}` };
+  }
+
+  function workRow({ r, label, secondary, command, input, result, webSearch, expandable, key }, autoOpen) {
     const clipped = [command, input, result].filter(Boolean).join('\n').trimEnd().split('\n').length > 11;
     const toolOutput = r.type === 'tool';
-    const key = `${currentTrace}:row:${r.key}`;
-    const active = ['pending', 'in_progress', 'running'].includes(r.status);
-    const expanded = workToggles.get(key) ?? active;
-    const details = command || input || result || webSearch ? h(doc, 'div', { class: 'row-content', hidden: !expanded, tabindex: '0', 'data-clipped': clipped ? 'true' : undefined },
+    const expanded = workToggles.get(key) ?? autoOpen;
+    const details = expandable ? h(doc, 'div', { class: 'row-content', hidden: !expanded, tabindex: '0', 'data-clipped': clipped ? 'true' : undefined },
       command ? h(doc, 'code', { class: 'row-command', text: command }) : false,
       input ? h(doc, 'div', { class: 'row-detail-label', text: t('work.input') }) : false,
       input ? h(doc, 'pre', { class: 'row-detail row-output', text: input }) : false,
@@ -1755,7 +1758,9 @@ export function createView(doc, refs, deps) {
       icon(doc, 'i-chevron-right', 'chev'),
       h(doc, 'span', { class: 'disc-text', text: label }),
       single && !active ? rowStatus(single) : false);
-    const body = h(doc, 'div', { class: 'work-body', hidden: !isOpen }, ...item.rows.map(workRow));
+    const rows = item.rows.map(workRowDetails);
+    const latest = active || item.active ? rows.findLast(row => row.expandable) : undefined;
+    const body = h(doc, 'div', { class: 'work-body', hidden: !isOpen }, ...rows.map(row => workRow(row, row === latest)));
     toggle.addEventListener('click', () => {
       const next = toggle.getAttribute('aria-expanded') !== 'true';
       workToggles.set(key, next);
