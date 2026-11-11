@@ -111,5 +111,9 @@ test "marker: the calls of the tools of the hub are known by their titles, other
     assert(is_canopus_tool_title("mcp__canopus__canopus_task_list"))
     assert(is_canopus_tool_title(" mcp__canopus__ask_user_question "))
     assert(!is_canopus_tool_title("mcp__other__crew_task_list"))
+    assert(is_canopus_tool_title("Allow MCP tool canopus/canopus_task_list?"))
+    assert(!is_canopus_tool_title("Allow MCP tool other/canopus_task_list?"))
+    assert(!is_canopus_tool_title("Allow MCP tool canopus/unknown?"))
+    assert(!is_canopus_tool_title("Allow MCP tool canopus/canopus_task_list? extra"))
     assert(!is_canopus_tool_title("Shell"))
 }

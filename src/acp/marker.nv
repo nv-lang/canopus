@@ -208,5 +208,11 @@ export fn marker_feed(state MarkerState, text str, last bool) -> MarkerStep {
 /// the hub offered the tool itself (task 192.9).
 export fn is_canopus_tool_title(title str) -> bool {
     ro t = title.trim_ascii()
-    t == "mcp__canopus__canopus_task_list" || t == "mcp__canopus__canopus_task" || t == "mcp__canopus__ask_user_question"
+    ro prefix = "Allow MCP tool canopus/"
+    ro name = if t.starts_with(prefix) && t.ends_with("?") {
+        t[prefix.byte_len()..t.byte_len() - 1]
+    } else if t.starts_with("mcp__canopus__") {
+        t["mcp__canopus__".byte_len()..t.byte_len()]
+    } else { "" }
+    name == "canopus_task_list" || name == "canopus_task" || name == "ask_user_question"
 }

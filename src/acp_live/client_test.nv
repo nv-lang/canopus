@@ -492,6 +492,22 @@ test "agent: permission waits for the owner's event" {
     client.close()
 }
 
+test "agent: the offered Canopus MCP permission is allowed once" {
+    ro setup AskSetup = { form: true, mcp_url: "http://127.0.0.1:1/mcp/t1", mcp_token: "tok", hint: "" }
+    mut client = match open_client_asking(fake_config(["--ask"]), "", 0, setup) {
+        Ok(consume x) => x
+        Err(reason) => panic(reason)
+    }
+    with Link = acp_link(client) {
+        Link.send(req("agent-1", "permission-canopus"))
+        ro answer = collect_turn(10000)
+        assert(text_of(answer) == "permission: selected:allow-once")
+        for e in answer { assert(e.name != "permission_request") }
+        assert(client.pending_permissions().len() == 0)
+    }
+    client.close()
+}
+
 test "agent: owner refuses: reject_once" {
     mut client = start([])
     with Link = acp_link(client) {

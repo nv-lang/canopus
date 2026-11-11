@@ -169,11 +169,13 @@ async function prompt(id, params) {
       chunk("Готово");
       return respond(id, { stopReason: "end_turn" });
     }
-    case "permission": {
-      update({ sessionUpdate: "tool_call", toolCallId: "call_p1", title: "Записать result.md", kind: "edit", status: "pending" });
+    case "permission":
+    case "permission-canopus": {
+      const title = word === "permission-canopus" ? "Allow MCP tool canopus/canopus_task_list?" : "Записать result.md";
+      update({ sessionUpdate: "tool_call", toolCallId: "call_p1", title, kind: "edit", status: "pending" });
       const answer = await callClient("session/request_permission", {
         sessionId: SESSION,
-        toolCall: { toolCallId: "call_p1", title: "Записать result.md", kind: "edit" },
+        toolCall: { toolCallId: "call_p1", title, kind: "edit" },
         options: [
           { optionId: "allow-once", name: "Allow once", kind: "allow_once" },
           { optionId: "reject-once", name: "Reject", kind: "reject_once" },

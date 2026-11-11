@@ -792,7 +792,7 @@ fn AcpClient mut @on_permission(id JsonValue, params JsonValue) -> () {
         None => ()
     }
     // task 192.9: a call of the tool of the hub itself (Kimi Code asks leave for every MCP tool) is allowed once, the owner is not asked
-    if !@handoff_only && @ask.mcp_url.byte_len() > 0 {
+    if !@handoff_only && @mcp_http && @ask.mcp_url.byte_len() > 0 {
         ro call_title = match field(params, "toolCall") {
             Some(c) => field_text(c, "title") ?? ""
             None => ""

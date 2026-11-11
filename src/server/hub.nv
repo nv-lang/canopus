@@ -2106,8 +2106,10 @@ fn Hub mut @start_context_handoff(trace str, source JsonObject) Proc Detach Time
     ro s = @sessions[at]
     if !@takes_message_at(at) || !@work_require(at, "execute") { return }
     ro target = jtext(source, "family")
-    ro supported = (s.agent == "kimi" && target == "codex") || (s.agent == "codex" && target == "kimi")
-    if !supported || !s.dispatch.has_messages { return }
+    if target.byte_len() == 0 || target == s.agent || !s.dispatch.has_messages {
+        @tell_error(0, trace, s.engine.step_number(), "", "Для переноса истории выберите другую семью в чате с сообщениями")
+        return
+    }
     for pending in @handoffs { if pending.trace == trace { return } }
     ro config = match @open_config_for(target, s.id, @agent_cwd(s)) {
         Some(c) => c
@@ -2224,9 +2226,7 @@ fn Hub mut @poll_context_handoffs() Proc Detach Time -> () {
         if failed {
             job.client.close()
             if at >= 0 {
-                ro target_name = if target == "kimi" { "Kimi" } else { "Codex" }
-                ro previous_name = if job.previous == "kimi" { "Kimi" } else { "Codex" }
-                @tell_error(0, job.trace, @sessions[at].engine.step_number(), "", "Перенос контекста в ${target_name} не завершился. ${previous_name} остаётся активным.")
+                @tell_error(0, job.trace, @sessions[at].engine.step_number(), "", "Перенос контекста в ${target} не завершился. Прежний агент ${job.previous} остаётся активным.")
             }
         } else if completed {
             mut promoted = @sessions[at]

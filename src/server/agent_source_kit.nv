@@ -163,8 +163,7 @@ export fn scenario_context_handoff(settings ServerSettings, previous str, target
     c.expect(kit_ask(rig, "s-handoff", "first fact").byte_len() > 0, "the original turn completed")
     rig.forget()
     rig.page(1, "session_context_handoff", "s-handoff", "{\"family\":\"${target}\",\"model\":\"missing-model\"}")
-    ro previous_name = if previous == "kimi" { "Kimi" } else { "Codex" }
-    c.expect(rig.until("${previous_name} остаётся активным", 15000), "a refused model keeps the previous agent active")
+    c.expect(rig.until("${previous} остаётся активным", 15000), "a refused model keeps the previous agent active")
     c.expect(kit_with(rig.lines_for(1), "\"kind\":\"agent_switched\"") == 0, "failed handoff did not switch the family")
     rig.forget()
     rig.page(1, "session_context_handoff", "s-handoff", "{\"family\":\"${target}\",\"model\":\"fake-model-b\",\"effort\":\"high\"}")
@@ -177,7 +176,7 @@ export fn scenario_context_handoff(settings ServerSettings, previous str, target
     ro lines = rig.lines_for(1)
     ro turn = line_input(kit_last_of(lines, "user_message"), "turn")
     ro tools = answer_of(lines, turn)
-    c.expect(tools.contains("canopus_task_list") && tools.contains("Список показан владельцу"), "the promoted client can call Canopus tools")
+    c.expect(tools.contains("canopus_task_list") && tools.contains("Новых задач нет"), "the promoted client can call Canopus tools")
     rig.shut()
     c.report()
 }

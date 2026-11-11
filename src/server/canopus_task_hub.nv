@@ -673,7 +673,12 @@ fn Hub mut @ct_list_call(msg McpMsg) Proc Detach Time -> () {
             ro added = @ct_list_offer(at, items)
             if added == 0 { @ct_note(at, "▸ агент не нашёл новых задач") }
             @route_broadcast(at, true)
-            ro told = msg.reply.send("ok:Список показан владельцу (пунктов: ${added}). Файлы не меняй; закончи ход одной короткой строкой.")
+            ro reply = if added == 0 {
+                "ok:Новых задач нет. Статус уже показан владельцу. Заверши ход без текстового ответа."
+            } else {
+                "ok:Список показан владельцу (пунктов: ${added}). Файлы не меняй; закончи ход одной короткой строкой."
+            }
+            ro told = msg.reply.send(reply)
         }
     }
 }

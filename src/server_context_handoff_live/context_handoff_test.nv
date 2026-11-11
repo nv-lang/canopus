@@ -11,3 +11,8 @@ test "reverse handoff compacts on overflow and enables Kimi tools" {
     ro report = scenario_context_handoff(kit_files("reverse-context-handoff", 30000), "codex", "kimi")
     if report.byte_len() > 0 { panic("reverse context handoff: ${report}") }
 }
+
+test "context handoff also supports another ACP agent family" {
+    ro report = scenario_context_handoff(kit_files("other-context-handoff", 30000), "codex", "other-acp")
+    if report.byte_len() > 0 { panic("other context handoff: ${report}") }
+}
