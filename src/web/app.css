@@ -1468,17 +1468,17 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .ctx-row { display: flex; gap: 8px; font-size: 13px; }
 /* задача 192.5: таблица кандидатов, «папка деревьев» проекта, служебные подсказки агенту */
 .canopus-list { display: flex; flex-direction: column; flex-wrap: nowrap; align-items: stretch; min-width: 0; }
-.canopus-list-body { container: canopus-tasks / inline-size; max-block-size: min(42dvh, 360px); overflow: auto; scrollbar-gutter: stable; }
-.canopus-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.canopus-table th { text-align: left; font-weight: 600; color: var(--fg-muted); padding: 4px 8px 4px 0; }
-.canopus-table td { padding: 6px 8px 6px 0; vertical-align: top; border-top: 1px solid var(--border); }
-.canopus-no { width: 1%; color: var(--fg-muted); }
-.canopus-title { font-weight: 600; min-width: 120px; overflow-wrap: anywhere; }
-.canopus-summary { max-width: 260px; overflow-wrap: anywhere; }
-.canopus-summary > span { overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
-.canopus-touches { max-width: 200px; overflow-wrap: anywhere; font-size: 12px; }
-.canopus-choice { display: inline-flex; align-items: center; gap: 3px; margin-right: 8px; white-space: nowrap; cursor: pointer; }
-.canopus-way-cell { min-width: 150px; }
+.canopus-proposals { margin: 0; padding-inline-start: 22px; }
+.canopus-proposal { padding: 8px 0; overflow-wrap: anywhere; }
+.canopus-proposal + .canopus-proposal { border-top: 1px solid var(--border); }
+.canopus-proposal::marker { color: var(--fg-muted); }
+.canopus-title { font-weight: 600; }
+.canopus-summary { margin: 4px 0; }
+.canopus-choices { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 6px 0; }
+.canopus-choice { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; cursor: pointer; }
+.canopus-files { color: var(--fg-muted); }
+.canopus-files summary { width: fit-content; cursor: pointer; }
+.canopus-files ul { margin: 4px 0; padding-inline-start: 18px; }
 .canopus-apply-row { display: flex; flex: none; justify-content: flex-end; padding-top: 6px; border-top: 1px solid var(--border); }
 .canopus-apply { max-inline-size: 100%; white-space: normal; }
 .proj-trees .field-hint, .field-hint { font-size: 12px; margin: 2px 0 0; }
@@ -1487,17 +1487,6 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .hint-kind { font-weight: 600; flex: 1; }
 .hint-text { margin: 4px 0 0; padding: 6px 8px; max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid var(--border); border-radius: 8px; font-size: 12px; }
 .canopus-merge-all { margin-top: 6px; }
-@container canopus-tasks (max-width: 700px) {
-  .canopus-table thead { display: none; }
-  .canopus-table tbody { display: block; }
-  .canopus-table tr { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 8px; padding: 6px 0; }
-  .canopus-table tr + tr { border-top: 1px solid var(--border); }
-  .canopus-table td { display: block; border: 0; padding: 2px 0; max-width: none; }
-  .canopus-table td:nth-child(n + 3) { grid-column: 2; }
-  .canopus-table .canopus-no { width: auto; }
-  .canopus-table .canopus-way-cell:empty { display: none; }
-}
-
 /* ---- вкладка «Запрос» (задача 192.11) ---- */
 .req-border { font-size: 12px; margin: 2px 0 8px; overflow-wrap: anywhere; }
 .req-turns { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }

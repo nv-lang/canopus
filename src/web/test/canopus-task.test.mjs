@@ -92,14 +92,15 @@ test('полоса и таблица: кнопка «Распознать зад
   ui.bar.querySelector('button').click();
   assert.deepEqual(log.pop(), ['recognize', 's1']);
   // таблица: заголовки и две строки, у каждой три переключателя, выбран «Обсудить»
-  assert.deepEqual(el.querySelectorAll('th').map((x) => x.textContent), ['№', 'Название', 'Краткое содержание', 'Затронет', 'Решение', 'Способ']);
-  const rows = el.querySelectorAll('tbody tr');
+  const rows = el.querySelectorAll('.canopus-proposal');
   assert.equal(rows.length, 2);
   assert.match(rows[0].textContent, /Кнопка выхода/);
   assert.match(rows[0].textContent, /сделать кнопку/);
   assert.match(rows[0].textContent, /src\/web\/view\.js/);
-  assert.deepEqual(rows[0].querySelectorAll('input').map((r) => [r.value, r.checked]), [['work', false], ['discuss', true], ['forget', false]]);
-  assert.deepEqual(rows[0].querySelectorAll('label').map((l) => l.textContent), ['В работу', 'Обсудить', 'Забыть']);
+  assert.equal(rows[0].querySelector('summary').textContent, 'Затронутые файлы и папки (1)');
+  assert.equal(rows[0].querySelector('details').hasAttribute('open'), false);
+  assert.deepEqual(rows[0].querySelectorAll('input').map((r) => [r.value, r.checked]), [['discuss', true], ['work', false], ['forget', false]]);
+  assert.deepEqual(rows[0].querySelectorAll('label').map((l) => l.textContent), ['Продолжить обсуждение', 'В работу', 'Забыть']);
   assert.equal(rows[0].querySelectorAll('select').length, 0, 'способ виден только у «В работу»');
   assert.equal(el.querySelectorAll('.canopus-apply')[0].textContent, 'Применить: 0 в работу · 2 обсудить · 0 забыть');
   assert.equal(el.querySelectorAll('.canopus-quick').length, 0, 'текстового быстрого ответа нет');
@@ -116,16 +117,16 @@ test('таблица: выбор «В работу» открывает «Спо
   const targets = [{ number: 3, title: 'Старая', session: 's9', epic: false }];
   const { ui, log, session } = mount({ targets });
   const el = ui.el;
-  const radio = (row, value) => el.querySelectorAll('tbody tr')[row].querySelectorAll('input').filter((r) => r.value === value)[0];
+  const radio = (row, value) => el.querySelectorAll('.canopus-proposal')[row].querySelectorAll('input').filter((r) => r.value === value)[0];
   const choose = (row, value) => { const r = radio(row, value); r.checked = true; r.dispatchEvent({ type: 'change', target: r }); };
   choose(0, 'work');
   assert.equal(el.querySelectorAll('.canopus-apply')[0].textContent, 'Применить: 1 в работу · 1 обсудить · 0 забыть');
-  let way = el.querySelectorAll('tbody tr')[0].querySelectorAll('select')[0];
+  let way = el.querySelectorAll('.canopus-proposal')[0].querySelectorAll('select')[0];
   assert.ok(way, 'у «В работу» есть «Способ»');
-  assert.deepEqual(way.querySelectorAll('option').map((o) => o.textContent), ['Отдельная задача', 'Дочерняя задача к 3 · Старая', 'Новый эпик (разделить на части)', 'Дополнить 3 · Старая']);
+  assert.deepEqual(way.querySelectorAll('option').map((o) => o.textContent), ['Сделать одной задачей', 'Дочерняя задача к 3 · Старая', 'Оформить как эпик и разбить на дочерние задачи', 'Дополнить 3 · Старая']);
   choose(1, 'forget');
   assert.equal(el.querySelectorAll('.canopus-apply')[0].textContent, 'Применить: 1 в работу · 0 обсудить · 1 забыть');
-  way = el.querySelectorAll('tbody tr')[0].querySelectorAll('select')[0];
+  way = el.querySelectorAll('.canopus-proposal')[0].querySelectorAll('select')[0];
   way.value = 'child:3';
   way.dispatchEvent({ type: 'change', target: way });
   el.querySelectorAll('.canopus-apply')[0].click();
@@ -133,14 +134,14 @@ test('таблица: выбор «В работу» открывает «Спо
   assert.ok(session);
 });
 
-test('таблица: без открытых задач «Способ» — только «Отдельная задача» и «Эпик»; пометка агента про несуществующую задачу не выбирается', () => {
+test('таблица: без открытых задач «Способ» — только «Сделать одной задачей» и «Эпик»; пометка агента про несуществующую задачу не выбирается', () => {
   const { ui } = mount({ proposals: [prop({ id: 1, kind: 'child', epic: 55 }), prop({ id: 2, kind: 'epic', title: 'Большая' })] });
   const el = ui.el;
-  const choose = (row) => { const r = el.querySelectorAll('tbody tr')[row].querySelectorAll('input').filter((x) => x.value === 'work')[0]; r.checked = true; r.dispatchEvent({ type: 'change', target: r }); };
+  const choose = (row) => { const r = el.querySelectorAll('.canopus-proposal')[row].querySelectorAll('input').filter((x) => x.value === 'work')[0]; r.checked = true; r.dispatchEvent({ type: 'change', target: r }); };
   choose(0);
   choose(1);
-  const ways = el.querySelectorAll('tbody tr').map((row) => row.querySelectorAll('select')[0]);
-  assert.deepEqual(ways[0].querySelectorAll('option').map((o) => o.textContent), ['Отдельная задача', 'Новый эпик (разделить на части)']);
+  const ways = el.querySelectorAll('.canopus-proposal').map((row) => row.querySelectorAll('select')[0]);
+  assert.deepEqual(ways[0].querySelectorAll('option').map((o) => o.textContent), ['Сделать одной задачей', 'Оформить как эпик и разбить на дочерние задачи']);
   assert.equal(ways[0].value, 'new:0');
   assert.equal(ways[1].value, 'epic:0', 'пометка «эпик» от агента выбрана');
 });
@@ -224,7 +225,7 @@ test('карточка: подписи «Как оформить / Кто дел
   assert.match(text, /Режим выполнения:/);
   assert.doesNotMatch(text, /или напишите слово/);
   const way = el.querySelectorAll('.canopus-way')[0];
-  assert.deepEqual(way.querySelectorAll('option').map((o) => o.textContent), ['Отдельная задача', 'Дочерняя задача к 5 · Своя', 'Новый эпик (разделить на части)', 'Дополнить 5 · Своя']);
+  assert.deepEqual(way.querySelectorAll('option').map((o) => o.textContent), ['Сделать одной задачей', 'Дочерняя задача к 5 · Своя', 'Оформить как эпик и разбить на дочерние задачи', 'Дополнить 5 · Своя']);
   assert.equal(way.value, 'epic:0', 'выбран вариант агента');
   assert.deepEqual(el.querySelectorAll('.canopus-run')[0].querySelectorAll('option').map((o) => o.textContent), ['Супер быстро (малый маршрут, до 30 мин)', 'Быстрая задача (6 шагов)', 'Полный путь (8 шагов)']);
   assert.equal(el.querySelectorAll('.canopus-run')[0].value, 'full', 'режим агента выбран');

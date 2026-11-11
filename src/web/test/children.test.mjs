@@ -72,9 +72,9 @@ test('карточка: способ по умолчанию — отдельн�
   assert.equal(defaultWay({ ...base, kind: 'child', epic: 7 }), 'new:0');
   const values = wayOptions(base, canopus).map((o) => o.value);
   assert.deepEqual(values, ['new:0', 'child:232', 'child:100', 'epic:0', 'extend:232', 'extend:100']);
-  // нет открытых задач — только «Отдельная задача» и «Эпик»
+  // нет открытых задач — только «Сделать одной задачей» и «Эпик»
   assert.deepEqual(wayOptions(base, parseCanopusTask({})).map((o) => o.value), ['new:0', 'epic:0']);
-  assert.deepEqual(wayOptions(base, parseCanopusTask({})).map((o) => o.label), ['Отдельная задача', 'Новый эпик (разделить на части)']);
+  assert.deepEqual(wayOptions(base, parseCanopusTask({})).map((o) => o.label), ['Сделать одной задачей', 'Оформить как эпик и разбить на дочерние задачи']);
   assert.deepEqual(parseWay('child:232'), { mode: 'child', target: 232 });
   assert.deepEqual(parseWay('epic:0'), { mode: 'epic', target: 0 });
   assert.deepEqual(parseWay('мусор'), { mode: 'new', target: 0 });

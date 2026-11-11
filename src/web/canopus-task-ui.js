@@ -21,6 +21,7 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
   const agentList = typeof deps.agents === 'function' ? deps.agents : () => [];
   const ways = new Map(); // «сессия:карточка» -> выбранный способ «способ:номер» (переживает перерисовку)
   const agents = new Map(); // «сессия:карточка» -> семья агента для сессии задачи ('' — как у этой)
+  const expandedFiles = new Set();
   const choices = new Map(); // «сессия:карточка» -> work | discuss | forget
   const runs = new Map(); // «сессия:карточка» -> режим выполнения (interactive | fast | full)
   const kidsOff = new Map(); // «сессия:карточка» -> множество номеров частей эпика, с которых снята отметка
@@ -70,8 +71,8 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
     } else handlers.onCanopusProp(session.id, p.id, action);
   }
 
-  // Таблица кандидатов: одна кнопка внизу применяет решения по всем строкам.
-  function tableCard(session, canopus, rows, problems) {
+  // Список кандидатов: одна кнопка внизу применяет решения по всем строкам.
+  function proposalCard(session, canopus, rows, problems) {
     const choiceOf = (p) => choices.get(`${session.id}:${p.id}`) || DEFAULT_CHOICE;
     const local = new Map(rows.map((p) => [p.id, choiceOf(p)]));
     const body = rows.map((p) => {
@@ -82,30 +83,32 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
         input.addEventListener('change', () => { choices.set(key, c); sig = ''; render(current); });
         return h(doc, 'label', { class: 'canopus-choice', 'data-choice': c }, input, h(doc, 'span', { text: choiceLabel(c, session.route === 'planning') }));
       });
-      return h(doc, 'tr', { class: 'canopus-row', 'data-choice': choiceOf(p), 'data-id': String(p.id) },
-        h(doc, 'td', { class: 'canopus-no', text: String(p.number) }),
-        h(doc, 'td', { class: 'canopus-title', text: p.title }),
-        h(doc, 'td', { class: 'canopus-summary muted' }, h(doc, 'span', { title: p.summary, text: p.summary })),
-        h(doc, 'td', { class: 'canopus-touches muted', text: p.touches.join(', ') }),
-        h(doc, 'td', { class: 'canopus-choices' }, ...radios),
-        h(doc, 'td', { class: 'canopus-way-cell' }, choiceOf(p) === 'work' ? wayControls(session, canopus, p) : false));
+      const fileCount = p.touches.length;
+      const files = fileCount > 0 ? h(doc, 'details', { class: 'canopus-files', open: expandedFiles.has(key) },
+        h(doc, 'summary', { text: t('canopustask.touches_count', { n: fileCount }) }),
+        h(doc, 'ul', {}, ...p.touches.map(path => h(doc, 'li', {}, h(doc, 'code', { text: path }))))) : null;
+      files?.addEventListener('toggle', () => {
+        if (files.open) expandedFiles.add(key); else expandedFiles.delete(key);
+      });
+      return h(doc, 'li', { class: 'canopus-proposal', 'data-choice': choiceOf(p), 'data-id': String(p.id) },
+        h(doc, 'strong', { class: 'canopus-title', text: p.title }),
+        p.summary ? h(doc, 'p', { class: 'canopus-summary muted', text: p.summary }) : false,
+        h(doc, 'div', { class: 'canopus-choices', role: 'group', 'aria-label': p.title }, ...radios),
+        choiceOf(p) === 'work' ? wayControls(session, canopus, p) : false,
+        files);
     });
     const counts = applyCounts(rows, local);
     const apply = button(session.route === 'planning' ? 'Применить без запуска исполнения' : applyLabel(counts), 'primary canopus-apply', () => {
       handlers.onCanopusApply(session.id, applyPlan(rows, local, ways_for(session), agents_for(session), canopus));
     });
-    const table = rows.length === 0 ? false : h(doc, 'table', { class: 'canopus-table' },
-      h(doc, 'thead', {}, h(doc, 'tr', {},
-        h(doc, 'th', { text: t('canopustask.col_no') }), h(doc, 'th', { text: t('canopustask.col_title') }), h(doc, 'th', { text: t('canopustask.col_summary') }),
-        h(doc, 'th', { text: t('canopustask.col_touches') }), h(doc, 'th', { text: t('canopustask.col_choice') }), h(doc, 'th', { text: t('canopustask.col_way') }))),
-      h(doc, 'tbody', {}, ...body));
+    const list = rows.length > 0 ? h(doc, 'ol', { class: 'canopus-proposals' }, ...body) : false;
     const problemList = problems.length === 0 ? false : h(doc, 'ul', { class: 'canopus-rows' }, ...problems.map((p) => h(doc, 'li', { class: 'canopus-row', 'data-state': p.state },
       h(doc, 'span', { class: 'canopus-row-text', text: rowText(p, p.number) }),
       h(doc, 'span', { class: 'canopus-row-problem', text: problemText(p, canopus) }),
       h(doc, 'span', { class: 'route-actions' }, ...rowActions(p, '').map((a) => button(actionLabel(a, session), a.primary ? 'primary' : '', () => press(session, canopus, p, a.action)))))));
     return h(doc, 'section', { class: 'route-card canopus-list', 'data-card': 'canopus-list' },
       h(doc, 'strong', { class: 'route-card-title', text: t('canopustask.list_title') }),
-      h(doc, 'div', { class: 'canopus-list-body', tabindex: '0', 'aria-label': t('canopustask.list_title') }, table, problemList),
+      list, problemList,
       rows.length > 0 ? h(doc, 'div', { class: 'canopus-apply-row' }, apply) : false);
   }
 
@@ -202,7 +205,6 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
   /** Перерисовать по сессии (вызывается из render() view.js). */
   let current = null;
   function render(session) {
-    const scrollTop = current?.id === session?.id ? el.querySelector('.canopus-list-body')?.scrollTop : undefined;
     current = session;
     const canopus = (session && session.routeState && session.routeState.canopus) || EMPTY_CREW;
     const rows = tableRows(canopus);
@@ -218,10 +220,8 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
       h(doc, 'span', { class: 'canopus-count muted', text: activeText(canopus) }),
       canopus.candidates > 0 ? h(doc, 'span', { class: 'canopus-count muted', text: t('canopustask.candidates', { n: canopus.candidates }) }) : false,
       button(t('canopustask.recognize'), '', () => handlers.onCanopusRecognize(session.id))].filter(Boolean));
-    el.replaceChildren(...[rows.length + problems.length > 0 ? tableCard(session, canopus, rows, problems) : false, single ? singleCardEl(session, canopus, single) : false].filter(Boolean));
+    el.replaceChildren(...[rows.length + problems.length > 0 ? proposalCard(session, canopus, rows, problems) : false, single ? singleCardEl(session, canopus, single) : false].filter(Boolean));
     el.hidden = el.children.length === 0;
-    const listBody = el.querySelector('.canopus-list-body');
-    if (listBody && scrollTop !== undefined) listBody.scrollTop = scrollTop;
   }
 
   /** Блок правой панели: сколько в работе и кандидаты (нет задач и нет кандидатов — подсказка, как они появляются). */
