@@ -316,7 +316,24 @@ export function inlineSpans(text) {
   return spans;
 }
 
-/** Текст ответа -> абзацы и списки. Никакой разметки: результат кладётся в узлы через textContent. */
+function tableCells(line) {
+  if (!line?.includes('|')) return null;
+  const cells = [];
+  let start = 0;
+  const cellText = (end) => line.slice(start, end).trim().replace(/\\[\\|]/gu, pair => pair[1] === '|' ? '|' : pair);
+  for (const token of line.matchAll(/\\[\\|]|\|/gu)) {
+    if (token[0] !== '|') continue;
+    cells.push(cellText(token.index));
+    start = token.index + 1;
+  }
+  if (cells.length === 0) return null;
+  cells.push(cellText(line.length));
+  if (!cells[0]) cells.shift();
+  if (!cells.at(-1)) cells.pop();
+  return cells.length ? cells : null;
+}
+
+/** Блоки Markdown. Содержимое остаётся текстом для безопасного построения DOM. */
 export function paragraphs(text) {
   const blocks = [];
   let cur = null;
@@ -325,8 +342,24 @@ export function paragraphs(text) {
     blocks.push(cur.type === 'p' ? { type: 'p', text: cur.lines.join('\n') } : { type: cur.type, items: cur.lines });
     cur = null;
   };
-  for (const line of String(text).split('\n')) {
+  const lines = String(text).split('\n');
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
     if (line.trim() === '') { flush(); continue; }
+    const headers = tableCells(line);
+    const divider = headers && tableCells(lines[i + 1]);
+    if (divider && divider.length === headers.length && divider.every(cell => /^:?-+:?$/u.test(cell))) {
+      flush();
+      const align = divider.map(cell => cell.endsWith(':') ? (cell.startsWith(':') ? 'center' : 'end') : 'start');
+      const rows = [];
+      i += 1;
+      for (let row = tableCells(lines[i + 1]); row; row = tableCells(lines[i + 1])) {
+        rows.push(headers.map((_, col) => row[col] ?? ''));
+        i += 1;
+      }
+      blocks.push({ type: 'table', headers, align, rows });
+      continue;
+    }
     if (/^▸ canopus_list\s+\{\s*\}\s*$/u.test(line)) {
       flush();
       blocks.push({ type: 'canopus-list' });

@@ -504,6 +504,12 @@ input, select, textarea {
 .code-keyword { color: var(--md-keyword); }
 .code-string { color: var(--ok); }
 .code-comment { color: var(--md-comment); }
+.md-table-scroll { max-width: 100%; overflow-x: auto; margin: 0 0 10px; }
+.md-table { width: max-content; max-width: 100%; border-collapse: collapse; }
+.md-table th, .md-table td { padding: 5px 9px; border: 1px solid var(--border); vertical-align: top; text-align: start; }
+.md-table th { background: var(--surface-2); }
+.md-table [data-align="center"] { text-align: center; }
+.md-table [data-align="end"] { text-align: end; }
 .prose > :last-child { margin-bottom: 0; }
 
 code.inline {

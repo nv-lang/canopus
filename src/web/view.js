@@ -1606,6 +1606,14 @@ export function createView(doc, refs, deps) {
       }
       for (const p of paragraphs(b.text)) {
         if (p.type === 'p') out.push(h(doc, 'p', {}, ...spans(p.text)));
+        else if (p.type === 'table') {
+          const header = h(doc, 'tr', {}, ...p.headers.map((cell, col) =>
+            h(doc, 'th', { scope: 'col', 'data-align': p.align[col] }, ...spans(cell))));
+          const rows = p.rows.map(row => h(doc, 'tr', {}, ...row.map((cell, col) =>
+            h(doc, 'td', { 'data-align': p.align[col] }, ...spans(cell)))));
+          out.push(h(doc, 'div', { class: 'md-table-scroll' },
+            h(doc, 'table', { class: 'md-table' }, h(doc, 'thead', {}, header), h(doc, 'tbody', {}, ...rows))));
+        }
         else if (p.type === 'heading') out.push(h(doc, 'h' + p.level, { class: 'md-heading' }, ...spans(p.text)));
         else if (p.type === 'canopus-list') out.push(h(doc, 'div', { class: 'canopus-list-note' }, icon(doc, 'i-file'), h(doc, 'span', { text: t('work.canopus_list') })));
         else out.push(h(doc, p.type, {}, ...p.items.map((item) => h(doc, 'li', {}, ...spans(item)))));
