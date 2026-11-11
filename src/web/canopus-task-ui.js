@@ -28,6 +28,24 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
   const el = h(doc, 'div', { class: 'canopus-over', hidden: true });
   const bar = h(doc, 'div', { class: 'canopus-bar', hidden: true });
   let sig = '';
+  const pending = new Map();
+  function proposalState(canopus, id) {
+    const proposal = canopus.proposals.find((p) => p.id === id);
+    return proposal ? `${proposal.state}:${proposal.choice}` : '';
+  }
+
+  function submit(session, canopus, ids, send) {
+    if (pending.has(session.id)) return;
+    const operation = { ids, before: ids.map((id) => proposalState(canopus, id)), routeStep: session.routeStep, timer: null, waiting: true };
+    pending.set(session.id, operation);
+    if (send() === false) pending.delete(session.id);
+    else operation.timer = setTimeout(() => {
+      operation.waiting = false;
+      if (current?.id === session.id) render(current);
+    }, 30000);
+    operation.timer?.unref?.();
+    render(current);
+  }
 
   const button = (text, cls, run) => {
     const b = h(doc, 'button', { type: 'button', class: `route-btn ${cls}`.trim(), text });
@@ -56,7 +74,12 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
       family.value = agent;
       family.addEventListener('change', () => { agents.set(key, family.value); });
     }
-    return h(doc, 'span', { class: 'canopus-way-row' }, select, family);
+    const run = runs.get(key) || defaultRun(p);
+    const runSelect = h(doc, 'select', { class: 'canopus-run', 'aria-label': t('canopustask.run_label') },
+      ...runOptions().map((o) => h(doc, 'option', { value: o.value, text: o.label, selected: o.value === run })));
+    runSelect.value = run;
+    runSelect.addEventListener('change', () => { runs.set(key, runSelect.value); });
+    return h(doc, 'span', { class: 'canopus-way-row' }, select, session.route === 'planning' ? false : runSelect, family);
   }
 
   function press(session, canopus, p, action) {
@@ -67,8 +90,8 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
       const key = `${session.id}:${p.id}`;
       const opts = { mode, target, agent, run: runs.get(key) || defaultRun(p) };
       if (mode === 'epic' && p.children.length > 0) opts.children = childrenPicked(p.children.length, kidsOff.get(key) || new Set());
-      handlers.onCanopusProp(session.id, p.id, action, opts);
-    } else handlers.onCanopusProp(session.id, p.id, action);
+      submit(session, canopus, [p.id], () => handlers.onCanopusProp(session.id, p.id, action, opts));
+    } else submit(session, canopus, [p.id], () => handlers.onCanopusProp(session.id, p.id, action));
   }
 
   // Список кандидатов: одна кнопка внизу применяет решения по всем строкам.
@@ -99,7 +122,8 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
     });
     const counts = applyCounts(rows, local);
     const apply = button(session.route === 'planning' ? 'Применить без запуска исполнения' : applyLabel(counts), 'primary canopus-apply', () => {
-      handlers.onCanopusApply(session.id, applyPlan(rows, local, ways_for(session), agents_for(session), canopus));
+      const selectedRuns = new Map(rows.map((p) => [p.id, runs.get(`${session.id}:${p.id}`)]));
+      submit(session, canopus, rows.filter((p) => choiceOf(p) !== 'discuss' || p.choice !== 'discuss').map((p) => p.id), () => handlers.onCanopusApply(session.id, applyPlan(rows, local, ways_for(session), agents_for(session), canopus, selectedRuns)));
     });
     const list = rows.length > 0 ? h(doc, 'ol', { class: 'canopus-proposals' }, ...body) : false;
     const problemList = problems.length === 0 ? false : h(doc, 'ul', { class: 'canopus-rows' }, ...problems.map((p) => h(doc, 'li', { class: 'canopus-row', 'data-state': p.state },
@@ -211,7 +235,13 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
     const problems = problemRows(canopus);
     const single = singleCard(canopus);
     const show = recognizeShown(session);
-    const next = JSON.stringify([session && session.id, session && session.route, show, canopus, [...ways], [...agents], [...choices], [...runs], [...kidsOff].map(([k, v]) => [k, [...v]]), agentList()]);
+    let operation = pending.get(session?.id);
+    if (operation && (operation.ids.length ? operation.ids.every((id, i) => proposalState(canopus, id) !== operation.before[i]) : session.routeStep !== operation.routeStep)) {
+      clearTimeout(operation.timer);
+      pending.delete(session.id);
+      operation = undefined;
+    }
+    const next = JSON.stringify([operation?.waiting, session && session.id, session && session.route, show, canopus, [...ways], [...agents], [...choices], [...runs], [...kidsOff].map(([k, v]) => [k, [...v]]), agentList()]);
     if (next === sig) return;
     sig = next;
     bar.hidden = !show;
@@ -220,7 +250,16 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
       h(doc, 'span', { class: 'canopus-count muted', text: activeText(canopus) }),
       canopus.candidates > 0 ? h(doc, 'span', { class: 'canopus-count muted', text: t('canopustask.candidates', { n: canopus.candidates }) }) : false,
       button(t('canopustask.recognize'), '', () => handlers.onCanopusRecognize(session.id))].filter(Boolean));
-    el.replaceChildren(...[rows.length + problems.length > 0 ? proposalCard(session, canopus, rows, problems) : false, single ? singleCardEl(session, canopus, single) : false].filter(Boolean));
+    const progress = operation && h(doc, 'div', { class: 'canopus-pending muted', role: 'status' },
+      operation.waiting ? h(doc, 'span', { class: 'spinner', 'aria-hidden': 'true' }) : false,
+      h(doc, 'span', { text: t(operation.waiting ? 'canopustask.applying' : 'canopustask.applying_unconfirmed') }));
+    el.replaceChildren(...[rows.length + problems.length > 0 ? proposalCard(session, canopus, rows, problems) : false,
+      single ? singleCardEl(session, canopus, single) : false, progress].filter(Boolean));
+    if (operation) {
+      for (const tag of ['button', 'select', 'input']) {
+        for (const control of el.querySelectorAll(tag)) control.disabled = true;
+      }
+    }
     el.hidden = el.children.length === 0;
   }
 

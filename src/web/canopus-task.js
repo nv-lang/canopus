@@ -82,7 +82,7 @@ export const canopusSignal = Object.freeze({
   extUndo: (id) => ({ kind: 'route_ext_undo', input: { id } }),
   childrenMerge: () => ({ kind: 'route_children_merge', input: {} }),
   // items: [{ id, action: 'work' | 'discuss' | 'forget', mode?, target?, agent? }] — вся таблица кандидатов одним сигналом
-  apply: (items) => ({ kind: 'route_apply', input: { items: items.map((x) => ({ id: x.id, action: x.action, ...(x.action === 'work' ? { mode: x.mode || 'new', target: x.target || 0 } : {}), ...(x.action === 'work' && x.agent ? { agent: x.agent } : {}) })) } }),
+  apply: (items) => ({ kind: 'route_apply', input: { items: items.map((x) => ({ id: x.id, action: x.action, ...(x.action === 'work' ? { mode: x.mode || 'new', target: x.target || 0 } : {}), ...(x.action === 'work' && x.agent ? { agent: x.agent } : {}), ...(x.action === 'work' && x.run ? { run: x.run } : {}) })) } }),
 });
 
 /** Строки списка «Распознать задачи» (по порядку, номера с 1). */
@@ -204,12 +204,12 @@ export function applyLabel(counts) {
 }
 
 /** Что уходит серверу по кнопке «Применить»: по строке на каждую; «В работу» — со способом и семьёй агента. */
-export function applyPlan(rows, choices, ways, agents, canopus) {
+export function applyPlan(rows, choices, ways, agents, canopus, runs = new Map()) {
   return rows.map((p) => {
     const action = choices.get(p.id) || DEFAULT_CHOICE;
     if (action !== 'work') return { id: p.id, action };
     const { mode, target } = parseWay(ways.get(p.id) || defaultWay(p, canopus));
-    return { id: p.id, action, mode, target, agent: agents.get(p.id) || '' };
+    return { id: p.id, action, mode, target, agent: agents.get(p.id) || '', run: runs.get(p.id) || defaultRun(p) };
   });
 }
 

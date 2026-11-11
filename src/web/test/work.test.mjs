@@ -268,6 +268,7 @@ test('long search output stays scrollable and manually opened actions stay open'
   const done = st.reduce(model, ev('tool_call_update', { id: 'search', status: 'completed' }, { step: 3 }));
   render(model);
   assert.equal(refs.main.querySelector('.row-content').hidden, false);
+  const preview = refs.main.querySelector('.work-preview');
   const output = refs.main.querySelector('.row-output');
   assert.equal(refs.main.querySelector('.row-content').getAttribute('data-clipped'), 'true');
   assert.equal(output.textContent, detail);
@@ -279,10 +280,14 @@ test('long search output stays scrollable and manually opened actions stay open'
   assert.equal(refs.main.querySelector('.work-body').hidden, false);
   const next = st.reduce(done, ev('tool_call', { id: 'next', kind: 'search', title: 'Search again', status: 'in_progress', detail: 'next result' }, { step: 4 }));
   render(next);
-  assert.deepEqual(refs.main.querySelectorAll('.row-content').map(row => row.hidden), [true, false]);
+  assert.equal(refs.main.querySelector('.work-preview'), preview);
+  assert.equal(preview.querySelector('.row-output').textContent, 'next result');
+  assert.equal(refs.main.querySelectorAll('.row-content').length, 1);
   const finished = st.reduce(next, ev('tool_call_update', { id: 'next', status: 'completed' }, { step: 5 }));
   render(finished);
-  assert.deepEqual(refs.main.querySelectorAll('.row-content').map(row => row.hidden), [true, false]);
+  assert.equal(refs.main.querySelector('.work-preview'), preview);
+  assert.equal(preview.querySelector('.row-output').textContent, 'next result');
+  assert.equal(refs.main.querySelectorAll('.row-content').length, 1);
   const responding = st.reduce(finished, ev('agent_chunk', { text: 'Готово' }, { step: 6 }));
   render(responding);
   assert.equal(refs.main.querySelector('.work-body').hidden, true);

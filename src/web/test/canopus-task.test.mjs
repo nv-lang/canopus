@@ -129,8 +129,21 @@ test('таблица: выбор «В работу» открывает «Спо
   way = el.querySelectorAll('.canopus-proposal')[0].querySelectorAll('select')[0];
   way.value = 'child:3';
   way.dispatchEvent({ type: 'change', target: way });
-  el.querySelectorAll('.canopus-apply')[0].click();
-  assert.deepEqual(log.pop(), ['apply', 's1', [{ id: 1, action: 'work', mode: 'child', target: 3, agent: '' }, { id: 2, action: 'forget' }]]);
+  const run = el.querySelector('.canopus-run');
+  run.value = 'fast';
+  run.dispatchEvent({ type: 'change', target: run });
+  const apply = el.querySelector('.canopus-apply');
+  apply.click();
+  assert.equal(el.querySelector('.canopus-apply').disabled, true);
+  assert.ok(el.querySelector('.spinner'));
+  apply.click();
+  assert.equal(log.length, 1);
+  assert.deepEqual(log.pop(), ['apply', 's1', [{ id: 1, action: 'work', mode: 'child', target: 3, agent: '', run: 'fast' }, { id: 2, action: 'forget' }]]);
+  ui.render(session);
+  assert.equal(el.querySelector('.canopus-apply').disabled, true);
+  const canopus = session.routeState.canopus;
+  ui.render({ ...session, routeState: { canopus: { ...canopus, proposals: canopus.proposals.filter((p) => p.id !== 1 && p.id !== 2) } } });
+  assert.equal(el.querySelector('.canopus-pending'), null);
   assert.ok(session);
 });
 
@@ -155,7 +168,7 @@ test('сводка и план таблицы: счёт по решениям, �
   assert.deepEqual(counts, { work: 1, discuss: 1, forget: 1 });
   assert.equal(applyLabel(counts), 'Применить: 1 в работу · 1 обсудить · 1 забыть');
   assert.deepEqual(applyPlan(rows, choices, new Map([[1, 'epic:0']]), new Map([[1, 'codex']]), canopus), [
-    { id: 1, action: 'work', mode: 'epic', target: 0, agent: 'codex' }, { id: 2, action: 'discuss' }, { id: 3, action: 'forget' },
+    { id: 1, action: 'work', mode: 'epic', target: 0, agent: 'codex', run: 'interactive' }, { id: 2, action: 'discuss' }, { id: 3, action: 'forget' },
   ]);
   const over = problemRows(canopus);
   assert.equal(over.length, 1);
@@ -227,7 +240,7 @@ test('карточка: подписи «Как оформить / Кто дел
   const way = el.querySelectorAll('.canopus-way')[0];
   assert.deepEqual(way.querySelectorAll('option').map((o) => o.textContent), ['Сделать одной задачей', 'Дочерняя задача к 5 · Своя', 'Оформить как эпик и разбить на дочерние задачи', 'Дополнить 5 · Своя']);
   assert.equal(way.value, 'epic:0', 'выбран вариант агента');
-  assert.deepEqual(el.querySelectorAll('.canopus-run')[0].querySelectorAll('option').map((o) => o.textContent), ['Супер быстро (малый маршрут, до 30 мин)', 'Быстрая задача (6 шагов)', 'Полный путь (8 шагов)']);
+  assert.deepEqual(el.querySelectorAll('.canopus-run')[0].querySelectorAll('option').map((o) => o.textContent), ['Малый путь', 'Быстрая задача (6 шагов)', 'Полный путь (8 шагов)']);
   assert.equal(el.querySelectorAll('.canopus-run')[0].value, 'full', 'режим агента выбран');
   assert.equal(el.querySelectorAll('.canopus-agent')[0].querySelectorAll('option')[0].textContent, 'этот же агент (codex)');
   assert.match(text, /делится на дочерние/, 'у способа есть пояснение мелким серым');
@@ -256,10 +269,11 @@ test('карточка эпика: дочерние строками с флаж
   el.querySelectorAll('button').filter((b) => b.textContent === 'В работу')[0].click();
   assert.deepEqual(log.pop(), ['prop', 's1', 7, 'start', { mode: 'epic', target: 0, agent: '', run: 'full', children: '' }]);
   // снять вторую часть: уходит «0»
-  const box = el.querySelectorAll('.canopus-child')[1].querySelectorAll('input')[0];
+  const second = mountSingle();
+  const box = second.el.querySelectorAll('.canopus-child')[1].querySelectorAll('input')[0];
   box.click();
-  el.querySelectorAll('button').filter((b) => b.textContent === 'В работу')[0].click();
-  assert.equal(log.pop()[4].children, '0');
+  second.el.querySelectorAll('button').filter((b) => b.textContent === 'В работу')[0].click();
+  assert.equal(second.log.pop()[4].children, '0');
 });
 
 test('карточка: владелец меняет режим выполнения — он уходит с кнопкой; сигнал несёт run и children', () => {

@@ -172,6 +172,16 @@ test('question_request открывает вопрос в сессии, повт
   assert.equal(reduce(m, ev('question_request', { request: 'r1', questions: RAW }, 3)).sessions.s1.pendingQuestion, s.pendingQuestion);
 });
 
+test('таймер хода скрыт до ответа и исключает время ожидания', () => {
+  const start = ev('user_message', { turn: 't1', text: 'привет' }, 1);
+  const question = { ...asked(), time: start.time + 2000 };
+  const waiting = run([created(), start, question]);
+  assert.equal(timeline(waiting.sessions.s1).some((item) => item.type === 'running'), false);
+  const answer = { ...ev('question_answer', { request: 'r1', skipped: true }, 3), time: question.time + 60000 };
+  const resumed = reduce(waiting, answer).sessions.s1;
+  assert.equal(timeline(resumed).find((item) => item.type === 'running').since, start.time + 60000);
+});
+
 test('question_request без годных вопросов игнорируется', () => {
   const m = run([created(), ev('question_request', { request: 'r1', questions: [{ question: '' }] }, 1)]);
   assert.equal(m.sessions.s1.pendingQuestion, null);

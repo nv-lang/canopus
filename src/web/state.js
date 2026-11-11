@@ -339,6 +339,8 @@ function apply(session, event) {
         state: 'answering',
         pending: null,
         turnStartedAt: event.time,
+        turnPausedAt: null,
+        turnPausedMs: 0,
         messages: [...session.messages, user, newAgentMessage(userTurn, actual)],
       };
     }
@@ -645,6 +647,8 @@ export function reduce(model, event) {
       tasks: [],
       diffs: [],
       turnStartedAt: 0,
+      turnPausedAt: null,
+      turnPausedMs: 0,
     };
     return { ...model, seen, sessions: { ...model.sessions, [event.trace]: session } };
   }
@@ -671,10 +675,18 @@ export function reduce(model, event) {
   }
 
   const changed = apply(session, event);
+  const waiting = changed.pendingQuestion || changed.pending;
+  const pausedAt = changed.turnPausedAt;
+  const resumes = pausedAt != null && !waiting && changed.state === 'answering';
+  const turnPausedAt = waiting && changed.turnStartedAt > 0
+    ? (pausedAt ?? Math.max(changed.turnStartedAt, event.time)) : null;
+  const turnPausedMs = (changed.turnPausedMs || 0) + (resumes ? Math.max(0, event.time - pausedAt) : 0);
   // перестановка владельцем не «событие в сессии»: порядок по активности от неё не меняется
   const quiet = event.kind === 'session_placed';
   const next = {
     ...changed,
+    turnPausedAt,
+    turnPausedMs,
     updatedAt: quiet ? session.updatedAt : Math.max(session.updatedAt, event.time),
     lastStep: Math.max(session.lastStep, event.step),
   };

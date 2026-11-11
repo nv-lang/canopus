@@ -737,9 +737,9 @@ const handlers = {
   // Распознавание задач (задача 192.2): кнопка «Распознать задачи», кнопки карточек, быстрый ответ
   onCanopusRecognize(trace) { send(...signal(trace, canopusSignal.recognize())); },
   onExtUndo(trace, id) { send(...signal(trace, canopusSignal.extUndo(id))); },
-  onCanopusProp(trace, id, action, opts) { send(...signal(trace, canopusSignal.prop(id, action, opts))); },
+  onCanopusProp(trace, id, action, opts) { return send(...signal(trace, canopusSignal.prop(id, action, opts))); },
   onChildrenMerge(trace) { send(...signal(trace, canopusSignal.childrenMerge())); },
-  onCanopusApply(trace, items) { send(...signal(trace, canopusSignal.apply(items))); },
+  onCanopusApply(trace, items) { return send(...signal(trace, canopusSignal.apply(items))); },
   onRouteSubtaskChoose(trace, n, tree) { send(...signal(trace, routeSignal.subtaskChoose(n, tree))); },
   // «Закончить задачу»: переключить режим и сразу прогнать шаги окончания — два сигнала подряд, шаг события у каждого свой
   onRouteFinish(trace, route) {

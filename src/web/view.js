@@ -1775,11 +1775,10 @@ export function createView(doc, refs, deps) {
       expandable: Boolean(command || input || result || webSearch), key: `${currentTrace}:row:${r.key}` };
   }
 
-  function workRow({ r, label, secondary, command, input, result, webSearch, expandable, key }, autoOpen) {
+  function workDetails({ r, command, input, result, webSearch }) {
     const clipped = [command, input, result].filter(Boolean).join('\n').trimEnd().split('\n').length > 11;
     const toolOutput = r.type === 'tool';
-    const expanded = workToggles.get(key) ?? autoOpen;
-    const details = expandable ? h(doc, 'div', { class: 'row-content', hidden: !expanded, tabindex: '0', 'data-clipped': clipped ? 'true' : undefined },
+    return h(doc, 'div', { class: 'row-content', tabindex: '0', 'data-clipped': clipped ? 'true' : undefined },
       command ? h(doc, 'code', { class: 'row-command', text: command }) : false,
       input ? h(doc, 'div', { class: 'row-detail-label', text: t('work.input') }) : false,
       input ? h(doc, 'pre', { class: 'row-detail row-output', text: input }) : false,
@@ -1787,20 +1786,49 @@ export function createView(doc, refs, deps) {
       result || webSearch ? h(doc, toolOutput ? 'pre' : 'div', {
         class: toolOutput ? 'row-detail row-output' : 'row-detail',
         'aria-label': toolOutput ? t('work.output') : undefined, text: result || t('work.no_search_response'),
-      }) : false) : null;
-    const heading = h(doc, details ? 'button' : 'div', details
+      }) : false);
+  }
+
+  function workRow(row, automatic, refresh) {
+    const { r, label, secondary, expandable, key } = row;
+    const expanded = workToggles.get(key) ?? automatic;
+    const heading = h(doc, expandable ? 'button' : 'div', expandable
       ? { type: 'button', class: 'row-label row-toggle', 'aria-expanded': String(expanded) }
       : { class: 'row-label row-heading' },
     h(doc, 'span', { text: label }), secondary ? h(doc, 'span', { class: 'row-secondary', text: '· ' + secondary }) : false);
-    if (details) heading.addEventListener('click', () => {
-      const next = details.hidden;
-      workToggles.set(key, next);
-      heading.setAttribute('aria-expanded', String(next));
-      details.hidden = !next;
+    if (expandable) heading.addEventListener('click', () => {
+      workToggles.set(key, !expanded);
+      refresh();
     });
     return h(doc, 'div', { class: 'work-row', 'data-state': r.status },
-      rowIcon(r),
-      heading, rowStatus(r), details);
+      rowIcon(r), heading, rowStatus(r), expandable && expanded && !automatic ? workDetails(row) : false);
+  }
+
+  function updateWorkPreview(entry, row, visible) {
+    const preview = entry.workPreview ??= h(doc, 'div', { class: 'work-preview' });
+    const signature = row && JSON.stringify([row.key, row.command, row.input, row.result, row.webSearch]);
+    if (entry.previewSignature === signature) return () => {};
+    const old = preview.firstElementChild;
+    const from = preview.getBoundingClientRect?.().height || 0;
+    const previousGroupHeight = entry.node.getBoundingClientRect?.().height || 0;
+    const sameAction = entry.previewKey === row?.key;
+    const scroll = sameAction ? old?.scrollTop || 0 : 0;
+    entry.previewKey = row?.key;
+    entry.previewSignature = signature;
+    const detail = row && workDetails(row);
+    preview.replaceChildren(...(detail ? [detail] : []));
+    if (detail) detail.scrollTop = scroll;
+    return () => {
+      entry.previewAnimation?.cancel();
+      if (!visible || !preview.animate || win?.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+      const to = preview.getBoundingClientRect().height;
+      // Компенсируем появление новой строки, чтобы высота группы менялась вместе с панелью.
+      const groupHeight = entry.node.getBoundingClientRect().height;
+      const startHeight = old && detail && !sameAction ? Math.max(0, previousGroupHeight - (groupHeight - to)) : from;
+      if (Math.abs(startHeight - to) > 1) entry.previewAnimation = preview.animate(
+        [{ height: `${startHeight}px` }, { height: `${to}px` }], { duration: 200, easing: 'ease-out' });
+      if (detail && old && !sameAction) detail.animate([{ opacity: 0.35 }, { opacity: 1 }], { duration: 180, easing: 'ease-out' });
+    };
   }
 
   function toggleOpen(key, button, body) {
@@ -1833,7 +1861,16 @@ export function createView(doc, refs, deps) {
       single && !active ? rowStatus(single) : false);
     const rows = item.rows.map(workRowDetails);
     const latest = item.active ? rows.findLast(row => row.expandable) : undefined;
-    const body = h(doc, 'div', { class: 'work-body', hidden: !isOpen }, ...rows.map(row => workRow(row, row === latest)));
+    const automatic = latest && !workToggles.has(latest.key)
+      && !/^(?:ask[ _-]?user(?:[ _-]?question)?|askuserquestion)$/iu.test(latest.r.title?.trim() || '') ? latest : undefined;
+    const animate = updateWorkPreview(entry, automatic, isOpen);
+    const refresh = (index) => {
+      const focused = doc.activeElement === entry.node.querySelectorAll('.work-row')[index]?.querySelector('.row-toggle');
+      fillWork(entry, item);
+      if (focused) entry.node.querySelectorAll('.work-row')[index]?.querySelector('.row-toggle')?.focus({ preventScroll: true });
+    };
+    const body = h(doc, 'div', { class: 'work-body', hidden: !isOpen },
+      ...rows.map((row, index) => workRow(row, row === automatic, () => refresh(index))), entry.workPreview);
     toggle.addEventListener('click', () => {
       const next = toggle.getAttribute('aria-expanded') !== 'true';
       workToggles.set(key, next);
@@ -1841,6 +1878,7 @@ export function createView(doc, refs, deps) {
       body.hidden = !next;
     });
     entry.node.replaceChildren(toggle, body);
+    animate();
   }
 
   function fillDiffs(entry, item) {
@@ -2738,6 +2776,7 @@ export function createView(doc, refs, deps) {
       askCard.setAttribute('aria-labelledby', `ask-q-${f.active}`);
       const answerText = f.answers[f.active].other ? f.answers[f.active].text : '';
       if (answer.value !== answerText) answer.value = answerText;
+      if (questionPosition) questionPosition.textContent = t('ask.position', { n: f.active + 1, total: questions.length });
       prev.disabled = f.active === 0;
       next.disabled = f.active === questions.length - 1;
       send.textContent = f.active < questions.length - 1 ? t('ask.next') : t('ask.send');
@@ -2795,7 +2834,6 @@ export function createView(doc, refs, deps) {
       const rows = q.options.map((o, oi) => optionRow(qi, oi, o.label, o.description, false));
       const other = optionRow(qi, otherIndex(q), t('ask.other'), '', true);
       const heading = h(doc, 'h3', { class: 'ask-q', id: `ask-q-${qi}` },
-        h(doc, 'span', { class: 'ask-key', 'aria-hidden': 'true', text: String(qi + 1) }),
         h(doc, 'span', { class: 'ask-question-text', text: q.question }),
         q.multiSelect ? h(doc, 'span', { class: 'ask-multi', text: t('ask.multi') }) : false);
       const list = h(doc, 'div', { class: 'ask-options', role: q.multiSelect ? 'group' : 'radiogroup', 'aria-labelledby': `ask-q-${qi}` }, ...rows.map((r) => r.row), other.row);
@@ -2806,10 +2844,11 @@ export function createView(doc, refs, deps) {
     tabs = multi ? questions.map((q, qi) => {
       const tab = h(doc, 'button', {
         type: 'button', class: 'ask-tab', role: 'tab', id: `ask-tab-${qi}`, 'aria-controls': `ask-panel-${qi}`,
-      }, h(doc, 'span', { text: q.header ? `${qi + 1}. ${q.header}` : t('ask.tab_n', { n: qi + 1 }) }), icon(doc, 'i-check'));
+      }, h(doc, 'span', { text: q.header ? q.header : t('ask.tab_n', { n: qi + 1 }) }), icon(doc, 'i-check'));
       tab.addEventListener('click', () => { visit(qi); focusRow(qi, get().cursor[qi], false); });
       return tab;
     }) : [];
+    const questionPosition = multi ? h(doc, 'div', { class: 'ask-position muted' }) : false;
     const tabRow = multi ? h(doc, 'div', { class: 'ask-tabs', role: 'tablist', 'aria-label': t('ask.tabs') }, prev, ...tabs, next) : false;
 
     badgeText = h(doc, 'span', { class: 'ask-badge-text', text: t('ask.need') });
@@ -2817,13 +2856,13 @@ export function createView(doc, refs, deps) {
     skip = h(doc, 'button', { type: 'button', class: 'ask-skip', title: t('ask.skip_title'), text: t('ask.skip') });
     send = h(doc, 'button', { type: 'button', class: 'primary ask-send', title: t('ask.send_title') }, h(doc, 'span', { text: t('ask.send') }), h(doc, 'kbd', { text: t('ask.send_hint') }));
     const foot = h(doc, 'div', { class: 'ask-foot' }, icon(doc, 'i-pencil'), answer, answerMic, skip, send);
-    askCard.replaceChildren(...[tabRow, ...panels.map((p) => p.node), foot].filter(Boolean));
+    askCard.replaceChildren(...[questionPosition, tabRow, ...panels.map((p) => p.node), foot].filter(Boolean));
     askWrap.replaceChildren(askCard, h(doc, 'div', { class: 'ask-status' }, badge));
 
-    const focusRow = (qi, oi, intoText) => {
+    const focusRow = (qi, oi, intoText, options) => {
       const p = panels[qi];
-      if (intoText || oi === otherIndex(questions[qi])) answer.focus();
-      else p.inputs[oi].focus();
+      if (intoText || oi === otherIndex(questions[qi])) answer.focus(options);
+      else p.inputs[oi].focus(options);
     };
     const deliver = (answer) => {
       put(markSent(get()));
@@ -2890,7 +2929,7 @@ export function createView(doc, refs, deps) {
       key,
       dispose() { if (answerVoice?.active()) answerVoice.cancel?.(); },
       onKey,
-      focusFirst() { const f = get(); focusRow(f.active, f.cursor[f.active], false); },
+      focusFirst() { const f = get(); focusRow(f.active, f.cursor[f.active], false, { preventScroll: true }); },
       nudge() {
         badge.dataset.alert = 'true';
         badgeText.textContent = t('ask.blocked');
