@@ -385,3 +385,20 @@ test('параллельные запросы разрешения показы�
   assert.equal(allDecided.sessions.s1.pending, null);
   assert.equal(allDecided.sessions.s1.state, 'answering');
 });
+
+test('Qoder planning follows successful plan tools without changing the permission mode', () => {
+  let m = run([
+    ev('session_created', { name: 'Qoder', agent: 'qoder' }),
+    ev('session_model', { mode: 'auto' }, { step: 1 }),
+    ev('tool_call', { id: 'enter', title: 'EnterPlanMode', status: 'pending' }, { step: 2 }),
+  ]);
+  assert.equal(Boolean(m.sessions.s1.qoderPlanning), false);
+  m = reduce(m, ev('tool_call_update', { id: 'enter', status: 'completed' }, { step: 3 }));
+  assert.equal(m.sessions.s1.qoderPlanning, true);
+  assert.equal(m.sessions.s1.options.mode, 'auto');
+  m = reduce(m, ev('tool_call', { id: 'exit', title: 'ExitPlanMode', status: 'pending' }, { step: 4 }));
+  m = reduce(m, ev('tool_call_update', { id: 'exit', status: 'failed' }, { step: 5 }));
+  assert.equal(m.sessions.s1.qoderPlanning, true);
+  m = reduce(m, ev('tool_call_update', { id: 'exit', status: 'completed' }, { step: 6 }));
+  assert.equal(m.sessions.s1.qoderPlanning, false);
+});

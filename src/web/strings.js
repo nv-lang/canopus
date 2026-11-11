@@ -98,6 +98,7 @@ export const S = Object.freeze({
   'chat.empty': 'Напишите агенту первое сообщение.',
   'chat.back': 'К сессиям',
   'chat.you': 'Вы:',
+  'chat.qoder_planning': 'Планирование · {permissions}',
   'chat.agent_signature': 'Агент: {model}{effort}',
   'chat.agent': 'Агент:',
   'chat.input_label': 'Сообщение агенту',
@@ -426,10 +427,12 @@ export const S = Object.freeze({
 
   // ---- форма вопросов агента (задача 192)
   'ask.need': 'Нужен ваш ответ',
+  'ask.prev': 'Предыдущий вопрос',
+  'ask.next': 'Далее',
   'ask.tabs': 'Вопросы агента',
   'ask.tab_n': 'Вопрос {n}',
   'ask.other': 'Другое',
-  'ask.other_placeholder': 'Введите свой вариант',
+  'ask.other_placeholder': 'Или напишите свой ответ',
   'ask.other_label': 'Свой вариант ответа',
   'ask.multi': 'Можно выбрать несколько',
   'ask.skip': 'Пропустить',

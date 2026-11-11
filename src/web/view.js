@@ -244,7 +244,6 @@ export function createView(doc, refs, deps) {
     unread ? h(doc, 'span', { class: 'unread', role: 'img', 'aria-label': t('session.unread'), title: t('session.unread') }) : false,
     taskInfo ? h(doc, 'span', { class: 'task-no', text: taskInfo.number, title: taskInfo.title ? t('route.task_no_title', { number: taskInfo.number, title: taskInfo.title }) : t('route.task_head_bare', { number: taskInfo.number }) }) : false,
     name,
-    s.pendingQuestion ? h(doc, 'span', { class: 'ask-line' }, askBadge()) : false,
     attnText ? h(doc, 'span', { class: 'attn-label', 'data-attn': attn.state, text: attnText }) : false,
     h(doc, 'span', { class: 'dot', 'data-state': s.state, 'data-attn': attn.state, 'aria-hidden': 'true' }),
     h(doc, 'span', { class: 'sr', text: stateLabel }),
@@ -618,7 +617,9 @@ export function createView(doc, refs, deps) {
   const thread = h(doc, 'div', { class: 'thread' });
   const historyLoading = h(doc, 'p', { class: 'history-loading', role: 'status', hidden: true, text: t('loading.history') });
   const permissionWrap = h(doc, 'div', { class: 'permission-wrap', hidden: true });
-  const log = h(doc, 'div', { class: 'log', role: 'log', 'aria-live': 'off' }, thread, historyLoading, permissionWrap);
+  const askCard = h(doc, 'div', { class: 'ask', role: 'dialog', hidden: true });
+  const askWrap = h(doc, 'div', { class: 'ask-wrap', hidden: true }, askCard);
+  const log = h(doc, 'div', { class: 'log', role: 'log', 'aria-live': 'off' }, thread, historyLoading, permissionWrap, askWrap);
   const emptyChat = h(doc, 'p', { class: 'empty', text: t('chat.empty') });
 
   // поле ввода
@@ -728,24 +729,26 @@ export function createView(doc, refs, deps) {
     else if (s.state === 'processing' && s.reason) voiceToast.show(t('voice.processing_note', { note: s.reason }));
     else if (s.state !== 'processing') voiceToast.hide();
   };
-  const browserDictation = createDictation({
+  const makeBrowserDictation = (field, onChange, onStatus) => createDictation({
     Ctor: speechCtor(win),
-    field: input,
+    field,
     lang: () => langFor('browser', voiceSettings.state.lang, page),
-    onChange: voiceChange,
-    onStatus: voiceStatus,
+    onChange,
+    onStatus,
   });
-  const localDictation = createLocalDictation({
-    field: input,
+  const makeLocalDictation = (field, onChange, onStatus) => createLocalDictation({
+    field,
     mediaDevices: win && win.navigator ? win.navigator.mediaDevices : undefined,
     AudioCtx: win ? (win.AudioContext || win.webkitAudioContext) : undefined,
     fetchFn: (...args) => win.fetch(...args),
     getLang: () => langFor('local', voiceSettings.state.lang),
     getMic: () => voiceSettings.state.mic,
     workletUrl: new URL('./rec-worklet.js', import.meta.url).href,
-    onChange: voiceChange,
-    onStatus: voiceStatus,
+    onChange,
+    onStatus,
   });
+  const browserDictation = makeBrowserDictation(input, voiceChange, voiceStatus);
+  const localDictation = makeLocalDictation(input, voiceChange, voiceStatus);
   // Одна ручка на два распознавателя: какой работает, решает выбор в меню на момент нажатия.
   let currentDictation = browserDictation;
   const dictation = {
@@ -1520,13 +1523,10 @@ export function createView(doc, refs, deps) {
   const canopusUi = createCanopusTaskUi(doc, handlers, { agents: () => Object.keys((current.model && current.model.catalog) || {}).sort() });
   const routeOver = h(doc, 'div', { class: 'route-over' }, canopusUi.el, routeCards, routeBanner, routeStrip);
 
-  const askCard = h(doc, 'div', { class: 'ask', role: 'dialog', hidden: true });
-  const askWrap = h(doc, 'div', { class: 'ask-wrap', hidden: true }, askCard);
   const composer = h(doc, 'div', { class: 'composer' },
     routeOver,
     box,
     voiceHint,
-    askWrap,
     queueButton,
     status);
 
@@ -2299,7 +2299,9 @@ export function createView(doc, refs, deps) {
     const paramWhy = (unsupported) => (shown.loading ? t('status.options_loading')
       : !catalogEntry && session.draft ? t('status.options_after_start') : unsupported);
     modeButton.hidden = false;
-    modeButton.textContent = approvalView(model, session, agents, pickerSource).label;
+    const approvalLabel = approvalView(model, session, agents, pickerSource).label;
+    modeButton.textContent = session.agent === 'qoder' && session.qoderPlanning
+      ? t('chat.qoder_planning', { permissions: approvalLabel }) : approvalLabel;
     modelButton.hidden = true;
     effortButton.hidden = !hasEfforts;
     effortButton.setAttribute('aria-disabled', String(!canChooseEffort));
@@ -2658,7 +2660,7 @@ export function createView(doc, refs, deps) {
     const session = ui.selected ? model.sessions[ui.selected] : undefined;
     const pending = session ? session.pending : null;
     const host = pending ? nodes.get('permission-slot')?.node ?? log : log;
-    if (permissionWrap.parentNode !== host) host.append(permissionWrap);
+    if (permissionWrap.parentNode !== host) host.insertBefore(permissionWrap, host === log ? askWrap : null);
     if (!pending) {
       if (shownRequest !== null) {
         shownRequest = null;
@@ -2710,6 +2712,11 @@ export function createView(doc, refs, deps) {
     let badgeText = null;
     let skip = null;
     let send = null;
+    let answerVoice = null;
+    const answer = h(doc, 'textarea', { class: 'ask-text-input', rows: 1, placeholder: t('ask.other_placeholder'), 'aria-label': t('ask.other_label') });
+    const answerMic = h(doc, 'button', { type: 'button', class: 'icon-btn ask-mic', title: t('voice.label'), 'aria-label': t('voice.label') }, icon(doc, 'i-mic'));
+    const prev = h(doc, 'button', { type: 'button', class: 'icon-btn ask-prev', 'aria-label': t('ask.prev') }, icon(doc, 'i-back'));
+    const next = h(doc, 'button', { type: 'button', class: 'icon-btn ask-next', 'aria-label': t('ask.next') }, icon(doc, 'i-chevron-right'));
 
     function sync() {
       const f = get();
@@ -2722,7 +2729,6 @@ export function createView(doc, refs, deps) {
           inp.checked = on;
           p.rows[oi].dataset.on = String(on);
         });
-        p.text.hidden = !a.other;
         if (tabs[qi]) {
           tabs[qi].setAttribute('aria-selected', String(qi === f.active));
           tabs[qi].tabIndex = qi === f.active ? 0 : -1;
@@ -2730,12 +2736,44 @@ export function createView(doc, refs, deps) {
         }
       });
       askCard.setAttribute('aria-labelledby', `ask-q-${f.active}`);
-      send.disabled = !canSubmit(f, questions);
+      const answerText = f.answers[f.active].other ? f.answers[f.active].text : '';
+      if (answer.value !== answerText) answer.value = answerText;
+      prev.disabled = f.active === 0;
+      next.disabled = f.active === questions.length - 1;
+      send.textContent = f.active < questions.length - 1 ? t('ask.next') : t('ask.send');
+      send.disabled = f.sent || (f.active < questions.length - 1 ? !isAnswered(f, questions, f.active) : !canSubmit(f, questions));
       skip.disabled = f.sent;
       badge.dataset.alert = 'false';
       badgeText.textContent = t('ask.need');
     }
     const put = (form) => { askForms.set(key, form); sync(); };
+
+    const syncAnswer = () => {
+      const f = get(), qi = f.active;
+      const selected = f.answers[qi].other || !answer.value ? f : selectOption(f, questions, qi, otherIndex(questions[qi]));
+      put(setOtherText(selected, qi, answer.value));
+    };
+    answer.addEventListener('input', syncAnswer);
+    answerMic.addEventListener('click', () => {
+      if (answerVoice?.active()) { answerVoice.stop(); return; }
+      if (dictation.active()) return;
+      const status = ({ state, reason }) => {
+        answerMic.dataset.state = state;
+        answerMic.setAttribute('aria-pressed', String(state === 'recording'));
+        answerMic.title = reason || t(micTitleKey(state));
+        if (state === 'error' || state === 'unavailable') voiceToast.show(t('voice.failed', { reason }));
+      };
+      answerVoice = voiceSettings.provider() === 'local'
+        ? makeLocalDictation(answer, syncAnswer, status) : makeBrowserDictation(answer, syncAnswer, status);
+      answer.focus();
+      answerVoice.start();
+    });
+    const visit = (qi) => {
+      if (answerVoice?.active()) answerVoice.cancel?.();
+      put(setActive(get(), questions, qi));
+    };
+    prev.addEventListener('click', () => visit(get().active - 1));
+    next.addEventListener('click', () => visit(get().active + 1));
 
     const optionRow = (qi, oi, name, description, isOther) => {
       const q = questions[qi];
@@ -2745,10 +2783,10 @@ export function createView(doc, refs, deps) {
       const text = h(doc, 'span', { class: 'ask-text' },
         h(doc, 'span', { class: 'ask-name', text: name }),
         description ? h(doc, 'span', { class: 'ask-desc', text: description }) : false);
-      const row = h(doc, 'label', { class: isOther ? 'ask-opt ask-opt-other' : 'ask-opt' }, input, text, h(doc, 'span', { class: 'ask-key', 'aria-hidden': 'true', text: String(oi + 1) }));
+      const row = h(doc, 'label', { class: isOther ? 'ask-opt ask-opt-other' : 'ask-opt' }, input, h(doc, 'span', { class: 'ask-key', 'aria-hidden': 'true', text: String(oi + 1) }), text);
       input.addEventListener('change', () => {
         put(selectOption(get(), questions, qi, oi));
-        if (isOther && get().answers[qi].other) panels[qi].text.focus();
+        if (isOther && get().answers[qi].other) answer.focus();
       });
       return { row, input };
     };
@@ -2756,49 +2794,58 @@ export function createView(doc, refs, deps) {
     panels = questions.map((q, qi) => {
       const rows = q.options.map((o, oi) => optionRow(qi, oi, o.label, o.description, false));
       const other = optionRow(qi, otherIndex(q), t('ask.other'), '', true);
-      const text = h(doc, 'textarea', { class: 'ask-text-input', rows: 2, placeholder: t('ask.other_placeholder'), 'aria-label': t('ask.other_label'), hidden: true });
-      text.value = get().answers[qi].text;
-      text.addEventListener('input', () => put(setOtherText(get(), qi, text.value)));
-      const heading = h(doc, 'h3', { class: 'ask-q', id: `ask-q-${qi}`, text: q.question }, q.multiSelect ? h(doc, 'span', { class: 'ask-multi', text: t('ask.multi') }) : false);
-      const list = h(doc, 'div', { class: 'ask-options', role: q.multiSelect ? 'group' : 'radiogroup', 'aria-labelledby': `ask-q-${qi}` }, ...rows.map((r) => r.row), other.row, text);
+      const heading = h(doc, 'h3', { class: 'ask-q', id: `ask-q-${qi}` },
+        h(doc, 'span', { class: 'ask-key', 'aria-hidden': 'true', text: String(qi + 1) }),
+        h(doc, 'span', { class: 'ask-question-text', text: q.question }),
+        q.multiSelect ? h(doc, 'span', { class: 'ask-multi', text: t('ask.multi') }) : false);
+      const list = h(doc, 'div', { class: 'ask-options', role: q.multiSelect ? 'group' : 'radiogroup', 'aria-labelledby': `ask-q-${qi}` }, ...rows.map((r) => r.row), other.row);
       const node = h(doc, 'div', { class: 'ask-panel', id: `ask-panel-${qi}`, role: multi ? 'tabpanel' : false, hidden: true }, heading, list);
-      return { node, inputs: [...rows, other].map((r) => r.input), rows: [...rows, other].map((r) => r.row), text };
+      return { node, inputs: [...rows, other].map((r) => r.input), rows: [...rows, other].map((r) => r.row) };
     });
 
     tabs = multi ? questions.map((q, qi) => {
       const tab = h(doc, 'button', {
         type: 'button', class: 'ask-tab', role: 'tab', id: `ask-tab-${qi}`, 'aria-controls': `ask-panel-${qi}`,
-      }, h(doc, 'span', { text: q.header || t('ask.tab_n', { n: qi + 1 }) }), icon(doc, 'i-check'));
-      tab.addEventListener('click', () => { put(setActive(get(), questions, qi)); panels[qi].inputs[get().cursor[qi]].focus(); });
+      }, h(doc, 'span', { text: q.header ? `${qi + 1}. ${q.header}` : t('ask.tab_n', { n: qi + 1 }) }), icon(doc, 'i-check'));
+      tab.addEventListener('click', () => { visit(qi); focusRow(qi, get().cursor[qi], false); });
       return tab;
     }) : [];
-    const tabRow = multi ? h(doc, 'div', { class: 'ask-tabs', role: 'tablist', 'aria-label': t('ask.tabs') }, ...tabs) : false;
+    const tabRow = multi ? h(doc, 'div', { class: 'ask-tabs', role: 'tablist', 'aria-label': t('ask.tabs') }, prev, ...tabs, next) : false;
 
     badgeText = h(doc, 'span', { class: 'ask-badge-text', text: t('ask.need') });
     badge = h(doc, 'span', { class: 'ask-badge' }, h(doc, 'span', { class: 'ask-dot', 'aria-hidden': 'true' }), badgeText);
     skip = h(doc, 'button', { type: 'button', class: 'ask-skip', title: t('ask.skip_title'), text: t('ask.skip') });
-    send = h(doc, 'button', { type: 'button', class: 'ask-send', title: t('ask.send_title') }, h(doc, 'span', { text: t('ask.send') }), h(doc, 'kbd', { text: t('ask.send_hint') }));
-    const foot = h(doc, 'div', { class: 'ask-foot' }, h(doc, 'span', { class: 'grow' }), skip, send);
+    send = h(doc, 'button', { type: 'button', class: 'primary ask-send', title: t('ask.send_title') }, h(doc, 'span', { text: t('ask.send') }), h(doc, 'kbd', { text: t('ask.send_hint') }));
+    const foot = h(doc, 'div', { class: 'ask-foot' }, icon(doc, 'i-pencil'), answer, answerMic, skip, send);
     askCard.replaceChildren(...[tabRow, ...panels.map((p) => p.node), foot].filter(Boolean));
     askWrap.replaceChildren(askCard, h(doc, 'div', { class: 'ask-status' }, badge));
 
     const focusRow = (qi, oi, intoText) => {
       const p = panels[qi];
-      if (intoText && get().answers[qi].other) p.text.focus();
+      if (intoText || oi === otherIndex(questions[qi])) answer.focus();
       else p.inputs[oi].focus();
     };
     const deliver = (answer) => {
       put(markSent(get()));
       if (!handlers.onAnswer(trace, answer)) put(markSent(get(), false));
     };
-    const doSkip = () => { if (!get().sent) deliver(buildSkip(pq.request)); };
+    const doSkip = () => {
+      if (answerVoice?.active()) answerVoice.cancel?.();
+      if (!get().sent) deliver(buildSkip(pq.request));
+    };
     const doSend = () => {
       const f = get();
+      if (answerVoice?.active()) { answerVoice.stop(); return; }
+      if (f.active < questions.length - 1 && isAnswered(f, questions, f.active)) {
+        visit(f.active + 1);
+        focusRow(get().active, get().cursor[get().active], false);
+        return;
+      }
       const answer = buildAnswer(pq.request, f, questions);
       if (answer) { deliver(answer); return; }
       // не всё отвечено: Enter ведёт к первому вопросу без ответа
       const next = nextUnanswered(f, questions, f.active);
-      if (next >= 0 && next !== f.active) { put(setActive(f, questions, next)); focusRow(next, get().cursor[next], false); }
+      if (next >= 0 && next !== f.active) { visit(next); focusRow(next, get().cursor[next], false); }
     };
     skip.addEventListener('click', doSkip);
     send.addEventListener('click', doSend);
@@ -2811,7 +2858,7 @@ export function createView(doc, refs, deps) {
       const target = e.target;
       const onText = target.tagName === 'TEXTAREA';
       const onButton = target.tagName === 'BUTTON';
-      if (e.key === 'Escape') { e.preventDefault(); doSkip(); return; }
+      if (e.key === 'Escape') { e.preventDefault(); if (answerVoice?.active()) answerVoice.cancel?.(); else doSkip(); return; }
       if (e.key === 'Enter') {
         if (onText && e.shiftKey) return; // перенос строки в «Другом»
         if (onButton && !e.ctrlKey && !e.metaKey) return; // Enter на кнопке нажимает её
@@ -2841,6 +2888,7 @@ export function createView(doc, refs, deps) {
 
     askUi = {
       key,
+      dispose() { if (answerVoice?.active()) answerVoice.cancel?.(); },
       onKey,
       focusFirst() { const f = get(); focusRow(f.active, f.cursor[f.active], false); },
       nudge() {
@@ -2859,6 +2907,7 @@ export function createView(doc, refs, deps) {
     const open = new Set(Object.values(model.sessions).filter((s) => s.pendingQuestion).map((s) => `${s.id}:${s.pendingQuestion.request}`));
     for (const k of [...askForms.keys()]) if (!open.has(k)) askForms.delete(k);
     if (key === askShown) return; // состояние формы ведёт сама карточка; перерисовка не нужна
+    askUi?.dispose();
     const hadFocus = askCard.contains(doc.activeElement);
     askShown = key;
     if (!pq) {

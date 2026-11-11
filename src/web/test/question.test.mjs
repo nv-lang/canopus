@@ -26,8 +26,9 @@ test('вопросы из события: до четырёх, пустое от
 test('одиночный выбор: новый пункт заменяет прежний, «Другое» исключает варианты', () => {
   const q = qs();
   let f = createForm(q);
-  assert.equal(isAnswered(f, q, 0), true, 'в вопросе с одним ответом первый вариант выбран заранее');
-  assert.deepEqual(f.answers[0].picked, [0]);
+  assert.equal(isAnswered(f, q, 0), false, 'в форме с вкладками нужен явный выбор');
+  assert.deepEqual(f.answers[0].picked, []);
+  assert.equal(isAnswered(createForm([q[0]]), [q[0]], 0), true, 'у отдельного вопроса сохраняется вариант по умолчанию');
   f = selectOption(f, q, 0, 1);
   assert.deepEqual(f.answers[0], { picked: [1], other: false, text: '' });
   f = selectOption(f, q, 0, 2);

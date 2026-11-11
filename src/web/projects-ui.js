@@ -121,9 +121,9 @@ export function createProjectsUi(doc, deps) {
     const form = h(doc, 'form', { class: 'picker-path-row', novalidate: true }, pathInput, goButton);
     const dialog = dialogShell('picker-title', 'picker',
       h(doc, 'h3', { id: 'picker-title', text: t('picker.title') }),
-      form, searchInput,
-      h(doc, 'div', { class: 'picker-bar' }, backButton, upButton, favoriteButton, h(doc, 'span', { class: 'muted picker-hint', text: t('picker.hint') })),
-      breadcrumbs, listTitle, list, note, recentBox, errorBox,
+      h(doc, 'div', { class: 'picker-body' }, form, searchInput,
+        h(doc, 'div', { class: 'picker-bar' }, backButton, upButton, favoriteButton, h(doc, 'span', { class: 'muted picker-hint', text: t('picker.hint') })),
+        breadcrumbs, listTitle, list, note, recentBox, errorBox),
       h(doc, 'div', { class: 'actions' }, cancel, choose));
     const layer = pushLayer(dialog, { cancelValue: null, scrimClose: true });
 

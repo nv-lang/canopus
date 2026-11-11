@@ -7,8 +7,8 @@ import { createForm, buildAnswer, buildSkip, canSubmit, selectOption, digitOptio
 const view = fs.readFileSync(new URL('../view.js', import.meta.url), 'utf8');
 const css = fs.readFileSync(new URL('../app.css', import.meta.url), 'utf8');
 
-test('разрешения над полем ввода, вопросы под ним', () => {
-  assert.match(view, /const log = h\(doc, 'div', [^;]*thread, historyLoading, permissionWrap\);/);
+test('форма вопроса в конце ленты над полем ввода', () => {
+  assert.match(view, /const log = h\(doc, 'div', [^;]*thread, historyLoading, permissionWrap, askWrap\);/);
   assert.match(view, /permissionWrap\.replaceChildren\(dialog\);/);
 });
 
@@ -18,20 +18,14 @@ test('строка «Нужен ваш ответ» остаётся под ка
   assert.equal(t('ask.need'), 'Нужен ваш ответ');
 });
 
-test('стиль эталона: рамка 1 px, радиус 14, ширина 600, серая шапка, радиокнопка 24 px, метка 16 px, описание 15 px серым, кнопки справа', () => {
-  assert.match(css, /\.ask \{[^}]*width: min\(600px, 100%\)[^}]*border: 1px solid var\(--border\); border-radius: 14px/);
-  assert.match(css, /\.ask-q \{[^}]*background: var\(--surface-2\)[^}]*font-size: 16px/);
-  assert.match(css, /\.ask-opt \{[^}]*border-top: 1px solid var\(--border\)/);
-  assert.match(css, /\.ask-input \{[^}]*width: 24px; height: 24px/);
-  assert.match(css, /\.ask-input\[type="radio"\]:checked \{ border-color: var\(--accent\); background: var\(--accent\); \}/);
-  assert.match(css, /\.ask-name \{ font-size: 16px;/);
-  assert.match(css, /\.ask-desc \{ color: var\(--fg-muted\); font-size: 15px;/);
-  assert.match(css, /\.ask-foot \{[^}]*justify-content: flex-end/);
-  assert.match(css, /\.ask-send \{ border-color: var\(--fg\); background: var\(--fg\); color: var\(--surface\); \}/);
-  assert.equal(t('ask.send_hint'), 'Ctrl ⏎');
+test('варианты пронумерованы, свой ответ и управление находятся в общей строке', () => {
+  assert.match(css, /\.ask-key \{ display: inline-grid/);
+  assert.match(view, /class: 'icon-btn ask-mic'/);
+  assert.match(view, /class: 'ask-foot' \}, icon\(doc, 'i-pencil'\), answer, answerMic, skip, send/);
+  assert.match(view, /class: 'primary ask-send'/);
 });
 
-const QS = [{ question: 'Какой цвет?', header: 'Цвет', multiSelect: false, options: [{ label: 'Синий', description: '' }, { label: 'Зелёный', description: '' }] }];
+const QS = [{ question: 'Какой вариант?', options: [{ label: 'Первый' }, { label: 'Второй' }] }];
 
 test('по умолчанию выбран первый вариант; цифры выбирают; отправка возможна, пока вариант выбран; пропуск всегда', () => {
   const f = createForm(QS);
@@ -45,7 +39,7 @@ test('по умолчанию выбран первый вариант; цифр
 });
 
 test('клавиши формы: цифры, Ctrl+Enter отправляет, Esc пропускает; после ответа лента показывает строку «вопрос — ответ»', () => {
-  assert.match(view, /if \(e\.key === 'Escape'\) \{ e\.preventDefault\(\); doSkip\(\); return; \}/);
+  assert.match(view, /if \(e\.key === 'Escape'\) \{ e\.preventDefault\(\);[^}]*else doSkip\(\); return; \}/);
   assert.match(view, /if \(onButton && !e\.ctrlKey && !e\.metaKey\) return;/);
   assert.match(view, /t\('ask\.answer', \{ question: l\.question, choice: l\.choice \}\)/);
 });

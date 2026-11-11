@@ -297,6 +297,7 @@ function apply(session, event) {
       return {
         ...session,
         agent: str(input.to, session.agent),
+        qoderPlanning: false,
         switchingTo: '',
         optionsPending: session.switchingTo !== '', // это окно выбрало семью: сводка нового агента ещё в пути
         // сводки прежнего агента, что придут позже этого события, не годятся: шаг смены — новая нижняя граница
@@ -511,7 +512,10 @@ function apply(session, event) {
       const startedAt = old.startedAt ?? (status === 'in_progress' ? event.time : null);
       const finishedAt = old.finishedAt ?? (['completed', 'failed', 'cancelled'].includes(status) ? event.time : null);
       const command = (old.kind === 'execute' && toolCommand(detail)) || old.command;
-      return { ...session, tools: session.tools.map((x, j) => (j === i ? { ...old, status, title, detail, query, response, command, startedAt, finishedAt, updatedStep: event.step } : x)) };
+      const qoderPlanning = session.agent === 'qoder' && status === 'completed' && old.status !== 'completed'
+        ? title === 'EnterPlanMode' ? true : title === 'ExitPlanMode' ? false : session.qoderPlanning
+        : session.qoderPlanning;
+      return { ...session, qoderPlanning, tools: session.tools.map((x, j) => (j === i ? { ...old, status, title, detail, query, response, command, startedAt, finishedAt, updatedStep: event.step } : x)) };
     }
 
     case 'output_file': {
