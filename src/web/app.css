@@ -1092,6 +1092,7 @@ body { font-size: 13px; line-height: 1.55; letter-spacing: .005em; }
 .ask-status { display: flex; align-items: center; padding: 12px 6px 0; }
 .ask { display: flex; flex-direction: column; width: 100%; overflow: hidden; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
 .ask[hidden] { display: none; }
+.ask-expired-status { gap: 12px; }
 .ask-expired .ask-options { margin: 0; list-style: none; }
 .ask-expired .ask-opt { cursor: default; }
 .ask-expired .ask-opt:hover { background: transparent; }
@@ -1109,7 +1110,7 @@ body { font-size: 13px; line-height: 1.55; letter-spacing: .005em; }
 .ask-opt:first-child { border-top: 0; }
 .ask-opt:hover { background: var(--surface-2); }
 .ask-input { position: absolute; width: 1px; height: 1px; opacity: 0; }
-.ask-opt:focus-within { outline: 1px solid var(--accent); outline-offset: -1px; }
+.ask-opt:focus-within, .ask-foot:has(.ask-text-input:focus) { outline: 1px solid var(--accent); outline-offset: -1px; }
 .ask-opt[data-on="true"] { background: var(--accent-soft); }
 .ask-position { padding: 8px 16px 0; font-size: 12px; }
 .ask-opt .ask-key { display: inline-grid; place-items: center; flex: none; min-width: 22px; min-height: 22px; border-radius: 6px; color: var(--fg-muted); font-size: 12px; }
@@ -1119,7 +1120,7 @@ body { font-size: 13px; line-height: 1.55; letter-spacing: .005em; }
 .ask-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; padding: 8px 16px 12px; }
 .ask-foot:has(.ask-text-input:focus) { background: var(--surface-2); }
 .ask-foot .ask-text-input:focus { outline: none; box-shadow: none; }
-.ask-foot > .icon { width: 15px; height: 15px; color: var(--fg-muted); }
+.ask-foot > .icon { flex: none; width: 22px; height: 15px; margin-inline-end: 8px; color: var(--fg-muted); }
 .ask-mic[data-state="recording"] { color: var(--accent); }
 .ask-prev, .ask-next { min-height: 26px; width: 26px; height: 26px; padding: 0; }
 .ask-badge { display: inline-flex; flex: none; align-items: center; gap: 6px; max-width: 100%; padding: 2px 9px 2px 8px; border-radius: 11px; background: var(--warn-soft); color: var(--warn); font-size: 12px; font-weight: 600; white-space: nowrap; }

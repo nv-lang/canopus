@@ -39,7 +39,7 @@ test('по умолчанию выбран первый вариант; цифр
 });
 
 test('клавиши формы: цифры, Ctrl+Enter отправляет, Esc пропускает; после ответа лента показывает строку «вопрос — ответ»', () => {
-  assert.match(view, /if \(e\.key === 'Escape'\) \{ e\.preventDefault\(\);[^}]*else doSkip\(\); return; \}/);
+  assert.match(view, /if \(e\.key === 'Escape'\) \{ e\.preventDefault\(\); if \(!stopVoice\(\)\) doSkip\(\); return; \}/);
   assert.match(view, /if \(onButton && !e\.ctrlKey && !e\.metaKey\) return;/);
   assert.match(view, /t\('ask\.answer', \{ question: l\.question, choice: l\.choice \}\)/);
 });

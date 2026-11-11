@@ -183,6 +183,25 @@ export function taskSummary(tasks) {
 
 export const isAskTool = title => /^(?:ask[ _-]?user(?:[ _-]?question)?|askuserquestion)$/iu.test(title?.trim() || '');
 
+export function displayQuestions(session, form) {
+  if (session.agent !== 'qoder' || !form.questions.some(q => /^answer questions[?]?$/iu.test(q.question.trim()))) return form.questions;
+  const calls = session.tools.filter(tool => tool.turn === form.turn
+    && (form.toolCall ? tool.id === form.toolCall : isAskTool(tool.title)));
+  let source = [];
+  if (calls.length === 1) {
+    try {
+      const payload = JSON.parse(calls[0].detail);
+      if (Array.isArray(payload?.questions)) source = payload.questions;
+    } catch { /* The provider did not supply structured question text. */ }
+  }
+  return form.questions.map((q, i) => {
+    if (!/^answer questions[?]?$/iu.test(q.question.trim())) return q;
+    const original = source.length === form.questions.length ? source[i]?.question : '';
+    const header = typeof original === 'string' && original.trim() ? original.trim() : q.header.trim();
+    return { ...q, question: header && !/^answer questions[?]?$/iu.test(header) ? header : '' };
+  });
+}
+
 function workRows(session) {
   const rows = [];
   const questionTurns = new Set(session.messages.flatMap(m => m.expiredQuestion || m.role === 'answer' ? [m.turn] : []));
@@ -213,6 +232,7 @@ export function timeline(session) {
   const agentTurns = new Set(session.messages.filter((m) => m.role === 'agent').map((m) => m.turn));
   const lastAgentTurn = [...session.messages].reverse().find((m) => m.role === 'agent')?.turn;
   const emitted = new Set();
+  const lastQuestion = [...session.messages].reverse().find(m => m.expiredQuestion || m.role === 'answer');
 
   for (const m of session.messages) {
     if (m.role === 'user') {
@@ -298,7 +318,7 @@ export function timeline(session) {
       if (diffs.length > 0) items.push({ type: 'diffs', key: `d:${m.turn}`, turn: m.turn, rows: diffs, totals: diffTotals(diffs) });
 
       if (m.status === 'refused' && m.expiredQuestion) {
-        items.push({ type: 'question-timeout', key: `n:${m.turn}`, turn: m.turn, questions: m.expiredQuestion.questions });
+        items.push({ type: 'question-timeout', key: `n:${m.turn}`, turn: m.turn, questions: displayQuestions(session, m.expiredQuestion), canReply: m === lastQuestion && !session.pendingQuestion });
       } else if (m.status === 'refused' || m.status === 'error' || m.status === 'cancelled') {
         items.push({ type: 'note', key: `n:${m.turn}`, tone: m.status, reason: m.reason, turn: m.turn, partialAnswer: m.text.trim().length > 0,
           userText: session.messages.find(u => u.role === 'user' && u.turn === m.turn)?.text ?? '' });

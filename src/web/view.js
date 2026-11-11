@@ -17,7 +17,7 @@ import { createLocalDictation } from './recorder.js';
 import { createToast } from './toast.js';
 import { h, icon } from './dom.js';
 import { createProjectsUi } from './projects-ui.js';
-import { isAskTool, moveInOrder } from './lists.js';
+import { isAskTool, displayQuestions, moveInOrder } from './lists.js';
 import { createSideKit } from './session-row.js';
 import { LANGS, createVoiceSettings, langFor, pageLang } from './stt.js';
 import { isBusy, keyAction } from './queue.js';
@@ -2049,16 +2049,9 @@ export function createView(doc, refs, deps) {
       case 'routenote':
         node.replaceChildren(h(doc, 'span', { text: t(NOTE_KEY[item.action], { n: item.n }) }));
         break;
-      case 'question-timeout': {
-        const questions = item.questions.map(q => h(doc, 'section', {},
-          h(doc, 'h3', { class: 'ask-q', text: q.question }),
-          h(doc, 'ol', { class: 'ask-options' }, ...q.options.map((o, index) =>
-            h(doc, 'li', { class: 'ask-opt' }, h(doc, 'span', { class: 'ask-key', 'aria-hidden': 'true', text: String(index + 1) }),
-              askOptionText(o.label, o.description))))));
-        node.replaceChildren(h(doc, 'div', { class: 'ask ask-expired' }, ...questions),
-          h(doc, 'div', { class: 'ask-status' }, askBadge(t('ask.timeout'))));
+      case 'question-timeout':
+        fillExpiredQuestion(node, item);
         break;
-      }
       case 'note': {
         let text = t('chat.cancelled');
         if (item.tone === 'refused') text = item.reason ? t('chat.refused', { reason: safeError(item.reason) }) : t('chat.refused_plain');
@@ -2749,6 +2742,134 @@ export function createView(doc, refs, deps) {
   askCard.addEventListener('keydown', (e) => { if (askUi) askUi.onKey(e); });
   function nudgeAsk() { if (askUi) askUi.nudge(); }
 
+  const expiredReplies = new Set();
+
+  function fillExpiredQuestion(node, item) {
+    const trace = currentTrace;
+    const key = `${trace}:${item.key}`;
+    const card = h(doc, 'div', { class: 'ask ask-expired' });
+    const status = h(doc, 'div', { class: 'ask-status ask-expired-status' }, askBadge(t('ask.timeout')));
+    node.replaceChildren(card, status);
+
+    function sections(interactive) {
+      return item.questions.map((q, qi) => {
+        const choices = q.options.map((o, index) => {
+          const number = h(doc, 'span', { class: 'ask-key', 'aria-hidden': 'true', text: String(index + 1) });
+          const text = askOptionText(o.label, o.description);
+          const input = interactive ? h(doc, 'input', {
+            type: q.multiSelect ? 'checkbox' : 'radio', class: 'ask-input', name: `expired-answer-${qi}`, value: o.label,
+          }) : null;
+          return { input, row: h(doc, interactive ? 'label' : 'li', { class: 'ask-opt' }, input, number, text) };
+        });
+        const answer = interactive ? h(doc, 'textarea', { class: 'ask-text-input', rows: 1,
+          placeholder: t('ask.other_placeholder'), 'aria-label': t('ask.other_label') }) : null;
+        const title = q.question || t('ask.question');
+        const section = h(doc, 'section', {}, h(doc, 'h3', { class: 'ask-q', text: title }),
+          h(doc, interactive ? 'div' : 'ol', { class: 'ask-options' }, ...choices.map(choice => choice.row)));
+        return { section, title, answer, choices, multiSelect: q.multiSelect };
+      });
+    }
+
+    const renderPreview = () => card.replaceChildren(...sections(false).map(q => q.section));
+    renderPreview();
+    if (!item.canReply || expiredReplies.has(key)) return;
+    const reply = h(doc, 'button', { type: 'button', class: 'link-btn', text: t('ask.reply_new') });
+    status.append(reply);
+    reply.addEventListener('click', () => {
+      reply.hidden = true;
+      card.classList.remove('ask-expired');
+      const questions = sections(true);
+      const send = h(doc, 'button', { type: 'submit', class: 'primary ask-send', text: t('ask.send'), disabled: true });
+      const cancel = h(doc, 'button', { type: 'button', class: 'ask-skip', text: t('ask.reply_cancel') });
+      const feedback = h(doc, 'span', { class: 'muted', role: 'status' });
+      const form = h(doc, 'form', {}, ...questions.map(q => q.section), feedback);
+      card.replaceChildren(form);
+      const values = () => questions.map(q => {
+        const selected = q.choices.filter(choice => choice.input.checked).map(choice => choice.input.value);
+        const own = q.answer.value.trim();
+        return own && !q.multiSelect ? [own] : [...selected, ...(own ? [own] : [])];
+      });
+      const sync = () => {
+        for (const q of questions) {
+          for (const choice of q.choices) {
+            choice.row.dataset.on = String(choice.input.checked && (q.multiSelect || !q.answer.value.trim()));
+          }
+        }
+        send.disabled = expiredReplies.has(key) || values().some(value => !value.length);
+      };
+      const microphones = questions.map((q, i) => {
+        const mic = h(doc, 'button', { type: 'button', class: 'icon-btn ask-mic', title: t('voice.label'),
+          'aria-label': t('voice.label') }, icon(doc, 'i-mic'));
+        const stop = bindAnswerMic(mic, q.answer, sync);
+        const last = i === questions.length - 1;
+        q.section.append(h(doc, 'div', { class: 'ask-foot' }, icon(doc, 'i-pencil'), q.answer, mic,
+          last ? cancel : false, last ? send : false));
+        return stop;
+      });
+      const stopMicrophones = () => microphones.forEach(stop => stop());
+      form.addEventListener('input', sync);
+      cancel.addEventListener('click', () => {
+        stopMicrophones();
+        card.classList.add('ask-expired');
+        renderPreview();
+        reply.hidden = false;
+        reply.focus({ preventScroll: true });
+      });
+      form.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (currentTrace !== trace || microphones.some(stop => stop(true))) return;
+        if (send.disabled || expiredReplies.has(key)) return;
+        if (isBusy(current.session.state) || current.session.pendingQuestion) {
+          feedback.textContent = t('ask.reply_busy');
+          return;
+        }
+        const text = values().map((value, i) => t('ask.reply_draft', {
+          question: item.questions[i].question ? ` «${questions[i].title}»` : '',
+        }) + value.join(', ')).join('\n');
+        expiredReplies.add(key);
+        sync();
+        cancel.disabled = true;
+        let sent = false;
+        try { sent = await handlers.onSend(trace, text); } catch { /* The send path reports delivery separately. */ }
+        finally {
+          if (sent) {
+            card.classList.add('ask-expired');
+            renderPreview();
+          } else {
+            expiredReplies.delete(key);
+            feedback.textContent = t('conn.send_failed');
+            cancel.disabled = false;
+            sync();
+          }
+        }
+      });
+      (questions[0].choices[0]?.input || questions[0].answer).focus({ preventScroll: true });
+    });
+  }
+
+  function bindAnswerMic(mic, answer, sync) {
+    let voice = null;
+    mic.addEventListener('click', () => {
+      if (voice?.active()) { voice.stop(); return; }
+      if (dictation.active()) return;
+      const status = ({ state, reason }) => {
+        mic.dataset.state = state;
+        mic.setAttribute('aria-pressed', String(state === 'recording'));
+        mic.title = reason || t(micTitleKey(state));
+        if (state === 'error' || state === 'unavailable') voiceToast.show(t('voice.failed', { reason }));
+      };
+      voice = voiceSettings.provider() === 'local'
+        ? makeLocalDictation(answer, sync, status) : makeBrowserDictation(answer, sync, status);
+      answer.focus();
+      voice.start();
+    });
+    return (finish = false) => {
+      if (!voice?.active()) return false;
+      if (finish) voice.stop(); else voice.cancel?.();
+      return true;
+    };
+  }
+
   function askOptionText(name, description) {
     return h(doc, 'span', { class: 'ask-text' },
       h(doc, 'span', { class: 'ask-name', text: name }),
@@ -2756,7 +2877,7 @@ export function createView(doc, refs, deps) {
   }
 
   function buildAsk(trace, pq, key) {
-    const { questions } = pq;
+    const questions = displayQuestions(current.session, pq);
     const get = () => askForms.get(key);
     const multi = questions.length > 1;
     let panels = [];
@@ -2765,7 +2886,6 @@ export function createView(doc, refs, deps) {
     let badgeText = null;
     let skip = null;
     let send = null;
-    let answerVoice = null;
     const answer = h(doc, 'textarea', { class: 'ask-text-input', rows: 1, placeholder: t('ask.other_placeholder'), 'aria-label': t('ask.other_label') });
     const answerMic = h(doc, 'button', { type: 'button', class: 'icon-btn ask-mic', title: t('voice.label'), 'aria-label': t('voice.label') }, icon(doc, 'i-mic'));
     const prev = h(doc, 'button', { type: 'button', class: 'icon-btn ask-prev', 'aria-label': t('ask.prev') }, icon(doc, 'i-back'));
@@ -2807,22 +2927,9 @@ export function createView(doc, refs, deps) {
       put(setOtherText(selected, qi, answer.value));
     };
     answer.addEventListener('input', syncAnswer);
-    answerMic.addEventListener('click', () => {
-      if (answerVoice?.active()) { answerVoice.stop(); return; }
-      if (dictation.active()) return;
-      const status = ({ state, reason }) => {
-        answerMic.dataset.state = state;
-        answerMic.setAttribute('aria-pressed', String(state === 'recording'));
-        answerMic.title = reason || t(micTitleKey(state));
-        if (state === 'error' || state === 'unavailable') voiceToast.show(t('voice.failed', { reason }));
-      };
-      answerVoice = voiceSettings.provider() === 'local'
-        ? makeLocalDictation(answer, syncAnswer, status) : makeBrowserDictation(answer, syncAnswer, status);
-      answer.focus();
-      answerVoice.start();
-    });
+    const stopVoice = bindAnswerMic(answerMic, answer, syncAnswer);
     const visit = (qi) => {
-      if (answerVoice?.active()) answerVoice.cancel?.();
+      stopVoice();
       put(setActive(get(), questions, qi));
     };
     prev.addEventListener('click', () => visit(get().active - 1));
@@ -2842,7 +2949,7 @@ export function createView(doc, refs, deps) {
     panels = questions.map((q, qi) => {
       const rows = q.options.map((o, oi) => optionRow(qi, oi, o.label, o.description));
       const heading = h(doc, 'h3', { class: 'ask-q', id: `ask-q-${qi}` },
-        h(doc, 'span', { class: 'ask-question-text', text: q.question }),
+        h(doc, 'span', { class: 'ask-question-text', text: q.question || t('ask.question') }),
         q.multiSelect ? h(doc, 'span', { class: 'ask-multi', text: t('ask.multi') }) : false);
       const list = h(doc, 'div', { class: 'ask-options', role: q.multiSelect ? 'group' : 'radiogroup', 'aria-labelledby': `ask-q-${qi}` }, ...rows.map((r) => r.row));
       const node = h(doc, 'div', { class: 'ask-panel', id: `ask-panel-${qi}`, role: multi ? 'tabpanel' : false, hidden: true }, heading, list);
@@ -2877,12 +2984,12 @@ export function createView(doc, refs, deps) {
       if (!handlers.onAnswer(trace, answer)) put(markSent(get(), false));
     };
     const doSkip = () => {
-      if (answerVoice?.active()) answerVoice.cancel?.();
+      stopVoice();
       if (!get().sent) deliver(buildSkip(pq.request));
     };
     const doSend = () => {
       const f = get();
-      if (answerVoice?.active()) { answerVoice.stop(); return; }
+      if (stopVoice(true)) return;
       if (f.active < questions.length - 1 && isAnswered(f, questions, f.active)) {
         visit(f.active + 1);
         focusRow(get().active, get().cursor[get().active], false);
@@ -2905,7 +3012,7 @@ export function createView(doc, refs, deps) {
       const target = e.target;
       const onText = target.tagName === 'TEXTAREA';
       const onButton = target.tagName === 'BUTTON';
-      if (e.key === 'Escape') { e.preventDefault(); if (answerVoice?.active()) answerVoice.cancel?.(); else doSkip(); return; }
+      if (e.key === 'Escape') { e.preventDefault(); if (!stopVoice()) doSkip(); return; }
       if (e.key === 'Enter') {
         if (onText && e.shiftKey) return; // перенос строки в свободном ответе
         if (onButton && !e.ctrlKey && !e.metaKey) return; // Enter на кнопке нажимает её
@@ -2935,7 +3042,7 @@ export function createView(doc, refs, deps) {
 
     askUi = {
       key,
-      dispose() { if (answerVoice?.active()) answerVoice.cancel?.(); },
+      dispose() { stopVoice(); },
       onKey,
       focusFirst() { const f = get(); focusRow(f.active, f.cursor[f.active], false, { preventScroll: true }); },
       nudge() {

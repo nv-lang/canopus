@@ -426,6 +426,11 @@ export const S = Object.freeze({
   'tokens.m': '{n} млн',
 
   // ---- форма вопросов агента (задача 192)
+  'ask.question': 'Вопрос агента',
+  'ask.reply_cancel': 'Отмена',
+  'ask.reply_busy': 'Дождитесь завершения текущего хода.',
+  'ask.reply_new': 'Ответить новым ходом',
+  'ask.reply_draft': 'Мой ответ на ваш предыдущий вопрос{question}: ',
   'ask.timeout': 'Время на ответ истекло',
   'ask.need': 'Нужен ваш ответ',
   'ask.prev': 'Предыдущий вопрос',

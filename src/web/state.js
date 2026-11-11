@@ -395,7 +395,7 @@ function apply(session, event) {
       if (session.pendingQuestion && session.pendingQuestion.request === request) return session;
       const questions = normalizeQuestions(input.questions);
       if (questions.length === 0) return session;
-      return { ...session, pendingQuestion: { request, turn, questions, step: event.step } };
+      return { ...session, pendingQuestion: { request, turn, questions, toolCall: str(input.tool_call), step: event.step } };
     }
 
     case 'question_answer': {
