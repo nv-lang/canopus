@@ -38,8 +38,14 @@ fn t_picture_notes(input JsonObject) -> str {
     notes.join("\n")
 }
 
+// Join a streamed reply once instead of copying its accumulated prefix on every chunk.
+fn t_reply(turn str, chunks []str) -> TEntry =>
+    t_entry("agent", turn, "", if chunks.len() == 1 { chunks[0] } else { chunks.join("") })
+
 fn t_entries(lines []str) -> []TEntry {
     mut out = []TEntry.new()
+    mut chunks = []str.new()
+    mut reply_turn = ""
     mut pictures = ""
     for line in lines {
         match jobject(line) {
@@ -47,6 +53,13 @@ fn t_entries(lines []str) -> []TEntry {
             Some(o) => {
                 ro kind = t_text(o, "kind")
                 ro input = t_input(o)
+                ro turn = t_text(input, "turn")
+                ro ends_reply = kind == "user_message" || kind == "tool_call" || kind == "agent_switched"
+                    || (kind == "agent_chunk" && turn != reply_turn)
+                if chunks.len() > 0 && ends_reply {
+                    out.push(t_reply(reply_turn, chunks))
+                    chunks = []str.new()
+                }
                 if kind == "message_images" {
                     pictures = t_picture_notes(input)
                 } else if kind == "user_message" {
@@ -55,13 +68,8 @@ fn t_entries(lines []str) -> []TEntry {
                     pictures = ""
                     out.push(t_entry("user", t_text(input, "turn"), "", full))
                 } else if kind == "agent_chunk" {
-                    ro last = out.len() - 1
-                    if last >= 0 && out[last].role == "agent" && out[last].turn == t_text(input, "turn") {
-                        ro was = out[last]
-                        out[last] = t_entry("agent", was.turn, "", "${was.text}${t_text(input, "text")}")
-                    } else {
-                        out.push(t_entry("agent", t_text(input, "turn"), "", t_text(input, "text")))
-                    }
+                    reply_turn = turn
+                    chunks.push(t_text(input, "text"))
                 } else if kind == "tool_call" {
                     mut e = t_entry("tool", t_text(input, "turn"), t_text(input, "id"), "${t_text(input, "title")} (${t_text(input, "kind")})")
                     e.status = t_text(input, "status")
@@ -85,6 +93,7 @@ fn t_entries(lines []str) -> []TEntry {
             }
         }
     }
+    if chunks.len() > 0 { out.push(t_reply(reply_turn, chunks)) }
     out
 }
 
@@ -102,7 +111,7 @@ fn t_render(e TEntry) -> str {
 /// Produce the full recorded text. The target's budget is checked separately.
 export fn build_transfer(lines []str, from_agent str) -> Transfer {
     mut parts = []str.new()
-    parts.push("Это продолжение разговора, ранее вёл ${from_agent}; ниже протокол; продолжай с последнего сообщения пользователя, ничего не отвечай на протокол.")
+    parts.push("Протокол разговора с ${from_agent}.")
     mut total = 0
     for e in t_entries(lines) {
         parts.push(t_render(e))

@@ -8,7 +8,7 @@ const view = fs.readFileSync(new URL('../view.js', import.meta.url), 'utf8');
 const css = fs.readFileSync(new URL('../app.css', import.meta.url), 'utf8');
 
 test('разрешения над полем ввода, вопросы под ним', () => {
-  assert.match(view, /const composer = h\(doc, 'div', \{ class: 'composer' \},[^;]*permissionWrap,\s*box,[^;]*askWrap,/);
+  assert.match(view, /const log = h\(doc, 'div', [^;]*thread, historyLoading, permissionWrap\);/);
   assert.match(view, /permissionWrap\.replaceChildren\(dialog\);/);
 });
 

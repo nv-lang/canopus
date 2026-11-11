@@ -58,7 +58,7 @@ test('настройки черновика сохраняются при сме
   assert.deepEqual(m.sessions.s.approvals, session.approvals);
 });
 
-test('права вынесены в сведения и меняются только у выбранной семьи', () => {
+test('режим разрешений можно менять в поле ввода во время хода', () => {
   const doc = createFakeDocument();
   const refs = Object.fromEntries(['app', 'side', 'main', 'rail', 'status', 'overlay'].map(key => {
     const node = doc.createElement('div'); doc.body.append(node); return [key, node];
@@ -69,8 +69,15 @@ test('права вынесены в сведения и меняются тол
   } });
   let m = reduce(initialModel(), { id: 'create', trace: 's', step: 0, time: 1, kind: 'session_created', input: { name: 'S', agent: 'opencode' } });
   m = reduce(m, { id: 'options', trace: 's', step: 1, time: 2, kind: 'session_model', input: { agent: 'opencode', mode: 'plan', modes } });
+  m = reduce(m, { id: 'running', trace: 's', step: 2, time: 3, kind: 'user_message', input: { turn: 't', text: 'Запрос' } });
+  m = reduce(m, { id: 'approval', trace: 's', step: 3, time: 4, kind: 'permission_request', input: { turn: 't', request: 'p', action: 'Чтение' } });
   const ui = { selected: 's', projects: [], pins: {}, theme: 'system' };
   view.render(m, ui, { state: 'connected' });
+  const permission = refs.main.querySelector('.permission-wrap');
+  const log = refs.main.querySelector('.log');
+  assert.equal(log.children[log.children.length - 1], permission);
+  assert.equal(permission.hidden, false);
+  assert.equal(refs.main.querySelector('.composer').contains(permission), false);
   const row = refs.main.querySelector('.box-row');
   assert.equal(row.querySelector('.family-approvals'), null);
   assert.equal(refs.main.querySelector('.family-approvals-button'), null);
@@ -81,6 +88,7 @@ test('права вынесены в сведения и меняются тол
   permissions.click();
   const items = refs.main.querySelectorAll('.menu').find(menu => !menu.hidden).querySelectorAll('.menu-item');
   assert.equal(items.find(item => item.textContent.includes('План')).getAttribute('aria-checked'), 'true');
+  assert.equal(items[0].disabled, false);
   items[0].click();
   assert.deepEqual(picks, [['s', 'opencode', 'build']]);
   view.render(m, ui, { state: 'connected' });

@@ -193,6 +193,13 @@ function workRows(session) {
  * фоновые задачи) сгруппированы подряд, карточка правок хода, заметки об исходе,
  * действия под ответом и строка идущей работы. Ничего не знает о DOM; ключи устойчивы для повторного рисования.
  */
+function canopusCallNote(chunk) {
+  const match = /^▸ (canopus_\w+) (\{[^\n]*)(?:\s+— отказ)?$/u.exec(chunk.text);
+  if (!match || !/(?:\}|\(обрезано, всего \d+ байт\))(?:\s+— отказ)?$/u.test(chunk.text)) return null;
+  const failed = chunk.text.endsWith(' — отказ');
+  return { name: match[1], args: failed ? match[2].slice(0, -8).trimEnd() : match[2], failed };
+}
+
 export function timeline(session) {
   const items = [];
   const rows = workRows(session);
@@ -223,9 +230,21 @@ export function timeline(session) {
       items.push({ type: 'routenote', key: m.key, n: m.n, action: m.action });
     } else if (m.role === 'agent') {
       const own = rows.filter((r) => r.turn === m.turn);
+      const notes = new Set();
+      for (const chunk of m.chunks) {
+        const note = canopusCallNote(chunk);
+        if (!note) continue;
+        notes.add(chunk.step);
+        const existing = own.find(r => r.type === 'tool' && !r.toolInput
+          && (r.title === note.name || r.title === 'mcp.canopus.' + note.name));
+        if (existing) existing.toolInput = note.args;
+        else own.push({ type: 'tool', kind: 'other', key: 'ctl:' + m.turn + ':' + chunk.step,
+          turn: m.turn, step: chunk.step, title: note.name, status: note.failed ? 'failed' : 'completed',
+          detail: '', toolInput: note.args });
+      }
       own.forEach((r) => emitted.add(r.key));
       const stream = [
-        ...m.chunks.map((c) => ({ chunk: c, step: c.step, order: 0 })),
+        ...m.chunks.filter(c => !notes.has(c.step)).map((c) => ({ chunk: c, step: c.step, order: 0 })),
         ...own.map((r) => ({ row: m.status !== 'streaming' && r.type === 'tool' && ['pending', 'in_progress'].includes(r.status)
           ? { ...r, status: 'unreported' } : r, step: r.step, order: 1 })),
       ].sort((a, b) => (a.step - b.step) || (a.order - b.order));
@@ -268,7 +287,8 @@ export function timeline(session) {
         items.push({ type: 'note', key: `n:${m.turn}`, tone: m.status, reason: m.reason, turn: m.turn, partialAnswer: m.text.trim().length > 0,
           userText: session.messages.find(u => u.role === 'user' && u.turn === m.turn)?.text ?? '' });
       } else if (m.status === 'done' && m.text.trim().length > 0) {
-        items.push({ type: 'actions', key: `x:${m.turn}`, text: m.text, at: m.doneAt, turn: m.turn });
+        const text = m.chunks.filter(c => !notes.has(c.step)).map(c => c.text).join('');
+        if (text.trim()) items.push({ type: 'actions', key: `x:${m.turn}`, text, at: m.doneAt, turn: m.turn });
       }
     }
   }
@@ -278,7 +298,7 @@ export function timeline(session) {
 
   if (session.state === 'answering') items.push({ type: 'running', key: 'running', since: session.turnStartedAt, last: Math.max(session.updatedAt || 0, session.turnStartedAt || 0) });
   // задача 192.14: ход закончен, а агент ждёт ответа обычным текстом или пунктом чек-листа: полоса под его последним сообщением, пока владелец не ответит
-  else if (['text', 'checklist'].includes(needsOwnerReason(session))) items.push({ type: 'needs', key: 'needs' });
+  else if (needsOwnerReason(session) === 'checklist') items.push({ type: 'needs', key: 'needs' });
   return items;
 }
 

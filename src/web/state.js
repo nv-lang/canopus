@@ -489,6 +489,8 @@ function apply(session, event) {
         updatedStep: event.step,
         title: str(input.title, id),
         kind, status, detail,
+        query: str(input.query),
+        response: str(input.response),
         command: kind === 'execute' ? toolCommand(detail) : '',
         startedAt: status === 'in_progress' ? event.time : null,
         finishedAt: null,
@@ -502,11 +504,14 @@ function apply(session, event) {
       const old = session.tools[i];
       const status = pick(input.status, TOOL_STATUSES, old.status);
       const detail = typeof input.detail === 'string' ? input.detail : old.detail;
-      if (status === old.status && detail === old.detail) return session;
+      const title = str(input.title, old.title);
+      const query = str(input.query, old.query);
+      const response = str(input.response, old.response);
+      if (status === old.status && detail === old.detail && title === old.title && query === old.query && response === old.response) return session;
       const startedAt = old.startedAt ?? (status === 'in_progress' ? event.time : null);
       const finishedAt = old.finishedAt ?? (['completed', 'failed', 'cancelled'].includes(status) ? event.time : null);
       const command = (old.kind === 'execute' && toolCommand(detail)) || old.command;
-      return { ...session, tools: session.tools.map((x, j) => (j === i ? { ...old, status, detail, command, startedAt, finishedAt, updatedStep: event.step } : x)) };
+      return { ...session, tools: session.tools.map((x, j) => (j === i ? { ...old, status, title, detail, query, response, command, startedAt, finishedAt, updatedStep: event.step } : x)) };
     }
 
     case 'output_file': {

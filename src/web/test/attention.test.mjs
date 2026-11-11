@@ -1,9 +1,9 @@
-// Внимание к сессии (задача 192.14): состояния списка, эвристика вопроса, заголовок вкладки, выключатели уведомлений и звука.
+// Внимание к сессии (задача 192.14): состояния списка, заголовок вкладки, выключатели уведомлений и звука.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { initialModel, reduce, timeline } from '../state.js';
-import { endsWithQuestion, ownerItemOpen, needsOwnerReason, needsOwner, waitKey, silentMinutes, attention, waitingKeys, pageTitle, SILENT_DEFAULT_MIN } from '../attention.js';
+import { ownerItemOpen, needsOwnerReason, needsOwner, waitKey, silentMinutes, attention, waitingKeys, pageTitle, SILENT_DEFAULT_MIN } from '../attention.js';
 import { createNotifier, BELL_KEY, SOUND_KEY } from '../notify.js';
 import { t } from '../strings.js';
 
@@ -24,17 +24,8 @@ function session(texts = [], extra = {}) {
 }
 const withItems = (items) => ({ routeState: { task: { subtasks: [{ items }] } } });
 
-test('эвристика вопроса: «?», «нужн», «уточните» в последнем абзаце; обычный итог — нет', () => {
-  assert.equal(endsWithQuestion('Готово.\n\nКакой вариант выбрать?'), true);
-  assert.equal(endsWithQuestion('Нужны целевая версия и объём первого режима.'), true);
-  assert.equal(endsWithQuestion('Всё сделано.\n\nПожалуйста, подтвердите слияние'), true);
-  assert.equal(endsWithQuestion('Что нужно выбрать?\n\nИтог: правка готова, тесты зелёные.'), false);
-  assert.equal(endsWithQuestion('Сделано и проверено.'), false);
-  assert.equal(endsWithQuestion(''), false);
-});
-
-test('ждёт вас: текст-вопрос, пункт «Владелец …» в чек-листе, форма вопроса, разрешение; обычный конец хода — нет', () => {
-  assert.equal(needsOwnerReason(session(['Нужна целевая версия, уточните.'])), 'text');
+test('ждёт вас: пункт «Владелец …» в чек-листе, форма вопроса, разрешение; обычный конец хода — нет', () => {
+  assert.equal(needsOwnerReason(session(['Нужна целевая версия, уточните.'])), '');
   assert.equal(needsOwnerReason(session(['Готово.'], withItems([{ text: 'Владелец уточнил версию', done: false }]))), 'checklist');
   assert.equal(needsOwnerReason(session(['Готово.'], withItems([{ text: 'Владелец уточнил версию', done: true }]))), '');
   assert.equal(ownerItemOpen(session([], withItems([{ text: 'Реализация', done: false }]))), false);
@@ -47,7 +38,7 @@ test('ждёт вас: текст-вопрос, пункт «Владелец �
 });
 
 test('состояния строки списка: идёт, ждёт (мигает, пока не открыта), прочитано, непрочитанное, ошибка, молчит', () => {
-  const ask = session(['Нужна версия?']);
+  const ask = session(['Нужна версия?'], { pendingQuestion: { request: 'r1', questions: [] } });
   const key = waitKey(ask);
   assert.deepEqual(attention(ask, {}), { state: 'waiting', blink: true, minutes: 0 });
   assert.deepEqual(attention(ask, { acked: key }), { state: 'waiting', blink: false, minutes: 0 });
@@ -62,7 +53,7 @@ test('состояния строки списка: идёт, ждёт (мига
 });
 
 test('ждущие сессии считаются без уже открытых; заголовок «(N) …» и мигание', () => {
-  const a = session(['Нужна версия?']);
+  const a = session(['Нужна версия?'], { pendingQuestion: { request: 'r1', questions: [] } });
   const b = { ...session(['Готово.']), id: 's2' };
   assert.deepEqual(waitingKeys([a, b], {}), [`s1|${waitKey(a)}`]);
   assert.deepEqual(waitingKeys([a, b], { s1: waitKey(a) }), []);
@@ -71,8 +62,9 @@ test('ждущие сессии считаются без уже открыты�
   assert.equal(pageTitle('Пульт', 2, true, 'Нужен ваш ответ'), '(2) ● Нужен ваш ответ');
 });
 
-test('полоса «Агент ждёт вашего ответа» идёт в ленте после конца хода с вопросом и не появляется без него', () => {
-  const asked = timeline(session(['Нужна версия?']));
+test('полоса «Агент ждёт вашего ответа» появляется при открытом пункте владельца и не срабатывает на текст ответа', () => {
+  const asked = timeline(session(['Готово.'], withItems([{ text: 'Владелец уточнил версию', done: false }])));
+  assert.equal(timeline(session(['Want me to dig into the forecast changes, or something else specific?'])).some((x) => x.type === 'needs'), false);
   assert.equal(asked.at(-1).type, 'needs');
   assert.equal(timeline(session(['Готово.'])).some((x) => x.type === 'needs'), false);
   assert.equal(timeline(session([], {})).some((x) => x.type === 'needs'), false);

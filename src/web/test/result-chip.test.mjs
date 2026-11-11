@@ -53,7 +53,6 @@ test('текущий агент виден при любом числе дост
 test('режим остаётся видимым, усилие доступно для модели с вариантами и между ходами', () => {
   assert.doesNotMatch(view, /modeButton\.hidden = !hasModes/);
   assert.match(view, /effortButton\.hidden = !hasEfforts/);
-  assert.match(view, /disabled: busy/);
   assert.match(view, /effortButton\.setAttribute\('aria-disabled', String\(!canChooseEffort\)\)/);
   assert.match(view, /t\('status\.options_loading'\)/, 'варианты ещё грузятся');
   assert.match(view, /t\('status\.options_after_start'\)/, 'черновик без записи каталога — параметры появятся после запуска');

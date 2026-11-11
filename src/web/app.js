@@ -294,20 +294,36 @@ function sendMessage(trace, text, images = [], retry = null) {
 }
 
 // The confirmed selection stays local until the owner sends a message.
-function prepareHandoff(trace, choice) {
+async function prepareHandoff(trace, choice, text, images) {
+  const up = images.length ? await uploadImages(trace, images, postImage) : { ok: true, images: [] };
+  if (!up.ok) {
+    flash(t('images.upload_failed', { name: up.name, reason: safeError(up.error) }));
+    return false;
+  }
+  const event = makeEvent('user_message', trace, nextStep(model, trace), {
+    ...messageInput(newId(), text, up.images), handoff: choice.source,
+  }, ctx);
+  if (!delivery.add(event, savedSession(trace))) {
+    flash(t('delivery.storage'));
+    return false;
+  }
   return new Promise(resolve => {
     const finish = (ok, message) => {
       timers.clear(timer);
       if (ok) ui.handoffStatus.delete(trace);
-      else ui.handoffStatus.set(trace, { phase: 'error', message });
+      else ui.handoffStatus.set(trace, { ...choice, phase: 'error', message });
       resolve(ok);
       render();
     };
-    const timer = timers.set(() => finish(false, t('handoff.unconfirmed')), 370000);
-    ui.handoffStatus.set(trace, { ...choice, phase: 'preparing', finish });
+    const timer = timers.set(() => {
+      delivery.unknown(event.id);
+      finish(false, t('handoff.unconfirmed'));
+    }, 370000);
+    ui.handoffStatus.set(trace, { ...choice, phase: 'preparing', clientId: event.id, finish });
     try {
-      if (send('session_context_handoff', trace, nextStep(model, trace), choice.source)) { render(); return; }
-    } catch { /* The transport could not confirm the send. */ }
+      if (transport.send(event)) { render(); return; }
+      delivery.failed(event.id, 'offline');
+    } catch { delivery.unknown(event.id); }
     finish(false, t('handoff.unconfirmed'));
   });
 }
@@ -562,13 +578,12 @@ const handlers = {
     if (choice?.phase === 'preparing') return false;
     if (choice?.phase === 'selected') {
       if (!draft || draft.agent !== choice.previous || isBusy(draft.state) || draft.pendingQuestion) return false;
-      return prepareHandoff(trace, choice).then(ok => ok && handlers.onSend(trace, text, images));
+      return prepareHandoff(trace, choice, text, images);
     }
     if (choice?.phase === 'error') ui.handoffStatus.delete(trace);
     if (needsContextHandoff(draft, draft?.source)) {
       if (draft.pendingQuestion || isBusy(draft.state)) return false;
-      return prepareHandoff(trace, { previous: draft.agent, source: draft.source })
-        .then(ok => ok && handlers.onSend(trace, text, images));
+      return prepareHandoff(trace, { previous: draft.agent, source: draft.source }, text, images);
     }
     let reserved = null;
     if (draft && draft.draft) {
@@ -817,10 +832,8 @@ async function start() {
           }
           return;
         }
-        if (handoff?.phase === 'preparing' && event.kind === 'error' && !event.input?.turn && !event.input?.client_id) {
-          handoff.finish(false, t('handoff.failed'));
-          return;
-        }
+        const handoffFailed = handoff?.phase === 'preparing' && event.kind === 'error'
+          && (event.input?.client_id === handoff.clientId || (!event.input?.turn && !event.input?.client_id));
         if (event.kind === 'route_state') waitingRoute.delete(event.trace);
         if (event.kind === 'session_deleted') {
           const queued = ui.restoreQueued.get(event.trace);
@@ -837,6 +850,7 @@ async function start() {
           && event.input?.family === handoff.source.family && event.input?.model === handoff.source.model
           && model.sessions[event.trace]?.agent === handoff.source.family;
         if (completed) handoff.finish(true);
+        else if (handoffFailed) handoff.finish(false, t('handoff.failed'));
         else if (changed) drain();
         if (changed || event.kind === 'message_delivery' || event.kind === 'error') render();
       } catch (e) {

@@ -1,31 +1,10 @@
 // attention.js — задача 192.14: когда сессия ждёт владельца. Чистые функции, без DOM и часов (время приходит параметром).
 //
 // Состояния строки списка: running (идёт), waiting (ждёт вас), unread (закончила ход, непрочитанное), error (ошибка), silent (молчит N мин), idle.
-// «Ждёт вас» — только подсветка: форма вопроса или разрешения агента открыта, либо ход закончился вопросом обычным текстом, либо в чек-листе задачи
-// остался неотмеченный пункт про владельца. Ложные срабатывания допустимы: владелец открывает сессию, и подсветка гаснет.
+// Подсветка ожидает действия по открытой форме, разрешению или пункту чек-листа владельца.
 
 /** Сколько минут без событий от агента при идущем ходе — «молчит» (настройка `agent_silent_minutes`, по умолчанию 5). */
 export const SILENT_DEFAULT_MIN = 5;
-
-const QUESTION_WORDS = /(нужн|уточните|уточнить|подтвердите|подтвердить|выберите|выбрать|скажите|ответьте|как поступить|какой вариант)/i;
-
-/** Последний абзац текста («абзацы» — через пустую строку, иначе по строкам). */
-function lastParagraph(text) {
-  const t = String(text || '').trim();
-  if (t === '') return '';
-  const parts = t.split(/\n\s*\n/);
-  const last = parts[parts.length - 1];
-  const lines = last.trim().split('\n');
-  // абзац из строк списка: берём последнюю строку, чтобы вопрос в хвосте не терялся за пояснениями выше
-  return lines.length > 1 ? `${lines[lines.length - 2]} ${lines[lines.length - 1]}` : last.trim();
-}
-
-/** Заканчивается ли текст агента вопросом владельцу (эвристика). */
-export function endsWithQuestion(text) {
-  const p = lastParagraph(text);
-  if (p === '') return false;
-  return p.includes('?') || QUESTION_WORDS.test(p);
-}
 
 /** Последнее сообщение агента сессии, если оно закончено. */
 export function lastAgentDone(session) {
@@ -40,7 +19,7 @@ export function ownerItemOpen(session) {
   return task.subtasks.some((s) => Array.isArray(s.items) && s.items.some((x) => !x.done && /^\s*владелец/i.test(x.text)));
 }
 
-/** Нужен ли владелец этой сессии, и по какой причине: 'question' | 'permission' | 'text' | 'checklist' | '' . */
+/** Нужен ли владелец этой сессии, и по какой причине: 'question' | 'permission' | 'checklist' | '' . */
 export function needsOwnerReason(session) {
   if (!session || session.draft) return '';
   if (session.pendingQuestion) return 'question';
@@ -48,7 +27,6 @@ export function needsOwnerReason(session) {
   if (session.state !== 'idle') return '';
   const last = lastAgentDone(session);
   if (!last) return '';
-  if (endsWithQuestion(last.text)) return 'text';
   if (ownerItemOpen(session)) return 'checklist';
   return '';
 }

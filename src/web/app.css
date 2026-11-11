@@ -278,7 +278,13 @@ input, select, textarea {
   justify-content: space-between;
   padding: 8px 8px 0 16px;
 }
-.side-head h2 { margin: 0; font-size: 15px; font-weight: 600; color: var(--fg-muted); }
+.sidebar-new, .sidebar-section-toggle {
+  display: inline-flex; align-items: center; gap: 8px; min-height: var(--hit);
+  padding: 0 8px; border: 0; border-radius: 8px; background: transparent;
+  color: inherit; font: inherit; text-align: left;
+}
+.sidebar-new:hover, .sidebar-section-toggle:hover { background: var(--hover); }
+.sidebar-section-toggle[aria-expanded="false"] .icon { transform: rotate(-90deg); }
 
 .side-tools { display: grid; gap: 8px; padding: 5px 12px 8px; }
 
@@ -396,7 +402,7 @@ input, select, textarea {
   color: var(--fg);
   opacity: 0;
 }
-.session:hover .more-btn, .session.is-active .more-btn, .more-btn[aria-expanded="true"], .more-btn:focus-visible { opacity: 1; }
+.session:hover .more-btn, .session:focus-within .more-btn, .more-btn[aria-expanded="true"] { opacity: 1; }
 .more-btn:hover:not(:disabled), .more-btn[aria-expanded="true"] { background: var(--active); }
 @media (hover: none) { .more-btn { opacity: 1; } }
 .session { position: relative; border-radius: 8px; }
@@ -585,13 +591,17 @@ pre code { font: inherit; }
 .row-toggle:hover { color: var(--fg); }
 .row-heading { display: flex; align-items: center; gap: 4px; }
 .row-heading span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.row-label .row-action { width: .9em; height: .9em; flex: none; align-self: center; }
+.row-label > span:first-child { flex: none; }
+.row-secondary { color: color-mix(in srgb, var(--fg-muted) 80%, var(--surface)); }
+.item-work .disclosure .chev { width: 23px; height: 23px; padding: 5px; border: 1px solid var(--border); border-radius: 7px; }
 .row-content { margin: 2px 0 4px; padding: 6px 9px; max-block-size: calc(11lh + 12px); overflow: auto; font: 11.5px/1.6 var(--font-mono); border-radius: 6px; background: var(--surface-2); color: var(--fg-muted); }
 .row-content[hidden] { display: none; }
 .row-command, .row-detail { font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
 .row-command { display: block; color: var(--fg); }
 .row-command + .row-detail { margin-top: 4px; }
-.row-output { margin: 0; padding: 0; border: 0; background: transparent; color: inherit; overflow: visible; white-space: pre; }
+.row-output { margin: 0; padding: 0; border: 0; background: transparent; color: inherit; overflow: visible; white-space: pre-wrap; }
+.row-detail-label { margin-bottom: 3px; color: var(--fg); }
+.row-output + .row-detail-label { margin-top: 8px; }
 .row-content[data-clipped="true"] { mask-image: linear-gradient(transparent, var(--fg) .65lh, var(--fg) calc(100% - .65lh), transparent); }
 
 .row-status { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; font-size: 11.5px; font-variant-numeric: tabular-nums; }
@@ -664,7 +674,7 @@ pre code { font: inherit; }
 .box-bar { flex-basis: 100%; display: flex; align-items: center; gap: 8px; padding: 6px 2px 2px; border-top: 1px solid var(--border); }
 .box-bar[data-empty="true"] { display: none; }
 .box-bar > .status-group { margin-left: 0; }
-.box-bar .status-btn { min-height: 28px; padding: 0 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); white-space: nowrap; }
+.box-bar .status-btn { min-height: 28px; padding: 0 6px; border: 0; border-radius: 6px; background: transparent; font-size: 12px; white-space: nowrap; }
 .box-bar .status-btn:hover, .box-bar .status-btn[aria-expanded="true"] { background: var(--hover); }
 .box-bar .status-btn::after { content: ''; flex: none; width: 8px; height: 8px; margin-left: 6px; background: currentColor; opacity: .55; clip-path: polygon(0 15%, 100% 15%, 50% 100%); }
 @media (max-width: 760px) { .box-bar { flex-wrap: wrap; row-gap: 4px; } }
@@ -905,7 +915,7 @@ body { font-size: 13px; line-height: 1.55; letter-spacing: .005em; }
 .app { background: var(--bg); }
 .side-col { border-right-color: color-mix(in srgb, var(--border) 65%, transparent); }
 .side-head { padding-top: 12px; }
-.side-head h2 { color: var(--fg); font-size: 14px; letter-spacing: -.01em; }
+.side-head { padding-left: 10px; }
 .side-tools { gap: 6px; }
 .search { height: var(--hit); }
 .new-btn { min-height: var(--hit); justify-content: flex-start; border-color: transparent; background: transparent; }
@@ -913,7 +923,7 @@ body { font-size: 13px; line-height: 1.55; letter-spacing: .005em; }
 .group-head { min-height: 34px; }
 .session { min-height: var(--hit); }
 
-.session-item { min-height: var(--hit); font-size: 12.5px; }
+.session-item { min-height: var(--hit); font-size: inherit; }
 .session-item:focus-visible { position: relative; z-index: 1; }
 .topbar { height: 46px; padding-inline: 24px; }
 .title-block h2 { font-size: 15px; letter-spacing: -.025em; }
@@ -1064,9 +1074,9 @@ body { font-size: 13px; line-height: 1.55; letter-spacing: .005em; }
 /* ---- форма вопросов агента (задача 192) ----
    Карточка над полем ввода: position absolute, место в потоке не занимает (макет не прыгает). Краски — только токены темы. */
 /* Вопрос агента - элемент ленты (как на эталоне): карточка 600 px слева, под сообщением владельца; под ней строка «Нужен ваш ответ» */
-.ask-wrap, .permission-wrap { margin-top: 8px; max-height: min(38vh, 360px); overflow-y: auto; }
+.ask-wrap { margin-top: 8px; max-height: min(38vh, 360px); overflow-y: auto; }
 .ask-wrap[hidden], .permission-wrap[hidden] { display: none; }
-.permission-wrap { margin-block: 0 8px; }
+.permission-wrap { width: min(var(--column), 100%); margin: 0 auto; padding: 0 var(--chat-inset) 12px; }
 .permission-wrap .dialog { width: min(600px, 100%); border-color: var(--border); box-shadow: none; }
 .ask-status { display: flex; align-items: center; padding: 12px 6px 0; }
 .ask { display: flex; flex-direction: column; width: min(600px, 100%); overflow: hidden; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
@@ -1120,13 +1130,26 @@ body { font-size: 13px; line-height: 1.55; letter-spacing: .005em; }
 
 /* ---- проекты: группы в левой колонке и окна (задача 192n) ---- */
 
-.projects-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: var(--hit); padding: 6px 4px 0 8px; }
+.projects-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: var(--hit); margin-top: 10px; padding-right: 4px; }
+.group + .group { margin-top: 8px; }
+.group[data-project="true"] + .group[data-project="true"] { margin-top: 4px; }
+.group[data-project="true"] .group-list, .group[data-project="true"] .group-empty,
+.group[data-project="true"] .group-show-more { margin-inline-start: 22px; }
+.group[data-project="true"] .group-head { border-radius: 8px; }
+.group[data-project="true"] .group-head:is(:hover, :focus-within),
+.group[data-project="true"][data-active="true"] .group-head { background: var(--hover); }
+.group[data-project="true"] h3 { color: var(--fg); font-size: inherit; font-weight: 500; }
+.group-head .group-actions, .projects-head .projects-new { opacity: 0; }
+.group-head:is(:hover, :focus-within, :has([aria-expanded="true"])) .group-actions,
+.projects-head:is(:hover, :focus-within) .projects-new { opacity: 1; }
+@media (hover: none) {
+  .group-head .group-actions, .projects-head .projects-new, .session .more-btn { opacity: 1; }
+}
 .projects-head h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--fg-muted); }
-.projects-new { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 0 10px; border-color: transparent; background: transparent; color: var(--fg-muted); font-size: 13px; }
+.projects-new { color: var(--fg-muted); }
 .projects-new:hover:not(:disabled) { color: var(--fg); }
 .group-head { position: relative; gap: 2px; }
 .group-title { display: flex; align-items: baseline; gap: 6px; min-width: 0; flex: 1; }
-.group-count { flex: none; color: var(--fg-muted); font-size: 12px; }
 .group-actions { display: flex; flex: none; align-items: center; }
 .group-head .icon-btn.small { width: 30px; height: 30px; }
 .group-menu { top: calc(100% - 4px); bottom: auto; right: 4px; min-width: 190px; }
@@ -1199,8 +1222,8 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 
 /* ---- режимы работы по методике (задача 192p) ---- */
 .route-chip { max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.route-chip[data-route="interactive"] { color: var(--ok); background: color-mix(in srgb, var(--ok) 10%, var(--surface)); }
-.route-chip[data-route="planning"] { color: var(--accent); background: var(--accent-soft); }
+.route-chip[data-route="interactive"] { color: var(--ok); }
+.route-chip[data-route="planning"] { color: var(--accent); }
 .route-chip > span { overflow: hidden; text-overflow: ellipsis; }
 /* задача 192.12: выбор набора «роль → семья» */
 .preset-chip { max-width: 40%; background: transparent; color: inherit; border: 0; font: inherit; cursor: pointer; }
@@ -1365,10 +1388,7 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .route-tests-line[data-state="green"], .rsub-tests[data-state="green"] { color: var(--ok); }
 .route-tests-line[data-state="red"], .rsub-tests[data-state="red"] { color: var(--danger); }
 .route-tests-line[data-state="outdated"], .rsub-tests[data-state="outdated"] { color: var(--warn); }
-.group[data-project="true"] .group-head { background: color-mix(in srgb, var(--fg) 4%, transparent); border-radius: 8px; }
-.group[data-project="true"] .group-head h3 { color: var(--fg); font-weight: 700; }
 .group-icon { width: 15px; height: 15px; margin-right: 6px; align-self: center; color: var(--fg-muted); }
-.group[data-active="true"] .group-head { background: color-mix(in srgb, var(--fg) 7%, transparent); }
 
 /* ---- правая колонка: вкладки и «Машины» (задача 192.1) ---- */
 .rail-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); }
@@ -1558,11 +1578,11 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .menu[data-kind="agent"] .menu-label, .menu-family { overflow-wrap: anywhere; }
 .menu-family { color: var(--fg-muted); font-size: 12px; }
 
-.handoff-hint { margin: 4px 4px 8px; font-size: 13px; color: var(--fg-muted); }
-.handoff-hint[data-phase="preparing"] { color: var(--accent); }
-.handoff-hint[data-phase="preparing"]::before { content: ""; display: inline-block; width: 9px; height: 9px; margin-inline-end: 8px; border: 1px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
-@media (prefers-reduced-motion: reduce) { .handoff-hint[data-phase="preparing"]::before { animation: none; } }
-.handoff-hint[data-phase="error"] { color: var(--warn); }
+.item-handoff { font-size: 13px; color: var(--fg-muted); }
+.item-handoff[data-phase="preparing"] { color: var(--accent); }
+.item-handoff[data-phase="preparing"]::before { content: ""; display: inline-block; width: 9px; height: 9px; margin-inline-end: 8px; border: 1px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .item-handoff[data-phase="preparing"]::before { animation: none; } }
+.item-handoff[data-phase="error"] { color: var(--warn); }
 
 .box { margin-inline: calc(0px - var(--composer-text-inset)); padding-inline: calc(var(--composer-text-inset) - 1px); }
 .box > textarea { flex-basis: 100%; margin: 0; padding-inline: 0; }

@@ -111,7 +111,7 @@ async function prompt(id, params) {
   let plain = text;
   while (plain.startsWith("[canopus]") && plain.includes("\n\n")) plain = plain.slice(plain.indexOf("\n\n") + 2);
   const word = plain.split(" ")[0];
-  if (args.includes("--handoff-overflow") && plain.startsWith("Это служебная передача истории.")) {
+  if (args.includes("--handoff-overflow") && (plain.startsWith("Это служебная передача истории.") || plain.startsWith("Ниже история текущего чата."))) {
     return write({ jsonrpc: "2.0", id, error: { code: -32000, message: "context_window_exceeded" } });
   }
   if (args.includes("--handoff-summary") && plain.startsWith("Сделай сводку")) {
@@ -123,6 +123,15 @@ async function prompt(id, params) {
       return write({ jsonrpc: "2.0", id, error: { code: -32000, message: "missing summary or recent messages" } });
     }
     chunk("received the summary and recent messages");
+    return respond(id, { stopReason: "end_turn" });
+  }
+  if (args.includes("--handoff-overflow") && plain.startsWith("История чата для ответа на новое сообщение.")) {
+    const [history, question] = plain.split("[Новое сообщение пользователя]");
+    if (!history.includes("fixture: earlier decision preserved") || !history.includes("first fact")
+        || !question?.includes("combined-question") || history.includes("combined-question")) {
+      return write({ jsonrpc: "2.0", id, error: { code: -32000, message: "missing history or new message" } });
+    }
+    chunk("fixture: history and question in one prompt");
     return respond(id, { stopReason: "end_turn" });
   }
   // the modes of work (task 192q): the hub asks to resolve conflicts (the files are resolved here, in the folder of the process) and to run the tests

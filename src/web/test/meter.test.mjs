@@ -203,7 +203,7 @@ test('строка статуса — плоский серый текст 13 px
 });
 
 test('«↵» отправки: есть только когда есть что отправлять и не идёт запись; поле сжимается, а не двигается правая группа', () => {
-  assert.match(viewSrc, /function syncSend\(busy\) \{\s*const can = canSend\(input\.value, attach\.items\(\), uploading\);[\s\S]*?sendButton\.hidden = !can \|\| recordingNow;/);
+  assert.match(viewSrc, /function syncSend\(\) \{\s*const can = canSend\(input\.value, attach\.items\(\), uploading\);[\s\S]*?sendButton\.disabled = !can \|\| recordingNow \|\| unavailable;/);
   assert.ok(!/sendButton\.hidden = v\.hideSend/.test(viewSrc));
   assert.match(cssSrc, /\.send-btn\[hidden\] \{ display: none; \}/);
   assert.match(cssSrc, /\.box-row \{ flex: none; gap: 2px; margin-bottom: 4px; \}/);

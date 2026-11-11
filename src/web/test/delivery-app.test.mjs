@@ -208,12 +208,13 @@ test('выбор другой семьи во время хода ждёт за�
   page.handlers.onQueue('s', 'следующий запрос');
   assert.equal(page.sent.length, 0);
   page.event('agent_done', { turn: 'active' }, { step: 3 });
-  assert.deepEqual(page.sent.map(item => item.kind), ['session_context_handoff']);
+  assert.deepEqual(page.sent.map(item => item.kind), ['user_message']);
   page.event('agent_switched', { from: 'kimi', to: 'codex' }, { step: 4 });
   page.event('session_source', source, { step: 5 });
   await Promise.resolve();
-  assert.deepEqual(page.sent.map(item => item.kind), ['session_context_handoff', 'user_message']);
-  assert.equal(page.sent[1].input.text, 'следующий запрос');
+  assert.deepEqual(page.sent.map(item => item.kind), ['user_message']);
+  assert.equal(page.sent[0].input.text, 'следующий запрос');
+  assert.deepEqual(page.sent[0].input.handoff, source);
 });
 
 test('Kimi to Codex handoff without a question starts only on send and never sends text after transfer failure', async () => {
@@ -228,8 +229,9 @@ test('Kimi to Codex handoff without a question starts only on send and never sen
     assert.equal(page.getUI().handoffStatus.get('s').phase, 'selected');
     const sent = page.handlers.onSend('s', 'сохранить этот текст');
     assert.equal(page.getUI().handoffStatus.get('s').phase, 'preparing');
-    assert.equal(page.sent[0].kind, 'session_context_handoff');
-    assert.equal(page.sent[0].input.text, undefined);
+    assert.equal(page.sent[0].kind, 'user_message');
+    assert.equal(page.sent[0].input.text, 'сохранить этот текст');
+    assert.equal(page.sent[0].input.handoff.family, 'codex');
     assert.equal(page.handlers.onSend('s', 'не дублировать'), false);
     page.event('handoff_progress', { phase: 'compacting' }, { step: 4 });
     assert.equal(page.getUI().handoffStatus.get('s').compacting, true);
@@ -238,8 +240,7 @@ test('Kimi to Codex handoff without a question starts only on send and never sen
       assert.equal(page.sent.length, 1);
       page.event('session_source', { family: 'codex', model: 'test-model', effort: 'low' }, { step: 6 });
       assert.equal(await sent, true);
-      assert.equal(page.sent[1].kind, 'user_message');
-      assert.equal(page.sent[1].input.text, 'сохранить этот текст');
+      assert.equal(page.sent.length, 1);
     } else {
       page.event('error', { message: 'Перенос контекста в Codex не завершился.' }, { step: 5 });
       assert.equal(await sent, false);
@@ -259,7 +260,7 @@ test('сохранённый выбор другой семьи запускае
   page.event('session_source', source, { step: 4 });
   const sent = page.handlers.onSend('s', 'оставить в поле ввода');
   assert.equal(page.getUI().handoffStatus.get('s').phase, 'preparing');
-  assert.equal(page.sent[0].kind, 'session_context_handoff');
+  assert.equal(page.sent[0].kind, 'user_message');
   assert.equal(page.getModel().sessions.s.agent, 'kimi');
   page.event('error', { message: 'Перенос контекста не завершился.' }, { step: 5 });
   assert.equal(await sent, false);

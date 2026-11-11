@@ -146,7 +146,7 @@ try {
   await page.locator('.delivery-body:visible').getByRole('button', { name: 'Скопировать мой запрос в поле ввода' }).click();
   assert.match(await input.inputValue(), /^исходный запрос/);
   await page.goto(base.href);
-  await page.getByRole('button', { name: 'Новая сессия в проекте Без проекта', exact: true }).click();
+  await page.locator('.sidebar-new').click();
   await input.fill('первое сообщение без подтверждения создания');
   await page.getByRole('button', { name: 'Отправить', exact: true }).click();
   await page.locator('.item-delivery').filter({ hasText: 'первое сообщение без подтверждения создания' }).waitFor();

@@ -22,6 +22,7 @@ import alula.engine.{Link, Incoming, EventKind, PartyRequest, FailCode}
 import canopus.storage.{append_line, read_lines, replace_file, encode_image}
 import canopus.projects.{EnvEntry}
 import std.encoding.json.{Json, JsonValue, JsonObject}
+import std.collections.index_map.{IndexMap}
 import std.fs.{Fs, real_fs, Path, read}
 
 /// AcpConfig: how to start the agent. `program` and `args` - the command (by default `opencode acp`); `cwd` - the absolute
@@ -35,7 +36,7 @@ export fn default_config(cwd str) -> AcpConfig => { program: "opencode", args: [
 /// AcpImage: a picture that goes with the next prompt: the file it was kept in (storage/images.nv), its type and the name the owner saw.
 export type AcpImage { path str, mime str, name str }
 
-type AcpQueued { request str, text str, images []AcpImage, pre str }
+export type AcpQueued { request str, text str, images []AcpImage, pre str }
 
 type AcpOption { id str, kind str }
 
@@ -89,6 +90,8 @@ export type AcpClient {
     cancelling bool,
     permissions []AcpPending,
     handoff_only bool,
+    handoff_context str,
+    hold_prompt bool,
     ask AskSetup,
     asks []AcpAsk,
     mcp_http bool,
@@ -361,7 +364,7 @@ export fn open_client_full(config AcpConfig, trace_path str, trace_limit int, as
             }
             mut client = AcpClient {
                 config, link, phase: "initializing", next_rpc: 0, init_rpc: -1, new_rpc: -1, prompt_rpc: -1,
-                session: "", agent: "", model_name: "", modes: JsonValue.null(), models: JsonValue.null(), choices_cfg: JsonValue.null(), mode_now: "", model_now: "", sets: []AcpSet.new(), queue: []AcpQueued.new(), active: "", cancelling: false, permissions: []AcpPending.new(), handoff_only: false, ask, asks: []AcpAsk.new(), mcp_http: false, hint_due: false,
+                session: "", agent: "", model_name: "", modes: JsonValue.null(), models: JsonValue.null(), choices_cfg: JsonValue.null(), mode_now: "", model_now: "", sets: []AcpSet.new(), queue: []AcpQueued.new(), active: "", cancelling: false, permissions: []AcpPending.new(), handoff_only: false, handoff_context: "", hold_prompt: false, ask, asks: []AcpAsk.new(), mcp_http: false, hint_due: false,
                 ready, taken: []AcpInboxItem.new(), next_seq: next, stderr: "", exit_code: -2, last_error: "", trace,
                 images_ok: false, attached: []AcpImage.new(), prelude: "", presets: []AcpPreset.new(), strict_source: false, dispatch_role: "dev", dispatch_family: "", required_mode: "", settled: []AcpPreset.new(), dropped: []AcpDrop.new(), marker: marker_start(), commands: []str.new()
             }
@@ -920,7 +923,7 @@ fn AcpClient mut @take(item Inbound) -> () {
 
 // Send the next waiting prompt when the session is open and no turn is in flight.
 fn AcpClient mut @drive() -> () {
-    if @phase != "ready" || @sets.len() > 0 || @prompt_rpc >= 0 || @queue.len() == 0 { return }
+    if @phase != "ready" || @sets.len() > 0 || @prompt_rpc >= 0 || @queue.len() == 0 || @hold_prompt { return }
     if @required_mode.byte_len() > 0 && (@current_of("mode") != @required_mode || setting_call("mode", @required_mode, @modes, @models, @choices_cfg).is_none()) {
         @fail_handshake("agent mode was not confirmed before dispatch: ${@required_mode}")
         return
@@ -935,6 +938,10 @@ fn AcpClient mut @drive() -> () {
     mut text = if @hint_due && !@handoff_only { "${@ask.hint}\n\n${next.text}" } else { next.text }
     if !@handoff_only { @hint_due = false }
     if next.pre.byte_len() > 0 { text = "${next.pre}\n\n${text}" }
+    if @handoff_context.byte_len() > 0 {
+        text = "${@handoff_context}\n\n[Новое сообщение пользователя]\n${text}"
+        @handoff_context = ""
+    }
     mut pictures = []JsonValue.new()
     if next.images.len() > 0 {
         if @images_ok {
@@ -955,12 +962,13 @@ fn AcpClient mut @drive() -> () {
     }
     // Every dispatch gets its own confirmed snapshot, including unchanged
     // pinned choices and restarted clients. Never copy pending/requested picks.
-    mut actual = JsonObject.new()
-    put(actual, "dispatch_id", JsonValue.str(@active))
-    put(actual, "family", JsonValue.str(@dispatch_family))
-    put(actual, "model", JsonValue.str(@current_of("model")))
-    put(actual, "effort", JsonValue.str(@current_of("effort")))
-    put(actual, "role", JsonValue.str(@dispatch_role))
+    ro actual IndexMap[str, JsonValue] = {
+        dispatch_id: JsonValue.str(@active),
+        family: JsonValue.str(@dispatch_family),
+        model: JsonValue.str(@current_of("model")),
+        effort: JsonValue.str(@current_of("effort")),
+        role: JsonValue.str(@dispatch_role)
+    }
     @push(Incoming.incoming(EventKind.Progress, "agent_actual", Some(@active), JsonValue.object(actual).to_str()))
     @say(rpc_request_line(@prompt_rpc, "session/prompt", prompt_params(@session, text, pictures)))
 }
@@ -1024,7 +1032,7 @@ fn AcpClient mut @enqueue(request PartyRequest[str]) -> () {
     @queue.push(AcpQueued { request: request.id, text: request.input, images: @attached, pre: @prelude })
     @attached = []AcpImage.new()
     @prelude = ""
-    @poll()
+    if !@hold_prompt { @poll() }
 }
 
 fn AcpClient mut @cancel_request(request_id str) -> () {
@@ -1246,9 +1254,41 @@ export fn AcpClient mut @close() Time -> () {
 
 export fn AcpClient mut @stage_handoff() -> () { @handoff_only = true }
 
+/// The engine journals its normal request before this client is allowed to dispatch it.
+export fn AcpClient mut @hold_handoff_prompt(context str) -> () {
+    @handoff_context = context
+    @hold_prompt = true
+}
+
+export fn AcpClient mut @release_handoff_prompt() -> Option[AcpQueued] {
+    @hold_prompt = false
+    if @queue.len() == 0 { return None }
+    Some(@queue[0])
+}
+
+export fn AcpClient mut @retry_handoff_prompt(prompt AcpQueued, context str) -> () {
+    @handoff_context = context
+    @queue.push(prompt)
+}
+
+/// Attach storage and persist the events received while waiting for the first real turn.
+export fn AcpClient mut @adopt_running_handoff(path str, events []Incoming) -> bool {
+    if @taken.len() > 0 { return false }
+    if !@set_inbox(path) { return false }
+    ro waiting = @ready
+    @ready = []AcpInboxItem.new()
+    for event in events { @push(event) }
+    for item in waiting { @push(item.event) }
+    true
+}
+
 /// Adopt the durable inbox only after a temporary handoff has completed.
 export fn AcpClient mut @adopt_inbox(path str) -> bool {
     if @active.byte_len() > 0 || @ready.len() > 0 || @taken.len() > 0 { return false }
+    @set_inbox(path)
+}
+
+fn AcpClient mut @set_inbox(path str) -> bool {
     if path.byte_len() > 0 {
         with Fs = real_fs() {
             ro recovered = recover_inbox(path)

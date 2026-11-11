@@ -124,8 +124,8 @@ test('поиск по сессиям: как поле ввода сообщен�
 
 test('строка проекта выделена: значок папки, жирное имя, фон шапки, у активного фон темнее и без акцентной полоски', () => {
   assert.match(viewSrc, /icon\(doc, 'i-folder', 'group-icon'\)/);
-  assert.match(cssSrc, /\.group\[data-project="true"\] \.group-head h3 \{[^}]*font-weight: 700/);
-  assert.match(cssSrc, /\.group\[data-active="true"\] \.group-head \{ background: color-mix\(in srgb, var\(--fg\) 7%, transparent\); \}/);
+  assert.match(cssSrc, /\.group\[data-project="true"\] h3 \{[^}]*font-size: inherit; font-weight: 500/);
+  assert.match(cssSrc, /\.group\[data-project="true"\]\[data-active="true"\] \.group-head \{ background: var\(--hover\); \}/);
   assert.doesNotMatch(cssSrc, /inset 2px 0 var\(--accent\)/);
 });
 

@@ -161,14 +161,23 @@ export fn scenario_context_handoff(settings ServerSettings, previous str, target
     rig.attach(1)
     rig.page(1, "session_created", "s-handoff", "{\"name\":\"Handoff\",\"agent\":\"${previous}\"}")
     c.expect(kit_ask(rig, "s-handoff", "first fact").byte_len() > 0, "the original turn completed")
+    ro at = rig.hub.find("s-handoff")
+    mut restored = rig.hub.sessions[at]
+    restored.rt.cwd_now = ""
+    rig.hub.sessions[at] = restored
     rig.forget()
-    rig.page(1, "session_context_handoff", "s-handoff", "{\"family\":\"${target}\",\"model\":\"missing-model\"}")
+    rig.page(1, "user_message", "s-handoff", "{\"text\":\"failed transfer\",\"handoff\":{\"family\":\"${target}\",\"model\":\"missing-model\"}}")
     c.expect(rig.until("${previous} остаётся активным", 15000), "a refused model keeps the previous agent active")
     c.expect(kit_with(rig.lines_for(1), "\"kind\":\"agent_switched\"") == 0, "failed handoff did not switch the family")
     rig.forget()
-    rig.page(1, "session_context_handoff", "s-handoff", "{\"family\":\"${target}\",\"model\":\"fake-model-b\",\"effort\":\"high\"}")
+    rig.page(1, "user_message", "s-handoff", "{\"text\":\"combined-question\",\"handoff\":{\"family\":\"${target}\",\"model\":\"fake-model-b\",\"effort\":\"high\"}}")
     c.expect(rig.until("\"kind\":\"agent_switched\"", 15000), "the same chat switched after successful handoff")
     c.expect(kit_with(rig.lines_for(1), "\"kind\":\"handoff_progress\"") > 0, "overflow announces history compaction")
+    c.expect(rig.until(KIT_DONE, 15000), "the combined prompt completed")
+    c.expect(kit_with(rig.lines_for(1), "fixture: history and question in one prompt") > 0, "summary, recent history and new text reached the same prompt")
+    ro promoted = rig.hub.sessions[at]
+    c.expect(promoted.clients.len() > 0 && promoted.rt.cwd_now.byte_len() > 0
+        && promoted.rt.cwd_now == promoted.clients[0].config.cwd, "a restored chat keeps the handoff client's working folder")
     c.expect(kit_ask(rig, "s-handoff", "mode") == "mode: default model: fake-model-b effort: high", "the next turn uses the chosen destination source")
     rig.forget()
     rig.page(1, "user_message", "s-handoff", rk_tasklist_page("handoff-tools", []JsonValue.new()))

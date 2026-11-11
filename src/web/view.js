@@ -67,7 +67,6 @@ const TASK_STATUS = {
 };
 const USAGE_STEP_KEY = { one: 'usage.step_one', few: 'usage.step_few', many: 'usage.step_many' };
 const TOOL_RESULT_ICON = { pending: 'i-clock', in_progress: 'i-play', completed: 'i-circle-check', failed: 'i-circle-x', cancelled: 'i-stop', unreported: 'i-dot' };
-const TOOL_ACTION_ICON = { read: 'i-eye', edit: 'i-pencil', delete: 'i-trash', move: 'i-move', search: 'i-search', execute: 'i-terminal', think: 'i-think', fetch: 'i-globe', other: 'i-bolt' };
 const TASK_ICON = { running: 'i-clock', completed: 'i-check', failed: 'i-x', stopped: 'i-stop' };
 const FILE_ICON = { create: 'i-file-plus', edit: 'i-file-edit', delete: 'i-file-x' };
 const THEME_ICON = { light: 'i-sun', dark: 'i-moon' };
@@ -171,8 +170,10 @@ export function createView(doc, refs, deps) {
   let loadingSig = '';
   const notFound = h(doc, 'p', { class: 'empty', text: t('sessions.not_found'), hidden: true });
 
+  const newChat = h(doc, 'button', { type: 'button', class: 'sidebar-new' }, icon(doc, 'i-plus'), t('sessions.new_chat'));
+  newChat.addEventListener('click', () => handlers.onNewToggle(true));
   refs.side.replaceChildren(
-    h(doc, 'div', { class: 'side-head' }, h(doc, 'h2', { text: t('sessions.title') }), h(doc, 'span', { class: 'side-head-tools' }, bellButton, soundButton, themeButton)),
+    h(doc, 'div', { class: 'side-head' }, newChat, h(doc, 'span', { class: 'side-head-tools' }, bellButton, soundButton, themeButton)),
     h(doc, 'div', { class: 'side-tools' },
       h(doc, 'label', { class: 'search' }, icon(doc, 'i-search'), search)),
     agentNotice, retryAgents, loadingBox, groupsBox, listEmpty, notFound,
@@ -283,14 +284,13 @@ export function createView(doc, refs, deps) {
     // перетаскивание сессий: внутри группы проекта; в «Закреплённых» порядок по активности
     const gctx = { key: group ? `${group.id}|${title}` : '', ids: rows.map((r) => r.session.id), draggable: Boolean(group) };
     const head = h(doc, 'div', { class: 'group-head' },
-      h(doc, 'div', { class: 'group-title' }, isProject ? icon(doc, 'i-folder', 'group-icon') : false, h(doc, 'h3', { text: title }),
-        group && group.id !== '' ? h(doc, 'span', { class: 'group-count', title: t('projects.count_title', { n: rows.length }), text: String(rows.length) }) : false));
+      h(doc, 'div', { class: 'group-title' }, isProject ? icon(doc, 'i-folder', 'group-icon') : false, h(doc, 'h3', { text: title })));
     if (group) {
       const actions = h(doc, 'div', { class: 'group-actions' });
-      const label = t('sessions.group_add', { project: title });
+      const label = isProject ? t('sessions.group_add', { project: title }) : t('sessions.new_chat');
       const add = h(doc, 'button', { type: 'button', class: 'icon-btn small', 'aria-label': label, title: label }, icon(doc, 'i-plus'));
       add.addEventListener('click', () => handlers.onNewToggle(true, group.id));
-      actions.append(add);
+      if (!isProject) actions.append(add);
       if (group.id !== '') {
         const menuLabel = t('projects.menu', { project: title });
         const more = h(doc, 'button', {
@@ -301,7 +301,7 @@ export function createView(doc, refs, deps) {
           groupMenu = groupMenu === group.id ? '' : group.id;
           if (current.ui) renderList(current.model, current.ui);
         });
-        actions.append(more);
+        actions.append(more, add);
         if (groupMenu === group.id) {
           const project = projectById(group.id);
           head.append(h(doc, 'div', { class: 'menu group-menu', role: 'menu', 'data-side': 'right' },
@@ -338,9 +338,17 @@ export function createView(doc, refs, deps) {
     return section;
   }
 
-  const projectsHeadNew = h(doc, 'button', { type: 'button', class: 'projects-new', title: t('projects.new') }, icon(doc, 'i-plus'), h(doc, 'span', { text: t('projects.new') }));
+  const projectsHeadNew = h(doc, 'button', { type: 'button', class: 'icon-btn small projects-new', title: t('projects.new'), 'aria-label': t('projects.new') }, icon(doc, 'i-plus'));
   projectsHeadNew.addEventListener('click', () => projectsUi.createByFolder((projectsList || []).map((p) => p.name)));
-  const projectsHead = h(doc, 'div', { class: 'projects-head' }, h(doc, 'h3', { text: t('projects.title') }), projectsHeadNew);
+  let projectsExpanded = true;
+  const projectsToggle = h(doc, 'button', { type: 'button', class: 'sidebar-section-toggle', 'aria-expanded': 'true', 'aria-controls': 'sidebar-projects' }, t('projects.title'), icon(doc, 'i-chevron-down'));
+  const projectGroups = h(doc, 'div', { id: 'sidebar-projects' });
+  projectsToggle.addEventListener('click', () => {
+    projectsExpanded = !projectsExpanded;
+    projectsToggle.setAttribute('aria-expanded', String(projectsExpanded));
+    projectGroups.hidden = !projectsExpanded;
+  });
+  const projectsHead = h(doc, 'div', { class: 'projects-head' }, h(doc, 'h3', {}, projectsToggle), projectsHeadNew);
 
   function renderList(model, ui) {
     const loading = ui.loading;
@@ -390,10 +398,12 @@ export function createView(doc, refs, deps) {
     if (groups.pinned.length > 0) nodes.push(groupNode(t('sessions.pinned'), groups.pinned, ui, pins));
     const named = groups.projects.filter((p) => p.project !== '');
     const free = groups.projects.filter((p) => p.project === '');
-    nodes.push(projectsHead);
-    for (const p of named) nodes.push(groupNode(p.project, p.rows, ui, pins, { id: p.id }));
-    for (const p of free) nodes.push(groupNode(t('sessions.no_project'), p.rows, ui, pins, { id: '', free: true }));
-    sideKit.rebuild(() => groupsBox.replaceChildren(...nodes));
+    for (const p of free) nodes.push(groupNode(t('sessions.recent'), p.rows, ui, pins, { id: '', free: true }));
+    nodes.push(projectsHead, projectGroups);
+    sideKit.rebuild(() => {
+      projectGroups.replaceChildren(...named.map((p) => groupNode(p.project, p.rows, ui, pins, { id: p.id })));
+      groupsBox.replaceChildren(...nodes);
+    });
     sideKit.afterRender(groupsBox);
   }
 
@@ -514,7 +524,8 @@ export function createView(doc, refs, deps) {
   const pick = h(doc, 'p', { class: 'pick', text: t('chat.pick') });
   const thread = h(doc, 'div', { class: 'thread' });
   const historyLoading = h(doc, 'p', { class: 'history-loading', role: 'status', hidden: true, text: t('loading.history') });
-  const log = h(doc, 'div', { class: 'log', role: 'log', 'aria-live': 'off' }, thread, historyLoading);
+  const permissionWrap = h(doc, 'div', { class: 'permission-wrap', hidden: true });
+  const log = h(doc, 'div', { class: 'log', role: 'log', 'aria-live': 'off' }, thread, historyLoading, permissionWrap);
   const emptyChat = h(doc, 'p', { class: 'empty', text: t('chat.empty') });
 
   // поле ввода
@@ -591,7 +602,7 @@ export function createView(doc, refs, deps) {
     wave.hidden = !v.showWave;
     recordingNow = v.hideSend;
     input.spellcheck = !v.showWave; // красные волны орфографии при записи не нужны
-    syncSend(!cancelButton.hidden);
+    syncSend();
     if (v.showWave) meter.start(); else meter.stop();
   }
   // Таймер записи «0:07» рядом с кнопкой, пока идёт запись
@@ -1092,7 +1103,6 @@ export function createView(doc, refs, deps) {
     if (menuKind === 'mode' && current.session) {
       menuSearch.hidden = true;
       const { groups } = approvalView(current.model, current.session, agents, pickerSource);
-      const busy = isBusy(current.session.state);
       for (const group of groups) {
         menuList.append(h(doc, 'div', { class: 'menu-head', text: agentLabel(group.family) }));
         if (group.unavailable) menuList.append(h(doc, 'div', { class: 'menu-head', text: group.unavailable }));
@@ -1100,9 +1110,9 @@ export function createView(doc, refs, deps) {
         for (const mode of group.modes) {
           const label = labelOf('mode', mode);
           menuList.append(menuRow({
-            name: label.name, description: label.description, checked: mode.id === group.selected, disabled: busy,
+            name: label.name, description: label.description, checked: mode.id === group.selected,
             onPick: () => {
-              if (!isBusy(current.session.state)) handlers.onApproval(current.session.id, group.family, mode.id);
+              handlers.onApproval(current.session.id, group.family, mode.id);
               closeMenu();
             },
           }));
@@ -1419,12 +1429,8 @@ export function createView(doc, refs, deps) {
 
   const askCard = h(doc, 'div', { class: 'ask', role: 'dialog', hidden: true });
   const askWrap = h(doc, 'div', { class: 'ask-wrap', hidden: true }, askCard);
-  const permissionWrap = h(doc, 'div', { class: 'permission-wrap', hidden: true });
-  const handoffHint = h(doc, 'div', { class: 'handoff-hint', role: 'status', hidden: true });
   const composer = h(doc, 'div', { class: 'composer' },
     routeOver,
-    handoffHint,
-    permissionWrap,
     box,
     voiceHint,
     askWrap,
@@ -1541,11 +1547,8 @@ export function createView(doc, refs, deps) {
     };
     result.then(finish, () => finish(false));
   }
-  // «↵» нет совсем, пока нечего отправлять (пустое поле, нет картинок) и во время записи: правая группа не двигается, поле сжимается
-  function syncSend(busy) {
+  function syncSend() {
     const can = canSend(input.value, attach.items(), uploading);
-    // в записи место кнопки остаётся (visibility), чтобы поле не меняло ширину и текст не перетекал в нижнюю строку
-    sendButton.hidden = !can || recordingNow;
     const restoring = current.ui?.historyPending?.has(currentTrace);
     const unavailable = current.ui?.restoreQueued?.has(currentTrace) || (restoring
       && (!current.ui.historyPreview?.has(currentTrace) || attach.items().length > 0));
@@ -1553,7 +1556,7 @@ export function createView(doc, refs, deps) {
   }
   // Авторазмер: высота по содержимому, не выше 5 строк (дальше — внутренняя прокрутка, см. max-height в app.css).
   function fitInput() {
-    syncSend(!cancelButton.hidden);
+    syncSend();
     input.style.height = 'auto';
     if (input.scrollHeight > 0) input.style.height = `${input.scrollHeight}px`; // 0 — чат скрыт: оставить auto
   }
@@ -1629,8 +1632,15 @@ export function createView(doc, refs, deps) {
   ].filter(Boolean).join(' · ');
 
   function rowLabel(r) {
-    if (r.type === 'tool') return t('work.tool', { kind: t(TOOL_LABEL[r.kind]), title: r.title });
-    return t('work.task', { status: t(TASK_STATUS[r.status]), title: r.title });
+    if (r.type === 'tool') {
+      const search = r.kind === 'search' && /^web search(?::|$)/iu.test(r.title);
+      const tool = /^(?:mcp\.canopus\.)?(canopus_\w+)$/u.exec(r.title);
+      if (search) return [t('work.web_search'), r.query || r.title.replace(/^web search:?\s*/iu, '')];
+      if (tool) return [tool[1], ''];
+      const name = t(TOOL_LABEL[r.kind]);
+      return [name, r.title.toLowerCase() === name.toLowerCase() ? '' : r.title];
+    }
+    return [t('work.task', { status: t(TASK_STATUS[r.status]), title: r.title }), ''];
   }
 
   function rowIcon(r) {
@@ -1659,28 +1669,33 @@ export function createView(doc, refs, deps) {
   }
 
   function workRow(r) {
-    const isCommand = r.type === 'tool' && r.kind === 'execute';
+    const isCommand = r.type === 'tool' && r.kind === 'execute' && !r.title.startsWith('mcp.');
     const detail = r.type === 'task' ? '' : r.detail;
     const output = isCommand ? detail.split('\n').filter(line => !/^terminal: (?:exec-[\da-f-]+|[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}|\?)\s*$/iu.test(line)).join('\n') : detail;
     const command = isCommand ? (r.command || (r.title !== r.id && !/^(?:bash|shell|terminal|command|execute|powershell|pwsh|cmd)$/iu.test(r.title.trim()) ? r.title : '')) : '';
-    const showDetail = output && (!r.command || output !== JSON.stringify({ command: r.command }));
-    const clipped = [command, showDetail && output].filter(Boolean).join('\n').trimEnd().split('\n').length > 11;
+    const result = r.response || (output && (!r.command || output !== JSON.stringify({ command: r.command })) ? output : '');
+    const [label, secondary] = rowLabel(r);
+    const webSearch = r.kind === 'search' && /^web search(?::|$)/iu.test(r.title);
+    const query = r.query || (webSearch ? secondary : '');
+    const input = r.toolInput || (query ? JSON.stringify({ query }, null, 2) : '');
+    const clipped = [command, input, result].filter(Boolean).join('\n').trimEnd().split('\n').length > 11;
     const toolOutput = r.type === 'tool';
-    const label = rowLabel(r);
     const key = `${currentTrace}:row:${r.key}`;
     const active = ['pending', 'in_progress', 'running'].includes(r.status);
     const expanded = workToggles.get(key) ?? active;
-    const details = command || showDetail ? h(doc, 'div', { class: 'row-content', hidden: !expanded, tabindex: '0', 'data-clipped': clipped ? 'true' : undefined },
+    const details = command || input || result || webSearch ? h(doc, 'div', { class: 'row-content', hidden: !expanded, tabindex: '0', 'data-clipped': clipped ? 'true' : undefined },
       command ? h(doc, 'code', { class: 'row-command', text: command }) : false,
-      showDetail ? h(doc, toolOutput ? 'pre' : 'div', {
+      input ? h(doc, 'div', { class: 'row-detail-label', text: t('work.input') }) : false,
+      input ? h(doc, 'pre', { class: 'row-detail row-output', text: input }) : false,
+      input || webSearch ? h(doc, 'div', { class: 'row-detail-label', text: t('work.response') }) : false,
+      result || webSearch ? h(doc, toolOutput ? 'pre' : 'div', {
         class: toolOutput ? 'row-detail row-output' : 'row-detail',
-        'aria-label': toolOutput ? t('work.output') : undefined, text: output,
+        'aria-label': toolOutput ? t('work.output') : undefined, text: result || t('work.no_search_response'),
       }) : false) : null;
-    const actionIcon = r.type === 'tool' ? TOOL_ACTION_ICON[r.kind] : 'i-bolt';
     const heading = h(doc, details ? 'button' : 'div', details
       ? { type: 'button', class: 'row-label row-toggle', 'aria-expanded': String(expanded) }
       : { class: 'row-label row-heading' },
-    icon(doc, actionIcon, 'row-action'), h(doc, 'span', { text: label }));
+    h(doc, 'span', { text: label }), secondary ? h(doc, 'span', { class: 'row-secondary', text: '· ' + secondary }) : false);
     if (details) heading.addEventListener('click', () => {
       const next = details.hidden;
       workToggles.set(key, next);
@@ -1716,7 +1731,7 @@ export function createView(doc, refs, deps) {
     const active = item.rows.some(r => ['pending', 'in_progress', 'running'].includes(r.status));
     const isOpen = override ?? active;
     const label = active ? t('work.current', { n: item.rows.length })
-      : single ? rowLabel(single) : summaryText(workSummary(item.rows));
+      : summaryText(workSummary(item.rows));
     const toggle = h(doc, 'button', { type: 'button', class: 'disclosure', 'aria-expanded': String(isOpen), 'data-state': single ? single.status : 'group' },
       icon(doc, 'i-chevron-right', 'chev'),
       h(doc, 'span', { class: 'disc-text', text: label }),
@@ -1805,6 +1820,11 @@ export function createView(doc, refs, deps) {
           messageActions(item));
         break;
       }
+      case 'handoff':
+        node.dataset.phase = item.phase;
+        node.setAttribute('role', 'status');
+        node.textContent = item.text;
+        break;
       case 'skipped':
         node.replaceChildren(h(doc, 'span', { text: t('chat.images_skipped', { agent: agentLabel(item.agent) }) }));
         break;
@@ -2070,17 +2090,14 @@ export function createView(doc, refs, deps) {
     const shown = shownOf(model, session);
     const busy = isBusy(session.state);
     const handoff = ui.handoffStatus?.get(session.id);
-    handoffHint.hidden = handoff?.phase !== 'preparing' && handoff?.phase !== 'error';
-    handoffHint.dataset.phase = handoff?.phase || '';
     const handoffText = handoff?.phase === 'error' ? handoff.message
       : handoff?.compacting ? t('handoff.compacting')
       : handoff?.phase === 'preparing' ? t('handoff.preparing', { agent: agentLabel(handoff.source.family) }) : '';
-    if (handoffHint.textContent !== handoffText) handoffHint.textContent = handoffText;
     const queued = handlers.queued(session.id);
     queueButton.hidden = queued === 0;
     if (queued > 0) queueButton.textContent = t('composer.queued', { n: queued });
     cancelButton.hidden = !busy;
-    syncSend(busy);
+    syncSend();
     options = shown.options;
     currentAgent = shown.agent;
     currentSession = session;
@@ -2168,7 +2185,7 @@ export function createView(doc, refs, deps) {
     const canChoose = Boolean(hasConfiguredFamilies || availablePools);
     familyButton.setAttribute('aria-disabled', String(preparingSource));
     familyButton.dataset.noChoices = String(!canChoose);
-    familyButton.title = preparingSource ? handoffHint.textContent : busy && canChoose ? t('handoff.choose_next') : canChoose ? t('menu.agent') : registryPending ? t('status.agents_loading') : t(registryFailed ? 'sessions.agents_unavailable' : (agents.length === 1 ? 'status.agent_one' : 'sessions.agents_none'));
+    familyButton.title = busy && canChoose ? t('handoff.choose_next') : canChoose ? t('menu.agent') : registryPending ? t('status.agents_loading') : t(registryFailed ? 'sessions.agents_unavailable' : (agents.length === 1 ? 'status.agent_one' : 'sessions.agents_none'));
     familyButton.setAttribute('aria-label', `Агент: ${pickerLabel || 'не выбран'}`);
     const hasModels = Boolean(options && options.models.length > 0);
     // Причина отсутствия вариантов — по факту: грузятся; у черновика без записи каталога появятся после запуска; агент не предоставляет.
@@ -2207,7 +2224,7 @@ export function createView(doc, refs, deps) {
         menuSig = sig;
       }
     } else if (menuKind === 'mode') {
-      const sig = JSON.stringify([session.approvals, options, model.catalog, busy]);
+      const sig = JSON.stringify([session.approvals, options, model.catalog]);
       if (sig !== menuSig) renderMenu();
       menuSig = sig;
     } else if ((menuKind === 'model' || menuKind === 'more') && !hasModels) closeMenu();
@@ -2244,6 +2261,7 @@ export function createView(doc, refs, deps) {
         items.splice(next < 0 ? items.length : next, 0, card);
       }
     }
+    if (handoffText) items.push({ type: 'handoff', key: 'handoff', phase: handoff.phase, text: handoffText });
     // сообщения в очереди — под текущим ходом, в порядке постановки
     handlers.queuedItems(session.id).forEach((q, index) => {
       items.push({ type: 'queued', key: `queued:${index}:${q.text.length}:${q.text.slice(0, 24)}`, text: q.text, images: q.images ?? [], index });
@@ -2553,6 +2571,8 @@ export function createView(doc, refs, deps) {
       h(doc, 'div', { class: 'actions' }, deny, allow));
     permissionWrap.replaceChildren(dialog);
     permissionWrap.hidden = false;
+    if (!followTail) unseen = true;
+    followLatest();
   }
 
   // ---------------------------------------------------------------- форма вопросов агента (задача 192)

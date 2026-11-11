@@ -405,4 +405,19 @@ test('a queued family switch shows the chosen model before the next message', ()
   picker.click();
   const row = refs.main.querySelectorAll('.menu-item').find(item => item.textContent.includes('Sonus'));
   assert.equal(row?.getAttribute('aria-checked'), 'true');
+
+  const choice = handoffStatus.get('s');
+  const ui = { selected: 's', projects: [], pins: {}, theme: 'system', handoffStatus };
+  const thread = refs.main.querySelector('.thread');
+  handoffStatus.set('s', { ...choice, phase: 'preparing' });
+  view.render(model, ui, { state: 'connected' });
+  assert.equal(thread.querySelector('.item-handoff').textContent, 'Передаём историю чата агенту Qoder…');
+
+  handoffStatus.set('s', { ...choice, phase: 'preparing', compacting: true });
+  view.render(model, ui, { state: 'connected' });
+  assert.equal(thread.querySelector('.item-handoff').textContent, 'Готовим краткую сводку ранних сообщений…');
+
+  handoffStatus.delete('s');
+  view.render(model, ui, { state: 'connected' });
+  assert.equal(thread.querySelector('.item-handoff'), null);
 });

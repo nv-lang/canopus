@@ -17,7 +17,7 @@ fn sample() -> []str => [
 
 test "transfer: the first line says whose conversation it is, the messages come whole and in order" {
     ro r = build_transfer(sample(), "opencode")
-    assert(r.text.starts_with("Это продолжение разговора, ранее вёл opencode; ниже протокол; продолжай с последнего сообщения пользователя, ничего не отвечай на протокол"))
+    assert(r.text.starts_with("Протокол разговора с opencode."))
     assert(r.text.contains("first question\nwith a second line"))
     assert(r.text.contains("The answer"))
     assert(r.text.contains("goes on."))

@@ -95,6 +95,25 @@ fn chunk_projection(update JsonValue, name str, label str) -> Projection {
     }
 }
 
+fn search_fields(mut o JsonObject, update JsonValue) -> () {
+    ro title = text_field(update, "title") ?? ""
+    ro raw = get_of(update, "rawInput") ?? JsonValue.null()
+    ro kind = text_field(update, "kind") ?? ""
+    if kind != "search" && !title.starts_with("Web search") && text_field(raw, "type") != Some("webSearch") { return }
+    ro action = get_of(raw, "action") ?? JsonValue.null()
+    ro query = text_field(action, "query") ?? text_field(raw, "query") ?? ""
+    if query.byte_len() > 0 { put(o, "query", JsonValue.str(query)) }
+    match get_of(update, "rawOutput") {
+        Some(value) => {
+            if !value.is_null() {
+                ro response = value.str() ?? value.to_str()
+                if response.byte_len() <= 65536 { put(o, "response", JsonValue.str(response)) }
+            }
+        }
+        None => ()
+    }
+}
+
 fn tool_call_projection(update JsonValue) -> Projection {
     ro id = match text_field(update, "toolCallId") {
         Some(x) => x
@@ -113,6 +132,7 @@ fn tool_call_projection(update JsonValue) -> Projection {
         }
         None => ()
     }
+    search_fields(o, update)
     proj("tool_call", JsonValue.object(o).to_str())
 }
 
@@ -134,6 +154,9 @@ fn tool_call_update_projection(update JsonValue) -> Projection {
         }
         None => ()
     }
+    ro title = text_field(update, "title") ?? ""
+    if title.byte_len() > 0 { put(o, "title", JsonValue.str(title)) }
+    search_fields(o, update)
     proj("tool_call_update", JsonValue.object(o).to_str())
 }
 

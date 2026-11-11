@@ -273,7 +273,7 @@ test('long search output stays scrollable and manually opened actions stay open'
   assert.equal(output.textContent, detail);
   render(done);
   assert.equal(refs.main.querySelector('.row-leading use').getAttribute('href'), '#i-circle-check');
-  assert.equal(refs.main.querySelector('.row-action use').getAttribute('href'), '#i-search');
+  assert.equal(refs.main.querySelector('.row-action'), null);
   assert.ok(refs.main.querySelector('.row-status .sr-only'));
   assert.equal(refs.main.querySelector('.row-content').hidden, true);
   refs.main.querySelector('.item-work .disclosure').click();
