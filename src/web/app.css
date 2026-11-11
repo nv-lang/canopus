@@ -37,6 +37,7 @@
 
 :root {
   --bg: #ffffff;
+  --scrollbar-thumb: #74688d;
   --side: #fafafa;
   /* Подложка центральной области (верхняя полоса, лента, правая колонка): в светлой теме — белая (задача 190). */
   --center: #ffffff;
@@ -97,6 +98,8 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    scrollbar-color: var(--scrollbar-thumb) var(--side);
     --bg: #13111d;
     --side: #181526;
     --center: #13111d;
@@ -136,6 +139,8 @@
 }
 
 :root[data-theme="dark"] {
+  color-scheme: dark;
+  scrollbar-color: var(--scrollbar-thumb) var(--side);
   --bg: #13111d;
   --side: #181526;
   --center: #13111d;
