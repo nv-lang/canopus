@@ -638,15 +638,25 @@ export fn Hub mut @attach_lazy(conn int) -> () {
 
 /// Keep a read-only projection of the last settled transcript beside its journal.
 export fn Hub mut @save_history_previews() Fs -> () {
-    for s in @sessions {
+    mut at = 0
+    while at < @sessions.len() {
+        ro s = @sessions[at]
         ro count = s.lines.len()
-        if count == 0 || jnumber(@history_saved, s.id) == count || s.engine.open_ids().len() > 0 { continue }
-        match session_file_made(@settings.data_dir, s.id, "history-preview.json") {
-            Some(path) => {
-                if replace_file(path, array_text(s.lines)) { jput(@history_saved, s.id, JsonValue.int(count)) }
+        if count > 0 && s.engine.open_ids().len() == 0 {
+            ro route = @route_state_text(at)
+            ro marker = "${count}:${route}"
+            if jtext(@history_saved, s.id) != marker {
+                match session_file_made(@settings.data_dir, s.id, "history-preview.json") {
+                    Some(path) => {
+                        if replace_file(path, "{\"entries\":${array_text(s.lines)},\"route\":${route}}") {
+                            js(@history_saved, s.id, marker)
+                        }
+                    }
+                    None => ()
+                }
             }
-            None => ()
         }
+        at += 1
     }
 }
 
@@ -655,11 +665,14 @@ fn Hub mut @send_history(conn int, trace str, known JsonObject) Time -> () {
     if at < 0 { return }
     ro s = @sessions[at]
     ro count = s.lines.len()
-    ro last = if count > 0 { jobject(s.lines[count - 1]) ?? JsonObject.new() } else { JsonObject.new() }
-    ro unchanged = count > 0 && jnumber(known, "count") == count && jtext(known, "last") == jtext(last, "id")
-    ro entries = if unchanged { "[]" } else { array_text(s.lines) }
-    ro same = if unchanged { "true" } else { "false" }
-    @send(conn, "{\"kind\":\"session_history\",\"trace\":${JsonValue.str(trace).to_str()},\"unchanged\":${same},\"entries\":${entries}}")
+    ro known_count = jnumber(known, "count")
+    ro last = if known_count > 0 && known_count <= count { jobject(s.lines[known_count - 1]) ?? JsonObject.new() } else { JsonObject.new() }
+    ro known_last = jtext(known, "last")
+    ro matched = known_last.byte_len() > 0 && known_last == jtext(last, "id")
+    ro same = if matched && known_count == count { "true" } else { "false" }
+    ro from = if matched && jflag(known, "delta") { known_count } else { 0 }
+    ro entries = if same == "true" { "[]" } else { array_text(s.lines[from..count]) }
+    @send(conn, "{\"kind\":\"session_history\",\"trace\":${JsonValue.str(trace).to_str()},\"unchanged\":${same},\"from\":${from},\"entries\":${entries}}")
     @route_line(conn, trace, @route_state_text(at))
     @machine_line(conn, at, @machine_since(trace))
     for line in s.rt.reqs { @send(conn, line) }

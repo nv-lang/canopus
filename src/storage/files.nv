@@ -18,7 +18,7 @@ import alula.engine.{Journal, Store, JournalEntry, Snapshot, journal_line, parse
 import std.encoding.json.{Json, JsonValue, JsonObject}
 import std.concurrency.nvchan.{Chan, ChanTx, ChanRx}
 import std.fs.{Fs, real_fs, File, Path, read, read_dir, create_dir_all, rename, metadata, remove_file, try_exists}
-import std.io.{write_all}
+import std.io.{write_all, SeekFrom}
 
 /// The data folder: created with its parents; false when it cannot be (a file is in the way, no rights).
 export fn open_data_dir(root str) Fs -> bool {
@@ -185,57 +185,105 @@ fn write_journal_entry(root str, session str, path Path, entry JournalEntry) -> 
     }
 }
 
-fn parse_journal_entries(lines []str) -> []JournalEntry {
-    mut out = []JournalEntry.new(cap: lines.len())
-    for line in lines {
-        match parse_journal_line(line) {
-            Some(entry) => out.push(entry)
+const JOURNAL_READ_BYTES = 256 * 1024
+
+const JOURNAL_PARSE_BLOCKS = 4
+
+fn parse_journal_block(bytes []u8) -> []JournalEntry {
+    mut entries = []JournalEntry.new()
+    for line in bytes.to_str_lossy().split("\n") {
+        match parse_journal_line(line.strip_suffix("\r") ?? line) {
+            Some(entry) => entries.push(entry)
             None => ()
         }
     }
-    out
-}
-
-fn journal_entries(path Path) -> []JournalEntry {
-    ro lines = with Fs = real_fs() { read_lines(path) }
-    parse_journal_entries(lines)
-}
-
-type ParsedJournalBatch { entries []JournalEntry }
-
-fn parse_journal_batch(tx ChanTx[ParsedJournalBatch], lines []str) -> () {
-    ro sent = tx.send(ParsedJournalBatch { entries: parse_journal_entries(lines) })
-}
-
-fn append_journal_batch(mut entries []JournalEntry, rx ChanRx[ParsedJournalBatch]) -> () {
-    match rx.recv() {
-        Some(batch) => for entry in batch.entries { entries.push(entry) }
-        None => panic("journal parse batch ended without its entries")
-    }
-}
-
-// Parsing each complete JSON line is independent. Read the file once, then join
-// the batches in file order before the engine inspects the journal.
-fn replay_journal_entries(path Path) -> []JournalEntry {
-    ro lines = with Fs = real_fs() { read_lines(path) }
-    if lines.len() < 4096 { return parse_journal_entries(lines) }
-
-    ro batch_size = lines.len() / 4
-    ro second = Chan[ParsedJournalBatch].new(1)
-    ro third = Chan[ParsedJournalBatch].new(1)
-    ro fourth = Chan[ParsedJournalBatch].new(1)
-    mut entries = []JournalEntry.new()
-    supervised {
-        spawn { parse_journal_batch(second.tx, lines[batch_size..2 * batch_size]) }
-        spawn { parse_journal_batch(third.tx, lines[2 * batch_size..3 * batch_size]) }
-        spawn { parse_journal_batch(fourth.tx, lines[3 * batch_size..]) }
-        entries = parse_journal_entries(lines[..batch_size])
-        append_journal_batch(entries, second.rx)
-        append_journal_batch(entries, third.rx)
-        append_journal_batch(entries, fourth.rx)
-    }
     entries
 }
+
+type JournalBlock { bytes []u8 }
+type ParsedJournalBlock { entries []JournalEntry }
+
+fn parse_journal_worker(tx ChanTx[ParsedJournalBlock], block []u8) -> () {
+    ro sent = tx.send(ParsedJournalBlock { entries: parse_journal_block(block) })
+}
+
+fn append_journal_block(mut entries []JournalEntry, rx ChanRx[ParsedJournalBlock]) -> () {
+    match rx.recv() {
+        Some(block) => entries.append(block.entries)
+        None => panic("journal parser ended without its block")
+    }
+}
+
+fn parse_journal_blocks(mut entries []JournalEntry, blocks []JournalBlock) -> () {
+    if blocks.len() < JOURNAL_PARSE_BLOCKS {
+        for block in blocks { entries.append(parse_journal_block(block.bytes)) }
+        return
+    }
+    ro second = Chan[ParsedJournalBlock].new(1)
+    ro third = Chan[ParsedJournalBlock].new(1)
+    ro fourth = Chan[ParsedJournalBlock].new(1)
+    supervised {
+        spawn { parse_journal_worker(second.tx, blocks[1].bytes) }
+        spawn { parse_journal_worker(third.tx, blocks[2].bytes) }
+        spawn { parse_journal_worker(fourth.tx, blocks[3].bytes) }
+        entries.append(parse_journal_block(blocks[0].bytes))
+        append_journal_block(entries, second.rx)
+        append_journal_block(entries, third.rx)
+        append_journal_block(entries, fourth.rx)
+    }
+}
+
+// Split on the last newline of each read before decoding UTF-8. A row may
+// span multiple reads. Parse at most four blocks, then append in file order.
+fn read_journal_from(path Path, offset int) Fs -> Option[[]JournalEntry] {
+    mut entries = []JournalEntry.new()
+    match File.open(path) {
+        Err(_) => return None
+        Ok(consume file) => {
+            if offset > 0 && file.seek(SeekFrom.Start(offset)).is_err() {
+                ro closed = file.close()
+                return None
+            }
+            mut buffer []u8 = []u8.new()
+            buffer.resize(JOURNAL_READ_BYTES, 0 as u8)
+            mut tail []u8 = []u8.new()
+            mut blocks []JournalBlock = []JournalBlock.new()
+            mut readable = true
+            loop {
+                ro count = match file.read(buffer) {
+                    Ok(n) => n
+                    Err(e) => {
+                        if e.is_interrupted() { continue }
+                        readable = false
+                        break
+                    }
+                }
+                if count == 0 { break }
+                mut end = count
+                while end > 0 && buffer[end - 1] != 10 as u8 { end -= 1 }
+                if end > 0 {
+                    tail.append(buffer[..end])
+                    blocks.push(JournalBlock { bytes: tail })
+                    tail = []u8.new()
+                    if blocks.len() == JOURNAL_PARSE_BLOCKS {
+                        parse_journal_blocks(entries, blocks)
+                        blocks = []JournalBlock.new()
+                    }
+                }
+                tail.append(buffer[end..count])
+            }
+            ro closed = file.close()
+            if !readable || closed.is_err() { return None }
+            if tail.len() > 0 { blocks.push(JournalBlock { bytes: tail }) }
+            parse_journal_blocks(entries, blocks)
+        }
+    }
+    Some(entries)
+}
+
+fn read_journal(path Path) Fs -> []JournalEntry => read_journal_from(path, 0) ?? []JournalEntry.new()
+
+fn journal_entries(path Path) -> []JournalEntry => with Fs = real_fs() { read_journal(path) }
 
 /// The handler of `Journal` for one session. A torn last line is skipped on read.
 export fn file_journal(root str, session str) -> Effect[Journal] {
@@ -258,10 +306,59 @@ fn replay_journal(root str, session str, path Path, mut replay ReplayJournal) ->
     }
 }
 
+const REPLAY_CHECKPOINT_SAMPLE = 64
+
+// A derived checkpoint for an append-only journal. The header carries the
+// original byte offset and anchors. Missing or invalid checkpoints replay normally.
+fn checkpoint_anchor(path Path, offset int) Fs -> Option[str] {
+    consume file = match File.open(path) { Ok(consume f) => f, Err(_) => return None }
+    mut bytes []u8 = []u8.new()
+    bytes.resize(REPLAY_CHECKPOINT_SAMPLE, 0 as u8)
+    ro read_count = file.read_at(bytes, offset)
+    ro closed = file.close()
+    if closed.is_err() { return None }
+    match read_count {
+        Ok(n) if n == REPLAY_CHECKPOINT_SAMPLE => Some(bytes.to_str_lossy())
+        _ => None
+    }
+}
+
+fn checkpoint_matches(root str, session str, path Path, header JsonObject) Fs -> Option[int] {
+    if header.get("version")?.int()? != 1 { return None }
+    ro step = header.get("step")?.int()?
+    ro offset = header.get("offset")?.int()?
+    if step < 1 || offset < REPLAY_CHECKPOINT_SAMPLE { return None }
+    ro snapshot_file = path_or_stop(root, session, "snapshot")
+    ro snapshot_bytes = match read(snapshot_file) { Ok(bytes) => bytes, Err(_) => return None }
+    ro snapshot = parse_snapshot(snapshot_bytes.to_str_lossy())?
+    if snapshot.step < step { return None }
+    ro first = checkpoint_anchor(path, 0)?
+    ro end = checkpoint_anchor(path, offset - REPLAY_CHECKPOINT_SAMPLE)?
+    if !end.ends_with("\n") || first != header.get("first")?.str()? || end != header.get("end")?.str()? { return None }
+    Some(offset)
+}
+
+fn checkpoint_entries(root str, session str, path Path) Fs -> Option[[]JournalEntry] {
+    ro meta = path_or_stop(root, session, "replay-checkpoint.json")
+    ro bytes = match read(meta) { Ok(bytes) => bytes, Err(_) => return None }
+    ro value = match Json.parse(bytes.to_str_lossy()) { Ok(value) => value, Err(_) => return None }
+    ro header = value.object()?
+    ro offset = checkpoint_matches(root, session, path, header)?
+    ro cache = path_or_stop(root, session, "replay-checkpoint.journal")
+    mut entries = read_journal(cache)
+    if entries.len() == 0 || entries.len() != header.get("records")?.int()? { return None }
+    entries.append(read_journal_from(path, offset)?)
+    Some(entries)
+}
+
+fn replay_entries(root str, session str, path Path) -> []JournalEntry {
+    with Fs = real_fs() { checkpoint_entries(root, session, path) ?? read_journal(path) }
+}
+
 /// A private journal view for the one restore operation, including entries appended during restart.
 export fn file_replay_journal(root str, session str) -> Effect[Journal] {
     ro path = path_or_stop(root, session, "journal")
-    mut replay = ReplayJournal { entries: replay_journal_entries(path) }
+    mut replay = ReplayJournal { entries: replay_entries(root, session, path) }
     replay_journal(root, session, path, replay)
 }
 

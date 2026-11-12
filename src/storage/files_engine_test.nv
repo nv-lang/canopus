@@ -4,9 +4,10 @@
 // that did not commit).
 module canopus.storage
 
-import alula.engine.{Engine, Incoming, JournalEntry, Journal, Store, Link, Time, MemoryWorld, start_engine, resume_engine, memory_link, memory_time, journal_event, journal_line, param}
+import alula.engine.{Engine, Incoming, JournalEntry, Journal, Store, Snapshot, Link, Time, MemoryWorld, start_engine, resume_engine, memory_link, memory_time, journal_event, journal_line, param}
 import canopus.chat.{ChatSession, ChatState, chat_session, encode_chat_state, user_says, agent_chunk, agent_done}
 import std.fs.{Fs, real_fs, remove_dir_all}
+import std.encoding.json.{JsonValue}
 import std.os.{Os, real_os, temp_dir, pid}
 
 fn engine_root(name str) -> str {
@@ -173,27 +174,66 @@ test "death between the snapshot save and the send: the request is sent once aft
     assert(world.sent.len() == 1)
 }
 
-test "files: parallel replay preserves journal order and skips malformed rows" {
+test "files: streamed replay preserves journal order and skips malformed rows" {
     ro root = engine_root("parallel-replay")
     assert(open_data_dir(root))
     assert(ensure_session_dir(root, "chat-1"))
     ro path = session_file(root, "chat-1", "journal").unwrap()
     mut lines = []str.new()
-    mut step = 1
-    while step <= 4103 {
+    ro trace_key = "\"trace\":\""
+    mut prefix = trace_key.byte_len()
+    for before in journal_line(stale_entry("", 1, "agent_chunk")).split(trace_key) {
+        prefix += before.byte_len()
+        break
+    }
+    ro split_trace = "x".repeat(256 * 1024 - prefix - 1).concat("ё")
+    lines.push(journal_line(stale_entry(split_trace, 1, "agent_chunk")))
+    mut step = 2
+    while step <= 6503 {
         if step == 1025 { lines.push("malformed") }
         lines.push(journal_line(stale_entry("trace", step, "agent_chunk")))
         step += 1
     }
     lines.push("{\"torn\":")
-    assert(replace_file(path, lines.join("\n")))
+    assert(replace_file(path, lines.join("\r\n")))
     with Journal = file_replay_journal(root, "chat-1") {
         ro replay = Journal.read_all()
-        assert(replay.len() == 4103)
+        assert(replay.len() == 6503)
         mut at = 0
         for entry in replay {
-            assert(entry.step == at + 1 && entry.trace == "trace" && entry.event.code == "agent_chunk")
+            assert(entry.step == at + 1 && entry.trace == (if at == 0 { split_trace } else { "trace" }) && entry.event.code == "agent_chunk")
             at += 1
         }
+    }
+}
+
+test "files: a checkpoint restores committed rows and reads the appended tail" {
+    ro root = engine_root("replay-checkpoint")
+    assert(ensure_session_dir(root, "chat-1"))
+    ro raw = session_file(root, "chat-1", "journal").unwrap()
+    ro metadata = session_file(root, "chat-1", "replay-checkpoint.json").unwrap()
+    ro cache = session_file(root, "chat-1", "replay-checkpoint.journal").unwrap()
+    ro first = journal_line(stale_entry("trace", 1, "request_sent"))
+    ro old = "${first}\n${journal_line(stale_entry("trace", 2, "event_unknown"))}\n"
+    ro bytes = old.bytes()
+    ro offset = bytes.len()
+    ro start = JsonValue.str(bytes[..64].to_str_lossy()).to_str()
+    ro end = JsonValue.str(bytes[offset - 64..].to_str_lossy()).to_str()
+    ro header = "{\"version\":1,\"step\":2,\"offset\":${offset},\"records\":1,\"first\":${start},\"end\":${end}}"
+    assert(replace_file(raw, old))
+    assert(replace_file(cache, "${first}\n"))
+    assert(replace_file(metadata, header))
+    with Store = file_store(root) {
+        Store.save("chat-1", Snapshot { step: 2, data: "{}" })
+    }
+    assert(append_line(raw, journal_line(stale_entry("trace", 3, "agent_done"))))
+    with Journal = file_replay_journal(root, "chat-1") {
+        ro restored = Journal.read_all()
+        assert(restored.len() == 2 && restored[0].step == 1 && restored[1].step == 3)
+    }
+    assert(replace_file(cache, "torn"))
+    with Journal = file_replay_journal(root, "chat-1") {
+        ro restored = Journal.read_all()
+        assert(restored.len() == 3 && restored[1].step == 2 && restored[2].step == 3)
     }
 }

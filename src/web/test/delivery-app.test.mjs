@@ -356,6 +356,24 @@ test('открытие чата запускает восстановление 
   assert.equal(page.sent[1].input.last, created.id);
 });
 
+test('предпросмотр показывает этапы, а сервер дополняет историю новыми записями', async () => {
+  const created = { id: 'two:start', trace: 'two', kind: 'session_created', input: { name: 'two', agent: 'kimi' }, step: 0, time: 1 };
+  const message = { id: 'two:first', trace: 'two', kind: 'user_message', input: { text: 'первое', turn: 'first' }, step: 1, time: 2 };
+  const page = await app(memory(), true, '', { entries: [created] }, { two: {
+    entries: [created, message], route: { route: 'full', steps: [{ n: 1, title: 'План', state: 'done' }] },
+  } });
+  page.callbacks.onSnapshot('ready', ['two', 's']);
+  page.handlers.onSelect('two');
+  page.draw();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(page.getModel().sessions.two.routeState.steps[0].state, 'done');
+  assert.equal(page.sent.at(-1).input.delta, true);
+  page.callbacks.onSessionHistory('two', [
+    { ...message, id: 'two:next', step: 2, input: { text: 'готово?', turn: 'next' } },
+  ], false, 2);
+  assert.deepEqual(page.getModel().sessions.two.messages.filter(item => item.role === 'user').map(item => item.text), ['первое', 'готово?']);
+});
+
 test('route reset stays pending until the server confirms the selected step', async () => {
   const page = await app();
   const snapshot = state => ({ route: 'full', steps: [{ n: 1, title: 'First', state }] });

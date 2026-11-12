@@ -17,7 +17,7 @@ import { createQueue, isBusy } from './queue.js';
 import { uploadImages, messageInput } from './attachments.js';
 import { chooseMode, createTransport, parseAgentRegistry, loadModelMetadata } from './transport.js';
 import { createProjectsApi } from './projects-api.js';
-import { routeSignal, normalizeRoute } from './routes.js';
+import { routeSignal, normalizeRoute, parseRouteState } from './routes.js';
 import { canopusSignal } from './canopus-task.js';
 import { createLoading } from './loading.js';
 import { createDelivery, safeError } from './delivery.js';
@@ -202,11 +202,18 @@ function requestHistoryPreview(trace) {
   requestedPreview.add(trace);
   fetch('/api/session-history/' + encodeURIComponent(trace), { cache: 'no-store', signal: AbortSignal.timeout(3500) })
     .then(response => response.ok ? response.json() : null)
-    .then(entries => {
+    .then(preview => {
+      const entries = Array.isArray(preview) ? preview : preview?.entries;
       if (!ui.historyPending.has(trace) || !model.sessions[trace] || !Array.isArray(entries)) return;
+      const previous = model.sessions[trace];
       if (replayHistory(trace, entries)) {
+        const session = model.sessions[trace];
+        if (previous.routeStep >= 0 || preview?.route) {
+          const routeState = previous.routeStep >= 0 ? previous.routeState : parseRouteState(preview.route);
+          model = { ...model, sessions: { ...model.sessions, [trace]: { ...session, route: routeState.route, routeState, routeStep: previous.routeStep } } };
+        }
         ui.historyPreview.add(trace);
-        previewVersion.set(trace, { count: entries.length, last: entries.at(-1)?.id });
+        previewVersion.set(trace, { count: entries.length, last: entries.at(-1)?.id, delta: true });
         render();
       }
     }).catch(() => { /* The authoritative history request remains available. */ })
@@ -926,9 +933,14 @@ async function start() {
       render();
     },
     onSessionsIndex(entries) { applySessionIndex(entries); },
-    onSessionHistory(trace, entries, unchanged) {
+    onSessionHistory(trace, entries, unchanged, from) {
       if (!requestedHistory.delete(trace)) return;
-      if (!(unchanged && ui.historyPreview.has(trace)) && !replayHistory(trace, entries)) {
+      const usingPreview = ui.historyPreview.has(trace);
+      if (usingPreview && from > 0 && from === previewVersion.get(trace)?.count) {
+        for (const event of entries) {
+          if (event.trace === trace) model = reduce(model, event);
+        }
+      } else if (!(unchanged && usingPreview) && !replayHistory(trace, entries)) {
         flash(t('loading.history_error'));
         return;
       }
