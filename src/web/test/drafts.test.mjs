@@ -125,7 +125,8 @@ test('поиск по сессиям: как поле ввода сообщен�
 test('проект обозначен иконкой, подсветка применяется к строкам сессий', () => {
   assert.match(viewSrc, /icon\(doc, 'i-folder', 'group-icon'\)/);
   assert.match(cssSrc, /\.group\[data-project="true"\] h3 \{[^}]*font-size: inherit; font-weight: 500/);
-  assert.doesNotMatch(cssSrc, /\.group\[data-project="true"\][^{}]*\.group-head[^{}]*\{[^}]*background:/);
+  assert.doesNotMatch(cssSrc, /\.group\[data-project="true"\][^{}]*\[data-active[^{}]*\.group-head[^{}]*\{[^}]*background:/);
+  assert.match(cssSrc, /\.group\[data-project="true"\] \.group-head:hover[^{}]*\{[^}]*background: var\(--hover\)/);
   assert.match(cssSrc, /\.session\.is-active \{ background: var\(--hover\); \}/);
   assert.doesNotMatch(cssSrc, /inset 2px 0 var\(--accent\)/);
 });
