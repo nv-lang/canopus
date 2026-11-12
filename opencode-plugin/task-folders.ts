@@ -170,7 +170,7 @@ export function routeLogLine(t: Parameters<typeof routeLogText>[0], now: Date = 
 /** Текст task/message.md задачи с папкой: из дерева задачи (на диске), а когда дерева нет — из её ветки. Прочесть нельзя — undefined (о правке ничего не известно). */
 export function readTaskMessage(t: Pick<Task, "folder" | "worktree" | "branch" | "directory" | "project" | "n">): string | undefined {
   if (!t.folder) return undefined
-  const canonical = path.join(path.dirname(path.dirname(taskFile(t.project, t.n))), "task", "message.md")
+  const canonical = path.join(path.dirname(taskFile(t.project, t.n)), "task", "message.md")
   if (existsSync(canonical)) return readFileSync(canonical, "utf8")
   const rel = path.join(...String(t.folder).split("/"), "task", "message.md")
   if (t.worktree) {
@@ -217,7 +217,7 @@ function launchesIn(dir: string): number[] {
 }
 
 /** Каталог папки задачи в копии root (дерево задачи или сессии). */
-export const folderIn = (_root: string, t: Pick<Task, "folder" | "project" | "n">) => path.dirname(path.dirname(taskFile(t.project, t.n)))
+export const folderIn = (_root: string, t: Pick<Task, "folder" | "project" | "n">) => path.dirname(taskFile(t.project, t.n))
 
 /** Номер запуска новой сессии: 1 + наибольший из сессий записи и строк «запуск» журналов папки во всех копиях (дерево задачи и деревья сессий). */
 export function nextLaunch(t: Task): number {

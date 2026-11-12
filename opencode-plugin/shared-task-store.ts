@@ -25,7 +25,14 @@ export function taskEntries(root: string, requested?: number): { n: number; fold
     if (requested !== undefined && (!m || Number(m[1]) !== requested)) continue
     if (d.isSymbolicLink() && m) throw Error("Task directory must not be a symbolic link")
     if (d.isDirectory() && m && existsSync(path.join(root,d.name,"task")) && lstatSync(path.join(root,d.name,"task")).isSymbolicLink()) throw Error("Task payload directory must not be a symbolic link")
-    if (d.isDirectory() && m) out.push({ n: Number(m[1]), folder: d.name, file: path.join(root, d.name, "task", "state.json") })
+    if (d.isDirectory() && m) {
+      const folder = path.join(root, d.name)
+      const file = path.join(folder, "state.json")
+      for (const old of ["task", ".canopus"]) {
+        if (existsSync(path.join(folder, old, "state.json"))) throw Error("Legacy task state requires explicit migration")
+      }
+      out.push({ n: Number(m[1]), folder: d.name, file })
+    }
   }
   const seen = new Set<number>()
   for (const r of out.filter(r => existsSync(r.file))) { if (seen.has(r.n)) throw Error(`Task number collision: ${r.n}`); seen.add(r.n) }
@@ -40,7 +47,7 @@ export function recordFile(root: string, n: number, slug = "task"): string {
   const exact = matches.find(r => r.folder === `${String(n).padStart(3, "0")}-${slug}`)
   if (exact) return exact.file
   if (matches.length > 1) throw Error("Ambiguous task folder; explicit migration required")
-  return matches[0]?.file ?? path.join(root, `${String(n).padStart(3, "0")}-${slug}`, "task", "state.json")
+  return matches[0]?.file ?? path.join(root, `${String(n).padStart(3, "0")}-${slug}`, "state.json")
 }
 export function readTaskFile(file: string): StoredTask | undefined {
   if (!existsSync(file)) return undefined
@@ -48,7 +55,7 @@ export function readTaskFile(file: string): StoredTask | undefined {
   let t:any
   try {t=JSON.parse(readFileSync(file,"utf8"))}catch{throw Error("Shared task state is unreadable; explicit recovery required")}
   if (!t || !Number.isSafeInteger(t.n) || t.n < 1 || typeof t.project !== "string" || (t.project!==""&&!/^[a-z0-9][a-z0-9-]*$/.test(t.project))) throw Error(`Invalid shared task: ${file}`)
-  const folder=/^(\d{3,})-/.exec(path.basename(path.dirname(path.dirname(file))))
+  const folder=/^(\d{3,})-/.exec(path.basename(path.dirname(file)))
   if(!folder||Number(folder[1])!==t.n)throw Error("Shared task filename identity mismatch")
   return t
 }

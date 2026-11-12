@@ -149,7 +149,7 @@ export function setFixturePolicy(directory, values = {}) {
 export function clearTaskFixtures(tasks, project) {
  const temp=realpathSync.native(os.tmpdir()).toLowerCase()
  for(const t of tasks.listTasks(project)){
-  const folder=path.dirname(path.dirname(tasks.taskFile(t.project,t.n)))
+  const folder=path.dirname(tasks.taskFile(t.project,t.n))
   const actual=realpathSync.native(folder).toLowerCase(),relative=path.relative(temp,actual)
   if(!relative||relative.startsWith("..")||path.isAbsolute(relative))throw Error("Refusing to clear task data outside test temp")
   rmSync(folder,{recursive:true,force:true})

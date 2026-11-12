@@ -1,5 +1,5 @@
 // ЖУРНАЛ ЗАДАЧ (план 002, Ф.1). Задача — работа с номером #N (сквозной в проекте, только растёт), автором,
-// исполнителем, приоритетом и статусом; запись task/state.json в общем каталоге задачи (288).
+// исполнителем, приоритетом и статусом; запись state.json в корне общего каталога задачи (288).
 // Номер и публикация записи защищены общей блокировкой обоих клиентов и эксклюзивным созданием файла.
 //
 // ЗАПУСК ПОВТОРЯЕМ (замер 2026-10-05): session.create принимает свой id (начинается с "ses") и на повтор с тем же
@@ -47,7 +47,7 @@ export function registerTaskProject(project: string, directory: string) {
   if (existsSync(path.join(root, ".git"))) {
     const exclude = taskGitExclude(root)!
     const previous = existsSync(exclude) ? readFileSync(exclude,"utf8") : ""
-    const patterns = ["**/task/state.json", "**/task/watch.json", "**/task/snapshot.json", "**/task/tests-run.json", "**/.task-store.lock/", "**/.task-store.claim-*", "**/imported-sources/"]
+    const patterns = ["**/[0-9][0-9][0-9]*/state.json", "**/[0-9][0-9][0-9]*/watch.json", "**/[0-9][0-9][0-9]*/snapshot.json", "**/[0-9][0-9][0-9]*/tests-run.json", "**/task/state.json", "**/task/watch.json", "**/task/snapshot.json", "**/task/tests-run.json", "**/.task-store.lock/", "**/.task-store.claim-*", "**/imported-sources/"]
     const missing = patterns.filter(p => !previous.split(/\r?\n/).includes(p))
     if (missing.length) { mkdirSync(path.dirname(exclude),{recursive:true}); writeFileSync(exclude,previous + (previous.endsWith("\n")?"":"\n") + missing.join("\n") + "\n") }
   }

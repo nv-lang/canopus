@@ -1719,7 +1719,7 @@ acceptor — роль приёмщика (разделяемая) при нас�
 перезапуском OpenCode, плагин подхватывает письмом «продолжай». Служебным письмам плагина не отвечают.
 Спросивший ждёт ответ canopus_wait в том же ходе — ответ приходит туда, без отдельного пробуждения.
 
-ЗАДАЧИ. Одна задача — один номер и общий каталог приложения/плагина: <project>/<tasks_dir>/NNN-slug/, без проекта — ~/.canopus/tasks/NNN-slug/. Состояние — task/state.json. В проекте с папками задач (настройка tasks_dir, по умолчанию doc/tasks; включена, когда
+ЗАДАЧИ. Одна задача — один номер и общий каталог приложения/плагина: <project>/<tasks_dir>/NNN-slug/, без проекта — ~/.canopus/tasks/NNN-slug/. Состояние — state.json. В проекте с папками задач (настройка tasks_dir, по умолчанию doc/tasks; включена, когда
 каталог есть в целевой ветке) номер задачи — номер её папки NNN-<slug>/, в показе «045»; запись плагина
 носит тот же номер. В проекте без папок у задачи номер N (сквозной в проекте, только растёт; при доработке и передаче не
 меняется), в показе тоже тремя цифрами («094»; больше тысячи — как есть): у всех задач всех проектов одна подпись, без «#» (решётка с числом — ссылка на issue GitHub). По номеру задачу называют владелец, интегратор и canopus_list; заголовок сессии — «045 исп название».
@@ -2111,7 +2111,7 @@ export function branchDeps(projects: Projects): BranchDeps {
     },
     targetBranch: (dir) => loadConfig(dir).targetBranch,
     task: (project, n) => loadTask(project, n),
-    taskDocuments: (project,n) => path.dirname(path.dirname(taskFile(project,n))),
+    taskDocuments: (project,n) => path.dirname(taskFile(project,n)),
     openTasks: () => listTasks().filter((t) => isOpen(t)),
     holdsLock: (project, session, n) => holdsMergeLock(project, session, n),
     taskNote: (project, n, text) => {
@@ -2896,7 +2896,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
       try {
         sha = execFileSync("git", ["-C", fm.top, "rev-parse", "--short", base], { encoding: "utf8", windowsHide: true, stdio: ["ignore", "pipe", "ignore"] }).trim()
       } catch {}
-      const files = { [`${t.folder}/task/creation.json`]: JSON.stringify({ reason: input.creation_reason, checked_tasks: input.checked_tasks, why_new: input.why_new, approval: input[CREATION_APPROVAL] }, null, 2) + "\n", [`${t.folder}/task/message.md`]: text, [`${t.folder}/log.md`]: firstLogLine(t, own.trim() ? "текст интегратора (поле message)" : small ? "малый маршрут: три строки (что; T; слова владельца)" : "шаблон из полей задачи", `${cfg.targetBranch} ${sha}`.trim()) + (t.route === "fast" || t.route === "small" ? routeLogLine(t) : "") }
+      const files = { [`${t.folder}/creation.json`]: JSON.stringify({ reason: input.creation_reason, checked_tasks: input.checked_tasks, why_new: input.why_new, approval: input[CREATION_APPROVAL] }, null, 2) + "\n", [`${t.folder}/task/message.md`]: text, [`${t.folder}/log.md`]: firstLogLine(t, own.trim() ? "текст интегратора (поле message)" : small ? "малый маршрут: три строки (что; T; слова владельца)" : "шаблон из полей задачи", `${cfg.targetBranch} ${sha}`.trim()) + (t.route === "fast" || t.route === "small" ? routeLogLine(t) : "") }
       const c = t.branch ? commitFiles(fm.top, t.branch, base, files, `Add task ${pad3(t.n)}: ${t.slug}`) : ({ ok: false, error: "у задачи нет ветки" } as const)
       if (!c.ok) {
         t.creation_failure = c.error
@@ -2904,7 +2904,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
         return { content: `Задача ${taskRef(t)} не заведена: папку ${t.folder}/ не удалось записать на ветку ${t.branch} (${c.error}). Номер ${pad3(t.n)} остаётся пропуском.` }
       }
       // The branch commit is a versioned snapshot; the live task documents share the canonical record directory.
-      const canonicalTask = path.dirname(path.dirname(taskFile(t.project, t.n)))
+      const canonicalTask = path.dirname(taskFile(t.project, t.n))
       for (const [relative, body] of Object.entries(files)) {
         const dest = path.join(canonicalTask, relative.slice(String(t.folder).length + 1))
         mkdirSync(path.dirname(dest), { recursive: true })
@@ -2948,7 +2948,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
     description:
       [
         "Integrator only: propose a new task, get native owner confirmation, then start its independent session. No task/number/folder/worktree/executor exists before confirmation. creation_reason, checked_tasks and why_new are mandatory for a new task; the backend also finds possible duplicates. Existing task sessions do not need another creation approval. It runs in the OpenCode server even with no window. The report comes back as an answer to the task's qid: canopus_wait {qid}. Manage tasks with canopus_task. The owner reads title, goal and criteria too: write them in the owner's language named in your system block.",
-        "One task, one number. Application and plugin share <project>/<tasks_dir>/NNN-slug/ (default doc/tasks), or ~/.canopus/tasks/NNN-slug/ without a project; private state is task/state.json. In a project with task folders (tasks_dir, default doc/tasks, present in the target branch) the task number is the number of its folder NNN-<slug>/, shown as 045; without folders it is the plugin's number, shown the same way, 094 (every task of every project is shown with three digits and no hash, 1000 above 999: a hash with a number is a GitHub issue link). A new task: the plugin takes 1 + the largest number of the records and of the folders in every working tree and branch, writes the folder (task/message.md = message word for word, or a template from the fields when message is absent; log.md with its first line) on the task branch and commits it there. Live task documents and task/state.json use the canonical shared directory of the primary project; source code stays in the task worktree. task: N - a task whose folder already exists (no folder commit; refused when no folder has that number).",
+        "One task, one number. Application and plugin share <project>/<tasks_dir>/NNN-slug/ (default doc/tasks), or ~/.canopus/tasks/NNN-slug/ without a project; private state is state.json. In a project with task folders (tasks_dir, default doc/tasks, present in the target branch) the task number is the number of its folder NNN-<slug>/, shown as 045; without folders it is the plugin's number, shown the same way, 094 (every task of every project is shown with three digits and no hash, 1000 above 999: a hash with a number is a GitHub issue link). A new task: the plugin takes 1 + the largest number of the records and of the folders in every working tree and branch, writes the folder (task/message.md = message word for word, or a template from the fields when message is absent; log.md with its first line) on the task branch and commits it there. Live task documents and state.json use the canonical shared directory of the primary project; source code stays in the task worktree. task: N - a task whose folder already exists (no folder commit; refused when no folder has that number).",
         "A task session is a part of the task, not a task: session \"<code>\" (С1, С2, С3п, С4…; default исп = the executor) adds a session to task N: ident 045 С4-3 (code and its ordinal in the task) plus the launch number №n; the plugin writes the launch lines into progress.log and log.md of the folder. A method session submits to you (canopus_task submit), with no plugin review; the plugin's review of the task starts once, after canopus_task deliver. place: own (default for С2/С4/С6) - its own worktree and branch task/NNN-<code>-<k> from the task branch; task (default for the others) - the task worktree.",
         "A sub-task (part_of: N) is a task of its own: own number and folder, the first line of its task/message.md is «Часть задачи NNN «…».», a line in the parent's log.md. The rule: an own acceptance or an own landing in main - a sub-task; the next step of the same work (a check, a fix by findings, a continuation, a handover) - a session.",
         "goal, criteria - required (named code policy may require more: boundaries, open_questions). title? priority? P0..P3.",
@@ -4346,7 +4346,7 @@ export function formatTaskLetter(t: Task): string {
   if (t.folder && s && s.code !== EXECUTOR_CODE) return sessionLetter(t, s)
   return [
     `ЗАДАЧА ${taskNo(t)} «${t.title}» от ${t.author_role} (сессия ${t.author}), приоритет ${t.priority}.`,
-    t.folder ? `ПАПКА ЗАДАЧИ: ${path.dirname(path.dirname(taskFile(t.project,t.n)))}/ — единые задание task/message.md и журнал log.md; версионный путь в ветке: ${t.folder}/.` : "",
+    t.folder ? `ПАПКА ЗАДАЧИ: ${path.dirname(taskFile(t.project,t.n))}/ — единые задание task/message.md и журнал log.md; версионный путь в ветке: ${t.folder}/.` : "",
     refinementBlock(t),
     t.refinement ? `ЦЕЛЬ (исходная; действует уточнение выше): ${t.goal}` : `ЦЕЛЬ: ${s?.goal && s.goal !== t.goal ? `${s.goal}\nЦЕЛЬ ЗАДАЧИ: ${t.goal}` : t.goal}`,
     t.criteria ? `КРИТЕРИИ ПРИЁМКИ: ${t.criteria}` : "",
@@ -4375,7 +4375,7 @@ export function sessionLetter(t: Task, s: TaskSession): string {
   const tree = s.place === "own" && s.worktree ? `WORKTREE ГОТОВ: эта сессия работает в своём дереве ${s.worktree}, ветка ${s.branch} (создал плагин от ветки задачи ${t.branch}). Правь и коммить здесь.` : t.worktree ? `WORKTREE ГОТОВ: эта сессия работает в дереве задачи ${t.worktree}, ветка ${t.branch}. Правь и коммить здесь; другой worktree не создавай.` : t.branch ? `ВЕТКА: ${t.branch}.` : ""
   return [
     `ЗАДАЧА ${taskNo(t)} «${t.title}», СЕССИЯ ${sesLabel(s)} (запуск №${s.launch}) от ${t.author_role}, приоритет ${t.priority}.`,
-    `ПАПКА ЗАДАЧИ: ${path.dirname(path.dirname(taskFile(t.project,t.n)))}/ — единые задание task/message.md и журнал log.md; версионный путь в ветке: ${t.folder}/.`,
+    `ПАПКА ЗАДАЧИ: ${path.dirname(taskFile(t.project,t.n))}/ — единые задание task/message.md и журнал log.md; версионный путь в ветке: ${t.folder}/.`,
     refinementBlock(t),
     `ЦЕЛЬ СЕССИИ: ${s.goal ?? t.goal}`,
     tree,

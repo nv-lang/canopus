@@ -2683,7 +2683,7 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
           if(!t?.folder)return
           const name=path.basename(file)
           if(!["log.md","progress.log","usage.log"].includes(name))return
-          const canonical=path.dirname(path.dirname(taskFile(t.project,t.n)))
+          const canonical=path.dirname(taskFile(t.project,t.n))
           const local=path.resolve(c.directory,t.folder,name),requested=path.resolve(c.directory,file),shared=path.resolve(canonical,name)
           const same=(a:string,b:string)=>path.resolve(a).toLowerCase()===path.resolve(b).toLowerCase()
           if(same(requested,local)||same(requested,shared))return {base:canonical,file:name}

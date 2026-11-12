@@ -3,7 +3,7 @@
 // A work that the owner takes "в работу" is not a subtask inside the session of its parent: it is a session of its own (an agent of its own, a branch and a tree of its own, a folder
 // of the task `doc/tasks/NNN-slug/` with `task/message.md`), listed under the parent session (`parent` in the journal of the session). The number is a plain next number of the
 // repository (as in a tracker); the link to the parent lives in the data: the first line of `message.md` is `Эпик: NNN` for every child (the method; task 192.5: there is one kind of a parent,
-// the EPIC - any open task becomes an epic when it gets its first child task; the old line `Родитель: NNN` is still read), the table `task/children.md` in the folder of the epic, which the hub keeps
+// the EPIC - any open task becomes an epic when it gets its first child task; the old line `Родитель: NNN` is still read), the table `children.md` in the folder of the epic, which the hub keeps
 // and reads back. A child is cut from the branch of its epic and always merges into it when the epic has a branch and a tree, else it is cut from main and merges into main by its own button.
 //
 // What is here (no disk, no sockets): the slug of a child, the text of its `message.md`, the table `children.md` and its parser, the words of the states, the view for the page.
@@ -98,7 +98,7 @@ export fn child_kind_of_message(text str) -> str {
 const CH_HEAD = "| Номер | Тип | Название | Папка | Ветка | Сессия | Состояние | Затрагивает |"
 const CH_RULE = "|---|---|---|---|---|---|---|---|"
 
-/// The table `task/children.md` of the epic: a row for each child; the hub writes it at the creation, at a change of the state and at the merge, a hand may edit it.
+/// The table `children.md` of the epic: a row for each child; the hub writes it at the creation, at a change of the state and at the merge, a hand may edit it.
 export fn children_table_text(parent_no str, rows []ChildRow) -> str {
     mut lines = []str.new()
     lines.push("# Дочерние задачи эпика ${parent_no}")
@@ -183,7 +183,7 @@ export fn children_unmerged(rows []ChildRow) -> []str {
 /// The note to the agent of a child that starts: whose child it is, where the task is, where it merges to.
 export fn child_note(number str, title str, shown str, pkind str, parent_no str, target str) -> str {
     ro whose = if pkind.byte_len() > 0 { " Это дочерняя задача эпика ${parent_no}." } else { "" }
-    "[canopus] Владелец взял в работу «${title}»: это твоя задача ${number}, папка ${shown}.${whose} Постановка — ${shown}/message.md (краткое изложение и сообщения владельца, картинки в images/); чеклист — progress.md. Прочитай её и выполни работу в рабочем каталоге (ветка и дерево твои). ${target} В конце коротко скажи, что сделано."
+    "[canopus] Владелец взял в работу «${title}»: это твоя задача ${number}, папка ${shown}.${whose} Постановка — ${shown}/message.md (краткое изложение и сообщения владельца, картинки в images/); чеклист — progress.md в корне задачи. Прочитай её и выполни работу в рабочем каталоге (ветка и дерево твои). ${target} В конце коротко скажи, что сделано."
 }
 
 /// The note to the agent of a child whose task is extended (the owner took "Дополнить").

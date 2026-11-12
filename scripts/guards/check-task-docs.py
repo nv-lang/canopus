@@ -155,7 +155,7 @@ LOG_STARTED = re.compile(r"^([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}) ")
 TASK_FOLDER = re.compile(r"^(doc/tasks/([0-9]{3,})-[^/]+)/")
 # дочерние задачи эпика (ADR-0014, владелец 2026-10-27): первая строка task/message.md — «Эпик: NNN» (старая «Родитель: NNN» читается), таблица дочерних задач эпика — task/children.md
 PARENT_LINE = re.compile(r"^(Эпик|Родитель):[ \t]*([0-9]{3,})[ \t]*$")
-CHILDREN_FILE = re.compile(r"^(doc/tasks/[^/]+)/task/children\.md$")
+CHILDREN_FILE = re.compile(r"^(doc/tasks/[^/]+)/(?:task/)?children\.md$")
 CHILDREN_HEAD = ("Номер", "Тип", "Название", "Папка", "Ветка", "Сессия", "Состояние", "Затрагивает")
 CHILDREN_KINDS = ("дочерняя", "подзадача", "задача эпика", "задача")
 CHILDREN_STATE = re.compile(r"^(идёт|готово|слита|ждёт очереди|ждёт [0-9]+)$")
@@ -681,7 +681,7 @@ def check_parent_line(path, text, source, by_path, rep):
         rep.add(path, 1, "parent-missing", "строка «%s: %s»: в doc/tasks нет папки задачи %s (%s)" % (m.group(1), m.group(2), m.group(2), CHILDREN_RULE))
         return
     for folder in sorted(folders):
-        table = by_path.get(folder + "/task/children.md")
+        table = by_path.get(folder + "/children.md") or by_path.get(folder + "/task/children.md")
         data = source.read(table) if table is not None and table.mode != "160000" else None
         if data is None:
             continue
@@ -710,7 +710,7 @@ def configure_tasks_dir(source):
     JOURNAL_FILE = re.compile(r"^" + prefix + r"/[^/]+/progress\.log$")
     LOG_FILE = re.compile(r"^" + prefix + r"/[^/]+/log\.md$")
     TASK_FOLDER = re.compile(r"^(" + prefix + r"/([0-9]{3,})-[^/]+)/")
-    CHILDREN_FILE = re.compile(r"^(" + prefix + r"/[^/]+)/task/children\.md$")
+    CHILDREN_FILE = re.compile(r"^(" + prefix + r"/[^/]+)/(?:task/)?children\.md$")
     MESSAGE_FILE = re.compile(r"^(" + prefix + r"/[^/]+)/task/message\.md$")
 
 

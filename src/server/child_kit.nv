@@ -205,8 +205,9 @@ export fn scenario_route_children(settings ServerSettings) Proc Detach Time Net 
     c.expect(tree1.byte_len() > 0 && dir_there(tree1) && jtext(rk_task(ck_state(rig, 1, p1)), "branch") == "task/${id1}", "a tree and a branch of their own: ${tree1}")
     ro m1 = ck_message(rig, 1, p1)
     c.expect(m1.contains("сделать: Первая работа") && !m1.contains("Родитель:") && !m1.contains("Эпик:"), "message.md of a task of its own has no line of an epic")
-    c.expect(!path_there("${ck_dir(rig, p1)}/children.md"), "and no table of children")
+    c.expect(!path_there("${task_artifact_dir(ck_dir(rig, p1))}/children.md"), "and no table of children")
     c.expect(!path_there("${ck_dir(rig, p1)}/message.1.md"), "no message.N.md")
+    c.expect(path_there("${task_artifact_dir(ck_dir(rig, p1))}/progress.md") && !path_there("${ck_dir(rig, p1)}/progress.md"), "progress goes next to the owner input directory")
     c.expect(ck_turns(rig, 1, p1) >= 1 && ck_turns(rig, 1, p2) >= 1, "both agents got their service turn (they work in parallel)")
     c.expect(rk_number(ck_state(rig, 1, "s-c1"), "active") == 2, "two are in work")
     c.expect(!((ck_state(rig, 1, p1).get("epic") ?? JsonValue.null()).bool() ?? false), "the task 1 is not an epic yet")
@@ -223,7 +224,7 @@ export fn scenario_route_children(settings ServerSettings) Proc Detach Time Net 
     c.expect(dir_there(tree3) && tree3 != tree1 && jtext(rk_task(ck_state(rig, 1, s3)), "branch") == "task/${id3}", "its own tree and branch: ${tree3}")
     ro m3 = ck_message(rig, 1, s3)
     c.expect(m3.starts_with("Эпик: 001\n") && m3.contains("сделать: Часть первой"), "the first line of message.md is the epic: ${cut_text(m3, 60)}")
-    ro table = rk_text("${ck_dir(rig, p1)}/children.md")
+    ro table = rk_text("${task_artifact_dir(ck_dir(rig, p1))}/children.md")
     c.expect(table.contains("003") && table.contains("дочерняя") && table.contains("идёт") && table.contains(s3), "the table of the epic has the row of the child: ${cut_text(table, 200)}")
     c.expect((ck_state(rig, 1, p1).get("epic") ?? JsonValue.null()).bool() ?? false, "the task 1 became an epic with its first child")
     c.expect(ck_row_state(rig, 1, p1, "003") == "running", "the panel of the epic lists the child")
@@ -257,7 +258,7 @@ export fn scenario_route_children(settings ServerSettings) Proc Detach Time Net 
     c.expect(!dir_there(tree3), "the tree of the merged child is removed")
     c.expect(rk_array(ck_state(rig, 1, p1), "children_unmerged").len() == 0, "nothing is left unmerged")
     rig.run(500)
-    c.expect(rk_text("${ck_dir(rig, p1)}/children.md").contains("слита"), "the table says: слита")
+    c.expect(rk_text("${task_artifact_dir(ck_dir(rig, p1))}/children.md").contains("слита"), "the table says: слита")
 
     // 6. the chain "Влить все дочерние": two more children are merged in order by one button
     c.expect(rk_offer_tasks(rig, "s-c1", [ck_item("child", "Хвост А", 1, 0, ["ta.txt"]), ck_item("child", "Хвост Б", 1, 0, ["tb.txt"])], "Хвост А"), "two more children are listed")
@@ -284,7 +285,7 @@ export fn scenario_route_children(settings ServerSettings) Proc Detach Time Net 
     c.expect(ep != "" && ck_parent(rig, 1, ep) == "" && epic_no.byte_len() > 0, "the epic is a session of its own with a number: ${epic_no}")
     c.expect((ck_state(rig, 1, ep).get("epic") ?? JsonValue.null()).bool() ?? false, "and it is marked as an epic")
     ro epic_dir = ck_dir(rig, ep)
-    c.expect(rk_text("${epic_dir}/children.md").contains("Номер") && !rk_text("${epic_dir}/children.md").contains("дочерняя"), "its table of children is made, with no rows yet")
+    c.expect(rk_text("${task_artifact_dir(epic_dir)}/children.md").contains("Номер") && !rk_text("${task_artifact_dir(epic_dir)}/children.md").contains("дочерняя"), "its table of children is made, with no rows yet")
     c.expect(ck_idle(rig, ep, 60000), "the agent of the epic is free")
     ro epic_int = match epic_no.to_int() {
         Ok(v) => v
@@ -296,7 +297,7 @@ export fn scenario_route_children(settings ServerSettings) Proc Detach Time Net 
     ro et = ck_find(rig, 1, "Задача эпика")
     c.expect(et != "" && ck_parent(rig, 1, et) == ep, "the child of the epic is a session under the epic")
     c.expect(ck_message(rig, 1, et).starts_with("Эпик: ${epic_no}\n"), "the first line of its message.md is the epic")
-    c.expect(rk_text("${epic_dir}/children.md").contains("дочерняя") && rk_text("${epic_dir}/children.md").contains(ck_number(rig, 1, et)), "the table of the epic holds the child")
+    c.expect(rk_text("${task_artifact_dir(epic_dir)}/children.md").contains("дочерняя") && rk_text("${task_artifact_dir(epic_dir)}/children.md").contains(ck_number(rig, 1, et)), "the table of the epic holds the child")
     c.expect(jtext(jchild(ck_state(rig, 1, et), "child") ?? JsonObject.new(), "target") == "parent", "the epic has a branch and a tree: its child merges into the branch of the epic")
     c.expect(ck_idle(rig, et, 60000), "the agent of the child is free")
 

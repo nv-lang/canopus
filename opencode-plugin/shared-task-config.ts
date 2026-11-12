@@ -40,7 +40,7 @@ export function bindSharedTaskContext(c:ReturnType<typeof sharedTaskContext>) {
  if(fs.existsSync(path.join(c.main,".git"))){
   const file=taskGitExclude(c.main)! ,before=fs.existsSync(file)?fs.readFileSync(file,"utf8"):""
   const rel=path.relative(c.main,c.root).replace(/\\/g,"/")
-  const patterns=["**/task/state.json", "**/task/watch.json", "**/task/snapshot.json", "**/task/tests-run.json","**/.task-store.lock/", "**/.task-store.claim-*","**/imported-sources/",`/${rel}/legacy/`]
+  const patterns=["**/[0-9][0-9][0-9]*/state.json", "**/[0-9][0-9][0-9]*/watch.json", "**/[0-9][0-9][0-9]*/snapshot.json", "**/[0-9][0-9][0-9]*/tests-run.json", "**/task/state.json", "**/task/watch.json", "**/task/snapshot.json", "**/task/tests-run.json","**/.task-store.lock/", "**/.task-store.claim-*","**/imported-sources/",`/${rel}/legacy/`]
   const missing=patterns.filter(p=>!before.split(/\r?\n/).includes(p))
   if(missing.length){fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,before+(before.endsWith("\n")?"":"\n")+missing.join("\n")+"\n")}
  }

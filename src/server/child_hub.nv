@@ -1,9 +1,9 @@
 // child_hub.nv - task 192.3: the hub side of the child sessions (the pure part is `child.nv`).
 //
 // "В работу" (a row of the table of the recognised works, or "Начать" of a single proposal) makes a SESSION: a session of the hub with an agent of its own, a branch and a tree of its own, a folder
-// `doc/tasks/NNN-slug/` with `task/message.md` and `task/progress.md`. The way is chosen in the row (task 192.5; the owner, 2026-10-27): a task of its own (the default), a CHILD task of the epic K
+// `doc/tasks/NNN-slug/` with `task/message.md` and `progress.md`. The way is chosen in the row (task 192.5; the owner, 2026-10-27): a task of its own (the default), a CHILD task of the epic K
 // (`parent` in its journal, the first line of its `message.md` is `Эпик: K`), an EPIC (a task that is going to have children), or an addition to the task K. There is one kind of a parent, the epic:
-// any open task becomes an epic when its first child task appears (the table `task/children.md` in its folder, the hub writes it at the creation, at a change of the state and at the merge).
+// any open task becomes an epic when its first child task appears (the table `children.md` in its folder, the hub writes it at the creation, at a change of the state and at the merge).
 // A child is cut from the branch of its epic (no branch - from main) and ALWAYS merges into it by its own button (a conflict is resolved by the agent of the child); a child of an epic with no
 // branch merges into main by "Слить в main". The epic goes to main at any moment by its own "Слить в main": the children not merged yet are only named ("не слиты: ..., останутся отдельно"),
 // they never hold it; "Влить все дочерние" merges them one after another when the owner wants it.
@@ -72,7 +72,7 @@ fn Hub @cs_rows(parent_id str, progress bool) -> []ChildRow {
         mut done = 0
         mut total = 0
         if progress {
-            ro prog = parse_progress(read_file("${c.rt.task_dir}/progress.md") ?? "")
+            ro prog = parse_progress(read_file("${task_artifact_dir(c.rt.task_dir)}/progress.md") ?? "")
             done = prog.done
             total = prog.total
         }
@@ -96,7 +96,7 @@ fn Hub @cs_rows(parent_id str, progress bool) -> []ChildRow {
     if pat >= 0 && @sessions[pat].rt.task_open && @sessions[pat].rt.task_dir.byte_len() > 0 {
         mut top = 0
         for r in rows { if r.k > top { top = r.k } }
-        for old in children_parse(read_file("${@sessions[pat].rt.task_dir}/children.md") ?? "") {
+        for old in children_parse(read_file("${task_artifact_dir(@sessions[pat].rt.task_dir)}/children.md") ?? "") {
             mut live = false
             for r in rows { if r.number == old.number { live = true } }
             if !live {
@@ -151,14 +151,14 @@ fn Hub @cs_view(at int, base str) -> str {
 
 // ----- the table in the folder of the parent -----
 
-// The table `task/children.md` is written when it changed (the hub keeps it; a hand may edit it, the rows are read back).
+// The table `children.md` is written when it changed (the hub keeps it; a hand may edit it, the rows are read back).
 fn Hub mut @cs_sync(at int) Proc Detach Time -> () {
     ro s = @sessions[at]
     if !s.rt.task_open || s.rt.task_dir.byte_len() == 0 { return }
     if @cs_kids(s.id).len() == 0 { return }
     ro text = children_table_text(s.rt.number, @cs_rows(s.id, false))
     if text == s.rt.tbl { return }
-    ro wrote = write_file("${s.rt.task_dir}/children.md", text)
+    ro wrote = write_file("${task_artifact_dir(s.rt.task_dir)}/children.md", text)
     if !wrote { @say_log("the table of the children cannot be written in ${s.rt.task_dir}") }
     mut me = @sessions[at]
     me.rt.tbl = text
@@ -187,9 +187,9 @@ fn Hub mut @cs_make_epic(at int) Proc Detach Time -> () {
         ji(mark, "on", 1)
         @rt_task_op(at, "epic", mark)
     }
-    if s.rt.task_open && s.rt.task_dir.byte_len() > 0 && @cs_kids(s.id).len() == 0 && !path_there("${s.rt.task_dir}/children.md") {
+    if s.rt.task_open && s.rt.task_dir.byte_len() > 0 && @cs_kids(s.id).len() == 0 && !path_there("${task_artifact_dir(s.rt.task_dir)}/children.md") {
         ro text = children_table_text(s.rt.number, []ChildRow.new())
-        ro wrote = write_file("${s.rt.task_dir}/children.md", text)
+        ro wrote = write_file("${task_artifact_dir(s.rt.task_dir)}/children.md", text)
         mut me = @sessions[at]
         me.rt.tbl = text
         @sessions[at] = me
@@ -351,7 +351,7 @@ fn Hub mut @cs_spawn(at int, p Proposal, how str, queued bool) Proc Detach Time 
     @rt_task_op(cat, "open", o)
     ro doc = @route_doc(route)
     ro wrote = write_file("${dir}/message.md", child_message_text(ptype, parent_no, p.title, p.summary, p.source, now_millis()))
-    ro made_progress = write_file("${dir}/progress.md", progress_template(1, doc.steps))
+    ro made_progress = write_file("${task_artifact_dir(dir)}/progress.md", progress_template(1, doc.steps))
     if !wrote || !made_progress { @say_log("the files of the task ${folder} cannot be written in ${dir}") }
     mut files = []AcpImage.new()
     mut j = 0

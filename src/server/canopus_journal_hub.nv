@@ -18,7 +18,7 @@ fn Hub @jr_stamp() Time -> str {
 fn Hub @jr_dir(at int) -> str {
     ro s = @sessions[at]
     if !s.rt.task_open || s.rt.task_closed || s.rt.task_dir.byte_len() == 0 { return "" }
-    s.rt.task_dir
+    task_artifact_dir(s.rt.task_dir)
 }
 
 fn jr_last_name(path str) -> str {
@@ -42,7 +42,7 @@ fn Hub @jr_file_reason(at int, file str, name str) -> str {
     if f.contains("..") { return "файл вне папки задачи этой сессии (путь с «..»): журналы пишутся только в папку своей задачи, имя файла фиксировано — ${name}" }
     if jr_last_name(f) != name { return "писать можно только в файл с именем ${name}" }
     if f == name { return "" }
-    ro dir = s.rt.task_dir.replace("\\", "/")
+    ro dir = task_artifact_dir(s.rt.task_dir)
     ro shown = s.rt.task_shown.replace("\\", "/")
     if f == "${dir}/${name}" || f == "${shown}/${name}" || f == "doc/tasks/${s.rt.task_id}/${name}" || f == "doc/tasks/${s.rt.task_id}/task/${name}" { return "" }
     "файл вне папки задачи этой сессии (${shown}): журналы пишутся только в папку своей задачи — чужая задача и любой другой путь отклоняются"
@@ -83,7 +83,7 @@ fn jr_append_text(path str, line str) -> str {
 fn Hub mut @jr_mark_box(at int, k int, n int) -> str {
     ro s = @sessions[at]
     if s.rt.last_sub() == 0 { return "" }
-    ro path = "${s.rt.task_dir}/${s.rt.prog_file(s.rt.last_sub())}"
+    ro path = "${task_artifact_dir(s.rt.task_dir)}/${s.rt.prog_file(s.rt.last_sub())}"
     match read_file(path) {
         Some(old) => {
             ro prog = parse_progress(old)

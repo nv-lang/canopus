@@ -1,6 +1,6 @@
 // Expected public help changes for shared storage. Actual output is compared without normalization.
 const changes = [
- ["ЗАДАЧИ. Одна задача — один номер.", "ЗАДАЧИ. Одна задача — один номер и общий каталог приложения/плагина: <project>/<tasks_dir>/NNN-slug/, без проекта — ~/.canopus/tasks/NNN-slug/. Состояние — task/state.json."],
+ ["ЗАДАЧИ. Одна задача — один номер.", "ЗАДАЧИ. Одна задача — один номер и общий каталог приложения/плагина: <project>/<tasks_dir>/NNN-slug/, без проекта — ~/.canopus/tasks/NNN-slug/. Состояние — state.json."],
  ["log.md — первая строка); основную копию не трогает.", "log.md — первая строка). Живые документы и состояние общие, исходный код основной копии не меняется; документы в ветках — снимки."]
 ]
 export function expectedHelp288(text) {

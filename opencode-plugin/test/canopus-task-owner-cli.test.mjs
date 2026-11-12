@@ -54,7 +54,7 @@ try {
  const tasks = await import("../tasks.ts"); assert.equal(tasks.listTasks("sample").length, 0)
  const form = [...forms.values()][0]; form.state = { status: "answered", answer: { decision: "confirm" } }
  r = await run([...args, "--approval", pending.approval]); assert.equal(r.code, 0, r.stderr); const made = JSON.parse(r.stdout.trim())
- assert.equal(made.n, 1); assert.equal(tasks.listTasks("sample").length, 1); assert.ok(existsSync(path.join(made.path, "task/creation.json"))); assert.equal(tasks.loadTask("sample", 1).status, "backlog")
+ assert.equal(made.n, 1); assert.equal(tasks.listTasks("sample").length, 1); assert.ok(existsSync(path.join(made.path, "creation.json"))); assert.equal(tasks.loadTask("sample", 1).status, "backlog")
  r = await run([...args, "--approval", pending.approval]); assert.equal(r.code, 0, r.stderr); assert.equal(JSON.parse(r.stdout).n, made.n); assert.equal(tasks.listTasks("sample").length, 1)
  // Crash after record publication and directory creation must not become a false-success replay.
  const crashArgs=[...args];crashArgs[crashArgs.indexOf("--title")+1]="CLI partially placed result"

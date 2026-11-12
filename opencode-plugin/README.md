@@ -1016,7 +1016,7 @@ to an issue or a pull request of the repository and notifies its people, so the 
 pull requests, and the commit message guard (`scripts/guards/guard-commit-message.py`, rule R8) refuses it for anything else. A tab still
 titled `#33 исп …` or `61 …` is read as `033 исп` / `061` and renamed by the title pass. The owner, the integrator and `canopus_list` call a
 task by its number; a session's title is `045 исп title`. The journal is
-`<project>/<tasks_dir>/NNN-slug/task/state.json`, shared with the Canopus application (288). Without a project the root is `~/.canopus/tasks/`. The default project `tasks_dir` is `doc/tasks`; an empty legacy value uses that default. `task/watch.json` keeps the task guard and HOLD. These private records are excluded from Git. Documents in worktrees are versioned snapshots of the canonical task directory.
+`<project>/<tasks_dir>/NNN-slug/state.json`, shared with the Canopus application (288). Without a project the root is `~/.canopus/tasks/`. The default project `tasks_dir` is `doc/tasks`; an empty legacy value uses that default. `watch.json` keeps the task guard and HOLD. These private records are excluded from Git. Documents in worktrees are versioned snapshots of the canonical task directory.
 
 - **A new task with a folder.** The number is 1 + the largest of the project's records and of the folder numbers in every
   working tree of the repository (`git worktree list`, uncommitted folders too) and in every local and `origin` branch

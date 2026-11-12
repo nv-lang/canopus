@@ -888,7 +888,7 @@ fn Hub mut @agent_env(agent str, base []EnvEntry) -> []EnvEntry {
 fn Hub @execution_problem(at int) Proc Detach Time -> str {
     ro shared = @sessions[at]
     if shared.rt.task_open && shared.rt.task_id != "draft" && !shared.rt.task_closed {
-        ro state = match read_file("${shared.rt.task_dir}/state.json") { Some(text) => jobject(text), None => None }
+        ro state = jobject(read_file("${task_artifact_dir(shared.rt.task_dir)}/state.json") ?? (read_file("${shared.rt.task_dir}/state.json") ?? ""))
         match state {
             Some(t) => {
                 mut request = JsonObject.new()

@@ -744,7 +744,7 @@ fn tw_shared_main_ready(main str) Proc Os Fs -> bool {
             match parent.parent() { Some(p) => { parent = p }, None => break }
             ro folder = parent.display().replace("\\", "/")
             if folder.byte_len() == 0 { break }
-            ro receipt = match read_text(Path.from_bytes("${main}/${folder}/task/snapshot.json".bytes())) { Ok(t) => t, Err(e) => "" }
+            ro receipt = match read_text(Path.from_bytes("${main}/${folder}/snapshot.json".bytes())) { Ok(t) => t, Err(e) => "" }
             match Json.parse(receipt) {
                 Ok(v) => match v.object() {
                     Some(o) => match o.get("staged") {

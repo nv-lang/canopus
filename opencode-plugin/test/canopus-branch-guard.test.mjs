@@ -286,6 +286,8 @@ cell("an executor still may not write into the main copy, even into doc/tasks", 
 deps.taskDocuments = (p,n) => path.join(MAIN, `doc/tasks/${n}-shared`)
 cell("executor writes its canonical shared documents", w(exec157,T157,"write",{filePath:path.join(MAIN,"doc/tasks/157-shared/log.md")}) === undefined, "")
 for(const name of ["state.json","watch.json","snapshot.json"]) cell(`private ${name} cannot be edited as a document`, typeof w(exec157,T157,"write",{filePath:path.join(MAIN,"doc/tasks/157-shared/task",name)}) === "string", "")
+cell("execution plan stays outside task input", typeof w(exec157,T157,"write",{filePath:path.join(MAIN,"doc/tasks/157-shared/task/plan.md")}) === "string" && w(exec157,T157,"write",{filePath:path.join(MAIN,"doc/tasks/157-shared/plan.md")}) === undefined, "")
+cell("new private state cannot be edited as a document", typeof w(exec157,T157,"write",{filePath:path.join(MAIN,"doc/tasks/157-shared/state.json")}) === "string", "")
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `canopus-branch-guard.test: FAIL ${fail} of ${n}${bg.missing ? " (module: " + bg.missing + ")" : ""}` : `canopus-branch-guard.test ok (${n} checks)`)
 process.exit(fail ? 1 : 0)

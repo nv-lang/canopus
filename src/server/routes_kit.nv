@@ -283,7 +283,7 @@ export fn scenario_route_fast(settings ServerSettings) Proc Detach Time Net Fs O
     ro dir = ck_dir(rig, "s-r1")
     c.expect(rk_text("${dir}/message.1.md").contains("сделай X"), "message.1.md holds the message")
     c.expect(rk_text("${dir}/message.1.md").contains("Дата:"), "message.1.md holds the date")
-    c.expect(parse_progress(rk_text("${dir}/progress.1.md")).total == 6, "progress.1.md holds six boxes")
+    c.expect(parse_progress(rk_text("${task_artifact_dir(dir)}/progress.1.md")).total == 6, "progress.1.md holds six boxes")
     c.expect(rk_array(task, "subtasks").len() == 1, "one subtask")
 
     ro statement = rk_text("${dir}/message.1.md")
@@ -314,7 +314,7 @@ export fn scenario_route_fast(settings ServerSettings) Proc Detach Time Net Fs O
     ro st3 = rk_last(rig.all_lines_for(1), "route_state")
     c.expect(rk_array(rk_task(st3), "subtasks").len() == 2, "a forced new subtask")
     c.expect(rk_text("${dir}/message.2.md").contains("третье"), "message.2.md")
-    c.expect(rk_boxes_done("${dir}/progress.2.md") == 0 && parse_progress(rk_text("${dir}/progress.2.md")).total == 6, "progress.2.md is an empty checklist")
+    c.expect(rk_boxes_done("${task_artifact_dir(dir)}/progress.2.md") == 0 && parse_progress(rk_text("${task_artifact_dir(dir)}/progress.2.md")).total == 6, "progress.2.md is an empty checklist")
     c.expect(jtext(rk_sub(st3, 0), "state") == "planned" && jtext(rk_sub(st3, 1), "state") == "running", "subtasks: planned and running")
 
     // the run: a required step cannot be skipped, an optional one can
@@ -338,8 +338,8 @@ export fn scenario_route_fast(settings ServerSettings) Proc Detach Time Net Fs O
     c.expect(label_lines == 4, "four steps of the same agent show as labels: ${label_lines}")
     c.expect(kit_with(lines5, "Независимая проверка (second)") >= 1, "the block of the independent review is in the feed")
     c.expect(kit_with(lines5, "=== git status ===") >= 1 && kit_with(lines5, "=== Сообщение пользователя") >= 1, "the protocol of the task is given to the reviewer")
-    c.expect(rk_boxes_done("${dir}/progress.2.md") == 6, "progress.2.md: the boxes of the steps are marked (a skipped one with a note): ${rk_boxes_done("${dir}/progress.2.md")}")
-    c.expect(rk_text("${dir}/progress.2.md").contains("(пропущен)"), "the skipped step is noted")
+    c.expect(rk_boxes_done("${task_artifact_dir(dir)}/progress.2.md") == 6, "progress.2.md: the boxes of the steps are marked (a skipped one with a note): ${rk_boxes_done("${task_artifact_dir(dir)}/progress.2.md")}")
+    c.expect(rk_text("${task_artifact_dir(dir)}/progress.2.md").contains("(пропущен)"), "the skipped step is noted")
     c.expect((rk_task(st5).get("closed") ?? JsonValue.null()).bool() ?? false, "the task is closed when the run is over")
     c.expect(rk_steps_in(st5, "running") == 0 && !((st5.get("running") ?? JsonValue.null()).bool() ?? true), "nothing is running")
     ro lines_before = rig.hub.page_lines("s-r1")
@@ -362,7 +362,7 @@ export fn scenario_route_fast(settings ServerSettings) Proc Detach Time Net Fs O
     c.expect(jtext(rk_task(st9), "id") == jtext(rk_task(back), "id"), "a follow-up keeps the completed task")
     c.expect(rk_steps_in(st9, "done") == 5 && rk_steps_in(st9, "skipped") == 1, "a follow-up keeps the route progress")
     c.expect(rk_array(rk_task(st9), "subtasks").len() == 2, "a follow-up does not add a subtask")
-    c.expect(rk_boxes_done("${dir}/progress.2.md") == 6, "a follow-up keeps the progress file")
+    c.expect(rk_boxes_done("${task_artifact_dir(dir)}/progress.2.md") == 6, "a follow-up keeps the progress file")
     // there is no publishing of a task that has no tree
     again.page(1, "route_publish", "s-r1", "{}")
     c.expect(again.until("сливать нечего", 5000), "no tree: nothing to merge")
@@ -456,7 +456,7 @@ export fn scenario_route_tree(settings ServerSettings) Proc Detach Time Net Fs O
     c.expect(tree.byte_len() > 0 && dir_there(tree), "the tree of the task is made: ${tree}")
     c.expect(tree.contains("/repo-${id}"), "the tree is next to the repository: ${tree}")
     c.expect(path_there("${ck_dir(rig, "s-r3")}/message.1.md"), "the files are in the canonical task directory")
-    c.expect(path_there("${settings.workdir}/doc/tasks/${id}/task/state.json") && !path_there("${tree}/doc/tasks/${id}/task/state.json"), "only the canonical project folder has runtime task state")
+    c.expect(path_there("${settings.workdir}/doc/tasks/${id}/state.json") && !path_there("${tree}/doc/tasks/${id}/state.json"), "only the canonical project folder has runtime task state")
     c.expect(jtext(task, "state") == "active", "the task is active")
     c.expect(!((task.get("finish") ?? JsonValue.null()).bool() ?? false), "a tree with no work is not offered to finish (task 192)")
     ro lines = rig.lines_for(1)
@@ -491,7 +491,7 @@ export fn scenario_route_tree(settings ServerSettings) Proc Detach Time Net Fs O
     c.expect(rk_tests_state(st4, "branch") == "never" && rk_tests_state(st4, "main") == "never", "no run of the tests is known: ${rk_tests_state(st4, "branch")}")
     // a tests record on the head: green; a new commit makes it outdated
     ro head = rk_head(tree2, "HEAD")
-    ro rec = write_file("${ck_dir(rig, "s-r3")}/tests-run.json", tests_rec_text(head, 1000, "green", "test"))
+    ro rec = write_file("${task_artifact_dir(ck_dir(rig, "s-r3"))}/tests-run.json", tests_rec_text(head, 1000, "green", "test"))
     rig.run(12500)
     ro st4b = rk_last(rig.all_lines_for(1), "route_state")
     c.expect(rk_tests_state(st4b, "branch") == "green", "the record of the run on the head: green: ${rk_tests_state(st4b, "branch")}")
@@ -679,7 +679,7 @@ export fn scenario_route_planning(settings ServerSettings) Proc Detach Time Net 
     c.expect(jtext(task, "worktree") == "" && jtext(task, "branch") == "", "the planning makes no tree")
     c.expect(!dir_there("${repo}/../worktrees"), "no folder of trees is made")
     c.expect(rk_text("${dir}/message.1.md").contains("подготовь задание"), "message.1.md is in the data folder")
-    c.expect(parse_progress(rk_text("${dir}/progress.1.md")).total == 0, "the draft has no execution checklist")
+    c.expect(parse_progress(rk_text("${task_artifact_dir(dir)}/progress.1.md")).total == 0, "the draft has no execution checklist")
 
     rig.page(1, "route_run", "s-r5", "{}")
     rig.run(500)
@@ -725,7 +725,7 @@ export fn scenario_route_planning(settings ServerSettings) Proc Detach Time Net 
     ro moved = dir
     c.expect(rk_text("${moved}/message.1.md").contains("## Задание"), "the assignment went into the tree")
     c.expect(path_there("${moved}/images/image-1.png"), "the pictures went with it")
-    c.expect(parse_progress(rk_text("${moved}/progress.1.md")).total == 6 && rk_boxes_done("${moved}/progress.1.md") == 0, "the checklist is made again for the six steps")
+    c.expect(parse_progress(rk_text("${task_artifact_dir(moved)}/progress.1.md")).total == 6 && rk_boxes_done("${task_artifact_dir(moved)}/progress.1.md") == 0, "the checklist is made again for the six steps")
     c.expect(rk_steps_in(st3, "pending") == 6, "the steps of the new mode are pending")
     rig.page(1, "user_message", "s-r5", "{\"turn\":\"t2\",\"text\":\"продолжай\"}")
     // Recorded journal: 725 durable echo chunks, completion at 30093 ms; no lost answer.

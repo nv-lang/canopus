@@ -81,8 +81,9 @@ function placementError(t, proposal) {
   const folder = path.resolve(top, ...String(t.folder).split("/"))
   const relative = path.relative(top, folder)
   if (!relative || relative === ".." || relative.startsWith(".." + path.sep) || path.isAbsolute(relative)) return "папка за пределами дерева"
-  for (const f of ["task/message.md", "task/creation.json", "log.md"]) if (!existsSync(path.join(folder, f))) return `отсутствует ${f}`
-  const proof = JSON.parse(readFileSync(path.join(folder, "task/creation.json"), "utf8"))
+  const proofFile = existsSync(path.join(folder, "creation.json")) ? "creation.json" : "task/creation.json"
+  for (const f of ["task/message.md", proofFile, "log.md"]) if (!existsSync(path.join(folder, f))) return `отсутствует ${f}`
+  const proof = JSON.parse(readFileSync(path.join(folder, proofFile), "utf8"))
   if (proof.approval?.id !== proposal.id || proof.reason !== input.creation_reason || canonical(proof.checked_tasks) !== canonical(input.checked_tasks) || proof.why_new !== input.why_new) return "creation.json не соответствует подтверждению"
  } catch { return "состав папки не удалось проверить" }
 }
@@ -116,11 +117,11 @@ const t = tasks.createTask(
 const folder = path.join(top, ...t.folder.split("/"))
 if (existsSync(path.join(folder, "task", "message.md"))) throw Error(`папка ${t.folder} уже есть (номер ${tn.pad3(t.n)} занят записью, папку не перезаписываю)`)
 mkdirSync(path.join(folder, "task"), { recursive: true })
-writeFileSync(path.join(folder, "task", "creation.json"), JSON.stringify({ reason: input.creation_reason, checked_tasks: input.checked_tasks, why_new: input.why_new, approval: source }, null, 2) + "\n")
+writeFileSync(path.join(folder, "creation.json"), JSON.stringify({ reason: input.creation_reason, checked_tasks: input.checked_tasks, why_new: input.why_new, approval: source }, null, 2) + "\n")
 writeFileSync(path.join(folder, "task", "message.md"), message.trim() ? message : folders.templateMessage({ title, goal: title, author_role: `${project}.external` }))
 // Canonical documents share the record directory; the worktree copy is a versioned snapshot.
-const canonicalFolder = path.dirname(path.dirname(tasks.taskFile(t.project, t.n)))
-for (const file of ["task/creation.json", "task/message.md"]) {
+const canonicalFolder = path.dirname(tasks.taskFile(t.project, t.n))
+for (const file of ["creation.json", "task/message.md"]) {
   const target = path.join(canonicalFolder,file)
   const body = readFileSync(path.join(folder,file))
   mkdirSync(path.dirname(target),{recursive:true})

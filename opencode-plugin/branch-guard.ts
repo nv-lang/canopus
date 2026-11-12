@@ -418,7 +418,8 @@ export function judgeWrite(card: CardLike, windowDir: string | undefined, tool: 
         const root=deps.taskDocuments(exp.task.project,exp.task.n)
         const relative=path.relative(path.resolve(root),abs).replace(/\\/g,"/")
         if(relative&&!relative.startsWith("..")&&!path.isAbsolute(relative)){
-          if(["task/state.json","task/watch.json","task/snapshot.json"].includes(relative.toLowerCase()))return "Служебное состояние задачи изменяется только штатными API; прямое редактирование запрещено"
+          if(relative.toLowerCase().startsWith(".canopus/") || ["state.json", "watch.json", "snapshot.json", "tests-run.json"].includes(relative.toLowerCase()) || ["task/state.json","task/watch.json","task/snapshot.json"].includes(relative.toLowerCase()))return "Служебное состояние задачи изменяется только штатными API; прямое редактирование запрещено"
+          if(/^task\/(?:plan\.md|progress(?:\.\d+)?\.md|log\.md|progress\.log|usage\.log|children\.md|spec\.md|acceptance-review\.md|research\.md|creation\.json|tests-run\.json)$/i.test(relative))return "Артефакты исполнения пишутся в корень задачи; task/ хранит материалы владельца"
           if(exp.role==="executor"||exp.role==="reviewer")continue
         }
       }

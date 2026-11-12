@@ -22,6 +22,7 @@ const tasks={
  listTasks:()=>taskEntries(root).flatMap(e=>{const t=readTaskFile(e.file);return t?[t]:[]})
 }
 const pluginRoot=()=>path.dirname(config)
+const statementDir=file=>path.join(path.dirname(file),"task")
 const taskHold=(_p,n)=>{const state=tasks.loadTask(project,n);const file=path.join(path.dirname(tasks.taskFile(project,n)),"watch.json");if(!fs.existsSync(file))return;const r=JSON.parse(fs.readFileSync(file,"utf8"));if(r.n!==n||r.project!==state.project)throw Error("Shared task guard identity mismatch");return r.hold}
 const pendingEvent=t=>{
  if(!t?.application?.session)return false
@@ -35,7 +36,7 @@ const executionHeld=executionHoldBlocked
 if(action==="reserve"||action==="record-event")bindSharedTaskContext(context)
 const input = option("--json") ? JSON.parse(option("--json")) : option("--input") ? JSON.parse(fs.readFileSync(option("--input"), "utf8")) : undefined
 if (action === "list") console.log(JSON.stringify(tasks.listTasks(project)))
-else if (action === "read") console.log(JSON.stringify((()=>{const n=Number(option("--n")??input?.n);const t=tasks.loadTask(project,n);return t?{...t,execution_block:executionHeld(taskHold(t.project,t.n))?"execution HOLD/STOP":pendingEvent(t)?"Shared task persistence is pending; execution blocked":"",shared_dir:path.dirname(tasks.taskFile(project,n))}:null})()))
+else if (action === "read") console.log(JSON.stringify((()=>{const n=Number(option("--n")??input?.n);const t=tasks.loadTask(project,n);return t?{...t,execution_block:executionHeld(taskHold(t.project,t.n))?"execution HOLD/STOP":pendingEvent(t)?"Shared task persistence is pending; execution blocked":"",shared_dir:statementDir(tasks.taskFile(project,n))}:null})()))
 else if(action === "snapshot"){
  const t=tasks.loadTask(project,Number(input.n))
  if(!t||t.application?.session!==input.session)throw Error("Application task ownership mismatch")
@@ -56,8 +57,8 @@ else if (action === "reserve") {
     const n=Math.max(0,...used,...taskEntries(root).map(r=>r.n))+1
     const slug=tasks.slugify(input.title)
     const file=recordFile(root,n,slug)
-    fs.mkdirSync(path.dirname(file),{recursive:true})
-    return {n,id:path.basename(path.dirname(path.dirname(file))),dir:path.dirname(file),file}
+    fs.mkdirSync(statementDir(file),{recursive:true})
+    return {n,id:path.basename(path.dirname(file)),dir:statementDir(file),file}
   })
   console.log(JSON.stringify(result))
 } else if (action === "record-event") {
@@ -74,8 +75,8 @@ else if (action === "reserve") {
     let t=readTaskFile(file)
     if(!t){
       const e=JSON.parse(evidence.text)
-      if(evidence.name!=="route_task" || e.op!=="open" || Number(e.number)!==n || path.resolve(e.dir)!==path.resolve(path.dirname(file))) throw Error("No persisted task open event for reserved directory")
-      t={project,n,slug:path.basename(path.dirname(path.dirname(file))).replace(/^\d+-/,""),title:e.title,goal:e.title,author:input.session,author_role:"application",executor:input.session,priority:"P2",tier:"light",role:"worker",qid:"",status:"running",kind:"application",directory:main,executors:[],attempt:1,history:[{at:Date.now(),by:input.session,status:"running",note:"Application journal: task opened"}],created:Date.now(),application:{session:input.session,events:[]}}
+      if(evidence.name!=="route_task" || e.op!=="open" || Number(e.number)!==n || path.resolve(e.dir)!==path.resolve(statementDir(file))) throw Error("No persisted task open event for reserved directory")
+      t={project,n,slug:path.basename(path.dirname(file)).replace(/^\d+-/,""),title:e.title,goal:e.title,author:input.session,author_role:"application",executor:input.session,priority:"P2",tier:"light",role:"worker",qid:"",status:"running",kind:"application",directory:main,executors:[],attempt:1,history:[{at:Date.now(),by:input.session,status:"running",note:"Application journal: task opened"}],created:Date.now(),application:{session:input.session,events:[]}}
     }
     if(t.application?.session!==input.session) throw Error("Task belongs to another client; it was not overwritten")
     const digest=createHash("sha256").update(JSON.stringify(evidence)).digest("hex")

@@ -10,19 +10,19 @@ with tempfile.TemporaryDirectory() as tmp:
  local=p/"tree/docs/tasks/001-work";local.mkdir(parents=True);(local/"log.md").write_text("local owner changes",encoding="utf8")
  locations={"p":{"root":str(repo),"tasks_dir":"docs/tasks"}}
  dry=m.migrate(source,locations,home,report)
- assert old.read_bytes()==before and not (target/"task/state.json").exists()
+ assert old.read_bytes()==before and not (target/"state.json").exists()
  assert len(dry["conflicts"])==1
  done=m.migrate(source,locations,home,report,True)
- assert (target/"task/watch.json").read_bytes()==watch_before and not watch.exists()
+ assert (target/"watch.json").read_bytes()==watch_before and not watch.exists()
  assert len(done["watchRecords"])==1 and done["watchRecords"][0]["hasHold"]
- assert not source.exists() and (target/"task/state.json").read_bytes()==before
+ assert not source.exists() and (target/"state.json").read_bytes()==before
  assert (target/"log.md").read_text()=="canonical"
  assert pathlib.Path(done["conflicts"][0]["preserved"]).read_text()=="local owner changes"
  assert (pathlib.Path(done["backup"])/"retired-tasks/p/1.json").read_bytes()==before
  assert m.migrate(source,locations,home,report,True)["alreadyMigrated"]
  # Never overwrite a conflicting live record.
  source.mkdir();old.parent.mkdir();old.write_bytes(before)
- (target/"task/state.json").write_text(json.dumps({**record,"status":"running"}))
+ (target/"state.json").write_text(json.dumps({**record,"status":"running"}))
  try:m.migrate(source,locations,home,report)
  except RuntimeError as e:assert "Conflicting task state" in str(e)
  else:raise AssertionError("state collision was overwritten")

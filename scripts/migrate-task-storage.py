@@ -54,12 +54,12 @@ def migrate(source,locations,home,report,apply=False):
    if "/" in slug or "\\" in slug or slug in [".",".."]:raise RuntimeError("Unsafe slug")
    folder=matches[0] if matches else target/(str(n).zfill(3)+"-"+slug)
    folder=inside(target,folder)
-   stage(f,inside(folder,folder/"task"/"state.json"),"state")
+   stage(f,inside(folder,folder/"state.json"),"state")
    watch=source.parent/"idle-watch"/project/(str(n)+".json")
    if watch.exists():
     data=read(watch)
     if data.get("project")!=project or data.get("n")!=n:raise RuntimeError("Watch identity mismatch")
-    dest=inside(folder,folder/"task/watch.json");stage(watch,dest,"state")
+    dest=inside(folder,folder/"watch.json");stage(watch,dest,"state")
     watch_records.append({"source":str(watch),"target":str(dest),"sha256":sha(watch.read_bytes()),"hasHold":bool(data.get("hold"))})
    # Main documentation is authoritative. Preserve local versions from every still-existing task/session tree.
    roots=[loc["root"]] if loc else []
@@ -72,7 +72,7 @@ def migrate(source,locations,home,report,apply=False):
     for doc in sorted(src.rglob("*")):
      if doc.is_symlink():raise RuntimeError("Symlink in task documents: "+str(doc))
      if doc.is_file() and doc.name!="state.json" and "imported-sources" not in doc.parts:stage(doc,inside(folder,folder/doc.relative_to(src)),"document")
-   records.append({"project":project,"n":n,"status":t["status"],"source":str(f),"target":str(folder/"task"/"state.json"),"sha256":sha(f.read_bytes())})
+   records.append({"project":project,"n":n,"status":t["status"],"source":str(f),"target":str(folder/"state.json"),"sha256":sha(f.read_bytes())})
   legacy=project_dir/"legacy"
   if legacy.exists():
    for f in legacy.rglob("*"):
@@ -109,7 +109,7 @@ def migrate(source,locations,home,report,apply=False):
    original=exclude.read_bytes() if exclude.exists() else b""
    saved=backup/("git-exclude-"+sha(str(exclude).encode())+".original");saved.write_bytes(original)
    rel=(loc.get("tasks_dir") or "doc/tasks").replace("\\","/").strip("/")
-   patterns=["/"+rel+"/**/task/state.json", "/"+rel+"/**/task/watch.json", "/"+rel+"/**/task/snapshot.json", "/"+rel+"/**/task/tests-run.json","/"+rel+"/.task-store.lock/", "/"+rel+"/.task-store.claim-*","/"+rel+"/**/imported-sources/","/"+rel+"/legacy/"]
+   patterns=["/"+rel+"/**/state.json", "/"+rel+"/**/watch.json", "/"+rel+"/**/snapshot.json", "/"+rel+"/**/tests-run.json", "/"+rel+"/**/task/state.json", "/"+rel+"/**/task/watch.json", "/"+rel+"/**/task/snapshot.json", "/"+rel+"/**/task/tests-run.json","/"+rel+"/.task-store.lock/", "/"+rel+"/.task-store.claim-*","/"+rel+"/**/imported-sources/","/"+rel+"/legacy/"]
    text=original.decode("utf8");missing=[p for p in patterns if p not in text.splitlines()]
    if missing:exclude.parent.mkdir(parents=True,exist_ok=True);exclude.write_text(text+("" if text.endswith("\n") else "\n")+"\n".join(missing)+"\n",encoding="utf8")
   for m in moves:

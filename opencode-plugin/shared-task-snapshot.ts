@@ -21,7 +21,7 @@ export function snapshotTaskDocuments(file:string,t:SnapshotTask,options:{stage?
  if(!maybe(main,["rev-parse","--verify",t.branch]))return {files:0}
  const target=options.target??(maybe(main,["symbolic-ref","--short","refs/remotes/origin/HEAD"])?.replace(/^origin\//,"")??(maybe(main,["show-ref","--verify","--quiet","refs/heads/main"])!==undefined?"main":"master"))
  if(git(main,["branch","--show-current"])!==target)throw Error("The primary copy must stay on its accepted branch before preparing task documents")
- const folder=path.dirname(path.dirname(file)),prefix=t.folder??path.relative(main,folder).replace(/\\/g,"/")
+ const folder=path.dirname(file),prefix=t.folder??path.relative(main,folder).replace(/\\/g,"/")
  if(!prefix||path.isAbsolute(prefix)||prefix.split("/").includes(".."))return {files:0}
  if(options.withdraw&&!maybe(main,["show",t.branch+":"+prefix+"/task/message.md"])?.includes(options.withdraw.trim()))return {files:0}
  const message=options.withdraw?`${String(t.n).padStart(3,"0")} Take back the addition to message.md`:`${String(t.n).padStart(3,"0")} Snapshot shared task documents`
@@ -29,7 +29,7 @@ export function snapshotTaskDocuments(file:string,t:SnapshotTask,options:{stage?
  const walk=(dir:string)=>{for(const e of fs.readdirSync(dir,{withFileTypes:true})){
   if(e.name.startsWith(".")||e.name==="imported-sources"||e.name==="legacy"||e.name.endsWith(".tmp"))continue
   const full=path.join(dir,e.name),rel=path.relative(folder,full).replace(/\\/g,"/")
-  if(["task/state.json","task/watch.json","task/snapshot.json","task/tests-run.json"].includes(rel))continue
+  if(rel.startsWith(".canopus/") || ["state.json", "watch.json", "snapshot.json", "tests-run.json"].includes(rel) || ["task/state.json","task/watch.json","task/snapshot.json","task/tests-run.json"].includes(rel))continue
   if(e.isSymbolicLink())throw Error("Task documents contain a symbolic link")
   if(e.isDirectory())walk(full);else bodies[prefix+"/"+rel]=fs.readFileSync(full)
  }}
@@ -37,7 +37,7 @@ export function snapshotTaskDocuments(file:string,t:SnapshotTask,options:{stage?
  const names=Object.keys(bodies)
  if(!names.length)return {files:0}
  const hashes=Object.fromEntries(names.map(n=>[n,git(main,["hash-object","--path",n,"--stdin"],bodies[n])]))
- const marker=path.join(folder,"task/snapshot.json"),previous=fs.existsSync(marker)?JSON.parse(fs.readFileSync(marker,"utf8")):{}
+ const marker=path.join(path.dirname(file),"snapshot.json"),previous=fs.existsSync(marker)?JSON.parse(fs.readFileSync(marker,"utf8")):{}
  if(options.stage){
   for(const n of names){
    const staged=maybe(main,["rev-parse",":"+n]),head=maybe(main,["rev-parse","HEAD:"+n])

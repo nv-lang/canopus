@@ -45,7 +45,7 @@ const wtRoot = path.join(tmp, "worktrees")
 
 // old records (before task 058): 013 closed, 014 open — numbers that now belong to folders 013 and 014
 const store = path.join(proj, "doc", "tasks")
-const oldFile = n => path.join(store, n === 13 ? "013-old-runner" : "014-live-old", "task", "state.json")
+const oldFile = n => path.join(store, n === 13 ? "013-old-runner" : "014-live-old", "state.json")
 const sourceClean = () => git(proj, "status", "--porcelain").split("\n").filter(Boolean).every(line => line.trim().replace(/^[?A-Z!]{1,2} /, "").replaceAll('"','').startsWith("doc/tasks/"))
 mkdirSync(store, { recursive: true })
 for (const n of [13,14]) mkdirSync(path.dirname(oldFile(n)), {recursive:true})
@@ -179,7 +179,7 @@ const sesC4 = t45?.sessions?.[2]
 cell("AC-08: the session title is «045 С4-2 исп <task title>»", sessions.get(sesC4?.session)?.title === "045 С4-2 исп Реестры контрактов", sessions.get(sesC4?.session)?.title)
 cell("AC-08: the executor session of a new task is titled «059 исп <title>»", sessions.get(task(59)?.sessions?.[0]?.session)?.title === "059 исп Страж повтора номера", sessions.get(task(59)?.sessions?.[0]?.session)?.title)
 const letter = lettersTo(sesC4?.session ?? "-").find((l) => l.text.startsWith("ЗАДАЧА"))?.text ?? ""
-cell("AC-08: the session letter: «ЗАДАЧА 045 «…», СЕССИЯ С4-2 (запуск №3)», the folder, the session goal, submit to the integrator", letter.startsWith("ЗАДАЧА 045 «Реестры контрактов», СЕССИЯ С4-2 (запуск №3) от proj.integrator, приоритет P2.") && letter.includes(`ПАПКА ЗАДАЧИ: ${path.dirname(path.dirname(tasks.taskFile("proj",45)))}/`) && letter.includes("версионный путь в ветке: doc/tasks/045-registry/.") && letter.includes("ЦЕЛЬ СЕССИИ: проверка исправленного плана") && letter.includes('canopus_task {action: "submit", n: 45'), letter)
+cell("AC-08: the session letter: «ЗАДАЧА 045 «…», СЕССИЯ С4-2 (запуск №3)», the folder, the session goal, submit to the integrator", letter.startsWith("ЗАДАЧА 045 «Реестры контрактов», СЕССИЯ С4-2 (запуск №3) от proj.integrator, приоритет P2.") && letter.includes(`ПАПКА ЗАДАЧИ: ${path.dirname(tasks.taskFile("proj",45))}/`) && letter.includes("версионный путь в ветке: doc/tasks/045-registry/.") && letter.includes("ЦЕЛЬ СЕССИИ: проверка исправленного плана") && letter.includes('canopus_task {action: "submit", n: 45'), letter)
 cell("AC-05: a review session (С4) works in its own tree task/045-s4-2 from the task branch, an author session (С3п) in the task tree", sesC4?.place === "own" && sesC4?.branch === "task/045-s4-2" && t45?.sessions?.[1]?.place === "task" && sessions.get(sesC4?.session)?.location?.directory === sesC4?.worktree && sessions.get(t45?.sessions?.[1]?.session)?.location?.directory === t45?.worktree, JSON.stringify(t45?.sessions?.map((s) => [s.place, s.branch])))
 
 // ---- AC-06: the session С4-2 submits to the integrator, deliver starts the review of the task ----

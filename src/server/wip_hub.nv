@@ -293,7 +293,7 @@ fn Hub mut @wip_take(at int, p Proposal, how str, queued bool) Proc Detach Time 
     @rt_task_op(at, "open", o)
     ro doc = @route_doc(@sessions[at].rt.route)
     ro wrote = write_file("${dir}/message.md", child_message_text("", "", p.title, p.summary, p.source, now_millis()))
-    ro made_progress = write_file("${dir}/progress.md", progress_template(1, doc.steps))
+    ro made_progress = write_file("${task_artifact_dir(dir)}/progress.md", progress_template(1, doc.steps))
     if !wrote || !made_progress { @say_log("the files of the task ${folder} cannot be written in ${dir}") }
     mut files = []AcpImage.new()
     mut j = 0

@@ -80,8 +80,8 @@ export fn parse_route_doc(route str, text str) -> RouteDoc {
 /// The prompt of a step with `{N}` (the number of the subtask) and `{task}` (the folder of the files of the task) put in.
 export fn route_fill(text str, n int, task str) -> str {
     // n == 0: a child session, its files are `message.md` and `progress.md`
-    if n == 0 { return text.replace("message.{N}.md", "message.md").replace("progress.{N}.md", "progress.md").replace("message.N.md", "message.md").replace("progress.N.md", "progress.md").replace("{N}", "").replace("{task}", task) }
-    text.replace("{N}", "${n}").replace("{task}", task)
+    if n == 0 { return text.replace("message.{N}.md", "message.md").replace("progress.{N}.md", "progress.md").replace("message.N.md", "message.md").replace("progress.N.md", "progress.md").replace("{N}", "").replace("{task}", task).replace("{artifacts}", task_artifact_dir(task)) }
+    text.replace("{N}", "${n}").replace("{task}", task).replace("{artifacts}", task_artifact_dir(task))
 }
 
 // ----- the numbers and names of the tasks -----
@@ -320,9 +320,9 @@ export fn route_prelude(doc RouteDoc, with_instruction bool, task_shown str, n i
     if with_instruction && doc.instruction.byte_len() > 0 { parts.push("[canopus] ${doc.instruction}") }
     if task_shown.byte_len() > 0 {
         if n == 0 {
-            parts.push("[canopus] Задача: ${task_shown}: сообщение — message.md, ведите progress.md, отмечая [x] выполненное.")
+            parts.push("[canopus] Задача: ${task_shown}: сообщение — message.md, ведите `${task_artifact_dir(task_shown)}/progress.md`, отмечая [x] выполненное.")
         } else {
-            parts.push("[canopus] Задача: ${task_shown}. Подзадача ${n}: сообщение — message.${n}.md, ведите progress.${n}.md, отмечая [x] выполненное.")
+            parts.push("[canopus] Задача: ${task_shown}. Подзадача ${n}: сообщение — message.${n}.md, ведите `${task_artifact_dir(task_shown)}/progress.${n}.md`, отмечая [x] выполненное.")
         }
     }
     if step_prompt.byte_len() > 0 { parts.push("[canopus] Задание шага режима:\n${step_prompt}") }
@@ -536,6 +536,13 @@ fn RouteSession @sub_at(n int) -> int {
 export fn RouteSession @msg_file(n int) -> str => if @kind == "child" { "message.md" } else { "message.${n}.md" }
 
 /// The name of the file of the progress boxes: `progress.md` of a child session, `progress.N.md` of an old task.
+// Persisted task_dir identifies the owner's input folder.
+fn task_artifact_dir(input_dir str) -> str {
+    ro dir = input_dir.replace("\\", "/")
+    if dir.ends_with("/task") { return dir[..dir.byte_len() - 5] }
+    dir
+}
+
 export fn RouteSession @prog_file(n int) -> str => if @kind == "child" { "progress.md" } else { "progress.${n}.md" }
 
 /// The number of the subtask the prompts speak of: 0 in a child session (it has one task, files without a number).

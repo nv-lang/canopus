@@ -206,7 +206,7 @@ const branches = () => git(proj, "branch", "--list", "task/*").split("\n").filte
 const show = (t) => (t.branch ? (f) => git(proj, "show", `${t.branch}:${t.folder}/${f}`) : () => "")
 // the journal as it is now: the plugin appends to log.md in the worktree of the task (not committed), the first lines are on the branch
 const logNow = (t) => {
-  const f = path.join(path.dirname(path.dirname(tasks.taskFile(t.project,t.n))), "log.md")
+  const f = path.join(path.dirname(tasks.taskFile(t.project,t.n)), "log.md")
   return f && existsSync(f) ? readFileSync(f, "utf8") : show(t)("log.md")
 }
 

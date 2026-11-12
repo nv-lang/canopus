@@ -367,7 +367,7 @@ fn Hub mut @ct_create_old(at int, p Proposal, how str, queued bool) Proc Detach 
     ro s = @sessions[at]
     ro doc = @route_doc(s.rt.route)
     ro wrote = write_file("${s.rt.task_dir}/message.${n}.md", canopus_message_text(n, p.summary, p.source, now_millis()))
-    ro made_progress = write_file("${s.rt.task_dir}/progress.${n}.md", progress_template(n, doc.steps))
+    ro made_progress = write_file("${task_artifact_dir(s.rt.task_dir)}/progress.${n}.md", progress_template(n, doc.steps))
     if !wrote || !made_progress { @say_log("the files of the subtask ${n} of ${s.id} cannot be written in ${s.rt.task_dir}") }
     mut files = []AcpImage.new()
     mut k = 0
