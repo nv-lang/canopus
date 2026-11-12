@@ -354,7 +354,11 @@ function apply(session, event) {
       const pendingActual = session.pendingActual && session.pendingActual[turn];
       const { index, message } = agentMessageFor(session.messages, turn, pendingActual || null);
       if (message.status !== 'streaming' && message.status !== 'error') return session; // после отмены/отказа/конца — запоздалый
-      const chunk = { step: event.step, text: str(input.text) };
+      const incoming = str(input.text);
+      // The ACP adapter emits this billing notice as a standalone message chunk.
+      const textWithBreak = incoming.startsWith("**Warning:** We're changing auto mode to no longer charge for classifier requests in ")
+        ? '\n\n' + incoming : incoming;
+      const chunk = { step: event.step, text: textWithBreak };
       const append = message.chunks.length === 0 || message.chunks.at(-1).step < chunk.step;
       if (!append && message.chunks.some((c) => c.step === chunk.step)) return session;
       const chunks = [...message.chunks, chunk];

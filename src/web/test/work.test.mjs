@@ -417,3 +417,24 @@ test('лента следует за ответом после изменени�
   render(model);
   assert.equal(top, 1180);
 });
+
+test('MCP-заметка использует результат того же вызова Claude ACP', () => {
+  const doc = createFakeDocument();
+  const refs = {};
+  for (const name of ['app', 'side', 'main', 'rail', 'status', 'overlay']) {
+    refs[name] = doc.createElement('div');
+    doc.body.append(refs[name]);
+  }
+  const view = createView(doc, refs, {
+    agents: [{ id: 'opencode' }], now: () => 3000,
+    handlers: { queued: () => 0, queuedItems: () => [] },
+  });
+  const model = run([...base(),
+    ev('tool_call', { id: 'role', title: 'mcp__canopus__canopus_role', kind: 'other', status: 'pending' }, { step: 2 }),
+    ev('agent_chunk', { turn: 't1', text: '▸ canopus_role {}' }, { step: 3 }),
+    ev('tool_call_update', { id: 'role', status: 'completed', detail: 'Твоя роль: worker.' }, { step: 4 }),
+  ]);
+  view.render(model, { selected: 's1', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
+  assert.equal(refs.main.querySelectorAll('.work-row').length, 1);
+  assert.deepEqual([...refs.main.querySelectorAll('.row-output')].map(el => el.textContent), ['{}', 'Твоя роль: worker.']);
+});

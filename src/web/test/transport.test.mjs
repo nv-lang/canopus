@@ -156,6 +156,8 @@ test('сокет: подключение, приём события и пачк�
   const ws = FakeSocket.all[0];
   assert.equal(ws.url, 'ws://h/ws');
   ws.open();
+  assert.equal(statuses.at(-1), 'connecting');
+  ws.message(JSON.stringify({ kind: 'sessions_ready', sessions: [] }));
   assert.equal(statuses.at(-1), 'connected');
   ws.message(JSON.stringify({ id: 'a', trace: 's', step: 0, kind: 'cancel', input: {}, time: 1 }));
   ws.message(JSON.stringify([{ id: 'b' }, { id: 'c' }]));
@@ -197,9 +199,27 @@ test('сокет: разрыв — обратный отсчёт и повтор
   assert.deepEqual(statuses.at(-1), { state: 'retry', seconds: RETRY_STEPS[1] });
   timers.advance(RETRY_STEPS[1] * 1000);
   FakeSocket.all[2].open();
+  FakeSocket.all[2].message(JSON.stringify({ kind: 'sessions_ready', sessions: [] }));
   assert.equal(statuses.at(-1).state, 'connected');
   FakeSocket.all[2].drop();
   assert.deepEqual(statuses.at(-1), { state: 'retry', seconds: RETRY_STEPS[0] });
+});
+
+test('открытый сокет без списка сессий переподключается по таймауту', () => {
+  FakeSocket.all = [];
+  const timers = fakeTimers();
+  const statuses = [];
+  const tr = createTransport({
+    mode: 'ws', url: 'ws://h/ws', timers, WebSocketImpl: FakeSocket,
+    onEvent() {}, onStatus: status => statuses.push(status.state),
+  });
+  tr.start();
+  FakeSocket.all[0].open();
+  timers.advance(15_000);
+  assert.equal(statuses.at(-1), 'retry');
+  timers.advance(RETRY_STEPS[0] * 1000);
+  assert.equal(FakeSocket.all.length, 2);
+  tr.stop();
 });
 
 test('stop снимает таймеры и закрывает сокет без повтора', () => {

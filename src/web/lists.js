@@ -303,8 +303,12 @@ export function timeline(session) {
         if (!note) continue;
         notes.add(chunk.step);
         const existing = own.find(r => r.type === 'tool' && !r.toolInput
-          && (r.title === note.name || r.title === 'mcp.canopus.' + note.name));
-        if (existing) existing.toolInput = note.args;
+          && (r.title === note.name || r.title === 'mcp.canopus.' + note.name
+            || r.title === 'mcp__canopus__' + note.name));
+        if (existing) {
+          existing.title = note.name;
+          existing.toolInput = note.args;
+        }
         else own.push({ type: 'tool', kind: 'other', key: 'ctl:' + m.turn + ':' + chunk.step,
           turn: m.turn, step: chunk.step, title: note.name, status: note.failed ? 'failed' : 'completed',
           detail: '', toolInput: note.args });

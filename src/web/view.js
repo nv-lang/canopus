@@ -1895,7 +1895,7 @@ export function createView(doc, refs, deps) {
       command ? h(doc, 'code', { class: 'row-command', text: command }) : false,
       input ? h(doc, 'div', { class: 'row-detail-label', text: t('work.input') }) : false,
       input ? h(doc, 'pre', { class: 'row-detail row-output', text: input }) : false,
-      input || webSearch ? h(doc, 'div', { class: 'row-detail-label', text: t('work.response') }) : false,
+      (input && result) || webSearch ? h(doc, 'div', { class: 'row-detail-label', text: t('work.response') }) : false,
       result || webSearch ? h(doc, toolOutput ? 'pre' : 'div', {
         class: toolOutput ? 'row-detail row-output' : 'row-detail',
         'aria-label': toolOutput ? t('work.output') : undefined, text: result || t('work.no_search_response'),
@@ -2427,6 +2427,7 @@ export function createView(doc, refs, deps) {
     queueButton.hidden = queued === 0;
     if (queued > 0) queueButton.textContent = t('composer.queued', { n: queued });
     cancelButton.hidden = !busy;
+    sendButton.hidden = busy;
     syncSend();
     options = shown.options;
     currentAgent = shown.agent;

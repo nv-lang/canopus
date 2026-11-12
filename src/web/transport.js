@@ -162,6 +162,12 @@ export function createTransport(deps) {
   let attempt = 0;
   let timer = null;
   let stopped = false;
+  let snapshotTimer = null;
+
+  function clearSnapshotTimer() {
+    if (snapshotTimer !== null) timers.clear(snapshotTimer);
+    snapshotTimer = null;
+  }
 
   function connect() {
     timer = null;
@@ -171,8 +177,7 @@ export function createTransport(deps) {
     socket = ws;
     ws.onopen = () => {
       if (stopped || socket !== ws) return;
-      attempt = 0;
-      onStatus({ state: 'connected' });
+      snapshotTimer = timers.set(() => ws.close(), 15000);
     };
     ws.onmessage = (message) => {
       if (stopped || socket !== ws) return;
@@ -180,7 +185,12 @@ export function createTransport(deps) {
       try { data = JSON.parse(message.data); } catch { return; }
       const list = Array.isArray(data) ? data : [data];
       for (const e of list) if (isObject(e)) {
-        if (e.kind === 'sessions_ready' && Array.isArray(e.sessions)) onSnapshot('ready', e.sessions);
+        if (e.kind === 'sessions_ready' && Array.isArray(e.sessions)) {
+          clearSnapshotTimer();
+          attempt = 0;
+          onStatus({ state: 'connected' });
+          onSnapshot('ready', e.sessions);
+        }
         else if (e.kind === 'sessions_index' && Array.isArray(e.entries)) onSessionsIndex(e.entries);
         else if (e.kind === 'session_history' && Array.isArray(e.entries)) onSessionHistory(e.trace, e.entries, e.unchanged === true, Number.isSafeInteger(e.from) ? e.from : 0);
         else onEvent(e);
@@ -189,6 +199,7 @@ export function createTransport(deps) {
     ws.onclose = () => {
       if (socket !== ws) return;
       socket = null;
+      clearSnapshotTimer();
       onSnapshot('error');
       if (!stopped) countdown(RETRY_STEPS[Math.min(attempt, RETRY_STEPS.length - 1)]);
       attempt += 1;
@@ -224,12 +235,14 @@ export function createTransport(deps) {
     },
     retry() {
       if (mode !== 'ws' || stopped) return;
+      clearSnapshotTimer();
       if (timer !== null) timers.clear(timer);
       if (socket) { const old = socket; socket = null; old.close(); }
       connect();
     },
     stop() {
       stopped = true;
+      clearSnapshotTimer();
       if (timer !== null) { timers.clear(timer); timer = null; }
       for (const id of scheduled.keys()) timers.clear(id);
       scheduled.clear();
