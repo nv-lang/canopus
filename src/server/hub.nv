@@ -1271,6 +1271,17 @@ fn Hub mut @install_restore(id str, prepared Option[PreparedRestore]) Proc Detac
                     }
                 }
                 if e.kind == EventKind.Input && e.name == "mcp_recovery_read" { recovery_read.push(e.input) }
+                // Restore the context baseline without emitting new compaction signals.
+                if e.kind == EventKind.Input && (e.name == "session_created" || e.name == "agent_switched") {
+                    s.rt.ctx_used = 0
+                }
+                if e.kind == EventKind.Progress && e.name == "usage_update" {
+                    ro usage = jobject(e.input) ?? JsonObject.new()
+                    ro used = jnumber(usage, "used")
+                    ro size = jnumber(usage, "size")
+                    if used > 0 { s.rt.ctx_used = used }
+                    if size > 0 { s.rt.ctx_size = size }
+                }
                 // the mode of work and its task come back from the journal (task 192q)
                 if e.kind == EventKind.Input && is_route_signal(e.name) { s.rt.apply(e.name, e.input) }
                 // the choices of the owner, per family: the last word of the journal (task 192t)
@@ -1291,6 +1302,7 @@ fn Hub mut @install_restore(id str, prepared Option[PreparedRestore]) Proc Detac
                     None => ()
                 }
             }
+            s.rt.ctx_scan = s.lines.len()
             s = @shared_task_restore(s)
             s.rt.normalize()
             // A projectless session never inherits the hub worktree preference. Existing trees are preserved, not cleaned up on restart.
