@@ -1153,6 +1153,13 @@ body { font-size: 13px; line-height: 1.55; letter-spacing: .005em; word-spacing:
 .group[data-project="true"] .group-show-more { margin-inline-start: 22px; }
 .group[data-project="true"] .session[data-depth="0"] .session-item:not(.is-renaming) { padding-inline-start: 32px; }
 .group[data-project="true"] h3 { color: var(--fg); font-size: inherit; font-weight: 500; }
+.group[data-project="true"] .group-head { border-radius: var(--radius); }
+.group[data-project="true"] .group-head:hover:not(.drop-into) { background: var(--hover); }
+.group[data-project="true"] .group-toggle { gap: 9px; }
+.group[data-project="true"] .group-toggle:hover { background: transparent; }
+.group[data-project="true"] .group-toggle:focus-visible { outline: none; }
+.group[data-project="true"] .group-head:has(.group-toggle:focus-visible) { outline: 2px solid var(--fg-muted); outline-offset: -2px; }
+.group[data-project="true"] .group-icon { margin-inline-end: 0; flex: none; }
 .group-head .group-actions, .projects-head .projects-new { opacity: 0; }
 .group-head:is(:hover, :focus-within, :has([aria-expanded="true"])) .group-actions,
 .projects-head:is(:hover, :focus-within) .projects-new { opacity: 1; }
