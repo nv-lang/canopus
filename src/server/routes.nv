@@ -361,14 +361,15 @@ export type ExtRec { id int, task int, title str, brief str, ms int, file str, a
 export fn route_reminder(route str, step_title str, task_shown str, branch str) -> str => route_reminder_t(REMINDER_TEXT, route, step_title, task_shown, branch)
 
 /// The text of the reminder (`route_reminder`: route, step, place).
-export const REMINDER_TEXT = "[canopus] Напоминание: режим «{route}», шаг: {step}; {place}.\n[canopus] canopus_task — раз в начале реальной работы над файлами, до первой правки; canopus_task_list — только по просьбе хаба; вопрос или беседа — не работа; файлы задачи сам не заводи."
+export const REMINDER_TEXT = "[canopus] Напоминание: режим «{route_label}», шаг: {step}; {place}.\n[canopus] canopus_task — раз в начале реальной работы над файлами, до первой правки; canopus_task_list — только по просьбе хаба; вопрос или беседа — не работа; файлы задачи сам не заводи."
 
 /// The same over a text of a layer.
 export fn route_reminder_t(template str, route str, step_title str, task_shown str, branch str) -> str {
     ro step = if step_title.byte_len() > 0 { step_title } else { "нет" }
     ro branch_part = if branch.byte_len() > 0 { ", ветка ${branch}" } else { "" }
     ro place = if task_shown.byte_len() > 0 { "задача в ${task_shown}${branch_part}" } else { "задачи ещё нет" }
-    render_prompt(template, ["route", route, "step", step, "place", place])
+    ro label = if route == "interactive" { "Выполнение" } else if route == "planning" { "Подготовка задачи" } else if route == "fast" { "Быстрый путь" } else if route == "full" { "Полный путь" } else { route }
+    render_prompt(template, ["route", route, "route_label", label, "step", step, "place", place])
 }
 
 /// DiffRec: a changed file of the tree of the task against its base.
@@ -376,6 +377,7 @@ export type DiffRec { path str, added int, removed int }
 
 /// RouteSession: the mode of a session and its task. Rebuilt from the journal (`apply`); `running`, `current`, `awaiting`, `reviewing` live only in the process.
 export type RouteSession {
+    run_source Option[JsonObject],
     route str,
     told bool,
     states []str,
@@ -485,7 +487,7 @@ export type RouteSession {
 }
 
 export fn route_session_new() -> RouteSession => {
-    route: "interactive", told: false, states: []str.new(), running: false, current: -1, awaiting: false, reviewing: false,
+    run_source: None, route: "interactive", told: false, states: []str.new(), running: false, current: -1, awaiting: false, reviewing: false,
     task_open: false, task_closed: false, by_crew: false, task_id: "", number: "", task_dir: "", task_shown: "", branch: "", worktree: "", title: "",
     messages: 0, subs: []SubRec.new(), merged_into: 0, force: "", last_state: "", last_check: 0, cwd_now: "", base: "", tstate: "active", tnote: "", unmerged: 0, unmerged_at: 0,
     job: "", attempt: 0, use_tree: true, source_branch: "", workspace_explicit: false, workspace_failed: false, workspace_late_tree: "", workspace_late_base: "", result_repo: "", result_label: "", repo_dir: "", result_common: "", result_url: "", result_remote: "", result_ref: "", active_at: 0, extra: task_extra_none(), testing: false, dirty: false, ci_at: 0, diff: []DiffRec.new(), ov_n: 0, ov_with: 0, ov_files: []str.new(), ov_until: 0, asked: []int.new(), conflict_files: []str.new(),
@@ -773,6 +775,10 @@ export fn RouteSession mut @apply(name str, text str) -> () {
     } else if op == "close" {
         @task_closed = true
         @running = false
+    } else if op == "reopen_route" {
+        @task_closed = false
+        @tstate = "active"
+        @tnote = ""
     } else if op == "state" {
         @tstate = jtext(o, "state")
         @tnote = jtext(o, "note")

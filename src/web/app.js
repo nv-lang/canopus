@@ -120,6 +120,8 @@ applyTheme(ui.theme);
 
 const ctx = { newId, now: () => Date.now() };
 ui.handoffStatus = new Map();
+ui.routeResets = new Map();
+const pendingHandoffApprovals = new Map();
 let view = null;
 let queued = false;
 let transport = null;
@@ -323,6 +325,11 @@ async function prepareHandoff(trace, choice, text, images) {
       timers.clear(timer);
       if (ok) ui.handoffStatus.delete(trace);
       else ui.handoffStatus.set(trace, { ...choice, phase: 'error', message });
+      const queued = pendingHandoffApprovals.get(trace);
+      pendingHandoffApprovals.delete(trace);
+      if (queued) for (const [family, value] of queued) {
+        send('session_setting', trace, nextStep(model, trace), { family, setting: 'mode', value });
+      }
       resolve(ok);
       render();
     };
@@ -471,7 +478,8 @@ const handlers = {
   /** «Отправить сейчас»: сообщение первым в очереди, текущий ход отменяется, как кнопкой «Отмена хода»; дальше выдача сама. */
   onSendNow(trace, index) {
     queue.moveToFront(trace, index);
-    handlers.onCancel(trace);
+    if (isBusy(model.sessions[trace]?.state)) handlers.onCancel(trace);
+    else drain();
     render();
   },
   onSelect(trace) {
@@ -692,6 +700,13 @@ const handlers = {
       render();
       return;
     }
+    if (ui.handoffStatus.get(trace)?.phase === 'preparing') {
+      const queued = pendingHandoffApprovals.get(trace) || new Map();
+      queued.set(family, value);
+      pendingHandoffApprovals.set(trace, queued);
+      flash(t('handoff.approval_queued'), 'info');
+      return;
+    }
     send('session_setting', trace, nextStep(model, trace), { family, setting: 'mode', value });
   },
   onAnswer(trace, answer) {
@@ -718,7 +733,26 @@ const handlers = {
   },
   onWorktree(trace, on) { send(...signal(trace, routeSignal.worktree(on))); },
   onResultRepo(trace, repoId) { send(...signal(trace, routeSignal.resultRepo(repoId))); },
-  onRouteRun(trace) { send(...signal(trace, routeSignal.run())); },
+  onRouteRun(trace) {
+    const choice = ui.handoffStatus.get(trace);
+    if (choice?.phase === 'preparing') return;
+    const source = choice?.source || model.sessions[trace]?.source;
+    send('route_run', trace, nextStep(model, trace), source ? { source } : {});
+  },
+  onRouteReset(trace, step) {
+    if (ui.routeResets.has(trace)) return;
+    const reset = { step, timer: timers.set(() => {
+      ui.routeResets.delete(trace);
+      flash(t('route.reset_unconfirmed'));
+      render();
+    }, 60000) };
+    ui.routeResets.set(trace, reset);
+    if (!send('route_reset', trace, nextStep(model, trace), { step })) {
+      timers.clear(reset.timer);
+      ui.routeResets.delete(trace);
+    }
+    render();
+  },
   onRouteSkip(trace, step) { send(...signal(trace, routeSignal.skip(step))); },
   onRouteStop(trace) { send(...signal(trace, routeSignal.stop())); },
   onRouteSubtaskNew(trace) { send(...signal(trace, routeSignal.subtaskNew())); },
@@ -859,10 +893,20 @@ async function start() {
         const next = reduce(model, event);
         const changed = next !== model;
         model = next;
+        const reset = ui.routeResets.get(event.trace);
+        if (reset && (event.kind === 'session_deleted' ||
+          (event.kind === 'route_state' &&
+            model.sessions[event.trace]?.routeState?.steps.find(step => step.n === reset.step)?.state === 'pending'))) {
+          timers.clear(reset.timer);
+          ui.routeResets.delete(event.trace);
+        }
         delivery.reconcile(model);
         const completed = handoff?.phase === 'preparing' && event.kind === 'session_source'
           && event.input?.family === handoff.source.family && event.input?.model === handoff.source.model
           && model.sessions[event.trace]?.agent === handoff.source.family;
+        if (['selected', 'deferred'].includes(handoff?.phase) && event.kind === 'session_source'
+          && event.input?.family === handoff.source.family && event.input?.model === handoff.source.model
+          && model.sessions[event.trace]?.agent === handoff.source.family) ui.handoffStatus.delete(event.trace);
         if (completed) handoff.finish(true);
         else if (handoffFailed) handoff.finish(false, t('handoff.failed'));
         else if (changed) drain();

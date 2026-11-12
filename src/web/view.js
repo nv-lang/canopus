@@ -17,7 +17,7 @@ import { createLocalDictation } from './recorder.js';
 import { createToast } from './toast.js';
 import { h, icon } from './dom.js';
 import { createProjectsUi } from './projects-ui.js';
-import { isAskTool, displayQuestions, expiredReplyPrefix, moveInOrder } from './lists.js';
+import { isAskTool, displayQuestions, expiredReplyPrefix, moveInOrder, byOrder } from './lists.js';
 import { createSideKit } from './session-row.js';
 import { LANGS, createVoiceSettings, langFor, pageLang } from './stt.js';
 import { isBusy, keyAction } from './queue.js';
@@ -270,7 +270,7 @@ export function createView(doc, refs, deps) {
     const taskInfo = sidebarTask(s);
     const stateLabel = t(STATE_KEYS[s.state]);
     const attn = attention(s, { now: now(), silentMin: ui.silentMin ?? SILENT_DEFAULT_MIN, unread, acked: (ui.acked || {})[s.id] || '' });
-    const attnText = attn.state === 'waiting' ? t('attn.waiting') : attn.state === 'silent' ? t('attn.silent', { n: attn.minutes }) : attn.state === 'error' ? t('attn.error') : '';
+    const attnText = attn.state === 'waiting' ? t('attn.waiting') : attn.state === 'silent' ? t('attn.silent', { n: attn.minutes }) : attn.state === 'error' ? t('attn.error') : attn.state === 'question-timeout' ? t('attn.timeout_short') : '';
     const merge = mergeLabel(s.routeState && s.routeState.task);
     const nameText = h(doc, 'span', { class: 'session-name-text', text: s.name });
     const name = h(doc, 'span', { class: 'session-name' }, nameText);
@@ -288,7 +288,7 @@ export function createView(doc, refs, deps) {
     unread ? h(doc, 'span', { class: 'unread', role: 'img', 'aria-label': t('session.unread'), title: t('session.unread') }) : false,
     taskInfo ? h(doc, 'span', { class: 'task-no', text: taskInfo.number, title: taskInfo.title ? t('route.task_no_title', { number: taskInfo.number, title: taskInfo.title }) : t('route.task_head_bare', { number: taskInfo.number }) }) : false,
     name,
-    attnText ? h(doc, 'span', { class: 'attn-label', 'data-attn': attn.state, text: attnText }) : false,
+    attnText ? h(doc, 'span', { class: 'attn-label', 'data-attn': attn.state, title: attn.state === 'question-timeout' ? t('ask.timeout') : attnText, text: attnText }) : false,
     h(doc, 'span', { class: 'dot', 'data-state': s.state, 'data-attn': attn.state, 'aria-hidden': 'true' }),
     h(doc, 'span', { class: 'sr', text: stateLabel }),
     merge ? h(doc, 'span', { class: 'session-merge', 'data-kind': merge.kind, text: merge.text }) : false);
@@ -324,7 +324,7 @@ export function createView(doc, refs, deps) {
       titleScroll?.cancel();
       name.classList.remove('is-scrolling');
     });
-    sideKit.rowDnd(li, { id: s.id, group: gctx.key, ids: gctx.ids, projectId: s.projectId || '', enabled: gctx.draggable });
+    sideKit.rowDnd(li, { id: s.id, group: gctx.key, ids: gctx.ids, projectId: s.projectId || '', enabled: gctx.draggable, reorder: gctx.reorder });
     return li;
   }
 
@@ -352,6 +352,12 @@ export function createView(doc, refs, deps) {
   const projectSections = new Map(Array.isArray(sidebarLayout?.projects)
     ? sidebarLayout.projects.filter(entry => Array.isArray(entry) && typeof entry[0] === 'string' && sectionIds.includes(entry[1]))
     : []);
+  const sessionSections = new Map(Array.isArray(sidebarLayout?.sessions)
+    ? sidebarLayout.sessions.filter(entry => Array.isArray(entry) && typeof entry[0] === 'string' && sectionIds.includes(entry[1]))
+    : []);
+  const sectionRows = new Map(Array.isArray(sidebarLayout?.sessionOrder)
+    ? sidebarLayout.sessionOrder.filter(entry => Array.isArray(entry) && sectionIds.includes(entry[0]) && Array.isArray(entry[1]))
+    : []);
   const collapsedGroups = new Set(Array.isArray(sidebarLayout?.collapsed) ? sidebarLayout.collapsed : []);
   let sectionOrder = [...new Set([
     ...(Array.isArray(sidebarLayout?.order) ? sidebarLayout.order.filter(id => sectionIds.includes(id)) : []),
@@ -359,7 +365,7 @@ export function createView(doc, refs, deps) {
   ])];
 
   function saveSidebar() {
-    try { win?.localStorage?.setItem(sidebarKey, JSON.stringify({ order: sectionOrder, collapsed: [...collapsedGroups], custom: customSections, projects: [...projectSections] })); }
+    try { win?.localStorage?.setItem(sidebarKey, JSON.stringify({ order: sectionOrder, collapsed: [...collapsedGroups], custom: customSections, projects: [...projectSections], sessions: [...sessionSections], sessionOrder: [...sectionRows] })); }
     catch { /* storage unavailable */ }
   }
 
@@ -383,11 +389,26 @@ export function createView(doc, refs, deps) {
     renderList(current.model, current.ui);
   }
 
+  function refreshSidebar() {
+    saveSidebar();
+    listSig = '';
+    renderList(current.model, current.ui);
+  }
+
+  function moveSessionToSection(session, section) {
+    sessionSections.set(session, section);
+    collapsedGroups.delete(section);
+    refreshSidebar();
+  }
+
   /** Группа сессий. group.id пуст — «Без проекта» или проект только по имени (меню «⋯» только у настоящих проектов). */
   function groupNode(title, rows, ui, pins, group = null, sectionId = '') {
     const isProject = Boolean(group) && group.id !== '';
-    // перетаскивание сессий: внутри группы проекта; в «Закреплённых» порядок по активности
-    const gctx = { key: group ? `${group.id}|${title}` : '', ids: rows.map((r) => r.session.id), draggable: Boolean(group) };
+    // В проектах порядок хранит сервер, внутри разделов — настройки боковой панели.
+    const gctx = {
+      key: sectionId || `${group?.id}|${title}`, ids: rows.map(r => r.session.id), draggable: true,
+      reorder: sectionId ? ids => { sectionRows.set(sectionId, ids); refreshSidebar(); } : undefined,
+    };
     const toggle = h(doc, 'button', { type: 'button', class: 'sidebar-section-toggle group-toggle' },
       isProject ? icon(doc, 'i-folder', 'group-icon') : false, h(doc, 'span', { text: title }), icon(doc, 'i-chevron-down', 'group-chevron'));
     const head = h(doc, 'div', { class: 'group-head' }, h(doc, 'h3', { class: 'group-title' }, toggle));
@@ -450,8 +471,13 @@ export function createView(doc, refs, deps) {
     const active = Boolean(group) && activeProject !== null && group.id === activeProject;
     const section = h(doc, 'section', { class: 'group', 'data-active': active ? 'true' : false, 'data-project': isProject ? 'true' : false }, head, body);
     collapseControl(toggle, body, sectionId || `project:${group.id}`);
-    if (group) sideKit.projectDnd({ section, head, projectId: group.id, free: Boolean(group.free) });
-    if (sectionId) sideKit.sectionDnd(section, head, sectionId, reorderSection);
+    if (isProject) sideKit.projectDnd({ section, head, projectId: group.id, isPlaced: session => sessionSections.has(session) || pins.has(session), moveSession: (session, project) => {
+      sessionSections.delete(session);
+      if (pins.has(session)) handlers.onPin(session, false);
+      handlers.onMoveSession(session, project);
+      refreshSidebar();
+    } });
+    if (sectionId) sideKit.sectionDnd(section, head, sectionId, reorderSection, moveSessionToSection);
     return section;
   }
 
@@ -510,11 +536,25 @@ export function createView(doc, refs, deps) {
     const selectedSession = ui.selected ? model.sessions[ui.selected] : undefined;
     activeProject = selectedSession ? (selectedSession.projectId || '') : null;
     const pins = effectivePins(all, ui.pins);
-    const filtered = filterSessions(all, query);
+    const matches = filterSessions(all, query);
+    const filtered = matches.filter(s => !sessionSections.has(s.id));
     const groups = groupSessions(filtered, { pinned: pins, projects: projectsList, includeEmpty: query.trim() === '', collapsed: foldedParents });
+    const placedRows = new Map();
+    for (const session of matches.sort(byOrder)) {
+      const section = sessionSections.get(session.id);
+      if (!section) continue;
+      const rows = placedRows.get(section) || [];
+      rows.push({ session, depth: 0, kids: 0, collapsed: false });
+      placedRows.set(section, rows);
+    }
+    const rowsIn = (section, natural = []) => {
+      const rows = [...natural, ...(placedRows.get(section) || [])];
+      const order = new Map((sectionRows.get(section) || []).map((id, index) => [id, index]));
+      return rows.sort((a, b) => (order.get(a.session.id) ?? Infinity) - (order.get(b.session.id) ?? Infinity));
+    };
     const rowSig = (r) => [r.depth, r.kids, r.collapsed, r.session.parent, r.session.id, r.session.name, r.session.state, r.session.updatedAt, r.session.rank, r.session.projectId, (sidebarTask(r.session) || {}).number, ui.unread ? ui.unread[r.session.id] : undefined, Boolean(r.session.pendingQuestion), (mergeLabel(r.session.routeState && r.session.routeState.task) || {}).text, (() => { const a = attention(r.session, { now: now(), silentMin: ui.silentMin ?? SILENT_DEFAULT_MIN, unread: Boolean(ui.unread && ui.unread[r.session.id] === true), acked: (ui.acked || {})[r.session.id] || '' }); return `${a.state}:${a.blink}:${a.minutes}`; })()];
-    const sig = JSON.stringify([loading?.sessions.phase, ui.selected, activeProject, query, groupMenu, [...expandedGroups], sideKit.sig(), groups.pinned.map(rowSig), groups.projects.map((p) => [p.project, p.id, p.rows.map(rowSig)])]);
-    const shown = groups.pinned.length + groups.projects.length;
+    const sig = JSON.stringify([loading?.sessions.phase, ui.selected, activeProject, query, groupMenu, [...placedRows].map(([id, rows]) => [id, rows.map(rowSig)]), [...expandedGroups], sideKit.sig(), groups.pinned.map(rowSig), groups.projects.map((p) => [p.project, p.id, p.rows.map(rowSig)])]);
+    const shown = groups.pinned.length + groups.projects.length + placedRows.size;
     listEmpty.hidden = Boolean(loading && (loading.projects.phase !== 'ready' || loading.sessions.phase !== 'ready')) || all.length > 0 || (projectsList !== null && projectsList.length > 0);
     notFound.hidden = Boolean(loading && (loading.sessions.phase !== 'ready' || loading.projects.phase !== 'ready')) || !(all.length > 0 && shown === 0);
     if (sig === listSig) return;
@@ -524,18 +564,20 @@ export function createView(doc, refs, deps) {
     const recent = groups.projects.find((p) => p.project === '');
     sideKit.rebuild(() => {
       const sections = { projects: projectsSection };
-      if (groups.pinned.length > 0) sections.pinned = groupNode(t('sessions.pinned'), groups.pinned, ui, pins, null, 'pinned');
-      if (recent) sections.recent = groupNode(t('sessions.recent'), recent.rows, ui, pins, { id: '', free: true }, 'recent');
+      sections.pinned = groupNode(t('sessions.pinned'), rowsIn('pinned', groups.pinned), ui, pins, null, 'pinned');
+      if (recent || placedRows.has('recent')) sections.recent = groupNode(t('sessions.recent'), rowsIn('recent', recent?.rows), ui, pins, { id: '', free: true }, 'recent');
       const projectNodes = (id) => named.filter(p => (projectSections.get(p.id) || 'projects') === id)
         .map(p => groupNode(p.project, p.rows, ui, pins, { id: p.id }));
       projectGroups.replaceChildren(...projectNodes('projects'));
       for (const { id, title } of customSections) {
         const toggle = h(doc, 'button', { type: 'button', class: 'sidebar-section-toggle' }, title, icon(doc, 'i-chevron-down'));
         const head = h(doc, 'div', { class: 'projects-head' }, h(doc, 'h3', {}, toggle));
-        const body = h(doc, 'div', {}, ...projectNodes(id));
+        const rows = rowsIn(id);
+        const gctx = { key: id, ids: rows.map(row => row.session.id), draggable: true, reorder: ids => { sectionRows.set(id, ids); refreshSidebar(); } };
+        const body = h(doc, 'div', {}, ...projectNodes(id), rows.length ? h(doc, 'ul', { class: 'group-list' }, ...rows.map(row => sessionRow(row, ui, pins, gctx))) : false);
         const section = h(doc, 'section', { class: 'sidebar-projects-section' }, head, body);
         collapseControl(toggle, body, id);
-        sideKit.sectionDnd(section, head, id, reorderSection);
+        sideKit.sectionDnd(section, head, id, reorderSection, moveSessionToSection);
         sections[id] = section;
       }
       groupsBox.replaceChildren(...sectionOrder.map(id => sections[id]).filter(Boolean));
@@ -1392,16 +1434,18 @@ export function createView(doc, refs, deps) {
     closeMenu();
   });
 
-  function taskRouteProgress(session) {
+  function taskRouteProgress(session, ui) {
     const route = session.routeState;
     if (!showStrip(route)) return false;
     const actions = stripActions(route);
+    const reset = ui?.routeResets?.get(session.id);
     const current = route.steps.find(step => step.state === 'running');
     const next = route.steps.find(step => step.state === 'pending');
     const done = route.steps.filter(step => step.state === 'done').length;
     const skipped = route.steps.filter(step => step.state === 'skipped').length;
     const action = (text, run, style = '') => {
       const button = h(doc, 'button', { type: 'button', class: 'route-btn ' + style, text });
+      button.disabled = Boolean(reset);
       button.addEventListener('click', () => {
         button.disabled = true;
         run();
@@ -1419,6 +1463,7 @@ export function createView(doc, refs, deps) {
     };
     return h(doc, 'section', { class: 'task-route-progress' },
       h(doc, 'h4', { text: t('route.progress_title') }),
+      reset ? h(doc, 'p', { role: 'status', class: 'route-actions' }, h(doc, 'span', { class: 'spinner', 'aria-hidden': 'true' }), t('route.reset_pending')) : false,
       h(doc, 'p', { text: [t('route.counter', { done, total: route.steps.length }), skipped ? t('route.skipped_total', { n: skipped }) : ''].filter(Boolean).join(' · ') }),
       current ? false : next ? h(doc, 'p', { text: t('route.next_stage', { title: next.title }) }) : false,
       h(doc, 'div', { class: 'route-actions task-route-actions' },
@@ -1427,7 +1472,11 @@ export function createView(doc, refs, deps) {
       h(doc, 'ol', { class: 'task-route-stages' }, ...route.steps.map(step =>
         h(doc, 'li', { 'data-state': step.state, 'aria-current': step === current ? 'step' : undefined },
           h(doc, 'span', { text: step.title }),
-          h(doc, 'small', { text: [t(STEP_STATE_KEY[step.state]), stageHelp[step.title]].filter(Boolean).join(' · ') })))));
+          h(doc, 'small', { text: [t(STEP_STATE_KEY[step.state]), stageHelp[step.title]].filter(Boolean).join(' · ') }),
+          !route.running && step.state === 'done' && route.task ? action(t('route.reset_step'), async () => {
+            const yes = await projectsUi.confirm({ title: t('route.reset_step'), text: t('route.reset_step_detail', { title: step.title }), ok: t('route.reset_step'), cancel: t('session.delete_cancel') });
+            if (yes) handlers.onRouteReset(session.id, step.n);
+          }) : false))));
   }
 
   // Баннер «Задача разрослась»: над полем, рядом с полосой шагов; «Продолжить» запоминается до следующей подзадачи.
@@ -1444,7 +1493,7 @@ export function createView(doc, refs, deps) {
     if (count === 0) { routeBanner.hidden = true; routeBanner.replaceChildren(); return; }
     const close = h(doc, 'button', { type: 'button', class: 'route-btn primary', text: t('route.banner_close') });
     const keep = h(doc, 'button', { type: 'button', class: 'route-btn', text: t('route.banner_keep') });
-    close.addEventListener('click', () => handlers.onRouteNewTask(session.id));
+    close.addEventListener('click', () => confirmDetachTask(session));
     keep.addEventListener('click', () => {
       bannerDismissed.set(`${session.id}:${task.id}`, count);
       bannerSig = '';
@@ -1826,15 +1875,23 @@ export function createView(doc, refs, deps) {
     const [label, secondary] = rowLabel(r);
     const webSearch = r.kind === 'search' && /^web search(?::|$)/iu.test(r.title);
     const query = r.query || (webSearch ? secondary : '');
-    const input = r.toolInput || (query ? JSON.stringify({ query }, null, 2) : '');
-    return { r, label, secondary, command, input, result: distinctResult, webSearch,
-      expandable: Boolean(command || input || distinctResult || webSearch), key: `${currentTrace}:row:${r.key}` };
+    const sameCommand = (text) => {
+      if (!command || !text) return false;
+      try {
+        const value = JSON.parse(text);
+        return value && Object.keys(value).length === 1 && value.command === command;
+      } catch { return false; }
+    };
+    const input = sameCommand(r.toolInput) ? '' : r.toolInput || (query ? JSON.stringify({ query }, null, 2) : '');
+    const resultText = sameCommand(distinctResult) ? '' : distinctResult;
+    return { r, label, secondary, command, input, result: resultText, webSearch,
+      expandable: Boolean(command || input || resultText || webSearch), key: `${currentTrace}:row:${r.key}` };
   }
 
-  function workDetails({ r, command, input, result, webSearch }) {
+  function workDetails({ r, command, input, result, webSearch, key }) {
     const clipped = [command, input, result].filter(Boolean).join('\n').trimEnd().split('\n').length > 11;
     const toolOutput = r.type === 'tool';
-    return h(doc, 'div', { class: 'row-content', tabindex: '0', 'data-clipped': clipped ? 'true' : undefined },
+    return h(doc, 'div', { class: 'row-content', tabindex: '0', 'data-work-detail': key, 'data-clipped': clipped ? 'true' : undefined },
       command ? h(doc, 'code', { class: 'row-command', text: command }) : false,
       input ? h(doc, 'div', { class: 'row-detail-label', text: t('work.input') }) : false,
       input ? h(doc, 'pre', { class: 'row-detail row-output', text: input }) : false,
@@ -1868,12 +1925,10 @@ export function createView(doc, refs, deps) {
     const from = preview.getBoundingClientRect?.().height || 0;
     const previousGroupHeight = entry.node.getBoundingClientRect?.().height || 0;
     const sameAction = entry.previewKey === row?.key;
-    const scroll = sameAction ? old?.scrollTop || 0 : 0;
     entry.previewKey = row?.key;
     entry.previewSignature = signature;
     const detail = row && workDetails(row);
     preview.replaceChildren(...(detail ? [detail] : []));
-    if (detail) detail.scrollTop = scroll;
     return () => {
       entry.previewAnimation?.cancel();
       if (!visible || !preview.animate || win?.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
@@ -1904,6 +1959,20 @@ export function createView(doc, refs, deps) {
   }
 
   function fillWork(entry, item) {
+    const positions = entry.workScroll ??= new Map();
+    const prior = entry.node.querySelector('.work-body');
+    const saveScroll = body => {
+      for (const detail of body.querySelectorAll('.row-content')) {
+        positions.set(detail.getAttribute('data-work-detail'), [detail.scrollTop, detail.scrollLeft]);
+      }
+    };
+    if (prior && !prior.hidden) saveScroll(prior);
+    const restoreScroll = body => {
+      for (const detail of body.querySelectorAll('.row-content')) {
+        const position = positions.get(detail.getAttribute('data-work-detail'));
+        if (position) [detail.scrollTop, detail.scrollLeft] = position;
+      }
+    };
     const single = item.rows.length === 1;
     const key = `${currentTrace}:${item.key}`;
     const override = workToggles.get(key);
@@ -1931,9 +2000,12 @@ export function createView(doc, refs, deps) {
       const next = toggle.getAttribute('aria-expanded') !== 'true';
       workToggles.set(key, next);
       toggle.setAttribute('aria-expanded', String(next));
+      if (!next) saveScroll(body);
       body.hidden = !next;
+      if (next) restoreScroll(body);
     });
     entry.node.replaceChildren(...(toggle ? [toggle, body] : [body]));
+    if (isOpen) restoreScroll(body);
     animate();
   }
 
@@ -1997,8 +2069,7 @@ export function createView(doc, refs, deps) {
             return button;
           }))
           : false;
-        const question = item.replyTo ? h(doc, 'button', { type: 'button', class: 'link-btn', text: t('ask.reply_question_link') }) : null;
-        question?.addEventListener('click', () => nodes.get(item.replyTo)?.node.scrollIntoView({ block: 'nearest' }));
+        const question = item.answeredQuestion ? answeredQuestions(item.answeredQuestion, item.choices) : null;
         node.replaceChildren(h(doc, 'span', { class: 'sr', text: t('chat.you') }),
           h(doc, 'div', { class: 'bubble' }, thumbs, ...(item.text.trim().length > 0 ? proseNodes(item.text) : []), question),
           messageActions(item));
@@ -2088,15 +2159,67 @@ export function createView(doc, refs, deps) {
         }));
         break;
       case 'switch': {
-        const text = t('chat.switched', { agent: agentLabel(item.to) });
-        node.replaceChildren(h(doc, 'span', { text: item.cut ? `${text} ${t('chat.switched_cut', { shown: item.shown, total: item.total })}` : text }));
+        const models = pickerModelsFor(item.to, directModelsFor(item.to) ?? current.model.catalog[item.to]?.models);
+        const model = item.model ? modelLabel(item.to, nameOf(models, item.model) || item.model) : agentLabel(item.to);
+        const effort = item.effort ? ' / ' + labelOf('effort', { id: item.effort, name: item.effort }).name : '';
+        const text = t('chat.agent_signature', { model, effort });
+        node.replaceChildren(h(doc, 'span', { text: item.cut ? `${text} · ${t('chat.switched_summary')}` : text }));
+        break;
+      }
+      case 'agent-mail': {
+        const trace = currentTrace;
+        const matches = Object.values(current.model?.sessions || {}).filter(session => session.name === item.sender);
+        const senderId = item.senderId || (matches.length === 1 ? matches[0].id : '');
+        const sender = senderId ? h(doc, 'button', { type: 'button', class: 'link-btn', text: senderId, title: t('mail.copy_session') }) : false;
+        if (sender) sender.addEventListener('click', event => {
+          event.preventDefault();
+          const loc = win.location;
+          handlers.onCopy(`${loc.origin}${loc.pathname}#s=${encodeURIComponent(senderId)}`);
+        });
+        const content = h(doc, 'div', { class: 'agent-mail-body' }, ...proseNodes(item.text));
+        const body = h(doc, 'details', { class: 'agent-mail' },
+          h(doc, 'summary', {},
+            h(doc, 'span', { class: 'agent-mail-icon', 'aria-hidden': 'true', text: '✉' }),
+            h(doc, 'span', { class: 'agent-mail-label', text: t('mail.heading') }),
+            h(doc, 'span', { class: 'agent-mail-sender', text: t('mail.from', { sender: item.sender }) }), sender), content);
+        if (item.fullBytes) {
+          const status = h(doc, 'p', { class: 'muted', role: 'status', hidden: true });
+          const load = h(doc, 'button', { type: 'button', class: 'link-btn', text: t('mail.load_full') });
+          const loadFull = async () => {
+            if (load.disabled) return;
+            load.disabled = true;
+            try {
+              const response = await win.fetch(`/api/session-trace/${encodeURIComponent(trace)}?mail_at=${item.at}&mail_bytes=${item.fullBytes}`);
+              const result = response.ok ? await response.json() : null;
+              if (typeof result?.text !== 'string') throw new Error();
+              content.replaceChildren(...proseNodes(result.text));
+              status.remove();
+              load.remove();
+            } catch {
+              status.hidden = false;
+              status.textContent = t('mail.full_unavailable');
+              load.hidden = false;
+              load.disabled = false;
+            }
+          };
+          load.addEventListener('click', loadFull);
+          body.append(status, load);
+          if (item.fullBytes <= 1024) {
+            load.hidden = true;
+            body.addEventListener('toggle', () => {
+              if (body.open && load.hidden && !load.disabled) void loadFull();
+            });
+          }
+        }
+        node.replaceChildren(body);
         break;
       }
       case 'answer': {
         const lines = item.skipped
           ? [t('ask.skipped', { question: item.lines.length > 0 ? item.lines[0].question : '' })]
-          : item.lines.map((l) => t('ask.answer', { question: l.question, choice: l.choice }));
-        node.replaceChildren(h(doc, 'div', { class: 'bubble' }, ...lines.map((text) => h(doc, 'div', { text }))));
+          : item.lines.map((l) => item.questions?.length ? t('ask.reply_in_feed', { answer: l.choice }) : t('ask.answer', { question: l.question, choice: l.choice }));
+        node.replaceChildren(h(doc, 'div', { class: 'bubble' }, ...lines.map((text) => h(doc, 'div', { text })),
+          !item.skipped && item.questions?.length ? answeredQuestions(item.questions, item.lines.map(l => l.choice)) : false));
         break;
       }
       case 'autoext': {
@@ -2143,7 +2266,7 @@ export function createView(doc, refs, deps) {
       default: {
         const dots = h(doc, 'span', { class: 'dots', 'aria-hidden': 'true' }, h(doc, 'i'), h(doc, 'i'), h(doc, 'i'));
         node.replaceChildren(dots, h(doc, 'span', { text: t('chat.running') }),
-          item.since > 0 ? h(doc, 'span', { class: 'elapsed', 'data-since': item.since, text: durationText(now() - item.since) }) : false,
+          ...(item.since > 0 ? [h(doc, 'span', { class: 'elapsed', 'data-since': item.since, text: durationText(now() - item.since) })] : []),
           h(doc, 'span', { class: 'silent-note', hidden: true, 'data-last': item.last || 0 },
             h(doc, 'span', { class: 'silent-text' }),
             (() => { const b = h(doc, 'button', { type: 'button', class: 'link-btn silent-cancel', text: t('attn.interrupt') }); b.addEventListener('click', () => { if (currentTrace) handlers.onCancel(currentTrace); }); return b; })()));
@@ -2463,7 +2586,7 @@ export function createView(doc, refs, deps) {
     canopusUi.render(session);
 
     const checking = ui.loading?.sessions.phase === 'loading';
-    const items = timeline(session).map(item => checking && item.type === 'note' && ['error', 'refused'].includes(item.tone)
+    const items = timeline(session).filter(item => item.type !== 'running' || handoff?.phase !== 'preparing').map(item => checking && item.type === 'note' && ['error', 'refused'].includes(item.tone)
       ? { ...item, checking } : item);
     const localDelivery = handlers.deliveryItems?.(session.id) || [];
     for (let i = items.length - 1; i >= 0; i--) {
@@ -2684,11 +2807,34 @@ export function createView(doc, refs, deps) {
     return b;
   }
 
+  async function confirmDetachTask(session) {
+    const yes = await projectsUi.confirm({
+      title: t('route.detach_title'), text: t('route.detach_explain'),
+      ok: t('route.new_task'), cancel: t('session.delete_cancel'),
+    });
+    if (yes) handlers.onRouteNewTask(session.id);
+  }
+
+  function answeredQuestions(questions, answers) {
+    return h(doc, 'details', { class: 'answered-questions' },
+      h(doc, 'summary', { text: t('ask.reply_question_link') }),
+      ...questions.map((q, i) => {
+        const answer = answers[i] || '';
+        const checked = option => answer === option.label || (q.multiSelect && answer.split(', ').includes(option.label));
+        return h(doc, 'section', {},
+          h(doc, 'p', { class: 'answered-question-title', text: q.question }),
+          h(doc, 'ol', {}, ...q.options.map(option => h(doc, 'li', { 'data-selected': String(checked(option)) },
+            askOptionText(option.label, option.description),
+            checked(option) ? h(doc, 'span', { class: 'answered-selected', 'aria-label': t('ask.selected_option') }, icon(doc, 'i-check')) : false))),
+          answer && !q.options.some(checked) ? h(doc, 'p', { text: t('ask.reply_in_feed', { answer }) }) : false);
+      }));
+  }
+
   function subtasksCard(s) {
     const task = s.routeState && s.routeState.task;
     if (!task) return false;
     const newTask = h(doc, 'button', { type: 'button', class: 'link-btn', text: t('route.new_task') });
-    newTask.addEventListener('click', () => handlers.onRouteNewTask(s.id));
+    newTask.addEventListener('click', () => confirmDetachTask(s));
     const label = mergeLabel(task);
     return card(taskHeading(task),
       task.number ? taskDetailsButton(s) : false,
@@ -2756,7 +2902,7 @@ export function createView(doc, refs, deps) {
       h(doc, 'p', { text: `${t('task.details_status')} · ${taskStatusLabel(status)}` }),
       h(doc, 'p', { text: t('route.task_path', { name: routeName(session.route) }) }),
       stage ? h(doc, 'p', { text: `${t('task.details_stage')} · ${stage}` }) : false,
-      taskRouteProgress(session),
+      taskRouteProgress(session, current.ui),
       showSubtasks(session.routeState) && task.subtasks.length ? h(doc, 'section', {},
         h(doc, 'h4', { text: t('task.checklist') }),
         h(doc, 'ul', { class: 'rsub-list' }, ...task.subtasks.map(sub => subtaskRow(session, task, sub)))) : false,

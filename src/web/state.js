@@ -303,7 +303,7 @@ function apply(session, event) {
         optionsPending: session.switchingTo !== '', // это окно выбрало семью: сводка нового агента ещё в пути
         // сводки прежнего агента, что придут позже этого события, не годятся: шаг смены — новая нижняя граница
         modelStep: Math.max(session.modelStep, event.step),
-        messages: [...session.messages, { role: 'switch', key, from: str(input.from), to: str(input.to), shown, total, cut: input.cut === 1 }],
+        messages: [...session.messages, { role: 'switch', key, from: str(input.from), to: str(input.to), shown, total, cut: input.cut === 1, model: str(input.model), effort: str(input.effort) }],
       };
     }
     case 'setting_chosen': {
@@ -347,6 +347,10 @@ function apply(session, event) {
     }
 
     case 'agent_chunk': {
+      if (input.turn === '') {
+        const text = str(input.text);
+        return text.trim() ? { ...session, messages: [...session.messages, { role: 'service_note', key: `service:${event.id}`, text }] } : session;
+      }
       const pendingActual = session.pendingActual && session.pendingActual[turn];
       const { index, message } = agentMessageFor(session.messages, turn, pendingActual || null);
       if (message.status !== 'streaming' && message.status !== 'error') return session; // после отмены/отказа/конца — запоздалый
@@ -409,7 +413,7 @@ function apply(session, event) {
         ...session,
         pendingQuestion: null,
         questionClosed: [...session.questionClosed, open.request],
-        messages: [...session.messages, { role: 'answer', key, turn: open.turn, request: open.request, skipped, lines }],
+        messages: [...session.messages, { role: 'answer', key, turn: open.turn, request: open.request, skipped, lines, questions: open.questions }],
       };
     }
 

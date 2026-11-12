@@ -84,3 +84,54 @@ export fn trace_slice(root str, session str, from int, to int) -> str {
         None => trace_failure("no raw exchange for this session (acp_trace is off or nothing was said yet)")
     }
 }
+
+/// Recover only the mail body from a legacy service prompt, leaving unrelated ACP data private.
+export fn trace_mail(root str, session str, at int, bytes int) -> str {
+    if at <= 0 || bytes <= 0 || bytes > 65536 { return trace_failure("invalid mail reference") }
+    ro path = match session_file(root, session, "acp.jsonl") {
+        Some(p) => p
+        None => return trace_failure("invalid session")
+    }
+    ro text = with Fs = real_fs() { match read_text(path) { Ok(t) => t, Err(e) => "" } }
+    ro mark = "[canopus] Письмо от "
+    ro clipped = "… (обрезано, всего ${bytes} байт)"
+    mut best = ""
+    mut distance = 30001
+    for raw in text.lines() {
+        if !raw.contains("session/prompt") || !raw.contains(clipped) { continue }
+        ro record = match Json.parse(raw) { Ok(v) => v.object() ?? JsonObject.new(), Err(e) => JsonObject.new() }
+        ro stamp = (record.get("t") ?? JsonValue.null()).int() ?? 0
+        ro gap = if stamp >= at { stamp - at } else { at - stamp }
+        if gap >= distance { continue }
+        ro line = (record.get("line") ?? JsonValue.null()).str() ?? ""
+        ro rpc = match Json.parse(line) { Ok(v) => v.object() ?? JsonObject.new(), Err(e) => JsonObject.new() }
+        ro params = (rpc.get("params") ?? JsonValue.null()).object() ?? JsonObject.new()
+        ro parts = (params.get("prompt") ?? JsonValue.null()).array() ?? []JsonValue.new()
+        for part in parts {
+            ro block = part.object() ?? JsonObject.new()
+            ro prompt = (block.get("text") ?? JsonValue.null()).str() ?? ""
+            ro mails = prompt.split(mark).collect()
+            if mails.len() < 3 { continue }
+            ro preview = mails[mails.len() - 1]
+            ro preview_start = (preview.find(": ") ?? -2) + 2
+            ro end = preview.find(clipped) ?? 0
+            if preview_start < 2 || end <= preview_start { continue }
+            ro excerpt = preview[preview_start..end].trim_ascii()
+            if excerpt.byte_len() == 0 { continue }
+            mut i = 1
+            while i < mails.len() - 1 {
+                ro mail = mails[i]
+                ro begin = (mail.find(": ") ?? -2) + 2
+                if begin >= 2 && begin + bytes <= mail.byte_len() && mail.is_char_boundary(begin + bytes) {
+                    ro body = mail[begin..begin + bytes]
+                    if body.starts_with(excerpt) { best = body; distance = gap; break }
+                }
+                i += 1
+            }
+        }
+    }
+    if best.byte_len() == 0 { return trace_failure("full mail unavailable") }
+    mut answer = JsonObject.new()
+    ro put = answer.insert("text", JsonValue.str(secret_redact(best)))
+    JsonValue.object(answer).to_str()
+}

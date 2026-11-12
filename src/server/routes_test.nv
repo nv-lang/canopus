@@ -2,6 +2,7 @@
 // the rule "extend the subtask or open a new one", the state `route_state` for the page, the choice of the independent reviewer.
 module canopus.server
 
+import alula.engine.{Incoming}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 import std.fs.{Fs, real_fs, read_text}
 
@@ -553,4 +554,16 @@ test "routes: the next number stays above origin/main and above the numbers give
     given.push(second)
     ro third = next_task_number_reserved(names, given)
     assert(first == 195 && second == 196 && third == 197)
+}
+
+test "routes: only a successful current turn advances the route" {
+    ro start = Incoming.signal("user_message", "step")
+    ro done = Incoming.signal("agent_done", "")
+    ro chunk = Incoming.signal("agent_chunk", "partial answer")
+    ro refused = Incoming.signal("agent_refused", "model unavailable")
+    ro timeout = Incoming.signal("no_answer_in_time", "")
+    assert(route_turn_succeeded([start, chunk, done]))
+    assert(!route_turn_succeeded([start, chunk, refused]))
+    assert(!route_turn_succeeded([start, timeout]))
+    assert(!route_turn_succeeded([start, done, start, chunk]))
 }

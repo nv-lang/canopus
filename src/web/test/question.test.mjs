@@ -189,9 +189,12 @@ test('ответ новым ходом сохраняет выбранный в�
     ev('question_request', { turn: 't1', request: 'r1', questions: [question] }, 2),
     ev('agent_refused', { turn: 't1', reason: 'Timeout' }, 3),
     ev('user_message', { turn: 't2', text: answer }, 4)]);
-  const card = timeline(m.sessions.s1).find(item => item.type === 'question-timeout');
-  assert.deepEqual(card.selected, ['Б']);
-  assert.equal(card.canReply, false);
+  const feed = timeline(m.sessions.s1);
+  assert.equal(feed.some(item => item.type === 'question-timeout'), false);
+  const reply = feed.find(item => item.answeredQuestion);
+  assert.deepEqual(reply.choices, ['Б']);
+  assert.equal(reply.answeredQuestion[0].options.length, question.options.length);
+  assert.equal(reply.text, 'Вы ответили: Б');
 });
 
 test('question_request без годных вопросов игнорируется', () => {

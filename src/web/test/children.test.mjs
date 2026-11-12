@@ -8,7 +8,7 @@ import { parseCanopusTask, defaultWay, wayOptions, parseWay, rowActions, canopus
 import { createCanopusTaskUi } from '../canopus-task-ui.js';
 import { createFakeDocument } from './fake-dom.mjs';
 
-const S = (id, name, extra = {}) => ({ id, name, project: '', projectId: 'p', parent: '', pinned: false, updatedAt: 0, ...extra });
+const S = (id, name, extra = {}) => ({ id, name, project: '', projectId: 'p', parent: '', pinned: false, updatedAt: 0, createdAt: extra.updatedAt ?? 0, ...extra });
 const ids = (rows) => rows.map((r) => `${r.depth}:${r.session.id}`);
 
 test('список: дочерняя сессия стоит под родителем с отступом; у родителя счёт детей', () => {

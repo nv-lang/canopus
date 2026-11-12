@@ -177,8 +177,8 @@ test('ровно эти ключи строк ленты и меню есть в
   for (const key of ['route.note_new', 'route.note_extended', 'route.sub_act_worktree', 'route.sub_act_done', 'route.sub_act_same', 'route.sub_act_new', 'route.sub_merged']) {
     assert.ok(S[key], key);
   }
-  assert.equal(S['route.banner'], 'Задача разрослась ({count}). Закрыть и начать новую?');
-  assert.equal(S['route.banner_close'], 'Закрыть и начать новую');
+  assert.equal(S['route.banner'], 'В чате уже {count} подзадач. Отвязать текущую задачу?');
+  assert.equal(S['route.banner_close'], 'Отвязать задачу от чата');
   assert.equal(S['route.banner_keep'], 'Продолжить');
 });
 

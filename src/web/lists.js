@@ -4,21 +4,22 @@
 
 // ---- список сессий: фильтр, закрепление, группы ------------------------------------------
 
-const byRecency = (a, b) => (b.updatedAt - a.updatedAt) || (a.id < b.id ? -1 : 1);
+const createdAt = (session) => session.createdAt ?? 0;
+const byCreation = (a, b) => (createdAt(b) - createdAt(a)) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
 const hasRank = (s) => Number.isFinite(s.rank);
 
 /**
  * Порядок сессий внутри проекта (задача 192): место, которое владелец задал перетаскиванием (rank, меньше — выше), сильнее
- * сортировки по активности; сессии без места (новые) стоят над всеми, свежие выше.
+ * сортировки по времени создания; сессии без места стоят над всеми, новые выше.
  */
 import { t } from './strings.js';
 import { needsOwnerReason } from './attention.js';
 
 export const byOrder = (a, b) => {
-  if (hasRank(a) && hasRank(b)) return (a.rank - b.rank) || byRecency(a, b);
+  if (hasRank(a) && hasRank(b)) return (a.rank - b.rank) || byCreation(a, b);
   if (hasRank(a) !== hasRank(b)) return hasRank(a) ? 1 : -1;
-  return byRecency(a, b);
+  return byCreation(a, b);
 };
 
 /**
@@ -142,14 +143,14 @@ export function groupSessions(sessions, { pinned = new Set(), projects = null, i
   const place = new Map((projects ?? []).map((p, i) => [p.id, i]));
   const placed = (g) => (g.id !== '' && place.has(g.id) ? place.get(g.id) : Infinity);
   const groups = [...byKey.values()]
-    .map((g) => ({ ...g, latest: g.list.length > 0 ? Math.max(...g.list.map((s) => s.updatedAt)) : -1 }))
+    .map((g) => ({ ...g, latest: g.list.length > 0 ? Math.max(...g.list.map(createdAt)) : -1 }))
     .sort((x, y) => {
       if (placed(x) !== placed(y)) return placed(x) < placed(y) ? -1 : 1;
       return (y.latest - x.latest) || (x.project < y.project ? -1 : (x.project > y.project ? 1 : 0));
     })
     .map(({ project, id, list }) => ({ project, id, rows: buildTree(list, collapsed) }));
   return {
-    pinned: pinnedList.sort(byRecency).map((session) => ({ session, depth: 0, kids: 0, collapsed: false })),
+    pinned: pinnedList.sort(byOrder).map((session) => ({ session, depth: 0, kids: 0, collapsed: false })),
     projects: groups,
   };
 }
@@ -256,12 +257,26 @@ export function timeline(session) {
   for (const m of session.messages) {
     if (m.role === 'user') {
       let reply = null;
-      let replyTo;
+      let answeredQuestion;
       if (expired && !expired.selected) {
         expired.selected = replayedReply(expired.questions, m.text);
-        if (expired.selected) { expired.canReply = false; reply = expired.selected; replyTo = expired.key; }
+        if (expired.selected) {
+          reply = expired.selected;
+          answeredQuestion = expired.questions;
+          const prior = items.indexOf(expired);
+          if (prior >= 0) items.splice(prior, 1);
+        }
       }
-      items.push({ type: 'user', key: m.key, text: reply ? t('ask.reply_in_feed', { answer: reply.join(' · ') }) : m.text, ...(replyTo ? { replyTo } : {}), turn: m.turn, images: m.images ?? [], at: m.at ?? 0 });
+      const mail = /^\[canopus\] Письмо от ([^\r\n]+?): ([\s\S]*)$/u.exec(m.text);
+      if (mail) {
+        const truncated = /(?:^|\n)\s*…\s*\(обрезано, всего (\d+) байт\)\s*$/u;
+        const sender = mail[1].replace(/ +\[(?:вопрос|ответ на) [^\]]+\]$/u, '');
+        const identified = /^(.+) \(([a-zA-Z0-9_-]+)\)$/u.exec(sender);
+        items.push({ type: 'agent-mail', key: m.key, sender: identified?.[1] || sender, senderId: identified?.[2] || '', text: mail[2].replace(truncated, '').trimEnd(),
+          fullBytes: Number(truncated.exec(mail[2])?.[1]) || 0, turn: m.turn, at: m.at ?? 0 });
+        continue;
+      }
+      items.push({ type: 'user', key: m.key, text: reply ? t('ask.reply_in_feed', { answer: reply.join(' · ') }) : m.text, ...(answeredQuestion ? { answeredQuestion, choices: reply } : {}), turn: m.turn, images: m.images ?? [], at: m.at ?? 0 });
     } else if (m.role === 'service_note') {
       items.push({ type: 'text', key: m.key, text: m.text, streaming: false });
     } else if (m.role === 'skipped') {
@@ -272,11 +287,9 @@ export function timeline(session) {
     } else if (m.role === 'dropped') {
       items.push({ type: 'dropped', key: m.key, setting: m.setting, value: m.value, used: m.used });
     } else if (m.role === 'switch') {
-      if (!((m.from === 'kimi' && m.to === 'codex') || (m.from === 'codex' && m.to === 'kimi'))) {
-        items.push({ type: 'switch', key: m.key, from: m.from, to: m.to, shown: m.shown, total: m.total, cut: m.cut });
-      }
+      if (m.model || m.cut) items.push({ type: 'switch', key: m.key, to: m.to, cut: m.cut, model: m.model, effort: m.effort });
     } else if (m.role === 'answer') {
-      items.push({ type: 'answer', key: m.key, skipped: m.skipped, lines: m.lines });
+      items.push({ type: 'answer', key: m.key, skipped: m.skipped, lines: m.lines, questions: m.questions });
     } else if (m.role === 'auto_extend') {
       const x = (session.routeState?.canopus?.extensions ?? []).find((e) => e.id === m.id);
       if (x) items.push({ type: 'autoext', key: m.key, id: x.id, task: x.task, title: x.title, text: x.text, undone: x.undone });

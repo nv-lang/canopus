@@ -233,6 +233,8 @@ test('Kimi to Codex handoff without a question starts only on send and never sen
     assert.equal(page.sent[0].input.text, 'сохранить этот текст');
     assert.equal(page.sent[0].input.handoff.family, 'codex');
     assert.equal(page.handlers.onSend('s', 'не дублировать'), false);
+    page.handlers.onApproval('s', 'codex', 'auto');
+    assert.equal(page.sent.length, 1, 'approval waits for the active handoff');
     page.event('handoff_progress', { phase: 'compacting' }, { step: 4 });
     assert.equal(page.getUI().handoffStatus.get('s').compacting, true);
     if (succeeds) {
@@ -240,12 +242,15 @@ test('Kimi to Codex handoff without a question starts only on send and never sen
       assert.equal(page.sent.length, 1);
       page.event('session_source', { family: 'codex', model: 'test-model', effort: 'low' }, { step: 6 });
       assert.equal(await sent, true);
-      assert.equal(page.sent.length, 1);
+      assert.equal(page.sent.length, 2);
+      assert.equal(page.sent[1].kind, 'session_setting');
+      assert.deepEqual({ ...page.sent[1].input }, { family: 'codex', setting: 'mode', value: 'auto' });
     } else {
       page.event('error', { message: 'Перенос контекста в Codex не завершился.' }, { step: 5 });
       assert.equal(await sent, false);
       assert.equal(page.getModel().sessions.s.agent, 'kimi');
-      assert.equal(page.sent.length, 1);
+      assert.equal(page.sent.filter(event => event.kind === 'user_message').length, 1);
+      assert.equal(page.sent[1].kind, 'session_setting');
       assert.equal(page.getUI().handoffStatus.get('s').phase, 'error');
     }
   }
@@ -349,4 +354,19 @@ test('открытие чата запускает восстановление 
   page.draw();
   assert.deepEqual(page.sent.map(event => event.kind), ['session_warm', 'session_history_get']);
   assert.equal(page.sent[1].input.last, created.id);
+});
+
+test('route reset stays pending until the server confirms the selected step', async () => {
+  const page = await app();
+  const snapshot = state => ({ route: 'full', steps: [{ n: 1, title: 'First', state }] });
+  page.event('route_state', snapshot('done'));
+  page.handlers.onRouteReset('s', 1);
+  page.handlers.onRouteReset('s', 1);
+  assert.equal(page.sent.filter(event => event.kind === 'route_reset').length, 1);
+  assert.equal(page.getUI().routeResets.get('s').step, 1);
+
+  page.event('route_state', snapshot('done'), { step: 2 });
+  assert.equal(page.getUI().routeResets.has('s'), true);
+  page.event('route_state', snapshot('pending'), { step: 3 });
+  assert.equal(page.getUI().routeResets.has('s'), false);
 });

@@ -364,6 +364,13 @@ test('лента показывает Markdown и команду с термин
   assert.equal(refs.main.querySelector('.row-command').textContent, 'Get-Content nova.toml');
   assert.equal(refs.main.querySelector('.row-output'), null);
   assert.ok(refs.main.querySelector('.row-status .sr-only'));
+  const duplicated = st.reduce(model, ev('tool_call_update', {
+    id: 'exec1', status: 'in_progress', detail: '{ "command": "Get-Content nova.toml" }',
+    response: '{ "command": "Get-Content nova.toml" }',
+  }, { step: 4 }));
+  view.render(duplicated, { selected: 's1', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
+  assert.equal(refs.main.querySelector('.row-command').textContent, 'Get-Content nova.toml');
+  assert.equal(refs.main.querySelector('.row-output'), null);
 });
 
 test('лента следует за ответом после изменения высоты и останавливается после ручной прокрутки', () => {

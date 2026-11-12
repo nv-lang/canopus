@@ -267,6 +267,21 @@ test('пока тащат, перерисовка откладывается и 
   assert.equal(s.drawn(), before + 1);
 });
 
+test('a session can be dropped into a custom section', () => {
+  const s = setup();
+  const head = h(s.doc, 'div');
+  const section = h(s.doc, 'section', {}, head);
+  const moved = [];
+  s.kit.sectionDnd(section, head, 'custom:work', () => {}, (...args) => moved.push(args));
+  s.row('a').dispatchEvent(drag('dragstart'));
+  const over = drag('dragover');
+  head.dispatchEvent(over);
+  assert.equal(over.defaultPrevented, true);
+  head.dispatchEvent(drag('drop'));
+  assert.deepEqual(moved, [['a', 'custom:work']]);
+  assert.equal(s.kit.isDragging(), false);
+});
+
 test('шапка проекта: бросок сессии переносит её, бросок проекта ставит рядом; свой проект и «Без проекта»', () => {
   const s = setup();
   const mk = (projectId, free = false) => {
@@ -288,6 +303,7 @@ test('шапка проекта: бросок сессии переносит е
   p2.head.dispatchEvent(drag('dragover'));
   assert.ok(p2.head.className.includes('drop-into'));
   p2.head.dispatchEvent(drag('drop'));
+  s.row('a').dispatchEvent(drag('dragstart'));
   none.head.dispatchEvent(drag('dragover'));
   none.head.dispatchEvent(drag('drop'));
   s.row('a').dispatchEvent(drag('dragend'));

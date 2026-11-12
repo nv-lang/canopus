@@ -86,6 +86,10 @@ else if (action === "reserve") {
       const change=JSON.parse(evidence.text)
       if(change.op==="open"&&Number(change.number)!==n)throw Error("Application event task number mismatch")
       if(change.op === "open" || change.op === "attach_tree") {t.worktree=change.worktree;t.branch=change.branch}
+      if(change.op === "reopen_route" && t.status === "done"){
+        t.status="running"
+        ;(t.history??=[]).push({at:Date.now(),by:input.session,status:"running",note:"Application journal: route reset"})
+      }
       if(change.op === "state" && ["running","submitted","rework"].includes(t.status)){
         const previous=t.status
         if(change.state === "ready")t.status="submitted"

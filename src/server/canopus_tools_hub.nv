@@ -169,7 +169,7 @@ fn Hub mut @ctl_deliver(at int) Proc Detach Time -> () {
     @hint_add(at, "письмо canopus_send", text)
     ro who = if lead.from.byte_len() == 0 { "хаб" } else { lead.from_name }
     ro asked = if lead.qid.byte_len() > 0 { " [вопрос ${lead.qid}]" } else { "" }
-    ro reason = @route_agent_turn(at, "[canopus] Письмо от ${who}${asked}: ${cut_text(lead.text, 300)}", full)
+    ro reason = @route_agent_turn(at, "[canopus] Письмо от ${who}${asked}: ${lead.text}", full)
     if reason.byte_len() > 0 {
         @tell_error(0, s.id, s.engine.step_number(), "", "письмо canopus_send не передано агенту: ${reason}")
     }

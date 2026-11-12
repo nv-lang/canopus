@@ -130,7 +130,7 @@ test('сообщения в очереди — приглушённые пузы
   const app = read('app.js');
   assert.match(view, /handlers\.queuedItems\(session\.id\)\.forEach\(\(q, index\) => \{\s*items\.push\(\{ type: 'queued'/);
   assert.match(read('app.css'), /\.item-queued \.bubble \{ opacity: \.7; \}/);
-  assert.match(app, /onSendNow\(trace, index\) \{\s*queue\.moveToFront\(trace, index\);\s*handlers\.onCancel\(trace\);/);
+  assert.match(app, /onSendNow\(trace, index\) \{\s*queue\.moveToFront\(trace, index\);\s*if \(isBusy\(model\.sessions\[trace\]\?\.state\)\) handlers\.onCancel\(trace\);\s*else drain\(\);/);
   assert.match(app, /onUnqueueAt\(trace, index\) \{\s*const item = queue\.removeAt\(trace, index\);/);
 });
 

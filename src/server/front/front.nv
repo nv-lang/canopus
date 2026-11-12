@@ -306,6 +306,11 @@ fn trace_route(data_dir str, port int) -> fn(ServerRequest) -> ServerResponse {
     fn(req ServerRequest) -> ServerResponse {
         if !origin_allowed(req, port) { return json_reply(403, "{\"error\":\"origin not allowed\"}") }
         ro session = req.param("id") ?? ""
+        ro mail_at = match (req.query_param("mail_at") ?? "0").to_int() { Ok(n) => n, Err(e) => 0 }
+        if mail_at > 0 {
+            ro bytes = match (req.query_param("mail_bytes") ?? "0").to_int() { Ok(n) => n, Err(e) => 0 }
+            return json_reply(200, trace_mail(data_dir, session, mail_at, bytes))
+        }
         ro from = match (req.query_param("from") ?? "1").to_int() {
             Ok(n) => n
             Err(e) => 1

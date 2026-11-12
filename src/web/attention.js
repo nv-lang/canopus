@@ -57,6 +57,9 @@ export function silentMinutes(session, now, silentMin = SILENT_DEFAULT_MIN) {
  */
 export function attention(session, ctx = {}) {
   const { now = 0, silentMin = SILENT_DEFAULT_MIN, unread = false, acked = '' } = ctx;
+  if (session.state === 'refused' && session.messages?.findLast(message => message.role === 'agent')?.expiredQuestion) {
+    return { state: 'question-timeout', blink: false, minutes: 0 };
+  }
   if (session.state === 'error' || session.state === 'refused') return { state: 'error', blink: false, minutes: 0 };
   const key = waitKey(session);
   if (key !== '') return { state: 'waiting', blink: key !== acked, minutes: 0 };

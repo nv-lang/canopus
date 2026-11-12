@@ -252,7 +252,7 @@ export fn scenario_route_fast(settings ServerSettings) Proc Detach Time Net Fs O
     c.expect(rig.until(KIT_DONE, 15000), "interactive: the turn ends")
     ro lines0 = rig.lines_for(1)
     ro echo0 = answer_of(lines0, line_input(first_of(lines0, "user_message", 0), "turn"))
-    c.expect(echo0.ends_with("привет") && echo0.contains("Режим «Интерактивный»"), "interactive: the agent gets the instruction of the mode and the message: ${echo0}")
+    c.expect(echo0.ends_with("привет") && echo0.contains("Режим «Выполнение»"), "interactive: the agent gets the instruction of the mode and the message: ${echo0}")
     rig.run(300)
     c.expect(rk_task_is_null(rk_last(rig.all_lines_for(1), "route_state")), "interactive in a plain folder: no task")
 

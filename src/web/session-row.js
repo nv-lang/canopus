@@ -253,7 +253,7 @@ export function createSideKit(doc, deps) {
       const moved = drag.id;
       clearMark();
       const ids = moveInOrder(info.ids, moved, info.id, after);
-      if (ids.join('\n') !== info.ids.join('\n')) handlers.onReorderSessions(ids);
+      if (ids.join('\n') !== info.ids.join('\n')) (info.reorder || handlers.onReorderSessions)(ids);
     });
   }
 
@@ -261,8 +261,9 @@ export function createSideKit(doc, deps) {
    * Шапка проекта: её можно тащить (порядок проектов), на неё можно бросить проект (поставить рядом) или сессию (перенести в проект).
    * @param info { section, head, projectId, free — группа «Без проекта»: сессию можно бросить, тащить нельзя }
    */
-  function projectDnd({ section, head, projectId, free = false }) {
+  function projectDnd({ section, head, projectId, free = false, moveSession = handlers.onMoveSession, isPlaced = () => false }) {
     const real = projectId !== '';
+    const canMove = () => drag?.kind === 'session' && (real || free) && (drag.project !== projectId || isPlaced(drag.id));
     if (real) {
       const toggle = head.querySelector('.sidebar-section-toggle');
       toggle?.setAttribute('draggable', 'true');
@@ -275,7 +276,7 @@ export function createSideKit(doc, deps) {
     }
     head.addEventListener('dragover', (e) => {
       if (!drag) return;
-      if (drag.kind === 'session' && (real || free) && drag.project !== projectId) {
+      if (canMove()) {
         accept(e);
         setMark(head, 'drop-into');
       } else if (drag.kind === 'project' && real && drag.id !== projectId) {
@@ -286,11 +287,12 @@ export function createSideKit(doc, deps) {
     head.addEventListener('dragleave', (e) => { if (marked && (marked.el === head || marked.el === section) && !head.contains(e.relatedTarget)) clearMark(); });
     head.addEventListener('drop', (e) => {
       if (!drag) return;
-      if (drag.kind === 'session' && (real || free) && drag.project !== projectId) {
+      if (canMove()) {
         e.preventDefault();
         const moved = drag.id;
         clearMark();
-        handlers.onMoveSession(moved, projectId);
+        endDrag();
+        moveSession(moved, projectId);
       } else if (drag.kind === 'project' && real && drag.id !== projectId) {
         e.preventDefault();
         const after = isAfter(head, e);
@@ -303,7 +305,21 @@ export function createSideKit(doc, deps) {
     });
   }
 
-  function sectionDnd(section, head, id, reorder) {
+  function sectionDnd(section, head, id, reorder, moveSession) {
+    if (moveSession) {
+      head.addEventListener('dragover', (e) => {
+        if (drag?.kind !== 'session') return;
+        accept(e);
+        setMark(head, 'drop-into');
+      });
+      head.addEventListener('drop', (e) => {
+        if (drag?.kind !== 'session') return;
+        e.preventDefault();
+        const moved = drag.id;
+        endDrag();
+        moveSession(moved, id);
+      });
+    }
     head.querySelector('.sidebar-section-toggle')?.setAttribute('draggable', 'true');
     head.setAttribute('draggable', 'true');
     head.addEventListener('dragstart', (e) => startDrag(e, section, { kind: 'section', id }));

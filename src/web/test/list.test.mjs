@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as st from '../state.js';
 
-const S = (id, name, extra = {}) => ({ id, name, project: '', parent: '', pinned: false, updatedAt: 0, ...extra });
+const S = (id, name, extra = {}) => ({ id, name, project: '', parent: '', pinned: false, updatedAt: 0, createdAt: extra.updatedAt ?? 0, ...extra });
 
 const ids = (rows) => rows.map((r) => `${r.depth}:${r.session.id}`);
 
@@ -17,6 +17,17 @@ test('filterSessions: подстрока названия без учёта ре
   assert.deepEqual(st.filterSessions(list, ' уборка ').map((s) => s.id), ['b']);
   assert.deepEqual(st.filterSessions(list, 'нет такой'), []);
   assert.deepEqual(st.filterSessions(list, undefined).map((s) => s.id), ['a', 'b', 'c']);
+});
+
+test('groupSessions: opening a chat leaves project and pinned rows in place', () => {
+  const sessions = [
+    S('old', 'Old', { project: 'project', createdAt: 1, updatedAt: 1 }),
+    S('new', 'New', { project: 'project', createdAt: 2, updatedAt: 2 }),
+  ];
+  const opened = [{ ...sessions[0], updatedAt: 100 }, sessions[1]];
+  const ids = rows => rows.map(row => row.session.id);
+  assert.deepEqual(ids(st.groupSessions(opened).projects[0].rows), ['new', 'old']);
+  assert.deepEqual(ids(st.groupSessions(opened, { pinned: new Set(['old', 'new']) }).pinned), ['new', 'old']);
 });
 
 test('groupSessions: закреплённые отдельно, проекты по свежести, без проекта — своя группа', () => {

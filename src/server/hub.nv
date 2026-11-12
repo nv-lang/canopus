@@ -1827,13 +1827,15 @@ fn Hub mut @mcp_poll() Proc Detach Time -> () {
     }
 }
 
-fn switched_text(from str, to str, shown int, total int, cut bool) -> str {
+fn switched_text(from str, to str, shown int, total int, cut bool, model str = "", effort str = "") -> str {
     mut o = JsonObject.new()
     jput(o, "from", JsonValue.str(from))
     jput(o, "to", JsonValue.str(to))
     jput(o, "shown", JsonValue.int(shown))
     jput(o, "total", JsonValue.int(total))
     jput(o, "cut", JsonValue.int(if cut { 1 } else { 0 }))
+    jput(o, "model", JsonValue.str(model))
+    jput(o, "effort", JsonValue.str(effort))
     JsonValue.object(o).to_str()
 }
 
@@ -2379,7 +2381,10 @@ fn Hub mut @poll_context_handoffs() Proc Detach Time -> () {
             promoted.started_at = now_millis()
             promoted.rt.cwd_now = job.client.config.cwd
             promoted.rt.told = false
-            accept_in(@settings.store == "pg", @settings.data_dir, promoted, Incoming.signal("agent_switched", switched_text(job.previous, promoted.agent, if job.stage == 2 { 0 } else { job.transfer.shown }, job.transfer.total, job.stage == 2)))
+            ro options = jobject(job.client.options()) ?? JsonObject.new()
+            ro model = jtext(options, "model_id")
+            ro effort = jtext(options, "effort")
+            accept_in(@settings.store == "pg", @settings.data_dir, promoted, Incoming.signal("agent_switched", switched_text(job.previous, promoted.agent, if job.stage == 2 { 0 } else { job.transfer.shown }, job.transfer.total, job.stage == 2, model: if model.byte_len() > 0 { model } else { jtext(job.source, "model") }, effort: if effort.byte_len() > 0 { effort } else { jtext(job.source, "effort") })))
             accept_in(@settings.store == "pg", @settings.data_dir, promoted, Incoming.signal("session_source", JsonValue.object(job.source).to_str()))
             @sessions[at] = promoted
             @drain(at)
@@ -2750,7 +2755,9 @@ export fn Hub mut @handle(conn int, text str) Proc Detach Time -> () {
     } else if kind == "session_route" {
         @route_set(trace, jtext(input, "route"))
     } else if kind == "route_run" {
-        @route_run(trace)
+        @route_run(trace, jchild(input, "source"))
+    } else if kind == "route_reset" {
+        @route_reset(trace, jint(input, "step"))
     } else if kind == "route_skip" {
         @route_skip(trace, jint(input, "step"))
     } else if kind == "route_stop" {

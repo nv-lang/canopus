@@ -278,6 +278,10 @@ test('ответ отображает фактическую или явную �
   const unknown = events.filter((event) => event.kind !== 'agent_actual').reduce((current, event) => reduce(current, event), initialModel());
   view.render(unknown, { selected: 's', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
   assert.equal(refs.main.querySelector('.agent-signature').textContent, 'Агент не подтверждён');
+  const switched = reduce(model, { id: 'sw', trace: 's', step: 5, time: 6, kind: 'agent_switched',
+    input: { from: 'family-x', to: 'zai', model: 'GLM-5.3', effort: 'high', cut: 0 } });
+  view.render(switched, { selected: 's', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
+  assert.equal(refs.main.querySelector('.item-switch').textContent, 'Агент: zai GLM-5.3 / Высокое');
 });
 
 for (const draft of [true, false]) test(`one model-row click commits a family/model with effort: draft=${draft}`, () => {

@@ -637,7 +637,7 @@ fn Hub mut @route_worktree(trace str, on bool) Proc Detach Time -> () {
     @route_broadcast(at, true)
 }
 
-fn Hub mut @route_run(trace str) Proc Detach Time -> () {
+fn Hub mut @route_run(trace str, source Option[JsonObject]) Proc Detach Time -> () {
     ro at = @find(trace)
     if at < 0 { return }
     ro s = @sessions[at]
@@ -646,7 +646,7 @@ fn Hub mut @route_run(trace str) Proc Detach Time -> () {
         @tell_error(0, trace, s.engine.step_number(), "", "в этом режиме нет шагов: выберите «Быстрая задача» или «Полный путь»")
         return
     }
-    if s.rt.running || s.rt.job.byte_len() > 0 { return }
+    if s.rt.running || s.rt.job.byte_len() > 0 || @has_running_handoff(trace) || !@takes_message_at(at) { return }
     if !s.rt.task_open {
         @tell_error(0, trace, s.engine.step_number(), "", "сначала поставьте задачу сообщением")
         return
@@ -668,6 +668,7 @@ fn Hub mut @route_run(trace str) Proc Detach Time -> () {
     }
     mut me = @sessions[at]
     me.rt.running = true
+    me.rt.run_source = source
     me.rt.current = -1
     @sessions[at] = me
     @route_broadcast(at, false)
@@ -678,7 +679,7 @@ fn Hub mut @route_stop(at int) Proc Detach Time -> () {
     mut s = @sessions[at]
     if !s.rt.running && !s.rt.awaiting && !s.rt.reviewing && s.rt.job.byte_len() == 0 { return }
     if s.rt.reviewing { @route_drop_review(s.id) }
-    if s.rt.awaiting && s.clients.len() > 0 && !@takes_message_at(at) { @cancel(s.id) }
+    if s.rt.awaiting && !@takes_message_at(at) { @cancel(s.id) }
     mut i = 0
     while i < s.rt.states.len() {
         if s.rt.states[i] == "running" { @rt_step(at, i + 1, "pending") }
@@ -686,6 +687,7 @@ fn Hub mut @route_stop(at int) Proc Detach Time -> () {
     }
     s = @sessions[at]
     s.rt.running = false
+    s.rt.run_source = None
     s.rt.awaiting = false
     s.rt.reviewing = false
     s.rt.job = ""
@@ -702,6 +704,24 @@ fn Hub mut @route_stop_signal(trace str) Proc Detach Time -> () {
 fn Hub mut @route_subtree_signal(trace str, n int) Proc Detach Time -> () {
     ro at = @find(trace)
     if at >= 0 { @route_subtree(at, n) }
+}
+
+fn Hub mut @route_reset(trace str, n int) Proc Detach Time -> () {
+    ro at = @find(trace)
+    if at < 0 { return }
+    ro s = @sessions[at]
+    ro doc = @route_doc(s.rt.route)
+    if !s.rt.task_open || s.rt.running || s.rt.reviewing || s.rt.awaiting || s.rt.job.byte_len() > 0 || !@takes_message_at(at) { return }
+    if n < 1 || n > doc.steps.len() || s.rt.step_state(n) != "done" { return }
+    mut i = n
+    while i <= doc.steps.len() {
+        @rt_step(at, i, "pending")
+        i += 1
+    }
+    mut op = JsonObject.new()
+    @rt_task_op(at, "reopen_route", op)
+    @rt_note(at, "Сброшены результаты маршрута начиная с этапа «${doc.steps[n - 1].title}».")
+    @route_broadcast(at, false)
 }
 
 fn Hub mut @route_skip(trace str, n int) Proc Detach Time -> () {
@@ -766,7 +786,7 @@ fn Hub mut @route_mark_progress(at int, title str, skipped bool) -> () {
 // ----- the run of the steps -----
 
 // A turn of the agent with a hidden note: the visible line is `label`, the note goes before it in the prompt. "" - sent, else why not.
-fn Hub mut @route_agent_turn(at int, label str, prelude str) Proc Detach Time -> str {
+fn Hub mut @route_agent_turn(at int, label str, prelude str, source Option[JsonObject] = None) Proc Detach Time -> str {
     if @sessions[at].rt.result_repo.byte_len() > 0 {
         match @route_target(@sessions[at].id) {
             Ok(t) => ()
@@ -774,6 +794,34 @@ fn Hub mut @route_agent_turn(at int, label str, prelude str) Proc Detach Time ->
         }
     }
     @route_sync_cwd(at)
+    match source {
+        Some(choice) => {
+            mut s = @sessions[at]
+            ro family = jtext(choice, "family")
+            if family.byte_len() > 0 && family != s.agent && s.dispatch.has_messages {
+                mut job = match @combined_handoff(at, choice) {
+                    Ok(job) => job
+                    Err(reason) => return reason
+                }
+                job.client.set_prelude(prelude)
+                @req_service(at, label, prelude)
+                feed_with_client(@settings.store == "pg", @settings.data_dir, s, job.client, Incoming.signal("user_message", label))
+                job.prompt = job.client.release_handoff_prompt()
+                if job.prompt.is_none() {
+                    job.client.close()
+                    return "не удалось подготовить ход нового агента"
+                }
+                @handoffs.push(job)
+                s.rt.awaiting = true
+                @sessions[at] = s
+                @drain(at)
+                return ""
+            }
+            @set_source(s.id, choice)
+            if !@source_for_turn(s.id) { return "не удалось применить выбранного агента" }
+        }
+        None => ()
+    }
     ro reason = @ensure_client(at)
     if reason.byte_len() > 0 {
         @req_drop(at)
@@ -816,7 +864,7 @@ fn Hub mut @route_next_step(at int) Proc Detach Time -> () {
     ro prompt = route_fill(step.prompt, s.rt.pn(n), s.rt.task_shown)
     ro prelude = route_prelude(doc, !s.rt.told, s.rt.task_shown, s.rt.pn(n), prompt)
     @rt_step(at, next + 1, "running")
-    ro reason = @route_agent_turn(at, "Шаг режима: ${step.title}", prelude)
+    ro reason = @route_agent_turn(at, "Шаг режима: ${step.title}", prelude, source: s.rt.run_source)
     if reason.byte_len() > 0 {
         @tell_error(0, s.id, s.engine.step_number(), "", "шаг «${step.title}» не начат: ${reason}")
         @route_stop(at)
@@ -824,6 +872,7 @@ fn Hub mut @route_next_step(at int) Proc Detach Time -> () {
     }
     mut me = @sessions[at]
     me.rt.told = true
+    me.rt.run_source = None
     me.rt.current = next
     me.rt.job = "step"
     @sessions[at] = me
@@ -871,6 +920,19 @@ fn Hub mut @route_run_finished(at int) Proc Detach Time -> () {
     @route_broadcast(at, false)
 }
 
+// The dialog accepts a new message after success, refusal, or timeout. Only
+// the success event from this turn authorizes advancing the route.
+fn route_turn_succeeded(events []Incoming) -> bool {
+    mut i = events.len()
+    while i > 0 {
+        i -= 1
+        ro e = events[i]
+        if e.kind == EventKind.Input && e.name == "user_message" { return false }
+        if e.name == "agent_done" { return true }
+        if e.name == "agent_refused" || e.name == "no_answer_in_time" { return false }
+    }
+    false
+}
 // A turn of the agent that the hub started has ended (the engine is open for a message again).
 fn Hub mut @route_turn_done(at int) Proc Detach Time -> () {
     ro s = @sessions[at]
@@ -898,7 +960,11 @@ fn Hub mut @route_tick(at int) Proc Detach Time -> () {
         if !@takes_message_at(at) { return }
         s.rt.awaiting = false
         @sessions[at] = s
-        @route_turn_done(at)
+        if route_turn_succeeded(s.machine_tail) {
+            @route_turn_done(at)
+        } else {
+            @route_stop(at)
+        }
         return
     }
     if s.rt.reviewing || !s.rt.running { return }
@@ -1087,9 +1153,9 @@ fn Hub mut @route_review_poll(i int) Proc Detach Time -> bool {
             }
         }
     }
-    if phase == "failed" || phase == "dead" || phase == "closed" {
+    if !over && (phase == "failed" || phase == "dead" || phase == "closed") {
         over = true
-        if r.text.byte_len() == 0 { r.failed = "проверяющий не запустился или завершился: ${r.clients[0].last_error()}" }
+        r.failed = "проверяющий не запустился или завершился: ${r.clients[0].last_error()}"
     }
     if !over && now_millis() - r.started_at > REVIEW_LIMIT_MS {
         over = true
@@ -1125,7 +1191,7 @@ fn Hub mut @route_review_finish(i int) Proc Detach Time -> () {
         @route_broadcast(at, false)
         return
     }
-    if r.failed.byte_len() > 0 && r.text.byte_len() == 0 {
+    if r.failed.byte_len() > 0 {
         @tell_error(0, r.session, @sessions[at].engine.step_number(), "", r.failed)
         @route_stop(at)
         return

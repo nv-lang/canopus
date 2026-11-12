@@ -642,6 +642,14 @@ export function createMockServer({ journal, now = Date.now, machines: withMachin
       delete runs[trace];
       routeNow[trace] = cur;
       planRun(entries, trace, cur);
+    } else if (event.kind === 'route_reset') {
+      const cur = routeStateAt(trace);
+      if (!cur.running && cur.steps.some(s => s.n === input.step && s.state === 'done')) {
+        const next = { ...cur, steps: cur.steps.map(s => s.n >= input.step ? { ...s, state: 'pending' } : s) };
+        if (cur.task) next.task = { ...cur.task, closed: false, state: 'active' };
+        routeNow[trace] = next;
+        mintRoute(entries, trace, 80, next);
+      }
     } else if (event.kind === 'route_skip') {
       const cur = routeStateAt(trace);
       const wasRunning = cur.running;

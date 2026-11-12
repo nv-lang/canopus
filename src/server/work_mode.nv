@@ -61,6 +61,6 @@ fn work_signal_operation(kind str) -> str {
     if kind == "session_workspace" { return "workspace" }
     if ["session_worktree", "route_subtask_worktree", "route_subtask_choose", "route_tree_drop"].contains(kind) { return "tree" }
     if kind == "session_result_repo" { return "repository" }
-    if ["route_run", "route_skip", "route_new_task", "route_subtask_new", "route_subtask_same", "route_subtask_done", "route_subtask_parallel", "route_merge", "route_publish", "route_tests_run", "route_children_merge", "route_ext_undo"].contains(kind) { return "execute" }
+    if ["route_run", "route_reset", "route_skip", "route_new_task", "route_subtask_new", "route_subtask_same", "route_subtask_done", "route_subtask_parallel", "route_merge", "route_publish", "route_tests_run", "route_children_merge", "route_ext_undo"].contains(kind) { return "execute" }
     ""
 }

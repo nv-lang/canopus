@@ -191,7 +191,7 @@ export fn scenario_route_children(settings ServerSettings) Proc Detach Time Net 
     c.expect(rig.until("\"kind\":\"session_created\"", 5000), "the session of the talk is shown")
 
     // 1. two works "в работу": two sessions of their own, no parent, no table; the talk itself has no task
-    c.expect(ck_list(rig, "s-c1", "t1", [ck_item("new", "Первая работа", 0, 0, ["a.txt"]), ck_item("new", "Вторая работа", 0, 0, ["b.txt"])], "Первая работа"), "the list is shown")
+    c.expect(rk_offer_tasks(rig, "s-c1", [ck_item("new", "Первая работа", 0, 0, ["a.txt"]), ck_item("new", "Вторая работа", 0, 0, ["b.txt"])], "Первая работа"), "the list is shown")
     ck_apply(rig, "s-c1", [["Первая работа", "work", "new", "0"], ["Вторая работа", "work", "new", "0"]])
     rig.run(5000)
     ro p1 = ck_find(rig, 1, "Первая работа")
@@ -212,7 +212,7 @@ export fn scenario_route_children(settings ServerSettings) Proc Detach Time Net 
     c.expect(!((ck_state(rig, 1, p1).get("epic") ?? JsonValue.null()).bool() ?? false), "the task 1 is not an epic yet")
 
     // 2. a work that is explicitly a child of the task 1: the task 1 becomes an epic, a session under it
-    c.expect(ck_list(rig, "s-c1", "t2", [ck_item("child", "Часть первой", 1, 0, ["c.txt"])], "Часть первой"), "a child task is listed")
+    c.expect(rk_offer_tasks(rig, "s-c1", [ck_item("child", "Часть первой", 1, 0, ["c.txt"])], "Часть первой"), "a child task is listed")
     ck_apply(rig, "s-c1", [["Часть первой", "work", "child", "1"]])
     rig.run(4000)
     ro s3 = ck_find(rig, 1, "Часть первой")
@@ -237,7 +237,7 @@ export fn scenario_route_children(settings ServerSettings) Proc Detach Time Net 
     c.expect(!ck_has(ck_state(rig, 1, p1), "children_block"), "and there is no block of the merge any more")
 
     // 4. a work that touches the files of a running one waits for it, then starts by itself
-    c.expect(ck_list(rig, "s-c1", "t3", [ck_item("new", "Пересекается", 0, 0, ["c.txt"])], "Пересекается"), "a work on the same file is listed")
+    c.expect(rk_offer_tasks(rig, "s-c1", [ck_item("new", "Пересекается", 0, 0, ["c.txt"])], "Пересекается"), "a work on the same file is listed")
     ck_press(rig, "s-c1", "Пересекается", "start")
     c.expect(rk_card_state(ck_state(rig, 1, "s-c1"), "Пересекается") == "overlap", "the overlap with the task 3 is asked about")
     ck_press(rig, "s-c1", "Пересекается", "wait")
@@ -260,7 +260,7 @@ export fn scenario_route_children(settings ServerSettings) Proc Detach Time Net 
     c.expect(rk_text("${ck_dir(rig, p1)}/children.md").contains("слита"), "the table says: слита")
 
     // 6. the chain "Влить все дочерние": two more children are merged in order by one button
-    c.expect(ck_list(rig, "s-c1", "t4", [ck_item("child", "Хвост А", 1, 0, ["ta.txt"]), ck_item("child", "Хвост Б", 1, 0, ["tb.txt"])], "Хвост А"), "two more children are listed")
+    c.expect(rk_offer_tasks(rig, "s-c1", [ck_item("child", "Хвост А", 1, 0, ["ta.txt"]), ck_item("child", "Хвост Б", 1, 0, ["tb.txt"])], "Хвост А"), "two more children are listed")
     ck_apply(rig, "s-c1", [["Хвост А", "work", "child", "1"], ["Хвост Б", "work", "child", "1"]])
     rig.run(5000)
     ro ta = ck_find(rig, 1, "Хвост А")
@@ -276,7 +276,7 @@ export fn scenario_route_children(settings ServerSettings) Proc Detach Time Net 
     c.expect(rk_number(ck_state(rig, 1, p1), "children_merged") == 3 && rk_number(ck_state(rig, 1, p1), "children_total") == 3, "the progress of the epic: 3 of 3")
 
     // 7. the way "Эпик": a task that is an epic from the start (the mark and the table, no children); its child has the line `Эпик:` and merges into the branch of the epic
-    c.expect(ck_list(rig, "s-c1", "t5", [ck_item("epic", "Эпик пульта", 0, 0, ["e.txt"])], "Эпик пульта"), "an epic is listed")
+    c.expect(rk_offer_tasks(rig, "s-c1", [ck_item("epic", "Эпик пульта", 0, 0, ["e.txt"])], "Эпик пульта"), "an epic is listed")
     ck_apply(rig, "s-c1", [["Эпик пульта", "work", "epic", "0"]])
     rig.run(4000)
     ro ep = ck_find(rig, 1, "Эпик пульта")
@@ -290,7 +290,7 @@ export fn scenario_route_children(settings ServerSettings) Proc Detach Time Net 
         Ok(v) => v
         Err(e) => 0
     }
-    c.expect(ck_list(rig, "s-c1", "t6", [ck_item("child", "Задача эпика", epic_int, 0, ["f.txt"])], "Задача эпика"), "a child of the epic is listed")
+    c.expect(rk_offer_tasks(rig, "s-c1", [ck_item("child", "Задача эпика", epic_int, 0, ["f.txt"])], "Задача эпика"), "a child of the epic is listed")
     ck_apply(rig, "s-c1", [["Задача эпика", "work", "child", "${epic_int}"]])
     rig.run(4000)
     ro et = ck_find(rig, 1, "Задача эпика")
