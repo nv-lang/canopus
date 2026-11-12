@@ -1,4 +1,7 @@
 // children_live_test.nv - the child sessions over a hub with the fake ACP agent in a repository (task 192.3): the scenario `scenario_route_children` of canopus.server/child_kit.nv.
+// The scenario starts several ACP processes and performs real Git merges on Windows.
+// Keep the individual waits bounded while allowing the entire integration scenario to finish.
+// EXPECT_TIMEOUT_MS 240000
 module canopus.server_route_live
 
 import canopus.server.{kit_routes_children, scenario_route_children}
