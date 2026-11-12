@@ -447,7 +447,8 @@ async function postImage(trace, item) {
 const signal = (trace, { kind, input }) => [kind, trace, nextStep(model, trace), input];
 
 function needsContextHandoff(session, source) {
-  return Boolean(session && !session.draft && source?.family && source.family !== session.agent
+  const zaiModelChange = session?.state === 'cancelled' && source?.family === 'zai' && source.model && source.model !== session.options?.modelId;
+  return Boolean(session && !session.draft && source?.family && (source.family !== session.agent || zaiModelChange)
     && session.messages.some((message) => message.role === 'user'));
 }
 

@@ -138,3 +138,14 @@ fn handoff_tail(lines []str) -> str {
     }
     parts.join("\n\n")
 }
+
+
+fn handoff_summary_input(lines []str) -> str {
+    mut parts = []str.new()
+    for entry in t_entries(lines) {
+        mut item = entry
+        if item.role == "tool" { item.detail = "" }
+        parts.push(t_render(item))
+    }
+    parts.join("\n\n")
+}
