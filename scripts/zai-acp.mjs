@@ -1,27 +1,51 @@
-// Z.ai is an independent family. The local Claude ACP engine calls the
-// officially supported Z.ai endpoint directly: https://docs.z.ai/devpack/tool/claude
-// Only this child receives Z.ai credentials; the normal Claude family is unchanged.
-import fs from 'node:fs';import path from 'node:path';import os from 'node:os';import readline from 'node:readline';import {spawn} from 'node:child_process';
-const at=process.argv.indexOf('--config'),config=at>=0?process.argv[at+1]:path.join(os.homedir(),'.canopus/config.json');
-const secrets=JSON.parse(fs.readFileSync(path.join(path.dirname(config),'secrets.json'),'utf8').replace(/^\uFEFF/,''));
-const key=secrets.zai?.api_key;if(typeof key!=='string'||!key)throw Error('Z.ai key is missing in the selected secrets.json');
-const adapter=path.join(process.env.APPDATA||path.join(os.homedir(),'AppData/Roaming'),'npm/node_modules/@agentclientprotocol/claude-agent-acp/dist/index.js');
-const env={...process.env,ANTHROPIC_AUTH_TOKEN:key,ANTHROPIC_BASE_URL:'https://api.z.ai/api/anthropic',ANTHROPIC_MODEL:'glm-5.3',ANTHROPIC_DEFAULT_OPUS_MODEL:'glm-5.3',ANTHROPIC_DEFAULT_SONNET_MODEL:'glm-5.3',ANTHROPIC_DEFAULT_HAIKU_MODEL:'glm-5.3-flash',CLAUDE_CONFIG_DIR:path.join(path.dirname(config),'cache/zai-claude'),CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC:'1'};
-delete env.CLAUDE_CODE_OAUTH_TOKEN;delete env.ANTHROPIC_API_KEY;
-fs.mkdirSync(env.CLAUDE_CONFIG_DIR,{recursive:true});
-const child=spawn(process.execPath,[adapter],{env,stdio:['pipe','pipe','inherit'],windowsHide:true});
-const aliases={default:'glm-5.3',opus:'glm-5.3',sonnet:'glm-5.3',haiku:'glm-5.3-flash'};
-function catalog(value){
- if(Array.isArray(value))return value.map(catalog);
- if(!value||typeof value!=='object')return value;
- const copy=Object.fromEntries(Object.entries(value).map(([k,v])=>[k,catalog(v)]));
- if((value.category==='model'||value.id==='model')&&Array.isArray(value.options)){
-  const seen=new Set();copy.options=value.options.flatMap(o=>{const id=aliases[o.value];if(!id||seen.has(id))return [];seen.add(id);return [{...o,value:id,name:id.toUpperCase(),description:'Z.ai, direct Anthropic-compatible API'}]});copy.currentValue=aliases[value.currentValue]||value.currentValue;
- }
- if(value.agentInfo)copy.agentInfo={name:'canopus-zai-acp',title:'Z.ai (local Claude ACP engine)',version:'1.0.0'};
- return copy;
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+import { spawn, spawnSync } from 'node:child_process';
+import { createInterface } from 'node:readline';
+import { fileURLToPath } from 'node:url';
+
+const bridge = fileURLToPath(new URL('./zcode-acp/node_modules/zcode-acp-server/dist/cli.js', import.meta.url));
+if (!existsSync(bridge)) {
+  const npm = path.join(path.dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js');
+  const dependencyDir = fileURLToPath(new URL('./zcode-acp/', import.meta.url));
+  const install = spawnSync(process.execPath, [npm, 'ci', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund'], {
+    cwd: dependencyDir, stdio: ['ignore', 2, 2], windowsHide: true,
+  });
+  if (install.status !== 0) {
+    console.error('Could not install the locked ZCode ACP bridge.');
+    process.exit(1);
+  }
 }
-readline.createInterface({input:process.stdin}).on('line',line=>{try{const msg=JSON.parse(line);if(msg.method==='session/set_config_option'&&msg.params?.configId==='model')msg.params.value=msg.params.value==='glm-5.3-flash'?'haiku':msg.params.value==='glm-5.3'?'default':msg.params.value;if(msg.method==='session/set_model'&&msg.params)msg.params.modelId=msg.params.modelId==='glm-5.3-flash'?'haiku':msg.params.modelId==='glm-5.3'?'default':msg.params.modelId;child.stdin.write(JSON.stringify(msg)+'\n')}catch{}});
-readline.createInterface({input:child.stdout}).on('line',line=>{try{process.stdout.write(JSON.stringify(catalog(JSON.parse(line)))+'\n')}catch{}});
-child.stdin.on('error',()=>{});process.stdin.on('end',()=>child.stdin.end());
-child.on('exit',code=>{process.exit(code??1)});child.on('error',()=>{console.error('Z.ai ACP engine could not start');process.exitCode=1});
+const prefix = 'builtin:zai-coding-plan\\';
+const native = new Map([['glm-5.3', prefix + 'GLM-5.3'], ['glm-5.3-flash', prefix + 'GLM-5.3-Flash']]);
+const saved = new Map([...native].map(([key, value]) => [value, key]));
+const child = spawn(process.execPath, [bridge, 'server'], {
+  env: { ...process.env, NODE_USE_SYSTEM_CA: '1', ZCODE_ACP_RUNTIME: 'node', ZCODE_ACP_MODE: 'guarded',
+    ZCODE_BIN: process.env.ZCODE_BIN || (existsSync('D:/Program Files/ZCode/resources/glm/zcode.cjs') ? 'D:/Program Files/ZCode/resources/glm/zcode.cjs' : undefined),
+    XDG_CONFIG_HOME: fileURLToPath(new URL('./zcode-acp/xdg', import.meta.url)) },
+  stdio: ['pipe', 'pipe', 'inherit'], windowsHide: true,
+});
+function mapModelOptions(options) {
+  for (const item of options ?? []) {
+    if (item.category !== 'model' && item.id !== 'model') continue;
+    item.currentValue = saved.get(item.currentValue) ?? item.currentValue;
+    for (const option of item.options ?? []) option.value = saved.get(option.value) ?? option.value;
+  }
+}
+createInterface({ input: process.stdin }).on('line', line => {
+  const msg = JSON.parse(line);
+  const p = msg.params;
+  if (msg.method === 'session/set_config_option' && p?.configId === 'model') p.value = native.get(p.value) ?? p.value;
+  if (msg.method === 'session/set_model' && p) p.modelId = native.get(p.modelId) ?? p.modelId;
+  child.stdin.write(JSON.stringify(msg) + '\n');
+});
+createInterface({ input: child.stdout }).on('line', line => {
+  const msg = JSON.parse(line);
+  mapModelOptions(msg.result?.configOptions);
+  mapModelOptions(msg.params?.update?.configOptions);
+  process.stdout.write(JSON.stringify(msg) + '\n');
+});
+child.stdin.on('error', () => {});
+process.stdin.on('end', () => child.stdin.end());
+child.on('exit', code => process.exit(code ?? 1));
+child.on('error', error => { console.error(error.message); process.exit(1); });

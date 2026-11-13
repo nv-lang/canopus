@@ -47,9 +47,9 @@ for preparation_asset in kimi-preparation.mjs kimi-preparation.md preparation-re
 done
 cp "$root/src/server/preparation-agent.mjs" "$kit/preparation-agent.mjs" || { echo "FAIL: встроенный адаптер Подготовки не скопирован"; exit 1; }
 # Shared task adapter has no dependency on the plugin host or native OpenCode.
-mkdir -p "$kit/scripts" "$kit/opencode-plugin" || exit 1
+mkdir -p "$kit/scripts/zcode-acp" "$kit/opencode-plugin" || exit 1
 cp "$root/scripts/start-live.ps1" "$kit/start.ps1" || exit 1
-for asset in scripts/native-acp-catalog.mjs scripts/zai-acp.mjs scripts/task-store.mjs opencode-plugin/shared-task-store.ts opencode-plugin/shared-task-config.ts opencode-plugin/shared-task-snapshot.ts opencode-plugin/task-numbers.ts; do
+for asset in scripts/native-acp-catalog.mjs scripts/zai-acp.mjs scripts/zcode-acp/package.json scripts/zcode-acp/package-lock.json scripts/task-store.mjs opencode-plugin/shared-task-store.ts opencode-plugin/shared-task-config.ts opencode-plugin/shared-task-snapshot.ts opencode-plugin/task-numbers.ts; do
   cp "$root/$asset" "$kit/$asset" || { echo "FAIL: shared task adapter not copied: $asset"; exit 1; }
 done
 for name in dialog.alula.json dialog.alula.md work-mode.alula.json work-mode.alula.md family-approval.alula.json family-approval.alula.md journal.md; do
