@@ -14,14 +14,14 @@ export function approvalView(model, session, agents, source = session.source) {
     const actual = own ? options?.mode || '' : '';
     const selected = requested || options?.mode || '';
     const mode = modes.find(m => m.id === selected);
-    return { family, modes, selected, actual, requested, unset: !requested, name: mode?.name || selected,
+    return { family, modes, selected, actual, requested, unset: !requested, name: family === 'qoder' && selected === 'auto' ? 'Авто' : mode?.name || selected,
       pending: !session.draft && Boolean(requested) && requested !== actual,
       unavailable: modes.length === 0 ? 'Адаптер не сообщил поддерживаемые режимы' : selected && !mode ? `Режим ${selected} больше не поддерживается` : '' };
   });
   const direct = groups[0];
   const actualMode = direct?.modes.find(m => m.id === direct.actual);
   const defaultLabel = direct?.actual ? `Родное умолчание · ${actualMode?.name || direct.actual}` : 'Родное умолчание';
-  return { pool, groups, label: pool ? 'По семьям' : direct?.unset ? defaultLabel : (direct?.pending ? (actualMode?.name || 'Ожидает ACP') : direct?.name) || 'Нет данных ACP' };
+  return { pool, groups, label: pool ? 'По семьям' : direct?.unset ? defaultLabel : (direct?.pending ? (direct.family === 'qoder' ? 'Ждём подтверждения от Qoder…' : actualMode?.name || 'Ожидает ACP') : direct?.name) || 'Нет данных ACP' };
 }
 
 export function createFamilyApprovals(doc, onPick) {

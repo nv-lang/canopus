@@ -1236,7 +1236,11 @@ export function createView(doc, refs, deps) {
       if (!activeEffortModel || activeEffortModel.efforts.length < 2) { closeMenu(); return; }
       menuSearch.hidden = true;
       menu.dataset.side = 'right';
-      const efforts = activeEffortModel.efforts;
+      const levels = ['none', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'];
+      const rank = (option) => levels.indexOf(option.id.toLowerCase());
+      const efforts = activeEffortModel.efforts.every(option => rank(option) >= 0)
+        ? [...activeEffortModel.efforts].sort((a, b) => rank(a) - rank(b))
+        : activeEffortModel.efforts;
       const index = Math.max(0, efforts.findIndex((effort) => effort.id === activeEffort));
       const slider = h(doc, 'input', { type: 'range', class: 'effort-slider', min: '0', max: String(efforts.length - 1), step: '1', value: String(index), disabled: !canChooseEffort, 'aria-label': t('menu.effort') });
       const control = h(doc, 'div', { class: 'effort-control' });

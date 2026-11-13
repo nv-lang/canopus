@@ -725,6 +725,8 @@ fn AcpClient mut @apply_presets() -> () {
         }
         if @current_of(p.setting) == p.value { continue }
         if !@send_set(p.setting, p.value, false) {
+            // Older sessions may store the agent default as an explicit effort.
+            if p.setting == "effort" && p.value == "default" { continue }
             if @strict_source || p.setting == "mode" { @fail_handshake("agent source not offered: ${p.setting}=${p.value}"); return }
             @dropped.push(AcpDrop { setting: p.setting, value: p.value, used: @current_of(p.setting) })
         } else if p.setting == "model" {
