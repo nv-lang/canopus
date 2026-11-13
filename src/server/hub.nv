@@ -2596,7 +2596,10 @@ fn Hub mut @poll_context_handoffs() Proc Detach Time -> () {
         }
         if at >= 0 && ((failed && overflow && job.stage == 0) || (completed && !failed && job.stage == 1)) {
             ro s = @sessions[at]
-            if job.stage == 1 && job.summary.trim().byte_len() == 0 {
+            ro retry_context = if combined && job.stage == 1 { handoff_compacted_text(job.summary, job.tail) } else { "" }
+            ro limit = jnumber(@context_sizes, handoff_model_key(target, jtext(job.source, "model")))
+            ro retry_over_budget = combined && job.stage == 1 && handoff_over_budget(retry_context, job.prompt.unwrap(), limit)
+            if job.stage == 1 && (job.summary.trim().byte_len() == 0 || retry_over_budget) {
                 failed = true
             } else {
                 ro receiving = job.stage == 1
@@ -2617,7 +2620,7 @@ fn Hub mut @poll_context_handoffs() Proc Detach Time -> () {
                         }
                         if combined && job.stage == 2 {
                             set_handoff_source(job.client, s, job.source)
-                            job.client.retry_handoff_prompt(job.prompt.unwrap(), handoff_compacted_text(job.summary, job.tail))
+                            job.client.retry_handoff_prompt(job.prompt.unwrap(), retry_context)
                             job.deadline = now_millis() + 120000
                             remaining.push(job)
                             continue
