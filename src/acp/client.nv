@@ -1262,11 +1262,12 @@ export fn AcpClient mut @hold_handoff_prompt(context str) -> () {
     @hold_prompt = true
 }
 
-export fn AcpClient mut @release_handoff_prompt() -> Option[AcpQueued] {
-    @hold_prompt = false
+export fn AcpClient @held_handoff_prompt() -> Option[AcpQueued] {
     if @queue.len() == 0 { return None }
     Some(@queue[0])
 }
+
+export fn AcpClient mut @release_handoff_prompt() -> () { @hold_prompt = false }
 
 export fn AcpClient mut @retry_handoff_prompt(prompt AcpQueued, context str) -> () {
     @handoff_context = context

@@ -120,6 +120,9 @@ applyTheme(ui.theme);
 
 const ctx = { newId, now: () => Date.now() };
 ui.handoffStatus = new Map();
+ui.modelProbes = new Map();
+ui.approvalErrors = new Map();
+ui.approvalOffers = new Map();
 ui.routeResets = new Map();
 const pendingHandoffApprovals = new Map();
 let view = null;
@@ -168,10 +171,11 @@ function applySessionIndex(entries) {
     const previous = model.sessions[event.trace];
     if (!previous || previous.draft) model = reduce(model, event);
     else {
-      const { name, agent, folder, project_id, rank, task_number, task_title } = event.input;
+      const { name, agent, folder, project_id, rank, task_number, task_title, list_status, list_wait_key } = event.input;
       model = { ...model, sessions: { ...model.sessions, [event.trace]: {
         ...previous, name, agent, folder, projectId: project_id, rank,
         indexTaskNumber: task_number || '', indexTaskTitle: task_title || '',
+        ...(ui.historyPending.has(event.trace) ? { indexStatus: list_status, indexWaitKey: list_wait_key } : {}),
         updatedAt: Math.max(previous.updatedAt, event.time),
       } } };
     }
@@ -406,11 +410,25 @@ function applyDeferredSource(trace) {
     return true;
   }
   if (!send('session_source', trace, nextStep(model, trace), choice.source)) return false;
-  ui.handoffStatus.delete(trace);
+  ui.handoffStatus.set(trace, { phase: 'applying', source: choice.source });
   return true;
 }
 
+function sendModelProbe(trace, probe) {
+  if (!sessionTransportReady || probe.request || !model.sessions[trace]) return;
+  const request = newId();
+  const { family, model: selectedModel } = probe.source;
+  if (!transport.send(makeEvent('model_probe', trace, 0, { family, model: selectedModel, request }, ctx))) return;
+  probe.request = request;
+  timers.set(() => {
+    if (ui.modelProbes.get(trace) !== probe || probe.request !== request || probe.status !== 'checking') return;
+    probe.status = 'unavailable';
+    render();
+  }, 35000);
+}
+
 function drain() {
+  for (const [trace, probe] of ui.modelProbes) sendModelProbe(trace, probe);
   for (const trace of ui.handoffStatus.keys()) applyDeferredSource(trace);
   const justSent = drainRestoreQueue();
   queue.prune(model.sessions);
@@ -685,6 +703,13 @@ const handlers = {
     const session = model.sessions[trace];
     if (ui.handoffStatus.get(trace)?.phase === 'preparing') return;
     if (!session || session.draft) return;
+    const previousProbe = ui.modelProbes.get(trace);
+    const probeKey = source.family && source.model ? JSON.stringify([source.family, source.model]) : '';
+    if (!probeKey) ui.modelProbes.delete(trace);
+    else if (previousProbe?.key !== probeKey) {
+      ui.modelProbes.set(trace, { key: probeKey, source, request: '', status: 'checking' });
+      sendModelProbe(trace, ui.modelProbes.get(trace));
+    }
     if (isBusy(session.state) || session.pendingQuestion || ui.historyPending.has(trace)) {
       ui.handoffStatus.set(trace, { phase: 'deferred', source });
       render();
@@ -696,7 +721,7 @@ const handlers = {
       return;
     }
     if (send('session_source', trace, nextStep(model, trace), source)) {
-      ui.handoffStatus.delete(trace);
+      ui.handoffStatus.set(trace, { phase: 'applying', source });
       render();
     }
   },
@@ -898,6 +923,34 @@ async function start() {
         }
         if (event.kind === 'message_delivery') delivery.receipt(event.input);
         if (event.kind === 'error' && event.input) delivery.error(event);
+        if (event.kind === 'approval_result') {
+          const key = JSON.stringify([event.trace, event.input?.family]);
+          if (Array.isArray(event.input?.options?.modes) && event.input.options.modes.length) {
+            ui.approvalOffers.set(key, event.input.options.modes);
+          }
+          if (event.input?.refused) ui.approvalErrors.set(key, true);
+          else ui.approvalErrors.delete(key);
+          render();
+          return;
+        }
+        if (event.kind === 'model_probe_result') {
+          const probe = ui.modelProbes.get(event.trace);
+          if (probe?.request === event.input?.request) {
+            probe.status = event.input.status;
+            render();
+          }
+          return;
+        }
+        if (event.kind === 'session_list_status') {
+          const session = model.sessions[event.trace];
+          if (session && ui.historyPending.has(event.trace)) {
+            model = { ...model, sessions: { ...model.sessions, [event.trace]: {
+              ...session, indexStatus: event.input.list_status, indexWaitKey: event.input.list_wait_key,
+            } } };
+            render();
+          }
+          return;
+        }
         const next = reduce(model, event);
         const changed = next !== model;
         model = next;
@@ -915,6 +968,14 @@ async function start() {
         if (['selected', 'deferred'].includes(handoff?.phase) && event.kind === 'session_source'
           && event.input?.family === handoff.source.family && event.input?.model === handoff.source.model
           && model.sessions[event.trace]?.agent === handoff.source.family) ui.handoffStatus.delete(event.trace);
+        if (handoff?.phase === 'applying') {
+          const source = handoff.source;
+          const applied = event.kind === 'session_source' && (source.pool
+            ? event.input?.pool === source.pool && event.input?.level === source.level
+            : event.input?.family === source.family && event.input?.model === source.model
+              && (event.input?.effort || '') === (source.effort || ''));
+          if (applied || (event.kind === 'error' && !event.input?.turn)) ui.handoffStatus.delete(event.trace);
+        }
         if (completed) handoff.finish(true);
         else if (handoffFailed) handoff.finish(false, t('handoff.failed'));
         else if (changed) drain();
@@ -927,7 +988,8 @@ async function start() {
       status = next;
       if (next.state === 'retry') {
         delivery.disconnected();
-        for (const handoff of ui.handoffStatus.values()) {
+        for (const [trace, handoff] of ui.handoffStatus) {
+          if (handoff.phase === 'applying') ui.handoffStatus.delete(trace);
           if (handoff.phase === 'preparing') handoff.finish(false, t('handoff.unconfirmed'));
         }
       }
@@ -981,6 +1043,9 @@ async function start() {
             waitingRoute.delete(trace);
           }
           model = { ...model, sessions: Object.fromEntries(Object.entries(model.sessions).filter(([id, s]) => s.draft || keep.has(id))) };
+        }
+        for (const trace of ui.modelProbes.keys()) {
+          if (!model.sessions[trace]) ui.modelProbes.delete(trace);
         }
         sessionTransportReady = true;
         loading.sessionsReady();

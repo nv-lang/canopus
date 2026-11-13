@@ -11,8 +11,8 @@ const session = { id: 's', agent: 'opencode', optionsAgent: 'opencode', options:
 const model = { catalog: { codex: { options: { modes: [{ id: 'read-only', name: 'Read only' }], mode: 'read-only' } } } };
 
 test('режимы — точные id: перестановка не меняет выбор и не переводит Plan в минимум прав', () => {
-  assert.equal(approvalView(model, session, []).label, 'Plan');
-  assert.equal(approvalView(model, { ...session, options: { ...session.options, modes: [...modes].reverse() } }, []).label, 'Plan');
+  assert.equal(approvalView(model, session, []).label, 'План');
+  assert.equal(approvalView(model, { ...session, options: { ...session.options, modes: [...modes].reverse() } }, []).label, 'План');
 });
 test('пул показывает каждую семью, смена источника не меняет сохранённые значения', () => {
   const agents = [{ id: 'opencode' }, { id: 'codex' }, { id: 'claude' }];
@@ -20,22 +20,22 @@ test('пул показывает каждую семью, смена источ
   assert.equal(pool.label, 'По семьям');
   assert.deepEqual(pool.groups.map(g => g.selected), ['plan', 'read-only', '']);
   assert.match(pool.groups[2].unavailable, /не сообщил/);
-  assert.equal(approvalView(model, session, agents, { kind: 'direct' }).label, 'Plan');
+  assert.equal(approvalView(model, session, agents, { kind: 'direct' }).label, 'План');
 });
 test('неподдержанный режим не заменяется первым/последним или более широким', () => {
   const result = approvalView(model, { ...session, approvals: { opencode: 'missing' } }, []);
   assert.equal(result.groups[0].selected, 'missing');
   assert.match(result.groups[0].unavailable, /больше не поддерживается/);
-  assert.equal(result.label, 'Plan'); // real current value, not claimed application
+  assert.equal(result.label, 'План'); // real current value, not claimed application
   assert.equal(result.groups[0].pending, true);
 });
 test('unset означает родное умолчание, а каталог не становится owner intent или подтверждением чата', () => {
   const current = approvalView(model, { ...session, approvals: {} }, []);
   assert.equal(current.groups[0].unset, true);
   assert.equal(current.groups[0].requested, '');
-  assert.equal(current.label, 'Родное умолчание · Plan');
+  assert.equal(current.label, 'План');
   const cold = approvalView(model, { ...session, agent: 'codex', optionsAgent: '', approvals: {} }, []);
-  assert.equal(cold.label, 'Родное умолчание');
+  assert.equal(cold.label, 'Read only');
   assert.equal(cold.groups[0].actual, '');
   assert.equal(cold.groups[0].requested, '');
   const pool = approvalView(model, { ...session, approvals: {} }, [{ id: 'codex' }], { pool: 'p', level: 'heavy' });

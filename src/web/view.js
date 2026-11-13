@@ -271,7 +271,8 @@ export function createView(doc, refs, deps) {
     const stateLabel = t(STATE_KEYS[s.state]);
     const attn = attention(s, { now: now(), silentMin: ui.silentMin ?? SILENT_DEFAULT_MIN, unread, acked: (ui.acked || {})[s.id] || '' });
     const attnText = attn.state === 'waiting' ? t('attn.waiting') : attn.state === 'silent' ? t('attn.silent', { n: attn.minutes }) : attn.state === 'error' ? t('attn.error') : attn.state === 'question-timeout' ? t('attn.timeout_short') : '';
-    const merge = mergeLabel(s.routeState && s.routeState.task);
+    const task = s.routeState?.task;
+    const merge = task?.state === 'done' ? { kind: 'done', text: t('task.details_done') } : mergeLabel(task);
     const nameText = h(doc, 'span', { class: 'session-name-text', text: s.name });
     const name = h(doc, 'span', { class: 'session-name' }, nameText);
     const item = sideKit.isRenaming(s.id) ? sideKit.renameField(s) : h(doc, 'button', {
@@ -552,7 +553,7 @@ export function createView(doc, refs, deps) {
       const order = new Map((sectionRows.get(section) || []).map((id, index) => [id, index]));
       return rows.sort((a, b) => (order.get(a.session.id) ?? Infinity) - (order.get(b.session.id) ?? Infinity));
     };
-    const rowSig = (r) => [r.depth, r.kids, r.collapsed, r.session.parent, r.session.id, r.session.name, r.session.state, r.session.updatedAt, r.session.rank, r.session.projectId, (sidebarTask(r.session) || {}).number, ui.unread ? ui.unread[r.session.id] : undefined, Boolean(r.session.pendingQuestion), (mergeLabel(r.session.routeState && r.session.routeState.task) || {}).text, (() => { const a = attention(r.session, { now: now(), silentMin: ui.silentMin ?? SILENT_DEFAULT_MIN, unread: Boolean(ui.unread && ui.unread[r.session.id] === true), acked: (ui.acked || {})[r.session.id] || '' }); return `${a.state}:${a.blink}:${a.minutes}`; })()];
+    const rowSig = (r) => [r.depth, r.kids, r.collapsed, r.session.parent, r.session.id, r.session.name, r.session.state, r.session.updatedAt, r.session.rank, r.session.projectId, (sidebarTask(r.session) || {}).number, ui.unread ? ui.unread[r.session.id] : undefined, Boolean(r.session.pendingQuestion), r.session.routeState?.task?.state, (mergeLabel(r.session.routeState?.task) || {}).text, (() => { const a = attention(r.session, { now: now(), silentMin: ui.silentMin ?? SILENT_DEFAULT_MIN, unread: Boolean(ui.unread && ui.unread[r.session.id] === true), acked: (ui.acked || {})[r.session.id] || '' }); return `${a.state}:${a.blink}:${a.minutes}`; })()];
     const sig = JSON.stringify([loading?.sessions.phase, ui.selected, activeProject, query, groupMenu, [...placedRows].map(([id, rows]) => [id, rows.map(rowSig)]), [...expandedGroups], sideKit.sig(), groups.pinned.map(rowSig), groups.projects.map((p) => [p.project, p.id, p.rows.map(rowSig)])]);
     const shown = groups.pinned.length + groups.projects.length + placedRows.size;
     listEmpty.hidden = Boolean(loading && (loading.projects.phase !== 'ready' || loading.sessions.phase !== 'ready')) || all.length > 0 || (projectsList !== null && projectsList.length > 0);
@@ -937,6 +938,7 @@ export function createView(doc, refs, deps) {
 
   const statusModel = h(doc, 'span', { class: 'status-model' });
   const familyButton = h(doc, 'button', { type: 'button', class: 'status-btn agent-picker-button', hidden: true, title: t('status.agent'), 'aria-label': t('status.agent'), 'aria-haspopup': 'dialog', 'aria-expanded': 'false' });
+  const modeError = h(doc, 'span', { class: 'approval-error', role: 'status', hidden: true });
   const modeButton = h(doc, 'button', { type: 'button', class: 'status-btn', hidden: true, title: t('menu.agent_permissions'), 'aria-label': t('menu.agent_permissions'), 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
   const modelButton = h(doc, 'button', { type: 'button', class: 'status-btn', hidden: true, title: t('status.model'), 'aria-label': t('status.model'), 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
   const effortButton = h(doc, 'button', { type: 'button', class: 'status-btn effort-picker-button', hidden: true, title: t('menu.effort'), 'aria-label': t('menu.effort'), 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
@@ -1005,16 +1007,18 @@ export function createView(doc, refs, deps) {
   // Задача 192.6: подпись — отдельной строкой под строкой чипов, чтобы не отнимать у них ширину
   const whereNote = h(doc, 'p', { class: 'where-note', hidden: true });
   const menu = h(doc, 'div', { class: 'menu composer-menu', role: 'menu', hidden: true });
-  const agentAnchor = h(doc, 'div', { class: 'agent-picker-anchor' }, familyButton, effortButton, menu);
+  const modelProbe = h(doc, 'span', { class: 'model-probe item-handoff', role: 'status', hidden: true });
+  const agentAnchor = h(doc, 'div', { class: 'agent-picker-anchor' }, modelProbe, familyButton, effortButton, menu);
   // The model picker owns its anchor; the lower mode selector is the only visible mode control.
   const statusGroup = h(doc, 'div', { class: 'status-group' }, agentAnchor);
   // Композиция нижней панели по макету 268 (task/design/new-chat.png): режим, семья, модель и усилие —
   // пилюли одной строкой ВНУТРИ карточки композера, а не отдельной строкой под ней.
   const boxBar = h(doc, 'div', { class: 'box-bar', 'data-empty': 'true' },
-    plusButton, routeButton, taskRouteLabel, h(doc, 'span', { class: 'grow' }), modeButton, statusGroup, modelButton,
+    plusButton, routeButton, taskRouteLabel, h(doc, 'span', { class: 'grow' }), modeButton, modeError, statusGroup, modelButton,
     h(doc, 'div', { class: 'box-row' }, micWrap, cancelButton, sendButton));
   box.append(boxBar);
-  const status = h(doc, 'div', { class: 'composer-status', 'data-empty': 'true' }, worktreeButton, whereNote, resultRepoButton, h(doc, 'span', { class: 'grow' }), presetSelect);
+  const status = h(doc, 'div', { class: 'composer-status', 'data-empty': 'true' }, h(doc, 'div', { class: 'env-row' }, icon(doc, 'i-folder'), h(doc, 'span', { class: 'muted', text: t('rail.workspace_setup') }), worktreeButton, whereNote),
+    h(doc, 'div', { class: 'env-row env-result' }, icon(doc, 'i-branch'), h(doc, 'span', { class: 'muted', text: t('rail.result_repo') }), resultRepoButton), presetSelect);
 
   // Меню выбора режима, модели и усилия (задача 192): показывает только то, что агент отдал по ACP.
   // Задача 265: сюда же меню репозитория результата ('result').
@@ -1045,7 +1049,9 @@ export function createView(doc, refs, deps) {
     }
     if (catalogModels) return catalogModels;
     if (metadata && metadata.status === 'ready' && metadata.family === family && Number.isFinite(metadata.expiresAt) && metadata.expiresAt > now()) return metadata.models;
-    return null;
+    const cached = current.model?.catalog?.[family];
+    return Number.isFinite(cached?.updated) && cached.options.models.length
+      ? cached.options.models.map(model => ({ ...model, efforts: cached.options.efforts })) : null;
   }
 
   const codexModelVariant = (id) => /^(.*)\[(low|medium|high|xhigh|max|ultra)\]$/.exec(id);
@@ -1149,7 +1155,7 @@ export function createView(doc, refs, deps) {
       const signature = JSON.stringify(agents.map(agent => [agent.id, agentLabel(agent.id)]));
       if (signature !== familyFilterSignature) {
         const previous = familyFilter.value;
-        familyFilter.replaceChildren(h(doc, 'option', { value: '', text: 'Все семьи' }),
+        familyFilter.replaceChildren(h(doc, 'option', { value: '', text: 'Семья' }),
           ...agents.map(agent => h(doc, 'option', { value: agent.id, text: agentLabel(agent.id) })));
         familyFilter.value = agents.some(agent => agent.id === previous) ? previous : '';
         familyFilterSignature = signature;
@@ -1166,8 +1172,6 @@ export function createView(doc, refs, deps) {
       const metadata = rawMetadata.status === 'ready' && rawMetadata.expiresAt <= now()
         ? { ...rawMetadata, status: 'unavailable', reason: 'metadata_expired' }
         : rawMetadata;
-      rows.push(h(doc, 'div', { class: 'menu-head menu-columns' },
-        h(doc, 'span', { text: 'Семья' }), h(doc, 'span', { text: 'Модель или пул' })));
       if (metadata.status === 'ready' && metadata.complete === false) rows.push(h(doc, 'div', { class: 'menu-head menu-catalog-partial', text: 'Каталог неполный: доступны только подтверждённые модели.' }));
       const familyModels = new Map(agents.map((agent) => [agent.id, directModelsFor(agent.id)]));
       const allModels = agents.flatMap((agent) => pickerModelsFor(agent.id, familyModels.get(agent.id)))
@@ -1257,6 +1261,8 @@ export function createView(doc, refs, deps) {
         const captionName = name.replace(/(?:ое|ее)$/u, (ending) => ending === 'ое' ? 'ая' : 'яя');
         caption.textContent = `${modelLabel(activeEffortModel.family, activeEffortModel.name || activeEffortModel.id)}: ${captionName}`;
         slider.setAttribute('aria-valuetext', name);
+        const effortText = effortButton.querySelector('span');
+        if (effortText) effortText.textContent = name;
         const ratio = efforts.length < 2 ? 1 : at / (efforts.length - 1);
         control.style.setProperty('--effort-fill', String(ratio * 100) + '%');
         ticks.forEach((tick, step) => {
@@ -1296,11 +1302,10 @@ export function createView(doc, refs, deps) {
     }
     if (menuKind === 'mode' && current.session) {
       menuSearch.hidden = true;
-      const { groups } = approvalView(current.model, current.session, agents, pickerSource);
+      const { groups } = approvalView(current.model, current.session, agents, pickerSource, current.ui?.approvalOffers);
       for (const group of groups) {
         menuList.append(h(doc, 'div', { class: 'menu-head', text: agentLabel(group.family) }));
         if (group.unavailable) menuList.append(h(doc, 'div', { class: 'menu-head', text: group.unavailable }));
-        if (group.pending) menuList.append(h(doc, 'div', { class: 'menu-head', text: 'Выбор ожидает подтверждения агента' }));
         for (const mode of group.modes) {
           const label = labelOf('mode', mode);
           menuList.append(menuRow({
@@ -1360,7 +1365,7 @@ export function createView(doc, refs, deps) {
     if (kind === 'effort' && !canChooseEffort) return;
     menuKind = kind;
     menuTrigger = { agent: familyButton, route: routeButton, result: resultRepoButton, mode: modeButton, model: modelButton, more: modelButton, effort: effortButton }[kind] || null;
-    if (kind === 'agent' || kind === 'effort') agentAnchor.append(menu); else status.append(menu);
+    if (kind === 'agent' || kind === 'effort') agentAnchor.append(menu); else if (kind === 'result') status.append(menu); else boxBar.append(menu);
     menuQuery = '';
     menuSearch.value = '';
     menuSig = kind === 'effort' ? effortMenuSignature() : kind === 'route' ? currentRoute : kind === 'result' ? JSON.stringify(resultRepoShown) : JSON.stringify(options);
@@ -1625,16 +1630,9 @@ export function createView(doc, refs, deps) {
     routeCards.hidden = cards.length === 0;
   }
 
-  const taskProgressLink = h(doc, 'button', { type: 'button', class: 'link-btn task-progress-link', hidden: true });
-  taskProgressLink.addEventListener('click', () => openTaskDetails(current.session));
-  const routeOver = h(doc, 'div', { class: 'route-over' }, canopusUi.bar, routeCards, routeBanner, taskProgressLink);
+  const routeOver = h(doc, 'div', { class: 'route-over' }, routeCards, routeBanner);
 
-  const composer = h(doc, 'div', { class: 'composer' },
-    routeOver,
-    box,
-    voiceHint,
-    queueButton,
-    status);
+  const composer = h(doc, 'div', { class: 'composer' }, routeOver, box, voiceHint, queueButton);
 
   // Кнопка «вниз»: круглая, по центру над полем; есть, только когда лента не в самом низу; точка — пришло новое, пока читали выше.
   const jumpButton = h(doc, 'button', { type: 'button', class: 'jump-btn', hidden: true, title: t('chat.to_bottom'), 'aria-label': t('chat.to_bottom') },
@@ -2466,10 +2464,9 @@ export function createView(doc, refs, deps) {
     const noProject = !session.projectId;
     const location = session.routeState?.where;
     const folder = task?.worktree || location?.worktree || session.folder;
-    const folderName = folder?.split(/[\\/]/).filter(Boolean).pop() || session.project || 'Папка проекта';
     const branch = (task?.branch || location?.branch || session.branch || sourceBranch || '').replace(/^refs\/(heads|remotes)\//, '');
-    const workspaceText = noProject ? t('where.projectless_workspace') : [(hasTree || treeOn) && !noRepo ? 'Работа в отдельной папке' : 'Работа в папке проекта', session.project || folderName, branch].filter(Boolean).join(' · ');
-    worktreeButton.replaceChildren(icon(doc, 'i-folder'), h(doc, 'span', { text: workspaceText }));
+    const workspaceText = noProject ? t('where.projectless_workspace') : hasTree ? 'Отдельная копия' : treeOn && !noRepo ? 'Отдельная копия при запуске' : 'Папка проекта';
+    worktreeButton.textContent = workspaceText;
     const workspaceHint = noRepo ? t('route.worktree_not_repo') : hasTree || preparingTree
       ? t('route.worktree_locked') : session.draft && !treeOn ? t('where.draft_off') : whereText(session);
     worktreeButton.title = [folder, branch, workspaceHint].filter(Boolean).join(' · ') || workspaceText;
@@ -2510,10 +2507,14 @@ export function createView(doc, refs, deps) {
     activeEffort = legacyEffort || selectedEffort;
     const hasEfforts = Boolean(activeEffortModel?.efforts.length > 1);
     const preparingSource = handoff?.phase === 'preparing';
-    canChooseEffort = hasEfforts && !preparingSource && !session.selectionPending;
+    canChooseEffort = hasEfforts && !preparingSource;
     const selectedPool = directSource ? '' : session.selectedPool ? `${session.selectedPool} · ${session.selectedLevel}` : session.source && session.source.pool ? `${session.source.pool} · ${session.source.level}` : '';
     const modelName = modelLabel(selectedFamily, activeEffortModel?.name || selectedModel);
-    const pickerLabel = session.selectionPending && !handoff?.source ? 'Подтверждение…' : [modelName || (shown.loading ? t('session.loading') : t('session.model_unknown')), selectedPool].filter(Boolean).join(' / ');
+    const probe = ui.modelProbes?.get(session.id);
+    modelProbe.hidden = !probe || probe.key !== JSON.stringify([selectedFamily, selectedModel]) || probe.status === 'ready';
+    modelProbe.dataset.phase = probe?.status === 'checking' ? 'preparing' : 'error';
+    modelProbe.textContent = modelProbe.hidden ? '' : probe.status === 'checking' ? 'Проверяем модель…' : 'Модель не ответила на проверку';
+    const pickerLabel = [modelName || (shown.loading ? t('session.loading') : t('session.model_unknown')), selectedPool].filter(Boolean).join(' / ');
     familyButton.hidden = false;
     familyButton.replaceChildren(h(doc, 'span', { text: pickerLabel || 'Выбрать агента' }));
     const presetData = presets() || {};
@@ -2531,7 +2532,14 @@ export function createView(doc, refs, deps) {
     const paramWhy = (unsupported) => (shown.loading ? t('status.options_loading')
       : !catalogEntry && session.draft ? t('status.options_after_start') : unsupported);
     modeButton.hidden = false;
-    const approvalLabel = approvalView(model, session, agents, pickerSource).label;
+    const approval = approvalView(model, session, agents, pickerSource, ui.approvalOffers);
+    const refused = ui.approvalErrors?.has(JSON.stringify([session.id, pickerSource?.family || session.agent]));
+    const unsupported = !approval.pool && approval.groups.some(group =>
+      group.requested && group.modes.length > 0 && !group.modes.some(mode => mode.id === group.requested));
+    modeError.hidden = !refused && !unsupported;
+    modeError.textContent = refused ? t('status.approval_refused')
+      : unsupported ? t('status.approval_choose_supported') : '';
+    const approvalLabel = approval.label;
     modeButton.textContent = session.agent === 'qoder' && session.qoderPlanning
       ? t('chat.qoder_planning', { permissions: approvalLabel }) : approvalLabel;
     modelButton.hidden = true;
@@ -2544,6 +2552,7 @@ export function createView(doc, refs, deps) {
     statusModel.hidden = true;
     statusModel.textContent = shown.model || (shown.loading ? t('session.loading') : t('session.model_unknown'));
     statusModel.title = hasModels ? '' : paramWhy(t('status.model_unsupported'));
+    resultRepoButton.parentNode.hidden = resultRepoButton.hidden;
     status.dataset.empty = String(worktreeButton.hidden && !whereNote.textContent && resultRepoButton.hidden && presetSelect.hidden);
     boxBar.dataset.empty = 'false';
     if (menuKind === 'agent') renderMenu();
@@ -2574,18 +2583,6 @@ export function createView(doc, refs, deps) {
       menuSig = sig;
     }
 
-    const stage = session.routeState.steps.find((step) => step.state === 'running');
-    taskProgressLink.hidden = !taskInfo;
-    if (taskInfo) {
-      const details = currentTaskDetails(session);
-      const entries = details?.progress?.trim().split(/\r?\n/).filter(line => line.trim()) || [];
-      const lastHeading = entries.findLast(line => /^#{2,6}\s+/.test(line));
-      const latest = lastHeading?.replace(/^#{2,6}\s+/, '') || entries.findLast(line => !line.startsWith('#'));
-      const progress = stage ? t('route.current_stage', { n: stage.n, total: session.routeState.steps.length, title: stage.title }) : [taskStatusLabel(details?.status || session.routeState.task.state), latest, showStrip(session.routeState) ? routeName(session.route) + ' · ' + t('route.counter', { done: session.routeState.steps.filter(step => step.state === 'done').length, total: session.routeState.steps.length }) : ''].filter(Boolean).join(' · ');
-      const label = [t('route.task_head_bare', taskInfo), progress].join(' · ');
-      if (taskProgressLink.textContent !== label) taskProgressLink.textContent = label;
-      taskProgressLink.title = label;
-    }
     renderRouteBanner(session);
     renderTaskCards(session);
     canopusUi.render(session);
@@ -2680,11 +2677,20 @@ export function createView(doc, refs, deps) {
       icon(doc, iconId),
       h(doc, 'dt', { text: t(labelKey) }),
       h(doc, 'dd', { text: value || t('rail.none'), class: value ? '' : 'muted' }));
+    const shown = shownOf(current.model, s);
+    const latest = s.messages.findLast(message => message.role === 'agent' && message.actual?.family === s.agent)?.actual;
+    const agent = modelLabel(s.agent, latest?.model || s.model || shown.model || shown.options.modelId);
+    const effort = latest?.effort || shown.options.effort;
+    const worktree = s.routeState?.task?.worktree || s.routeState?.where?.worktree;
+    const project = projectsList?.find(item => item.id === s.projectId)?.name || s.project || s.projectId;
+    const folder = worktree || s.folder;
+    const branch = s.routeState?.task?.branch || s.routeState?.where?.branch || s.branch;
     return card(t('rail.env'), h(doc, 'dl', { class: 'env' },
-      row('i-folder', 'rail.project', s.project),
+      row('i-folder', 'rail.project', project),
       row('i-folder', 'rail.folder', s.folder),
-      row('i-branch', 'rail.branch', s.branch),
-      row('i-terminal', 'rail.agent', agentLabel(s.agent))));
+      worktree && worktree !== s.folder ? row('i-folder', 'rail.worktree', folder) : false,
+      row('i-branch', 'rail.branch', branch),
+      row('i-terminal', 'rail.agent', [agent || agentLabel(s.agent), effort].filter(Boolean).join(' / '))), status);
   }
 
   function meterNode(pct) {
@@ -2892,6 +2898,7 @@ export function createView(doc, refs, deps) {
   }
 
   function taskStatusLabel(status) {
+    if (status === 'done') return t('task.details_done');
     return status === 'running' || status === 'active' ? t('task.details_active') : status;
   }
 
@@ -2901,7 +2908,7 @@ export function createView(doc, refs, deps) {
     const details = currentTaskDetails(session);
     const step = session.routeState.steps.find((item) => item.state === 'running');
     const status = details?.status || task.state;
-    const stage = details?.stage || step?.title;
+    const stage = details?.stage || (step && t('route.current_stage', { n: step.n, total: session.routeState.steps.length, title: step.title }));
     const progress = details?.progress?.trim().split('\n').slice(-24).join('\n');
     return card(taskHeading(task),
       h(doc, 'p', { text: `${t('task.details_status')} · ${taskStatusLabel(status)}` }),
@@ -2956,7 +2963,7 @@ export function createView(doc, refs, deps) {
     if (taskKey !== requestedTask) {
       requestedTask = taskKey && handlers.onTaskDetailsGet?.(session.id) !== false ? taskKey : '';
     }
-    const sig = JSON.stringify([railTab, railTab === 'task' ? session.taskDetails : null, session.routeState?.steps, railTab === 'machines' ? machinesPanel.signature(session, queued) : '', railTab === 'request' ? requestPanel.signature(session) : '', session.id, session.project, session.folder, session.branch, session.agent, session.usage, session.outputs,
+    const sig = JSON.stringify([railTab, railTab === 'task' ? session.taskDetails : null, session.routeState?.steps, railTab === 'machines' ? machinesPanel.signature(session, queued) : '', railTab === 'request' ? requestPanel.signature(session) : '', session.id, session.projectId, projectsList?.find(item => item.id === session.projectId)?.name, session.project, session.folder, session.branch, session.agent, session.model, session.options, current.model.catalog[session.agent], session.messages.findLast(m => m.actual)?.actual, session.routeState?.where, session.usage, session.outputs,
       session.tasks.map((x) => [x.id, x.title, x.status, x.started, x.finishedAt]), session.routeState && session.routeState.task, session.routeState && session.routeState.canopus,
       [...open].filter((k) => k.startsWith('more:') || k.startsWith('sub:') || k === 'ctx-closed'), subMenu]);
     if (sig === railSig) return;

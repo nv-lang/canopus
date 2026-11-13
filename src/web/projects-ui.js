@@ -108,6 +108,8 @@ export function createProjectsUi(doc, deps) {
     const goButton = h(doc, 'button', { type: 'submit', class: 'picker-go', text: t('picker.go') });
     const upButton = h(doc, 'button', { type: 'button', class: 'picker-up', 'aria-label': t('picker.up'), title: t('picker.up') }, icon(doc, 'i-arrow-up'), h(doc, 'span', { text: '..' }));
     const backButton = h(doc, 'button', { type: 'button', class: 'picker-back', 'aria-label': t('picker.back'), title: t('picker.back') }, icon(doc, 'i-back'), h(doc, 'span', { text: t('picker.back') }));
+    const rootsButton = h(doc, 'button', { type: 'button', class: 'picker-roots', text: t('picker.roots') });
+    rootsButton.addEventListener('click', () => go('', { roots: true }));
     const favoriteButton = h(doc, 'button', { type: 'button', class: 'picker-favorite' });
     const listTitle = h(doc, 'div', { class: 'picker-head', id: 'picker-list-title' });
     const breadcrumbs = h(doc, 'nav', { class: 'picker-breadcrumbs', 'aria-label': t('picker.breadcrumbs') });
@@ -122,7 +124,7 @@ export function createProjectsUi(doc, deps) {
     const dialog = dialogShell('picker-title', 'picker',
       h(doc, 'h3', { id: 'picker-title', text: t('picker.title') }),
       h(doc, 'div', { class: 'picker-body' }, form, searchInput,
-        h(doc, 'div', { class: 'picker-bar' }, backButton, upButton, favoriteButton, h(doc, 'span', { class: 'muted picker-hint', text: t('picker.hint') })),
+        h(doc, 'div', { class: 'picker-bar' }, backButton, upButton, rootsButton, favoriteButton, h(doc, 'span', { class: 'muted picker-hint', text: t('picker.hint') })),
         breadcrumbs, listTitle, list, note, recentBox, errorBox),
       h(doc, 'div', { class: 'actions' }, cancel, choose));
     const layer = pushLayer(dialog, { cancelValue: null, scrimClose: true });
@@ -130,6 +132,7 @@ export function createProjectsUi(doc, deps) {
     function paint() {
       const atRoots = state.path === '';
       listTitle.textContent = atRoots ? t('picker.roots') : state.path;
+      rootsButton.disabled = atRoots || state.loading;
       backButton.disabled = historyAt <= 0 || state.loading;
       upButton.disabled = state.parent === null || state.loading;
       choose.disabled = state.loading || (!state.selectedPath && atRoots);
@@ -191,12 +194,12 @@ export function createProjectsUi(doc, deps) {
       return out;
     }
 
-    async function go(path, { record = true, historyIndex = null } = {}) {
+    async function go(path, { record = true, historyIndex = null, roots = false } = {}) {
       const mine = ticket + 1;
       ticket = mine;
       state = { ...state, loading: true, error: '', selectedPath: '' };
       paint();
-      const r = await api.fsList(normalizePath(path));
+      const r = await api.fsList(normalizePath(path), { roots });
       if (mine !== ticket) return false;
       if (!r.ok) {
         state = { ...state, loading: false, error: t('picker.failed', { reason: r.error }) };
@@ -218,11 +221,11 @@ export function createProjectsUi(doc, deps) {
 
     form.addEventListener('submit', (e) => { e.preventDefault(); go(pathInput.value); });
     searchInput.addEventListener('input', () => { state = { ...state, search: searchInput.value }; paint(); });
-    upButton.addEventListener('click', () => { if (state.parent !== null) go(state.parent); });
+    upButton.addEventListener('click', () => { if (state.parent !== null) go(state.parent, { roots: state.parent === '' }); });
     backButton.addEventListener('click', async () => {
       const next = historyAt - 1;
       if (next < 0) return;
-      await go(history[next], { record: false, historyIndex: next });
+      await go(history[next], { record: false, historyIndex: next, roots: history[next] === '' });
     });
     favoriteButton.addEventListener('click', () => {
       if (state.path === '') return;
@@ -521,10 +524,11 @@ export function createProjectsUi(doc, deps) {
     const info = h(doc, 'p', { class: 'muted', text: folder ? 'Проверяем Git…' : 'Без проекта: исходной ветки и рабочей копии нет.' });
     const save = h(doc, 'button', { type: 'button', class: 'primary', text: 'Сохранить выбор', disabled: true });
     const cancel = h(doc, 'button', { type: 'button', text: 'Отмена' });
+    const sourceField = h(doc, 'label', { class: 'field', hidden: true }, h(doc, 'span', { text: 'Исходная ветка' }), source);
     const dialog = dialogShell('workspace-title', 'project',
       h(doc, 'h3', { id: 'workspace-title', text: 'Исходная ветка и рабочая папка' }),
-      h(doc, 'label', { class: 'field' }, h(doc, 'span', { text: 'Исходная ветка' }), source),
-      h(doc, 'label', { class: 'field' }, h(doc, 'span', { text: 'Рабочая папка' }), place), info,
+      h(doc, 'label', { class: 'field' }, h(doc, 'span', { text: 'Рабочая папка' }), place),
+      sourceField, info,
       preparation ? h(doc, 'p', { class: 'plate', text: 'Подготовка задачи: выбор сохраняется для будущего исполнения. Ветки и рабочие копии сейчас не создаются.' }) : false,
       h(doc, 'div', { class: 'actions' }, cancel, save));
     const layer = pushLayer(dialog, { cancelValue: null, scrimClose: true });
@@ -544,6 +548,7 @@ export function createProjectsUi(doc, deps) {
           place.disabled = false;
           const paint = () => {
             source.disabled = place.value !== 'tree';
+            sourceField.hidden = source.disabled;
             const start = source.value.replace(/^refs\/(heads|remotes)\//, '');
             const current = r.branch && r.branch !== 'HEAD' ? `на ветке «${r.branch}»` : 'на текущем коммите без ветки';
             info.textContent = place.value === 'folder'

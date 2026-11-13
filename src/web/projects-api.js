@@ -43,8 +43,8 @@ export function createProjectsApi(fetchFn, failText = 'Нет связи с се
     update(id, payload) { return call('PUT', `/api/projects/${encodeURIComponent(id)}`, payload); },
     remove(id) { return call('DELETE', `/api/projects/${encodeURIComponent(id)}`); },
     /** Каталоги по пути; пустой путь — корни дисков и недавние. */
-    async fsList(path = '') {
-      const r = await call('GET', `/api/fs/list?path=${encodeURIComponent(path)}`);
+    async fsList(path = '', { roots = false } = {}) {
+      const r = await call('GET', `/api/fs/list?path=${encodeURIComponent(path)}${roots ? '&roots=1' : ''}`);
       if (!r.ok) return r;
       const b = r.body || {};
       return {

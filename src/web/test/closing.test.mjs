@@ -141,7 +141,7 @@ test('новая сессия: проект выбирается списком 
   const bar = view.match(/const boxBar = h\(doc, 'div', \{ class: 'box-bar', 'data-empty': 'true' \},\s*([^;]*)\);/)[1];
   const order = ['routeButton', 'statusGroup'].map((n) => bar.indexOf(n));
   assert.ok(order.every((x) => x >= 0) && order.every((x, i) => i === 0 || order[i - 1] < x), 'порядок в карточке: режим слева, агент · модель · усилие справа');
-  assert.match(view, /agent-picker-anchor' \}, familyButton, effortButton, menu\)/);
+  assert.match(view, /agent-picker-anchor' \}, modelProbe, familyButton, effortButton, menu\)/);
   const row = view.match(/const status = h\(doc, 'div', \{ class: 'composer-status', [^}]*\}, ([^;]*)\);/)[1];
   assert.ok(row.includes('worktreeButton'), 'Worktree остаётся в строке статуса');
   assert.match(view, /boxBar\.dataset\.empty = 'false'/);

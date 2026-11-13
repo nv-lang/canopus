@@ -36,7 +36,7 @@ export const needsOwner = (session) => needsOwnerReason(session) !== '';
 /** Ключ «что именно ждёт»: по нему запоминается, что владелец уже открыл сессию (подсветка гаснет). */
 export function waitKey(session) {
   const reason = needsOwnerReason(session);
-  if (reason === '') return '';
+  if (reason === '') return session.indexWaitKey || '';
   if (reason === 'question') return `q:${session.pendingQuestion.request}`;
   const last = lastAgentDone(session);
   return `${reason}:${last ? last.turn : session.id}`;
@@ -57,6 +57,9 @@ export function silentMinutes(session, now, silentMin = SILENT_DEFAULT_MIN) {
  */
 export function attention(session, ctx = {}) {
   const { now = 0, silentMin = SILENT_DEFAULT_MIN, unread = false, acked = '' } = ctx;
+  if (['error', 'question-timeout'].includes(session.indexStatus)) {
+    return { state: session.indexStatus, blink: false, minutes: 0 };
+  }
   if (session.state === 'refused' && session.messages?.findLast(message => message.role === 'agent')?.expiredQuestion) {
     return { state: 'question-timeout', blink: false, minutes: 0 };
   }
@@ -65,7 +68,7 @@ export function attention(session, ctx = {}) {
   if (key !== '') return { state: 'waiting', blink: key !== acked, minutes: 0 };
   const minutes = silentMinutes(session, now, silentMin);
   if (minutes > 0) return { state: 'silent', blink: false, minutes };
-  if (session.state === 'answering') return { state: 'running', blink: false, minutes: 0 };
+  if (session.state === 'answering' || session.indexStatus === 'running') return { state: 'running', blink: false, minutes: 0 };
   if (unread) return { state: 'unread', blink: false, minutes: 0 };
   return { state: 'idle', blink: false, minutes: 0 };
 }

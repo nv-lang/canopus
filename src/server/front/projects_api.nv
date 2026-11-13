@@ -219,6 +219,7 @@ fn fs_roots_json(recent []str) -> str {
 fn fs_list_route(data_dir str, state_dir str, port int) -> fn(ServerRequest) -> ServerResponse {
     fn(req ServerRequest) -> ServerResponse {
         if !origin_allowed(req, port) { return api_error(403, "origin not allowed") }
+        if (req.query_param("roots") ?? "") == "1" { return json_reply(200, fs_roots_json(recent_of(data_dir))) }
         ro asked = (req.query_param("path") ?? "").trim_ascii()
         if asked.byte_len() == 0 {
             // no path: the remembered folder (or its nearest existing parent), else the roots

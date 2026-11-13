@@ -3,9 +3,11 @@ module canopus.server
 
 // ORACLE-WORKAROUND(32): std.fs imported first in the first file of the unit, or .join on []str resolves into Path (last-wins) — the item-32 family returned on the 0.1.2 toolchain
 import std.fs
+import canopus.acp.{AcpQueued, AcpImage}
 import canopus.config.{layout_with_data_dir}
 import alula.engine.{EventKind}
 import std.fs
+import canopus.acp.{AcpQueued, AcpImage}
 import std.encoding.json.{JsonObject}
 
 // The shared kit_ask gathers chunks by turn id across every session. This scenario
@@ -186,6 +188,19 @@ export fn scenario_context_handoff(settings ServerSettings, previous str, target
     ro turn = line_input(kit_last_of(lines, "user_message"), "turn")
     ro tools = answer_of(lines, turn)
     c.expect(tools.contains("canopus_task_list") && tools.contains("Новых задач нет"), "the promoted client can call Canopus tools")
+    ro budget_prompt = AcpQueued { request: "estimate", text: "new", images: []AcpImage.new(), pre: "instruction" }
+    c.expect(handoff_over_budget("history", budget_prompt, 5) && !handoff_over_budget("history", budget_prompt, 0),
+        "preflight reserves space and leaves an unreported capacity unknown")
     rig.shut()
+    mut resumed = rig_open(configured)
+    resumed.attach(1)
+    ro saved_at = resumed.hub.find("s-handoff")
+    if saved_at >= 0 {
+        ro dialog = resumed.hub.sessions[saved_at]
+        ro saved = resumed.hub.handoff_checkpoint(dialog, dialog.lines.len())
+        c.expect(jtext(saved, "summary").contains("earlier decision preserved") && jtext(saved, "tail").contains("first fact"),
+            "restart reuses the checkpoint anchored in the original history")
+    } else { c.expect(false, "the handoff session restores") }
+    resumed.shut()
     c.report()
 }

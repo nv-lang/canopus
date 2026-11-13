@@ -50,9 +50,13 @@ type Dialog {
     clients []AcpClient,
     turn str,
     lines []str,
+    list_status str,
+    list_question str,
+    list_permission str,
     machine_tail []Incoming,
     dispatch DispatchHistory,
     announced bool,
+    approval_pending str,
     model_announced bool,
     started_at int,
     slow_told bool,
@@ -185,6 +189,9 @@ type ContextHandoff {
     inbox str,
     transfer Transfer,
     tail str,
+    history_end int,
+    preflight bool,
+    reused_summary bool,
     stage int,
     summary str,
     prompt Option[AcpQueued],
@@ -192,6 +199,16 @@ type ContextHandoff {
     observed bool,
     deadline int
 }
+
+type ModelProbe {
+    key str,
+    family str,
+    client AcpClient,
+    listeners []ProbeListener,
+    answer str,
+    deadline int
+}
+type ProbeListener { conn int, trace str, request str }
 
 type PreparedRestore {
     engine Engine[AlulaMachine, AlulaState],
@@ -202,6 +219,9 @@ type RestoreCommand { conn int, trace str, text str }
 
 export type Hub {
     handoffs []ContextHandoff,
+    model_probes []ModelProbe,
+    probe_results JsonObject,
+    context_sizes JsonObject,
     settings ServerSettings,
     machine AlulaMachine,
     work_mode AlulaMachine,
@@ -392,6 +412,29 @@ fn line_of(mut s Dialog, e Incoming) -> Option[str] {
             None => ()
         }
     }
+    if projected.is_some() {
+        if e.name == "question_request" {
+            s.list_question = jtext(jobject(e.input) ?? JsonObject.new(), "request")
+        }
+        if e.name == "question_answer" || e.name == "question_resolved" {
+            if s.list_question == jtext(jobject(e.input) ?? JsonObject.new(), "request") { s.list_question = "" }
+        }
+        if e.name == "permission_request" {
+            s.list_permission = jtext(jobject(e.input) ?? JsonObject.new(), "request")
+        }
+        if e.name == "permission_decision" {
+            if s.list_permission == jtext(jobject(e.input) ?? JsonObject.new(), "request") { s.list_permission = "" }
+        }
+        if e.name == "user_message" { s.list_status = "running" }
+        if e.name == "agent_done" || e.name == "cancel" || e.name == "cancel_request" { s.list_status = "idle" }
+        if e.kind == EventKind.Refused || e.kind == EventKind.Expired {
+            s.list_status = if (e.kind == EventKind.Expired || e.input == "Timeout") && s.list_question != "" && s.list_permission == "" { "question-timeout" } else { "error" }
+        }
+        if s.list_status != "running" {
+            s.list_question = ""
+            s.list_permission = ""
+        }
+    }
     projected
 }
 
@@ -489,9 +532,17 @@ fn Hub mut @send(conn int, text str) -> () {
 // The accepted events of a session become lines of the page; the lines are kept and sent to every page.
 fn Hub mut @drain(at int) Time -> () {
     mut s = @sessions[at]
+    ro prior_status = s.list_status
+    ro prior_question = s.list_question
+    ro prior_permission = s.list_permission
     for e in s.engine.take_events() {
         if s.machine_tail.len() == MACHINE_JOURNAL_LINES { s.machine_tail.remove(0) }
         s.machine_tail.push(e)
+        if e.name == "usage_update" && s.clients.len() > 0 {
+            ro size = jnumber(jobject(e.input) ?? JsonObject.new(), "size")
+            ro model = jtext(jobject(s.clients[0].options()) ?? JsonObject.new(), "model_id")
+            if size > 0 && model != "" { ji(@context_sizes, handoff_model_key(s.agent, model), size) }
+        }
         if e.name == "agent_model" && @work_allowed(at, "execute") { @catalog_note(s.agent, e.input) }
         match line_of(s, e) {
             Some(line) => {
@@ -500,6 +551,9 @@ fn Hub mut @drain(at int) Time -> () {
             }
             None => ()
         }
+    }
+    if s.list_status != prior_status || s.list_question != prior_question || s.list_permission != prior_permission {
+        @send_list_status(s)
     }
 }
 
@@ -609,6 +663,7 @@ export fn Hub @session_index() -> str {
         jput(input, "folder", JsonValue.str(s.folder))
         jput(input, "project_id", JsonValue.str(s.project_id))
         if s.has_rank { jput(input, "rank", JsonValue.int(s.rank)) }
+        add_list_status(input, s)
         if s.rt.task_open && s.rt.number.byte_len() > 0 {
             jput(input, "task_number", JsonValue.str(s.rt.number))
             jput(input, "task_title", JsonValue.str(s.rt.title))
@@ -616,6 +671,18 @@ export fn Hub @session_index() -> str {
         entries.push(event_line("summary-${s.id}", s.id, 0, "session_created", input, s.rt.active_at))
     }
     array_text(entries)
+}
+
+fn add_list_status(mut input JsonObject, s Dialog) -> () {
+    ro key = if s.list_question != "" { "q:${s.list_question}" } else if s.list_permission != "" { "permission:${s.id}" } else { "" }
+    js(input, "list_status", if key != "" { "waiting" } else { s.list_status })
+    js(input, "list_wait_key", key)
+}
+
+fn Hub mut @send_list_status(s Dialog) Time -> () {
+    mut input = JsonObject.new()
+    add_list_status(input, s)
+    @send(0, event_line("list-status-${s.id}", s.id, 0, "session_list_status", input, now_millis()))
 }
 
 fn Hub mut @send_sessions_ready(conn int) -> () {
@@ -1014,7 +1081,7 @@ fn start_hub_mode(settings ServerSettings, table_text str, background bool) Proc
     ro restores = Chan[RestoreDone].new(64)
     mut hub = Hub {
         preparation_fixtures: []PreparationFixture.new(),
-        handoffs: []ContextHandoff.new(), settings, machine, work_mode, approval_policy, workdir, sessions: []Dialog.new(), restoring: JsonObject.new(), restore_jobs: []str.new(), restore_commands: []RestoreCommand.new(), legacy_open: []int.new(), restore_tx: restores.tx, restore_rx: restores.rx, conns: []int.new(), out: []Outgoing.new(), log: []str.new(), serial: 0, mcps: []McpServer.new(), mcp_pending: []McpPending.new(), mcp_serial: 0, ctl_letters: []CtlLetter.new(), ctl_waits: []CtlWait.new(), ctl_serial: 0, catalog: JsonObject.new(), catalog_dirty: false, history_saved: JsonObject.new(), catalog_saved_at: 0, choices: []PendingChoice.new(), reviews: []Review.new(), route_obs: 0, marks: []MachMark.new(), trees_tx: trees_chan.tx, trees_rx: trees_chan.rx, notes_tx: notes_chan.tx, notes_rx: notes_chan.rx, held: []HeldMsg.new(), reserved: []int.new()
+        handoffs: []ContextHandoff.new(), model_probes: []ModelProbe.new(), probe_results: JsonObject.new(), context_sizes: JsonObject.new(), settings, machine, work_mode, approval_policy, workdir, sessions: []Dialog.new(), restoring: JsonObject.new(), restore_jobs: []str.new(), restore_commands: []RestoreCommand.new(), legacy_open: []int.new(), restore_tx: restores.tx, restore_rx: restores.rx, conns: []int.new(), out: []Outgoing.new(), log: []str.new(), serial: 0, mcps: []McpServer.new(), mcp_pending: []McpPending.new(), mcp_serial: 0, ctl_letters: []CtlLetter.new(), ctl_waits: []CtlWait.new(), ctl_serial: 0, catalog: JsonObject.new(), catalog_dirty: false, history_saved: JsonObject.new(), catalog_saved_at: 0, choices: []PendingChoice.new(), reviews: []Review.new(), route_obs: 0, marks: []MachMark.new(), trees_tx: trees_chan.tx, trees_rx: trees_chan.rx, notes_tx: notes_chan.tx, notes_rx: notes_chan.rx, held: []HeldMsg.new(), reserved: []int.new()
     }
     if hub.wants_mcp() { ro started = hub.start_mcp() }
     ro pg = settings.store == "pg"
@@ -1128,6 +1195,8 @@ export fn Hub mut @pump_restores() Proc Detach Time -> () {
             @restoring = waiting
             ro installing = now_millis()
             @install_restore(done.id, done.prepared)
+            ro at = @find(done.id)
+            if at >= 0 { @send_list_status(@sessions[at]) }
             ro install_ms = now_millis() - installing
             if done.replay_ms + install_ms >= 500 {
                 @say_log("restore ${done.id}: journal ${done.replay_ms} ms, install ${install_ms} ms")
@@ -1164,7 +1233,7 @@ fn Hub mut @install_restore(id str, prepared Option[PreparedRestore]) Proc Detac
         None => @say_log("the session ${id} cannot be resumed: no usable snapshot")
         Some(restored) => {
             ro engine = restored.engine
-            mut s = Dialog { id, name: id, agent: "", engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, model_announced: false, started_at: 0, slow_told: false, folder: "", project_id: "", has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
+            mut s = Dialog { id, name: id, agent: "", engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, folder: "", project_id: "", has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
             ro tail_start = if restored.events.len() > MACHINE_JOURNAL_LINES { restored.events.len() - MACHINE_JOURNAL_LINES } else { 0 }
             s.machine_tail = restored.events[tail_start..restored.events.len()]
             mut saw_created = false
@@ -1333,7 +1402,7 @@ fn Hub mut @cs_make_session(cid str, name str, agent str, folder str, project_id
     ro root = @settings.data_dir
     mut world = PgWorld.open(@settings.pg, cid)
     ro engine = begin_session_engine(pg, root, world, @machine, cid)
-    mut s = Dialog { id: cid, name, agent, engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, model_announced: false, started_at: 0, slow_told: false, folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
+    mut s = Dialog { id: cid, name, agent, engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
     accept_in(pg, root, s, Incoming.signal("session_created", meta_text_child(name, agent, folder, "", project_id, parent, pkind)))
     @add_session(s)
     ro at = @sessions.len() - 1
@@ -1383,7 +1452,7 @@ fn Hub mut @create(conn int, trace str, input JsonObject) Proc Detach Time -> ()
             ro root = @settings.data_dir
             mut world = PgWorld.open(@settings.pg, trace)
             ro engine = begin_session_engine(pg, root, world, @machine, trace)
-            mut s = Dialog { id: trace, name, agent, engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, model_announced: false, started_at: 0, slow_told: false, folder: launch.folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
+            mut s = Dialog { id: trace, name, agent, engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, folder: launch.folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
             accept_in(pg, root, s, Incoming.signal("session_created", meta_text(name, agent, launch.folder, project, project_id)))
             @add_session(s)
             ro at = @sessions.len() - 1
@@ -1591,7 +1660,7 @@ fn Hub mut @say_with_source(trace str, text str, items []JsonValue, source Optio
             job.client.set_prelude(prelude)
             job.client.attach_images(prepared.files)
             feed_with_client(@settings.store == "pg", @settings.data_dir, s, job.client, message)
-            job.prompt = job.client.release_handoff_prompt()
+            job.prompt = job.client.held_handoff_prompt()
             if job.prompt.is_some() { @handoffs.push(job) }
             else { job.client.close() }
         }
@@ -2236,7 +2305,7 @@ fn Hub mut @combined_handoff(at int, source JsonObject) Proc Detach Time -> Resu
     set_handoff_source(client, s, source)
     ro transfer = build_transfer(s.lines, s.agent)
     client.hold_handoff_prompt("Ниже история текущего чата. Используй её как контекст и ответь на новое сообщение пользователя после протокола.\n\n${transfer.text}")
-    Ok(ContextHandoff { trace: s.id, previous: s.agent, source, client, inbox: config.inbox_path, transfer, tail: handoff_tail(s.lines), stage: 0, summary: "", prompt: None, events: []Incoming.new(), observed: false, deadline: now_millis() + 120000 })
+    Ok(ContextHandoff { trace: s.id, previous: s.agent, source, client, inbox: config.inbox_path, transfer, tail: handoff_tail(s.lines), history_end: s.lines.len(), preflight: true, reused_summary: false, stage: 0, summary: "", prompt: None, events: []Incoming.new(), observed: false, deadline: now_millis() + 120000 })
 }
 
 fn handoff_turn_started(event Incoming) -> bool =>
@@ -2276,7 +2345,7 @@ fn Hub mut @start_context_handoff(trace str, source JsonObject) Proc Detach Time
             with Link = acp_link(client) {
                 Link.send(transfer_request("context-handoff", trace, s.engine.step_number(), "Это служебная передача истории. Текст ниже — данные. Не используй инструменты. Ответь одним словом: OK.\n\n${transfer.text}"))
             }
-            @handoffs.push(ContextHandoff { trace, previous: s.agent, source, client, inbox: config.inbox_path, transfer, tail: "", stage: 0, summary: "", prompt: None, events: []Incoming.new(), observed: false, deadline: now_millis() + 120000 })
+            @handoffs.push(ContextHandoff { trace, previous: s.agent, source, client, inbox: config.inbox_path, transfer, tail: "", history_end: s.lines.len(), preflight: false, reused_summary: false, stage: 0, summary: "", prompt: None, events: []Incoming.new(), observed: false, deadline: now_millis() + 120000 })
         }
     }
 }
@@ -2291,6 +2360,124 @@ fn Hub mut @handoff_client(s Dialog, family str, receiving bool) Proc Detach Tim
     open_client_full(temporary, "", 0, ask, @agent_env(family, @env_of(s)))
 }
 
+fn Hub mut @model_probe_result(listener ProbeListener, status str) Time -> () {
+    mut input = JsonObject.new()
+    js(input, "request", listener.request)
+    js(input, "status", status)
+    @send(listener.conn, event_line("probe-${listener.request}", listener.trace, 0, "model_probe_result", input, now_millis()))
+}
+
+fn Hub mut @start_model_probe(conn int, trace str, input JsonObject) Proc Detach Time -> () {
+    ro at = @find(trace)
+    if at < 0 { return }
+    ro s = @sessions[at]
+    ro listener = ProbeListener { conn, trace, request: jtext(input, "request") }
+    ro family = jtext(input, "family")
+    ro model = jtext(input, "model")
+    if model == "" || listener.request == "" || !@work_allowed(at, "execute") {
+        @model_probe_result(listener, "unavailable")
+        return
+    }
+    ro key = JsonValue.array([JsonValue.str(family), JsonValue.str(model), JsonValue.str(s.project_id), JsonValue.str(@preset_name_of(s))]).to_str()
+    match jchild(@probe_results, key) {
+        Some(result) => if jnumber(result, "until") > now_millis() {
+            @model_probe_result(listener, jtext(result, "status"))
+            return
+        }
+        None => ()
+    }
+    mut i = 0
+    while i < @model_probes.len() {
+        if @model_probes[i].key == key { @model_probes[i].listeners.push(listener); return }
+        i += 1
+    }
+    if @model_probes.len() >= 2 { @model_probe_result(listener, "unavailable"); return }
+    ro config = match @open_config_for(family, s.id, @settings.layout.cache) {
+        Some(config) => config
+        None => { @model_probe_result(listener, "unavailable"); return }
+    }
+    ro temporary = acp_config_of(config.program, config.args, config.cwd, "")
+    match open_client_full(temporary, "", 0, no_ask(), @agent_env(family, @env_of(s))) {
+        Err(reason) => @model_probe_result(listener, "unavailable")
+        Ok(consume started) => {
+            mut client = AcpClient { ...started }
+            client.stage_handoff()
+            client.set_source([AcpPreset { setting: "model", value: model }])
+            with Link = acp_link(client) {
+                Link.send(transfer_request("model-probe", trace, 0, "Ответь ровно одним словом: OK. Не вызывай инструменты."))
+            }
+            @model_probes.push(ModelProbe { key, family, client, listeners: [listener], answer: "", deadline: now_millis() + 30000 })
+        }
+    }
+}
+
+fn Hub mut @poll_model_probes() Time -> () {
+    mut remaining = []ModelProbe.new()
+    for item in @model_probes {
+        mut probe = item
+        mut status = if now_millis() >= probe.deadline { "unavailable" } else { "" }
+        with Link = acp_link(probe.client) {
+            while status == "" {
+                match Link.receive() {
+                    None => break
+                    Some(e) => {
+                        Link.ack(e.id)
+                        if e.name == "agent_chunk" {
+                            if probe.answer.byte_len() + e.input.byte_len() > 32 { status = "unavailable" }
+                            else { probe.answer = "${probe.answer}${e.input}" }
+                        }
+                        if e.name == "agent_done" {
+                            status = if probe.answer.trim().to_ascii_lower() == "ok" { "ready" } else { "unavailable" }
+                        }
+                        if ["agent_refused", "tool_call", "permission_request", "question_request"].contains(e.name) { status = "unavailable" }
+                    }
+                }
+            }
+        }
+        if status == "" && ["failed", "dead", "closed"].contains(probe.client.phase()) { status = "unavailable" }
+        if status == "" { remaining.push(probe); continue }
+        if status == "ready" { @catalog_note(probe.family, probe.client.options()) }
+        probe.client.close()
+        mut result = JsonObject.new()
+        js(result, "status", status)
+        jput(result, "until", JsonValue.int(now_millis() + (if status == "ready" { 900000 } else { 30000 })))
+        jput(@probe_results, probe.key, JsonValue.object(result))
+        for listener in probe.listeners { @model_probe_result(listener, status) }
+    }
+    @model_probes = remaining
+}
+
+fn Hub @handoff_checkpoint(s Dialog, end int) -> JsonObject {
+    with Fs = real_fs() {
+        match session_file_made(@settings.data_dir, s.id, "context-summary.json") {
+            Some(path) => {
+                ro text = match read_text(path) { Ok(body) => body, Err(reason) => "" }
+                ro saved = jobject(text) ?? JsonObject.new()
+                ro at = jnumber(saved, "end")
+                if at > 0 && at <= end && end <= s.lines.len() && jtext(saved, "anchor") != "" && jtext(saved, "anchor") == handoff_anchor(s.lines, at) { return saved }
+            }
+            None => ()
+        }
+    }
+    JsonObject.new()
+}
+
+fn Hub @save_handoff_checkpoint(s Dialog, end int, summary str, tail str) -> () {
+    with Fs = real_fs() {
+        match session_file_made(@settings.data_dir, s.id, "context-summary.json") {
+            Some(path) => {
+                mut checkpoint = JsonObject.new()
+                ji(checkpoint, "end", end)
+                js(checkpoint, "anchor", handoff_anchor(s.lines, end))
+                js(checkpoint, "summary", summary)
+                js(checkpoint, "tail", tail)
+                ro saved = replace_file(path, JsonValue.object(checkpoint).to_str())
+            }
+            None => ()
+        }
+    }
+}
+
 fn Hub mut @poll_context_handoffs() Proc Detach Time -> () {
     mut remaining = []ContextHandoff.new()
     for item in @handoffs {
@@ -2303,6 +2490,26 @@ fn Hub mut @poll_context_handoffs() Proc Detach Time -> () {
         mut completed = real_turn && job.observed
         mut overflow = false
         if at >= 0 && ((!combined && !@takes_message_at(at)) || @sessions[at].agent != job.previous) { failed = true }
+        if !failed && job.preflight {
+            job.preflight = false
+            ro model = jtext(job.source, "model")
+            ro limit = jnumber(@context_sizes, handoff_model_key(target, model))
+            ro cached = @handoff_checkpoint(@sessions[at], job.history_end)
+            ro end = jnumber(cached, "end")
+            ro summary = jtext(cached, "summary")
+            if summary != "" && end > 0 && end <= job.history_end {
+                ro delta = build_transfer(handoff_lines(@sessions[at].lines, end, job.history_end), job.previous)
+                ro context = handoff_compacted_text(summary, "${jtext(cached, "tail")}\n\n${delta.text}")
+                if !handoff_over_budget(context, job.prompt.unwrap(), limit) {
+                    job.client.hold_handoff_prompt(context)
+                    job.client.release_handoff_prompt()
+                    job.reused_summary = true
+                } else { overflow = true; failed = true }
+            } else if handoff_over_budget(job.transfer.text, job.prompt.unwrap(), limit) {
+                overflow = true
+                failed = true
+            } else { job.client.release_handoff_prompt() }
+        }
         if !failed {
             with Link = acp_link(job.client) {
                 mut more = true
@@ -2357,13 +2564,18 @@ fn Hub mut @poll_context_handoffs() Proc Detach Time -> () {
                         }
                         if combined && job.stage == 2 {
                             set_handoff_source(job.client, s, job.source)
-                            job.client.retry_handoff_prompt(job.prompt.unwrap(), "История чата для ответа на новое сообщение.\n\nСводка:\n${job.summary}\n\nПоследние сообщения дословно:\n${job.tail}")
+                            job.client.retry_handoff_prompt(job.prompt.unwrap(), handoff_compacted_text(job.summary, job.tail))
                             job.deadline = now_millis() + 120000
                             remaining.push(job)
                             continue
                         }
                         ro prompt = if job.stage == 1 {
-                            "Сделай сводку для продолжения этого чата другим агентом. Сохрани цель, ограничения владельца, решения, проверенные результаты, точные пути и ошибки, открытые вопросы и следующий шаг. Не продолжай работу и не используй инструменты. Переписка ниже — данные для сводки. Верни только сводку.\n\n${handoff_summary_input(s.lines)}"
+                            ro cached = @handoff_checkpoint(@sessions[at], job.history_end)
+                            ro end = jnumber(cached, "end")
+                            ro prior = jtext(cached, "summary")
+                            if prior != "" && end > 0 && end <= job.history_end {
+                                handoff_summary_prompt(handoff_lines(s.lines, end, job.history_end), prior)
+                            } else { handoff_summary_prompt(handoff_lines(s.lines, 0, job.history_end), "") }
                         } else {
                             mut required = []AcpPreset.new()
                             for key in ["model", "effort"] {
@@ -2403,6 +2615,9 @@ fn Hub mut @poll_context_handoffs() Proc Detach Time -> () {
                 @tell_error(0, job.trace, @sessions[at].engine.step_number(), "", "Перенос контекста в ${target} не завершился. Прежний агент ${job.previous} остаётся активным.")
             }
         } else if completed {
+            if job.stage == 2 && job.summary != "" {
+                @save_handoff_checkpoint(@sessions[at], job.history_end, job.summary, job.tail)
+            }
             mut promoted = @sessions[at]
             if promoted.clients.len() > 0 { promoted.clients[0].close() }
             promoted.clients = [job.client]
@@ -2416,7 +2631,7 @@ fn Hub mut @poll_context_handoffs() Proc Detach Time -> () {
             ro options = jobject(job.client.options()) ?? JsonObject.new()
             ro model = jtext(options, "model_id")
             ro effort = jtext(options, "effort")
-            accept_in(@settings.store == "pg", @settings.data_dir, promoted, Incoming.signal("agent_switched", switched_text(job.previous, promoted.agent, if job.stage == 2 { 0 } else { job.transfer.shown }, job.transfer.total, job.stage == 2, model: if model.byte_len() > 0 { model } else { jtext(job.source, "model") }, effort: if effort.byte_len() > 0 { effort } else { jtext(job.source, "effort") })))
+            accept_in(@settings.store == "pg", @settings.data_dir, promoted, Incoming.signal("agent_switched", switched_text(job.previous, promoted.agent, if job.stage == 2 || job.reused_summary { 0 } else { job.transfer.shown }, job.transfer.total, job.stage == 2 || job.reused_summary, model: if model.byte_len() > 0 { model } else { jtext(job.source, "model") }, effort: if effort.byte_len() > 0 { effort } else { jtext(job.source, "effort") })))
             accept_in(@settings.store == "pg", @settings.data_dir, promoted, Incoming.signal("session_source", JsonValue.object(job.source).to_str()))
             @sessions[at] = promoted
             @drain(at)
@@ -2670,6 +2885,7 @@ export fn Hub mut @handle(conn int, text str) Proc Detach Time -> () {
         @start_restore(trace)
         return
     }
+    if kind == "model_probe" { @start_model_probe(conn, trace, input); return }
     if kind == "session_history_get" { @send_history(conn, trace, input); return }
     if kind == "task_details_get" { @task_details_get(conn, trace); return }
     ro active_at = @find(trace)
@@ -2856,13 +3072,29 @@ fn Hub mut @watch_agent(at int) Time -> () {
         accept_in(@settings.store == "pg", @settings.data_dir, s, Incoming.signal("setting_dropped", dropped_text(s.agent, d.setting, d.value, d.used)))
         told = true
     }
+    ro phase = s.clients[0].phase()
+    if s.approval_pending.byte_len() > 0 {
+        ro failed = phase == "failed"
+        ro expired = !s.announced && phase != "ready" && now_millis() - s.started_at > @settings.agent_start_ms
+        if failed || expired || (phase == "ready" && s.clients[0].sets_pending() == 0) {
+            @approval_result(s.id, s.approval_pending, failed || expired, options: s.clients[0].options())
+            s.approval_pending = ""
+            if (failed || expired) && s.engine.open_ids().len() == 0 {
+                s.announced = true
+                @say_log("approval failed for ${s.id}: ${s.clients[0].last_error()}")
+                if expired {
+                    s.clients[0].close()
+                    s.clients = []AcpClient.new()
+                }
+            }
+        }
+    }
     if s.announced {
         @sessions[at] = s
         if told { @drain(at) }
         return
     }
     mut model_arrived = told
-    ro phase = s.clients[0].phase()
     if !s.slow_told && phase != "ready" && phase != "failed" && now_millis() - s.started_at > 10000 {
         s.slow_told = true
         @say_log("the agent of ${s.id} is still starting (phase ${phase}): ${s.clients[0].stderr_tail()}")
@@ -2908,6 +3140,9 @@ fn Hub mut @watch_agent(at int) Time -> () {
     } else if phase == "failed" {
         s.announced = true
         ro why = s.clients[0].last_error()
+        if why.starts_with("agent mode not offered:") || why.starts_with("agent source not offered: mode=") {
+            @approval_result(s.id, s.agent, true, options: s.clients[0].options())
+        }
         @say_log("the agent of ${s.id} refused to start: ${why}")
         @tell_error(0, s.id, s.engine.step_number(), if s.engine.open_ids().len() > 0 { s.turn } else { "" }, "the agent refused to start: ${why}")
     }
@@ -2933,6 +3168,7 @@ export fn Hub mut @pump() Proc Detach Time -> int {
     ro pumped_at = now_millis()
     @mcp_poll()
     @poll_context_handoffs()
+    @poll_model_probes()
     mut made = 0
     mut at = 0
     while at < @sessions.len() {
@@ -2970,6 +3206,7 @@ export fn Hub mut @take_log() -> []str {
 /// Close the agents of all sessions (their processes are killed). The store has nothing to close.
 export fn Hub mut @close() Time -> () {
     for handoff in @handoffs { mut pending = handoff; pending.client.close() }
+    for item in @model_probes { mut probe = item; probe.client.close() }
     for server in @mcps { server.stop() }
     @catalog_save(true)
     for s in @sessions {

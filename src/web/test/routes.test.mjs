@@ -495,10 +495,10 @@ test('заглушка: пропуск шага отмечает его проп
 test('проводка: чип режима первым в нижней панели композера, aria-label «Режим работы», шеврон через CSS; меню вверх слева; страница шлёт сигналы', () => {
   assert.equal(S['route.label'], 'Режим работы');
   assert.match(view, /const routeButton = h\(doc, 'button', \{[^}]*'aria-label': t\('route\.label'\)/);
-  assert.match(view, /class: 'box-bar', 'data-empty': 'true' \},\s*plusButton, routeButton, taskRouteLabel, h\(doc, 'span', \{ class: 'grow' \}\), modeButton, statusGroup, modelButton,/);
-  assert.match(view, /class: 'composer-status', 'data-empty': 'true' \}, worktreeButton, whereNote, resultRepoButton, h\(doc, 'span', \{ class: 'grow' \}\), presetSelect\)/);
+  assert.match(view, /class: 'box-bar', 'data-empty': 'true' \},\s*plusButton, routeButton, taskRouteLabel, h\(doc, 'span', \{ class: 'grow' \}\), modeButton, modeError, statusGroup, modelButton,/);
+  assert.match(view, /class: 'composer-status', 'data-empty': 'true' \}, .*worktreeButton, whereNote\),\s*h.*resultRepoButton\), presetSelect\)/);
   assert.doesNotMatch(view, /routeButton\.replaceChildren\([^;]*icon\(/, 'шеврона в разметке чипа нет (он — псевдоэлементом в CSS)');
-  assert.match(css, /\.box-bar \.status-btn::after \{[^}]*clip-path: polygon/);
+  assert.doesNotMatch(css, /\.box-bar \.status-btn::after \{[^}]*clip-path: polygon/);
   assert.match(view, /boxBar\.dataset\.empty = /);
   assert.match(view, /menu\.dataset\.side = 'left'/);
   assert.match(css, /\.menu\[data-side="left"\] \{ left: 0; \}/);

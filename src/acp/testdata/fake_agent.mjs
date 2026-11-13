@@ -114,7 +114,7 @@ async function prompt(id, params) {
   if (args.includes("--handoff-overflow") && (plain.startsWith("Это служебная передача истории.") || plain.startsWith("Ниже история текущего чата."))) {
     return write({ jsonrpc: "2.0", id, error: { code: -32000, message: "context_window_exceeded" } });
   }
-  if (args.includes("--handoff-summary") && plain.startsWith("Сделай сводку")) {
+  if (args.includes("--handoff-summary") && plain.startsWith("Подготовь сводку")) {
     chunk("fixture: earlier decision preserved");
     return respond(id, { stopReason: "end_turn" });
   }

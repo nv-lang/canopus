@@ -2,7 +2,7 @@
 module canopus.server
 
 import alula.engine.{Incoming}
-import std.encoding.json.{JsonObject}
+import std.encoding.json.{JsonObject, JsonValue}
 
 export fn approval_offered(options JsonObject, value str) -> bool {
     if value.byte_len() == 0 { return false }
@@ -15,12 +15,24 @@ export fn approval_offered(options JsonObject, value str) -> bool {
     false
 }
 
+fn Hub mut @approval_result(trace str, family str, refused bool, options str = "") Time -> () {
+    mut input = JsonObject.new()
+    jput(input, "family", JsonValue.str(family))
+    jput(input, "refused", JsonValue.bool(refused))
+    match jobject(options) {
+        Some(o) => jput(input, "options", JsonValue.object(o))
+        None => ()
+    }
+    @serial += 1
+    @send(0, event_line("srv-${@serial}", trace, 0, "approval_result", input, now_millis()))
+}
+
 fn Hub mut @family_approval(trace str, family str, value str, start_agent bool) Proc Detach Time -> () {
     ro at = @find(trace)
     if at < 0 { return }
     mut s = @sessions[at]
     if @settings.agent(family).is_none() || value.byte_len() == 0 {
-        @tell_error(0, trace, s.engine.step_number(), "", "Неизвестная семья или пустой родной режим; выбор не применён")
+        @approval_result(trace, family, true)
         return
     }
     mut options = JsonObject.new()
@@ -42,14 +54,15 @@ fn Hub mut @family_approval(trace str, family str, value str, start_agent bool) 
     // a session being created before its work mode is installed, or a backend forbidden by WorkModePolicy.
     if start_agent && family == s.agent && @work_allowed(at, "execute") {
         ro reason = @ensure_client(at)
-        if reason.byte_len() > 0 { @tell_error(0, trace, s.engine.step_number(), "", reason); return }
+        if reason.byte_len() > 0 { @approval_result(trace, family, true); return }
         s = @sessions[at]
     }
     if family == s.agent && s.clients.len() > 0 {
         // ACP validates current offers again and blocks its queue on an unknown id.
+        if start_agent { s.approval_pending = family }
         s.clients[0].require_mode(value)
     }
     @sessions[at] = s
     @drain(at)
-    if !apply { @tell_error(0, trace, s.engine.step_number(), "", "Родной режим ${family}/${value} не поддержан каталогом/ACP; отправка для этой семьи заблокирована до нового выбора") }
+    if s.approval_pending != family { @approval_result(trace, family, !apply) }
 }

@@ -207,6 +207,26 @@ test('выбор папки: одиночный выбор не входит, En
   assert.equal(await result, null);
 });
 
+test('Диски запрашивает корни явно, а Назад возвращает папку', async () => {
+  const calls = [];
+  const s = setup(api => ({
+    ...api,
+    fsList(path, options) {
+      calls.push([path, options?.roots]);
+      return api.fsList(path, options);
+    },
+  }));
+  const result = s.ui.pickFolder('C:/work');
+  await settle();
+  await s.click(s.q('.picker-roots'));
+  assert.deepEqual(calls.at(-1), ['', true]);
+  assert.ok(s.pickItem('C:/'));
+  await s.click(s.q('.picker-back'));
+  assert.equal(s.q('#picker-path').value, 'C:/work');
+  s.doc.dispatchEvent(key('Escape'));
+  assert.equal(await result, null);
+});
+
 test('корень: одиночный выбор диска включает подтверждение и проверяется через fsList', async () => {
   const s = setup();
   const result = s.ui.pickFolder('');

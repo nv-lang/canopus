@@ -1,15 +1,16 @@
 // Native modes are opaque ids, not an ordered scale of model permissions.
 import { h } from './dom.js';
+import { labelOf } from './labels-ru.js';
 import { shownOf } from './state.js';
 
-export function approvalView(model, session, agents, source = session.source) {
+export function approvalView(model, session, agents, source = session.source, offers) {
   const shown = shownOf(model, session);
   const pool = Boolean(source?.pool);
   const families = pool ? agents.map(a => a.id) : [source?.family || shown.agent];
   const groups = [...new Set(families)].map(family => {
     const own = family === shown.agent && session.optionsAgent === family;
     const options = own ? session.options : model.catalog?.[family]?.options;
-    const modes = options?.modes || [];
+    const modes = offers?.get(JSON.stringify([session.id, family])) || options?.modes || [];
     const requested = session.approvals?.[family] || '';
     const actual = own ? options?.mode || '' : '';
     const selected = requested || options?.mode || '';
@@ -20,8 +21,9 @@ export function approvalView(model, session, agents, source = session.source) {
   });
   const direct = groups[0];
   const actualMode = direct?.modes.find(m => m.id === direct.actual);
-  const defaultLabel = direct?.actual ? `Родное умолчание · ${actualMode?.name || direct.actual}` : 'Родное умолчание';
-  return { pool, groups, label: pool ? 'По семьям' : direct?.unset ? defaultLabel : (direct?.pending ? (direct.family === 'qoder' ? 'Ждём подтверждения от Qoder…' : actualMode?.name || 'Ожидает ACP') : direct?.name) || 'Нет данных ACP' };
+  const displayedMode = direct?.modes.find(m => m.id === direct.selected);
+  const defaultLabel = labelOf('mode', displayedMode).name || 'По умолчанию';
+  return { pool, groups, label: pool ? 'По семьям' : direct?.unset ? defaultLabel : (direct?.unavailable ? labelOf('mode', actualMode).name || 'Режим недоступен' : labelOf('mode', displayedMode).name || direct?.name) || 'Нет данных ACP' };
 }
 
 export function createFamilyApprovals(doc, onPick) {
@@ -36,10 +38,9 @@ export function createFamilyApprovals(doc, onPick) {
       h(doc, 'div', { class: 'menu-head', text: 'Не меняет ограничения Подготовки. Build/Plan — режимы агента, не шкала прав модели.' })];
     for (const group of context.view.groups) {
       rows.push(h(doc, 'div', { class: 'menu-head', text: group.family }));
-      if (group.unset) rows.push(h(doc, 'div', { class: 'menu-head', text: 'Родное умолчание — выбор владельца не задан' }));
+      if (group.unset) rows.push(h(doc, 'div', { class: 'menu-head', text: 'По умолчанию — выбор владельца не задан' }));
       if (group.actual) rows.push(h(doc, 'div', { class: 'menu-head', text: `Подтверждено ACP: ${group.modes.find(m => m.id === group.actual)?.name || group.actual}` }));
       if (group.unavailable) rows.push(h(doc, 'div', { class: 'menu-head', text: group.unavailable }));
-      if (group.pending) rows.push(h(doc, 'div', { class: 'menu-head', text: `Выбрано: ${group.name}; требуется подтверждение ACP перед отправкой` }));
       for (const mode of group.modes) {
         const row = h(doc, 'button', { type: 'button', class: 'menu-item', role: 'menuitemradio',
           'aria-checked': String(!group.unset && mode.id === group.selected), disabled: context.busy,
@@ -58,7 +59,7 @@ export function createFamilyApprovals(doc, onPick) {
     const view = approvalView(model, session, agents, source);
     context = { trace: session.id, view, busy };
     button.textContent = view.label;
-    button.title = view.groups.map(g => `${g.family}: ${g.unavailable || (g.unset ? 'Родное умолчание (не закреплено)' : g.name) || 'Нет данных ACP'}${g.actual ? ` · ACP: ${g.actual}` : ''}${g.pending ? ' (ожидает ACP)' : ''}`).join('\n');
+    button.title = view.groups.map(g => `${g.family}: ${g.unavailable || (g.unset ? 'По умолчанию (не закреплено)' : g.name) || 'Нет данных ACP'}${g.actual ? ` · ACP: ${g.actual}` : ''}`).join('\n');
     button.setAttribute('aria-label', `Подтверждения: ${view.label}`);
     if (!menu.hidden) fill();
   } };

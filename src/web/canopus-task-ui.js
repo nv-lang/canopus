@@ -292,6 +292,7 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
     return h(doc, 'section', { class: 'card canopus-panel' },
       h(doc, 'h3', { class: 'card-title', text: t('canopustask.panel_title') }),
       h(doc, 'p', { class: 'rsub-task', text: activeText(canopus) }),
+      button(t('canopustask.recognize'), '', () => handlers.onCanopusRecognize(session.id)),
       canopus.candidates > 0 ? h(doc, 'p', { class: 'rsub-task', text: t('canopustask.candidates', { n: canopus.candidates }) }) : false,
       parent,
       epic,

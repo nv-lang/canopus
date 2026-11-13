@@ -388,3 +388,44 @@ test('route reset stays pending until the server confirms the selected step', as
   page.event('route_state', snapshot('pending'), { step: 3 });
   assert.equal(page.getUI().routeResets.has('s'), false);
 });
+
+test('session index exposes sidebar status before any history request', async () => {
+  const a = await app(memory(), true, '', { entries: [{
+    id: 'summary-other', trace: 'other', step: 0, kind: 'session_created', time: 1,
+    input: { name: 'Other', agent: 'agent', list_status: 'error' },
+  }] });
+  assert.equal(attention.attention(a.getModel().sessions.other).state, 'error');
+  assert.equal(a.getModel().sessions.other.messages.length, 0);
+  a.event('session_list_status', { list_status: 'question-timeout' }, { trace: 'other' });
+  assert.equal(attention.attention(a.getModel().sessions.other).state, 'question-timeout');
+  assert.equal(a.sent.some(event => event.kind === 'session_history_get' && event.trace === 'other'), false);
+})
+
+
+test('picking a model starts a separate background check before sending chat text', async () => {
+  const a = await app();
+  a.callbacks.onSnapshot('ready', ['s']);
+  const source = { family: 'agent', model: 'm', effort: 'high' };
+  a.handlers.onSource('s', source);
+  const check = a.sent.find(event => event.kind === 'model_probe');
+  assert.ok(check);
+  assert.equal(a.getUI().modelProbes.get('s').status, 'checking');
+  assert.equal(a.sent.some(event => event.kind === 'user_message'), false);
+  assert.equal(a.getUI().handoffStatus.get('s').source.effort, 'high');
+  a.event('model_probe_result', { request: check.input.request, status: 'ready' });
+  assert.equal(a.getUI().modelProbes.get('s').status, 'ready');
+  a.handlers.onSource('s', { ...source, effort: 'low' });
+  assert.equal(a.sent.filter(event => event.kind === 'model_probe').length, 1);
+});
+
+
+test('early model choice queues its probe until sessions are ready', async () => {
+  const a = await app();
+  a.handlers.onSource('s', { family: 'agent', model: 'flash', effort: 'low' });
+  assert.equal(a.getUI().modelProbes.get('s').status, 'checking');
+  assert.equal(a.sent.some(event => event.kind === 'model_probe'), false);
+  a.callbacks.onSnapshot('ready', ['s']);
+  a.callbacks.onSnapshot('ready', ['s']);
+  assert.equal(a.sent.filter(event => event.kind === 'model_probe').length, 1);
+  assert.equal(a.sent.some(event => event.kind === 'user_message'), false);
+});

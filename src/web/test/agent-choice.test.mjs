@@ -367,6 +367,11 @@ test('Codex effort variants share one model row and use separate ACP settings', 
   assert.ok(refs.main.querySelectorAll('.effort-sparkle').every((star, at) => star === middleStars[at]));
   assert.equal(effortButton.textContent, 'ultra');
   assert.equal(String(refs.main.querySelector('.effort-slider').value), '2');
+  slider.value = '0';
+  slider.dispatchEvent({ type: 'input', bubbles: true });
+  assert.equal(effortButton.textContent, 'Низкое');
+  slider.value = '2';
+  slider.dispatchEvent({ type: 'input', bubbles: true });
   render(reduce(pinned, { id: 'working', trace: 's', step: 2, time: 3, kind: 'user_message', input: { turn: 'active', text: 'work' } }));
   assert.equal(refs.main.querySelector('.agent-picker-button').getAttribute('aria-disabled'), 'false');
   assert.equal(effortButton.getAttribute('aria-disabled'), 'false');
@@ -374,7 +379,8 @@ test('Codex effort variants share one model row and use separate ACP settings', 
   const pending = reduce(pinned, { id: 'pending', trace: 's', step: 2, time: 3, kind: 'agent_selection', input: selection });
   render(pending);
   assert.equal(effortButton.getAttribute('aria-expanded'), 'true');
-  assert.equal(refs.main.querySelector('.effort-slider').disabled, true);
+  assert.equal(refs.main.querySelector('.effort-slider').disabled, false);
+  assert.match(refs.main.querySelector('.agent-picker-button').textContent, /6.1 Sol/);
   render(reduce(pending, { id: 'chosen', trace: 's', step: 3, time: 4, kind: 'agent_selected', input: { ...selection, effort: 'low' } }));
   assert.equal(effortButton.getAttribute('aria-expanded'), 'true');
   assert.equal(String(refs.main.querySelector('.effort-slider').value), '2');
@@ -424,4 +430,25 @@ test('a queued family switch shows the chosen model before the next message', ()
   handoffStatus.delete('s');
   view.render(model, ui, { state: 'connected' });
   assert.equal(thread.querySelector('.item-handoff'), null);
+});
+
+test('model picker uses the last ACP catalog from another session', () => {
+  const doc = createFakeDocument(); const refs = {};
+  for (const key of ['app', 'side', 'main', 'rail', 'status', 'overlay']) {
+    refs[key] = doc.createElement('div'); doc.body.append(refs[key]);
+  }
+  const view = createView(doc, refs, {
+    agents: [{ id: 'qoder', label: 'Qoder' }, { id: 'zai', label: 'Z.ai' }],
+    now: () => 3,
+    modelMetadata: () => ({ status: 'unavailable' }),
+    handlers: { queued: () => 0, queuedItems: () => [] },
+  });
+  const session = reduce(initialModel(), { id: 'create', trace: 's', step: 0, time: 1,
+    kind: 'session_created', input: { name: 'Chat', agent: 'zai' } });
+  const cached = reduce(session, { id: 'catalog', trace: 'agents', step: 0, time: 2,
+    kind: 'agent_catalog', input: { agent: 'qoder', updated: 2, models: [{ id: 'sonus', name: 'Sonus' }] } });
+  view.render(cached, { selected: 's', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
+  refs.main.querySelector('.agent-picker-button').click();
+  assert.ok(refs.main.querySelectorAll('.agent-picker-anchor .menu-item')
+    .some(row => row.textContent.includes('Sonus') && !row.disabled));
 });

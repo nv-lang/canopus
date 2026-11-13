@@ -37,7 +37,7 @@ test('workspace: projectless/no-git never offer a fictional branch or a writable
     const done = s.ui.pickWorkspace({ folder });
     await settle();
     assert.equal(s.q('.primary').disabled, true);
-    assert.equal(s.q('select').children.length, 0);
+    assert.equal(s.q('#workspace-source').children.length, 0);
     assert.equal(s.calls.length, folder ? 1 : 0);
     s.q('.actions button').click();
     assert.equal(await done, null);

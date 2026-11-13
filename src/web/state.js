@@ -392,6 +392,7 @@ function apply(session, event) {
       return {
         ...session,
         state: 'refused',
+        selectionPending: false,
         pending: null,
         pendingQuestion: null,
         messages: putMessage(session.messages, index, { ...message, status: 'refused', reason: str(input.reason), expiredQuestion }),
@@ -469,7 +470,7 @@ function apply(session, event) {
       });
       const tools = session.tools.map((x) => (x.status === 'pending' || x.status === 'in_progress' ? { ...x, status: 'cancelled' } : x));
       const tasks = session.tasks.map((x) => (x.status === 'running' ? { ...x, status: 'stopped', finishedAt: event.time } : x));
-      return { ...session, state: 'cancelled', pending: null, pendingQuestion: null, messages, tools, tasks };
+      return { ...session, state: 'cancelled', selectionPending: false, pending: null, pendingQuestion: null, messages, tools, tasks };
     }
 
     case 'turn_usage': {
@@ -581,14 +582,14 @@ function apply(session, event) {
 
     case 'error': {
       // No explicit turn means a session-level failure, not a failure of an arbitrary previous answer.
-      if (!str(input.turn)) return { ...session, state: 'error', pending: null, pendingQuestion: null,
+      if (!str(input.turn)) return { ...session, state: 'error', selectionPending: false, pending: null, pendingQuestion: null,
         switchingTo: '', optionsPending: false,
         messages: [...session.messages, { role: 'session_error', key: `err:${event.id}`, reason: safeError(input.message) }] };
       const { index, message } = agentMessageFor(session.messages, turn);
       const messages = turn && message.status === 'streaming'
         ? putMessage(session.messages, index, { ...message, status: 'error', reason: safeError(input.message) })
         : [...session.messages, { role: 'session_error', key: `err:${event.id}`, turn: str(input.turn), reason: safeError(input.message) }];
-      return { ...session, state: 'error', pending: null, pendingQuestion: null, messages, switchingTo: '', optionsPending: false };
+      return { ...session, state: 'error', selectionPending: false, pending: null, pendingQuestion: null, messages, switchingTo: '', optionsPending: false };
     }
 
     default:
@@ -632,6 +633,8 @@ export function reduce(model, event) {
       route: INTERACTIVE_STATE.route,
       routeState: INTERACTIVE_STATE,
       routeStep: -1,
+      indexStatus: str(event.input.list_status),
+      indexWaitKey: str(event.input.list_wait_key),
       indexTaskNumber: str(event.input.task_number),
       indexTaskTitle: str(event.input.task_title),
       machine: null,
@@ -691,7 +694,11 @@ export function reduce(model, event) {
     return { ...model, sessions: { ...model.sessions, [event.trace]: { ...session, requests: addRequest(session.requests, parseTurnRequest(event.input)) } } };
   }
 
-  const changed = apply(session, event);
+  let changed = apply(session, event);
+  if (session.indexStatus && ['user_message', 'agent_chunk', 'agent_done', 'agent_refused', 'cancel', 'error',
+    'permission_request', 'permission_decision', 'question_request', 'question_resolved'].includes(event.kind)) {
+    changed = { ...changed, indexStatus: '', indexWaitKey: '' };
+  }
   const waiting = changed.pendingQuestion || changed.pending;
   const pausedAt = changed.turnPausedAt;
   const resumes = pausedAt != null && !waiting && changed.state === 'answering';
