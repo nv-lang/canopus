@@ -438,3 +438,31 @@ test('MCP-заметка использует результат того же �
   assert.equal(refs.main.querySelectorAll('.work-row').length, 1);
   assert.deepEqual([...refs.main.querySelectorAll('.row-output')].map(el => el.textContent), ['{}', 'Твоя роль: worker.']);
 });
+test('completed indexed task opens its read-only card after route hydration', () => {
+  const doc = createFakeDocument();
+  const refs = {};
+  for (const name of ['app', 'side', 'main', 'rail', 'status', 'overlay']) {
+    refs[name] = doc.createElement('div');
+    doc.body.append(refs[name]);
+  }
+  const requested = [];
+  const view = createView(doc, refs, {
+    agents: [{ id: 'opencode' }], now: () => 0,
+    handlers: { queued: () => 0, queuedItems: () => [], onTaskDetailsGet: trace => requested.push(trace) },
+  });
+  let model = run([
+    ev('session_created', { name: 'QA', agent: 'opencode', task_number: '038', task_title: 'Историческая задача', task_state: 'done' }),
+    ev('route_state', {}, { step: 1 }),
+  ]);
+  const render = () => view.render(model, { selected: 's1', projects: [], pins: {} }, { state: 'connected' });
+  render();
+  const tab = refs.rail.querySelector('[data-tab="task"]');
+  assert.equal(tab.hidden, false);
+  tab.dispatchEvent(event('click'));
+  assert.deepEqual(requested, ['s1']);
+  model = st.reduce(model, ev('task_details', { number: '038', status: 'done', message: 'Сохранённая постановка' }, { step: 2 }));
+  render();
+  assert.match(refs.rail.textContent, /Сохранённая постановка/);
+  assert.match(refs.rail.textContent, /Выполнена/);
+  assert.doesNotMatch(refs.rail.textContent, /Начать маршрут/);
+});

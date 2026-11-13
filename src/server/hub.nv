@@ -652,6 +652,7 @@ fn indexed_task_records(root str) -> JsonObject {
         ji(entry, "n", jnumber(record, "n"))
         js(entry, "title", jtext(record, "title"))
         js(entry, "status", jtext(record, "status"))
+        js(entry, "directory", "${root}/${name}")
         jput(records, session, JsonValue.object(entry))
     }
     records
@@ -2932,6 +2933,7 @@ export fn Hub mut @handle(conn int, text str) Proc Detach Time -> () {
         @restore_commands.push(RestoreCommand { conn, trace: "", text })
         return
     }
+    if kind == "task_details_get" { @task_details_get(conn, trace); return }
     if kind == "session_warm" {
         if @restoring.get(trace).is_some() { @start_restore(trace) }
         return
@@ -2943,7 +2945,6 @@ export fn Hub mut @handle(conn int, text str) Proc Detach Time -> () {
     }
     if kind == "model_probe" { @start_model_probe(conn, trace, input); return }
     if kind == "session_history_get" { @send_history(conn, trace, input); return }
-    if kind == "task_details_get" { @task_details_get(conn, trace); return }
     ro active_at = @find(trace)
     if kind == "user_message" || kind == "session_source" || kind == "session_agent" || kind == "session_setting" {
         for pending in @handoffs {

@@ -100,19 +100,39 @@ fn Hub @route_titles(doc RouteDoc) -> []str {
 fn Hub mut @task_details_get(conn int, trace str) Time -> () {
     mut input = JsonObject.new()
     ro at = @find(trace)
+    ro indexed_input = match @restoring.get(trace) {
+        Some(item) => jchild(item.object() ?? JsonObject.new(), "input") ?? JsonObject.new()
+        None => JsonObject.new()
+    }
+    ro project = if at >= 0 { @sessions[at].project_id } else { jtext(indexed_input, "project_id") }
+    ro folder = if at >= 0 { @sessions[at].folder } else { jtext(indexed_input, "folder") }
+    mut dir = ""
+    mut number = ""
+    mut message_name = "message.1.md"
+    mut progress_name = "progress.1.md"
     if at >= 0 {
         ro rt = @sessions[at].rt
-        if rt.task_dir.byte_len() > 0 && rt.number.byte_len() > 0 {
-            ro dir = rt.task_dir
-            ro state = jobject(read_file("${task_artifact_dir(dir)}/state.json") ?? (read_file("${dir}/state.json") ?? "")) ?? JsonObject.new()
-            ro message = read_file("${dir}/message.md") ?? (read_file("${dir}/${rt.msg_file(1)}") ?? "")
-            ro progress = read_file("${task_artifact_dir(dir)}/progress.md") ?? (read_file("${task_artifact_dir(dir)}/${rt.prog_file(rt.last_sub())}") ?? "")
-            jput(input, "number", JsonValue.str(rt.number))
-            jput(input, "status", JsonValue.str(jtext(state, "status")))
-            jput(input, "stage", JsonValue.str(jtext(state, "stage")))
-            jput(input, "message", JsonValue.str(message))
-            jput(input, "progress", JsonValue.str(progress))
+        if rt.task_open {
+            dir = rt.task_dir
+            number = rt.number
+            message_name = rt.msg_file(1)
+            progress_name = rt.prog_file(rt.last_sub())
         }
+    }
+    if dir == "" && project != "" && folder != "" {
+        ro indexed = jchild(indexed_task_records("${folder}/doc/tasks"), trace) ?? JsonObject.new()
+        dir = jtext(indexed, "directory")
+        number = task_number_text(jnumber(indexed, "n"))
+    }
+    if dir != "" && number != "" {
+        ro state = jobject(read_file("${task_artifact_dir(dir)}/state.json") ?? "") ?? JsonObject.new()
+        ro message = read_file("${dir}/task/message.md") ?? (read_file("${dir}/message.md") ?? (read_file("${dir}/${message_name}") ?? ""))
+        ro progress = read_file("${task_artifact_dir(dir)}/progress.md") ?? (read_file("${task_artifact_dir(dir)}/${progress_name}") ?? "")
+        jput(input, "number", JsonValue.str(number))
+        jput(input, "status", JsonValue.str(jtext(state, "status")))
+        jput(input, "stage", JsonValue.str(jtext(state, "stage")))
+        jput(input, "message", JsonValue.str(message))
+        jput(input, "progress", JsonValue.str(progress))
     }
     @serial += 1
     @send(conn, "{\"id\":\"srv-${@serial}\",\"trace\":${JsonValue.str(trace).to_str()},\"step\":${@serial},\"kind\":\"task_details\",\"input\":${JsonValue.object(input).to_str()},\"time\":${now_millis()}}")

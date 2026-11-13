@@ -193,9 +193,18 @@ function replayHistory(trace, entries) {
     history = reduce({ ...history, seen: {} }, event);
     Object.assign(seen, history.seen);
   }
-  if (!history.sessions[trace]) return false;
+  const replayed = history.sessions[trace];
+  if (!replayed) return false;
+  const previous = model.sessions[trace];
+  const { indexTaskNumber, indexTaskTitle, indexTaskState, taskDetails } = previous || {};
   model = { ...model, seen: { ...model.seen, ...seen }, sessions: {
-    ...model.sessions, [trace]: history.sessions[trace],
+    ...model.sessions, [trace]: {
+      ...replayed,
+      indexTaskNumber: indexTaskNumber || replayed.indexTaskNumber,
+      indexTaskTitle: indexTaskTitle || replayed.indexTaskTitle,
+      indexTaskState: indexTaskState || replayed.indexTaskState,
+      taskDetails: taskDetails || replayed.taskDetails,
+    },
   } };
   return true;
 }

@@ -260,7 +260,7 @@ export function createView(doc, refs, deps) {
   }
 
   function sidebarTask(s) {
-    return sessionTask(s) || (s.routeStep < 0 && s.indexTaskNumber
+    return sessionTask(s) || ((s.routeStep < 0 || s.indexTaskState === 'done') && s.indexTaskNumber
       ? { number: s.indexTaskNumber, title: s.indexTaskTitle } : null);
   }
 
@@ -2417,7 +2417,7 @@ export function createView(doc, refs, deps) {
     crumb.textContent = parentSession ? parentSession.name : '';
     crumb.dataset.parent = parentSession ? parentSession.id : '';
     crumb.title = parentSession ? t('chat.parent_crumb', { name: parentSession.name }) : '';
-    const taskInfo = sessionTask(session);
+    const taskInfo = sidebarTask(session);
     taskNo.hidden = !taskInfo;
     taskNo.textContent = taskInfo ? taskInfo.number : '';
     taskNo.title = taskInfo ? (taskInfo.title ? t('route.task_no_title', { number: taskInfo.number, title: taskInfo.title }) : t('route.task_head_bare', { number: taskInfo.number })) : '';
@@ -2889,7 +2889,7 @@ export function createView(doc, refs, deps) {
   }
 
   function openTaskDetails(session) {
-    if (!session || !sessionTask(session)) return;
+    if (!session || !sidebarTask(session)) return;
     railOpen = true;
     refs.app.dataset.rail = 'open';
     railButton.setAttribute('aria-pressed', 'true');
@@ -2899,7 +2899,7 @@ export function createView(doc, refs, deps) {
 
   function currentTaskDetails(session) {
     const details = session.taskDetails;
-    return !details?.number || details.number === session.routeState.task?.number ? details : undefined;
+    return !details?.number || details.number === sidebarTask(session)?.number ? details : undefined;
   }
 
   function taskStatusLabel(status) {
@@ -2908,19 +2908,19 @@ export function createView(doc, refs, deps) {
   }
 
   function taskDetailsCard(session) {
-    const task = session.routeState.task;
+    const task = session.routeState?.task?.number ? session.routeState.task : sidebarTask(session);
     if (!task?.number) return card(t('task.details'), h(doc, 'p', { text: t('task.details_missing') }));
     const details = currentTaskDetails(session);
-    const step = session.routeState.steps.find((item) => item.state === 'running');
-    const status = details?.status || task.state;
+    const step = session.routeState?.steps?.find((item) => item.state === 'running');
+    const status = details?.status || task.state || session.indexTaskState;
     const stage = details?.stage || (step && t('route.current_stage', { n: step.n, total: session.routeState.steps.length, title: step.title }));
     const progress = details?.progress?.trim().split('\n').slice(-24).join('\n');
     return card(taskHeading(task),
       h(doc, 'p', { text: `${t('task.details_status')} · ${taskStatusLabel(status)}` }),
-      h(doc, 'p', { text: t('route.task_path', { name: routeName(session.route) }) }),
+      sessionTask(session) ? h(doc, 'p', { text: t('route.task_path', { name: routeName(session.route) }) }) : false,
       stage ? h(doc, 'p', { text: `${t('task.details_stage')} · ${stage}` }) : false,
-      taskRouteProgress(session, current.ui),
-      showSubtasks(session.routeState) && task.subtasks.length ? h(doc, 'section', {},
+      sessionTask(session) ? taskRouteProgress(session, current.ui) : false,
+      sessionTask(session) && showSubtasks(session.routeState) && task.subtasks.length ? h(doc, 'section', {},
         h(doc, 'h4', { text: t('task.checklist') }),
         h(doc, 'ul', { class: 'rsub-list' }, ...task.subtasks.map(sub => subtaskRow(session, task, sub)))) : false,
       h(doc, 'h4', { text: t('task.details_statement') }),
@@ -2973,11 +2973,12 @@ export function createView(doc, refs, deps) {
       return;
     }
     const queued = handlers.queuedItems ? handlers.queuedItems(session.id) : [];
-    if (railTab === 'task' && !sessionTask(session)) railTab = 'info';
-    railTabTask.hidden = !sessionTask(session);
+    const taskInfo = sidebarTask(session);
+    if (railTab === 'task' && !taskInfo) railTab = 'info';
+    railTabTask.hidden = !taskInfo;
     const task = session.routeState?.task;
     const needsDetails = task?.number && (railTab === 'task' || !session.routeState.steps.some(step => step.state === 'running'));
-    const taskKey = needsDetails ? `${session.id}:${task.id}:${session.state}` : '';
+    const taskKey = needsDetails || (railTab === 'task' && taskInfo) ? `${session.id}:${taskInfo?.number}:${session.state}` : '';
     if (taskKey !== requestedTask) {
       requestedTask = taskKey && handlers.onTaskDetailsGet?.(session.id) !== false ? taskKey : '';
     }
