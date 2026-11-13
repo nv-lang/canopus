@@ -330,7 +330,7 @@ test "context: the view holds the used / size and the history of the compactions
     assert(((cx.get("used") ?? JsonValue.null()).int() ?? 0) == 30000 && ((cx.get("size") ?? JsonValue.null()).int() ?? 0) == 200000)
     assert((((cx.get("compactions") ?? JsonValue.null()).array() ?? []JsonValue.new()).len()) == 1)
     ro r = route_reminder("fast", "Тесты", "doc/tasks/007-x/task", "task/007-x")
-    assert(r.contains("«fast»") && r.contains("шаг: Тесты") && r.contains("task/007-x") && r.contains("canopus_task_list"))
+    assert(r.contains("«Быстрый путь»") && r.contains("шаг: Тесты") && r.contains("task/007-x") && r.contains("canopus_task_list"))
     assert(route_reminder("interactive", "", "", "").contains("задачи ещё нет"))
     assert(canopus_task_tool_json().to_str().contains("RULES"))
     assert(canopus_task_list_tool_json().to_str().contains("RULES"))
