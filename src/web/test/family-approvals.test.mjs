@@ -103,3 +103,15 @@ test('режим разрешений можно менять в поле вво
   assert.equal(refs.main.querySelector('textarea'), input);
   assert.equal(input.value, 'Не потерять черновик');
 });
+
+test('newer family capabilities replace restored approval choices without selecting a new mode', () => {
+  const restored = { ...session, optionsTime: 100 };
+  const catalog = { opencode: { updated: 101, options: { mode: 'build', modes: [modes[0]] } } };
+  const [group] = approvalView({ catalog }, restored, []).groups;
+  assert.deepEqual(group.modes, [modes[0]]);
+  assert.equal(group.requested, 'plan');
+  assert.equal(group.actual, '');
+  assert.ok(group.unavailable);
+  catalog.opencode.updated = 99;
+  assert.equal(approvalView({ catalog }, restored, []).label, 'План');
+});

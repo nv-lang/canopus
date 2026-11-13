@@ -9,10 +9,12 @@ export function approvalView(model, session, agents, source = session.source, of
   const families = pool ? agents.map(a => a.id) : [source?.family || shown.agent];
   const groups = [...new Set(families)].map(family => {
     const own = family === shown.agent && session.optionsAgent === family;
-    const options = own ? session.options : model.catalog?.[family]?.options;
-    const modes = offers?.get(JSON.stringify([session.id, family])) || options?.modes || [];
+    const catalog = model.catalog?.[family];
+    const options = own ? session.options : catalog?.options;
+    const catalogModes = catalog?.updated > session.optionsTime ? catalog.options?.modes : undefined;
+    const modes = offers?.get(JSON.stringify([session.id, family])) || (catalogModes?.length ? catalogModes : options?.modes) || [];
     const requested = session.approvals?.[family] || '';
-    const actual = own ? options?.mode || '' : '';
+    const actual = own && modes.some(mode => mode.id === options?.mode) ? options.mode : '';
     const selected = requested || options?.mode || '';
     const mode = modes.find(m => m.id === selected);
     return { family, modes, selected, actual, requested, unset: !requested, name: family === 'qoder' && selected === 'auto' ? 'Авто' : mode?.name || selected,

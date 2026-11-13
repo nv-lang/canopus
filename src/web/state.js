@@ -242,7 +242,7 @@ function apply(session, event) {
   switch (event.kind) {
     case 'session_model': {
       if (event.step <= session.modelStep) return session;
-      return { ...session, model: str(input.model), options: optionsOf(input), optionsAgent: session.agent, optionsPending: false, modelStep: event.step };
+      return { ...session, model: str(input.model), options: optionsOf(input), optionsAgent: session.agent, optionsTime: event.time, optionsPending: false, modelStep: event.step };
     }
     case 'route_state': {
       if (event.step <= session.routeStep) return session;
