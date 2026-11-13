@@ -886,6 +886,7 @@ async function start() {
     }).catch(() => { view.setAgents([], true); agentList = []; modelMetadata = { status: 'unavailable', reason: 'agent_registry_unavailable', family: '', models: [] }; render(); });
   }
   setInterval(() => view.tick(), TICK_MS);
+  setInterval(() => view.tickElapsed(), 100); // «Агент работает 12.3 с» — десятые доли, пока ход меньше минуты
   setInterval(() => { refreshModelMetadata(); render(); }, 30000); // «молчит N мин» в списке обновляется сам
   document.addEventListener('visibilitychange', () => { notifier.visibilityChanged(); refreshModelMetadata(); render(); });
   globalThis.addEventListener('focus', () => { notifier.visibilityChanged(); refreshModelMetadata(); render(); });

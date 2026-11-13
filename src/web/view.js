@@ -165,6 +165,8 @@ export function createView(doc, refs, deps) {
   }
 
   const durationText = (ms) => durationLabel(ms).map(([n, u]) => t(UNIT_KEY[u], { n })).join(' ');
+  // Ход агента: пока идёт меньше минуты — с десятыми («37.4 с»), дальше — обычная длительность.
+  const turnElapsedText = (ms) => ms < 60_000 ? t('unit.s', { n: (Math.max(0, ms) / 1000).toFixed(1) }) : durationText(ms);
   const agoText = (ms) => {
     const a = agoParts(ms, now());
     return t(AGO_KEY[a.unit], { n: a.n });
@@ -2269,8 +2271,8 @@ export function createView(doc, refs, deps) {
         break;
       }
       default: {
-        const dots = h(doc, 'span', { class: 'dots', 'aria-hidden': 'true' }, h(doc, 'i'), h(doc, 'i'), h(doc, 'i'));
-        node.replaceChildren(dots, h(doc, 'span', { text: t('chat.running') }),
+        const orb = h(doc, 'span', { class: 'work-orb', 'aria-hidden': 'true' });
+        node.replaceChildren(orb, h(doc, 'span', { text: t('chat.running') }),
           ...(item.since > 0 ? [h(doc, 'span', { class: 'elapsed', 'data-since': item.since, text: durationText(now() - item.since) })] : []),
           h(doc, 'span', { class: 'silent-note', hidden: true, 'data-last': item.last || 0 },
             h(doc, 'span', { class: 'silent-text' }),
@@ -3477,7 +3479,9 @@ export function createView(doc, refs, deps) {
       }
     }
     for (const node of doc.querySelectorAll('[data-since]')) {
-      const text = durationText(now() - Number(node.dataset.since));
+      const text = node.classList.contains('elapsed')
+        ? turnElapsedText(now() - Number(node.dataset.since))
+        : durationText(now() - Number(node.dataset.since));
       if (node.textContent !== text) node.textContent = text;
     }
     for (const node of doc.querySelectorAll('[data-until]')) {
@@ -3521,6 +3525,13 @@ export function createView(doc, refs, deps) {
   let formSig = '';
   return {
     tick,
+    /** Десятые доли в «Агент работает N.N с» — чаще секундного тика (вызывается отдельным таймером). */
+    tickElapsed() {
+      for (const node of doc.querySelectorAll('.elapsed[data-since]')) {
+        const text = turnElapsedText(now() - Number(node.dataset.since));
+        if (node.textContent !== text) node.textContent = text;
+      }
+    },
     setAgents(next, failed) {
       registryPending = false;
       registryFailed = Boolean(failed);

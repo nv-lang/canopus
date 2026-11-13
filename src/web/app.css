@@ -651,11 +651,18 @@ pre code { font: inherit; }
 
 .item-running { display: flex; align-items: center; gap: 10px; color: var(--fg-muted); font-size: 15px; }
 .elapsed { font-variant-numeric: tabular-nums; }
-.dots { display: inline-flex; gap: 5px; }
-.dots i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: blink 1.2s infinite ease-in-out; }
-.dots i:nth-child(2) { animation-delay: .2s; }
-.dots i:nth-child(3) { animation-delay: .4s; }
-@keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+/* Ход агента: ядро дышит, вокруг по орбите летит комета — кольцо с градиентным хвостом. */
+.work-orb { position: relative; width: 16px; height: 16px; flex: none; }
+.work-orb::before { content: ''; position: absolute; inset: 5px; border-radius: 50%; background: var(--accent); animation: work-core 1.2s ease-in-out infinite; }
+.work-orb::after {
+  content: ''; position: absolute; inset: 0; border-radius: 50%;
+  background: conic-gradient(from 0deg, var(--accent), transparent 75%);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), black calc(100% - 1px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), black calc(100% - 1px));
+  animation: work-comet 1.1s linear infinite;
+}
+@keyframes work-core { 50% { transform: scale(.55); opacity: .45; } }
+@keyframes work-comet { to { transform: rotate(1turn); } }
 
 /* ---- центр: поле ввода ---- */
 
@@ -879,7 +886,7 @@ pre code { font: inherit; }
 /* ---- адаптивность ---- */
 
 @media (prefers-reduced-motion: reduce) {
-  .dot, .dots i, .item-text[data-streaming="true"] .prose > :last-child::after { animation: none; }
+  .dot, .work-orb::before, .work-orb::after, .item-text[data-streaming="true"] .prose > :last-child::after { animation: none; }
   .disclosure .chev, .card-head .chev { transition: none; }
 }
 
