@@ -16,6 +16,7 @@ import { createDictation, speechCtor, createMicPress, micTitleKey, clockText } f
 import { createLocalDictation } from './recorder.js';
 import { createToast } from './toast.js';
 import { h, icon } from './dom.js';
+import { samePath } from './projects.js';
 import { createProjectsUi } from './projects-ui.js';
 import { isAskTool, displayQuestions, expiredReplyPrefix, moveInOrder, byOrder } from './lists.js';
 import { createSideKit } from './session-row.js';
@@ -2672,17 +2673,19 @@ export function createView(doc, refs, deps) {
     return button;
   }
 
-  function envCard(s) {
+  function environmentProject(s) {
+    const assigned = projectById(s.projectId)?.name || s.project || s.projectId;
+    if (assigned || !s.folder) return assigned;
+    const matches = projectsList?.filter(project => project.folders?.some(folder => samePath(folder.path, s.folder)));
+    return matches?.length === 1 ? matches[0].name : '';
+  }
+
+  function envCard(s, project, agent) {
     const row = (iconId, labelKey, value) => h(doc, 'div', { class: 'env-row' },
       icon(doc, iconId),
       h(doc, 'dt', { text: t(labelKey) }),
       h(doc, 'dd', { text: value || t('rail.none'), class: value ? '' : 'muted' }));
-    const shown = shownOf(current.model, s);
-    const latest = s.messages.findLast(message => message.role === 'agent' && message.actual?.family === s.agent)?.actual;
-    const agent = modelLabel(s.agent, latest?.model || s.model || shown.model || shown.options.modelId);
-    const effort = latest?.effort || shown.options.effort;
     const worktree = s.routeState?.task?.worktree || s.routeState?.where?.worktree;
-    const project = projectsList?.find(item => item.id === s.projectId)?.name || s.project || s.projectId;
     const folder = worktree || s.folder;
     const branch = s.routeState?.task?.branch || s.routeState?.where?.branch || s.branch;
     return card(t('rail.env'), h(doc, 'dl', { class: 'env' },
@@ -2690,7 +2693,7 @@ export function createView(doc, refs, deps) {
       row('i-folder', 'rail.folder', s.folder),
       worktree && worktree !== s.folder ? row('i-folder', 'rail.worktree', folder) : false,
       row('i-branch', 'rail.branch', branch),
-      row('i-terminal', 'rail.agent', [agent || agentLabel(s.agent), effort].filter(Boolean).join(' / '))), status);
+      row('i-terminal', 'rail.agent', agent)), status);
   }
 
   function meterNode(pct) {
@@ -2946,6 +2949,19 @@ export function createView(doc, refs, deps) {
 
   let railSig = '';
   let requestedTask = '';
+  function environmentAgent(s) {
+    const shown = shownOf(current.model, s);
+    const latest = s.messages.findLast(message => message.role === 'agent' && message.actual?.family === s.agent)?.actual;
+    const id = s.model || latest?.model || shown.model || shown.options.modelId;
+    const models = pickerModelsFor(s.agent, directModelsFor(s.agent));
+    const model = models.find(item => item.id === id || item.aliases?.includes(id));
+    const agent = modelLabel(s.agent, model?.name || id) || agentLabel(s.agent);
+    const variant = s.agent === 'codex' && codexModelVariant(id);
+    const effort = variant?.[2] || shown.options.effort || (latest?.model === id ? latest?.effort : '');
+    const entry = (model?.efforts || shown.options.efforts).find(item => item.id === effort);
+    return [agent, effort && labelOf('effort', entry || { id: effort, name: effort }).name].filter(Boolean).join(' / ');
+  }
+
   function renderRail(raw) {
     // при смене семьи правая панель называет уже новую (задача 192o)
     const session = raw ? { ...raw, agent: familyOf(raw) } : raw;
@@ -2963,7 +2979,9 @@ export function createView(doc, refs, deps) {
     if (taskKey !== requestedTask) {
       requestedTask = taskKey && handlers.onTaskDetailsGet?.(session.id) !== false ? taskKey : '';
     }
-    const sig = JSON.stringify([railTab, railTab === 'task' ? session.taskDetails : null, session.routeState?.steps, railTab === 'machines' ? machinesPanel.signature(session, queued) : '', railTab === 'request' ? requestPanel.signature(session) : '', session.id, session.projectId, projectsList?.find(item => item.id === session.projectId)?.name, session.project, session.folder, session.branch, session.agent, session.model, session.options, current.model.catalog[session.agent], session.messages.findLast(m => m.actual)?.actual, session.routeState?.where, session.usage, session.outputs,
+    const project = railTab === 'info' ? environmentProject(session) : '';
+    const agent = railTab === 'info' ? environmentAgent(session) : '';
+    const sig = JSON.stringify([railTab, railTab === 'task' ? session.taskDetails : null, session.routeState?.steps, railTab === 'machines' ? machinesPanel.signature(session, queued) : '', railTab === 'request' ? requestPanel.signature(session) : '', session.id, project, session.folder, session.branch, agent, session.routeState?.where, session.usage, session.outputs,
       session.tasks.map((x) => [x.id, x.title, x.status, x.started, x.finishedAt]), session.routeState && session.routeState.task, session.routeState && session.routeState.canopus,
       [...open].filter((k) => k.startsWith('more:') || k.startsWith('sub:') || k === 'ctx-closed'), subMenu]);
     if (sig === railSig) return;
@@ -2977,7 +2995,7 @@ export function createView(doc, refs, deps) {
       ? machinesPanel.render(session, queued)
       : railTab === 'request'
         ? requestPanel.render(session)
-        : [envCard(session), canopusUi.panel(session), subtasksCard(session), contextCard(session), outputsCard(session), tasksCard(session)].filter(Boolean);
+        : [envCard(session, project, agent), canopusUi.panel(session), subtasksCard(session), contextCard(session), outputsCard(session), tasksCard(session)].filter(Boolean);
     refs.rail.replaceChildren(railTabs, ...cards);
   }
 
