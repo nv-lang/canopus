@@ -16,7 +16,8 @@ export function safeError(value) {
   const rules = [
     [/^(NoResult|no_result)$/i, t('delivery.reason_result')],
     [/^(Denied|ModelRefused|model_refused|Refused)$/i, t('delivery.reason_refused')],
-    [/^(MaxTokens|MaxTurnRequests|CeilingReached|max_tokens|max_turn_requests|ceiling_reached)$/i, t('delivery.reason_budget')],
+    [/^(CeilingReached|ceiling_reached)$/i, t('delivery.reason_context_limit')],
+    [/^(MaxTokens|MaxTurnRequests|max_tokens|max_turn_requests)$/i, t('delivery.reason_budget')],
     [/\bagent\b[^\r\n]{0,80}\bnot configured\b|unknown agent/i, t('delivery.reason_registry')],
     [/cannot be started|refused to start|spawn|ENOENT|not found/i, t('delivery.reason_start')],
     [/401|403|unauthori|authenticat|credential/i, t('delivery.reason_auth')],

@@ -360,7 +360,8 @@ fn Hub @ctl_role_call(at int, a JsonObject) -> CtlRes {
     ro want = jtext(a, "role").trim_ascii().to_ascii_lower()
     ro s = @sessions[at]
     mut lines = []str.new()
-    lines.push("Твоя роль: ${role} (сессия ${s.id}).")
+    lines.push("Техническая роль Canopus: ${role} (сессия ${s.id}). Она определяется состоянием задачи и связями сессии. Поручение владельца в чате задаёт, чем заниматься.")
+    if role == "worker" { lines.push("Эта сессия не выполняет роль исполнителя задачи, оркестратора или приёмщика.") }
     if s.rt.parent.byte_len() > 0 { lines.push("Оркестратор — сессия ${s.rt.parent}: ему сдают отчёт (canopus_task submit) и пишут canopus_send {to: \"parent\"}.") }
     ro kids = @cs_kids(s.id).len()
     if kids > 0 { lines.push("Дочерних сессий: ${kids} (canopus_list, canopus_wait {target: \"children\"}).") }

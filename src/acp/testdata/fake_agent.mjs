@@ -167,6 +167,12 @@ async function prompt(id, params) {
       chunk("cwd: " + process.cwd());
       return respond(id, { stopReason: "end_turn" });
     }
+    case "overflow-after-tool": {
+      chunk("partial answer");
+      update({ sessionUpdate: "tool_call", toolCallId: "overflow-tool", title: "Read", kind: "read", status: "pending" });
+      update({ sessionUpdate: "tool_call_update", toolCallId: "overflow-tool", status: "completed" });
+      return write({ jsonrpc: "2.0", id, error: { code: -32000, message: "Prompt is too long" } });
+    }
     case "tools": {
       update({ sessionUpdate: "available_commands_update", availableCommands: [] });
       update({ sessionUpdate: "tool_call", toolCallId: "call_001", title: "Чтение src/main.nv", kind: "read", status: "pending" });

@@ -237,6 +237,25 @@ test "agent: ordinary turn, chunks, end" {
     client.close()
 }
 
+test "agent: context overflow preserves the partial answer and tool result" {
+    mut client = start([])
+    with Link = acp_link(client) {
+        Link.send(req("agent-1", "overflow-after-tool"))
+        ro events = collect_turn(10000)
+        assert(text_of(events) == "partial answer")
+        mut completed = 0
+        for event in events {
+            if event.name == "tool_call_update" && event.input.contains("completed") { completed += 1 }
+        }
+        assert(completed == 1)
+        ro refusal = last_of(events)
+        assert(refusal.kind == EventKind.Refused && refusal.input == FailCode.CeilingReached.name())
+        Link.send(req("agent-2", "continue"))
+        assert(text_of(collect_turn(10000)) == "Echo: continue")
+    }
+    client.close()
+}
+
 test "agent: events carry different source keys" {
     mut client = start([])
     with Link = acp_link(client) {

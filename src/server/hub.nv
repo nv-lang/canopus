@@ -20,7 +20,7 @@ module canopus.server
 import alula.engine.{Engine, Incoming, EventKind, Journal, Store, Link, PartyRequest, FailCode, start_engine, resume_engine, decode_snapshot}
 import canopus.product_machines.{find_machines_dir, load_product_machines}
 import alula.machine_run.{AlulaMachine, AlulaState}
-import canopus.acp.{AcpConfig, AcpClient, AcpImage, AcpPreset, AcpQueued, AskSetup, no_ask, open_client_full, acp_link, page_event, refused_event, TRACE_LIMIT}
+import canopus.acp.{AcpConfig, AcpClient, AcpImage, AcpPreset, AcpQueued, AskSetup, no_ask, open_client_full, acp_link, page_event, refused_event, acp_context_overflow, TRACE_LIMIT}
 import canopus.agent_config.{opencode_env}
 import canopus.config.{pick_prompt, ConfigLayout, load_presets, preset_named, preset_family, DEFAULT_PRESET, presets_reply}
 import canopus.config.{PoolEntry, ModelPool, parse_agent_source, preset_pick_weight, pick_source_json, pool_level_ok, resolve_pool_pinned}
@@ -635,9 +635,32 @@ fn Hub @catalog_lines() -> []str {
 /// The ids of the agents that have a record in the catalog, in the order they were first given.
 export fn Hub @catalog_agents() -> []str => @catalog.keys()
 
+// Older sessions may have a task record without a route attachment. The
+// record's application session is an explicit link, independent of its title.
+fn indexed_task_records(root str) -> JsonObject {
+    mut records = JsonObject.new()
+    for name in dir_names(root) {
+        ro record = jobject(read_file("${root}/${name}/state.json") ?? "") ?? JsonObject.new()
+        ro application = jchild(record, "application") ?? JsonObject.new()
+        ro session = jtext(application, "session")
+        if session == "" || jtext(record, "status") != "done" { continue }
+        if records.get(session).is_some() {
+            jput(records, session, JsonValue.null())
+            continue
+        }
+        mut entry = JsonObject.new()
+        ji(entry, "n", jnumber(record, "n"))
+        js(entry, "title", jtext(record, "title"))
+        js(entry, "status", jtext(record, "status"))
+        jput(records, session, JsonValue.object(entry))
+    }
+    records
+}
+
 /// Small, journal-derived index. No message, request, or tool output is included.
 export fn Hub @session_index() -> str {
     mut entries = []str.new()
+    mut task_indexes = JsonObject.new()
     for key in @restoring.keys() {
         match @restoring.get(key) {
             Some(entry) => entries.push(entry.to_str())
@@ -667,6 +690,24 @@ export fn Hub @session_index() -> str {
         if s.rt.task_open && s.rt.number.byte_len() > 0 {
             jput(input, "task_number", JsonValue.str(s.rt.number))
             jput(input, "task_title", JsonValue.str(s.rt.title))
+            ro task_dir = s.rt.task_dir
+            ro task_state = if task_dir == "" { "" } else {
+                ro record = jobject(read_file("${task_artifact_dir(task_dir)}/state.json") ?? "") ?? JsonObject.new()
+                jtext(record, "status")
+            }
+            jput(input, "task_state", JsonValue.str(if task_state == "" { s.rt.tstate } else { task_state }))
+        } else if s.project_id != "" && s.folder != "" {
+            if !task_indexes.get(s.folder).is_some() {
+                jput(task_indexes, s.folder, JsonValue.object(indexed_task_records("${s.folder}/doc/tasks")))
+            }
+            ro records = jchild(task_indexes, s.folder) ?? JsonObject.new()
+            ro record = jchild(records, s.id) ?? JsonObject.new()
+            ro number = jnumber(record, "n")
+            if number > 0 {
+                js(input, "task_number", task_number_text(number))
+                js(input, "task_title", jtext(record, "title"))
+                js(input, "task_state", jtext(record, "status"))
+            }
         }
         entries.push(event_line("summary-${s.id}", s.id, 0, "session_created", input, s.rt.active_at))
     }
@@ -2529,7 +2570,7 @@ fn Hub mut @poll_context_handoffs() Proc Detach Time -> () {
                             if e.name == "agent_chunk" && job.stage == 1 { job.summary = "${job.summary}${e.input}" }
                             if e.name == "agent_refused" {
                                 ro reason = job.client.last_error()
-                                overflow = reason.contains("context_window_exceeded") || reason.contains("context_exhausted") || reason.contains("context window") || reason.to_ascii_lower().contains("prompt is too long")
+                                overflow = acp_context_overflow(reason)
                                 failed = true
                             }
                             if !real_turn && (e.name == "permission_request" || e.name == "question_request" || e.name == "tool_call") { failed = true }

@@ -273,7 +273,9 @@ export function createView(doc, refs, deps) {
     const attn = attention(s, { now: now(), silentMin: ui.silentMin ?? SILENT_DEFAULT_MIN, unread, acked: (ui.acked || {})[s.id] || '' });
     const attnText = attn.state === 'waiting' ? t('attn.waiting') : attn.state === 'silent' ? t('attn.silent', { n: attn.minutes }) : attn.state === 'error' ? t('attn.error') : attn.state === 'question-timeout' ? t('attn.timeout_short') : '';
     const task = s.routeState?.task;
-    const merge = task?.state === 'done' ? { kind: 'done', text: t('task.details_done') } : mergeLabel(task);
+    const taskState = task?.number ? currentTaskDetails(s)?.status || (task.number === s.indexTaskNumber ? s.indexTaskState : '') || task.state
+      : s.routeStep < 0 ? s.indexTaskState : '';
+    const merge = taskState === 'done' ? { kind: 'done', text: t('task.details_done') } : mergeLabel(task);
     const nameText = h(doc, 'span', { class: 'session-name-text', text: s.name });
     const name = h(doc, 'span', { class: 'session-name' }, nameText);
     const item = sideKit.isRenaming(s.id) ? sideKit.renameField(s) : h(doc, 'button', {
@@ -554,7 +556,7 @@ export function createView(doc, refs, deps) {
       const order = new Map((sectionRows.get(section) || []).map((id, index) => [id, index]));
       return rows.sort((a, b) => (order.get(a.session.id) ?? Infinity) - (order.get(b.session.id) ?? Infinity));
     };
-    const rowSig = (r) => [r.depth, r.kids, r.collapsed, r.session.parent, r.session.id, r.session.name, r.session.state, r.session.updatedAt, r.session.rank, r.session.projectId, (sidebarTask(r.session) || {}).number, ui.unread ? ui.unread[r.session.id] : undefined, Boolean(r.session.pendingQuestion), r.session.routeState?.task?.state, (mergeLabel(r.session.routeState?.task) || {}).text, (() => { const a = attention(r.session, { now: now(), silentMin: ui.silentMin ?? SILENT_DEFAULT_MIN, unread: Boolean(ui.unread && ui.unread[r.session.id] === true), acked: (ui.acked || {})[r.session.id] || '' }); return `${a.state}:${a.blink}:${a.minutes}`; })()];
+    const rowSig = (r) => [r.depth, r.kids, r.collapsed, r.session.parent, r.session.id, r.session.name, r.session.state, r.session.updatedAt, r.session.rank, r.session.projectId, (sidebarTask(r.session) || {}).number, ui.unread ? ui.unread[r.session.id] : undefined, Boolean(r.session.pendingQuestion), r.session.routeState?.task?.state, r.session.indexTaskState, r.session.taskDetails?.status, (mergeLabel(r.session.routeState?.task) || {}).text, (() => { const a = attention(r.session, { now: now(), silentMin: ui.silentMin ?? SILENT_DEFAULT_MIN, unread: Boolean(ui.unread && ui.unread[r.session.id] === true), acked: (ui.acked || {})[r.session.id] || '' }); return `${a.state}:${a.blink}:${a.minutes}`; })()];
     const sig = JSON.stringify([loading?.sessions.phase, ui.selected, activeProject, query, groupMenu, [...placedRows].map(([id, rows]) => [id, rows.map(rowSig)]), [...expandedGroups], sideKit.sig(), groups.pinned.map(rowSig), groups.projects.map((p) => [p.project, p.id, p.rows.map(rowSig)])]);
     const shown = groups.pinned.length + groups.projects.length + placedRows.size;
     listEmpty.hidden = Boolean(loading && (loading.projects.phase !== 'ready' || loading.sessions.phase !== 'ready')) || all.length > 0 || (projectsList !== null && projectsList.length > 0);
@@ -1898,7 +1900,7 @@ export function createView(doc, refs, deps) {
       command ? h(doc, 'code', { class: 'row-command', text: command }) : false,
       input ? h(doc, 'div', { class: 'row-detail-label', text: t('work.input') }) : false,
       input ? h(doc, 'pre', { class: 'row-detail row-output', text: input }) : false,
-      (input && result) || webSearch ? h(doc, 'div', { class: 'row-detail-label', text: t('work.response') }) : false,
+      (input || webSearch) && result ? h(doc, 'div', { class: 'row-detail-label', text: t('work.response') }) : false,
       result || webSearch ? h(doc, toolOutput ? 'pre' : 'div', {
         class: toolOutput ? 'row-detail row-output' : 'row-detail',
         'aria-label': toolOutput ? t('work.output') : undefined, text: result || t('work.no_search_response'),

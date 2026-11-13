@@ -637,6 +637,7 @@ export function reduce(model, event) {
       indexWaitKey: str(event.input.list_wait_key),
       indexTaskNumber: str(event.input.task_number),
       indexTaskTitle: str(event.input.task_title),
+      indexTaskState: str(event.input.task_state),
       machine: null,
       machineAt: 0,
       requests: [],

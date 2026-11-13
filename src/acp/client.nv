@@ -535,11 +535,16 @@ fn AcpClient mut @on_failure(id JsonValue, code int, message str) -> () {
         @active = ""
         @prompt_rpc = -1
         @last_error = "session/prompt failed: ${why}"
-        @refuse(request, FailCode.NoResult)
+        @refuse(request, if acp_context_overflow(why) { FailCode.CeilingReached } else { FailCode.NoResult })
         return
     }
     if @fail_set(key, why) { return }
     @note("an error response nobody waits for: id ${key}: ${why}")
+}
+
+export fn acp_context_overflow(reason str) -> bool {
+    ro lower = reason.to_ascii_lower()
+    lower.contains("context_window_exceeded") || lower.contains("context_exhausted") || lower.contains("context window") || lower.contains("prompt is too long")
 }
 
 fn AcpClient mut @on_update(params JsonValue) -> () {

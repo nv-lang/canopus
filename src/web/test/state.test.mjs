@@ -34,6 +34,20 @@ test('виды событий: девять видов скелета остал
   for (const kind of skeleton) assert.ok(KINDS.includes(kind), kind);
 });
 
+test('session index keeps task completion and chat errors independently', () => {
+  const model = run([ev('session_created', {
+    name: 'Task session',
+    task_number: '035',
+    task_state: 'done',
+    list_status: 'error',
+  })]);
+  const session = model.sessions.s1;
+  assert.equal(session.indexTaskNumber, '035');
+  assert.equal(session.indexTaskState, 'done');
+  assert.equal(session.indexStatus, 'error');
+  assert.equal(session.routeStep, -1);
+});
+
 test('редьюсер детерминирован: два прогона дают один вид, вход не меняется', () => {
   const journal = deepFreeze(INITIAL_JOURNAL.map((e) => ({ ...e })));
   const a = run(journal);

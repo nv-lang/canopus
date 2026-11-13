@@ -171,10 +171,10 @@ function applySessionIndex(entries) {
     const previous = model.sessions[event.trace];
     if (!previous || previous.draft) model = reduce(model, event);
     else {
-      const { name, agent, folder, project_id, rank, task_number, task_title, list_status, list_wait_key } = event.input;
+      const { name, agent, folder, project_id, rank, task_number, task_title, task_state, list_status, list_wait_key } = event.input;
       model = { ...model, sessions: { ...model.sessions, [event.trace]: {
         ...previous, name, agent, folder, projectId: project_id, rank,
-        indexTaskNumber: task_number || '', indexTaskTitle: task_title || '',
+        indexTaskNumber: task_number || '', indexTaskTitle: task_title || '', indexTaskState: task_state || '',
         ...(ui.historyPending.has(event.trace) ? { indexStatus: list_status, indexWaitKey: list_wait_key } : {}),
         updatedAt: Math.max(previous.updatedAt, event.time),
       } } };
