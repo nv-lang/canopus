@@ -657,13 +657,35 @@ fn indexed_task_records(root str) -> JsonObject {
     records
 }
 
+fn add_indexed_task(mut input JsonObject, mut task_indexes JsonObject, session str) -> () {
+    ro folder = jtext(input, "folder")
+    if jtext(input, "project_id") == "" || folder == "" { return }
+    if !task_indexes.get(folder).is_some() {
+        jput(task_indexes, folder, JsonValue.object(indexed_task_records("${folder}/doc/tasks")))
+    }
+    ro records = jchild(task_indexes, folder) ?? JsonObject.new()
+    ro record = jchild(records, session) ?? JsonObject.new()
+    ro number = jnumber(record, "n")
+    if number > 0 {
+        js(input, "task_number", task_number_text(number))
+        js(input, "task_title", jtext(record, "title"))
+        js(input, "task_state", jtext(record, "status"))
+    }
+}
+
 /// Small, journal-derived index. No message, request, or tool output is included.
 export fn Hub @session_index() -> str {
     mut entries = []str.new()
     mut task_indexes = JsonObject.new()
     for key in @restoring.keys() {
         match @restoring.get(key) {
-            Some(entry) => entries.push(entry.to_str())
+            Some(entry) => {
+                mut item = entry.object() ?? JsonObject.new()
+                mut input = jchild(item, "input") ?? JsonObject.new()
+                if jtext(input, "task_number") == "" { add_indexed_task(input, task_indexes, key) }
+                jput(item, "input", JsonValue.object(input))
+                entries.push(JsonValue.object(item).to_str())
+            }
             None => ()
         }
     }
@@ -696,18 +718,8 @@ export fn Hub @session_index() -> str {
                 jtext(record, "status")
             }
             jput(input, "task_state", JsonValue.str(if task_state == "" { s.rt.tstate } else { task_state }))
-        } else if s.project_id != "" && s.folder != "" {
-            if !task_indexes.get(s.folder).is_some() {
-                jput(task_indexes, s.folder, JsonValue.object(indexed_task_records("${s.folder}/doc/tasks")))
-            }
-            ro records = jchild(task_indexes, s.folder) ?? JsonObject.new()
-            ro record = jchild(records, s.id) ?? JsonObject.new()
-            ro number = jnumber(record, "n")
-            if number > 0 {
-                js(input, "task_number", task_number_text(number))
-                js(input, "task_title", jtext(record, "title"))
-                js(input, "task_state", jtext(record, "status"))
-            }
+        } else {
+            add_indexed_task(input, task_indexes, s.id)
         }
         entries.push(event_line("summary-${s.id}", s.id, 0, "session_created", input, s.rt.active_at))
     }
@@ -2447,7 +2459,7 @@ fn Hub mut @start_model_probe(conn int, trace str, input JsonObject) Proc Detach
             with Link = acp_link(client) {
                 Link.send(transfer_request("model-probe", trace, 0, "Ответь ровно одним словом: OK. Не вызывай инструменты."))
             }
-            @model_probes.push(ModelProbe { key, family, client, listeners: [listener], answer: "", deadline: now_millis() + 30000 })
+            @model_probes.push(ModelProbe { key, family, client, listeners: [listener], answer: "", deadline: now_millis() + 60000 })
         }
     }
 }
