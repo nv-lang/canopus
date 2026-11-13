@@ -133,6 +133,19 @@ fn Hub mut @task_details_get(conn int, trace str) Time -> () {
         jput(input, "stage", JsonValue.str(jtext(state, "stage")))
         jput(input, "message", JsonValue.str(message))
         jput(input, "progress", JsonValue.str(progress))
+        ro application = jchild(state, "application") ?? JsonObject.new()
+        ro events = (application.get("events") ?? JsonValue.null()).array() ?? []JsonValue.new()
+        mut review = ""
+        for item in events {
+            ro event = item.object() ?? JsonObject.new()
+            if jtext(event, "name") == "route_review" {
+                ro report = jobject(jtext(event, "text")) ?? JsonObject.new()
+                if jtext(report, "text") != "" { review = jtext(report, "text") }
+            }
+        }
+        jput(input, "review", JsonValue.str(review))
+        ro log = read_file("${task_artifact_dir(dir)}/log.md") ?? ""
+        jput(input, "log", JsonValue.str(log))
     }
     @serial += 1
     @send(conn, "{\"id\":\"srv-${@serial}\",\"trace\":${JsonValue.str(trace).to_str()},\"step\":${@serial},\"kind\":\"task_details\",\"input\":${JsonValue.object(input).to_str()},\"time\":${now_millis()}}")

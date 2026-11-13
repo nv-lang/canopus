@@ -460,9 +460,13 @@ test('completed indexed task opens its read-only card after route hydration', ()
   assert.equal(tab.hidden, false);
   tab.dispatchEvent(event('click'));
   assert.deepEqual(requested, ['s1']);
-  model = st.reduce(model, ev('task_details', { number: '038', status: 'done', message: 'Сохранённая постановка' }, { step: 2 }));
+  model = st.reduce(model, ev('task_details', { number: '038', status: 'done', message: 'Сохранённая постановка', review: 'НЕ ПРИНЯТО', log: 'Выкладка на 7391' }, { step: 2 }));
   render();
   assert.match(refs.rail.textContent, /Сохранённая постановка/);
   assert.match(refs.rail.textContent, /Выполнена/);
+  assert.match(refs.rail.textContent, /Независимая приёмка/);
+  assert.match(refs.rail.textContent, /НЕ ПРИНЯТО/);
+  assert.match(refs.rail.textContent, /Canopus не подтверждает выкладку/);
+  assert.match(refs.rail.textContent, /Выкладка на 7391/);
   assert.doesNotMatch(refs.rail.textContent, /Начать маршрут/);
 });
