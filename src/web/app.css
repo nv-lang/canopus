@@ -386,11 +386,9 @@ input, select, textarea {
 }
 
 .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: transparent; }
-.dot[data-state="answering"] { background: var(--accent); animation: pulse 1.4s ease-in-out infinite; }
 .dot[data-state="permission"] { background: var(--warn); }
 .dot[data-state="refused"], .dot[data-state="error"] { background: var(--danger); }
 .dot[data-state="cancelled"] { background: var(--fg-muted); }
-@keyframes pulse { 50% { opacity: .35; } }
 
 .more-btn {
   min-height: 0;
@@ -651,10 +649,18 @@ pre code { font: inherit; }
 
 .item-running { display: flex; align-items: center; gap: 10px; color: var(--fg-muted); font-size: 15px; }
 .elapsed { font-variant-numeric: tabular-nums; }
-/* Ход агента: ядро дышит, вокруг по орбите летит комета — кольцо с градиентным хвостом. */
-.work-orb { position: relative; width: 16px; height: 16px; flex: none; }
-.work-orb::before { content: ''; position: absolute; inset: 5px; border-radius: 50%; background: var(--accent); animation: work-core 1.2s ease-in-out infinite; }
-.work-orb::after {
+/* Ход агента: пульсар — ядро вспыхивает, от него расходятся круги. */
+.work-pulsar { position: relative; width: 18px; height: 18px; flex: none; }
+.work-pulsar i { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid var(--accent); opacity: 0; animation: pulsar-ripple 1.9s cubic-bezier(.2, .6, .4, 1) infinite; }
+.work-pulsar i:nth-child(2) { animation-delay: .63s; }
+.work-pulsar i:nth-child(3) { animation-delay: 1.26s; }
+.work-pulsar b { position: absolute; inset: 6px; border-radius: 50%; background: var(--accent-fg); box-shadow: 0 0 5px 2px var(--accent); animation: pulsar-flare 1.9s ease-in-out infinite; }
+@keyframes pulsar-ripple { 0% { transform: scale(.25); opacity: .9; } 70% { opacity: .25; } 100% { transform: scale(1.25); opacity: 0; } }
+@keyframes pulsar-flare { 0%, 100% { transform: scale(1); } 12% { transform: scale(1.35); } 30% { transform: scale(.9); } }
+/* Работающая сессия в списке: комета на орбите. */
+.dot[data-state="answering"] { position: relative; width: 16px; height: 16px; background: transparent; }
+.dot[data-state="answering"]::before { content: ''; position: absolute; inset: 5px; border-radius: 50%; background: var(--accent); animation: work-core 1.2s ease-in-out infinite; }
+.dot[data-state="answering"]::after {
   content: ''; position: absolute; inset: 0; border-radius: 50%;
   background: conic-gradient(from 0deg, var(--accent), transparent 75%);
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), black calc(100% - 1px));
@@ -886,7 +892,7 @@ pre code { font: inherit; }
 /* ---- адаптивность ---- */
 
 @media (prefers-reduced-motion: reduce) {
-  .dot, .work-orb::before, .work-orb::after, .item-text[data-streaming="true"] .prose > :last-child::after { animation: none; }
+  .dot, .work-pulsar i, .work-pulsar b, .dot[data-state="answering"]::before, .dot[data-state="answering"]::after, .item-text[data-streaming="true"] .prose > :last-child::after { animation: none; }
   .disclosure .chev, .card-head .chev { transition: none; }
 }
 

@@ -2271,8 +2271,8 @@ export function createView(doc, refs, deps) {
         break;
       }
       default: {
-        const orb = h(doc, 'span', { class: 'work-orb', 'aria-hidden': 'true' });
-        node.replaceChildren(orb, h(doc, 'span', { text: t('chat.running') }),
+        const pulsar = h(doc, 'span', { class: 'work-pulsar', 'aria-hidden': 'true' }, h(doc, 'i'), h(doc, 'i'), h(doc, 'i'), h(doc, 'b'));
+        node.replaceChildren(pulsar, h(doc, 'span', { text: t('chat.running') }),
           ...(item.since > 0 ? [h(doc, 'span', { class: 'elapsed', 'data-since': item.since, text: durationText(now() - item.since) })] : []),
           h(doc, 'span', { class: 'silent-note', hidden: true, 'data-last': item.last || 0 },
             h(doc, 'span', { class: 'silent-text' }),
