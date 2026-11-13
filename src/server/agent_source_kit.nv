@@ -158,6 +158,7 @@ export fn scenario_context_handoff(settings ServerSettings, previous str, target
     mut configured = ServerSettings { ...settings }
     configured.agents.push(kit_agent(previous, "--handoff-summary", ""))
     configured.agents.push(kit_agent(target, "--handoff-overflow", ""))
+    configured.agents.push(kit_agent("cached-destination", "--handoff-overflow", ""))
     mut rig = rig_open(configured)
     mut c = kit_check()
     rig.attach(1)
@@ -209,6 +210,11 @@ export fn scenario_context_handoff(settings ServerSettings, previous str, target
         ro saved = resumed.hub.handoff_checkpoint(dialog, dialog.lines.len())
         c.expect(jtext(saved, "summary").contains("earlier decision preserved") && jtext(saved, "tail").contains("first fact"),
             "restart reuses the checkpoint anchored in the original history")
+        resumed.forget()
+        resumed.page(1, "user_message", "s-handoff", "{\"text\":\"cached-question\",\"handoff\":{\"family\":\"cached-destination\",\"model\":\"fake-model-b\"}}")
+        c.expect(resumed.until("fixture: history and question in one prompt", 15000), "a later handoff sends the saved summary with the new question")
+        c.expect(resumed.until(KIT_DONE, 15000), "the cached handoff completes")
+        c.expect(kit_with(resumed.lines_for(1), "\"kind\":\"handoff_progress\"") == 0, "the cached handoff skips a second compaction")
     } else { c.expect(false, "the handoff session restores") }
     resumed.shut()
     c.report()

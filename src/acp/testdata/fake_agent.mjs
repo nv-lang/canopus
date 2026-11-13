@@ -127,8 +127,9 @@ async function prompt(id, params) {
   }
   if (args.includes("--handoff-overflow") && plain.startsWith("История чата для ответа на новое сообщение.")) {
     const [history, question] = plain.split("[Новое сообщение пользователя]");
+    const expected = question?.includes("cached-question") ? "cached-question" : "combined-question";
     if (!history.includes("fixture: earlier decision preserved") || !history.includes("first fact")
-        || !question?.includes("combined-question") || history.includes("combined-question")) {
+        || !question?.includes(expected) || history.includes(expected)) {
       return write({ jsonrpc: "2.0", id, error: { code: -32000, message: "missing history or new message" } });
     }
     chunk("fixture: history and question in one prompt");
