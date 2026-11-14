@@ -147,6 +147,14 @@ export function createView(doc, refs, deps) {
     return a ? (a.labelKey ? t(a.labelKey) : (a.label || a.id)) : id;
   };
 
+  // Полное имя источника для сообщений: «Агент Модель» или «Агент · пул · уровень».
+  const sourceLabel = (source) => {
+    if (!source) return '';
+    const parts = [source.pool ? agentLabel(source.family) : modelLabel(source.family, source.model)];
+    if (source.pool) parts.push(`${source.pool} · ${source.level}`);
+    return parts.filter(Boolean).join(' / ');
+  };
+
   function modelLabel(family, model) {
     const label = agentLabel(family);
     if (!label || !model) return model;
@@ -1013,7 +1021,6 @@ export function createView(doc, refs, deps) {
     if (presetSelect.dataset.draft === 'true') handlers.onDraftPreset(currentTrace, presetSelect.value); else handlers.onSessionPreset(currentTrace, presetSelect.value);
   });
   // Задача 192.4: где идёт работа (main, ветка папки проекта или своя ветка wip/задачи)
-  // Задача 192.6: подпись — отдельной строкой под строкой чипов, чтобы не отнимать у них ширину
   const whereNote = h(doc, 'p', { class: 'where-note', hidden: true });
   const menu = h(doc, 'div', { class: 'menu composer-menu', role: 'menu', hidden: true });
   const modelProbe = h(doc, 'span', { class: 'model-probe item-handoff', role: 'status', hidden: true });
@@ -1125,7 +1132,7 @@ export function createView(doc, refs, deps) {
     const viewportWidth = win?.innerWidth || doc.documentElement?.clientWidth;
     const viewportHeight = win?.innerHeight || doc.documentElement?.clientHeight;
     if (!viewportWidth || !viewportHeight) return;
-    const bounds = menuKind === 'mode' ? { left: 0, right: viewportWidth } : chat.getBoundingClientRect();
+    const bounds = ['mode', 'result'].includes(menuKind) ? { left: 0, right: viewportWidth } : chat.getBoundingClientRect();
     const gap = 8;
     const minLeft = Math.max(gap, bounds.left + gap);
     const right = Math.min(viewportWidth, bounds.right) - gap;
@@ -2433,7 +2440,7 @@ export function createView(doc, refs, deps) {
     const handoff = ui.handoffStatus?.get(session.id);
     const handoffText = handoff?.phase === 'error' ? handoff.message
       : handoff?.compacting ? t('handoff.compacting')
-      : handoff?.phase === 'preparing' ? t('handoff.preparing', { agent: agentLabel(handoff.source.family) }) : '';
+      : handoff?.phase === 'preparing' ? t('handoff.preparing', { agent: sourceLabel(handoff.source) }) : '';
     const queued = handlers.queued(session.id);
     queueButton.hidden = queued === 0;
     if (queued > 0) queueButton.textContent = t('composer.queued', { n: queued });
@@ -2497,9 +2504,6 @@ export function createView(doc, refs, deps) {
       presetSelect.value = chosen;
       presetSelect.dataset.draft = String(Boolean(session.draft));
     }
-    whereNote.hidden = !worktreeButton.hidden;
-    whereNote.textContent = whereNote.hidden ? '' : whereText(session);
-    whereNote.title = whereNote.textContent;
     // Задача 265: текущий агент виден при любом числе доступных. Выбора нет (0/1 агент) — чип приглушён,
     // а подсказка называет фактическую причину, а не прячет чип.
     // session_source confirms the current pin. agent_selected may describe an earlier turn.
@@ -2561,6 +2565,9 @@ export function createView(doc, refs, deps) {
     statusModel.textContent = shown.model || (shown.loading ? t('session.loading') : t('session.model_unknown'));
     statusModel.title = hasModels ? '' : paramWhy(t('status.model_unsupported'));
     resultRepoButton.parentNode.hidden = resultRepoButton.hidden;
+    whereNote.hidden = !worktreeButton.hidden;
+    whereNote.textContent = whereNote.hidden ? '' : whereText(session);
+    whereNote.title = whereNote.textContent;
     status.dataset.empty = String(worktreeButton.hidden && !whereNote.textContent && resultRepoButton.hidden && presetSelect.hidden);
     boxBar.dataset.empty = 'false';
     if (menuKind === 'agent') renderMenu();
@@ -2856,8 +2863,16 @@ export function createView(doc, refs, deps) {
     if (!task) return false;
     const newTask = h(doc, 'button', { type: 'button', class: 'link-btn', text: t('route.new_task') });
     newTask.addEventListener('click', () => confirmDetachTask(s));
+    const session = s;
+    const stage = session.routeState.steps.find(step => step.state === 'running');
+    const details = currentTaskDetails(session);
+    const entries = details?.progress?.trim().split(/\r?\n/).filter(line => line.trim()) || [];
+    const lastHeading = entries.findLast(line => /^#{2,6}\s+/.test(line));
+    const latest = lastHeading?.replace(/^#{2,6}\s+/, '') || entries.findLast(line => !line.startsWith('#'));
+    const progress = stage ? t('route.current_stage', { n: stage.n, total: session.routeState.steps.length, title: stage.title }) : [taskStatusLabel(details?.status || session.routeState.task.state), latest, showStrip(session.routeState) ? routeName(session.route) + ' · ' + t('route.counter', { done: session.routeState.steps.filter(step => step.state === 'done').length, total: session.routeState.steps.length }) : ''].filter(Boolean).join(' · ');
     const label = mergeLabel(task);
     return card(taskHeading(task),
+      progress ? h(doc, 'p', { class: 'rsub-task', text: progress }) : false,
       task.number ? taskDetailsButton(s) : false,
       label ? h(doc, 'p', { class: 'rsub-label', 'data-kind': label.kind, text: label.text }) : false,
       task.branch ? h(doc, 'p', { class: 'rsub-task', text: t('route.task_branch', { branch: task.branch }) }) : false,
