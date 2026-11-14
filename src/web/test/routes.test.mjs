@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
-  ROUTES, CHAT_MODES, DEFAULT_ROUTE, INTERACTIVE_STATE, STEP_ICON, STEP_STATE_KEY, normalizeRoute, routeName, routeDescription, parseRouteState,
+  ROUTES, CHAT_MODES, DEFAULT_ROUTE, INTERACTIVE_STATE, STEP_ICON, STEP_STATE_KEY, normalizeRoute, routeName, taskRouteName, routeDescription, parseRouteState,
   stepCounter, counterText, stepToSkip, showStrip, stripActions, subtaskPercent, subtaskProgressText, routeSignal,
   subtaskCountText, showSubtasks, taskHeading, subtaskActions, hasSubtaskActions, bannerCount, subtaskNotes,
   commitsText, filesText, mergeLabel, diffTotals, finishPrompt, readyPrompt, overlapPrompt, parseWhere, whereText, wipStalePrompt,
@@ -32,6 +32,18 @@ test('четыре режима по порядку, у каждого назв�
     assert.ok(!routeDescription(r.id).includes('\n'), 'описание в одну строку');
   }
   assert.deepEqual(ROUTES.map((r) => r.hasSteps), [false, true, true, false]);
+});
+
+test('задача 295: имя маршрута задачи одно (taskRouteName): у интерактивного «Малый путь», низ чата и карточка задачи берут его', () => {
+  assert.equal(taskRouteName('interactive'), 'Малый путь');
+  assert.equal(taskRouteName('interactive'), S['canopustask.run_interactive'], 'та же строка, что в форме выбора маршрута задачи');
+  for (const id of ['fast', 'full', 'planning']) assert.equal(taskRouteName(id), routeName(id), id);
+  assert.equal(taskRouteName('мусор'), 'Малый путь');
+  const strip = view.slice(view.indexOf('taskRouteLabel.textContent'), view.indexOf('taskRouteLabel.textContent') + 200);
+  assert.match(strip, /t\('route\.task_path', \{ name: taskRouteName\(executionRoute\) \}\)/);
+  const card = view.slice(view.indexOf('function taskDetailsCard'), view.indexOf('function taskDetailsCard') + 2200);
+  assert.match(card, /t\('route\.task_path', \{ name: taskRouteName\(session\.route\) \}\)/);
+  assert.doesNotMatch(card, /routeName\(session\.route\)/, 'карточка не берёт имя режима «Выполнение»');
 });
 
 test('normalizeRoute: неизвестное значение — интерактивный', () => {

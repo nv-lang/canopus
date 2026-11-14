@@ -43,7 +43,7 @@ import {
 } from './state.js';
 import { attention, SILENT_DEFAULT_MIN } from './attention.js';
 import {
-  CHAT_MODES, STEP_STATE_KEY, SUBTASK_STATE_KEY, routeName, routeDescription, showStrip, stripActions,
+  CHAT_MODES, STEP_STATE_KEY, SUBTASK_STATE_KEY, routeName, taskRouteName, routeDescription, showStrip, stripActions,
   subtaskPercent, subtaskProgressText, showSubtasks, INTERACTIVE_STATE, NOTE_KEY, taskHeading, subtaskActions, hasSubtaskActions, bannerCount, subtaskCountText,
   mergeLabel, diffTotals, finishPrompt, readyPrompt, overlapPrompt, commitsText, filesText, branchTestsText, mainTestsText, testsRunnable, stalePrompt, whereText, wipStalePrompt,
 } from './routes.js';
@@ -2453,7 +2453,7 @@ export function createView(doc, refs, deps) {
     const executionRoute = session.route || INTERACTIVE_STATE.route;
     currentRoute = executionRoute === 'planning' ? 'planning' : 'interactive';
     taskRouteLabel.hidden = !session.routeState?.task || executionRoute === 'planning' || showStrip(session.routeState);
-    taskRouteLabel.textContent = t('route.task_path', { name: executionRoute === 'interactive' ? t('canopustask.run_interactive') : routeName(executionRoute) });
+    taskRouteLabel.textContent = t('route.task_path', { name: taskRouteName(executionRoute) });
     routeButton.hidden = false;
     routeButton.dataset.route = currentRoute;
     routeButton.replaceChildren(h(doc, 'span', { text: routeName(currentRoute) }));
@@ -2937,7 +2937,7 @@ export function createView(doc, refs, deps) {
     const progress = details?.progress?.trim().split('\n').slice(-24).join('\n');
     return card(taskHeading(task),
       h(doc, 'p', { text: `${t('task.details_status')} · ${taskStatusLabel(status)}` }),
-      sessionTask(session) ? h(doc, 'p', { text: t('route.task_path', { name: routeName(session.route) }) }) : false,
+      sessionTask(session) ? h(doc, 'p', { text: t('route.task_path', { name: taskRouteName(session.route) }) }) : false,
       stage ? h(doc, 'p', { text: `${t('task.details_stage')} · ${stage}` }) : false,
       sessionTask(session) ? taskRouteProgress(session, current.ui) : false,
       sessionTask(session) && showSubtasks(session.routeState) && task.subtasks.length ? h(doc, 'section', {},
