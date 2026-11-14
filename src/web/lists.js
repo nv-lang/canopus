@@ -196,12 +196,17 @@ export function displayQuestions(session, form) {
       if (Array.isArray(payload?.questions)) source = payload.questions;
     } catch { /* The provider did not supply structured question text. */ }
   }
-  return form.questions.map((q, i) => {
-    if (!/^answer questions[?]?$/iu.test(q.question.trim())) return q;
+  // задача 294: запись, у которой после подмены нет ни текста вопроса, ни вариантов, отбраковывается —
+  // пустой карточкой она не показывается. sourceIndex хранит исходный номер: ответ серверу (ask.nv
+  // question_response) ищет ответы по индексам исходной формы.
+  const mapped = form.questions.map((q, i) => {
+    if (!/^answer questions[?]?$/iu.test(q.question.trim())) return { ...q, sourceIndex: i };
     const original = source.length === form.questions.length ? source[i]?.question : '';
     const header = typeof original === 'string' && original.trim() ? original.trim() : q.header.trim();
-    return { ...q, question: header && !/^answer questions[?]?$/iu.test(header) ? header : '' };
+    return { ...q, question: header && !/^answer questions[?]?$/iu.test(header) ? header : '', sourceIndex: i };
   });
+  const kept = mapped.filter(q => q.question.trim() || q.options.length > 0);
+  return kept.length > 0 ? kept : form.questions; // пусто всё — оставляем как было: пропуск остаётся доступен
 }
 
 export const expiredReplyPrefix = q => t('ask.reply_draft', { question: q.question ? ` «${q.question}»` : '' });

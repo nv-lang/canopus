@@ -270,3 +270,51 @@ test('заглушка: вопрос по просьбе владельца — 
   assert.equal(m.sessions[trace].pendingQuestion, null);
   assert.equal(m.sessions[trace].state, 'idle');
 });
+
+// ---- задача 294: пустой вопрос в форме не показывается карточкой без текста и вариантов ----
+
+import { displayQuestions } from '../lists.js';
+
+const qoderForm = (questions) => ({ turn: 't1', request: 'r1', questions });
+
+test('displayQuestions: подмена плейсхолдера, который не восстановился, отбраковывается, а не пустой карточкой', () => {
+  const session = { agent: 'qoder', tools: [] };
+  const form = qoderForm([
+    { question: 'Answer questions?', header: '', multiSelect: false, options: [] }, // оригинал не найден — пусто
+    { question: 'Answer questions?', header: '', multiSelect: false, options: [{ label: 'Да', description: '' }, { label: 'Нет', description: '' }] },
+  ]);
+  const shown = displayQuestions(session, form);
+  assert.equal(shown.length, 1); // первый отброшен: ни текста, ни вариантов
+  assert.equal(shown[0].options.length, 2);
+  assert.equal(shown[0].sourceIndex, 1); // исходный индекс для ответа серверу сохранён
+});
+
+test('displayQuestions: все записи пустые — форма не пустеет (пропуск доступен)', () => {
+  const shown = displayQuestions({ agent: 'qoder', tools: [] }, qoderForm([
+    { question: 'Answer questions?', header: '', multiSelect: false, options: [] },
+  ]));
+  assert.equal(shown.length, 1);
+});
+
+test('displayQuestions: восстановленный текст остаётся, порядковые индексы не сбиваются', () => {
+  const detail = JSON.stringify({ questions: [{ question: 'Как быть?' }, { question: '' }] });
+  const session = { agent: 'qoder', tools: [{ turn: 't1', id: 'c1', title: 'AskUserQuestion', detail }] };
+  const form = qoderForm([
+    { question: 'Answer questions?', header: '', multiSelect: false, options: [{ label: 'А', description: '' }] },
+    { question: 'Answer questions?', header: '', multiSelect: false, options: [] },
+  ]);
+  const shown = displayQuestions(session, form);
+  assert.equal(shown.length, 1);
+  assert.equal(shown[0].question, 'Как быть?');
+  assert.equal(shown[0].sourceIndex, 0);
+});
+
+test('buildAnswer: индекс ответа — исходный номер вопроса, а не позиции после отбраковки', () => {
+  const shown = displayQuestions({ agent: 'qoder', tools: [] }, qoderForm([
+    { question: 'Answer questions?', header: '', multiSelect: false, options: [] },
+    { question: 'Answer questions?', header: '', multiSelect: false, options: [{ label: 'Да', description: '' }, { label: 'Нет', description: '' }] },
+  ]));
+  const f = selectOption(createForm(shown), shown, 0, 0);
+  const answer = buildAnswer('r1', f, shown);
+  assert.deepEqual(answer.answers, [{ index: 1, selected: ['Да'], other: '' }]);
+});

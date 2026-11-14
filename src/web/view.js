@@ -3412,7 +3412,8 @@ export function createView(doc, refs, deps) {
       }
       return;
     }
-    if (!askForms.has(key)) askForms.set(key, createForm(pq.questions));
+    // задача 294: форма строится по показанному списку (displayQuestions мог отбраковать пустые вопросы)
+    if (!askForms.has(key)) askForms.set(key, createForm(displayQuestions(session, pq)));
     buildAsk(session.id, pq, key);
     askCard.hidden = false;
     askWrap.hidden = false;

@@ -133,7 +133,8 @@ export function buildAnswer(request, form, questions) {
     answers: questions.map((q, index) => {
       const a = form.answers[index];
       return {
-        index,
+        // задача 294: после отбраковки пустых вопросов сервер ждёт индексы исходной формы (displayQuestions)
+        index: q.sourceIndex ?? index,
         selected: a.picked.map((oi) => q.options[oi].label),
         other: a.other ? a.text.trim() : '',
       };
