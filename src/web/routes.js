@@ -58,6 +58,11 @@ export function routeInfo(id) {
 export const routeName = (id) => t(routeInfo(id).nameKey);
 export const routeDescription = (id) => t(routeInfo(id).descKey);
 
+/** Имя маршрута задачи для подписи «Маршрут: …» (задача 295): у интерактивного — «Малый путь»
+ *  (строка формы выбора маршрута canopustask.run_interactive), у остальных — название режима.
+ *  Одна функция для всех подписей: низ чата и карточка задачи не расходятся. */
+export const taskRouteName = (id) => (normalizeRoute(id) === 'interactive' ? t('canopustask.run_interactive') : routeName(id));
+
 function parseItems(list) {
   if (!Array.isArray(list)) return [];
   return list.filter(isObject).map((x) => ({ text: str(x.text), done: x.done === true }));
