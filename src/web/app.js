@@ -821,6 +821,8 @@ const handlers = {
   onRouteSubtaskWorktree(trace, n) { send(...signal(trace, routeSignal.subtaskWorktree(n))); },
   onRouteSubtaskDone(trace, n) { send(...signal(trace, routeSignal.subtaskDone(n))); },
   onRouteNewTask(trace) { send(...signal(trace, routeSignal.newTask())); },
+  // «Закрыть задачу» (задача 295): слово владельца о том, что работа завершена; хаб ставит состояние done.
+  onTaskClose(trace, n) { send(...signal(trace, routeSignal.taskClose())); },
   // «Слить в main» — слово владельца на push в origin/main (хаб сам коммитит оставленное агентом одним коммитом, тесты не гоняет)
   onRouteMerge(trace) { send(...signal(trace, routeSignal.merge())); },
   // Отладочное состояние машины (задача 192.1): явный запрос; ответ вернётся событием machine_state, в журнал оно не пишется.

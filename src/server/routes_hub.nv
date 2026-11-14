@@ -227,6 +227,16 @@ fn Hub mut @rt_task_op(at int, op str, mut fields JsonObject) Proc Detach Time -
     @rt_journal(at, "route_task", JsonValue.object(fields).to_str())
 }
 
+// «Закрыть задачу» (задача 295): слово владельца из панели «Задача»; состояние done закрывает задачу (rt_task_op state done).
+fn Hub mut @route_task_close(trace str) Proc Detach Time -> () {
+    ro at = @find(trace)
+    if at < 0 { return }
+    ro s = @sessions[at]
+    if !s.rt.task_open || s.rt.task_closed { return }
+    @rt_state(at, "done", "закрыта владельцем из UI")
+    @route_broadcast(at, false)
+}
+
 fn Hub mut @rt_note(at int, text str) Proc Detach Time -> () {
     @rt_journal(at, "route_note", note_text(text))
 }

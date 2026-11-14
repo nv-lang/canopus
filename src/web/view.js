@@ -44,7 +44,7 @@ import {
 import { attention, SILENT_DEFAULT_MIN } from './attention.js';
 import {
   CHAT_MODES, STEP_STATE_KEY, SUBTASK_STATE_KEY, routeName, taskRouteName, routeDescription, showStrip, stripActions,
-  subtaskPercent, subtaskProgressText, showSubtasks, INTERACTIVE_STATE, NOTE_KEY, taskHeading, subtaskActions, hasSubtaskActions, bannerCount, subtaskCountText,
+  subtaskPercent, subtaskProgressText, showSubtasks, INTERACTIVE_STATE, NOTE_KEY, taskHeading, subtaskActions, hasSubtaskActions, bannerCount, subtaskCountText, taskCloseAvailable,
   mergeLabel, diffTotals, finishPrompt, readyPrompt, overlapPrompt, commitsText, filesText, branchTestsText, mainTestsText, testsRunnable, stalePrompt, whereText, wipStalePrompt,
 } from './routes.js';
 
@@ -2937,8 +2937,14 @@ export function createView(doc, refs, deps) {
     const status = details?.status || task.state || session.indexTaskState;
     const stage = details?.stage || (step && t('route.current_stage', { n: step.n, total: session.routeState.steps.length, title: step.title }));
     const progress = details?.progress?.trim().split('\n').slice(-24).join('\n');
+    // «Закрыть задачу» (задача 295): слово владельца, сервер ставит состояние done
+    const closeButton = taskCloseAvailable({ state: status })
+      ? h(doc, 'button', { type: 'button', class: 'link-btn task-close-btn', text: t('task.details_close'), title: t('task.details_close') })
+      : false;
+    if (closeButton) closeButton.addEventListener('click', () => handlers.onTaskClose(session.id));
     return card(taskHeading(task),
-      h(doc, 'p', { text: `${t('task.details_status')} · ${taskStatusLabel(status)}` }),
+      h(doc, 'p', { class: 'task-status-row' }, `${t('task.details_status')} · ${taskStatusLabel(status)}`,
+        closeButton),
       sessionTask(session) ? h(doc, 'p', { text: t('route.task_path', { name: taskRouteName(session.route) }) }) : false,
       stage ? h(doc, 'p', { text: `${t('task.details_stage')} · ${stage}` }) : false,
       sessionTask(session) ? taskRouteProgress(session, current.ui) : false,
