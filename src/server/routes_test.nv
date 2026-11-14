@@ -2,9 +2,10 @@
 // the rule "extend the subtask or open a new one", the state `route_state` for the page, the choice of the independent reviewer.
 module canopus.server
 
+// ORACLE-WORKAROUND(32): std.fs imported first so Vec.join is not resolved as Path.join (item-32 family, 0.1.4 toolchain).
+import std.fs.{Fs, real_fs, read_text}
 import alula.engine.{Incoming}
 import std.encoding.json.{Json, JsonValue, JsonObject}
-import std.fs.{Fs, real_fs, read_text}
 
 test "315: explaining the context counter does not finish task 311" {
     mut rt = route_session_new()
