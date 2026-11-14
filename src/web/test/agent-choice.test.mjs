@@ -110,6 +110,24 @@ test('компактный селектор отправляет direct source �
   assert.deepEqual(sources, [['s', { family: 'opencode', model: 'm1', effort: 'high' }]]);
 });
 
+test('пустой effort источника не перекрывает выбранное усилие сессии (задача 292)', () => {
+  const doc = createFakeDocument(); const refs = {};
+  for (const key of ['app', 'side', 'main', 'rail', 'status', 'overlay']) { refs[key] = doc.createElement('div'); doc.body.append(refs[key]); }
+  const presets = { active: 'default', presets: [{ name: 'default', roles: {}, pools: {} }] };
+  const metadata = { status: 'ready', family: 'opencode', source: 'opencode.api.model', sourceVersion: '2.2.5', observedAt: 1, expiresAt: 1000, complete: false, permissionsStatus: 'blocked', models: [{ id: 'm1', name: 'Model One', efforts: [{ id: 'low', name: 'Low' }, { id: 'high', name: 'High' }, { id: 'xhigh', name: 'XHigh' }] }] };
+  const view = createView(doc, refs, { agents: [{ id: 'opencode' }], now: () => 0, presets: () => presets, modelMetadata: () => metadata, handlers: { queued: () => 0, queuedItems: () => [] } });
+  let model = reduce(initialModel(), { id: 'create', trace: 's', step: 0, time: 1, kind: 'session_created', input: { name: 'Проверка', agent: 'opencode' } });
+  // смена агента выбрала xhigh, а session_source из job.source пришёл с пустым effort
+  model = reduce(model, { id: 'sel', trace: 's', step: 1, time: 2, kind: 'agent_selected', input: { family: 'opencode', model: 'm1', effort: 'xhigh', pool: '', level: '' } });
+  model = reduce(model, { id: 'src', trace: 's', step: 2, time: 3, kind: 'session_source', input: { family: 'opencode', model: 'm1', effort: '' } });
+  view.render(model, { selected: 's', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
+  refs.main.querySelector('.effort-picker-button').click();
+  const slider = refs.main.querySelector('.effort-slider');
+  assert.ok(slider);
+  assert.equal(slider.value, '2', 'слайдер стоит на xhigh, а не падает на первую позицию');
+  assert.equal(slider.getAttribute('aria-valuetext'), 'Очень высокое');
+});
+
 test('partial cold metadata exposes only its bound family; other configured families stay unavailable', () => {
   const doc = createFakeDocument(); const refs = {}; const sources = [];
   for (const key of ['app', 'side', 'main', 'rail', 'status', 'overlay']) { refs[key] = doc.createElement('div'); doc.body.append(refs[key]); }
