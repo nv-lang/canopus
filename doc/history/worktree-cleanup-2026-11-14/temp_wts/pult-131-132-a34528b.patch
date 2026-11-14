@@ -1,0 +1,267 @@
+diff --git a/src/web/README.md b/src/web/README.md
+index a835d14a..ed5a05d2 100644
+--- a/src/web/README.md
++++ b/src/web/README.md
+@@ -12,9 +12,9 @@
+ 
+ | Колонка | Что в ней |
+ |---|---|
+-| Левая (280 px) | заголовок «Сессии» и переключатель темы; поиск по названию; «Новая сессия» (форма: агент, название, проект); группы «Закреплённые» и по проектам (заголовок группы серым, справа «+» — новая сессия в этом проекте); сессия — строка с точкой состояния (отвечает, ждёт разрешения, отказ, ошибка, отмена), кнопка закрепления; дочерние сессии с отступом и уголком; активная подсвечена; внизу статус соединения |
+-| Центр | верхняя полоса: название сессии, агент, состояние, кнопка правой колонки; лента разговора колонкой до 920 px: сообщение владельца — серая плашка справа, ответ агента — обычный текст (абзацы, списки, `код` в строке и блоки кода), рабочие строки, карточка «Изменено файлов», под ответом копирование и «N мин назад», идущая работа — строка с точками и таймером; поле ввода: «Введите / для команд» (подсказка, без действия), «+» и микрофон (заглушки), «Отмена хода» и «Отправить»; под полем режим разрешений, агент, модель, усилие (выбор из заглушки, без действия) и кольцо занятости контекста |
+-| Правая (320 px) | карточки: «Окружение» (проект, папка, ветка, агент), «Контекст» (процент, полоска, красная от 90 %; заголовок сворачивается), «Результаты» (файлы с видом `create`/`edit`/`delete`, «Показать ещё»), «Фоновые задачи» (название, время, значок состояния, «Показать ещё», «Завершено: N») |
++| Левая (264 px) | заголовок «Сессии» и переключатель темы; поиск по названию; «Новая сессия» (форма: агент, название, проект); группы «Закреплённые» и по проектам (заголовок группы серым, справа «+» — новая сессия в этом проекте); сессия — строка с точкой состояния (отвечает, ждёт разрешения, отказ, ошибка, отмена), кнопка закрепления; дочерние сессии с отступом и уголком; активная подсвечена; внизу статус соединения |
++| Центр | верхняя полоса: название сессии, агент, состояние, кнопка правой колонки; лента разговора колонкой до 800 px: сообщение владельца — серая плашка справа, ответ агента — обычный текст (абзацы, списки, `код` в строке и блоки кода), рабочие строки, карточка «Изменено файлов», под ответом копирование и «N мин назад», идущая работа — строка с точками и таймером; поле ввода с подсказкой, «Отмена хода» и «Отправить»; рядом — клавиатурная подсказка и индикатор контекста; слот модели в шапке добавляет задача 131 |
++| Правая (288 px) | карточки: «Окружение» (проект, папка, ветка, агент), «Контекст» (процент, полоска, красная от 90 %; заголовок сворачивается), «Результаты» (файлы с видом `create`/`edit`/`delete`, «Показать ещё»), «Фоновые задачи» (название, время, значок состояния, «Показать ещё», «Завершено: N») |
+ 
+ **Рабочие строки.** Вызовы инструментов, запросы разрешений (после решения они остаются строкой) и фоновые команды,
+ идущие подряд, сворачиваются в одну серую строку-сводку («Выполнено действий: 3 · с ошибкой: 1», а для одной
+@@ -199,8 +199,8 @@ request: Option[str], input: str, at }`. Формат страницы — ег
+ ## Что не вошло
+ 
+ Полноценный Markdown в ответах (есть абзацы, списки, `код` и блоки кода); терминал;
+-доска и карточка задач; вход и доступ; плашка обновления и строка учётной записи в левой колонке; действия под полем ввода
+-(«/» для команд, вложения, голос, выбор режима, модели и усилия — только показываются); раскрытие самого дерева
++доска и карточка задач; вход и доступ; плашка обновления и строка учётной записи в левой колонке; вложения и голосовой ввод
++(пока не реализованы, их кнопки выключены); раскрытие самого дерева
+ дочерних сессий глубже двух уровней отступа; список агентов берётся из заглушки (OpenCode, второй позже; настоящий сервер называет агента тем же `opencode`); состояние
+ пульта не сохраняется (после перезагрузки страницы журнал приходит заново; закрепления живут до перезагрузки,
+ тема — в `localStorage`).
+diff --git a/src/web/app.css b/src/web/app.css
+index 293f4bb5..22f2ef60 100644
+--- a/src/web/app.css
++++ b/src/web/app.css
+@@ -548,17 +548,7 @@ pre code { font: inherit; }
+ .cancel-btn { color: var(--danger); border-color: var(--danger); }
+ .hint { margin: 6px 6px 0; font-size: 12.5px; color: var(--fg-muted); }
+ 
+-.options { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 8px; margin-top: 2px; }
+-.opt select {
+-  width: auto;
+-  height: var(--hit);
+-  padding: 0 8px;
+-  border-color: transparent;
+-  background: transparent;
+-  color: var(--fg-muted);
+-  font-size: 13.5px;
+-}
+-.opt select:hover { border-color: var(--border); }
++.composer-meta { display: flex; align-items: center; gap: 8px; min-height: 30px; }
+ .ring-box { display: inline-grid; place-items: center; width: var(--hit); height: var(--hit); }
+ .ring { width: 22px; height: 22px; }
+ .ring-track { fill: none; stroke: var(--border); stroke-width: 3; }
+@@ -709,3 +699,58 @@ pre code { font: inherit; }
+   .topbar { padding-left: 12px; }
+   .item-user { max-width: 92%; }
+ }
++
++/* Refined workspace surface: quieter separators, compact navigation and a focused composer. */
++:root {
++  --side-width: 264px;
++  --rail-width: 288px;
++  --column: 800px;
++  --radius: 8px;
++  --radius-card: 11px;
++  --radius-box: 14px;
++}
++body { font-size: 14px; line-height: 1.55; letter-spacing: .005em; }
++.app { background: var(--bg); }
++.side-col { border-right-color: color-mix(in srgb, var(--border) 65%, transparent); }
++.side-head { padding-top: 12px; }
++.side-head h2 { color: var(--fg); font-size: 14px; letter-spacing: -.01em; }
++.side-tools { gap: 6px; }
++.search { height: var(--hit); border-color: transparent; background: color-mix(in srgb, var(--surface) 72%, var(--side)); }
++.new-btn { min-height: var(--hit); justify-content: flex-start; border-color: transparent; background: transparent; }
++.groups { padding-inline: 10px; }
++.group-head { min-height: 34px; }
++.session { min-height: var(--hit); }
++.session.is-active { box-shadow: inset 2px 0 var(--accent); }
++.session-item { min-height: var(--hit); font-size: 13.5px; }
++.session-item:focus-visible { position: relative; z-index: 1; }
++.topbar { min-height: 60px; padding-inline: 24px; }
++.title-block h2 { font-size: 17px; letter-spacing: -.025em; }
++.sub { font-size: 12px; }
++.session-model-slot { display: inline-flex; align-items: center; min-width: 0; color: var(--fg-muted); font-size: 12px; }
++.thread { gap: 19px; padding-top: 30px; }
++.item-user { max-width: min(78%, 620px); }
++.bubble { padding: 11px 15px; }
++.prose { line-height: 1.65; }
++.composer { padding: 8px 24px 16px; }
++.box { padding: 10px 11px 8px 15px; border-radius: var(--radius-box); box-shadow: 0 4px 18px color-mix(in srgb, var(--fg) 6%, transparent); }
++.box:focus-within { outline: 1px solid color-mix(in srgb, var(--accent) 72%, transparent); outline-offset: 0; }
++.box textarea { min-height: 34px; }
++.send-btn { min-height: var(--hit); padding-inline: 13px; border-radius: 9px; }
++.hint { margin-top: 5px; }
++.rail { gap: 17px; padding: 20px 18px; border-left-color: color-mix(in srgb, var(--border) 60%, transparent); }
++.rail .card { padding: 10px 0; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; }
++.rail .card-title { font-size: 13px; }
++.env-row { grid-template-columns: 18px 58px minmax(0, 1fr); }
++.status { padding: 9px 14px; font-size: 12px; }
++@media (max-width: 1100px) {
++  .topbar { padding-inline: 16px; }
++  .composer { padding-inline: 16px; }
++}
++@media (max-width: 799px) {
++  .topbar { min-height: 54px; padding-inline: 10px; }
++  .thread { padding: 16px 14px 8px; }
++  .composer { padding: 6px 10px 10px; }
++  .item-user { max-width: 94%; }
++  .sub { min-width: 0; gap: 5px; }
++  .session-model-slot { min-width: 0; max-width: 34vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
++}
+diff --git a/src/web/app.js b/src/web/app.js
+index 5683c4bd..bb0ecfd0 100644
+--- a/src/web/app.js
++++ b/src/web/app.js
+@@ -12,7 +12,7 @@ import { t } from './strings.js';
+ import { createView } from './view.js';
+ import { chooseMode, createTransport, parseAgentRegistry } from './transport.js';
+ import {
+-  AGENTS, MODES, MODELS, EFFORTS, createMockServer,
++  AGENTS, createMockServer,
+ } from './mock.js';
+ 
+ const FLASH_MS = 4000;
+@@ -56,6 +56,7 @@ applyTheme(ui.theme);
+ const ctx = { newId, now: () => Date.now() };
+ let view = null;
+ let queued = false;
++let transport = null;
+ 
+ function draw() {
+   if (!queued) return;
+@@ -149,9 +150,9 @@ async function start() {
+     app: document.getElementById('app'), side: document.getElementById('side'),
+     main: document.getElementById('main'), rail: document.getElementById('rail'),
+     status: document.getElementById('status'), overlay: document.getElementById('overlay'),
+-  }, { agents, modes: MODES, models: MODELS, efforts: EFFORTS, now: ctx.now, handlers, registryFailed });
++  }, { agents, now: ctx.now, handlers, registryFailed });
+   setInterval(() => view.tick(), TICK_MS);
+-  const transport = createTransport({
++  transport = createTransport({
+     mode: picked.mode, url: picked.url,
+     server: picked.mode === 'mock' ? createMockServer({ now: ctx.now }) : undefined,
+     WebSocketImpl: globalThis.WebSocket, timers,
+diff --git a/src/web/mock.js b/src/web/mock.js
+index 1b220a71..03854f7d 100644
+--- a/src/web/mock.js
++++ b/src/web/mock.js
+@@ -13,22 +13,6 @@ export const AGENTS = Object.freeze([
+   Object.freeze({ id: 'second', labelKey: 'agent.second', disabled: true }),
+ ]);
+ 
+-// Выбор под полем ввода — заглушка: значения показываются, действия за ними нет.
+-export const MODES = Object.freeze([
+-  Object.freeze({ id: 'ask', labelKey: 'mode.ask' }),
+-  Object.freeze({ id: 'read', labelKey: 'mode.read' }),
+-]);
+-export const MODELS = Object.freeze([
+-  Object.freeze({ id: 'base', labelKey: 'model.base' }),
+-  Object.freeze({ id: 'fast', labelKey: 'model.fast' }),
+-  Object.freeze({ id: 'deep', labelKey: 'model.deep' }),
+-]);
+-export const EFFORTS = Object.freeze([
+-  Object.freeze({ id: 'low', labelKey: 'effort.low' }),
+-  Object.freeze({ id: 'medium', labelKey: 'effort.medium' }),
+-  Object.freeze({ id: 'high', labelKey: 'effort.high' }),
+-]);
+-
+ const BASE = 1_792_314_000_000;
+ const SEC = 1000;
+ const MIN = 60_000;
+diff --git a/src/web/strings.js b/src/web/strings.js
+index a4248b4c..04630135 100644
+--- a/src/web/strings.js
++++ b/src/web/strings.js
+@@ -108,23 +108,9 @@ export const S = Object.freeze({
+   'diffs.hide': 'Свернуть',
+ 
+   // ---- поле ввода
+-  'composer.placeholder': 'Введите / для команд',
++  'composer.placeholder': 'Напишите сообщение…',
+   'composer.hint': 'Enter — отправить, Shift+Enter — новая строка',
+-  'composer.attach': 'Вложения — позже',
+-  'composer.voice': 'Голосовой ввод — позже',
+-  'composer.mode_label': 'Режим разрешений',
+-  'composer.agent_label': 'Агент',
+-  'composer.model_label': 'Модель',
+-  'composer.effort_label': 'Усилие',
+   'composer.ring': 'Контекст занят на {n} %',
+-  'mode.ask': 'Спрашивать',
+-  'mode.read': 'Авто для чтения',
+-  'model.base': 'Базовая',
+-  'model.fast': 'Быстрая',
+-  'model.deep': 'Глубокая',
+-  'effort.low': 'Низкое',
+-  'effort.medium': 'Среднее',
+-  'effort.high': 'Высокое',
+ 
+   // ---- правая колонка
+   'rail.toggle': 'Сведения о сессии',
+diff --git a/src/web/view.js b/src/web/view.js
+index 73b58d19..746f54bc 100644
+--- a/src/web/view.js
++++ b/src/web/view.js
+@@ -76,14 +76,14 @@ function icon(doc, id, extra = '') {
+ /**
+  * @param doc       document
+  * @param refs      { side, main, rail, app, status, overlay } — корневые узлы из index.html
+- * @param deps      { agents, modes, models, efforts, now, handlers }
++ * @param deps      { agents, now, handlers }
+  *   handlers: onSelect(trace), onBack(), onNewToggle(open, project?), onCreate({agent, name, project}),
+  *             onSend(trace, text) -> bool, onCancel(trace), onDecide(trace, request, decision),
+  *             onPin(trace, pinned), onTheme(), onCopy(text)
+  */
+ export function createView(doc, refs, deps) {
+   const {
+-    agents, modes, models, efforts, now, handlers, registryFailed = false,
++    agents, now, handlers, registryFailed = false,
+   } = deps;
+   const win = doc.defaultView;
+   const drafts = new Map();
+@@ -239,27 +239,10 @@ export function createView(doc, refs, deps) {
+   const input = h(doc, 'textarea', {
+     id: 'composer-input', rows: 1, placeholder: t('composer.placeholder'), 'aria-label': t('chat.input_label'),
+   });
+-  const attach = h(doc, 'button', {
+-    type: 'button', class: 'icon-btn', disabled: true, 'aria-label': t('composer.attach'), title: t('composer.attach'),
+-  }, icon(doc, 'i-plus'));
+-  const mic = h(doc, 'button', {
+-    type: 'button', class: 'icon-btn', disabled: true, 'aria-label': t('composer.voice'), title: t('composer.voice'),
+-  }, icon(doc, 'i-mic'));
+   const cancelButton = h(doc, 'button', { type: 'button', class: 'cancel-btn', hidden: true }, icon(doc, 'i-stop'), h(doc, 'span', { text: t('chat.cancel') }));
+   const sendButton = h(doc, 'button', { type: 'button', class: 'send-btn' }, icon(doc, 'i-send'), h(doc, 'span', { text: t('chat.send') }));
+   const box = h(doc, 'div', { class: 'box' }, input,
+-    h(doc, 'div', { class: 'box-row' }, attach, h(doc, 'span', { class: 'grow' }), mic, cancelButton, sendButton));
+-
+-  function selectField(id, labelKey, items) {
+-    const select = h(doc, 'select', { id });
+-    for (const it of items) select.append(h(doc, 'option', { value: it.id, disabled: it.disabled === true, text: it.labelKey ? t(it.labelKey) : it.label }));
+-    return { select, node: h(doc, 'label', { class: 'opt', for: id }, h(doc, 'span', { class: 'sr', text: t(labelKey) }), select) };
+-  }
+-  const modeField = selectField('opt-mode', 'composer.mode_label', modes);
+-  const agentField = selectField('opt-agent', 'composer.agent_label', agents);
+-  const modelField = selectField('opt-model', 'composer.model_label', models);
+-  const effortField = selectField('opt-effort', 'composer.effort_label', efforts);
+-  effortField.select.value = 'high';
++    h(doc, 'div', { class: 'box-row' }, h(doc, 'span', { class: 'grow' }), cancelButton, sendButton));
+ 
+   const ringFill = svgNode(doc, 'circle', { class: 'ring-fill', cx: 12, cy: 12, r: 9, pathLength: 100 });
+   const ring = svgNode(doc, 'svg', { class: 'ring', viewBox: '0 0 24 24', role: 'img' });
+@@ -269,8 +252,7 @@ export function createView(doc, refs, deps) {
+ 
+   const composer = h(doc, 'div', { class: 'composer' },
+     box,
+-    h(doc, 'p', { class: 'hint', text: t('composer.hint') }),
+-    h(doc, 'div', { class: 'options' }, modeField.node, h(doc, 'span', { class: 'grow' }), agentField.node, modelField.node, effortField.node, ringBox));
++    h(doc, 'div', { class: 'composer-meta' }, h(doc, 'p', { class: 'hint', text: t('composer.hint') }), h(doc, 'span', { class: 'grow' }), ringBox));
+ 
+   const chat = h(doc, 'section', { class: 'chat', hidden: true }, log, composer);
+   refs.main.replaceChildren(topbar, pick, chat);
+@@ -483,7 +465,6 @@ export function createView(doc, refs, deps) {
+     }
+     agentText.textContent = agentLabel(session.agent);
+     modelText.textContent = session.model || t('session.model_unknown');
+-    agentField.select.value = session.agent;
+     stateBadge.textContent = t(STATE_KEYS[session.state]);
+     stateBadge.dataset.state = session.state;
+     const busy = session.state === 'answering' || session.state === 'permission';

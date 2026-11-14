@@ -1,0 +1,83 @@
+// observe-fiber-probe - the isolated run of the refresher fiber of the catalog observer
+// (task 269 F-07). Mirrors the front: a detached fiber runs metadata_source_loop, the main fiber
+// asks it the way the route does, then closes the channel so the loop ends and the process exits.
+module observe_fiber_probe
+
+import std.concurrency.nvchan.{Chan}
+import std.fs.{real_fs}
+import std.net.{real_net}
+import std.os.{real_os}
+import crew_harness.model_metadata.{MetadataAsk, MetadataInput, hook_of_wire, metadata_source_loop}
+
+fn probe_log(text str) Io -> () {
+    println("probe: ${text}")
+}
+
+// The ask of the route, bounded the same way.
+fn probe_ask(asks ChanTx[MetadataAsk], wait_ms int) Time -> str {
+    ro answer = Chan[str].new(1)
+    mut waiting = asks.try_send(MetadataAsk { reply: answer.tx })
+    mut waited = 0
+    mut out = ""
+    while waiting {
+        match answer.rx.try_recv() {
+            Some(wire) => {
+                out = wire
+                waiting = false
+            }
+            None => {
+                if waited >= wait_ms {
+                    waiting = false
+                } else {
+                    50.to_millis().sleep()
+                    waited += 50
+                }
+            }
+        }
+    }
+    out
+}
+
+fn main() Proc Net Time Fs Os Detach Io -> () {
+    probe_log("starting")
+    ro input = MetadataInput {
+        program: "C:/Users/Евгений/AppData/Roaming/npm/opencode.cmd",
+        family: "opencode",
+        cwd: "C:/Users/Евгений/.zcode/workspace/1793548341827-04663294-475a-40ff-a8a6-4223caf193b0/probe-state",
+        state_dir: "C:/Users/Евгений/.zcode/workspace/1793548341827-04663294-475a-40ff-a8a6-4223caf193b0/probe-state",
+    }
+    ro asks = Chan[MetadataAsk].new(16)
+    detach {
+        with Net = real_net(), Fs = real_fs(), Os = real_os() {
+            metadata_source_loop(input, asks.rx)
+        }
+    }
+    probe_log("refresher detached; the first ask (the server boots inside)")
+    ro first = probe_ask(asks.tx, 40000)
+    ro first_len = first.byte_len()
+    if first_len == 0 {
+        probe_log("first ask: NO wire in 40 s")
+    } else {
+        ro parsed = hook_of_wire(first)
+        match parsed {
+            Some(hook) => {
+                ro family = hook.expected.family
+                probe_log("first ask: hook ok")
+                probe_log("family: ${family}")
+            }
+            None => probe_log("first ask: the wire does not parse")
+        }
+    }
+    probe_log("the second ask (must be instant)")
+    ro second = probe_ask(asks.tx, 5000)
+    ro second_len = second.byte_len()
+    if second_len == 0 {
+        probe_log("second ask: NO wire - the refresher fiber died")
+    } else {
+        probe_log("second ask: wire alive")
+    }
+    probe_log("closing the channel; the loop must end and the process exit")
+    ro ended = asks.tx.close()
+    1000.to_millis().sleep()
+    probe_log("done")
+}

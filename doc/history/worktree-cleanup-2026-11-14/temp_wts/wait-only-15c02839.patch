@@ -1,0 +1,199 @@
+diff --git a/src/server/canopus_task_hub.nv b/src/server/canopus_task_hub.nv
+index 30fd8a7f..7ea19b97 100644
+--- a/src/server/canopus_task_hub.nv
++++ b/src/server/canopus_task_hub.nv
+@@ -480,6 +480,7 @@ fn Hub mut @ct_answer(trace str, id int, action str, agent str, mode str, target
+     ro k = proposal_at(@sessions[at].rt.props, id)
+     if k < 0 { return }
+     mut p = proposal_copy(@sessions[at].rt.props[k])
++    if action == "wait" && (p.state != "overlap" || p.with_n <= 0 || target != p.with_n) { @route_broadcast(at, true); return }
+     // the family for the child session chosen on the card (an unknown one is ignored)
+     if agent.byte_len() > 0 && @agent_ids().contains(agent) { p.agent = agent }
+     // the mode of execution chosen on the card (task 192.13) and the children of an epic left ticked
+@@ -527,7 +528,7 @@ fn Hub mut @ct_word(at int, text str) Proc Detach Time -> bool {
+     if is_code_word(text, @settings.route_confirm_word) {
+         mut action = "queue"
+         if p.state == "open" { action = if p.kind == "extend" { "extend" } else { "start" } }
+-        if p.state == "overlap" { action = "wait" }
++        if p.state == "overlap" { @route_broadcast(at, true); return true }
+         @ct_do(at, p, action)
+         return true
+     }
+diff --git a/src/server/canopus_task_kit.nv b/src/server/canopus_task_kit.nv
+index 099e6ab4..b12dc165 100644
+--- a/src/server/canopus_task_kit.nv
++++ b/src/server/canopus_task_kit.nv
+@@ -90,7 +90,10 @@ export fn scenario_route_recognize(settings ServerSettings) Proc Detach Time Net
+     rig.press("s-r7", "Пересекается", "start")
+     ro st4 = rk_state(rig)
+     c.expect(rk_card_state(st4, "Пересекается") == "overlap", "an overlap with the running subtask 1 is asked about: ${rk_card_state(st4, "Пересекается")}")
+-    rig.press("s-r7", "Пересекается", "wait")
++    rig.page(1, "user_message", "s-r7", "{\"turn\":\"t5-wait\",\"text\":\"Задача!\"}")
++    rig.run(300)
++    c.expect(rk_card_state(rk_state(rig), "Пересекается") == "overlap", "the general confirmation does not approve waiting")
++    rig.press("s-r7", "Пересекается", "wait", target: 1)
+     rig.run(300)
+     ro st5 = rk_state(rig)
+     c.expect(rk_sub_state(st5, 2) == "waits" && rk_number(rk_sub(st5, 2), "waits_for") == 1, "the subtask waits for subtask 1: ${rk_sub_state(st5, 2)}")
+diff --git a/src/server/child_kit.nv b/src/server/child_kit.nv
+index 363c69b4..77e144c3 100644
+--- a/src/server/child_kit.nv
++++ b/src/server/child_kit.nv
+@@ -68,9 +68,9 @@ fn ck_list(mut rig Rig, session str, turn str, items []JsonValue, first_title st
+     false
+ }
+ 
+-fn ck_press(mut rig Rig, session str, title str, action str) Proc Detach Time -> () {
++fn ck_press(mut rig Rig, session str, title str, action str, target int = 0) Proc Detach Time -> () {
+     ro id = rk_card_id(ck_state(rig, 1, session), title)
+-    rig.page(1, "route_prop", session, "{\"id\":${id},\"action\":\"${action}\"}")
++    rig.page(1, "route_prop", session, "{\"id\":${id},\"action\":\"${action}\",\"target\":${target}}")
+     rig.run(300)
+ }
+ 
+@@ -241,7 +241,7 @@ export fn scenario_route_children(settings ServerSettings) Proc Detach Time Net
+     c.expect(rk_offer_tasks(rig, "s-c1", [ck_item("new", "Пересекается", 0, 0, ["c.txt"])], "Пересекается"), "a work on the same file is listed")
+     ck_press(rig, "s-c1", "Пересекается", "start")
+     c.expect(rk_card_state(ck_state(rig, 1, "s-c1"), "Пересекается") == "overlap", "the overlap with the task 3 is asked about")
+-    ck_press(rig, "s-c1", "Пересекается", "wait")
++    ck_press(rig, "s-c1", "Пересекается", "wait", target: 3)
+     rig.run(1500)
+     ro sw = ck_find(rig, 1, "Пересекается")
+     c.expect(sw != "" && ck_turns(rig, 1, sw) == 0, "the waiting task has a session but its agent is not started")
+diff --git a/src/server/routes.nv b/src/server/routes.nv
+index c392522a..993f5bdd 100644
+--- a/src/server/routes.nv
++++ b/src/server/routes.nv
+@@ -993,6 +993,7 @@ export fn route_view_text(rt RouteSession, titles []str, progress []Progress, su
+         jput(t, "crew", JsonValue.bool(rt.by_crew))
+         jput(t, "messages", JsonValue.int(rt.messages))
+         jput(t, "state", JsonValue.str(rt.tstate))
++        if rt.waits_sib.byte_len() > 0 { jput(t, "waits_for", JsonValue.int(rt.waits_k)) }
+         jput(t, "unmerged_commits", JsonValue.int(rt.unmerged))
+         jput(t, "needs_owner", JsonValue.bool(rt.tnote.byte_len() > 0))
+         jput(t, "note", JsonValue.str(rt.tnote))
+diff --git a/src/server/routes_kit.nv b/src/server/routes_kit.nv
+index 414104c4..ea1ed712 100644
+--- a/src/server/routes_kit.nv
++++ b/src/server/routes_kit.nv
+@@ -216,9 +216,9 @@ fn Rig mut @list_tasks(session str, turn str, items []JsonValue, first_title str
+ }
+ 
+ /// The owner presses a button of the card with this title.
+-fn Rig mut @press(session str, title str, action str) Proc Detach Time -> () {
++fn Rig mut @press(session str, title str, action str, target int = 0) Proc Detach Time -> () {
+     ro id = rk_card_id(rk_last(@all_lines_for(1), "route_state"), title)
+-    @page(1, "route_prop", session, "{\"id\":${id},\"action\":\"${action}\"}")
++    @page(1, "route_prop", session, "{\"id\":${id},\"action\":\"${action}\",\"target\":${target}}")
+     @run(300)
+ }
+ 
+diff --git a/src/web/canopus-task-ui.js b/src/web/canopus-task-ui.js
+index 3ba475bb..b63fe929 100644
+--- a/src/web/canopus-task-ui.js
++++ b/src/web/canopus-task-ui.js
+@@ -11,7 +11,7 @@ import {
+ 
+ // подписи переключателей: ключи литералами (проверка strings.test.mjs ищет их в исходниках)
+ const choiceLabel = (c, preparation = false) => (c === 'work' ? (preparation ? 'Подготовить задание' : t('canopustask.choice_work')) : c === 'forget' ? t('canopustask.choice_forget') : t('canopustask.choice_discuss'));
+-const actionLabel = (a, session) => session.route === 'planning' && ['start', 'extend', 'wait', 'parallel', 'over', 'queue'].includes(a.action) ? 'Сохранить постановку' : a.label;
++const actionLabel = (a, session) => session.route === 'planning' && ['start', 'extend', 'parallel', 'over', 'queue'].includes(a.action) ? 'Сохранить постановку' : a.label;
+ 
+ /**
+  * handlers: { onCanopusProp(trace, id, action, opts), onCanopusRecognize(trace), onCanopusApply(trace, items), onSelect(trace), onChildrenMerge(trace) }.
+@@ -91,6 +91,8 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
+       const opts = { mode, target, agent, run: runs.get(key) || DEFAULT_RUN };
+       if (mode === 'epic' && p.children.length > 0) opts.children = childrenPicked(p.children.length, kidsOff.get(key) || new Set());
+       submit(session, canopus, [p.id], () => handlers.onCanopusProp(session.id, p.id, action, opts));
++    } else if (action === 'wait') {
++      submit(session, canopus, [p.id], () => handlers.onCanopusProp(session.id, p.id, action, { target: p.withN }));
+     } else submit(session, canopus, [p.id], () => handlers.onCanopusProp(session.id, p.id, action));
+   }
+ 
+diff --git a/src/web/canopus-task.js b/src/web/canopus-task.js
+index a88596ab..4c30a411 100644
+--- a/src/web/canopus-task.js
++++ b/src/web/canopus-task.js
+@@ -76,7 +76,7 @@ export const EMPTY_CREW = Object.freeze(parseCanopusTask({}));
+ /** Сигналы страницы серверу: { kind, input }; шаг события и id добавляет app.js. */
+ export const canopusSignal = Object.freeze({
+   // opts: { mode: 'new' | 'child' | 'epic' | 'extend', target: номер задачи, agent: семья агента сессии новой задачи, run: режим выполнения, children: части эпика ('' — все, '-' — никакие, '0,2') }
+-  prop: (id, action, opts = {}) => ({ kind: 'route_prop', input: { id, action: String(action), ...(opts.mode ? { mode: opts.mode, target: opts.target || 0 } : {}), ...(opts.agent ? { agent: opts.agent } : {}), ...(opts.run ? { run: opts.run } : {}), ...(opts.children ? { children: opts.children } : {}) } }),
++  prop: (id, action, opts = {}) => ({ kind: 'route_prop', input: { id, action: String(action), ...(opts.mode ? { mode: opts.mode, target: opts.target || 0 } : {}), ...(action === 'wait' && opts.target > 0 ? { target: opts.target } : {}), ...(opts.agent ? { agent: opts.agent } : {}), ...(opts.run ? { run: opts.run } : {}), ...(opts.children ? { children: opts.children } : {}) } }),
+   recognize: () => ({ kind: 'route_recognize', input: {} }),
+   // «Отменить» у серой строки «Дополнено в задачу K»: убрать раздел из message.md и отозвать требование у агента задачи
+   extUndo: (id) => ({ kind: 'route_ext_undo', input: { id } }),
+@@ -231,7 +231,7 @@ export function rowActions(p, way = '') {
+     if (p.choice !== 'discuss') out.push({ action: 'discuss', label: t('canopustask.act_discuss'), primary: false });
+     out.push({ action: 'forget', label: t('canopustask.act_forget'), primary: false });
+   } else if (p.state === 'overlap') {
+-    out.push({ action: 'wait', label: t('canopustask.act_wait'), primary: true });
++    out.push({ action: 'wait', label: t('canopustask.act_wait', { n: String(p.withN).padStart(3, '0') }), primary: true });
+     out.push({ action: 'parallel', label: t('canopustask.act_parallel'), primary: false });
+     out.push({ action: 'forget', label: t('canopustask.act_forget'), primary: false });
+   } else {
+diff --git a/src/web/routes.js b/src/web/routes.js
+index d833d2c2..e0781d05 100644
+--- a/src/web/routes.js
++++ b/src/web/routes.js
+@@ -146,6 +146,7 @@ function parseTask(raw) {
+     // сообщений владельца в задаче; старые журналы числа не присылали — тогда по одному на подзадачу
+     messages: num(raw.messages) || subtasks.length,
+     state: TASK_STATES.includes(raw.state) ? raw.state : 'active',
++    waitsFor: num(raw.waits_for),
+     unmergedCommits: num(raw.unmerged_commits),
+     finish: Boolean(raw.finish),
+     // задача 192.2: подзадачи завёл владелец по списку агента (у каждой свой message.N.md), а не журнал сообщений
+diff --git a/src/web/strings.js b/src/web/strings.js
+index 1b217e5f..a7360f9f 100644
+--- a/src/web/strings.js
++++ b/src/web/strings.js
+@@ -344,6 +344,7 @@ export const S = Object.freeze({
+   'task.details_status': 'Статус',
+   'task.details_stage': 'Стадия',
+   'task.details_active': 'В работе',
++  'task.details_waits': 'Ждёт {n}',
+   'rail.tab_info': 'Сведения',
+   'rail.tab_machines': 'Машины',
+   'rail.tab_request': 'Запрос',
+@@ -770,7 +771,7 @@ export const S = Object.freeze({
+   'canopustask.act_forget': 'Забыть',
+   'canopustask.act_not_task': 'Только обсуждение',
+   'canopustask.act_not_task_title': 'Задачу не создавать: карточка исчезнет, агент не предложит то же снова',
+-  'canopustask.act_wait': 'Подождать',
++  'canopustask.act_wait': 'Начать после завершения {n}',
+   'canopustask.act_parallel': 'Всё равно параллельно в своём дереве',
+   'canopustask.act_over': 'Запустить сверх лимита',
+   'canopustask.act_queue': 'Поставить в очередь',
+diff --git a/src/web/view.js b/src/web/view.js
+index 0db4d7fc..8ce9e2bf 100644
+--- a/src/web/view.js
++++ b/src/web/view.js
+@@ -2577,7 +2577,7 @@ export function createView(doc, refs, deps) {
+       const entries = details?.progress?.trim().split(/\r?\n/).filter(line => line.trim()) || [];
+       const lastHeading = entries.findLast(line => /^#{2,6}\s+/.test(line));
+       const latest = lastHeading?.replace(/^#{2,6}\s+/, '') || entries.findLast(line => !line.startsWith('#'));
+-      const progress = stage ? t('route.current_stage', { n: stage.n, total: session.routeState.steps.length, title: stage.title }) : [taskStatusLabel(details?.status || session.routeState.task.state), latest, showStrip(session.routeState) ? routeName(session.route) + ' · ' + t('route.counter', { done: session.routeState.steps.filter(step => step.state === 'done').length, total: session.routeState.steps.length }) : ''].filter(Boolean).join(' · ');
++      const progress = stage ? t('route.current_stage', { n: stage.n, total: session.routeState.steps.length, title: stage.title }) : [taskStatusLabel(details?.status || session.routeState.task.state, session.routeState.task.waitsFor), latest, showStrip(session.routeState) ? routeName(session.route) + ' · ' + t('route.counter', { done: session.routeState.steps.filter(step => step.state === 'done').length, total: session.routeState.steps.length }) : ''].filter(Boolean).join(' · ');
+       const label = [t('route.task_head_bare', taskInfo), progress].join(' · ');
+       if (taskProgressLink.textContent !== label) taskProgressLink.textContent = label;
+       taskProgressLink.title = label;
+@@ -2887,7 +2887,8 @@ export function createView(doc, refs, deps) {
+     return !details?.number || details.number === session.routeState.task?.number ? details : undefined;
+   }
+ 
+-  function taskStatusLabel(status) {
++  function taskStatusLabel(status, waitsFor) {
++    if (waitsFor > 0) return t('task.details_waits', { n: String(waitsFor).padStart(3, '0') });
+     return status === 'running' || status === 'active' ? t('task.details_active') : status;
+   }
+ 
+@@ -2900,7 +2901,7 @@ export function createView(doc, refs, deps) {
+     const stage = details?.stage || step?.title;
+     const progress = details?.progress?.trim().split('\n').slice(-24).join('\n');
+     return card(taskHeading(task),
+-      h(doc, 'p', { text: `${t('task.details_status')} · ${taskStatusLabel(status)}` }),
++      h(doc, 'p', { text: `${t('task.details_status')} · ${taskStatusLabel(status, task.waitsFor)}` }),
+       h(doc, 'p', { text: t('route.task_path', { name: routeName(session.route) }) }),
+       stage ? h(doc, 'p', { text: `${t('task.details_stage')} · ${stage}` }) : false,
+       taskRouteProgress(session, current.ui),

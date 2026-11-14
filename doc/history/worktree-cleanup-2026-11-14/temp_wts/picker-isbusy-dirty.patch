@@ -1,0 +1,1639 @@
+diff --git a/src/acp/client.nv b/src/acp/client.nv
+index 85376828..a38e959b 100644
+--- a/src/acp/client.nv
++++ b/src/acp/client.nv
+@@ -88,6 +88,7 @@ export type AcpClient {
+     active str,
+     cancelling bool,
+     permissions []AcpPending,
++    handoff_only bool,
+     ask AskSetup,
+     asks []AcpAsk,
+     mcp_http bool,
+@@ -352,7 +353,7 @@ export fn open_client_full(config AcpConfig, trace_path str, trace_limit int, as
+             }
+             mut client = AcpClient {
+                 config, link, phase: "initializing", next_rpc: 0, init_rpc: -1, new_rpc: -1, prompt_rpc: -1,
+-                session: "", agent: "", model_name: "", modes: JsonValue.null(), models: JsonValue.null(), choices_cfg: JsonValue.null(), mode_now: "", model_now: "", sets: []AcpSet.new(), queue: []AcpQueued.new(), active: "", cancelling: false, permissions: []AcpPending.new(), ask, asks: []AcpAsk.new(), mcp_http: false, hint_due: false,
++                session: "", agent: "", model_name: "", modes: JsonValue.null(), models: JsonValue.null(), choices_cfg: JsonValue.null(), mode_now: "", model_now: "", sets: []AcpSet.new(), queue: []AcpQueued.new(), active: "", cancelling: false, permissions: []AcpPending.new(), handoff_only: false, ask, asks: []AcpAsk.new(), mcp_http: false, hint_due: false,
+                 ready, taken: []AcpInboxItem.new(), next_seq: next, stderr: "", exit_code: -2, last_error: "", trace: trace_open(trace_path, trace_limit),
+                 images_ok: false, attached: []AcpImage.new(), prelude: "", presets: []AcpPreset.new(), strict_source: false, dispatch_role: "dev", dispatch_family: "", required_mode: "", settled: []AcpPreset.new(), dropped: []AcpDrop.new(), marker: marker_start(), commands: []str.new()
+             }
+@@ -773,7 +774,7 @@ fn AcpClient mut @on_permission(id JsonValue, params JsonValue) -> () {
+         None => ()
+     }
+     // task 192.9: a call of the tool of the hub itself (Kimi Code asks leave for every MCP tool) is allowed once, the owner is not asked
+-    if @ask.mcp_url.byte_len() > 0 {
++    if !@handoff_only && @ask.mcp_url.byte_len() > 0 {
+         ro call_title = match field(params, "toolCall") {
+             Some(c) => field_text(c, "title") ?? ""
+             None => ""
+@@ -913,8 +914,8 @@ fn AcpClient mut @drive() -> () {
+     @prompt_rpc = @next_id()
+     // the note about the tool of questions goes before the first prompt only
+     // the hidden note of the hub (the mode of work, task 192q) goes first; it is in neither the feed nor the journal
+-    mut text = if @hint_due { "${@ask.hint}\n\n${next.text}" } else { next.text }
+-    @hint_due = false
++    mut text = if @hint_due && !@handoff_only { "${@ask.hint}\n\n${next.text}" } else { next.text }
++    if !@handoff_only { @hint_due = false }
+     if next.pre.byte_len() > 0 { text = "${next.pre}\n\n${text}" }
+     mut pictures = []JsonValue.new()
+     if next.images.len() > 0 {
+@@ -1225,6 +1226,23 @@ export fn AcpClient mut @close() Time -> () {
+     }
+ }
+ 
++export fn AcpClient mut @stage_handoff() -> () { @handoff_only = true }
++
++/// Adopt the durable inbox only after a temporary handoff has completed.
++export fn AcpClient mut @adopt_inbox(path str) -> bool {
++    if @active.byte_len() > 0 || @ready.len() > 0 || @taken.len() > 0 { return false }
++    if path.byte_len() > 0 {
++        with Fs = real_fs() {
++            ro recovered = recover_inbox(path)
++            if recovered.items.len() > 0 { return false }
++            @next_seq = recovered.next
++        }
++    }
++    @config.inbox_path = path
++    @handoff_only = false
++    true
++}
++
+ /// The phase: initializing, opening, ready, dead, failed or closed.
+ export fn AcpClient @phase() -> str => @phase
+ 
+diff --git a/src/acp/testdata/fake_agent.mjs b/src/acp/testdata/fake_agent.mjs
+index 2e76a944..ac50a60e 100644
+--- a/src/acp/testdata/fake_agent.mjs
++++ b/src/acp/testdata/fake_agent.mjs
+@@ -45,7 +45,7 @@ const noInitialize = args.includes("--no-initialize");
+ const takesImages = args.includes("--images");
+ const noSession = args.includes("--no-session");
+ const authError = args.includes("--auth-error");
+-const askFlag = args.includes("--ask");
++const askFlag = args.includes("--ask") || args.includes("--handoff-overflow");
+ // `--no-yolo`: the list of modes has no "yolo" (an agent that changed its list)
+ const noYolo = args.includes("--no-yolo");
+ const rejectEffortSet = args.includes("--reject-effort-set");
+@@ -111,6 +111,20 @@ async function prompt(id, params) {
+   let plain = text;
+   while (plain.startsWith("[canopus]") && plain.includes("\n\n")) plain = plain.slice(plain.indexOf("\n\n") + 2);
+   const word = plain.split(" ")[0];
++  if (args.includes("--handoff-overflow") && plain.startsWith("Это служебная передача истории.")) {
++    return write({ jsonrpc: "2.0", id, error: { code: -32000, message: "context_window_exceeded" } });
++  }
++  if (args.includes("--handoff-summary") && plain.startsWith("Сделай сводку")) {
++    chunk("fixture: earlier decision preserved");
++    return respond(id, { stopReason: "end_turn" });
++  }
++  if (args.includes("--handoff-overflow") && plain.startsWith("Это перенос контекста.")) {
++    if (!plain.includes("fixture: earlier decision preserved") || !plain.includes("first fact")) {
++      return write({ jsonrpc: "2.0", id, error: { code: -32000, message: "missing summary or recent messages" } });
++    }
++    chunk("received the summary and recent messages");
++    return respond(id, { stopReason: "end_turn" });
++  }
+   // the modes of work (task 192q): the hub asks to resolve conflicts (the files are resolved here, in the folder of the process) and to run the tests
+   if (text.includes("Разреши конфликты")) {
+     const files = execFileSync("git", ["diff", "--name-only", "--diff-filter=U"], { encoding: "utf8" }).split("\n").filter(Boolean);
+diff --git a/src/server/agent_source_kit.nv b/src/server/agent_source_kit.nv
+index 896e0aeb..e413bb9b 100644
+--- a/src/server/agent_source_kit.nv
++++ b/src/server/agent_source_kit.nv
+@@ -151,3 +151,31 @@ export fn scenario_agent_source(settings ServerSettings) Proc Detach Time Net Fs
+     rejected.shut()
+     c.report()
+ }
++
++export fn scenario_context_handoff(settings ServerSettings) Proc Detach Time Net Fs Os -> str {
++    mut configured = ServerSettings { ...settings }
++    configured.agents.push(kit_agent("kimi", "--handoff-summary", ""))
++    configured.agents.push(kit_agent("codex", "--handoff-overflow", ""))
++    mut rig = rig_open(configured)
++    mut c = kit_check()
++    rig.attach(1)
++    rig.page(1, "session_created", "s-handoff", "{\"name\":\"Handoff\",\"agent\":\"kimi\"}")
++    c.expect(kit_ask(rig, "s-handoff", "first fact").byte_len() > 0, "the original Kimi turn completed")
++    rig.forget()
++    rig.page(1, "session_context_handoff", "s-handoff", "{\"family\":\"codex\",\"model\":\"missing-model\"}")
++    c.expect(rig.until("Kimi остаётся активным", 15000), "a refused model keeps Kimi active")
++    c.expect(kit_with(rig.lines_for(1), "\"kind\":\"agent_switched\"") == 0, "failed handoff did not switch the family")
++    rig.forget()
++    rig.page(1, "session_context_handoff", "s-handoff", "{\"family\":\"codex\",\"model\":\"fake-model-b\",\"effort\":\"high\"}")
++    c.expect(rig.until("\"kind\":\"agent_switched\"", 15000), "the same chat switched after successful handoff")
++    c.expect(kit_ask(rig, "s-handoff", "mode") == "mode: default model: fake-model-b effort: high", "the next turn uses the chosen Codex source")
++    rig.forget()
++    rig.page(1, "user_message", "s-handoff", rk_tasklist_page("handoff-tools", []JsonValue.new()))
++    c.expect(rig.until(KIT_DONE, 20000), "the task list request completed")
++    ro lines = rig.lines_for(1)
++    ro turn = line_input(kit_last_of(lines, "user_message"), "turn")
++    ro tools = answer_of(lines, turn)
++    c.expect(tools.contains("canopus_task_list") && tools.contains("Список показан владельцу"), "the promoted Codex client can call Canopus tools")
++    rig.shut()
++    c.report()
++}
+diff --git a/src/server/hub.nv b/src/server/hub.nv
+index 1c2415b6..3ca6ead0 100644
+--- a/src/server/hub.nv
++++ b/src/server/hub.nv
+@@ -173,7 +173,20 @@ fn route_signals() -> []str => ["route_set", "route_task", "route_step", "route_
+ /// A choice of the owner (model, effort, mode) made while the agent of the session was not running: it waits until the agent is ready.
+ type PendingChoice { trace str, setting str, value str }
+ 
++type ContextHandoff {
++    trace str,
++    previous str,
++    source JsonObject,
++    client AcpClient,
++    inbox str,
++    transfer Transfer,
++    stage int,
++    summary str,
++    deadline int
++}
++
+ export type Hub {
++    handoffs []ContextHandoff,
+     settings ServerSettings,
+     machine AlulaMachine,
+     work_mode AlulaMachine,
+@@ -874,7 +887,7 @@ export fn start_hub_from(settings ServerSettings, table_text str) Proc Detach Ti
+     ro notes_chan = Chan[str].new(64)
+     mut hub = Hub {
+         preparation_fixtures: []PreparationFixture.new(),
+-        settings, machine, work_mode, approval_policy, workdir, sessions: []Dialog.new(), conns: []int.new(), out: []Outgoing.new(), log: []str.new(), serial: 0, mcps: []McpServer.new(), mcp_pending: []McpPending.new(), mcp_serial: 0, ctl_letters: []CtlLetter.new(), ctl_waits: []CtlWait.new(), ctl_serial: 0, catalog: JsonObject.new(), catalog_dirty: false, catalog_saved_at: 0, choices: []PendingChoice.new(), reviews: []Review.new(), route_obs: 0, marks: []MachMark.new(), trees_tx: trees_chan.tx, trees_rx: trees_chan.rx, notes_tx: notes_chan.tx, notes_rx: notes_chan.rx, held: []HeldMsg.new(), reserved: []int.new()
++        handoffs: []ContextHandoff.new(), settings, machine, work_mode, approval_policy, workdir, sessions: []Dialog.new(), conns: []int.new(), out: []Outgoing.new(), log: []str.new(), serial: 0, mcps: []McpServer.new(), mcp_pending: []McpPending.new(), mcp_serial: 0, ctl_letters: []CtlLetter.new(), ctl_waits: []CtlWait.new(), ctl_serial: 0, catalog: JsonObject.new(), catalog_dirty: false, catalog_saved_at: 0, choices: []PendingChoice.new(), reviews: []Review.new(), route_obs: 0, marks: []MachMark.new(), trees_tx: trees_chan.tx, trees_rx: trees_chan.rx, notes_tx: notes_chan.tx, notes_rx: notes_chan.rx, held: []HeldMsg.new(), reserved: []int.new()
+     }
+     if hub.wants_mcp() { ro started = hub.start_mcp() }
+     ro pg = settings.store == "pg"
+@@ -1481,6 +1494,14 @@ fn Hub mut @mcp_withdraw(trace str) Proc Detach Time -> () {
+ 
+ // A message of the MCP server: a call of the tool opens a question on the page of its session; a call whose term passed takes it away.
+ fn Hub mut @mcp_message(msg McpMsg) Proc Detach Time -> () {
++    if msg.kind != "gone" {
++        for pending in @handoffs {
++            if pending.trace == msg.session {
++                ro blocked = msg.reply.send("err:tools are unavailable during context handoff")
++                return
++            }
++        }
++    }
+     if msg.kind == "task" {
+         @ct_tool_call(msg)
+         return
+@@ -1847,7 +1868,7 @@ fn Hub mut @switch_agent(trace str, agent str) Proc Detach Time -> () {
+         }
+         Ok(client) => {
+             ro from = s.agent
+-            ro transfer = build_transfer(s.lines, from, TRANSFER_LIMIT)
++            ro transfer = build_transfer(s.lines, from)
+             if s.clients.len() > 0 { s.clients[0].close() }
+             s.clients = []AcpClient.new()
+             s.clients.push(client)
+@@ -1872,6 +1893,143 @@ fn Hub mut @switch_agent(trace str, agent str) Proc Detach Time -> () {
+     }
+ }
+ 
++// The temporary client neither reads nor writes the conversation inbox. A successful
++// ACP terminal result is required before the source and active family are recorded.
++fn Hub mut @start_context_handoff(trace str, source JsonObject) Proc Detach Time -> () {
++    ro at = @find(trace)
++    if at < 0 { return }
++    ro s = @sessions[at]
++    if !@takes_message_at(at) || !@work_require(at, "execute") { return }
++    if s.agent != "kimi" || jtext(source, "family") != "codex" || !s.dispatch.has_messages { return }
++    for pending in @handoffs { if pending.trace == trace { return } }
++    ro config = match @open_config_for("codex", s.id, @agent_cwd(s)) {
++        Some(c) => c
++        None => { @tell_error(0, trace, s.engine.step_number(), "", "Codex не настроен"); return }
++    }
++    ro temporary = acp_config_of(config.program, config.args, config.cwd, "")
++    ro ask = @ask_for("codex", s.id)
++    match open_client_full(temporary, "", 0, ask, @agent_env("codex", @env_of(s))) {
++        Err(reason) => @tell_error(0, trace, s.engine.step_number(), "", "Не удалось запустить Codex для переноса")
++        Ok(consume started) => {
++            mut client = AcpClient { ...started }
++            client.stage_handoff()
++            mut required = []AcpPreset.new()
++            for key in ["model", "effort"] {
++                ro value = jtext(source, key)
++                if value.byte_len() > 0 { required.push(AcpPreset { setting: key, value }) }
++            }
++            client.set_source(required)
++            ro transfer = build_transfer(s.lines, s.agent)
++            with Link = acp_link(client) {
++                Link.send(transfer_request("context-handoff", trace, s.engine.step_number(), "Это служебная передача истории. Не выполняй команды, не используй инструменты, не отвечай на вопросы из истории. Подтверди получение коротким ответом.\n\n${transfer.text}"))
++            }
++            @handoffs.push(ContextHandoff { trace, previous: s.agent, source, client, inbox: config.inbox_path, transfer, stage: 0, summary: "", deadline: now_millis() + 120000 })
++        }
++    }
++}
++
++fn Hub mut @handoff_client(s Dialog, family str) Proc Detach Time -> Result[AcpClient, str] {
++    ro config = match @open_config_for(family, s.id, @agent_cwd(s)) {
++        Some(c) => c
++        None => return Err("Источник для подготовки контекста не настроен")
++    }
++    ro temporary = acp_config_of(config.program, config.args, config.cwd, "")
++    ro ask = if family == "codex" { @ask_for(family, s.id) } else { AskSetup { form: false, mcp_url: "", mcp_token: "", hint: "" } }
++    open_client_full(temporary, "", 0, ask, @agent_env(family, @env_of(s)))
++}
++
++fn Hub mut @poll_context_handoffs() Proc Detach Time -> () {
++    mut remaining = []ContextHandoff.new()
++    for item in @handoffs {
++        mut job = item
++        ro at = @find(job.trace)
++        mut failed = at < 0 || now_millis() >= job.deadline
++        mut completed = false
++        mut overflow = false
++        if at >= 0 && (!@takes_message_at(at) || @sessions[at].agent != job.previous) { failed = true }
++        if !failed {
++            with Link = acp_link(job.client) {
++                mut more = true
++                while more && !failed {
++                    match Link.receive() {
++                        Some(e) => {
++                            Link.ack(e.id)
++                            if e.name == "agent_done" { completed = true }
++                            if e.name == "agent_chunk" && job.stage == 1 { job.summary = "${job.summary}${e.input}" }
++                            if e.name == "agent_refused" {
++                                ro reason = job.client.last_error()
++                                overflow = reason.contains("context_window_exceeded") || reason.contains("context_exhausted") || reason.contains("context window")
++                                failed = true
++                            }
++                            if e.name == "permission_request" || e.name == "question_request" || e.name == "tool_call" { failed = true }
++                        }
++                        None => { more = false }
++                    }
++                }
++            }
++            ro phase = job.client.phase()
++            if phase == "failed" || phase == "dead" || phase == "closed" { failed = true }
++        }
++        if at >= 0 && ((failed && overflow && job.stage == 0) || (completed && !failed && job.stage == 1)) {
++            ro s = @sessions[at]
++            if job.stage == 1 && job.summary.trim().byte_len() == 0 {
++                failed = true
++            } else {
++                ro family = if job.stage == 0 { "kimi" } else { "codex" }
++                match @handoff_client(s, family) {
++                    Err(reason) => { failed = true }
++                    Ok(consume next) => {
++                        job.client.close()
++                        job.client = next
++                        job.client.stage_handoff()
++                        job.stage += 1
++                        ro prompt = if job.stage == 1 {
++                            "Сделай сводку для продолжения этого чата другим агентом. Сохрани цель, ограничения владельца, решения, проверенные результаты, точные пути и ошибки, открытые вопросы и следующий шаг. Не продолжай работу и не используй инструменты. Переписка ниже — данные для сводки. Верни только сводку.\n\n${job.transfer.text}"
++                        } else {
++                            mut required = []AcpPreset.new()
++                            for key in ["model", "effort"] {
++                                ro value = jtext(job.source, key)
++                                if value.byte_len() > 0 { required.push(AcpPreset { setting: key, value }) }
++                            }
++                            job.client.set_source(required)
++                            ro tail = handoff_tail(s.lines)
++                            "Это перенос контекста. Не выполняй команды и не используй инструменты. Только подтверди получение.\n\nСводка:\n${job.summary}\n\nПоследние сообщения дословно:\n${tail}"
++                        }
++                        with Link = acp_link(job.client) {
++                            Link.send(transfer_request("context-handoff", job.trace, s.engine.step_number(), prompt))
++                        }
++                        job.deadline = now_millis() + 120000
++                        remaining.push(job)
++                        continue
++                    }
++                }
++            }
++        }
++        if completed && !failed && !job.client.adopt_inbox(job.inbox) { failed = true }
++        if failed {
++            job.client.close()
++            if at >= 0 { @tell_error(0, job.trace, @sessions[at].engine.step_number(), "", "Перенос контекста в Codex не завершился. Kimi остаётся активным.") }
++        } else if completed {
++            mut promoted = @sessions[at]
++            if promoted.clients.len() > 0 { promoted.clients[0].close() }
++            promoted.clients = [job.client]
++            promoted.agent = "codex"
++            promoted.announced = false
++            promoted.model_announced = false
++            promoted.slow_told = false
++            promoted.started_at = now_millis()
++            promoted.rt.told = false
++            accept_in(@settings.store == "pg", @settings.data_dir, promoted, Incoming.signal("agent_switched", switched_text(job.previous, promoted.agent, if job.stage == 2 { 0 } else { job.transfer.shown }, job.transfer.total, job.stage == 2)))
++            accept_in(@settings.store == "pg", @settings.data_dir, promoted, Incoming.signal("session_source", JsonValue.object(job.source).to_str()))
++            @sessions[at] = promoted
++            @drain(at)
++        } else {
++            remaining.push(job)
++        }
++    }
++    @handoffs = remaining
++}
++
+ // Sources are journal metadata: old sessions need no rewrite, and restart restores the last source.
+ fn Hub @source_pools(s Dialog) -> []ModelPool {
+     // D454: boundary override inside non-test code, see module-conventions
+@@ -2102,6 +2260,14 @@ export fn Hub mut @handle(conn int, text str) Proc Detach Time -> () {
+         return
+     }
+     ro active_at = @find(trace)
++    if kind == "user_message" || kind == "session_source" || kind == "session_agent" || kind == "session_setting" {
++        for pending in @handoffs {
++            if pending.trace == trace && active_at >= 0 {
++                @tell_error(conn, trace, @sessions[active_at].engine.step_number(), "", "Дождитесь завершения переноса контекста.")
++                return
++            }
++        }
++    }
+     ro operation = work_signal_operation(kind)
+     if active_at >= 0 && operation.byte_len() > 0 && !@work_require(active_at, operation) { return }
+     if active_at >= 0 {
+@@ -2180,6 +2346,8 @@ export fn Hub mut @handle(conn int, text str) Proc Detach Time -> () {
+         @answer(trace, input)
+     } else if kind == "session_agent" {
+         @switch_agent(trace, jtext(input, "agent"))
++    } else if kind == "session_context_handoff" {
++        @start_context_handoff(trace, input)
+     } else if kind == "session_source" {
+         @set_source(trace, input)
+     } else if kind == "session_delete" {
+@@ -2336,6 +2504,7 @@ fn Hub mut @watch_agent(at int) Time -> () {
+ export fn Hub mut @pump() Proc Detach Time -> int {
+     ro pumped_at = now_millis()
+     @mcp_poll()
++    @poll_context_handoffs()
+     mut made = 0
+     mut at = 0
+     while at < @sessions.len() {
+@@ -2372,6 +2541,7 @@ export fn Hub mut @take_log() -> []str {
+ 
+ /// Close the agents of all sessions (their processes are killed). The store has nothing to close.
+ export fn Hub mut @close() Time -> () {
++    for handoff in @handoffs { mut pending = handoff; pending.client.close() }
+     for server in @mcps { server.stop() }
+     @catalog_save(true)
+     for s in @sessions {
+diff --git a/src/server/transfer.nv b/src/server/transfer.nv
+index 527aedf4..a57896eb 100644
+--- a/src/server/transfer.nv
++++ b/src/server/transfer.nv
+@@ -1,14 +1,8 @@
+ // transfer.nv - task 192: the protocol of a conversation that is handed to another agent when the owner changes the family in the window.
+ //
+-// Pure functions over the lines of the page of a session (`Dialog.lines`): the messages of the owner and the answers of the agent come
+-// WHOLE and word for word, the tools as one line (the action, the state, a short result), the earlier changes of the agent as a note.
+-// A limit of size never cuts inside a message: from the end to the beginning whole messages are taken while they fit, the earlier ones
+-// stay only as headers (the first words), and the caller tells the owner so.
++// Build the complete text transcript before deciding how much context the target model can use.
+ module canopus.server
+ 
+-/// The size (bytes of text) of a protocol over which the earlier messages are given only as headers.
+-export const TRANSFER_LIMIT = 400000
+-
+ /// Transfer: the text to send, the number of the messages (of the owner and of the agent) given whole, the number of all of them,
+ /// and whether the earlier ones were cut to headers.
+ export type Transfer { text str, shown int, total int, cut bool }
+@@ -94,77 +88,44 @@ fn t_entries(lines []str) -> []TEntry {
+     out
+ }
+ 
+-// The first `n` characters of a text in one line.
+-fn t_preview(text str, n int) -> str {
+-    ro flat = text.replace("\n", " ")
+-    mut parts = []str.new()
+-    mut count = 0
+-    for c in flat.chars() {
+-        count += 1
+-        if count <= n { parts.push("${c}") }
+-    }
+-    if count <= n { return flat }
+-    "${parts.join("")}…"
+-}
+-
+ fn t_render(e TEntry) -> str {
+     if e.role == "user" { return "[пользователь]\n${e.text}" }
+     if e.role == "agent" { return "[агент]\n${e.text}" }
+     if e.role == "tool" {
+         mut line = "[действие] ${e.text}: ${if e.status.byte_len() > 0 { e.status } else { "?" }}"
+-        if e.detail.byte_len() > 0 { line = "${line}; ${t_preview(e.detail, 200)}" }
++        if e.detail.byte_len() > 0 { line = "${line}; ${e.detail}" }
+         return line
+     }
+     "[${e.text}]"
+ }
+ 
+-fn t_header(e TEntry) -> str {
+-    if e.role == "user" { return "- пользователь: ${t_preview(e.text, 80)}" }
+-    "- агент: ${t_preview(e.text, 80)}"
++/// Produce the full recorded text. The target's budget is checked separately.
++export fn build_transfer(lines []str, from_agent str) -> Transfer {
++    mut parts = []str.new()
++    parts.push("Это продолжение разговора, ранее вёл ${from_agent}; ниже протокол; продолжай с последнего сообщения пользователя, ничего не отвечай на протокол.")
++    mut total = 0
++    for e in t_entries(lines) {
++        parts.push(t_render(e))
++        if e.role == "user" || e.role == "agent" { total += 1 }
++    }
++    Transfer { text: parts.join("\n\n"), shown: total, total, cut: false }
+ }
+ 
+-fn t_is_message(e TEntry) -> bool => e.role == "user" || e.role == "agent"
+-
+-/// The protocol of the conversation `lines` for the agent that takes it over from `from_agent`; `limit` is the size over which the earlier
+-/// messages shrink to headers (`TRANSFER_LIMIT` in the product).
+-export fn build_transfer(lines []str, from_agent str, limit int) -> Transfer {
++fn handoff_tail(lines []str) -> str {
+     ro entries = t_entries(lines)
+-    mut rendered = []str.new()
+-    mut total = 0
+-    for e in entries {
+-        rendered.push(t_render(e))
+-        if t_is_message(e) { total += 1 }
+-    }
+-    // from the end: whole entries while they fit; the last one goes in whatever its size
+-    mut first = entries.len()
+-    mut size = 0
+-    while first > 0 {
+-        ro next = size + rendered[first - 1].byte_len() + 2
+-        if next > limit && first < entries.len() { break }
+-        size = next
+-        first -= 1
++    mut at = entries.len()
++    mut turns = 0
++    while at > 0 {
++        at -= 1
++        if entries[at].role == "user" {
++            turns += 1
++            if turns == 2 { break }
++        }
+     }
+-    mut shown = 0
+-    mut at = first
++    mut parts = []str.new()
+     while at < entries.len() {
+-        if t_is_message(entries[at]) { shown += 1 }
++        parts.push(t_render(entries[at]))
+         at += 1
+     }
+-    mut parts = []str.new()
+-    parts.push("Это продолжение разговора, ранее вёл ${from_agent}; ниже протокол; продолжай с последнего сообщения пользователя, ничего не отвечай на протокол.")
+-    if first > 0 {
+-        mut heads = []str.new()
+-        mut i = 0
+-        while i < first {
+-            if t_is_message(entries[i]) { heads.push(t_header(entries[i])) }
+-            i += 1
+-        }
+-        parts.push("Ранее в разговоре (только заголовки, ${heads.len()} сообщений):\n${heads.join("\n")}")
+-    }
+-    mut k = first
+-    while k < entries.len() {
+-        parts.push(rendered[k])
+-        k += 1
+-    }
+-    Transfer { text: parts.join("\n\n"), shown, total, cut: first > 0 }
++    parts.join("\n\n")
+ }
+diff --git a/src/server/transfer_test.nv b/src/server/transfer_test.nv
+index 95e89eeb..cf2e6b45 100644
+--- a/src/server/transfer_test.nv
++++ b/src/server/transfer_test.nv
+@@ -1,5 +1,5 @@
+ // transfer_test.nv - task 192: the protocol of a conversation that is handed to another agent (`transfer.nv`): whole messages, in order,
+-// the tools as one line, a limit that cuts between messages and never inside one.
++// complete recorded tool details and named references to attachments.
+ module canopus.server
+ 
+ fn tl(kind str, input str) -> str => "{\"id\":\"x\",\"trace\":\"s\",\"step\":1,\"kind\":\"${kind}\",\"input\":${input},\"time\":0}"
+@@ -16,7 +16,7 @@ fn sample() -> []str => [
+ ]
+ 
+ test "transfer: the first line says whose conversation it is, the messages come whole and in order" {
+-    ro r = build_transfer(sample(), "opencode", 400000)
++    ro r = build_transfer(sample(), "opencode")
+     assert(r.text.starts_with("Это продолжение разговора, ранее вёл opencode; ниже протокол; продолжай с последнего сообщения пользователя, ничего не отвечай на протокол"))
+     assert(r.text.contains("first question\nwith a second line"))
+     assert(r.text.contains("The answer"))
+@@ -33,29 +33,19 @@ test "transfer: the first line says whose conversation it is, the messages come
+     assert(first >= 0 && first < answer && answer < second)
+ }
+ 
+-test "transfer: over the limit it goes from the end by whole messages, the earlier ones are headers only" {
+-    mut lines = []str.new()
+-    mut n = 0
+-    while n < 20 {
+-        lines.push(tl("user_message", "{\"turn\":\"t${n}\",\"text\":\"question number ${n} ........................................................................................................................\"}"))
+-        lines.push(tl("agent_chunk", "{\"turn\":\"t${n}\",\"text\":\"answer number ${n} ........................................................................................................................\"}"))
+-        n += 1
+-    }
+-    ro r = build_transfer(lines, "kimi", 1500)
+-    assert(r.cut)
+-    assert(r.total == 40)
+-    assert(r.shown > 0 && r.shown < 40)
+-    // the last message is whole, the first one is only a header (a short preview), never a half of a message
+-    assert(r.text.contains("answer number 19 ........................................................................................................................"))
+-    assert(r.text.contains("question number 0"))
+-    assert(!r.text.contains("question number 0 ........................................................................................................................"))
+-}
+-
+-test "transfer: one message over the limit is still given whole" {
+-    ro big = "{\"turn\":\"t1\",\"text\":\"${"x".repeat(2000)}\"}"
+-    ro r = build_transfer([tl("user_message", big)], "kimi", 100)
+-    assert(r.text.contains("x".repeat(2000)))
+-    assert(r.shown == 1)
++test "transfer: a long transcript preserves early messages and full recorded tool details" {
++    ro early = "beginning ".concat("x".repeat(410000))
++    ro detail = "y".repeat(300).concat(" tool detail end")
++    ro lines = [
++        tl("user_message", "{\"turn\":\"t1\",\"text\":\"${early}\"}"),
++        tl("tool_call", "{\"turn\":\"t1\",\"id\":\"c1\",\"title\":\"read\",\"detail\":\"${detail}\"}"),
++        tl("agent_chunk", "{\"turn\":\"t1\",\"text\":\"recent answer\"}")
++    ]
++    ro r = build_transfer(lines, "kimi")
++    assert(r.text.contains(early))
++    assert(r.text.contains(detail))
++    assert(r.text.contains("recent answer"))
++    assert(r.shown == 2 && r.total == 2 && !r.cut)
+ }
+ 
+ test "transfer: the pictures of a message go as lines with the names, never the bytes" {
+@@ -68,7 +58,7 @@ test "transfer: the pictures of a message go as lines with the names, never the
+         tl("user_message", "{\"turn\":\"t2\",\"text\":\"\"}"),
+         tl("user_message", "{\"turn\":\"t3\",\"text\":\"plain\"}")
+     ]
+-    ro r = build_transfer(lines, "opencode", 400000)
++    ro r = build_transfer(lines, "opencode")
+     assert(r.text.contains("look at this\n[изображение: shot.png]\n[изображение: image-2.png]"))
+     assert(r.text.contains("[пользователь]\n[изображение: alone.png]"))
+     assert(r.text.contains("[пользователь]\nplain"))
+diff --git a/src/web/app.css b/src/web/app.css
+index 0b0804af..80d69854 100644
+--- a/src/web/app.css
++++ b/src/web/app.css
+@@ -16,20 +16,21 @@
+ 
+ :root {
+   --bg: #ffffff;
+-  --side: #fafafa;
++  --side: #f7f7fb;
+   /* Подложка центральной области (верхняя полоса, лента, правая колонка): в светлой теме — белая (задача 190). */
+   --center: #ffffff;
+   --surface: #ffffff;
+-  --surface-2: #f3f3f3;
+-  --hover: #efefef;
+-  --active: #e1e1e1;
+-  --border: #e5e5e5;
+-  --fg: #191919;
+-  --fg-muted: #666666;
+-  --accent: #2f54c9;
++  --surface-2: #f3f3f7;
++  --hover: #ececf3;
++  --active: #e2e2ea;
++  --border: #e2e2ea;
++  --fg: #1a1a1a;
++  --fg-muted: #5a5a6a;
++  --accent: #6b3fa0;
++  --effort-start: #0284c7;
+   --effort-end: #8b5cf6;
+   --accent-fg: #ffffff;
+-  --accent-soft: #e6eefc;
++  --accent-soft: #ede6f7;
+   --tip-bg: #1f1f1f;
+   --tip-fg: #ffffff;
+   --ok: #17692e;
+@@ -37,9 +38,9 @@
+   --warn-soft: #fbf0d9;
+   --danger: #a42528;
+   --danger-soft: #fbe4e1;
+-  --code-bg: #f3f3f3;
++  --code-bg: #f3f3f7;
+   --code-fg: #191919;
+-  --user-bg: #f3f3f3;
++  --user-bg: #f3f3f7;
+   --user-fg: #191919;
+   --shadow: 0 10px 30px rgba(0, 0, 0, .18);
+   --shadow-soft: 0 1px 3px rgba(0, 0, 0, .08);
+@@ -65,20 +66,20 @@
+ 
+ @media (prefers-color-scheme: dark) {
+   :root:not([data-theme="light"]) {
+-    --bg: #262624;
+-    --side: #1f1e1d;
++    --bg: #0f0f14;
++    --side: #191921;
+     /* В тёмной теме центр — прежний --bg: тёмная тема не меняется (задача 190). */
+-    --center: #262624;
+-    --surface: #30302e;
+-    --surface-2: #3a3935;
+-    --hover: #353430;
+-    --active: #3f3e3a;
+-    --border: #4a4842;
+-    --fg: #ece9e1;
+-    --fg-muted: #b4b0a5;
+-    --accent: #9db2ff;
+-    --accent-fg: #10142a;
+-    --accent-soft: #26304f;
++    --center: #0f0f14;
++    --surface: #1b1b26;
++    --surface-2: #1e1e29;
++    --hover: #222230;
++    --active: #2a2a38;
++    --border: #2a2a38;
++    --fg: #e8e8ee;
++    --fg-muted: #9494aa;
++    --accent: #a97dd1;
++    --accent-fg: #0f0f14;
++    --accent-soft: #2a1e3a;
+   --tip-bg: #1f1f1f;
+   --tip-fg: #ffffff;
+     --tip-bg: #1f1f1f;
+@@ -88,10 +89,10 @@
+     --warn-soft: #3b2f17;
+     --danger: #ff9a91;
+     --danger-soft: #45211f;
+-    --code-bg: #1b1a19;
+-    --code-fg: #e6e3da;
+-    --user-bg: #3a3935;
+-    --user-fg: #ece9e1;
++    --code-bg: #1e1e29;
++    --code-fg: #e8e8ee;
++    --user-bg: #1e1e29;
++    --user-fg: #e8e8ee;
+     --shadow: 0 10px 30px rgba(0, 0, 0, .6);
+     --shadow-soft: 0 1px 3px rgba(0, 0, 0, .35);
+     --shadow-card: 0 1px 2px rgba(0, 0, 0, .45), 0 6px 20px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .04);
+@@ -101,29 +102,29 @@
+ }
+ 
+ :root[data-theme="dark"] {
+-  --bg: #262624;
+-  --side: #1f1e1d;
++  --bg: #0f0f14;
++  --side: #191921;
+   /* В тёмной теме центр — прежний --bg: тёмная тема не меняется (задача 190). */
+-  --center: #262624;
+-  --surface: #30302e;
+-  --surface-2: #3a3935;
+-  --hover: #353430;
+-  --active: #3f3e3a;
+-  --border: #4a4842;
+-  --fg: #ece9e1;
+-  --fg-muted: #b4b0a5;
+-  --accent: #9db2ff;
+-  --accent-fg: #10142a;
+-  --accent-soft: #26304f;
++  --center: #0f0f14;
++  --surface: #1b1b26;
++  --surface-2: #1e1e29;
++  --hover: #222230;
++  --active: #2a2a38;
++  --border: #2a2a38;
++  --fg: #e8e8ee;
++  --fg-muted: #9494aa;
++  --accent: #a97dd1;
++  --accent-fg: #0f0f14;
++  --accent-soft: #2a1e3a;
+   --ok: #6fcf8c;
+   --warn: #f0b050;
+   --warn-soft: #3b2f17;
+   --danger: #ff9a91;
+   --danger-soft: #45211f;
+-  --code-bg: #1b1a19;
+-  --code-fg: #e6e3da;
+-  --user-bg: #3a3935;
+-  --user-fg: #ece9e1;
++  --code-bg: #1e1e29;
++  --code-fg: #e8e8ee;
++  --user-bg: #1e1e29;
++  --user-fg: #e8e8ee;
+   --shadow: 0 10px 30px rgba(0, 0, 0, .6);
+   --shadow-soft: 0 1px 3px rgba(0, 0, 0, .35);
+   --shadow-card: 0 1px 2px rgba(0, 0, 0, .45), 0 6px 20px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .04);
+@@ -666,20 +667,27 @@ pre code { font: inherit; }
+ .menu-head { padding: 6px 10px 4px; color: var(--fg-muted); font-size: 12px; }
+ .menu-sep { height: 1px; margin: 5px 4px; background: var(--border); }
+ .menu-item { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 34px; padding: 5px 10px; border: 0; border-radius: 8px; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+-.agent-model-row { display: grid; grid-template-columns: 16px minmax(0, 1fr); }
+-.agent-model-row .menu-label { grid-column: 2; }
+-.effort-control { position: relative; grid-column: 2; width: 100%; min-width: 0; height: 24px; overflow: hidden; }
+-.effort-slider { position: relative; z-index: 1; width: 100%; height: 24px; margin: 0; appearance: none; background: transparent; cursor: pointer; }
+-.effort-slider::-webkit-slider-runnable-track { height: 12px; border-radius: 8px; background: linear-gradient(to right, var(--ok), var(--effort-end)) 0 / var(--effort-fill, 0%) 100% no-repeat, var(--surface-2); }
+-.effort-slider::-moz-range-track { height: 12px; border-radius: 8px; background: var(--surface-2); }
+-.effort-slider::-moz-range-progress { height: 12px; border-radius: 8px; background: linear-gradient(to right, var(--ok), var(--effort-end)); }
+-.effort-slider::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; margin-top: -2px; border: 2px solid var(--surface); border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1px var(--border); }
+-.effort-slider::-moz-range-thumb { width: 12px; height: 12px; border: 2px solid var(--surface); border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1px var(--border); }
+-.effort-sparkles { position: absolute; z-index: 2; inset: 0; overflow: hidden; pointer-events: none; mask-image: linear-gradient(to right, transparent, var(--fg) 24%, var(--fg)); }
+-.effort-sparkles[data-count="0"] { display: none; }
+-.effort-sparkle { position: absolute; top: 0; right: calc(8px + var(--star-offset, 0px)); color: var(--accent-fg); font-size: 12px; line-height: 24px; text-shadow: 0 0 4px var(--accent); animation: effort-star-drift 1.5s linear var(--star-delay, 0s) infinite; }
++.menu[data-kind="effort"] { box-sizing: border-box; width: min(320px, calc(100vw - 24px)); min-width: 0; padding: 10px; }
++.effort-control {
++  --effort-track: linear-gradient(var(--surface-2), var(--surface-2)) right / calc(100% - var(--effort-fill, 0%)) 100% no-repeat,
++    linear-gradient(to right, var(--effort-start), var(--effort-end));
++  --effort-thumb: 20px; --effort-thumb-height: 34px; position: relative; width: 100%; min-width: 0; height: 36px; }
++.effort-slider { position: relative; z-index: 1; display: block; width: 100%; height: 36px; margin: 0; padding: 0; border: 0; box-shadow: none; appearance: none; background: transparent; cursor: pointer; }
++.effort-slider:focus-visible { outline: none; }
++.effort-slider:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--accent); outline-offset: -2px; }
++.effort-slider:focus-visible::-moz-range-thumb { outline: 2px solid var(--accent); outline-offset: -2px; }
++.effort-slider::-webkit-slider-runnable-track { height: 30px; border-radius: 999px; background: var(--effort-track); }
++.effort-slider::-moz-range-track { height: 30px; border-radius: 999px; background: var(--effort-track); }
++.effort-slider::-webkit-slider-thumb { appearance: none; width: var(--effort-thumb); height: var(--effort-thumb-height); margin-top: -2px; border: 0; border-radius: 7px; background: var(--surface); box-shadow: 0 1px 4px #0003; }
++.effort-slider::-moz-range-thumb { width: var(--effort-thumb); height: var(--effort-thumb-height); border: 0; border-radius: 7px; background: var(--surface); box-shadow: 0 1px 4px #0003; }
++.effort-ticks { position: absolute; z-index: 3; inset: 0 calc(var(--effort-thumb) / 2); pointer-events: none; }
++.effort-tick { position: absolute; top: 50%; left: var(--effort-stop); width: 4px; height: 4px; transform: translate(-50%, -50%); border-radius: 50%; background: color-mix(in srgb, var(--fg) 38%, transparent); }
++.effort-tick[data-filled='true'] { background: #fffc; }
++.effort-sparkles { position: absolute; z-index: 2; inset: 3px 0; overflow: hidden; border-radius: 999px; clip-path: inset(0 min(100%, calc(100% - var(--effort-fill, 0%) + var(--effort-thumb) / 2)) 0 0 round 999px); transition: clip-path 160ms ease-out, opacity 160ms ease-out; pointer-events: none; mask-image: linear-gradient(to right, transparent, var(--fg) 24%, var(--fg)); }
++.effort-sparkles[data-active="false"] { opacity: 0; }
++.effort-sparkle { position: absolute; top: var(--star-height); right: calc(2px + var(--star-offset, 0px)); margin-top: -4px; color: var(--accent-fg); font-size: 9px; line-height: 9px; text-shadow: 0 0 4px var(--accent); animation: effort-star-drift 1.5s linear var(--star-delay, 0s) infinite; }
+ @keyframes effort-star-drift { from { transform: translateX(0); opacity: 0; } 18% { opacity: 1; } to { transform: translateX(-180px); opacity: 0; } }
+-@media (prefers-reduced-motion: reduce) { .effort-sparkle { animation: none; opacity: .8; transform: none; } }
++@media (prefers-reduced-motion: reduce) { .effort-sparkle { animation: none; opacity: .8; transform: none; } .effort-sparkles { transition: none; } }
+ .menu-check { display: inline-flex; width: 16px; flex: none; }
+ .menu-check .icon { width: 14px; height: 14px; }
+ .menu-label { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+diff --git a/src/web/app.js b/src/web/app.js
+index 2551b0b1..498e2df4 100644
+--- a/src/web/app.js
++++ b/src/web/app.js
+@@ -6,14 +6,14 @@
+ // подтверждения, а не выдаёт запись в сокет за принятие сервером.
+ 
+ import {
+-  initialModel, reduce, makeEvent, nextStep, normalizeTheme, nextTheme, THEME_KEY, beginSwitch, undoSwitch,
++  initialModel, reduce, reduceBatch, makeEvent, nextStep, normalizeTheme, nextTheme, THEME_KEY, beginSwitch, undoSwitch,
+   addDraft, dropDrafts, patchDraft, nameFromText,
+ } from './state.js';
+ import { waitingKeys, waitKey, SILENT_DEFAULT_MIN } from './attention.js';
+ import { createNotifier } from './notify.js';
+ import { t } from './strings.js';
+ import { createView } from './view.js';
+-import { createQueue } from './queue.js';
++import { createQueue, isBusy } from './queue.js';
+ import { uploadImages, messageInput } from './attachments.js';
+ import { chooseMode, createTransport, parseAgentRegistry, loadModelMetadata } from './transport.js';
+ import { createProjectsApi } from './projects-api.js';
+@@ -112,6 +112,8 @@ if (!ui.awaiting) {
+ applyTheme(ui.theme);
+ 
+ const ctx = { newId, now: () => Date.now() };
++ui.sourceQuestions = new Map();
++const confirmSourceLabel = 'Применить';
+ let view = null;
+ let queued = false;
+ let transport = null;
+@@ -251,6 +253,13 @@ async function postImage(trace, item) {
+ }
+ const signal = (trace, { kind, input }) => [kind, trace, nextStep(model, trace), input];
+ 
++function warnIfCodexTransferUnknown(session, source) {
++  if (!session || session.draft || source?.family !== 'codex' || session.agent === 'codex'
++      || !session.messages.some((message) => message.role === 'user')) return false;
++  flash('Переход на Codex приостановлен: вместимость полной истории неизвестна. История и новое сообщение не отправлены.', 'error');
++  return true;
++}
++
+ const handlers = {
+   onRetryProjects() { loadProjects(); },
+   onRetrySessions() { transport?.retry(); },
+@@ -391,6 +400,8 @@ const handlers = {
+   // Без картинок — как раньше, сразу. С картинками — сначала они на сервер по очереди, потом сообщение с их номерами.
+   onSend(trace, text, images = []) {
+     const draft = model.sessions[trace];
++    if (ui.sourceQuestions.has(trace)) return false;
++    if (warnIfCodexTransferUnknown(draft, draft?.source)) return false;
+     let reserved = null;
+     if (draft && draft.draft) {
+       // Protect the first message before even creating its session (creation may fail too).
+@@ -461,7 +472,24 @@ const handlers = {
+   onSource(trace, source) {
+     const session = model.sessions[trace];
+     if (!session || session.draft || isBusy(session.state)) { flash('Источник можно изменить только между ходами.', 'info'); return; }
+-    if (!send('session_source', trace, nextStep(model, trace), source)) flash('Источник не изменён: соединение недоступно.', 'error');
++    const handoff = session.agent === 'kimi' && source.family === 'codex' && session.messages.some((message) => message.role === 'user');
++    if ((!handoff && source.family !== session.agent) || session.pendingQuestion) {
++      if (!session.pendingQuestion) send('session_source', trace, nextStep(model, trace), source);
++      return;
++    }
++    const question = {
++      request: newId(),
++      questions: [{
++        header: 'Модель и усилие',
++        question: handoff
++          ? 'Перейти на Codex в этом чате? Кеш Kimi не переносится. Вместимость полной истории не подтверждена.'
++          : 'Применить выбор со следующего сообщения? История останется в чате. Кеш запроса может быть пересобран.',
++        multiSelect: false,
++        options: [{ label: confirmSourceLabel, description: '' }, { label: 'Отмена', description: '' }],
++      }],
++    };
++    ui.sourceQuestions.set(trace, { ...question, source, handoff, previous: session.agent });
++    render();
+   },
+   onApproval(trace, family, value) {
+     const session = model.sessions[trace];
+@@ -474,6 +502,21 @@ const handlers = {
+     send('session_setting', trace, nextStep(model, trace), { family, setting: 'mode', value });
+   },
+   onAnswer(trace, answer) {
++    const pending = ui.sourceQuestions.get(trace);
++    if (pending?.request === answer.request) {
++      const session = model.sessions[trace];
++      if (!answer.skipped && answer.answers?.[0]?.selected?.[0] === confirmSourceLabel) {
++        if (!session || session.agent !== pending.previous || isBusy(session.state)) {
++          flash('Источник можно изменить только между ходами.', 'info');
++          return false;
++        }
++        if (!send(pending.handoff ? 'session_context_handoff' : 'session_source', trace, nextStep(model, trace), pending.source)) return false;
++      }
++      ui.sourceQuestions.delete(trace);
++      render();
++      if (!pending.handoff || answer.skipped) drain();
++      return true;
++    }
+     return send('question_answer', trace, nextStep(model, trace), answer);
+   },
+   // Режимы работы по методике (задача 192p): сигналы серверу; состояние вернётся событием route_state.
+@@ -563,40 +606,58 @@ async function start() {
+     main: document.getElementById('main'), rail: document.getElementById('rail'),
+     status: document.getElementById('status'), overlay: document.getElementById('overlay'),
+   }, { agents, now: ctx.now, handlers, registryFailed, registryPending: picked.mode === 'ws', imageSrc: mock ? mock.mockImageSrc : undefined, projectsApi, presets: () => presetInfo, modelMetadata: () => modelMetadata });
++  let metadataRequest = null;
++  function refreshModelMetadata() {
++    if (picked.mode !== 'ws' || !agentList.length || metadataRequest) return;
++    if (modelMetadata.status === 'ready' && modelMetadata.expiresAt - ctx.now() > 60000) return;
++    metadataRequest = loadModelMetadata((...args) => fetch(...args), agentList.map((agent) => agent.id))
++      .then((next) => {
++        if (next.status === 'ready' || modelMetadata.expiresAt <= ctx.now() || modelMetadata.status !== 'ready') {
++          modelMetadata = next;
++        }
++        render();
++      }).finally(() => { metadataRequest = null; });
++  }
++
+   if (picked.mode === 'ws') {
+     fetch('/api/agents', { cache: 'no-store' }).then(async (response) => {
+       if (!response.ok) throw new Error('agent registry unavailable');
+       const next = parseAgentRegistry(await response.json());
+       view.setAgents(next, false); agentList = next;
+-      modelMetadata = { status: 'loading', reason: 'metadata_loading', family: '', models: [] };
+-      render();
+-      modelMetadata = await loadModelMetadata((...args) => fetch(...args), next.map((agent) => agent.id));
++      modelMetadata = next.length ? { status: 'loading', reason: 'metadata_loading', family: '', models: [] }
++        : { status: 'unavailable', reason: 'agent_registry_empty', family: '', models: [] };
++      refreshModelMetadata();
+       render();
+     }).catch(() => { view.setAgents([], true); agentList = []; modelMetadata = { status: 'unavailable', reason: 'agent_registry_unavailable', family: '', models: [] }; render(); });
+   }
+   setInterval(() => view.tick(), TICK_MS);
+-  setInterval(() => render(), 30000); // «молчит N мин» в списке обновляется сам
+-  document.addEventListener('visibilitychange', () => { notifier.visibilityChanged(); render(); });
+-  globalThis.addEventListener('focus', () => { notifier.visibilityChanged(); render(); });
++  setInterval(() => { refreshModelMetadata(); render(); }, 30000); // «молчит N мин» в списке обновляется сам
++  document.addEventListener('visibilitychange', () => { notifier.visibilityChanged(); refreshModelMetadata(); render(); });
++  globalThis.addEventListener('focus', () => { notifier.visibilityChanged(); refreshModelMetadata(); render(); });
+   globalThis.addEventListener('blur', () => notifier.visibilityChanged());
++
++  function applyEvents(events) {
++    try {
++      let deliveryChanged = false;
++      for (const event of events) {
++        if (event.kind === 'message_delivery') { delivery.receipt(event.input); deliveryChanged = true; }
++        if (event.kind === 'error' && event.input) { delivery.error(event); deliveryChanged = true; }
++      }
++      const next = events.length === 1 ? reduce(model, events[0]) : reduceBatch(model, events);
++      const changed = next !== model;
++      model = next;
++      delivery.reconcile(model);
++      if (changed) drain();
++      if (changed || deliveryChanged) render();
++    } catch (e) { reportError(e); }
++  }
++
+   transport = createTransport({
+     mode: picked.mode, url: picked.url,
+     server: mock ? mock.createMockServer({ now: ctx.now, machines: true }) : undefined,
+     WebSocketImpl: globalThis.WebSocket, timers,
+-    onEvent(event) {
+-      try {
+-        if (event.kind === 'message_delivery') delivery.receipt(event.input);
+-        if (event.kind === 'error' && event.input) delivery.error(event);
+-        const next = reduce(model, event);
+-        const changed = next !== model;
+-        model = next;
+-        delivery.reconcile(model);
+-        if (changed) drain();
+-        if (changed || event.kind === 'message_delivery' || event.kind === 'error') render();
+-      } catch (e) {
+-        reportError(e);
+-      }
+-    },
++    onEvent: (event) => applyEvents([event]),
++    onBatch: applyEvents,
+     onStatus(next) { status = next; if (next.state === 'retry') delivery.disconnected(); render(); },
+     onSnapshot(phase, ids) {
+       if (phase === 'loading') {
+diff --git a/src/web/delivery.js b/src/web/delivery.js
+index 8a960ded..30105458 100644
+--- a/src/web/delivery.js
++++ b/src/web/delivery.js
+@@ -23,6 +23,7 @@ export function safeError(value) {
+     [/429|rate.?limit|quota/i, t('delivery.reason_limit')],
+     [/timeout|timed out|Timeout/i, t('delivery.reason_timeout')],
+     [/network|offline|connect|ECONN/i, t('delivery.reason_network')],
++    [/^Смена семьи источника остановлена: драйвер не гарантирует полный перенос контекста без отдельного хода\./, t('delivery.reason_family_switch')],
+     [/идёт прогон шагов/i, t('delivery.reason_running')],
+     [/репозиторий результата/i, t('delivery.reason_repo')],
+     [/pictures|images|изображени/i, t('delivery.reason_images')],
+diff --git a/src/web/state.js b/src/web/state.js
+index 9c8bdc20..ca825b14 100644
+--- a/src/web/state.js
++++ b/src/web/state.js
+@@ -558,23 +558,39 @@ function apply(session, event) {
+  * годится, уже виделось или ничего не меняет; иначе — новую. Входные данные не меняются.
+  */
+ export function reduce(model, event) {
++  return reduceEvent(model, event, () => ({ ...model.seen, [event.id]: true }));
++}
++
++export function reduceBatch(model, events) {
++  let next = model;
++  let seen;
++  for (const event of events) {
++    next = reduceEvent(next, event, () => {
++      seen ??= { ...model.seen };
++      seen[event.id] = true;
++      return seen;
++    });
++  }
++  return next;
++}
++
++function reduceEvent(model, event, markSeen) {
+   if (!isEvent(event) || !KINDS.includes(event.kind)) return model;
+   if (model.seen[event.id]) return model;
+ 
+-  const seen = { ...model.seen, [event.id]: true };
+ 
+   if (event.kind === 'agent_catalog') {
+     const agent = str(event.input.agent);
+-    if (!agent) return { ...model, seen };
++    if (!agent) return { ...model, seen: markSeen() };
+     const updated = Number.isFinite(event.input.updated) ? event.input.updated : event.time;
+     const old = model.catalog[agent];
+-    if (old && old.updated > updated) return { ...model, seen };
++    if (old && old.updated > updated) return { ...model, seen: markSeen() };
+     const entry = { agent, updated, model: str(event.input.model), options: optionsOf(event.input) };
+-    return { ...model, seen, catalog: { ...model.catalog, [agent]: entry } };
++    return { ...model, seen: markSeen(), catalog: { ...model.catalog, [agent]: entry } };
+   }
+ 
+   if (event.kind === 'session_created') {
+-    if (model.sessions[event.trace] && !model.sessions[event.trace].draft) return { ...model, seen };
++    if (model.sessions[event.trace] && !model.sessions[event.trace].draft) return { ...model, seen: markSeen() };
+       const session = {
+       id: event.trace,
+       name: str(event.input.name, event.trace),
+@@ -615,14 +631,14 @@ export function reduce(model, event) {
+       diffs: [],
+       turnStartedAt: 0,
+     };
+-    return { ...model, seen, sessions: { ...model.sessions, [event.trace]: session } };
++    return { ...model, seen: markSeen(), sessions: { ...model.sessions, [event.trace]: session } };
+   }
+ 
+   if (event.kind === 'session_deleted') {
+     // сессию удалили на сервере: её нет ни в списках, ни в разговоре (id события помнится, чтобы повтор был безвреден)
+-    if (!model.sessions[event.trace]) return { ...model, seen };
++    if (!model.sessions[event.trace]) return { ...model, seen: markSeen() };
+     const { [event.trace]: gone, ...rest } = model.sessions;
+-    return { ...model, seen, sessions: rest };
++    return { ...model, seen: markSeen(), sessions: rest };
+   }
+ 
+   const session = model.sessions[event.trace];
+@@ -647,7 +663,7 @@ export function reduce(model, event) {
+     updatedAt: quiet ? session.updatedAt : Math.max(session.updatedAt, event.time),
+     lastStep: Math.max(session.lastStep, event.step),
+   };
+-  return { ...model, seen, sessions: { ...model.sessions, [event.trace]: next } };
++  return { ...model, seen: markSeen(), sessions: { ...model.sessions, [event.trace]: next } };
+ }
+ 
+ // ---- безопасный текст -------------------------------------------------------------
+diff --git a/src/web/strings.js b/src/web/strings.js
+index 6111a1c4..35202206 100644
+--- a/src/web/strings.js
++++ b/src/web/strings.js
+@@ -181,6 +181,7 @@ export const S = Object.freeze({
+   'delivery.reason_limit': 'Сервис ограничил запросы. Проверьте лимиты и подождите.',
+   'delivery.reason_timeout': 'Истекло время ожидания ответа. Проверьте состояние агента.',
+   'delivery.reason_network': 'Соединение прервано. Проверьте сеть и состояние сервера.',
++  'delivery.reason_family_switch': 'Сообщение не отправлено агенту. Для другой семьи моделей создайте новую сессию или верните прежнюю семью в этом чате.',
+   'delivery.reason_running': 'Идёт прогон шагов. Остановите его перед отправкой сообщения.',
+   'delivery.reason_repo': 'Репозиторий результата недоступен. Проверьте его выбор в сессии.',
+   'delivery.reason_images': 'Не удалось передать изображения. Проверьте вложения и доступность сервера.',
+diff --git a/src/web/test/agent-choice.test.mjs b/src/web/test/agent-choice.test.mjs
+index 7d441609..ed2d88df 100644
+--- a/src/web/test/agent-choice.test.mjs
++++ b/src/web/test/agent-choice.test.mjs
+@@ -21,7 +21,7 @@ for (const agents of [[], [{ id: 'opencode' }]]) {
+     view.render(model, { selected: 's', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
+     const group = refs.main.querySelector('.status-group');
+     assert.equal(group.children.length, 1);
+-    const buttons = group.querySelectorAll('button');
++    const buttons = group.querySelectorAll('button').filter((button) => !button.hidden);
+     assert.equal(buttons.length, 1);
+     assert.equal(refs.main.querySelector('.family-approvals-button'), null);
+     if (agents.length === 0) {
+@@ -84,20 +84,28 @@ test('компактный селектор отправляет direct source 
+   const view = createView(doc, refs, { agents, now: () => 0, presets: () => presets, modelMetadata: () => metadata, handlers: {
+     queued: () => 0, queuedItems: () => [], onSource: (...args) => sources.push(args), onDraftSource: (...args) => draftSources.push(args),
+   } });
+-  const model = reduce(initialModel(), { id: 'create', trace: 's', step: 0, time: 1, kind: 'session_created', input: { name: 'Проверка', agent: 'opencode' } });
++  const model = reduce(initialModel(), { id: 'create', trace: 's', step: 0, time: 1, kind: 'session_created', input: { name: 'Проверка', agent: 'opencode', source: { family: 'opencode', model: 'm1', effort: 'low' } } });
+   view.render(model, { selected: 's', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
+   const picker = refs.main.querySelector('.agent-picker-button');
+   assert.ok(picker);
+-  assert.equal(refs.main.querySelectorAll('.status-group .status-btn').length, 1);
++  assert.equal(refs.main.querySelectorAll('.status-group .status-btn').length, 2);
+   picker.click();
+   const modelRow = refs.main.querySelectorAll('.menu-item').find((r) => r.textContent.includes('Model One'));
+   assert.ok(modelRow);
+-  const slider = modelRow.querySelector('.effort-slider');
++  assert.equal(modelRow.querySelector('.effort-slider'), null);
++  refs.main.querySelector('.effort-picker-button').click();
++  const slider = refs.main.querySelector('.effort-slider');
+   assert.ok(slider);
+-  assert.equal(modelRow.querySelector('.effort-sparkles').dataset.count, '0');
++  assert.equal(refs.main.querySelector('.effort-sparkles').dataset.active, 'false');
++  const stars = refs.main.querySelectorAll('.effort-sparkle');
+   slider.value = '1';
+   slider.dispatchEvent({ type: 'input', bubbles: true });
+-  assert.equal(modelRow.querySelector('.effort-sparkles').dataset.count, '8');
++  assert.equal(refs.main.querySelector('.effort-sparkles').dataset.active, 'true');
++  assert.ok(refs.main.querySelectorAll('.effort-sparkle').every((star, at) => star === stars[at]));
++  assert.equal(refs.main.querySelectorAll('.effort-tick').length, 2);
++  assert.deepEqual(refs.main.querySelectorAll('.effort-tick').map((tick) => tick.hidden), [false, true]);
++  const heights = refs.main.querySelectorAll('.effort-sparkle').map((star) => star.style['--star-height']);
++  assert.ok(new Set(heights).size > 2);
+   slider.dispatchEvent({ type: 'change', bubbles: true });
+   assert.deepEqual(sources, [['s', { family: 'opencode', model: 'm1', effort: 'high' }]]);
+ });
+@@ -135,11 +143,11 @@ test('partial cold metadata exposes only its bound family; other configured fami
+ test('звёзды усилия декоративны, едут справа налево и неподвижны при reduced-motion', async () => {
+   const { readFile } = await import('node:fs/promises');
+   const css = await readFile(new URL('../app.css', import.meta.url), 'utf8');
+-  assert.match(css, /\.effort-slider::-webkit-slider-runnable-track \{[^}]*height: 12px/);
++  assert.match(css, /\.effort-slider::-webkit-slider-runnable-track \{[^}]*height: 30px/);
+   assert.match(css, /--effort-end:\s*#8b5cf6/);
+-  assert.match(css, /linear-gradient\(to right, var\(--ok\), var\(--effort-end\)\)/);
++  assert.match(css, /linear-gradient\(to right, var\(--effort-start\), var\(--effort-end\)\)/);
+   assert.doesNotMatch(css, /\.effort-slider[^}]*linear-gradient\(to right, var\(--ok\), var\(--accent\)\)/);
+-  assert.match(css, /linear-gradient\(to right, var\(--ok\), var\(--effort-end\)\) 0 \/ var\(--effort-fill, 0%\) 100% no-repeat/);
++  assert.match(css, /right \/ calc\(100% - var\(--effort-fill, 0%\)\) 100% no-repeat/);
+   assert.match(css, /@keyframes effort-star-drift \{[^}]*translateX\(0\)[\s\S]*?translateX\(-180px\)/);
+   assert.match(css, /\.effort-sparkles \{[^}]*pointer-events: none/);
+   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{ \.effort-sparkle \{ animation: none/);
+@@ -283,7 +291,7 @@ for (const draft of [true, false]) test(`one model-row click commits a family/mo
+     queued:()=>0,queuedItems:()=>[],onSource:(...args)=>calls.push(['real',...args]),onDraftSource:(trace,source)=>{calls.push(['draft',trace,source]);model=patchDraft(model,trace,{source});draw();}
+   }});
+   draw();refs.main.querySelector('.agent-picker-button').click();
+-  const row=refs.main.querySelectorAll('.agent-model-row').find(r=>r.textContent.includes('K3'));
++  const row=refs.main.querySelectorAll('.menu-item').find(r=>r.textContent.includes('K3'));
+   assert.ok(row);row.click();
+   assert.deepEqual(calls,[[draft?'draft':'real','s',{family:'kimi',model:'k3',effort:'off'}]]);
+   assert.equal(refs.main.querySelector('.agent-picker-button').getAttribute('aria-expanded'),'false');
+@@ -295,4 +303,87 @@ test('restored unbound error is historical above the conversation and never rend
+  const view=createView(doc,refs,{agents:[{id:'kimi'}],now:()=>10000,handlers:{queued:()=>0,queuedItems:()=>[],deliveryItems:()=>[{id:'old',trace:'s',state:'error',images:[],text:'',reason:'network',at:1000,restored:true}]}});
+  const model=reduce(initialModel(),{id:'c',trace:'s',step:0,kind:'session_created',input:{agent:'kimi',name:'Test'},time:2000});view.render(model,{selected:'s',projects:[],pins:{},theme:'system'},{state:'connected'});
+  assert.doesNotMatch(refs.main.textContent,/\bfalse\b/);const old=refs.main.querySelector('.delivery-history');assert.ok(old);assert.equal(old.querySelector('.delivery-body').hidden,true);assert.equal(old.getAttribute('role'),'note');
+-});
+\ No newline at end of file
++});
++test('Codex effort variants share one model row and use separate ACP settings', () => {
++  const doc = createFakeDocument(); const refs = {}; const sources = [];
++  for (const key of ['app', 'side', 'main', 'rail', 'status', 'overlay']) {
++    refs[key] = doc.createElement('div');
++    doc.body.append(refs[key]);
++  }
++  const variants = ['low', 'high', 'ultra'].map((effort) => ({
++    id: `gpt-6.1-sol[${effort}]`, name: `6.1 Sol (${effort})`,
++  }));
++  const view = createView(doc, refs, {
++    agents: [{ id: 'codex' }], now: () => 0,
++    modelMetadata: () => ({ status: 'ready', expiresAt: 1000, families: { codex: variants } }),
++    handlers: { queued: () => 0, queuedItems: () => [], onSource: (...args) => sources.push(args) },
++  });
++  const model = reduce(initialModel(), { id: 'create', trace: 's', step: 0, time: 1, kind: 'session_created', input: {
++    agent: 'codex', source: { family: 'codex', model: 'gpt-6.1-sol[high]', effort: 'low' },
++  } });
++  view.render(model, { selected: 's', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
++  refs.main.querySelector('.agent-picker-button').click();
++  const rows = refs.main.querySelectorAll('.menu-item');
++  assert.equal(rows.length, 1);
++  assert.match(rows[0].textContent, /6\.1 Sol/);
++  assert.doesNotMatch(rows[0].textContent, /high|low|ultra/);
++  assert.equal(rows[0].getAttribute('aria-checked'), 'true');
++  assert.equal(refs.main.querySelector('.effort-slider'), null);
++
++  refs.main.querySelector('.effort-picker-button').click();
++  const slider = refs.main.querySelector('.effort-slider');
++  assert.equal(String(slider.value), '1');
++  const middleStars = refs.main.querySelectorAll('.effort-sparkle');
++  assert.equal(middleStars.length, 8);
++  assert.equal(new Set(middleStars.map((star) => star.style['--star-height'])).size, 7);
++  assert.deepEqual(refs.main.querySelectorAll('.effort-tick').map((tick) => tick.style['--effort-stop']), ['0%', '50%', '100%']);
++  slider.value = '2';
++  slider.dispatchEvent({ type: 'change', bubbles: true });
++  const selection = { family: 'codex', model: 'gpt-6.1-sol', effort: 'ultra' };
++  assert.deepEqual(sources, [['s', selection]]);
++  const effortButton = refs.main.querySelector('.effort-picker-button');
++  assert.equal(effortButton.getAttribute('aria-expanded'), 'true');
++
++  const render = (next) => view.render(next, { selected: 's', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
++  render(model);
++  assert.equal(refs.main.querySelector('.effort-slider'), slider, 'unrelated renders preserve the slider while open');
++  const pinned = reduce(model, { id: 'pin', trace: 's', step: 1, time: 2, kind: 'session_source', input: selection });
++  render(pinned);
++  assert.ok(refs.main.querySelectorAll('.effort-sparkle').every((star, at) => star === middleStars[at]));
++  assert.equal(effortButton.textContent, 'ultra');
++  assert.equal(String(refs.main.querySelector('.effort-slider').value), '2');
++  const pending = reduce(pinned, { id: 'pending', trace: 's', step: 2, time: 3, kind: 'agent_selection', input: selection });
++  render(pending);
++  assert.equal(effortButton.getAttribute('aria-expanded'), 'true');
++  assert.equal(refs.main.querySelector('.effort-slider').disabled, true);
++  render(reduce(pending, { id: 'chosen', trace: 's', step: 3, time: 4, kind: 'agent_selected', input: { ...selection, effort: 'low' } }));
++  assert.equal(effortButton.getAttribute('aria-expanded'), 'true');
++  assert.equal(String(refs.main.querySelector('.effort-slider').value), '2');
++  assert.equal(refs.main.querySelector('.effort-slider').disabled, false);
++  assert.equal(effortButton.textContent, 'ultra');
++  effortButton.click();
++  assert.equal(effortButton.getAttribute('aria-expanded'), 'false');
++});
++test('the standard question card can confirm a local model choice', () => {
++  const doc = createFakeDocument(); const refs = {};
++  for (const key of ['app', 'side', 'main', 'rail', 'status', 'overlay']) {
++    refs[key] = doc.createElement('div');
++    doc.body.append(refs[key]);
++  }
++  const answers = [];
++  const view = createView(doc, refs, { agents: [{ id: 'kimi' }], now: () => 0, handlers: {
++    queued: () => 0, queuedItems: () => [], onAnswer: (trace, answer) => { answers.push([trace, answer]); return true; },
++  } });
++  const model = reduce(initialModel(), { id: 'create', trace: 's', step: 0, time: 1, kind: 'session_created', input: { agent: 'kimi' } });
++  const sourceQuestions = new Map([['s', { request: 'confirm-model', questions: [{
++    header: 'Модель', question: 'Применить?', multiSelect: false,
++    options: [{ label: 'Применить', description: '' }, { label: 'Отмена', description: '' }],
++  }] }]]);
++  view.render(model, { selected: 's', projects: [], pins: {}, theme: 'system', sourceQuestions }, { state: 'connected' });
++  const button = refs.main.querySelector('.ask-send');
++  assert.ok(button);
++  button.click();
++  assert.equal(answers[0][0], 's');
++  assert.equal(answers[0][1].request, 'confirm-model');
++  assert.deepEqual(answers[0][1].answers[0].selected, ['Применить']);
++});
+diff --git a/src/web/test/delivery.test.mjs b/src/web/test/delivery.test.mjs
+index ae3c65c1..ad51be18 100644
+--- a/src/web/test/delivery.test.mjs
++++ b/src/web/test/delivery.test.mjs
+@@ -195,3 +195,10 @@ test('an unknown delivery is a neutral status with a disabled retry', () => {
+   assert.doesNotMatch(card.textContent, /⚠/);
+   assert.equal(card.querySelector('.delivery-actions button').disabled, true);
+ });
++
++test('cross-family refusal explains the context boundary without copying raw errors', () => {
++  const result = safeError('Смена семьи источника остановлена: драйвер не гарантирует полный перенос контекста без отдельного хода. token=secret');
++  assert.match(result, /создайте новую сессию/);
++  assert.doesNotMatch(result, /secret/);
++  assert.equal(safeError(result), result);
++});
+diff --git a/src/web/transport.js b/src/web/transport.js
+index 1ff5f914..aae69e75 100644
+--- a/src/web/transport.js
++++ b/src/web/transport.js
+@@ -124,6 +124,7 @@ export async function loadModelMetadata(fetchFn, configuredFamilies, now = Date.
+  */
+ export function createTransport(deps) {
+   const { mode, server, url, WebSocketImpl, timers, onEvent, onStatus, onSnapshot = () => {} } = deps;
++  const onBatch = deps.onBatch ?? ((events) => events.forEach(onEvent));
+ 
+   // ---- заглушка ----
+   const scheduled = new Map(); // id таймера -> trace
+@@ -179,10 +180,16 @@ export function createTransport(deps) {
+       let data;
+       try { data = JSON.parse(message.data); } catch { return; }
+       const list = Array.isArray(data) ? data : [data];
++      let batch = [];
+       for (const e of list) if (isObject(e)) {
+-        if (e.kind === 'sessions_ready' && Array.isArray(e.sessions)) onSnapshot('ready', e.sessions);
+-        else onEvent(e);
++        if (e.kind === 'sessions_ready' && Array.isArray(e.sessions)) {
++          if (batch.length) onBatch(batch);
++          batch = [];
++          onSnapshot('ready', e.sessions);
++        } else batch.push(e);
+       }
++      if (batch.length === 1) onEvent(batch[0]);
++      else if (batch.length > 1) onBatch(batch);
+     };
+     ws.onclose = () => {
+       if (socket !== ws) return;
+diff --git a/src/web/view.js b/src/web/view.js
+index ed27dbac..b5900c88 100644
+--- a/src/web/view.js
++++ b/src/web/view.js
+@@ -36,7 +36,7 @@ import {
+ } from './question.js';
+ import {
+   STATE_KEYS, sessionList, splitBlocks, filterSessions, groupSessions, descendantsOf, effectivePins, timeline, paragraphs, inlineSpans,
+-  workSummary, messageTime, groupThousands, ruForm, effortChoices, shownOf, familyOf, filterModels, groupModels, usagePercent, usageLevel, tokenParts, durationLabel, agoParts, fileParts, taskSummary,
++  workSummary, messageTime, groupThousands, ruForm, shownOf, familyOf, filterModels, groupModels, usagePercent, usageLevel, tokenParts, durationLabel, agoParts, fileParts, taskSummary,
+ } from './state.js';
+ import { attention, SILENT_DEFAULT_MIN } from './attention.js';
+ import {
+@@ -739,7 +739,7 @@ export function createView(doc, refs, deps) {
+   const familyButton = h(doc, 'button', { type: 'button', class: 'status-btn agent-picker-button', hidden: true, title: t('status.agent'), 'aria-label': t('status.agent'), 'aria-haspopup': 'dialog', 'aria-expanded': 'false' });
+   const modeButton = h(doc, 'button', { type: 'button', class: 'status-btn', hidden: true, title: t('menu.mode'), 'aria-label': t('menu.mode'), 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
+   const modelButton = h(doc, 'button', { type: 'button', class: 'status-btn', hidden: true, title: t('status.model'), 'aria-label': t('status.model'), 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
+-  const effortButton = h(doc, 'button', { type: 'button', class: 'status-btn', hidden: true, title: t('menu.effort'), 'aria-label': t('menu.effort'), 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
++  const effortButton = h(doc, 'button', { type: 'button', class: 'status-btn effort-picker-button', hidden: true, title: t('menu.effort'), 'aria-label': t('menu.effort'), 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
+   // Режим работы по методике (задача 192p): слева в строке статуса, плоский текст без шеврона.
+   const routeButton = h(doc, 'button', { type: 'button', class: 'status-btn route-chip', hidden: true, title: t('route.label'), 'aria-label': t('route.label'), 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
+   // Под полем новой сессии: Worktree · режим · агент · модель · усилие; проект выбирается только списком посреди пустого чата (задача 192.6).
+@@ -805,13 +805,13 @@ export function createView(doc, refs, deps) {
+   const whereNote = h(doc, 'p', { class: 'where-note', hidden: true });
+   const spinner = h(doc, 'span', { class: 'spinner', role: 'img', 'aria-label': t('composer.working'), hidden: true });
+   const menu = h(doc, 'div', { class: 'menu', role: 'menu', hidden: true });
+-  const agentAnchor = h(doc, 'div', { class: 'agent-picker-anchor' }, familyButton, menu);
++  const agentAnchor = h(doc, 'div', { class: 'agent-picker-anchor' }, familyButton, effortButton, menu);
+   // The model picker owns its anchor; the lower mode selector is the only visible mode control.
+   const statusGroup = h(doc, 'div', { class: 'status-group' }, agentAnchor);
+   // Композиция нижней панели по макету 268 (task/design/new-chat.png): режим, семья, модель и усилие —
+   // пилюли одной строкой ВНУТРИ карточки композера, а не отдельной строкой под ней.
+   const boxBar = h(doc, 'div', { class: 'box-bar', 'data-empty': 'true' },
+-    routeButton, modeButton, h(doc, 'span', { class: 'grow' }), statusGroup, modelButton, effortButton);
++    routeButton, modeButton, h(doc, 'span', { class: 'grow' }), statusGroup, modelButton);
+   box.append(boxBar);
+   const status = h(doc, 'div', { class: 'composer-status', 'data-empty': 'true' }, worktreeButton, resultRepoButton, h(doc, 'span', { class: 'grow' }), ringBox, spinner, presetSelect);
+ 
+@@ -834,17 +834,50 @@ export function createView(doc, refs, deps) {
+   const labelFor = (kind, list, id) => labelOf(kind, list.find((c) => c.id === id) || { name: '' });
+   function directModelsFor(family) {
+     const session = currentSession;
++    const metadata = modelMetadata();
++    const catalogModels = metadata?.status === 'ready' && metadata.expiresAt > now() ? metadata.families?.[family] : undefined;
++    if (family === 'codex' && catalogModels?.length) return catalogModels;
+     if (!session?.draft && session?.agent === family && session.optionsAgent === family && session.options.models.length > 0) {
+       return session.options.models.map((model) => ({ ...model, efforts: session.options.efforts }));
+     }
+-    const metadata = modelMetadata();
+-    if (metadata?.status === 'ready' && metadata.expiresAt > now() && Array.isArray(metadata.families?.[family])) return metadata.families[family];
++    if (catalogModels) return catalogModels;
+     if (metadata && metadata.status === 'ready' && metadata.family === family && Number.isFinite(metadata.expiresAt) && metadata.expiresAt > now()) return metadata.models;
+     return null;
+   }
+ 
++  const codexModelVariant = (id) => /^(.*)\[(low|medium|high|xhigh|max|ultra)\]$/.exec(id);
++
++  // The legacy Codex catalog encodes effort in model IDs; modern ACP sets it separately.
++  function pickerModelsFor(family, models) {
++    const entries = new Map();
++    for (const model of models || []) {
++      const variant = family === 'codex' && codexModelVariant(model.id);
++      if (!variant) {
++        entries.set(model.id, { ...model, family, efforts: model.efforts || [] });
++        continue;
++      }
++      const [, id, effort] = variant;
++      if (!entries.has(id)) {
++        entries.set(id, { id, family, name: (model.name || id).replace(/ \((low|medium|high|xhigh|max|ultra)\)$/i, ''), efforts: [], aliases: [] });
++      }
++      const entry = entries.get(id);
++      entry.aliases?.push(model.id);
++      if (!entry.efforts.some((option) => option.id === effort)) {
++        entry.efforts.push(model.efforts?.find((option) => option.id === effort) || { id: effort, name: effort });
++      }
++    }
++    return [...entries.values()];
++  }
++
++  let activeEffortModel;
++  let activeEffort = '';
++  let canChooseEffort = false;
++  let syncEffortMenu;
++  const effortMenuSignature = () => JSON.stringify(activeEffortModel);
++
+   function closeMenu() {
+     menuKind = null;
++    syncEffortMenu = undefined;
+     menu.hidden = true;
+     modeButton.setAttribute('aria-expanded', 'false');
+     modelButton.setAttribute('aria-expanded', 'false');
+@@ -859,12 +892,12 @@ export function createView(doc, refs, deps) {
+     closeMenu();
+   }
+ 
+-  function pickSource(source) {
++  function pickSource(source, { keepMenu = false } = {}) {
+     if (!currentTrace || !currentSession) return;
+     if (currentSession.draft) handlers.onDraftSource?.(currentTrace, source);
+     else if (typeof handlers.onSource === 'function') handlers.onSource(currentTrace, source);
+     else handlers.onNotice?.('Этот сервер не поддерживает выбор источника агента');
+-    closeMenu();
++    if (!keepMenu) closeMenu();
+   }
+ 
+   function positionAgentMenu() {
+@@ -892,6 +925,7 @@ export function createView(doc, refs, deps) {
+ 
+   function renderMenu() {
+     menuList.replaceChildren();
++    menu.dataset.kind = menuKind || '';
+     if (menuKind === 'agent') {
+       menuSearch.hidden = false;
+       menuSearch.placeholder = 'Поиск модели или пула';
+@@ -910,41 +944,16 @@ export function createView(doc, refs, deps) {
+       rows.push(h(doc, 'div', { class: 'menu-head', text: 'Модели' }));
+       if (metadata.status === 'ready' && metadata.complete === false) rows.push(h(doc, 'div', { class: 'menu-head menu-catalog-partial', text: 'Каталог неполный: доступны только подтверждённые модели.' }));
+       const familyModels = new Map(agents.map((agent) => [agent.id, directModelsFor(agent.id)]));
+-      const allModels = agents.flatMap((agent) => (familyModels.get(agent.id) || []).map((m) => ({ family: agent.id, model: m.id, name: m.name || m.id, efforts: m.efforts || [] })))
+-        .filter((m) => !query || `${m.family} ${m.name} ${m.model}`.toLocaleLowerCase().includes(query));
++      const allModels = agents.flatMap((agent) => pickerModelsFor(agent.id, familyModels.get(agent.id)))
++        .filter((m) => !query || `${m.family} ${m.name} ${m.id}`.toLocaleLowerCase().includes(query));
+       for (const m of allModels) {
+-        const chosen = source && !source.pool && source.family === m.family && source.model === m.model;
+-        const efforts = m.efforts;
+-        const effort = chosen ? source.effort : (efforts[0] && efforts[0].id || '');
+-        const row = menuRow({ name: m.name, description: m.family, checked: chosen,
+-          onPick: () => pickSource({ family: m.family, model: m.model, effort }) });
+-        if (efforts.length) {
+-          const index = Math.max(0, efforts.findIndex((e) => e.id === effort));
+-          const slider = h(doc, 'input', { type: 'range', class: 'effort-slider', min: '0', max: String(efforts.length - 1), step: '1', value: String(index), 'aria-label': `Усилие ${m.name}` });
+-          const control = h(doc, 'div', { class: 'effort-control' });
+-          const sparkleLayer = h(doc, 'span', { class: 'effort-sparkles', 'aria-hidden': 'true' });
+-          const paintEffort = (at) => {
+-            const ratio = efforts.length < 2 ? 1 : at / (efforts.length - 1);
+-            slider.style.setProperty('--effort-fill', `${ratio * 100}%`);
+-            sparkleLayer.replaceChildren();
+-            const count = ratio < 0.5 ? 0 : Math.max(1, Math.round((ratio - 0.5) * 14) + 1);
+-            sparkleLayer.dataset.count = String(count);
+-            for (let n = 0; n < count; n += 1) {
+-              const star = h(doc, 'span', { class: 'effort-sparkle', text: '✦' });
+-              star.style.setProperty('--star-offset', `${n * 11}px`);
+-              star.style.setProperty('--star-delay', `${n * -0.17}s`);
+-              sparkleLayer.append(star);
+-            }
+-          };
+-          paintEffort(index);
+-          slider.addEventListener('click', (e) => e.stopPropagation());
+-          slider.addEventListener('input', () => { const at = Number(slider.value); paintEffort(at); });
+-          slider.addEventListener('change', () => pickSource({ family: m.family, model: m.model, effort: efforts[Number(slider.value)].id }));
+-          control.append(slider, sparkleLayer);
+-          row.append(control);
+-          row.classList.add('agent-model-row');
+-        }
+-        rows.push(row);
++        const chosen = source && !source.pool && source.family === m.family
++          && (source.model === m.id || m.aliases?.includes(source.model));
++        const chosenEffort = chosen && (m.aliases?.includes(source.model) ? codexModelVariant(source.model)?.[2] : source.effort);
++        const currentEffort = m.efforts.find((option) => option.id === chosenEffort);
++        const effort = currentEffort?.id || m.efforts[0]?.id || '';
++        rows.push(menuRow({ name: m.name || m.id, description: m.family, checked: chosen,
++          onPick: () => pickSource({ family: m.family, model: m.id, effort }) }));
+       }
+       for (const agent of agents) {
+         if ((familyModels.get(agent.id) || []).length) continue;
+@@ -995,6 +1004,63 @@ export function createView(doc, refs, deps) {
+       menu.hidden = false;
+       return;
+     }
++    if (menuKind === 'effort') {
++      if (!activeEffortModel || activeEffortModel.efforts.length < 2) { closeMenu(); return; }
++      menuSearch.hidden = true;
++      menu.dataset.side = 'right';
++      const efforts = activeEffortModel.efforts;
++      const index = Math.max(0, efforts.findIndex((effort) => effort.id === activeEffort));
++      const slider = h(doc, 'input', { type: 'range', class: 'effort-slider', min: '0', max: String(efforts.length - 1), step: '1', value: String(index), disabled: !canChooseEffort, 'aria-label': t('menu.effort') });
++      const control = h(doc, 'div', { class: 'effort-control' });
++      const ticks = efforts.map((_, step) => {
++        const tick = h(doc, 'span', { class: 'effort-tick' });
++        tick.style.setProperty('--effort-stop', String(100 * step / (efforts.length - 1)) + '%');
++        return tick;
++      });
++      const tickLayer = h(doc, 'span', { class: 'effort-ticks', 'aria-hidden': 'true' }, ...ticks);
++      const sparkleLayer = h(doc, 'span', { class: 'effort-sparkles', 'aria-hidden': 'true' });
++      const caption = h(doc, 'div', { class: 'menu-head' });
++      const paintEffort = (at) => {
++        const name = labelOf('effort', efforts[at]).name;
++        caption.textContent = `${name} · ${activeEffortModel.name || activeEffortModel.id}`;
++        slider.setAttribute('aria-valuetext', name);
++        const ratio = efforts.length < 2 ? 1 : at / (efforts.length - 1);
++        control.style.setProperty('--effort-fill', String(ratio * 100) + '%');
++        ticks.forEach((tick, step) => {
++          tick.hidden = step === at;
++          tick.dataset.filled = String(step < at);
++        });
++        sparkleLayer.dataset.active = String(ratio >= 0.5);
++      };
++      for (let n = 0; n < 8; n += 1) {
++        const star = h(doc, 'span', { class: 'effort-sparkle', text: '✦' });
++        star.style.setProperty('--star-height', String(10 + (n * 3 % 7) * 13) + '%');
++        star.style.setProperty('--star-offset', String(n * 11) + 'px');
++        star.style.setProperty('--star-delay', String(-1.5 * n / 8) + 's');
++        sparkleLayer.append(star);
++      }
++      let shownEffort = activeEffort;
++      paintEffort(index);
++      syncEffortMenu = () => {
++        slider.disabled = !canChooseEffort;
++        if (shownEffort === activeEffort) return;
++        shownEffort = activeEffort;
++        const at = Math.max(0, efforts.findIndex((effort) => effort.id === activeEffort));
++        slider.value = String(at);
++        paintEffort(at);
++      };
++      slider.addEventListener('input', () => { const at = Number(slider.value); paintEffort(at); });
++      slider.addEventListener('change', () => {
++        if (!canChooseEffort) return;
++        const at = Number(slider.value);
++        paintEffort(at);
++        pickSource({ family: activeEffortModel.family, model: activeEffortModel.id, effort: efforts[at].id }, { keepMenu: true });
++      });
++      control.append(slider, sparkleLayer, tickLayer);
++      menuList.append(caption, control);
++      menu.hidden = false;
++      return;
++    }
+     if (!options || !menuKind) { menu.hidden = true; return; }
+     const rows = [];
+     const searchable = menuKind === 'model' || menuKind === 'more';
+@@ -1028,9 +1094,6 @@ export function createView(doc, refs, deps) {
+             name: g.provider ? c.name.replace(`${g.provider}/`, '') : c.name, description: c.description, checked: c.id === options.modelId, onPick: () => choose('model', c.id),
+           })));
+         }
+-      } else {
+-        rows.push(h(doc, 'div', { class: 'menu-head', text: t('menu.effort') }),
+-          ...numbered(effortChoices(options.efforts), 'effort', options.effort));
+       }
+     }
+     menuList.append(...rows);
+@@ -1045,13 +1108,17 @@ export function createView(doc, refs, deps) {
+     if (kind === 'result' && resultRepoButton.disabled) return;
+     if (kind === 'mode' && !hasOpts('modes')) return;
+     if ((kind === 'model' || kind === 'more') && !hasOpts('models')) return;
+-    if (kind === 'effort' && !hasOpts('efforts')) return;
++    if (kind === 'effort' && !canChooseEffort) return;
+     menuKind = kind;
+     menuTrigger = { agent: familyButton, route: routeButton, result: resultRepoButton, mode: modeButton, model: modelButton, more: modelButton, effort: effortButton }[kind] || null;
+-    if (kind === 'agent') agentAnchor.append(menu); else status.append(menu);
++    if (kind === 'agent' || kind === 'effort') agentAnchor.append(menu); else status.append(menu);
++    if (kind === 'effort') {
++      menu.style.setProperty('--agent-menu-left', 'auto');
++      menu.style.setProperty('--agent-menu-right', '0px');
++    }
+     menuQuery = '';
+     menuSearch.value = '';
+-    menuSig = kind === 'route' ? currentRoute : kind === 'result' ? JSON.stringify(resultRepoShown) : JSON.stringify(options);
++    menuSig = kind === 'effort' ? effortMenuSignature() : kind === 'route' ? currentRoute : kind === 'result' ? JSON.stringify(resultRepoShown) : JSON.stringify(options);
+     familyButton.setAttribute('aria-expanded', kind === 'agent' ? 'true' : 'false');
+     routeButton.setAttribute('aria-expanded', kind === 'route' ? 'true' : 'false');
+     resultRepoButton.setAttribute('aria-expanded', kind === 'result' ? 'true' : 'false');
+@@ -1061,7 +1128,7 @@ export function createView(doc, refs, deps) {
+     renderMenu();
+     if (kind === 'result') refreshResultRepos();
+     if (kind === 'model' || kind === 'more' || kind === 'agent') menuSearch.focus();
+-    else menu.querySelector('.menu-item')?.focus();
++    else menu.querySelector(kind === 'effort' ? '.effort-slider' : '.menu-item')?.focus();
+   }
+ 
+   menuSearch.addEventListener('input', () => { menuQuery = menuSearch.value; renderMenu(); });
+@@ -1070,6 +1137,7 @@ export function createView(doc, refs, deps) {
+   menu.addEventListener('keydown', (e) => {
+     const items = [...menuList.querySelectorAll('.menu-item')].filter((item) => !item.disabled);
+     const at = items.indexOf(doc.activeElement);
++    if (e.target?.classList?.contains('effort-slider')) return;
+     if (e.key === 'ArrowDown') {
+       e.preventDefault();
+       (items[at + 1] || items[0])?.focus();
+@@ -1096,14 +1164,13 @@ export function createView(doc, refs, deps) {
+       handlers.onNotice?.(button.title);
+       return;
+     }
+-    if (menuKind) closeMenu(); else openMenu(kind);
++    if (menuKind === kind) closeMenu(); else openMenu(kind);
+   };
+   familyButton.addEventListener('click', () => toggleMenu('agent'));
+   routeButton.addEventListener('click', () => toggleMenu('route'));
+   modeButton.addEventListener('click', () => toggleMenu('mode'));
+   modelButton.addEventListener('click', () => toggleMenu('model'));
+   effortButton.addEventListener('click', () => toggleMenu('effort'));
+-  // effort/model/family legacy controls are hidden; the picker owns those choices as one compact control.
+   // номера строк — горячие клавиши; у строк без номера (Назад, подменю) их нет
+   doc.addEventListener('keydown', (e) => {
+     if (!menuKind) return;
+@@ -1361,7 +1428,7 @@ export function createView(doc, refs, deps) {
+     const images = attach.items();
+     if (!currentTrace || uploading || (text.length === 0 && images.length === 0)) return;
+     // пока вопрос агента ждёт ответа, обычное сообщение не уходит: форма просит ответить или пропустить
+-    if (current.session && current.session.pendingQuestion) { nudgeAsk(); return; }
++    if (current.session && (current.session.pendingQuestion || current.ui?.sourceQuestions?.has(current.session.id))) { nudgeAsk(); return; }
+     const trace = currentTrace;
+     historyState = NO_HISTORY; // после отправки история с пустого поля: новое сообщение в её конце, ↑ показывает его первым
+     // агент занят ходом: сообщение (и его картинки) встаёт в очередь страницы и уходит, когда ход закончится
+@@ -1825,7 +1892,9 @@ export function createView(doc, refs, deps) {
+ 
+   function renderChat(model, ui) {
+     const session = ui.selected ? model.sessions[ui.selected] : undefined;
+-    pick.hidden = Boolean(session);
++    const sessionsPhase = ui.loading?.sessions.phase;
++    pick.hidden = Boolean(session) || sessionsPhase === 'error';
++    pick.textContent = t(sessionsPhase === 'loading' ? 'loading.sessions' : 'chat.pick');
+     chat.hidden = !session;
+     titleBlock.hidden = !session;
+     if (!session) { browseTicket += 1; currentTrace = null; return; }
+@@ -1926,10 +1995,21 @@ export function createView(doc, refs, deps) {
+     whereNote.title = whereNote.textContent;
+     // Задача 265: текущий агент виден при любом числе доступных. Выбора нет (0/1 агент) — чип приглушён,
+     // а подсказка называет фактическую причину, а не прячет чип.
+-    const selectedModel = session.selectedModel || (session.source && !session.source.pool ? session.source.model : shown.model);
+-    const selectedEffort = session.selectedEffort || (session.source && !session.source.pool ? session.source.effort : options.effort);
+-    const selectedPool = session.selectedPool ? `${session.selectedPool} · ${session.selectedLevel}` : session.source && session.source.pool ? `${session.source.pool} · ${session.source.level}` : '';
+-    const pickerLabel = session.selectionPending ? 'Подтверждение…' : [selectedModel || (shown.loading ? t('session.loading') : t('session.model_unknown')), selectedPool, selectedEffort].filter(Boolean).join(' / ');
++    // session_source confirms the current pin. agent_selected may describe an earlier turn.
++    const directSource = session.source && !session.source.pool ? session.source : undefined;
++    const selectedModel = directSource?.model || session.selectedModel || options.modelId || shown.model;
++    const selectedEffort = directSource ? directSource.effort : session.selectedEffort || options.effort;
++    const selectedFamily = directSource?.family || shown.agent;
++    activeEffortModel = session.source?.pool || (!directSource && session.selectedPool) ? undefined
++      : pickerModelsFor(selectedFamily, directModelsFor(selectedFamily))
++        .find((m) => m.id === selectedModel || m.aliases?.includes(selectedModel));
++    const legacyEffort = activeEffortModel?.aliases?.includes(selectedModel)
++      ? codexModelVariant(selectedModel)?.[2] : '';
++    activeEffort = legacyEffort || selectedEffort;
++    const hasEfforts = Boolean(activeEffortModel?.efforts.length > 1);
++    canChooseEffort = hasEfforts && (!busy || session.draft) && !session.selectionPending;
++    const selectedPool = directSource ? '' : session.selectedPool ? `${session.selectedPool} · ${session.selectedLevel}` : session.source && session.source.pool ? `${session.source.pool} · ${session.source.level}` : '';
++    const pickerLabel = session.selectionPending ? 'Подтверждение…' : [(selectedFamily === 'codex' && activeEffortModel?.name) || selectedModel || (shown.loading ? t('session.loading') : t('session.model_unknown')), selectedPool].filter(Boolean).join(' / ');
+     familyButton.hidden = false;
+     familyButton.replaceChildren(h(doc, 'span', { text: pickerLabel || 'Выбрать агента' }));
+     const presetData = presets() || {};
+@@ -1943,7 +2023,6 @@ export function createView(doc, refs, deps) {
+     familyButton.setAttribute('aria-label', `Агент: ${pickerLabel || 'не выбран'}`);
+     const hasModes = Boolean(options && options.modes.length > 0);
+     const hasModels = Boolean(options && options.models.length > 0);
+-    const hasEfforts = Boolean(options && options.efforts.length > 0);
+     // Причина отсутствия вариантов — по факту: грузятся; у черновика без записи каталога появятся после запуска; агент не предоставляет.
+     const catalogEntry = model.catalog ? model.catalog[shown.agent] : undefined;
+     const paramWhy = (unsupported) => (shown.loading ? t('status.options_loading')
+@@ -1955,12 +2034,10 @@ export function createView(doc, refs, deps) {
+     if (!hasModes) modeButton.title = paramWhy(t('status.mode_unsupported'));
+     modeButton.replaceChildren(h(doc, 'span', { text: hasModes ? (modeLabel.name || t('menu.mode')) : (shown.loading ? '…' : t('menu.mode')) }));
+     modelButton.hidden = true;
+-    effortButton.hidden = true;
+-    effortButton.setAttribute('aria-disabled', String(!hasEfforts));
+-    const effortLabel = hasEfforts ? labelFor('effort', effortChoices(options.efforts), options.effort) : { name: '', title: '' };
+-    effortButton.title = effortLabel.title ? `${t('menu.effort')}: ${effortLabel.title}` : t('menu.effort');
+-    if (!hasEfforts) effortButton.title = paramWhy(t('status.effort_unsupported'));
+-    effortButton.replaceChildren(h(doc, 'span', { text: hasEfforts ? effortLabel.name : (shown.loading ? '…' : t('menu.effort')) }));
++    effortButton.hidden = !hasEfforts;
++    effortButton.setAttribute('aria-disabled', String(!canChooseEffort));
++    effortButton.title = canChooseEffort ? t('menu.effort') : familyButton.title;
++    effortButton.replaceChildren(h(doc, 'span', { text: labelFor('effort', activeEffortModel?.efforts || [], activeEffort).name || t('menu.effort') }));
+     statusModel.hidden = true;
+     statusModel.textContent = shown.model || (shown.loading ? t('session.loading') : t('session.model_unknown'));
+     statusModel.title = hasModels ? '' : paramWhy(t('status.model_unsupported'));
+@@ -1968,6 +2045,12 @@ export function createView(doc, refs, deps) {
+     status.dataset.empty = String(routeButton.hidden && worktreeButton.hidden && resultRepoButton.hidden && familyButton.hidden && !busy && !session.usage);
+     boxBar.dataset.empty = String(routeButton.hidden && modeButton.hidden && familyButton.hidden && modelButton.hidden && effortButton.hidden);
+     if (menuKind === 'agent') renderMenu();
++    else if (menuKind === 'effort') {
++      const sig = effortMenuSignature();
++      if (sig !== menuSig) renderMenu();
++      else syncEffortMenu?.();
++      menuSig = sig;
++    }
+     else if (menuKind === 'route') {
+       if (menuSig !== currentRoute) renderMenu();
+       menuSig = currentRoute;
+@@ -1978,7 +2061,7 @@ export function createView(doc, refs, deps) {
+         if (sig !== menuSig) renderMenu();
+         menuSig = sig;
+       }
+-    } else if (menuKind && ((menuKind === 'mode' && !hasModes) || (menuKind === 'effort' && !hasEfforts) || ((menuKind === 'model' || menuKind === 'more') && !hasModels))) closeMenu();
++    } else if (menuKind && ((menuKind === 'mode' && !hasModes) || ((menuKind === 'model' || menuKind === 'more') && !hasModels))) closeMenu();
+     else if (menuKind) {
+       const sig = JSON.stringify(options);
+       if (sig !== menuSig) renderMenu();
+@@ -2484,9 +2567,10 @@ export function createView(doc, refs, deps) {
+ 
+   function renderAsk(model, ui) {
+     const session = ui.selected ? model.sessions[ui.selected] : undefined;
+-    const pq = session ? session.pendingQuestion : null;
++    const pq = session ? session.pendingQuestion || ui.sourceQuestions?.get(session.id) : null;
+     const key = pq ? `${session.id}:${pq.request}` : null;
+     const open = new Set(Object.values(model.sessions).filter((s) => s.pendingQuestion).map((s) => `${s.id}:${s.pendingQuestion.request}`));
++    for (const [id, pending] of ui.sourceQuestions || []) open.add(id + ":" + pending.request);
+     for (const k of [...askForms.keys()]) if (!open.has(k)) askForms.delete(k);
+     if (key === askShown) return; // состояние формы ведёт сама карточка; перерисовка не нужна
+     const hadFocus = askCard.contains(doc.activeElement);
