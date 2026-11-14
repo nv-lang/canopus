@@ -585,24 +585,33 @@ fn Hub mut @ctx_watch(at int) Proc Detach Time -> () {
     me.rt.ctx_used = r.used
     me.rt.ctx_size = r.size
     if r.before > 0 { me.rt.told = false }
+    @sessions[at] = me
+    // One ordered pass over the fresh lines: `before` of an agent record is the `used` seen up to that line, so a batched
+    // window (compaction_update arrived together with the post-compaction usage_update) does not put the new value in `before`.
+    mut agent_reported = me.rt.ctx_agent_compact
+    mut used_so_far = s.rt.ctx_used
     for line in fresh {
         ro kind = ctx_kind(line)
-        if kind == "agent_switched" || kind == "session_created" { me.rt.ctx_agent_compact = false }
-        if kind == "compaction_update" && ctx_agent_compacted([line]) { me.rt.ctx_agent_compact = true }
-    }
-    @sessions[at] = me
-    for line in fresh {
-        if ctx_kind(line) == "compaction_update" && ctx_agent_compacted([line]) {
+        if kind == "agent_switched" || kind == "session_created" { used_so_far = 0; agent_reported = false }
+        if kind == "usage_update" {
+            ro u = ctx_num(line, "used")
+            if u > 0 { used_so_far = u }
+        }
+        if kind == "compaction_update" && ctx_agent_compacted([line]) {
+            agent_reported = true
             mut o = JsonObject.new()
             js(o, "source", "agent")
-            ji(o, "before", me.rt.ctx_used)
+            ji(o, "before", used_so_far)
             ji(o, "at", now_millis())
             @rt_journal(at, "context_compacted", JsonValue.object(o).to_str())
             @rt_note(at, "▸ Контекст сжат агентом")
             @route_broadcast(at, true)
         }
     }
-    if r.before > 0 && !me.rt.ctx_agent_compact {
+    mut done = @sessions[at]
+    done.rt.ctx_agent_compact = agent_reported
+    @sessions[at] = done
+    if r.before > 0 && !agent_reported {
         mut o = JsonObject.new()
         js(o, "source", "usage_drop")
         ji(o, "before", r.before)

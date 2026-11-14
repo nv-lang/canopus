@@ -174,8 +174,9 @@ export fn scenario_context_compaction(settings ServerSettings) Proc Detach Time 
     c.report()
 }
 
-/// The compaction reported by the agent itself (task 305): the journal gets `context_compacted` with `source: "agent"`, and the heuristic
-/// of task 192.5 does not journal the same fall again.
+/// The compaction reported by the agent itself (task 306): the journal gets `context_compacted` with `source: "agent"`, and the heuristic
+/// of task 192.5 does not journal the same fall again. The batched window (usage, compaction and the post-compaction usage in one
+/// pump) must put the PRE-compaction `used` in `before`, not the last value of the window.
 export fn scenario_agent_compaction(settings ServerSettings) Proc Detach Time Net Fs Os -> str {
     mut c = kit_check()
     mut rig = rig_open(settings)
@@ -191,6 +192,18 @@ export fn scenario_agent_compaction(settings ServerSettings) Proc Detach Time Ne
     ro cx = jchild(rk_state(rig), "context") ?? JsonObject.new()
     c.expect(rk_array(cx, "compactions").len() == 1, "one compaction in the history: the agent's record, no heuristic duplicate")
     c.expect(kit_with(rig.all_lines_for(1), "Контекст агента сжат (было") == 0, "the heuristic does not journal the fall the agent reported")
+    // the batched window: usage, compaction and the post-compaction usage arrive between two pumps
+    rig.hub.kit_usage("s-cxa", 160000, 200000)
+    rig.hub.kit_compaction("s-cxa", "completed")
+    rig.hub.kit_usage("s-cxa", 50000, 200000)
+    rig.run(2500)
+    ro cx2 = jchild(rk_state(rig), "context") ?? JsonObject.new()
+    ro list2 = rk_array(cx2, "compactions")
+    c.expect(list2.len() == 2, "the batched window adds one agent record: ${list2.len()}")
+    if list2.len() == 2 {
+        ro second = list2[1].object() ?? JsonObject.new()
+        c.expect(rk_number(second, "before") == 160000, "before of the batched agent record is the pre-compaction used: ${rk_number(second, "before")}")
+    }
     rig.shut()
     c.report()
 }
