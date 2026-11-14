@@ -1,5 +1,6 @@
 import { publishPluginChildContext } from "./config-context.ts"
 import { refuseRuntimeEnvironment } from "./runtime-policy.ts"
+import { hubAgentActive, noteHubAgentDeactivation } from "./agent-of-hub.ts"
 import { runtimeValue, RUNTIME_POLICY } from "./runtime-policy.ts"
 import { pluginOptions } from "./plugin-config.ts"
 // plugins/nova-peers — переписка между окнами (сессиями) OpenCode во ВСЕХ репозиториях.
@@ -206,6 +207,12 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
   id: "canopus",
   async setup(rawCtx: any) {
     refuseRuntimeEnvironment()
+    // Task 304: under a hub-started agent the plugin is empty (the check sits in plugin-entry too; here it is the belt
+    // for a direct import of this module).
+    if (hubAgentActive()) {
+      noteHubAgentDeactivation()
+      return
+    }
     publishPluginChildContext()
     refuseLegacyEnv("плагин canopus") // старые имена CANOPUS_*/OPENCODE_CANOPUS_* заданы — отказ с новым именем, без fallback (задача 284)
     let disposed = false

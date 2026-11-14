@@ -988,26 +988,40 @@ fn Hub mut @env_of(s Dialog) -> []EnvEntry {
     }
 }
 
+/// Task 304: the marker every agent the hub starts carries, so that a copy of the plugin canopus (from any source of
+/// the configuration, not only the global one that task 192.9 strips) deactivates itself. The strip of the global
+/// configuration stays the authoritative belt; this one is the voluntary second line.
+export const HUB_AGENT_ENV = "CANOPUS_AGENT_OF_HUB"
+
+/// The environment of an agent of the hub with the marker set (an entry of the project with the same name is replaced).
+export fn with_hub_marker(env []EnvEntry) -> []EnvEntry {
+    mut out = []EnvEntry.new()
+    for e in env { if e.key != HUB_AGENT_ENV { out.push(e) } }
+    out.push(EnvEntry { key: HUB_AGENT_ENV, value: "1" })
+    out
+}
+
 // Task 192.9: the OpenCode that the hub starts gets the configuration of the owner without the plugin canopus (`agent_config.nv`): the variable XDG_CONFIG_HOME over the variables of the project.
+// Task 304: every agent (not only opencode) also carries the marker CANOPUS_AGENT_OF_HUB=1 (`with_hub_marker`).
 fn Hub mut @agent_env(agent str, base []EnvEntry) -> []EnvEntry {
     mut out = []EnvEntry.new()
     for e in base { out.push(e) }
     match @settings.agent(agent) {
         Some(spec) => {
             ro word = "${spec.id} ${spec.program}".to_ascii_lower()
-            if !word.contains("opencode") { return out }
+            if !word.contains("opencode") { return with_hub_marker(out) }
             // D454: boundary override inside non-test code, see module-conventions
             ro extra = with Fs = real_fs(), Os = real_os() { opencode_env(@settings.layout.cache) }
             if extra.len() == 0 {
                 @say_log("the agent ${agent} starts with the configuration of the owner as it is (no clean copy of it)")
-                return out
+                return with_hub_marker(out)
             }
             mut merged = []EnvEntry.new()
             for e in out { if e.key != "XDG_CONFIG_HOME" { merged.push(e) } }
             for e in extra { merged.push(e) }
-            return merged
+            return with_hub_marker(merged)
         }
-        None => return out
+        None => return with_hub_marker(out)
     }
 }
 

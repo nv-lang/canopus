@@ -336,6 +336,17 @@ test "context: the view holds the used / size and the history of the compactions
     assert(canopus_task_list_tool_json().to_str().contains("RULES"))
 }
 
+test "agent env: the hub marker is set once, over an entry of the project (task 304)" {
+    ro plain = with_hub_marker([EnvEntry { key: "A", value: "1" }])
+    assert(plain.len() == 2 && plain[0].key == "A" && plain[1].key == HUB_AGENT_ENV && plain[1].value == "1")
+    ro replaced = with_hub_marker([EnvEntry { key: HUB_AGENT_ENV, value: "0" }, EnvEntry { key: "B", value: "2" }])
+    assert(replaced.len() == 2 && replaced[0].key == "B" && replaced[1].key == HUB_AGENT_ENV && replaced[1].value == "1")
+    ro empty = with_hub_marker([]EnvEntry.new())
+    assert(empty.len() == 1 && empty[0].key == HUB_AGENT_ENV)
+    ro twice = with_hub_marker(plain)
+    assert(twice.len() == 2, "the marker never doubles")
+}
+
 test "ctx agent compaction: a completed compaction_update line is seen" {
     assert(ctx_agent_compacted([ctx_line("usage_update", 1000, 200000)]) == false)
     assert(ctx_agent_compacted(["{\"kind\":\"compaction_update\",\"input\":{\"status\":\"failed\"}}"]) == false)
