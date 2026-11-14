@@ -12,6 +12,12 @@ const server = createServer(async (request, reply) => {
     || Object.keys(body).sort().join(',') !== 'model,prompt' || body.model.providerID !== 'fixture' || body.model.id !== 'selected') {
     reply.writeHead(400); reply.end('{}'); return;
   }
+  if (body.prompt.includes('VERIFY_HANDOFF_271')) {
+    const replyText = body.prompt.includes('Подготовь постановку') ? 'history and new message received' : 'missing history';
+    reply.writeHead(200, { 'Content-Type': 'application/json' });
+    reply.end(JSON.stringify({ data: { text: JSON.stringify({ reply: replyText }) } }));
+    return;
+  }
   const answer = body.prompt.includes('NEGATIVE_TOOL_271')
     ? { reply: 'нельзя', tools: ['bash'], path: '../source.nv' }
     : { reply: 'Обсуждаем критерии, без реализации', statement: '# Подготовленная задача\n\nПринято, когда тест проверяет результат.' };

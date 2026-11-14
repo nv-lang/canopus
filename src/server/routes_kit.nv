@@ -53,7 +53,7 @@ fn rk_agents(agents []AgentSpec) -> []AgentSpec {
         // Dedicated ACP/burst fixtures still test streaming with the original pacing.
         args.push("--fast-echo")
         if a.id == "opencode" { args.push("--ask") }
-        out.push(AgentSpec { id: a.id, label: a.label, program: a.program, args, ask: a.ask })
+        out.push(AgentSpec { id: a.id, label: a.label, program: a.program, args, ask: a.ask, preparation: a.preparation })
     }
     out
 }

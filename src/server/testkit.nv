@@ -51,7 +51,7 @@ fn kit_agent(id str, extra str, marker str) -> AgentSpec {
     args.push("--live")
     args.push(extra)
     if marker.byte_len() > 0 { args.push("--stream-marker=${marker}") }
-    AgentSpec { id, label: "Fake", program: "node", args, ask: "native" }
+    AgentSpec { id, label: "Fake", program: "node", args, ask: "native", preparation: []str.new() }
 }
 
 fn kit_data_dir(name str) -> str {
@@ -124,7 +124,7 @@ fn kit_user_echo(settings ServerSettings) -> ServerSettings {
         mut args = []str.new()
         for word in agent.args { args.push(word) }
         args.push("--user-echo")
-        agents.push(AgentSpec { id: agent.id, label: agent.label, program: agent.program, args, ask: agent.ask })
+        agents.push(AgentSpec { id: agent.id, label: agent.label, program: agent.program, args, ask: agent.ask, preparation: agent.preparation })
     }
     ServerSettings { ...settings, agents }
 }
@@ -143,7 +143,7 @@ export fn kit_files_mcp(name str, idle_ms int, ask_timeout_ms int) -> ServerSett
             mut args = []str.new()
             for word in a.args { args.push(word) }
             args.push("--ask")
-            agents.push(AgentSpec { id: a.id, label: a.label, program: a.program, args, ask: "mcp" })
+            agents.push(AgentSpec { id: a.id, label: a.label, program: a.program, args, ask: "mcp", preparation: a.preparation })
         } else {
             agents.push(a)
         }
@@ -1123,7 +1123,7 @@ fn kit_without_yolo(settings ServerSettings) -> ServerSettings {
             mut args = []str.new()
             for word in a.args { args.push(word) }
             args.push("--no-yolo")
-            agents.push(AgentSpec { id: a.id, label: a.label, program: a.program, args, ask: a.ask })
+            agents.push(AgentSpec { id: a.id, label: a.label, program: a.program, args, ask: a.ask, preparation: a.preparation })
         } else {
             agents.push(a)
         }

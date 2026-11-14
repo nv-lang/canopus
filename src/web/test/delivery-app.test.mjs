@@ -217,13 +217,29 @@ test('выбор другой семьи во время хода ждёт за�
   assert.deepEqual(page.sent[0].input.handoff, source);
 });
 
-test('Kimi to Codex handoff without a question starts only on send and never sends text after transfer failure', async () => {
+test('в Подготовке во время хода можно выбрать новый адаптер и отправить реплику после завершения', async () => {
+  const page = await app();
+  page.event('route_state', { route: 'planning' }, { step: 1 });
+  page.event('user_message', { turn: 'active', text: 'текущий запрос' }, { step: 2 });
+  const source = { family: 'future-adapter', model: 'new-model', effort: 'high' };
+  page.handlers.onSource('s', source);
+  page.handlers.onQueue('s', 'следующая реплика');
+  assert.equal(page.sent.length, 0);
+  page.event('agent_done', { turn: 'active' }, { step: 3 });
+  assert.deepEqual(page.sent.map(item => item.kind), ['user_message']);
+  assert.deepEqual(page.sent[0].input.handoff, source);
+  assert.equal(page.sent[0].input.text, 'следующая реплика');
+  assert.equal(page.getModel().sessions.s.route, 'planning');
+  page.event('error', { message: 'Перенос контекста не завершился.' }, { step: 4 });
+});
+
+test('Handoff between registered adapters without a question starts only on send and never sends text after transfer failure', async () => {
   for (const succeeds of [false, true]) {
     const page = await app();
-    page.event('agent_switched', { from: 'agent', to: 'kimi' }, { step: 1 });
+    page.event('agent_switched', { from: 'agent', to: 'source-adapter' }, { step: 1 });
     page.event('user_message', { turn: 'old', text: 'история' }, { step: 2 });
     page.event('agent_done', { turn: 'old' }, { step: 3 });
-    page.handlers.onSource('s', { family: 'codex', model: 'test-model', effort: 'low' });
+    page.handlers.onSource('s', { family: 'target-adapter', model: 'test-model', effort: 'low' });
     assert.equal(page.getModel().sessions.s.pendingQuestion, null);
     assert.equal(page.sent.length, 0);
     assert.equal(page.getUI().handoffStatus.get('s').phase, 'selected');
@@ -231,29 +247,66 @@ test('Kimi to Codex handoff without a question starts only on send and never sen
     assert.equal(page.getUI().handoffStatus.get('s').phase, 'preparing');
     assert.equal(page.sent[0].kind, 'user_message');
     assert.equal(page.sent[0].input.text, 'сохранить этот текст');
-    assert.equal(page.sent[0].input.handoff.family, 'codex');
+    assert.equal(page.sent[0].input.handoff.family, 'target-adapter');
     assert.equal(page.handlers.onSend('s', 'не дублировать'), false);
-    page.handlers.onApproval('s', 'codex', 'auto');
+    page.handlers.onApproval('s', 'target-adapter', 'auto');
     assert.equal(page.sent.length, 1, 'approval waits for the active handoff');
     page.event('handoff_progress', { phase: 'compacting' }, { step: 4 });
     assert.equal(page.getUI().handoffStatus.get('s').compacting, true);
     if (succeeds) {
-      page.event('agent_switched', { from: 'kimi', to: 'codex' }, { step: 5 });
+      page.event('agent_switched', { from: 'source-adapter', to: 'target-adapter' }, { step: 5 });
       assert.equal(page.sent.length, 1);
-      page.event('session_source', { family: 'codex', model: 'test-model', effort: 'low' }, { step: 6 });
+      page.event('session_source', { family: 'target-adapter', model: 'test-model', effort: 'low' }, { step: 6 });
       assert.equal(await sent, true);
       assert.equal(page.sent.length, 2);
       assert.equal(page.sent[1].kind, 'session_setting');
-      assert.deepEqual({ ...page.sent[1].input }, { family: 'codex', setting: 'mode', value: 'auto' });
+      assert.deepEqual({ ...page.sent[1].input }, { family: 'target-adapter', setting: 'mode', value: 'auto' });
     } else {
-      page.event('error', { message: 'Перенос контекста в Codex не завершился.' }, { step: 5 });
+      page.event('error', { message: 'Перенос контекста в target-adapter не завершился.' }, { step: 5 });
       assert.equal(await sent, false);
-      assert.equal(page.getModel().sessions.s.agent, 'kimi');
+      assert.equal(page.getModel().sessions.s.agent, 'source-adapter');
       assert.equal(page.sent.filter(event => event.kind === 'user_message').length, 1);
       assert.equal(page.sent[1].kind, 'session_setting');
       assert.equal(page.getUI().handoffStatus.get('s').phase, 'error');
+      const retried = page.handlers.onSend('s', 'сохранить этот текст');
+      assert.equal(page.sent.at(-1).input.handoff.family, 'target-adapter');
+      page.event('error', { code: 'preparation_profile_missing', message: 'Профиль недоступен' }, { step: 6 });
+      assert.equal(page.getUI().handoffStatus.get('s').message, strings.t('handoff.no_preparation'));
+      assert.equal(await retried, false);
     }
   }
+});
+
+test('выбор нового адаптера во время переноса применяется к следующей реплике', async () => {
+  const page = await app();
+  page.event('route_state', { route: 'planning' }, { step: 1 });
+  const first = { family: 'first-adapter', model: 'first-model', effort: 'low' };
+  const next = { family: 'next-adapter', model: 'next-model', effort: 'high' };
+  page.handlers.onSource('s', first);
+  const sent = page.handlers.onSend('s', 'первая реплика');
+  page.handlers.onSource('s', next);
+  assert.deepEqual(page.sent.map(event => event.input.handoff), [first]);
+  page.event('agent_switched', { from: 'agent', to: first.family }, { step: 2 });
+  page.event('session_source', first, { step: 3 });
+  assert.equal(await sent, true);
+  assert.deepEqual(page.getUI().handoffStatus.get('s').source, next);
+  const second = page.handlers.onSend('s', 'вторая реплика');
+  assert.deepEqual(page.sent.map(event => event.input.handoff), [first, next]);
+  page.event('error', { message: 'Перенос контекста не завершился.' }, { step: 4 });
+  assert.equal(await second, false);
+  assert.equal(page.getModel().sessions.s.agent, first.family);
+});
+
+test('потерянное подтверждение переноса не отправляет реплику повторно', async () => {
+  const page = await app();
+  page.event('route_state', { route: 'planning' }, { step: 1 });
+  const source = { family: 'new-adapter', model: 'model', effort: 'high' };
+  page.handlers.onSource('s', source);
+  const sent = page.handlers.onSend('s', 'одна реплика');
+  page.status({ state: 'retry' });
+  assert.equal(await sent, false);
+  assert.equal(page.handlers.onSend('s', 'одна реплика'), false);
+  assert.equal(page.sent.filter(event => event.kind === 'user_message').length, 1);
 });
 
 test('сохранённый выбор другой семьи запускает перенос при первой отправке', async () => {

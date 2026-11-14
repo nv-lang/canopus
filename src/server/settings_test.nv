@@ -326,3 +326,11 @@ test "public settings: voice false disables the endpoint through the selected co
     }
     assert(is_error(parse_server_settings("{\"voice\":true}")))
 }
+
+test "settings: any registered family can supply a separate preparation transport" {
+    ro s = must_settings("{\"agents\":[{\"id\":\"future-agent\",\"program\":\"ordinary\",\"preparation\":[\"restricted\",\"acp\"]}]}")
+    ro agent = s.agent("future-agent").unwrap()
+    assert(agent.program == "ordinary")
+    assert(agent.preparation[0] == "restricted" && agent.preparation[1] == "acp")
+    assert(is_error(parse_server_settings("{\"agents\":[{\"id\":\"future-agent\",\"program\":\"ordinary\",\"preparation\":[\"\"]}]}")))
+}

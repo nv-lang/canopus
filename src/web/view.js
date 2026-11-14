@@ -2499,7 +2499,7 @@ export function createView(doc, refs, deps) {
     // Задача 265: текущий агент виден при любом числе доступных. Выбора нет (0/1 агент) — чип приглушён,
     // а подсказка называет фактическую причину, а не прячет чип.
     // session_source confirms the current pin. agent_selected may describe an earlier turn.
-    pickerSource = handoff?.source || session.source;
+    pickerSource = handoff?.nextSource || handoff?.source || session.source;
     const directSource = pickerSource && !pickerSource.pool ? pickerSource : undefined;
     const selectedModel = directSource?.model || session.selectedModel || options.modelId || shown.model;
     const selectedEffort = directSource ? directSource.effort : session.selectedEffort || options.effort;
@@ -2511,8 +2511,7 @@ export function createView(doc, refs, deps) {
       ? codexModelVariant(selectedModel)?.[2] : '';
     activeEffort = legacyEffort || selectedEffort;
     const hasEfforts = Boolean(activeEffortModel?.efforts.length > 1);
-    const preparingSource = handoff?.phase === 'preparing';
-    canChooseEffort = hasEfforts && !preparingSource;
+    canChooseEffort = hasEfforts;
     const selectedPool = directSource ? '' : session.selectedPool ? `${session.selectedPool} · ${session.selectedLevel}` : session.source && session.source.pool ? `${session.source.pool} · ${session.source.level}` : '';
     const modelName = modelLabel(selectedFamily, activeEffortModel?.name || selectedModel);
     const probe = ui.modelProbes?.get(session.id);
@@ -2527,7 +2526,7 @@ export function createView(doc, refs, deps) {
     const availablePools = activePreset && activePreset.pools && Object.values(activePreset.pools).some((levels) => Object.values(levels || {}).some((entries) => Array.isArray(entries) && entries.some((e) => e.active !== false)));
     const hasConfiguredFamilies = agents.length > 0;
     const canChoose = Boolean(hasConfiguredFamilies || availablePools);
-    familyButton.setAttribute('aria-disabled', String(preparingSource));
+    familyButton.setAttribute('aria-disabled', 'false');
     familyButton.dataset.noChoices = String(!canChoose);
     familyButton.title = busy && canChoose ? t('handoff.choose_next') : canChoose ? t('menu.agent') : registryPending ? t('status.agents_loading') : t(registryFailed ? 'sessions.agents_unavailable' : (agents.length === 1 ? 'status.agent_one' : 'sessions.agents_none'));
     familyButton.setAttribute('aria-label', `Агент: ${pickerLabel || 'не выбран'}`);

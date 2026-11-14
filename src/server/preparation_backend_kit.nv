@@ -24,7 +24,9 @@ export fn scenario_preparation_backend(settings ServerSettings) Proc Detach Time
         ro stopped = fixture.kill.send(1)
         return "local fixture registration was not created"
     }
-    mut rig = rig_open(settings)
+    mut configured = ServerSettings { ...settings }
+    configured.agents.push(AgentSpec { id: "future-agent", label: "Future", program: "canopus-never-start-this", args: []str.new(), ask: "off", preparation: ["node", adapter, "--service-registration", registration, "--model", "fixture/selected", "--root", "${settings.data_dir}/s-safe/tasks/draft"] })
+    mut rig = rig_open(configured)
     rig.hub.preparation_fixtures.push(PreparationFixture { session: "s-safe", registration, model: "fixture/selected", variant: "", adapter })
     rig.attach(1)
     rk_project_page(rig, 1, "s-safe", "{\"name\":\"Подготовка\",\"agent\":\"opencode\",\"route\":\"planning\",\"worktree\":true}")
@@ -50,7 +52,7 @@ export fn scenario_preparation_backend(settings ServerSettings) Proc Detach Time
     ro state = rk_state(rig)
     c.expect(jtext(rk_task(state), "branch") == "" && jtext(rk_task(state), "worktree") == "", "the backend creates no branch or worktree")
     rig.shut()
-    mut again = rig_open(settings)
+    mut again = rig_open(configured)
     again.hub.preparation_fixtures.push(PreparationFixture { session: "s-safe", registration, model: "fixture/selected", variant: "", adapter })
     again.attach(1)
     again.forget()
@@ -74,6 +76,11 @@ export fn scenario_preparation_backend(settings ServerSettings) Proc Detach Time
     }
     c.expect(echo.ends_with("обычная беседа"), "interactive replaces the restricted client with its ordinary assigned agent")
     c.expect(dir_there(config_copy), "positive control: ordinary OpenCode ACP still invokes its config-copy helper")
+    again.page(1, "session_route", "s-safe", "{\"route\":\"planning\"}")
+    again.forget()
+    again.page(1, "user_message", "s-safe", "{\"text\":\"VERIFY_HANDOFF_271\",\"handoff\":{\"family\":\"future-agent\",\"model\":\"fixture/selected\"}}")
+    c.expect(again.until("\"kind\":\"agent_switched\"", 20000), "the restricted transport promotes an arbitrary registered family")
+    c.expect(again.until("history and new message received", 20000), "the destination receives history and the new message together")
     again.shut()
     ro stopped = fixture.kill.send(1)
     c.report()

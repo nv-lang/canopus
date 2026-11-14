@@ -341,15 +341,17 @@ async function prepareHandoff(trace, choice, text, images) {
     return false;
   }
   return new Promise(resolve => {
-    const finish = (ok, message) => {
+    const finish = (ok, message, retryable = false) => {
       timers.clear(timer);
+      const nextSource = ui.handoffStatus.get(trace)?.nextSource;
       if (ok) ui.handoffStatus.delete(trace);
-      else ui.handoffStatus.set(trace, { ...choice, phase: 'error', message });
+      else ui.handoffStatus.set(trace, { ...choice, phase: 'error', message, retryable });
       const queued = pendingHandoffApprovals.get(trace);
       pendingHandoffApprovals.delete(trace);
       if (queued) for (const [family, value] of queued) {
         send('session_setting', trace, nextStep(model, trace), { family, setting: 'mode', value });
       }
+      if (nextSource) ui.handoffStatus.set(trace, { phase: 'deferred', source: nextSource });
       resolve(ok);
       render();
     };
@@ -474,9 +476,14 @@ async function postImage(trace, item) {
 const signal = (trace, { kind, input }) => [kind, trace, nextStep(model, trace), input];
 
 function needsContextHandoff(session, source) {
-  const zaiModelChange = session?.state === 'cancelled' && source?.family === 'zai' && source.model && source.model !== session.options?.modelId;
-  return Boolean(session && !session.draft && source?.family && (source.family !== session.agent || zaiModelChange)
-    && session.messages.some((message) => message.role === 'user'));
+  if (!session || session.draft || !source?.family) return false;
+  const preparation = normalizeRoute(session.route) === 'planning';
+  const changedModel = source.model && source.model !== (session.source?.model || session.options?.modelId);
+  const changedEffort = (source.effort || '') !== (session.source?.effort || session.options?.effort || '');
+  const changedFamily = source.family !== session.agent;
+  const hasHistory = session.messages.some((message) => message.role === 'user');
+  if (preparation) return Boolean(changedFamily || changedModel || changedEffort);
+  return Boolean(hasHistory && (changedFamily || (session.state === 'cancelled' && changedModel)));
 }
 
 const handlers = {
@@ -636,7 +643,11 @@ const handlers = {
       if (!draft || draft.agent !== choice.previous || isBusy(draft.state) || draft.pendingQuestion) return false;
       return prepareHandoff(trace, choice, text, images);
     }
-    if (choice?.phase === 'error') ui.handoffStatus.delete(trace);
+    if (choice?.phase === 'error') {
+      if (!choice.retryable) return false;
+      if (needsContextHandoff(draft, choice.source)) return prepareHandoff(trace, choice, text, images);
+      ui.handoffStatus.delete(trace);
+    }
     if (needsContextHandoff(draft, draft?.source)) {
       if (draft.pendingQuestion || isBusy(draft.state)) return false;
       return prepareHandoff(trace, { previous: draft.agent, source: draft.source }, text, images);
@@ -710,10 +721,18 @@ const handlers = {
   },
   onSource(trace, source) {
     const session = model.sessions[trace];
-    if (ui.handoffStatus.get(trace)?.phase === 'preparing') return;
     if (!session || session.draft) return;
+    const inFlight = ui.handoffStatus.get(trace);
+    if (inFlight?.phase === 'preparing') {
+      inFlight.nextSource = source;
+      render();
+      return;
+    }
     const previousProbe = ui.modelProbes.get(trace);
-    const probeKey = source.family && source.model ? JSON.stringify([source.family, source.model]) : '';
+    // The background probe uses the execution adapter. Preparation is
+    // validated by the restricted adapter when sending the next message.
+    const probeKey = normalizeRoute(session.route) !== 'planning' && source.family && source.model
+      ? JSON.stringify([source.family, source.model]) : '';
     if (!probeKey) ui.modelProbes.delete(trace);
     else if (previousProbe?.key !== probeKey) {
       ui.modelProbes.set(trace, { key: probeKey, source, request: '', status: 'checking' });
@@ -974,9 +993,11 @@ async function start() {
         delivery.reconcile(model);
         const completed = handoff?.phase === 'preparing' && event.kind === 'session_source'
           && event.input?.family === handoff.source.family && event.input?.model === handoff.source.model
+          && (event.input?.effort || '') === (handoff.source.effort || '')
           && model.sessions[event.trace]?.agent === handoff.source.family;
         if (['selected', 'deferred'].includes(handoff?.phase) && event.kind === 'session_source'
           && event.input?.family === handoff.source.family && event.input?.model === handoff.source.model
+          && (event.input?.effort || '') === (handoff.source.effort || '')
           && model.sessions[event.trace]?.agent === handoff.source.family) ui.handoffStatus.delete(event.trace);
         if (handoff?.phase === 'applying') {
           const source = handoff.source;
@@ -987,7 +1008,10 @@ async function start() {
           if (applied || (event.kind === 'error' && !event.input?.turn)) ui.handoffStatus.delete(event.trace);
         }
         if (completed) handoff.finish(true);
-        else if (handoffFailed) handoff.finish(false, t('handoff.failed'));
+        else if (handoffFailed) {
+          const missingProfile = event.input?.code === 'preparation_profile_missing';
+          handoff.finish(false, t(missingProfile ? 'handoff.no_preparation' : 'handoff.failed'), true);
+        }
         else if (changed) drain();
         if (changed || event.kind === 'message_delivery' || event.kind === 'error') render();
       } catch (e) {

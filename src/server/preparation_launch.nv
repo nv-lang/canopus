@@ -1,6 +1,9 @@
 module canopus.server
 
-import canopus.acp.{AcpConfig}
+import canopus.acp.{AcpConfig, AcpPreset, open_client_full, no_ask}
+import canopus.projects.{EnvEntry}
+import alula.engine.{Incoming}
+import std.time.{Time}
 import canopus.storage.{valid_session_name, ensure_session_dir}
 import std.os.{Os, real_os}
 import std.fs.{Fs, real_fs}
@@ -48,7 +51,7 @@ export fn preparation_launch(registration str, model str, variant str, adapter s
 }
 
 fn Hub @preparation_config(mut s Dialog) -> Result[AcpConfig, str] {
-    if s.agent != "codex" && s.agent != "opencode" && s.agent != "kimi" { return Err("Подготовка: для выбранной семьи не подключён ограниченный backend; обычный ACP запрещён") }
+    if @has_registered_preparation(s.agent) { return @restricted_handoff_config(s, s.agent, s.dispatch.source ?? JsonObject.new()) }
     // Exact-session trusted injection returns before production preset and installation discovery.
     for fixture in @preparation_fixtures {
         if fixture.session == s.id {
@@ -152,4 +155,45 @@ export fn preparation_kimi_launch(program str, native_args []str, model str, var
     for arg in native_args { encoded.push(JsonValue.str(arg)) }
     ro arguments = [adapter, "--backend", "kimi", "--native-program", program, "--native-args", JsonValue.array(encoded).to_str(), "--model", model, "--variant", variant, "--root", "${data}/${session}/tasks/draft"]
     Ok(AcpConfig { program: "node", args: arguments, cwd: "${data}/${session}", inbox_path: "" })
+}
+
+fn Hub mut @preparation_handoff(s Dialog, source JsonObject) Proc Detach Time -> Result[ContextHandoff, str] {
+    ro family = jtext(source, "family")
+    ro config = @restricted_handoff_config(s, family, source)?
+    mut client = open_client_full(config, "", 0, no_ask(), []EnvEntry.new())?
+    client.set_dispatch_family(family)
+    client.set_dispatch_role(s.dispatch.role)
+    client.set_source(preparation_source_settings(source))
+    ro transfer = build_transfer(s.lines, s.agent)
+    client.hold_handoff_prompt("История текущего чата приведена как контекст. Ответь на новое сообщение после истории.\n\n${transfer.text}")
+    Ok(ContextHandoff { trace: s.id, previous: s.agent, source, client, inbox: "", transfer, tail: handoff_tail(s.lines), history_end: s.lines.len(), preflight: true, reused_summary: false, stage: 0, summary: "", prompt: None, events: []Incoming.new(), observed: false, deadline: now_millis() + 120000 })
+}
+fn Hub @restricted_handoff_config(s Dialog, family str, source JsonObject) -> Result[AcpConfig, str] {
+    if !valid_session_name(s.id) { return Err("Подготовка: недопустимая сессия") }
+    ro agent = match @settings.agent(family) { Some(a) => a, None => return Err("Источник ${family} не настроен") }
+    if agent.preparation.len() == 0 { return Err("preparation_profile_missing") }
+    mut args = []str.new()
+    mut i = 1
+    while i < agent.preparation.len() {
+        ro arg = agent.preparation[i]
+        args.push(if arg == "{model}" { jtext(source, "model") }
+            else if arg == "{effort}" { jtext(source, "effort") }
+            else if arg == "{draft}" { "${tk_canon(@settings.data_dir)}/${s.id}/tasks/draft" }
+            else if arg == "{project}" { tk_canon(s.folder) }
+            else { arg })
+        i += 1
+    }
+    Ok(AcpConfig { program: agent.preparation[0], args, cwd: "${@settings.data_dir}/${s.id}", inbox_path: "" })
+}
+fn preparation_source_settings(source JsonObject) -> []AcpPreset {
+    mut required = []AcpPreset.new()
+    for key in ["model", "effort"] {
+        ro value = jtext(source, key)
+        if value.byte_len() > 0 { required.push(AcpPreset { setting: key, value }) }
+    }
+    required
+}
+
+fn Hub @has_registered_preparation(family str) -> bool {
+    match @settings.agent(family) { Some(agent) => agent.preparation.len() > 0, None => false }
 }

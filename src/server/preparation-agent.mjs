@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import os from 'node:os';
 import { pathToFileURL } from 'node:url';
+import { spawn } from 'node:child_process';
 import { kimiGenerate } from './kimi-preparation.mjs';
 
 export function parseAnswer(text) {
@@ -143,7 +144,7 @@ export async function serve({ endpoint, model, variant = '', root, context = '',
       result(id, { protocolVersion: 1, agentInfo: { name: 'canopus-preparation', version: '1' }, agentCapabilities: { loadSession: false, promptCapabilities: { image: false, audio: false, embeddedContext: false }, mcpCapabilities: { http: false, sse: false } } });
     } else if (method === 'session/new') {
       // params.cwd, params.mcpServers and any native permissions are deliberately not used.
-      result(id, { sessionId, models: { currentModelId: model, availableModels: [{ modelId: model, name: model }] }, modes: { currentModeId: 'preparation', availableModes: [{ id: 'preparation', name: 'Подготовка задачи', description: 'Только текст и назначенная постановка, без исполнения' }] } });
+      result(id, { sessionId, models: { currentModelId: model, availableModels: [{ modelId: model, name: model }] }, configOptions: variant ? [{ id: 'effort', name: 'Effort', category: 'thought_level', type: 'select', currentValue: variant, options: [{ value: variant, name: variant }] }] : [], modes: { currentModeId: 'preparation', availableModes: [{ id: 'preparation', name: 'Подготовка задачи', description: 'Только текст и назначенная постановка, без исполнения' }] } });
     } else if (method === 'session/set_mode' || method === 'session/set_config_option') {
       if (method === 'session/set_mode' && params.modeId === 'preparation') result(id, {});
       else fail(id, 'Родные permissions не расширяют инструменты Подготовки');
@@ -158,8 +159,7 @@ export async function serve({ endpoint, model, variant = '', root, context = '',
         fail(id, 'Подготовка принимает только текст своей сессии'); continue;
       }
       const message = params.prompt.map((part) => part.text).join('\n');
-      if (message.length > 262144) { fail(id, 'Сообщение слишком большое'); continue; }
-      const controller = new AbortController();
+        const controller = new AbortController();
       active = controller;
       const timer = setTimeout(() => controller.abort(), research ? 600000 : 120000);
       void generate({ endpoint, model, variant, root, message, signal: controller.signal, context, authorization, fetcher, generator, sessionHistory, research, onUpdate:update=>send({method:'session/update',params:{sessionId,update}}) }).then((answer) => {
@@ -174,9 +174,52 @@ export async function serve({ endpoint, model, variant = '', root, context = '',
   active?.abort();
 }
 
+// Codex uses its existing login. The restricted process runs in the draft
+// directory, with user configuration and executable tools disabled.
+async function codexGenerate({ program, model, variant, prompt, root, signal }) {
+  const args = ['exec', '--ephemeral', '--ignore-user-config', '--ignore-rules',
+    '--skip-git-repo-check', '--sandbox', 'read-only', '--json',
+    '-c', 'approval_policy="never"', '-c', 'web_search="disabled"'];
+  for (const feature of ['shell_tool', 'shell_snapshot', 'unified_exec', 'apps', 'multi_agent', 'multi_agent_v2']) {
+    args.push('--disable', feature);
+  }
+  if (model) args.push('--model', model);
+  if (variant && variant !== 'default') args.push('-c', `model_reasoning_effort=${JSON.stringify(variant)}`);
+  return runTextCommand(program, [...args, '-'], root, prompt, signal, (event) =>
+    event.type === 'item.completed' && event.item?.type === 'agent_message' ? event.item.text : '');
+}
+
+async function runTextCommand(program, args, root, prompt, signal, answerOf) {
+  await mkdir(root, { recursive: true });
+  await rejectLinks(root);
+  const child = spawn(program, args, { cwd: root, signal, windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'] });
+  const exit = new Promise((resolve) => {
+    child.once('error', () => resolve(false));
+    child.once('close', (code) => resolve(code === 0));
+  });
+  child.stdin.on('error', () => {});
+  child.stdin.end(prompt, 'utf8');
+  let reply = '';
+  for await (const line of createInterface({ input: child.stdout, crlfDelay: Infinity })) {
+    let event;
+    try { event = JSON.parse(line); } catch { continue; }
+    reply = answerOf(event) || reply;
+  }
+  if (!(await exit) || !reply) throw Error('Restricted agent did not return an answer');
+  return reply;
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   Promise.resolve().then(async () => {
     const options = optionsOf(process.argv.slice(2));
+    if (options['--backend'] === 'codex') {
+      const program = options['--native-program'];
+      if (!program) throw Error('Restricted text command is missing');
+      await serve({ model: options['--model'] || '', variant: options['--variant'] || '',
+        root: options['--root'] || '', context: options['--context'] || '',
+        generator: (input) => codexGenerate({ ...input, program }) });
+      return;
+    }
     if (options['--backend'] === 'kimi') {
       const program = options['--native-program'];
       const args = JSON.parse(options['--native-args'] || '[]');

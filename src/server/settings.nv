@@ -12,7 +12,7 @@ import canopus.config.{ConfigLayout, Layer, ConfigSelection, parse_database_url,
 
 /// AgentSpec: an agent the page can choose: the id the page names it by, the label, the command, and how it asks the owner (task 192i): `native` (its own
 /// tool of questions, over `elicitation/create`; the default), `mcp` (the hub gives it the MCP tool `ask_user_question` and a hint), `off` (nothing).
-export type AgentSpec { id str, label str, program str, args []str, ask str }
+export type AgentSpec { id str, label str, program str, args []str, ask str, preparation []str }
 
 /// ServerSettings: everything the server is told. `store` is "files" or "pg"; `data_dir` holds the files of the file store
 /// and, in both modes, the inbox files of the ACP client; `idle_term_ms` is the idle term of a turn; `workdir` is the folder
@@ -143,7 +143,13 @@ fn st_agent(v JsonValue) -> Result[AgentSpec, str] {
     }
     ro ask = st_text(o, "ask", "native")?
     if ask != "native" && ask != "mcp" && ask != "off" { return Err("the ask of the agent ${id} must be native, mcp or off") }
-    Ok(AgentSpec { id, label, program, args, ask })
+    // Trusted agent registration: executable and arguments for the restricted ACP profile.
+    ro preparation = match o.get("preparation") {
+        Some(value) => st_words(value, "the preparation command of the agent ${id}")?
+        None => []str.new()
+    }
+    if preparation.len() > 0 && preparation[0].trim() == "" { return Err("the preparation command needs a program") }
+    Ok(AgentSpec { id, label, program, args, ask, preparation })
 }
 
 // On Windows OpenCode is an npm shim, a .cmd file, and a process cannot be started from the bare name.
@@ -158,7 +164,7 @@ export fn default_opencode_program() -> str => st_opencode_program()
 
 fn st_default_agents() -> []AgentSpec {
     mut out = []AgentSpec.new()
-    out.push(AgentSpec { id: "opencode", label: "OpenCode", program: st_opencode_program(), args: ["acp"], ask: "native" })
+    out.push(AgentSpec { id: "opencode", label: "OpenCode", program: st_opencode_program(), args: ["acp"], ask: "native", preparation: []str.new() })
     out
 }
 
@@ -327,7 +333,7 @@ fn st_rest(words []str) -> []str {
 // The one agent "opencode" of the command in the variable.
 fn st_one_agent(words []str) -> []AgentSpec {
     mut one = []AgentSpec.new()
-    one.push(AgentSpec { id: "opencode", label: "OpenCode", program: words[0], args: st_rest(words), ask: "native" })
+    one.push(AgentSpec { id: "opencode", label: "OpenCode", program: words[0], args: st_rest(words), ask: "native", preparation: []str.new() })
     one
 }
 

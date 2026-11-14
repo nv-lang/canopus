@@ -560,7 +560,12 @@ fn Hub mut @drain(at int) Time -> () {
 // A synthetic `error` event for one page (or all): it belongs to no step of the engine and is not kept.
 fn Hub mut @tell_error(conn int, trace str, step int, turn str, message str) Time -> () {
     @serial += 1
-    @send(conn, event_line("srv-${@serial}", trace, step, "error", error_input(turn, message), now_millis()))
+    mut input = error_input(turn, message)
+    if message == "preparation_profile_missing" {
+        input = error_input(turn, "Выбранный агент не поддерживает Подготовку задачи.")
+        js(input, "code", message)
+    }
+    @send(conn, event_line("srv-${@serial}", trace, step, "error", input, now_millis()))
 }
 
 // The catalog of the families (task 192o): an `agent_model` of a session is merged into the record of the agent of that session; a changed record is told to
@@ -1070,6 +1075,12 @@ fn Hub mut @ensure_client(at int) Proc Detach Time -> str {
                 s.clients[0].set_dispatch_family(s.agent)
                 // the choices of the owner for this family go to every agent started for the session (task 192t)
                 if !preparation { s.clients[0].set_presets(presets_for(s.chosen, s.agent)) }
+                else if @has_registered_preparation(s.agent) {
+                    match s.dispatch.source {
+                        Some(source) => s.clients[0].set_source(preparation_source_settings(source))
+                        None => ()
+                    }
+                }
                 s.announced = false
                 s.model_announced = false
                 s.slow_told = false
@@ -2344,13 +2355,15 @@ fn set_handoff_source(mut client AcpClient, s Dialog, source JsonObject) -> () {
 fn Hub mut @combined_handoff(at int, source JsonObject) Proc Detach Time -> Result[ContextHandoff, str] {
     ro s = @sessions[at]
     ro family = jtext(source, "family")
-    // Claude ACP may leave an interrupted query unable to accept setModel.
-    ro zai_model_change = family == "zai" && jtext(source, "model").byte_len() > 0
-    if !@work_allowed(at, "execute") || family.byte_len() == 0 || (family == s.agent && !zai_model_change) || !s.dispatch.has_messages {
+    ro preparation = !@work_allowed(at, "execute")
+    if family.byte_len() == 0 || (!preparation && !s.dispatch.has_messages) {
         return Err("Смена семьи недоступна для этого сообщения.")
     }
     ro problem = @execution_problem(at)
     if problem.byte_len() > 0 { return Err(problem) }
+    if !@work_allowed(at, "execute") {
+        return @preparation_handoff(s, source)
+    }
     ro config = match @open_config_for(family, s.id, @agent_cwd(s)) {
         Some(c) => c
         None => return Err("Источник ${family} не настроен")
@@ -2541,6 +2554,7 @@ fn Hub mut @poll_context_handoffs() Proc Detach Time -> () {
         mut failed = at < 0 || now_millis() >= job.deadline
         ro combined = job.prompt.is_some()
         ro real_turn = combined && job.stage != 1
+        ro preparation = at >= 0 && !@work_allowed(at, "execute")
         mut completed = real_turn && job.observed
         mut overflow = false
         if at >= 0 && ((!combined && !@takes_message_at(at)) || @sessions[at].agent != job.previous) { failed = true }
@@ -2578,7 +2592,7 @@ fn Hub mut @poll_context_handoffs() Proc Detach Time -> () {
                             }
                             if real_turn {
                                 job.events.push(e)
-                                if handoff_turn_started(e) { completed = true }
+                                if (preparation && e.name == "agent_done") || (!preparation && handoff_turn_started(e)) { completed = true }
                             } else if e.name == "agent_done" { completed = true }
                             if e.name == "agent_chunk" && job.stage == 1 { job.summary = "${job.summary}${e.input}" }
                             if e.name == "agent_refused" {
@@ -2595,7 +2609,7 @@ fn Hub mut @poll_context_handoffs() Proc Detach Time -> () {
             ro phase = job.client.phase()
             if !completed && (phase == "failed" || phase == "dead" || phase == "closed") { failed = true }
         }
-        if at >= 0 && ((failed && overflow && job.stage == 0) || (completed && !failed && job.stage == 1)) {
+        if at >= 0 && @work_allowed(at, "execute") && ((failed && overflow && job.stage == 0) || (completed && !failed && job.stage == 1)) {
             ro s = @sessions[at]
             ro retry_context = if combined && job.stage == 1 { handoff_compacted_text(job.summary, job.tail) } else { "" }
             ro limit = jnumber(@context_sizes, handoff_model_key(target, jtext(job.source, "model")))
@@ -2809,13 +2823,20 @@ fn Hub mut @source_for_turn(trace str) Proc Detach Time -> bool {
     }
     if !@work_allowed(at, "execute") {
         if actual.family != s.agent {
-            @tell_error(0, trace, s.engine.step_number(), "", "Подготовка: сначала выберите семью в обычном чате; переход к обычному ACP запрещён")
+            @tell_error(0, trace, s.engine.step_number(), "", "Для смены агента в Подготовке отправьте новое сообщение вместе с выбранным источником")
             return false
         }
         ro restricted = @ensure_client(at)
         if restricted.byte_len() > 0 { @tell_error(0, trace, s.engine.step_number(), "", restricted); return false }
-        // The immutable restricted launch already pins model and effort. Native
-        // mode presets (Plan/YOLO) must never be sent to this text-only adapter.
+        if @has_registered_preparation(s.agent) {
+            mut ready = @sessions[at]
+            mut selection = JsonObject.new()
+            jput(selection, "model", JsonValue.str(actual.model))
+            jput(selection, "effort", JsonValue.str(actual.effort))
+            ready.clients[0].set_source(preparation_source_settings(selection))
+            @sessions[at] = ready
+        }
+        // Restricted transports receive model and effort only.
         return true
     }
     @switch_agent(trace, actual.family)
@@ -2946,7 +2967,7 @@ export fn Hub mut @handle(conn int, text str) Proc Detach Time -> () {
     if kind == "model_probe" { @start_model_probe(conn, trace, input); return }
     if kind == "session_history_get" { @send_history(conn, trace, input); return }
     ro active_at = @find(trace)
-    if kind == "user_message" || kind == "session_source" || kind == "session_agent" || kind == "session_setting" {
+    if kind == "user_message" || kind == "session_source" || kind == "session_agent" || kind == "session_setting" || kind == "session_route" {
         for pending in @handoffs {
             if pending.trace == trace && active_at >= 0 {
                 @tell_error(conn, trace, @sessions[active_at].engine.step_number(), "", "Дождитесь завершения переноса контекста.")
@@ -3001,6 +3022,7 @@ export fn Hub mut @handle(conn int, text str) Proc Detach Time -> () {
                         match jchild(line, "input") {
                             Some(data) => {
                                 mut error_data = error_input(jtext(data, "turn"), jtext(data, "message"))
+                                if jtext(data, "code") == "preparation_profile_missing" { js(error_data, "code", "preparation_profile_missing") }
                                 jput(error_data, "client_id", JsonValue.str(client_id))
                                 outgoing.text = event_line(jtext(line, "id"), trace, jint(line, "step"), "error", error_data, jint(line, "time"))
                             }
