@@ -519,3 +519,17 @@ test "turn usage: the page line carries the turn and the numbers" {
         None => assert(false)
     }
 }
+
+test "update: compaction_update is the compaction the agent reports itself" {
+    ro p = project_update(j("{\"sessionUpdate\":\"compaction_update\",\"compactionId\":\"c1\",\"status\":\"completed\"}"))
+    assert(p.name == "compaction_update")
+    ro o = j(p.input)
+    assert(str_at(o, "status") == "completed")
+    assert(str_at(o, "compactionId") == "c1")
+    ro page = page_of(progress_event("agent-1", p), "t9")
+    assert(str_at(page, "kind") == "compaction_update")
+    assert(str_at(input_of(page), "status") == "completed")
+    ro failed = project_update(j("{\"sessionUpdate\":\"compaction_update\",\"status\":\"failed\"}"))
+    assert(str_at(j(failed.input), "status") == "failed")
+    assert(str_at(j(project_update(j("{\"sessionUpdate\":\"compaction_update\"}")).input), "status") == "")
+}

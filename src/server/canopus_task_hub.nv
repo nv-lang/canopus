@@ -564,7 +564,11 @@ fn Hub mut @ct_queue(at int) Proc Detach Time -> () {
 }
 
 // The context of the agent (task 192.5): see `ctx_scan` (canopus_task.nv). A compaction: the instruction of the mode is told again in full with the next message, the feed gets a grey line,
-// the journal gets `context_compacted {before, after, at}`. The protocol has no event of the compaction; the fall of `used` is the sign.
+// the journal gets `context_compacted`. Two sources (task 305): the agent reports `compaction_update` itself with the status
+// `completed` (opencode v2 and those like it) - the authoritative record `source: "agent"`; for agents without the event, the fall
+// of `used` by more than `context_drop_percent` (task 192.5) - `source: "usage_drop"`, the fallback. The heuristic does not journal
+// a fall the agent has already reported in the same baseline window (since `agent_switched` / `session_created`). The ACP stream
+// puts `compaction_update` before the post-compaction `usage_update`, so the agent record is always first.
 fn Hub mut @ctx_watch(at int) Proc Detach Time -> () {
     ro s = @sessions[at]
     ro from = if s.rt.ctx_scan > s.lines.len() { s.lines.len() } else { s.rt.ctx_scan }
@@ -581,9 +585,26 @@ fn Hub mut @ctx_watch(at int) Proc Detach Time -> () {
     me.rt.ctx_used = r.used
     me.rt.ctx_size = r.size
     if r.before > 0 { me.rt.told = false }
+    for line in fresh {
+        ro kind = ctx_kind(line)
+        if kind == "agent_switched" || kind == "session_created" { me.rt.ctx_agent_compact = false }
+        if kind == "compaction_update" && ctx_agent_compacted([line]) { me.rt.ctx_agent_compact = true }
+    }
     @sessions[at] = me
-    if r.before > 0 {
+    for line in fresh {
+        if ctx_kind(line) == "compaction_update" && ctx_agent_compacted([line]) {
+            mut o = JsonObject.new()
+            js(o, "source", "agent")
+            ji(o, "before", me.rt.ctx_used)
+            ji(o, "at", now_millis())
+            @rt_journal(at, "context_compacted", JsonValue.object(o).to_str())
+            @rt_note(at, "▸ Контекст сжат агентом")
+            @route_broadcast(at, true)
+        }
+    }
+    if r.before > 0 && !me.rt.ctx_agent_compact {
         mut o = JsonObject.new()
+        js(o, "source", "usage_drop")
         ji(o, "before", r.before)
         ji(o, "after", r.after)
         ji(o, "at", now_millis())

@@ -632,6 +632,7 @@ export fn hints_view_extend(base str, hints []HintRec, ctx_used int, ctx_size in
         mput(r, "ms", JsonValue.int(c.ms))
         mput(r, "before", JsonValue.int(c.before))
         mput(r, "after", JsonValue.int(c.after))
+        mput(r, "source", JsonValue.str(c.source))
         hist.push(JsonValue.object(r))
     }
     mput(cx, "compactions", JsonValue.array(hist))
@@ -693,4 +694,19 @@ export fn ctx_scan(lines []str, prev_used int, prev_size int, drop_percent int) 
         }
     }
     CtxScan { used: prev, size, before, after }
+}
+
+/// Has one of the lines a compaction reported by the agent itself (task 305): the kind `compaction_update` with the status
+/// `completed`. Failed and cancelled say nothing: the heuristic of task 192.5 still watches the `used`.
+export fn ctx_agent_compacted(lines []str) -> bool {
+    for line in lines {
+        if ctx_kind(line) != "compaction_update" { continue }
+        ro parsed = match Json.parse(line) {
+            Ok(v) => v.object() ?? JsonObject.new()
+            Err(e) => JsonObject.new()
+        }
+        ro input = (parsed.get("input") ?? JsonValue.null()).object() ?? JsonObject.new()
+        if (input.get("status") ?? JsonValue.null()).str() ?? "" == "completed" { return true }
+    }
+    false
 }

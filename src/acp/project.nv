@@ -179,6 +179,16 @@ fn usage_projection(update JsonValue) -> Projection {
     proj("usage_update", JsonValue.object(o).to_str())
 }
 
+/// The compaction reported by the agent itself (task 305; opencode v2 and those like it): the agent tells the status of its own
+/// compaction, the hub journals it authoritatively, not by the fall of `used` (the heuristic stays the fallback). The summary does not go
+/// here: the agent keeps it in its own session, the hub needs only the fact and the status.
+fn compaction_projection(update JsonValue) -> Projection {
+    mut o = JsonObject.new()
+    put(o, "status", JsonValue.str(text_field(update, "status") ?? ""))
+    put(o, "compactionId", JsonValue.str(text_field(update, "compactionId") ?? ""))
+    proj("compaction_update", JsonValue.object(o).to_str())
+}
+
 fn first_int(v JsonValue, keys []str) -> int {
     for key in keys {
         match int_field(v, key) {
@@ -229,6 +239,7 @@ export fn project_update(update JsonValue) -> Projection {
         put(o, "entries", entries)
         return proj("plan", JsonValue.object(o).to_str())
     }
+    if kind == "compaction_update" { return compaction_projection(update) }
     if kind == "usage_update" { return usage_projection(update) }
     if kind == "config_option_update" {
         ro options = match get_of(update, "configOptions") {
@@ -749,7 +760,7 @@ fn page_input_of(e Incoming, turn str) -> Option[PageInput] {
                 ro value = object_input(e)?
                 return with_turn("turn_usage", value, turn)
             }
-            if e.name == "tool_call_update" || e.name == "usage_update" {
+            if e.name == "tool_call_update" || e.name == "usage_update" || e.name == "compaction_update" {
                 ro value = object_input(e)?
                 return page_input(e.name, value)
             }

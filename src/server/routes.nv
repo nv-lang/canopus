@@ -350,8 +350,11 @@ export type SubRec { n int, title str, branch str, worktree str, merged bool, do
 /// on a task). The text lives only in the process, in the panel "Машины" (the last 20 for a session); it is NEVER written to the feed or to the journal of the session, and it holds no secret.
 export type HintRec { ms int, kind str, text str }
 
-/// CtxRec: a compaction of the context of the agent seen by the hub (the `used` of `usage_update` fell by more than `context_drop_percent`): when, how much it was, how much it is.
-export type CtxRec { ms int, before int, after int }
+/// CtxRec: a compaction of the context of the agent seen by the hub: when, how much it was, how much it is. Two sources (task 305):
+/// `agent` - the agent reported `compaction_update` itself (opencode v2 and those like it; `after` is 0, the post-compaction usage
+/// is not known to the record), `usage_drop` or "" - the heuristic of task 192.5 (the `used` of `usage_update` fell by more than
+/// `context_drop_percent`).
+export type CtxRec { ms int, before int, after int, source str }
 
 /// ExtRec: an addition to an open task applied at once (task 192.7; the owner, 2026-10-27): `task` is the number of the task K, `brief` the short text for the feed, `file` the message file of K,
 /// `added` the exact text that was appended to it (the undo takes it out), `undone` - the owner pressed "Отменить".
@@ -479,6 +482,7 @@ export type RouteSession {
     ctx_size int,
     ctx_scan int,
     ctx_hist []CtxRec,
+    ctx_agent_compact bool,
     exts []ExtRec,
     req_parts []ReqPart,
     reqs []str,
@@ -493,7 +497,7 @@ export fn route_session_new() -> RouteSession => {
     job: "", attempt: 0, use_tree: true, source_branch: "", workspace_explicit: false, workspace_failed: false, workspace_late_tree: "", workspace_late_base: "", result_repo: "", result_label: "", repo_dir: "", result_common: "", result_url: "", result_remote: "", result_ref: "", active_at: 0, extra: task_extra_none(), testing: false, dirty: false, ci_at: 0, diff: []DiffRec.new(), ov_n: 0, ov_with: 0, ov_files: []str.new(), ov_until: 0, asked: []int.new(), conflict_files: []str.new(),
     props: []Proposal.new(), prop_serial: 0, dismissed: []str.new(), last_msg: "", last_imgs: []str.new(), last_names: []str.new(), kicks: []str.new(), kick_ns: []int.new(), focus: 0, recent: []str.new(), marker_turn: "",
     kind: "", parent: "", parent_kind: "", parent_no: "", child_no: 0, ptree: "", pbranch: "", waits_sib: "", waits_k: 0, queued_c: false, touches: []str.new(), merged_c: false, epic: false, chain: false, tbl: "", epic_no: "", origin: "",
-    wip_tree: "", wip_base: "", wip_unmerged: 0, wip_dirty: false, wip_idle: 0, wip_stale: false, wip_at: 0, wip_prep: 0, where_branch: "", hints: []HintRec.new(), ctx_used: 0, ctx_size: 0, ctx_scan: 0, ctx_hist: []CtxRec.new(), exts: []ExtRec.new(),
+    wip_tree: "", wip_base: "", wip_unmerged: 0, wip_dirty: false, wip_idle: 0, wip_stale: false, wip_at: 0, wip_prep: 0, where_branch: "", hints: []HintRec.new(), ctx_used: 0, ctx_size: 0, ctx_scan: 0, ctx_hist: []CtxRec.new(), ctx_agent_compact: false, exts: []ExtRec.new(),
     req_parts: []ReqPart.new(), reqs: []str.new(), req_turn: 0, req_tools: []str.new()
 }
 
@@ -697,7 +701,7 @@ export fn RouteSession mut @apply(name str, text str) -> () {
     }
     if name == "context_compacted" {
         ro ms = rj_int(o, "at")
-        @ctx_hist.push(CtxRec { ms, before: rj_int(o, "before"), after: rj_int(o, "after") })
+        @ctx_hist.push(CtxRec { ms, before: rj_int(o, "before"), after: rj_int(o, "after"), source: jtext(o, "source") })
         while @ctx_hist.len() > 20 { @ctx_hist.remove(0) }
         return
     }

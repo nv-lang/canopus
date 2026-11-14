@@ -324,7 +324,7 @@ test "context: a fall of used by more than the percent is a compaction; a smalle
 }
 
 test "context: the view holds the used / size and the history of the compactions; the reminder names the mode, the step and the place; the rules are in the tools" {
-    ro text = hints_view_extend("{}", []HintRec.new(), 30000, 200000, [CtxRec { ms: 5, before: 100000, after: 30000 }])
+    ro text = hints_view_extend("{}", []HintRec.new(), 30000, 200000, [CtxRec { ms: 5, before: 100000, after: 30000, source: "usage_drop" }])
     ro o = cht_j(text).object() ?? JsonObject.new()
     ro cx = (o.get("context") ?? JsonValue.null()).object() ?? JsonObject.new()
     assert(((cx.get("used") ?? JsonValue.null()).int() ?? 0) == 30000 && ((cx.get("size") ?? JsonValue.null()).int() ?? 0) == 200000)
@@ -334,6 +334,13 @@ test "context: the view holds the used / size and the history of the compactions
     assert(route_reminder("interactive", "", "", "").contains("задачи ещё нет"))
     assert(canopus_task_tool_json().to_str().contains("RULES"))
     assert(canopus_task_list_tool_json().to_str().contains("RULES"))
+}
+
+test "ctx agent compaction: a completed compaction_update line is seen" {
+    assert(ctx_agent_compacted([ctx_line("usage_update", 1000, 200000)]) == false)
+    assert(ctx_agent_compacted(["{\"kind\":\"compaction_update\",\"input\":{\"status\":\"failed\"}}"]) == false)
+    assert(ctx_agent_compacted([]) == false)
+    assert(ctx_agent_compacted(["{\"kind\":\"usage_update\",\"input\":{\"used\":1}}", "{\"kind\":\"compaction_update\",\"input\":{\"status\":\"completed\",\"compactionId\":\"c1\"}}"]) == true)
 }
 
 test "auto extend: only an extension with the high confidence and a number is applied at once; the section is taken out by its exact text" {

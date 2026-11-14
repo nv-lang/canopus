@@ -1,7 +1,7 @@
 // routes_live_test.nv - the modes of work over a hub with the fake ACP agent (task 192q): the scenarios `scenario_route_*` of canopus.server/routes_kit.nv.
 module canopus.server_route_live
 
-import canopus.server.{scenario_context_compaction, kit_routes, kit_routes_git, kit_routes_remote, scenario_route_fast, scenario_route_nosteps, scenario_route_tree, scenario_route_publish, scenario_route_planning, scenario_route_notree, kit_routes_recognize, scenario_route_recognize, kit_routes_wip, scenario_projectless_git_guard}
+import canopus.server.{scenario_context_compaction, scenario_agent_compaction, kit_routes, kit_routes_git, kit_routes_remote, scenario_route_fast, scenario_route_nosteps, scenario_route_tree, scenario_route_publish, scenario_route_planning, scenario_route_notree, kit_routes_recognize, scenario_route_recognize, kit_routes_wip, scenario_projectless_git_guard}
 
 fn route_clean(report str) -> () {
     if report.byte_len() > 0 { panic("NOT AS IT MUST BE: ${report}") }
@@ -42,4 +42,8 @@ test "files: the recognition of the tasks: the list of the agent, the quick answ
 
 test "files: the compaction of the context of the agent: a fall of used by more than 40 % is told in the feed and the panel, a smaller one is not" {
     route_clean(scenario_context_compaction(kit_routes("route-context")))
+}
+
+test "files: the compaction the agent reports itself: one authoritative record, the heuristic is silent" {
+    route_clean(scenario_agent_compaction(kit_routes("route-agent-compaction")))
 }
