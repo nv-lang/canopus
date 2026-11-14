@@ -492,7 +492,7 @@ test('заглушка: пропуск шага отмечает его проп
 
 // ---- проводка страницы
 
-test('проводка: чип режима первым в нижней панели композера, aria-label «Режим работы», шеврон через CSS; меню вверх слева; страница шлёт сигналы', () => {
+test('проводка: чип режима первым в нижней панели композера, aria-label «Режим работы», без шеврона; меню вверх слева; страница шлёт сигналы', () => {
   assert.equal(S['route.label'], 'Режим работы');
   assert.match(view, /const routeButton = h\(doc, 'button', \{[^}]*'aria-label': t\('route\.label'\)/);
   assert.match(view, /class: 'box-bar', 'data-empty': 'true' \},\s*plusButton, routeButton, taskRouteLabel, h\(doc, 'span', \{ class: 'grow' \}\), modeButton, modeError, statusGroup, modelButton,/);
@@ -579,8 +579,7 @@ test('задача 192.4: where из route_state вычищается; карт�
 });
 
 test('задача 192.4: подпись и карточка wip подключены в view.js и стили есть', () => {
-  assert.match(view, /whereNote/);
-  assert.match(view, /whereText\(session\)/);
+  assert.match(view, /whereNote\.textContent = whereNote\.hidden \? .*whereText\(session\)/);
   assert.match(view, /wipStalePrompt/);
   assert.match(css, /\.where-note/);
 });
