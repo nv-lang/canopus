@@ -352,6 +352,7 @@ export const S = Object.freeze({
   'task.details_loading': 'Загружаем задачу…',
   'task.details_missing': 'Данных пока нет',
   'task.details_status': 'Статус',
+  'task.details_close': 'Закрыть задачу',
   'task.details_stage': 'Стадия',
   'task.details_done': 'Выполнена',
   'task.details_active': 'В работе',

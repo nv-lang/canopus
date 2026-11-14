@@ -3099,6 +3099,8 @@ export fn Hub mut @handle(conn int, text str) Proc Detach Time -> () {
         @route_subtree_signal(trace, jint(input, "n"))
     } else if kind == "route_subtask_done" {
         @route_subtask_done(trace, jint(input, "n"))
+    } else if kind == "route_task_close" {
+        @route_task_close(trace)
     } else if kind == "route_subtask_parallel" {
         @route_parallel(trace, jint(input, "n"), jflag(input, "on"))
     } else if kind == "route_subtask_choose" {

@@ -354,6 +354,12 @@ export function subtaskActions(sub) {
 }
 export const hasSubtaskActions = (sub) => Object.values(subtaskActions(sub)).some(Boolean);
 
+/** Кнопка «Закрыть задачу» (задача 295): видна у задачи, которая ещё идёт («В работе»), и скрыта у закрытой. */
+export const taskCloseAvailable = (task) => {
+  const state = task?.state;
+  return state === 'running' || state === 'active';
+};
+
 /** Баннер «Задача разрослась»: сервер просит (suggest_new_task) и владелец не нажал «Продолжить» на этом числе подзадач. */
 export function bannerCount(state, dismissedAt) {
   const task = state && state.task;
@@ -462,6 +468,7 @@ export const routeSignal = Object.freeze({
   subtaskWorktree: (n) => ({ kind: 'route_subtask_worktree', input: { n } }),
   subtaskDone: (n) => ({ kind: 'route_subtask_done', input: { n } }),
   newTask: () => ({ kind: 'route_new_task', input: {} }),
+  taskClose: () => ({ kind: 'route_task_close', input: {} }),
   merge: () => ({ kind: 'route_merge', input: {} }),
   testsRun: () => ({ kind: 'route_tests_run', input: {} }),
   treeDrop: (force) => ({ kind: 'route_tree_drop', input: { force: force === true } }),

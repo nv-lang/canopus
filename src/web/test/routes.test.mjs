@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import {
   ROUTES, CHAT_MODES, DEFAULT_ROUTE, INTERACTIVE_STATE, STEP_ICON, STEP_STATE_KEY, normalizeRoute, routeName, taskRouteName, routeDescription, parseRouteState,
   stepCounter, counterText, stepToSkip, showStrip, stripActions, subtaskPercent, subtaskProgressText, routeSignal,
-  subtaskCountText, showSubtasks, taskHeading, subtaskActions, hasSubtaskActions, bannerCount, subtaskNotes,
+  subtaskCountText, showSubtasks, taskHeading, subtaskActions, hasSubtaskActions, bannerCount, subtaskNotes, taskCloseAvailable,
   commitsText, filesText, mergeLabel, diffTotals, finishPrompt, readyPrompt, overlapPrompt, parseWhere, whereText, wipStalePrompt,
 } from '../routes.js';
 import { S } from '../strings.js';
@@ -123,6 +123,22 @@ test('сигналы страницы серверу: форма по контр
   assert.deepEqual(routeSignal.subtaskWorktree(2), { kind: 'route_subtask_worktree', input: { n: 2 } });
   assert.deepEqual(routeSignal.subtaskDone(3), { kind: 'route_subtask_done', input: { n: 3 } });
   assert.deepEqual(routeSignal.newTask(), { kind: 'route_new_task', input: {} });
+  assert.deepEqual(routeSignal.taskClose(), { kind: 'route_task_close', input: {} });
+});
+
+test('задача 295: владелец закрывает задачу кнопкой в панели «Задача»: сигнал, проводка, видимость', () => {
+  assert.equal(taskCloseAvailable({ state: 'running' }), true, 'у идущей задачи кнопка есть');
+  assert.equal(taskCloseAvailable({ state: 'active' }), true);
+  assert.equal(taskCloseAvailable({ state: 'done' }), false, 'у закрытой задачи кнопки нет');
+  assert.equal(taskCloseAvailable(undefined), false);
+  const strip = view.slice(view.indexOf('function taskDetailsCard'), view.indexOf('function taskDetailsCard') + 2600);
+  assert.match(strip, /taskCloseAvailable\(\{ state: status \}\)/, 'видимость кнопки решает taskCloseAvailable');
+  assert.match(strip, /t\('task\.details_close'\)/, 'кнопка с подписью «Закрыть задачу»');
+  assert.match(strip, /handlers\.onTaskClose\(session\.id\)/, 'клик шлёт сигнал закрытия');
+  assert.match(app, /onTaskClose\(trace, n\) \{ send\(\.\.\.signal\(trace, routeSignal\.taskClose\(\)\)\); \}/, 'обработчик страницы шлёт route_task_close');
+  const transport = fs.readFileSync(new URL('../transport.js', import.meta.url), 'utf8');
+  assert.match(transport, /'route_task_close'/, 'transport пропускает сигнал');
+  assert.ok(S['task.details_close'], 'подпись локализована');
 });
 
 // ---- задача: номер, ветка, дерево, подзадачи

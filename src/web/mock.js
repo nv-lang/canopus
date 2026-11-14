@@ -146,7 +146,7 @@ export function routeStateInput(route, { finished = 0, running = false, active =
 }
 
 const TASK_SIGNALS = [
-  'route_subtask_new', 'route_subtask_same', 'route_subtask_worktree', 'route_subtask_done', 'route_new_task',
+  'route_subtask_new', 'route_subtask_same', 'route_subtask_worktree', 'route_subtask_done', 'route_new_task', 'route_task_close',
   'route_merge', 'route_publish', 'route_tests_run', 'route_tree_drop', 'route_subtask_parallel', 'route_subtask_choose',
 ];
 
@@ -180,6 +180,8 @@ export function editTask(task, kind, input = {}) {
     const sub = subs.find((x) => x.n === input.n);
     if (sub && input.tree === 'own' && !sub.worktree) Object.assign(sub, { worktree: `C:/work/wt/${task.number}-${sub.n}`, branch: `${task.branch}-${sub.n}` });
     return { ...task, overlap: null, subtasks: subs };
+  } else if (kind === 'route_task_close') {
+    return { ...task, state: 'done', subtasks: subs.map((x) => ({ ...x, state: 'done', done: x.total, merged: true })) };
   } else if (kind === 'route_new_task') {
     const number = String(Number(task.number) + 1).padStart(3, '0');
     return {
