@@ -123,9 +123,10 @@ export function createSideKit(doc, deps) {
     return menuButton(session, 'head', 'icon-btn small head-menu-btn', icon(doc, 'i-chevron-down'));
   }
 
-  /** Кнопка «⋯» у строки сессии. */
-  function moreButton(session) {
-    return menuButton(session, 'row', 'more-btn', icon(doc, 'i-more'));
+  /** Меню сессии по правой кнопке на строке списка. */
+  function openRowMenu(session) {
+    menu = { id: session.id, sub: '', at: 'row' };
+    render();
   }
 
   /** Кнопка, открывающая меню сессии в своём месте (at): повторный клик закрывает, другая кнопка переносит меню к себе. */
@@ -145,7 +146,7 @@ export function createSideKit(doc, deps) {
 
   doc.addEventListener('click', (e) => {
     if (!menu) return;
-    if (e.composedPath().some((n) => n && n.classList && (n.classList.contains('session-menu') || n.classList.contains('more-btn')))) return;
+    if (e.composedPath().some((n) => n && n.classList && n.classList.contains('session-menu'))) return;
     closeMenu();
   });
   doc.addEventListener('keydown', (e) => { if (e.key === 'Escape' && menu) closeMenu(); });
@@ -340,7 +341,7 @@ export function createSideKit(doc, deps) {
   }
 
   return {
-    menuFor, moreButton, headButton, renameField, afterRender, rowDnd, projectDnd, sectionDnd,
+    menuFor, openRowMenu, headButton, renameField, afterRender, rowDnd, projectDnd, sectionDnd,
     isRenaming: (id) => renaming !== null && renaming.id === id,
     isDragging: () => drag !== null,
     /** Перерисовку отложили, пока тащат: после броска она выполнится сама. */

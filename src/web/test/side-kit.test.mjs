@@ -1,4 +1,4 @@
-// Строка сессии и шапка проекта (задача 192): меню «⋯», переименование на месте, подтверждение удаления, перетаскивание.
+// Строка сессии и шапка проекта (задача 192): меню сессии по правой кнопке, переименование на месте, подтверждение удаления, перетаскивание.
 // DOM — fake-dom.mjs; события перетаскивания — обычные объекты с dataTransfer и clientY.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -25,7 +25,8 @@ function setup({ answer = true } = {}) {
     drawn += 1;
     const lis = sessions.map((s) => {
       const field = kit.isRenaming(s.id) ? kit.renameField(s) : h(doc, 'button', { class: 'session-item', text: s.name });
-      const li = h(doc, 'li', { class: 'session' }, field, kit.moreButton(s), kit.menuFor(s, { pinned: false, unread: false }) || false);
+      field.addEventListener('contextmenu', (e) => { e.preventDefault(); kit.openRowMenu(s); });
+      const li = h(doc, 'li', { class: 'session' }, field, kit.menuFor(s, { pinned: false, unread: false }) || false);
       li.getBoundingClientRect = () => ({ top: 100, height: 40 });
       kit.rowDnd(li, { id: s.id, group: 'p1', ids: sessions.map((x) => x.id), projectId: s.projectId, enabled: true });
       return li;
@@ -60,7 +61,9 @@ function setupBoth() {
   const projects = [{ id: 'p1', name: 'Один' }, { id: 'p2', name: 'Два' }];
   let kit = null;
   const draw = () => {
-    const li = h(doc, 'li', { class: 'session' }, h(doc, 'button', { class: 'session-item', text: s.name }), kit.moreButton(s), kit.menuFor(s, { pinned: false, unread: false }, 'row') || false);
+    const item = h(doc, 'button', { class: 'session-item', text: s.name });
+    item.addEventListener('contextmenu', (e) => { e.preventDefault(); kit.openRowMenu(s); });
+    const li = h(doc, 'li', { class: 'session' }, item, kit.menuFor(s, { pinned: false, unread: false }, 'row') || false);
     kit.rebuild(() => box.replaceChildren(li));
     const open = kit.menuFor(s, { pinned: false, unread: false, rename: () => {} }, 'head');
     head.replaceChildren(...[kit.headButton(s), open].filter(Boolean));
@@ -73,26 +76,24 @@ function setupBoth() {
   return { doc, kit, calls, head, row: () => box.children[0] };
 }
 
-test('задача 261: клик «⋯» строки выбранной сессии показывает ровно одно меню — у строки, не в шапке', () => {
+test('задача 261: правая кнопка строки выбранной сессии показывает ровно одно меню — у строки, не в шапке', () => {
   const s = setupBoth();
-  s.row().querySelector('.more-btn').click();
+  s.row().querySelector('.session-item').dispatchEvent(event('contextmenu'));
   const menus = s.doc.body.querySelectorAll('.session-menu');
   assert.equal(menus.length, 1, 'ровно одно меню на странице');
   assert.ok(s.row().contains(menus[0]), 'меню привязано к строке');
   assert.equal(s.head.querySelector('.session-menu'), null, 'в шапке меню нет');
-  assert.equal(s.row().querySelector('.more-btn').getAttribute('aria-expanded'), 'true');
   assert.equal(s.head.querySelector('.head-menu-btn').getAttribute('aria-expanded'), 'false');
 });
 
-test('задача 261: кнопка шапки открывает одно меню у шапки; переключение между кнопками закрывает прежнее', () => {
+test('задача 261: кнопка шапки открывает одно меню у шапки; правая кнопка строки переносит меню к строке', () => {
   const s = setupBoth();
   s.head.querySelector('.head-menu-btn').click();
   assert.equal(s.doc.body.querySelectorAll('.session-menu').length, 1, 'ровно одно меню');
   assert.ok(s.head.querySelector('.session-menu'), 'меню у шапки');
   assert.equal(s.row().querySelector('.session-menu'), null, 'в строке меню нет');
   assert.equal(s.head.querySelector('.head-menu-btn').getAttribute('aria-expanded'), 'true');
-  assert.equal(s.row().querySelector('.more-btn').getAttribute('aria-expanded'), 'false');
-  s.row().querySelector('.more-btn').click();
+  s.row().querySelector('.session-item').dispatchEvent(event('contextmenu'));
   assert.equal(s.doc.body.querySelectorAll('.session-menu').length, 1, 'переключение не плодит меню');
   assert.ok(s.row().querySelector('.session-menu'), 'меню переехало к строке');
   assert.equal(s.head.querySelector('.session-menu'), null, 'прежнее у шапки закрыто');
@@ -128,10 +129,10 @@ test('задача 261: повторный клик, Esc и клик снару�
   assert.equal(s.doc.body.querySelectorAll('.session-menu').length, 0, 'после выбора меню закрыто');
 });
 
-test('меню «⋯»: закрепить, непрочитанной, переименовать, ссылка, переместить, удалить (красный)', () => {
+test('меню строки (правая кнопка): закрепить, непрочитанной, переименовать, ссылка, переместить, удалить (красный)', () => {
   const s = setup();
   assert.equal(s.row('a').querySelector('.session-menu'), null);
-  s.row('a').querySelector('.more-btn').click();
+  s.row('a').querySelector('.session-item').dispatchEvent(event('contextmenu'));
   const menu = s.row('a').querySelector('.session-menu');
   assert.deepEqual(labels(menu), ['Закрепить', 'Отметить непрочитанной', 'Переименовать', 'Скопировать ссылку', 'Переместить в проект', 'Удалить']);
   assert.ok(menu.querySelectorAll('.menu-item').at(-1).className.includes('is-danger'));
@@ -142,7 +143,7 @@ test('меню «⋯»: закрепить, непрочитанной, пере
 
 test('меню: закрепить, непрочитанной и ссылка уходят обработчикам', () => {
   const s = setup();
-  const pick = (n) => { s.row('a').querySelector('.more-btn').click(); s.row('a').querySelectorAll('.menu-item')[n].click(); };
+  const pick = (n) => { s.row('a').querySelector('.session-item').dispatchEvent(event('contextmenu')); s.row('a').querySelectorAll('.menu-item')[n].click(); };
   pick(0);
   pick(1);
   pick(3);
@@ -152,7 +153,7 @@ test('меню: закрепить, непрочитанной и ссылка �
 
 test('«Переместить в проект»: список проектов с отметкой текущего и «Без проекта»', () => {
   const s = setup();
-  s.row('a').querySelector('.more-btn').click();
+  s.row('a').querySelector('.session-item').dispatchEvent(event('contextmenu'));
   s.row('a').querySelectorAll('.menu-item')[4].click();
   assert.deepEqual(labels(s.row('a').querySelector('.session-menu')), ['Назад', 'Один', 'Два', 'Без проекта']);
   const items = s.row('a').querySelectorAll('.menu-item');
@@ -160,7 +161,7 @@ test('«Переместить в проект»: список проектов 
   items[1].click();
   assert.deepEqual(s.calls, [], 'в тот же проект — ничего не уходит');
   const toProject = (n) => {
-    s.row('a').querySelector('.more-btn').click();
+    s.row('a').querySelector('.session-item').dispatchEvent(event('contextmenu'));
     s.row('a').querySelectorAll('.menu-item')[4].click();
     s.row('a').querySelectorAll('.menu-item')[n].click();
   };
@@ -171,7 +172,7 @@ test('«Переместить в проект»: список проектов 
 
 test('переименование на месте: поле с названием, Enter сохраняет, Esc отменяет, уход из поля сохраняет', () => {
   const s = setup();
-  const start = () => { s.row('a').querySelector('.more-btn').click(); s.row('a').querySelectorAll('.menu-item')[2].click(); };
+  const start = () => { s.row('a').querySelector('.session-item').dispatchEvent(event('contextmenu')); s.row('a').querySelectorAll('.menu-item')[2].click(); };
   start();
   let input = s.row('a').querySelector('.session-rename');
   assert.equal(input.value, 'Привет');
@@ -200,7 +201,7 @@ test('переименование на месте: поле с название
 
 test('перерисовка списка во время переименования не сохраняет и не теряет набранное', () => {
   const s = setup();
-  s.row('a').querySelector('.more-btn').click();
+  s.row('a').querySelector('.session-item').dispatchEvent(event('contextmenu'));
   s.row('a').querySelectorAll('.menu-item')[2].click();
   const input = s.row('a').querySelector('.session-rename');
   input.value = 'Набрано';
@@ -212,13 +213,13 @@ test('перерисовка списка во время переименова
 
 test('удаление: подтверждение с текстом владельца, «Нет» ничего не удаляет', async () => {
   const yes = setup({ answer: true });
-  yes.row('a').querySelector('.more-btn').click();
+  yes.row('a').querySelector('.session-item').dispatchEvent(event('contextmenu'));
   yes.row('a').querySelectorAll('.menu-item')[5].click();
   await new Promise((r) => setTimeout(r, 0));
   assert.deepEqual(yes.asked, ['Удалить сессию «Привет»? Это удалит её историю.']);
   assert.deepEqual(yes.calls, [['delete', 'a']]);
   const no = setup({ answer: false });
-  no.row('a').querySelector('.more-btn').click();
+  no.row('a').querySelector('.session-item').dispatchEvent(event('contextmenu'));
   no.row('a').querySelectorAll('.menu-item')[5].click();
   await new Promise((r) => setTimeout(r, 0));
   assert.deepEqual(no.calls, []);
