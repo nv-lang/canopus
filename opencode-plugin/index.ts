@@ -207,6 +207,7 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
   id: "canopus",
   async setup(rawCtx: any) {
     refuseRuntimeEnvironment()
+    refuseLegacyEnv("плагин canopus") // task 304: moved before the marker exit — the old names stay a refusal even under the hub marker
     // Task 304: under a hub-started agent the plugin is empty (the check sits in plugin-entry too; here it is the belt
     // for a direct import of this module).
     if (hubAgentActive()) {
@@ -214,7 +215,6 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
       return
     }
     publishPluginChildContext()
-    refuseLegacyEnv("плагин canopus") // старые имена CANOPUS_*/OPENCODE_CANOPUS_* заданы — отказ с новым именем, без fallback (задача 284)
     let disposed = false
     const lifetime = pluginLifetime()
     const getNative: NativeGet = route => lifetime.call(() => nativeTransport(route, lifetime.signal))

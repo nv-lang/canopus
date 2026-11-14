@@ -55,5 +55,22 @@ console.log = realLog
 cell("3a: index setup under the marker resolves with the note, not a refusal", threwText === "" && result === undefined && note.includes(marker.HUB_AGENT_ENV), threwText || note.trim())
 delete process.env[marker.HUB_AGENT_ENV]
 
+// 4. task 304 acceptor remark: the old names stay a refusal even under the marker — refuseLegacyEnv sits BEFORE the
+// marker exit in both entry points; the refusal comes before any fs side effect. The same home as block 2 (the config
+// context of the process is frozen on the first initialize, a second home would refuse).
+process.env.XDG_DATA_HOME = tmpEntry
+process.env[marker.HUB_AGENT_ENV] = "1"
+const OLD = "CREW_" + "HOME" // guard-allow(legacy-name): негативная проба старого имени
+process.env[OLD] = "/old"
+let oldThrew = ""
+try {
+  await (await import("../plugin-entry.ts")).default.setup({})
+} catch (e) {
+  oldThrew = String(e)
+}
+cell("4a: plugin-entry under marker + an old name refuses with the new name", oldThrew.includes(OLD) && oldThrew.includes("--config"), oldThrew)
+delete process.env[OLD]
+delete process.env[marker.HUB_AGENT_ENV]
+
 console.log(fail ? `canopus-agent-of-hub.test: FAIL ${fail}` : "canopus-agent-of-hub.test ok")
 process.exit(fail ? 1 : 0)
