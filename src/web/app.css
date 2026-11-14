@@ -389,25 +389,6 @@ input, select, textarea {
 .dot[data-state="permission"] { background: var(--warn); }
 .dot[data-state="refused"], .dot[data-state="error"] { background: var(--danger); }
 .dot[data-state="cancelled"] { background: var(--fg-muted); }
-
-.more-btn {
-  min-height: 0;
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 28px;
-  height: 28px;
-  margin-right: 4px;
-  padding: 0;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--fg);
-  opacity: 0;
-}
-.session:hover .more-btn, .session:focus-within .more-btn, .more-btn[aria-expanded="true"] { opacity: 1; }
-.more-btn:hover:not(:disabled), .more-btn[aria-expanded="true"] { background: var(--active); }
-@media (hover: none) { .more-btn { opacity: 1; } }
 .session { position: relative; border-radius: 8px; }
 .menu.session-menu { top: calc(100% - 2px); bottom: auto; right: 4px; min-width: 240px; }
 .session-menu .is-danger { color: var(--danger); }
@@ -654,7 +635,7 @@ pre code { font: inherit; }
 .work-pulsar i { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid var(--accent); opacity: 0; animation: pulsar-ripple 1.9s cubic-bezier(.2, .6, .4, 1) infinite; }
 .work-pulsar i:nth-child(2) { animation-delay: .63s; }
 .work-pulsar i:nth-child(3) { animation-delay: 1.26s; }
-.work-pulsar b { position: absolute; inset: 6px; border-radius: 50%; background: var(--accent-fg); box-shadow: 0 0 5px 2px var(--accent); animation: pulsar-flare 1.9s ease-in-out infinite; }
+.work-pulsar b { position: absolute; inset: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 5px 2px var(--accent); animation: pulsar-flare 1.9s ease-in-out infinite; }
 @keyframes pulsar-ripple { 0% { transform: scale(.25); opacity: .9; } 70% { opacity: .25; } 100% { transform: scale(1.25); opacity: 0; } }
 @keyframes pulsar-flare { 0%, 100% { transform: scale(1); } 12% { transform: scale(1.35); } 30% { transform: scale(.9); } }
 /* Работающая сессия в списке: комета на орбите. */
@@ -1165,7 +1146,10 @@ body { font-size: 13px; line-height: 1.55; letter-spacing: .005em; word-spacing:
 .group[data-project="true"] + .group[data-project="true"] { margin-top: 4px; }
 .group[data-project="true"] .group-empty,
 .group[data-project="true"] .group-show-more { margin-inline-start: 22px; }
-.group[data-project="true"] .session[data-depth="0"] .session-item:not(.is-renaming) { padding-inline-start: 32px; }
+/* Сессия проекта: точка состояния — по центру колонки иконки проекта (не растягивается и не двигает название),
+   название — ровно под названием проекта. */
+.group[data-project="true"] .session[data-depth="0"] .session-item:not(.is-renaming) { position: relative; padding-inline-start: 33px; }
+.group[data-project="true"] .session[data-depth="0"] .session-item .dot { position: absolute; left: 15px; top: 50%; translate: -50% -50%; }
 .group[data-project="true"] h3 { color: var(--fg); font-size: inherit; font-weight: 500; }
 .group[data-project="true"] .group-head { border-radius: var(--radius); }
 .group[data-project="true"] .group-head:hover:not(.drop-into) { background: var(--hover); }
@@ -1178,7 +1162,7 @@ body { font-size: 13px; line-height: 1.55; letter-spacing: .005em; word-spacing:
 .group-head:is(:hover, :focus-within, :has([aria-expanded="true"])) .group-actions,
 .projects-head:is(:hover, :focus-within) .projects-new { opacity: 1; }
 @media (hover: none) {
-  .group-head .group-actions, .projects-head .projects-new, .session .more-btn { opacity: 1; }
+  .group-head .group-actions, .projects-head .projects-new { opacity: 1; }
 }
 .projects-head h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--fg-muted); }
 .projects-new { color: var(--fg-muted); }

@@ -289,16 +289,20 @@ export function createView(doc, refs, deps) {
       'aria-current': active ? 'true' : 'false',
       title: t('sessions.time_title', { state: stateLabel, time: formatTime(s.updatedAt) }),
     },
+    h(doc, 'span', { class: 'dot', 'data-state': s.state, 'data-attn': attn.state, 'aria-hidden': 'true' }),
     depth > 0 ? icon(doc, 'i-branch', 'child-mark') : false,
     depth > 0 ? h(doc, 'span', { class: 'sr', text: t('sessions.child') }) : false,
     unread ? h(doc, 'span', { class: 'unread', role: 'img', 'aria-label': t('session.unread'), title: t('session.unread') }) : false,
     taskInfo ? h(doc, 'span', { class: 'task-no', text: taskInfo.number, title: taskInfo.title ? t('route.task_no_title', { number: taskInfo.number, title: taskInfo.title }) : t('route.task_head_bare', { number: taskInfo.number }) }) : false,
     name,
     attnText ? h(doc, 'span', { class: 'attn-label', 'data-attn': attn.state, title: attn.state === 'question-timeout' ? t('ask.timeout') : attnText, text: attnText }) : false,
-    h(doc, 'span', { class: 'dot', 'data-state': s.state, 'data-attn': attn.state, 'aria-hidden': 'true' }),
     h(doc, 'span', { class: 'sr', text: stateLabel }),
     merge ? h(doc, 'span', { class: 'session-merge', 'data-kind': merge.kind, text: merge.text }) : false);
-    if (!sideKit.isRenaming(s.id)) item.addEventListener('click', () => handlers.onSelect(s.id));
+    if (!sideKit.isRenaming(s.id)) {
+      item.addEventListener('click', () => handlers.onSelect(s.id));
+      // контекстное меню сессии — правой кнопкой по строке (кнопки «⋯» в строке нет)
+      item.addEventListener('contextmenu', (e) => { e.preventDefault(); sideKit.openRowMenu(s); });
+    }
     const cls = ['session', active ? 'is-active' : '', pinned ? 'is-pinned' : '', unread ? 'is-unread' : ''].filter(Boolean).join(' ');
     // родитель с дочерними сворачивается: стрелка перед строкой, число скрытых видно в подсказке
     let fold = false;
@@ -312,7 +316,7 @@ export function createView(doc, refs, deps) {
         if (current.ui) renderList(current.model, current.ui);
       });
     }
-    const li = h(doc, 'li', { class: `${cls}${kids > 0 ? ' has-kids' : ''}`, 'data-depth': Math.min(depth, 2) }, fold, item, sideKit.moreButton(s), sideKit.menuFor(s, { pinned, unread }) || false);
+    const li = h(doc, 'li', { class: `${cls}${kids > 0 ? ' has-kids' : ''}`, 'data-depth': Math.min(depth, 2) }, fold, item, sideKit.menuFor(s, { pinned, unread }) || false);
     let titleScroll;
     li.addEventListener('pointerenter', () => {
       if (win?.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
