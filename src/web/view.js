@@ -2511,7 +2511,8 @@ export function createView(doc, refs, deps) {
     pickerSource = handoff?.nextSource || handoff?.source || session.source;
     const directSource = pickerSource && !pickerSource.pool ? pickerSource : undefined;
     const selectedModel = directSource?.model || session.selectedModel || options.modelId || shown.model;
-    const selectedEffort = directSource ? directSource.effort : session.selectedEffort || options.effort;
+    // задача 292: пустой effort источника (session_source из job.source) — не выбор, берём прежнее усилие сессии
+    const selectedEffort = directSource?.effort ? directSource.effort : session.selectedEffort || options.effort;
     const selectedFamily = directSource?.family || shown.agent;
     activeEffortModel = pickerSource?.pool || (!directSource && session.selectedPool) ? undefined
       : pickerModelsFor(selectedFamily, directModelsFor(selectedFamily))
