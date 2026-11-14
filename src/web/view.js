@@ -148,9 +148,10 @@ export function createView(doc, refs, deps) {
   };
 
   // Полное имя источника для сообщений: «Агент Модель» или «Агент · пул · уровень».
-  const sourceLabel = (source) => {
+  const sourceLabel = (source, models) => {
     if (!source) return '';
-    const parts = [source.pool ? agentLabel(source.family) : modelLabel(source.family, source.model)];
+    const id = models ? (nameOf(models, source.model) || source.model) : source.model;
+    const parts = [source.pool ? agentLabel(source.family) : modelLabel(source.family, id)];
     if (source.pool) parts.push(`${source.pool} · ${source.level}`);
     return parts.filter(Boolean).join(' / ');
   };
@@ -2440,7 +2441,7 @@ export function createView(doc, refs, deps) {
     const handoff = ui.handoffStatus?.get(session.id);
     const handoffText = handoff?.phase === 'error' ? handoff.message
       : handoff?.compacting ? t('handoff.compacting')
-      : handoff?.phase === 'preparing' ? t('handoff.preparing', { agent: sourceLabel(handoff.source) }) : '';
+      : handoff?.phase === 'preparing' ? t('handoff.preparing', { agent: sourceLabel(handoff.source, pickerModelsFor(handoff.source.family, directModelsFor(handoff.source.family))) }) : '';
     const queued = handlers.queued(session.id);
     queueButton.hidden = queued === 0;
     if (queued > 0) queueButton.textContent = t('composer.queued', { n: queued });
