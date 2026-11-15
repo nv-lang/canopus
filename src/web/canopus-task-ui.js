@@ -26,7 +26,6 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
   const runs = new Map(); // «сессия:карточка» -> режим выполнения (interactive | fast | full)
   const kidsOff = new Map(); // «сессия:карточка» -> множество номеров частей эпика, с которых снята отметка
   const el = h(doc, 'div', { class: 'canopus-over', hidden: true });
-  const bar = h(doc, 'div', { class: 'canopus-bar', hidden: true });
   let sig = '';
   const pending = new Map();
   function proposalState(canopus, id) {
@@ -244,12 +243,7 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
     const next = JSON.stringify([operation?.waiting, session && session.id, session && session.route, show, canopus, [...ways], [...agents], [...choices], [...runs], [...kidsOff].map(([k, v]) => [k, [...v]]), agentList()]);
     if (next === sig) return;
     sig = next;
-    bar.hidden = !show;
-    if (!show) { el.hidden = true; el.replaceChildren(); bar.replaceChildren(); return; }
-    bar.replaceChildren(...[
-      h(doc, 'span', { class: 'canopus-count muted', text: activeText(canopus) }),
-      canopus.candidates > 0 ? h(doc, 'span', { class: 'canopus-count muted', text: t('canopustask.candidates', { n: canopus.candidates }) }) : false,
-      button(t('canopustask.recognize'), '', () => handlers.onCanopusRecognize(session.id))].filter(Boolean));
+    if (!show) { el.hidden = true; el.replaceChildren(); return }
     const progress = operation && h(doc, 'div', { class: 'canopus-pending muted', role: 'status' },
       operation.waiting ? h(doc, 'span', { class: 'spinner', 'aria-hidden': 'true' }) : false,
       h(doc, 'span', { text: t(operation.waiting ? 'canopustask.applying' : 'canopustask.applying_unconfirmed') }));
@@ -294,6 +288,7 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
       h(doc, 'p', { class: 'rsub-task', text: activeText(canopus) }),
       button(t('canopustask.recognize'), '', () => handlers.onCanopusRecognize(session.id)),
       canopus.candidates > 0 ? h(doc, 'p', { class: 'rsub-task', text: t('canopustask.candidates', { n: canopus.candidates }) }) : false,
+      button(t('canopustask.recognize'), '', () => handlers.onCanopusRecognize(session.id)),
       parent,
       epic,
       list ? h(doc, 'h4', { class: 'canopus-kids-title', text: t('canopustask.kids_title', { merged: kids.merged, total: kids.total }) }) : false,
@@ -303,5 +298,5 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
       hasSubs || list ? false : h(doc, 'p', { class: 'muted', text: t('canopustask.none') }));
   }
 
-  return { el, bar, render, panel };
+  return { el, render, panel };
 }

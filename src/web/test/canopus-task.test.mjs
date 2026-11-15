@@ -84,12 +84,12 @@ function mount(extra = {}) {
   return { doc, ui, log, session };
 }
 
-test('полоса и таблица: кнопка «Распознать задачи», строка на кандидата, по умолчанию «Обсудить», одиночная карточка с «Только обсуждение»', () => {
-  const { ui, log } = mount();
+test('панель и таблица: кнопка «Распознать задачи», строка на кандидата, по умолчанию «Обсудить», одиночная карточка с «Только обсуждение»', () => {
+  const { ui, log, session } = mount();
   const el = ui.el;
   const byText = (text) => el.querySelectorAll('button').filter((b) => b.textContent === text);
   assert.equal(byText('Распознать задачи').length, 0);
-  ui.bar.querySelector('button').click();
+  ui.panel(session).querySelector('button').click();
   assert.deepEqual(log.pop(), ['recognize', 's1']);
   // таблица: заголовки и две строки, у каждой три переключателя, выбран «Обсудить»
   const rows = el.querySelectorAll('.canopus-proposal');
@@ -107,8 +107,8 @@ test('полоса и таблица: кнопка «Распознать зад
   // одиночная карточка
   byText('Только обсуждение')[0].click();
   assert.deepEqual(log.pop(), ['prop', 's1', 3, 'dismiss']);
-  assert.match(ui.bar.textContent, /в работе 2 из лимита 3/);
-  assert.match(ui.bar.textContent, /Кандидаты: 1/);
+  assert.match(ui.panel(session).textContent, /в работе 2 из лимита 3/);
+  assert.match(ui.panel(session).textContent, /Кандидаты: 1/);
   assert.doesNotMatch(el.textContent, /или напишите слово/);
   assert.match(byText('В работу').at(-1).getAttribute('title'), /Enter в поле ввода со словом «задача» тоже подтверждает/);
 });
@@ -174,12 +174,12 @@ test('сводка и план таблицы: счёт по решениям, �
   assert.equal(over.length, 1);
 });
 
-test('без списка и карточек остаётся только полоса; у черновика ничего нет; панель говорит про кандидатов и «Задач нет»', () => {
+test('без списка и карточек остаётся только правая панель; у черновика ничего нет; панель говорит про кандидатов и «Задач нет»', () => {
   const doc = createFakeDocument();
   const ui = createCanopusTaskUi(doc, { onCanopusProp() {}, onCanopusRecognize() {}, onCanopusApply() {} });
   const empty = { id: 's2', routeState: parseRouteState({ route: 'interactive' }) };
   ui.render(empty);
-  assert.equal(ui.bar.hidden, false);
+  assert.ok(ui.panel(empty));
   assert.equal(ui.el.hidden, true);
   assert.equal(ui.el.querySelectorAll('.route-card').length, 0);
   const panel = ui.panel(empty);

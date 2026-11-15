@@ -1451,8 +1451,6 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 /* ---- распознавание задач (задача 192.2) */
 .canopus-over { display: flex; flex-direction: column; gap: 6px; width: min(var(--column), 100%); margin: 0 auto; padding: 0 var(--chat-inset) 12px; }
 .canopus-over[hidden] { display: none; }
-.canopus-bar { display: flex; align-items: center; gap: 6px 12px; flex-wrap: wrap; font-size: 13px; }
-.canopus-bar > button { margin-inline-start: auto; }
 .canopus-list, .canopus-single { align-items: stretch; flex-direction: column; }
 .canopus-rows { margin: 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
 .canopus-rows > .canopus-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
