@@ -228,6 +228,7 @@ export function createTransport(deps) {
       else if (mode === 'ws') connect();
       else onStatus({ state: 'nofile' });
     },
+    isConnected() { return mode === 'mock' || (mode === 'ws' && socket?.readyState === 1); },
     send(event) {
       if (mode === 'mock') return sendMock(event);
       if (mode === 'ws') return sendSocket(event);

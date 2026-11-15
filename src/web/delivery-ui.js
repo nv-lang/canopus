@@ -19,7 +19,7 @@ export function deliveryCard(doc, item, actions) {
   const archived = item.restored === true && item.state === 'error';
   const timestamp = Number.isFinite(item.at) && item.at > 0 ? new Date(item.at).toLocaleString('ru-RU') : '';
   const labels = {
-    sending: t('delivery.sending'), unknown: t('delivery.unknown'), not_sent: t('delivery.not_sent'),
+    uploading: t('delivery.uploading'), sending: t('delivery.sending'), unknown: t('delivery.unknown'), not_sent: t('delivery.not_sent'),
     received: t('delivery.received'), accepted: t('delivery.accepted'), agent_error: t('delivery.agent_error'),
     agent_refused: t('delivery.agent_refused'), error: t('delivery.error'),
   };
@@ -28,10 +28,13 @@ export function deliveryCard(doc, item, actions) {
     cancel.addEventListener('click', () => actions.forget(item.id));
     return h(doc, 'div', { class: 'delivery-pending', role: 'status' }, t('delivery.waiting_restore'), ' ', cancel);
   }
-  const pending = !item.reason && ['sending', 'received', 'accepted'].includes(item.state);
+  if (item.state === 'retrying' || (['sending', 'uploading'].includes(item.state) && item.attempt > 0)) {
+    return h(doc, 'div', { class: 'delivery-pending', role: 'status', text: t('delivery.retrying', { attempt: item.attempt }) });
+  }
+  const pending = !item.reason && ['uploading', 'sending', 'received', 'accepted'].includes(item.state);
   if (pending) return h(doc, 'div', { class: 'delivery-pending', role: 'status', text: labels[item.state] });
   const uncertain = item.state === 'unknown' && !item.reason;
-  const canRetry = item.state === 'not_sent' && !item.images.length && actions.canRetry !== false;
+  const canRetry = item.state === 'not_sent' && actions.canRetry !== false && item.canRetry !== false;
   const reason = item.reason ? safeError(item.reason) : '';
   const partial = item.partialAnswer && ['agent_error', 'agent_refused'].includes(item.state);
   const outgoing = typeof item.text === 'string' && item.text.trim();

@@ -19,13 +19,14 @@ const memory = () => {
   const map = new Map();
   return { getItem: k => map.get(k) ?? null, setItem: (k, v) => map.set(k, v), removeItem: k => map.delete(k) };
 };
-async function app(storage = memory(), sendResult = true, hash = '#s=s', sessionIndex, preview = {}) {
+async function app(storage = memory(), sendResult = true, hash = '#s=s', sessionIndex, preview = {}, wire = {}) {
   const source = process.env.RED_260 === '1'
     ? execFileSync('git', ['show', 'f8b08227:src/web/app.js'], { encoding: 'utf8' })
     : fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
   let callbacks;
   const sent = [];
   const timeouts = [];
+  const delays = [];
   const renderedDelivery = [];
   const context = {
     ...state, ...attention, ...strings, ...queue, ...attachments, ...routes, ...crew, ...delivery, ...loading,
@@ -36,17 +37,19 @@ async function app(storage = memory(), sendResult = true, hash = '#s=s', session
     location: { search: '', protocol: 'http:', host: 'test.invalid', hash },
     document: { documentElement: { setAttribute() {}, removeAttribute() {} }, getElementById() {}, addEventListener() {} },
     addEventListener() {}, requestAnimationFrame() {},
-    setInterval() {}, setTimeout(fn) { timeouts.push(fn); return timeouts.length; }, clearTimeout() {},
-    fetch: async (url) => ({ ok: true, json: async () => url === '/api/sessions-index' ? sessionIndex : url.startsWith('/api/session-history/') ? preview[url.split('/').at(-1)] : ({ agents: [{ id: 'agent', label: 'Agent' }] }) }),
+    setInterval() {}, setTimeout(fn, delay) { timeouts.push(fn); delays.push(delay); return timeouts.length; }, clearTimeout() {},
+    fetch: async (url, options) => url.startsWith('/api/session-image/') && wire.postImage
+      ? wire.postImage(url, options)
+      : ({ ok: true, json: async () => url === '/api/sessions-index' ? sessionIndex : url.startsWith('/api/session-history/') ? preview[url.split('/').at(-1)] : ({ agents: [{ id: 'agent', label: 'Agent' }] }) }),
     createNotifier: () => ({ bellOn: () => false, soundOn: () => false, update() {} }),
     createProjectsApi: () => ({ list: async () => ({ ok: true, projects: [] }) }),
     createView: () => ({ render() { renderedDelivery.push(JSON.parse(storage.getItem(delivery.DELIVERY_KEY) || '[]')); }, tick() {}, setAgents() {} }),
     createTransport(deps) {
       callbacks = deps;
-      return { start() {}, send(event) {
+      return { start() {}, isConnected: () => wire.connected ?? true, send(event) {
         sent.push(event);
         if (sendResult instanceof Error) throw sendResult;
-        return sendResult;
+        return wire.send ? wire.send(event) : sendResult;
       } };
     },
   };
@@ -58,7 +61,8 @@ async function app(storage = memory(), sendResult = true, hash = '#s=s', session
   await context.started;
   const event = (kind, input = {}, extra = {}) => callbacks.onEvent({ id: `srv-${Math.random()}`, trace: 's', step: 1, kind, input, time: Date.now(), ...extra });
   event('session_created', { name: 'test', agent: 'agent' }, { step: 0 });
-  return { ...context.probe, sent, event, timeouts, renderedDelivery, status: value => callbacks.onStatus(value), storage, callbacks };
+  return { ...context.probe, sent, event, timeouts, renderedDelivery,
+    retryTimers: () => timeouts.map((run, index) => ({ run, delay: delays[index] })).filter(timer => [2000, 5000, 10000].includes(timer.delay)), status: value => callbacks.onStatus(value), storage, callbacks };
 }
 
 test('260: реальный onSend сохраняет исчезавшее сообщение до эха; reload не отправляет его снова', async () => {
@@ -78,7 +82,7 @@ test('260: offline retry однократен, receipt коррелирует с
   const first = await app(memory(), false);
   first.handlers.onSend('s', 'текст');
   const [saved] = first.handlers.deliveryItems('s');
-  assert.equal(saved.state, 'not_sent');
+  assert.equal(saved.state, 'retrying');
   const second = await app(first.storage, true);
   second.handlers.onRetry('s', saved.id);
   second.handlers.onRetry('s', saved.id);
@@ -481,4 +485,110 @@ test('early model choice queues its probe until sessions are ready', async () =>
   a.callbacks.onSnapshot('ready', ['s']);
   assert.equal(a.sent.filter(event => event.kind === 'model_probe').length, 1);
   assert.equal(a.sent.some(event => event.kind === 'user_message'), false);
+});
+
+
+test('310: socket rejection schedules 2, 5 and 10 seconds then leaves one failed message', async () => {
+  const page = await app(memory(), false);
+  page.handlers.onSend('s', 'повторить');
+  const [first] = page.handlers.deliveryItems('s');
+  for (const [index, delay] of [2000, 5000, 10000].entries()) {
+    const [pending] = page.handlers.deliveryItems('s');
+    assert.equal(pending.state, 'retrying');
+    assert.equal(pending.attempt, index + 1);
+    const timer = page.retryTimers()[index];
+    assert.equal(timer.delay, delay);
+    timer.run();
+  }
+  const [failed] = page.handlers.deliveryItems('s');
+  assert.equal(failed.state, 'not_sent');
+  assert.equal(failed.canRetry, true);
+  assert.equal(page.retryTimers().length, 3);
+  assert.deepEqual(page.sent.map(event => event.id), Array(4).fill(first.id));
+  assert.deepEqual(page.sent.map(event => event.input.turn), Array(4).fill(first.clientTurn));
+});
+
+test('310: queued image waits for the socket and an uploaded number survives later rejection', async () => {
+  let uploads = 0;
+  let online = false;
+  const wire = {
+    connected: false,
+    send: () => online,
+    postImage: async (url, options) => {
+      assert.equal(url, '/api/session-image/s');
+      assert.equal(options.body, image.blob);
+      uploads += 1;
+      return { ok: true, json: async () => ({ n: 7 }) };
+    },
+  };
+  const image = { name: 'test.png', type: 'image/png', blob: new Blob(['pixels']) };
+  const page = await app(memory(), false, '#s=s', undefined, {}, wire);
+  page.handlers.onQueue('s', 'с картинкой', [image]);
+  assert.equal(page.handlers.queued('s'), 0);
+  assert.equal(uploads, 0);
+  const [{ id }] = page.handlers.deliveryItems('s');
+  wire.connected = true;
+  page.retryTimers()[0].run();
+  await new Promise(setImmediate);
+  assert.equal(uploads, 1);
+  assert.equal(page.sent.length, 1);
+  for (const index of [1, 2]) {
+    page.retryTimers()[index].run();
+    await new Promise(setImmediate);
+  }
+  assert.equal(page.handlers.deliveryItems('s')[0].state, 'not_sent');
+  online = true;
+  page.handlers.onRetry('s', id);
+  page.handlers.onRetry('s', id);
+  await new Promise(setImmediate);
+  assert.equal(uploads, 1);
+  assert.equal(page.sent.length, 4);
+  assert.equal(page.sent.at(-1).id, id);
+  assert.equal(page.sent.at(-1).input.images[0].n, 7);
+  const receipt = { client_id: id, accepted: true, turn: 'known-turn' };
+  page.event('message_delivery', receipt);
+  page.event('user_message', { turn: receipt.turn, text: 'с картинкой' });
+  page.event('message_delivery', receipt);
+  page.event('user_message', { turn: receipt.turn, text: 'с картинкой' });
+  assert.equal(page.getModel().sessions.s.messages.filter(message => message.role === 'user').length, 1);
+  assert.equal(page.handlers.deliveryItems('s').length, 0);
+});
+
+test('310: refusal cancels a scheduled retry even when its text mentions the connection', async () => {
+  const page = await app(memory(), false);
+  page.handlers.onSend('s', 'ограничение');
+  const [{ id }] = page.handlers.deliveryItems('s');
+  page.event('error', { client_id: id, message: 'offline: rate limit' });
+  page.event('message_delivery', { client_id: id, accepted: false });
+  page.retryTimers()[0].run();
+  assert.equal(page.sent.length, 1);
+  assert.equal(page.handlers.deliveryItems('s')[0].state, 'received');
+});
+
+
+test('310: a manual retry uploads only the unfinished part of a multi-image draft', async () => {
+  const first = new Blob(['first']);
+  const second = new Blob(['second']);
+  const uploaded = [];
+  const wire = {
+    postImage: async (_url, { body }) => {
+      uploaded.push(body);
+      if (uploaded.length === 2) return { ok: false, status: 429, json: async () => ({ error: 'HTTP 429' }) };
+      return { ok: true, json: async () => ({ n: uploaded.length }) };
+    },
+  };
+  const page = await app(memory(), true, '#s=s', undefined, {}, wire);
+  await page.handlers.onSend('s', '', [
+    { name: 'first.png', type: 'image/png', blob: first },
+    { name: 'second.png', type: 'image/png', blob: second },
+  ]);
+  const [pending] = page.handlers.deliveryItems('s');
+  assert.equal(pending.state, 'not_sent');
+  assert.equal(page.retryTimers().length, 0);
+  assert.equal(page.sent.length, 0);
+  page.handlers.onRetry('s', pending.id);
+  await new Promise(setImmediate);
+  assert.deepEqual(uploaded, [first, second, second]);
+  assert.deepEqual(Array.from(page.sent[0].input.images, image => image.n), [1, 3]);
+  assert.equal(page.sent[0].id, pending.id);
 });

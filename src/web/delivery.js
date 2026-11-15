@@ -1,10 +1,12 @@
 // Durable local safety net, scoped by browser origin (server) and session id.
-// No automatic retry: a successful socket.send is NOT server acceptance.
+// Retry a definite socket rejection only. A successful socket.send still needs a receipt.
+import { RETRY_STEPS } from './transport.js';
 import { t } from './strings.js';
 export const DELIVERY_KEY = 'canopus-console-delivery-v1';
 export const restoreText = (text, current) => current.trim() === '' ? text : `${text}\n\n${current}`;
 export const afterSendText = (original, current) => original === current ? '' : current;
 const LIMIT = 100;
+const hasImage = image => Number.isInteger(image?.n) && image.n > 0 || Boolean(image?.blob);
 const MAX_BYTES = 2_000_000;
 const httpStatus = value => Number(/(?:HTTP\s*|status[=: ]+)([45]\d\d)\b/i.exec(String(value ?? '').slice(0, 16384))?.[1]) || null;
 
@@ -39,10 +41,12 @@ export function createDelivery(storage) {
   try {
     const parsed = JSON.parse(storage?.getItem(DELIVERY_KEY) || '[]');
     if (Array.isArray(parsed)) records = parsed.filter(r => r && typeof r.id === 'string' && typeof r.trace === 'string' && typeof r.text === 'string').slice(0, LIMIT)
-      .map(r => ({ ...r, images: Array.isArray(r.images) ? r.images : [], state: r.state === 'sending' ? 'unknown' : r.state === 'waiting_restore' ? 'not_sent' : r.state, restored: true, reason: r.reason ? safeError(r.reason) : '' }));
+      .map(r => ({ ...r, images: Array.isArray(r.images) ? r.images : [], state: r.state === 'sending' ? 'unknown' : ['waiting_restore', 'retrying', 'uploading'].includes(r.state) ? 'not_sent' : r.state, restored: true, reason: r.reason ? safeError(r.reason) : '' }));
   } catch { /* unreadable storage: sending will be refused until writing works */ }
   function save(next) {
-    const data = JSON.stringify(next);
+    const data = JSON.stringify(next.map(r => ({
+      ...r, images: r.images.map(({ name, n }) => ({ name, n })),
+    })));
     if (next.length > LIMIT || data.length > MAX_BYTES) return false;
     try { if (!storage) return false; storage.setItem(DELIVERY_KEY, data); records = next; return true; } catch { return false; }
   }
@@ -56,33 +60,46 @@ export function createDelivery(storage) {
     sessions() { return records.filter(r => r.session).map(r => r.session); },
     add(event, session = null, state = 'sending') {
       if (records.some(r => r.id === event.id)) return false;
-      return save([...records, { id: event.id, trace: event.trace, text: event.input.text || '', images: event.input.images || [], at: event.time, state, clientTurn: event.input.turn, turn: '', reason: '', session }]);
+      return save([...records, { id: event.id, trace: event.trace, text: event.input.text || '', images: event.input.images || [], at: event.time, state, clientTurn: event.input.turn, turn: '', reason: '', session, handoff: Boolean(event.input.handoff) }]);
     },
-    failed(id, reason) { update(id, { state: 'not_sent', reason: safeError(reason), httpStatus: httpStatus(reason) }); },
+    uploading(id) { update(id, { state: 'uploading' }); },
+    uploadComplete(id) {
+      if (!records.some(r => r.id === id && r.state === 'uploading')) return false;
+      update(id, { state: 'sending' });
+      return true;
+    },
+    imageUploaded(id, index, image) {
+      const record = records.find(r => r.id === id);
+      if (record) update(id, { images: record.images.map((item, i) => i === index ? image : item) });
+    },
+    failed(id, reason) { update(id, { state: 'not_sent', reason: safeError(reason), httpStatus: httpStatus(reason), attempt: 0 }); },
+    waitForRetry(id, attempt) { update(id, { state: 'retrying', attempt }); },
     unknown(id) { update(id, { state: 'unknown' }); },
     disconnected() { for (const r of [...records]) if (r.state === 'sending') update(r.id, { state: 'unknown' }); },
     error(event) {
       const outgoing = records.find(r => r.trace === event.trace && r.id === event.input.client_id);
       if (outgoing) {
-        update(outgoing.id, { reason: safeError(event.input.message), errorId: event.id, state: 'received', httpStatus: httpStatus(event.input.message) });
+        update(outgoing.id, { reason: safeError(event.input.message), errorId: event.id, state: 'received', attempt: 0, httpStatus: httpStatus(event.input.message) });
         return;
       }
       if (records.some(r => r.id === event.id)) return;
       const record = { id: event.id, trace: event.trace, text: '', images: [], at: event.time, state: 'error', turn: event.input.turn || '', reason: safeError(event.input.message), httpStatus: httpStatus(event.input.message) };
       if (!save([...records, record])) records = [...records, record];
     },
-    canRetry(id) { return records.some(r => r.id === id && r.state === 'not_sent' && r.images.length === 0); },
+    canRetry(id) { return records.some(r => r.id === id && r.state === 'not_sent' && !r.handoff && r.images.every(hasImage)); },
     beginRetry(id, expected = 'not_sent') {
       const r = records.find(x => x.id === id);
-      if (!r || r.state !== expected || r.images.length) return null;
+      if (!r || r.state !== expected || r.handoff || !r.images.every(hasImage)) return null;
       // Persist intent before any side effect. Double click and reload cannot issue a second attempt.
-      if (!save(records.map(x => x.id === id ? { ...x, state: 'sending', reason: '' } : x))) return null;
+      if (!save(records.map(x => x.id === id ? { ...x, state: 'sending', reason: '', httpStatus: null, attempt: expected === 'retrying' ? r.attempt : 0 } : x))) return null;
       return { ...r };
     },
+    isRetrying(trace, id) { return records.some(r => r.trace === trace && r.id === id && r.state === 'retrying'); },
     receipt(input) {
       if (!input || typeof input.client_id !== 'string') return;
-      if (records.some(r => r.id === input.client_id && r.state === 'accepted')) return;
-      update(input.client_id, { state: input.accepted === true ? 'accepted' : 'received', turn: typeof input.turn === 'string' ? input.turn : '' });
+      const record = records.find(r => r.id === input.client_id);
+      if (!record || record.state === 'accepted') return;
+      update(input.client_id, { state: input.accepted === true ? 'accepted' : 'received', attempt: 0, turn: typeof input.turn === 'string' ? input.turn : '' });
     },
     reconcile(model) {
       const next = records.filter(r => {
@@ -95,6 +112,25 @@ export function createDelivery(storage) {
     },
     forget(id) { return save(records.filter(r => r.id !== id)); },
   };
+}
+
+/** Schedule only explicit transport rejections. Receipts and forgetting invalidate pending callbacks. */
+export function retryOffline(delivery, timers, trace, id, attempt, retry, render) {
+  const steps = RETRY_STEPS.slice(0, 3);
+  if (attempt >= steps.length) {
+    delivery.failed(id, 'offline');
+    return;
+  }
+  delivery.waitForRetry(id, attempt + 1);
+  timers.set(() => {
+    if (!delivery.isRetrying(trace, id)) return;
+    const item = delivery.beginRetry(id, 'retrying');
+    if (item) retry(item, attempt + 1);
+    else {
+      delivery.failed(id, 'offline');
+      render();
+    }
+  }, steps[attempt] * 1000);
 }
 
 /** Composer drafts survive reload; failed writes never prevent editing the in-memory draft. */

@@ -81,9 +81,13 @@ export function canSend(text, list, busy = false) {
  * Положить все картинки на сервер по очереди. post(trace, item) -> Promise<{ n }> (бросает ошибку с текстом причины).
  * Возвращает { ok: true, images: [{ name, n }] } или { ok: false, error, name } на первой неудаче (остальные не отправляются).
  */
-export async function uploadImages(trace, list, post) {
+export async function uploadImages(trace, list, post, onUploaded = () => {}) {
   const images = [];
   for (const item of list) {
+    if (Number.isInteger(item.n) && item.n > 0) {
+      images.push({ name: item.name, n: item.n });
+      continue;
+    }
     let reply;
     try {
       reply = await post(trace, item);
@@ -91,7 +95,9 @@ export async function uploadImages(trace, list, post) {
       return { ok: false, error: e && e.message ? e.message : String(e), name: item.name };
     }
     if (!reply || !Number.isInteger(reply.n) || reply.n < 1) return { ok: false, error: 'no number', name: item.name };
-    images.push({ name: item.name, n: reply.n });
+    const image = { name: item.name, n: reply.n };
+    images.push(image);
+    onUploaded(images.length - 1, image);
   }
   return { ok: true, images };
 }

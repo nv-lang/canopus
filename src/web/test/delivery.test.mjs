@@ -186,3 +186,18 @@ test('cross-family refusal explains the context boundary without copying raw err
   assert.doesNotMatch(result, /secret/);
   assert.equal(safeError(result), result);
 });
+
+
+test('310: retry attempts are visible and a failed card can retry with an uploaded image', () => {
+  const doc = createFakeDocument();
+  const item = { id: 'image', images: [{ name: 'x.png', n: 7 }], text: 'описание' };
+  const pending = deliveryCard(doc, { ...item, state: 'retrying', attempt: 2 }, {});
+  assert.match(pending.textContent, /Попытка 2/);
+  const calls = [];
+  const failed = deliveryCard(doc, { ...item, state: 'not_sent' }, {
+    retry: id => calls.push(id),
+    restore: text => calls.push(text),
+  });
+  for (const button of failed.querySelectorAll('.delivery-actions button')) button.click();
+  assert.deepEqual(calls, ['image', 'описание']);
+});

@@ -20,7 +20,7 @@ import { createProjectsApi } from './projects-api.js';
 import { routeSignal, normalizeRoute, parseRouteState } from './routes.js';
 import { canopusSignal } from './canopus-task.js';
 import { createLoading } from './loading.js';
-import { createDelivery, safeError } from './delivery.js';
+import { createDelivery, retryOffline, safeError } from './delivery.js';
 
 const FLASH_MS = 4000;
 const TICK_MS = 1000;
@@ -309,21 +309,62 @@ function savedSession(trace) {
   return s ? { id: trace, agent: s.agent, projectId: s.projectId, project: s.project, folder: s.folder, branch: s.branch,
     route: normalizeRoute(s.route), worktree: s.worktree === true, sourceBranch: s.sourceBranch || '', source: s.source || null, preset: s.preset || '', approvals: s.approvals || {}, createdAt: s.createdAt } : null;
 }
-function sendMessage(trace, text, images = [], retry = null) {
+function sendMessage(trace, text, images = [], reserved = null) {
+  if (reserved) return attemptMessage({ ...reserved, trace, text, images });
   const event = makeEvent('user_message', trace, nextStep(model, trace), messageInput(newId(), text, images), ctx);
-  if (retry) { event.id = retry.id; event.input.turn = retry.clientTurn || event.input.turn; }
-  else {
-    if (!delivery.add(event, savedSession(trace))) {
-      flash(t('delivery.storage'));
-      return false;
-    }
+  if (!delivery.add(event, savedSession(trace))) {
+    flash(t('delivery.storage'));
+    return false;
   }
-  try {
-    if (!transport.send(event)) delivery.failed(event.id, 'offline');
-  } catch { delivery.unknown(event.id); }
-  timers.set(() => { if (delivery.items(trace).some(r => r.id === event.id && r.state === 'sending')) { delivery.unknown(event.id); render(); } }, 10000);
+  return attemptMessage({ id: event.id, trace, text, images, clientTurn: event.input.turn });
+}
+
+function attemptMessage(item, attempt = 0) {
+  const { trace, id, images } = item;
+  function offline() {
+    retryOffline(delivery, timers, trace, id, attempt, retryMessage, render);
+    render();
+    return true;
+  }
+  function transmit(uploaded) {
+    if (!delivery.items(trace).some(r => r.id === id && r.state === 'sending')) return true;
+    const event = makeEvent('user_message', trace, nextStep(model, trace), messageInput(item.clientTurn || newId(), item.text, uploaded), ctx);
+    event.id = id;
+    try {
+      if (!transport.send(event)) return offline();
+      timers.set(() => {
+        if (delivery.items(trace).some(r => r.id === id && r.state === 'sending')) {
+          delivery.unknown(id);
+          render();
+        }
+      }, 10000);
+    } catch { delivery.unknown(id); }
+    render();
+    return true;
+  }
+  if (!images.length) return transmit([]);
+  if (!transport.isConnected()) return Promise.resolve(offline());
+  delivery.uploading(id);
+  return uploadImages(trace, images, postImage, (index, image) => delivery.imageUploaded(id, index, image)).then(up => {
+    if (!delivery.uploadComplete(id)) return true;
+    if (up.ok) return transmit(up.images);
+    delivery.failed(id, up.error);
+    flash(t('images.upload_failed', { name: up.name, reason: safeError(up.error) }));
+    render();
+    return true; // The delivery card owns this message, including one taken from the queue.
+  });
+}
+
+function canRetryMessage(trace) {
+  const session = model.sessions[trace];
+  return session && !session.draft && !ui.historyPending.has(trace) && !isBusy(session.state)
+    && !session.pendingQuestion && !['preparing', 'selected', 'deferred', 'applying'].includes(ui.handoffStatus.get(trace)?.phase);
+}
+
+function retryMessage(item, attempt = 0) {
+  if (canRetryMessage(item.trace)) return attemptMessage(item, attempt);
+  retryOffline(delivery, timers, item.trace, item.id, attempt, retryMessage, render);
   render();
-  return true;
 }
 
 // The confirmed selection stays local until the owner sends a message.
@@ -489,13 +530,13 @@ function needsContextHandoff(session, source) {
 const handlers = {
   onRetryProjects() { loadProjects(); },
   onRetrySessions() { transport?.retry(); },
-  deliveryItems(trace) { return delivery.items(trace); },
+  deliveryItems(trace) {
+    return delivery.items(trace).map(item => ({ ...item, canRetry: delivery.canRetry(item.id) && Boolean(canRetryMessage(trace)) }));
+  },
   onRetry(trace, id) {
-    const session = model.sessions[trace];
-    if (!session || session.draft || ui.historyPending.has(trace) || ['answering', 'permission'].includes(session.state)
-      || ['preparing', 'selected'].includes(ui.handoffStatus.get(trace)?.phase)) return;
+    if (!canRetryMessage(trace)) return;
     const item = delivery.beginRetry(id);
-    if (item) sendMessage(trace, item.text, [], item);
+    if (item) retryMessage(item);
   },
   onForgetDelivery(id) {
     if (!delivery.forget(id)) return;
@@ -655,7 +696,7 @@ const handlers = {
     let reserved = null;
     if (draft && draft.draft) {
       // Protect the first message before even creating its session (creation may fail too).
-      const event = makeEvent('user_message', trace, 0, { text, turn: newId(), images: images.map(i => ({ name: i.name })) }, ctx);
+      const event = makeEvent('user_message', trace, 0, { text, turn: newId(), images }, ctx);
       if (!delivery.add(event, savedSession(trace))) { flash(t('delivery.storage')); return false; }
       reserved = { id: event.id, clientTurn: event.input.turn };
       // первое сообщение черновика: сначала создаётся сессия (проект, папка, агент), потом уходит сообщение
@@ -686,20 +727,7 @@ const handlers = {
       ui.awaiting = trace;
       watchCreated(trace);
     }
-    if (images.length === 0) return sendMessage(trace, text, [], reserved);
-    return uploadImages(trace, images, postImage).then((up) => {
-      if (!up.ok) {
-        flash(t('images.upload_failed', { name: up.name, reason: safeError(up.error) }));
-        if (reserved) delivery.failed(reserved.id, up.error);
-        else {
-          const event = makeEvent('user_message', trace, nextStep(model, trace), { text, images: images.map(i => ({ name: i.name })) }, ctx);
-          if (delivery.add(event, savedSession(trace))) delivery.failed(event.id, up.error);
-        }
-        render();
-        return false;
-      }
-      return sendMessage(trace, text, up.images, reserved);
-    });
+    return sendMessage(trace, text, images, reserved);
   },
   onCancel(trace) {
     const session = model.sessions[trace];
