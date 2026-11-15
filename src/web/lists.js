@@ -261,6 +261,10 @@ export function timeline(session) {
   let expired = null;
   for (const m of session.messages) {
     if (m.role === 'user') {
+      // ct_pump uses these labels to wake the agent. Keep the underlying turn
+      // (including its reply), but do not render the hub's launch as owner speech.
+      // Match only the complete labels, including those restored from history.
+      if (!(m.images?.length) && /^Решение по задаче(?: \(подзадача [1-9]\d*\))?$/u.test(m.text)) continue;
       let reply = null;
       let answeredQuestion;
       if (expired && !expired.selected) {

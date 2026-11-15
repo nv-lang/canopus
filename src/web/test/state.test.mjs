@@ -26,6 +26,32 @@ function run(events, model = initialModel()) {
 
 const created = () => ev('session_created', { name: 'Тест', agent: 'opencode' }, { step: 0 });
 
+test('task launch labels stay out of the conversation while the agent turn remains', () => {
+  for (const text of ['Решение по задаче', 'Решение по задаче (подзадача 1)', 'Решение по задаче (подзадача 12)']) {
+    const events = [created(), ev('user_message', { turn: 'launch', text }, { step: 1 }),
+      ev('agent_chunk', { turn: 'launch', text: 'Начинаю работу' }, { step: 2 }),
+      ev('agent_done', { turn: 'launch' }, { step: 3 })];
+    const session = run(events).sessions.s1;
+    assert.equal(timeline(session).filter(item => item.type === 'user').length, 0, text);
+    assert.ok(timeline(session).some(item => item.text === 'Начинаю работу'));
+    assert.equal(session.messages.find(item => item.role === 'user').text, text, 'keep the event for turn tracking and replay');
+    assert.deepEqual(timeline(run(events).sessions.s1), timeline(session), 'history replay has the same conversation');
+  }
+});
+
+test('owner discussion of task decisions and attachments remain visible', () => {
+  for (const text of ['Решение по задаче: убрать сообщение', 'Что значит Решение по задаче?', 'Решение по задаче (подзадача 1) — объясни']) {
+    const session = run([created(), ev('user_message', { turn: 'owner', text }, { step: 1 })]).sessions.s1;
+    assert.equal(timeline(session).find(item => item.type === 'user').text, text);
+  }
+  const text = 'Решение по задаче';
+  const session = run([created(), ev('message_images', { images: [{ name: 'screen.png', n: 1 }] }, { step: 1 }),
+    ev('user_message', { turn: 'owner', text }, { step: 2 })]).sessions.s1;
+  const item = timeline(session).find(item => item.type === 'user');
+  assert.equal(item.text, text);
+  assert.equal(item.images.length, 1);
+});
+
 test('виды событий: девять видов скелета остались (новые проверяет work.test.mjs)', () => {
   const skeleton = [
     'agent_chunk', 'agent_done', 'agent_refused', 'cancel', 'error',
