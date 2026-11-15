@@ -4,7 +4,7 @@ import fs from "node:fs"
 import path from "node:path"
 import {execFileSync} from "node:child_process"
 import {commitFiles} from "./task-numbers.ts"
-type SnapshotTask={n:number;directory:string;branch?:string;worktree?:string;folder?:string;kind?:string}
+type SnapshotTask={n:number;directory:string;branch?:string;worktree?:string;folder?:string;kind?:string;landing?:{dir:string}}
 const git=(dir:string,args:string[],input?:string|Buffer)=>execFileSync("git",["-C",dir,...args],{encoding:"utf8",input,windowsHide:true,stdio:["pipe","pipe","pipe"]}).trim()
 const canonical=(p:string)=>fs.existsSync(p)?fs.realpathSync.native(p):path.resolve(p)
 const maybe=(dir:string,args:string[])=>{try{return git(dir,args)}catch{return undefined}}
@@ -14,6 +14,11 @@ export function snapshotTaskDocuments(file:string,t:SnapshotTask,options:{stage?
  if(!common)return {files:0}
  const gitDir=canonical(path.resolve(t.directory,common)),main=path.dirname(gitDir)
  if(path.basename(gitDir).toLowerCase()!==".git")return {files:0}
+ // A foreign publication candidate cannot contain the source repository task documents.
+ if(t.landing){
+  const landingCommon=git(t.landing.dir,["rev-parse","--git-common-dir"])
+  if(canonical(path.resolve(t.landing.dir,landingCommon)).toLowerCase()!==gitDir.toLowerCase())return {files:0}
+ }
  if(t.worktree&&fs.existsSync(t.worktree)){
   const other=maybe(t.worktree,["rev-parse","--git-common-dir"])
   if(!other||canonical(path.resolve(t.worktree,other)).toLowerCase()!==gitDir.toLowerCase())return {files:0} // foreign result repository: documents stay with their owner
