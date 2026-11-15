@@ -1,0 +1,62 @@
+﻿{
+    "kind":  "S1-2 submission manifest",
+    "head":  "26429fa11424f4a5bb0b6a595dc0a95cea6e1601",
+    "branch":  "task/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen",
+    "artifacts":  [
+                      {
+                          "path":  "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/analysis.md",
+                          "bytes":  15183,
+                          "sha256":  "645FF6BB2F32DCDB064B4FE5C68145D9DB97D0F5B335BB8A3034B8E4A9EE7BF3"
+                      },
+                      {
+                          "path":  "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec.md",
+                          "bytes":  12258,
+                          "sha256":  "2B56BFB8AED137548E0A4BB1C67D027447D5016F0B07F42F4C7980FCBB749E93"
+                      },
+                      {
+                          "path":  "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-trace.md",
+                          "bytes":  6134,
+                          "sha256":  "E7CCEC5CF8C7AC41F34957D71684D2A2D72162B9696D92C5F6E6BF7E9516BDB7"
+                      },
+                      {
+                          "path":  "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/integrator-intake.md",
+                          "bytes":  4194,
+                          "sha256":  "66D11F789FACDEC18C608E25BBADB9B775CE6F3267ACF9DD7D70DFD064E5573B"
+                      },
+                      {
+                          "path":  "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/before-manifest.json",
+                          "bytes":  208266,
+                          "sha256":  "605791FDBE82F80B3A4AAAD80DD1DFEBD06963660C8C01A03449FFEAB33F7C9C"
+                      },
+                      {
+                          "path":  "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/watch-inventory.json",
+                          "bytes":  5065,
+                          "sha256":  "30CA2F70B956F7B494AB7255895657666B921DF2E0EEDD2D2A6C236CACEB7CD4"
+                      },
+                      {
+                          "path":  "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/evidence-verification.json",
+                          "bytes":  2333,
+                          "sha256":  "1E4DD942E08FF99E8A17AB938AF321CDAF8984716F8BA368C662EEDFB0F976CC"
+                      },
+                      {
+                          "path":  "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/after-manifest.json",
+                          "bytes":  2301,
+                          "sha256":  "D90867710DE288DC44ABE2D3431135C015F10DC1C7D7F33F0BCAB733F59A7A80"
+                      },
+                      {
+                          "path":  "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/after-qualification.json",
+                          "bytes":  2657,
+                          "sha256":  "1B5915244529D07C2297309BAF1CE48D50C20F50BA28A496900166F4E813DEBD"
+                      },
+                      {
+                          "path":  "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/after-qualification-corrected.json",
+                          "bytes":  1788,
+                          "sha256":  "885F0B927DBF90F83F46D9142ED0300EF662882C6B614E2578AC33505290E21F"
+                      }
+                  ],
+    "limits":  [
+                   "Raw originals remain external and unchanged; manifest records public portable artifacts only.",
+                   "Initial before/after filter error and corrected comparison are both retained.",
+                   "No code, tests, admin mutations, Phase1 or live actions."
+               ]
+}

@@ -1,0 +1,83 @@
+{
+  "probe": "independent readonly recalc; no source files modified",
+  "expected": "all 87 listed copies hash/byte match; dossier digest matches supplied digest; exact old-session watch inventory only; no request/claim; PID snapshot without commandline/env",
+  "actual": {
+    "manifest_entries": 87,
+    "manifest_declared_missing": 0,
+    "copies_verified": 87,
+    "mismatches": 0,
+    "unavailable": 0,
+    "bytes": 1804234,
+    "dossier_bytes": 15150,
+    "dossier_sha256": "7a1f831a85caa227d9d3c36c45f6bf34bab144ea29e1080b58607ed8825d9969",
+    "expected_dossier_sha256": "7a1f831a85caa2279d3c36c45f6bf34bab144ea29e1080b58607ed8825d9969",
+    "current_record_ids": [
+      {
+        "id": "1792260030319-ie8bde",
+        "status": "done",
+        "pid": 42432,
+        "code": 0,
+        "session_match": false
+      },
+      {
+        "id": "1792260067690-t7zy8c",
+        "status": "done",
+        "pid": 84880,
+        "code": 0,
+        "session_match": false
+      },
+      {
+        "id": "1792260097037-xabdxk",
+        "status": "done",
+        "pid": 88444,
+        "code": 0,
+        "session_match": false
+      },
+      {
+        "id": "1792260111664-pr9xpd",
+        "status": "done",
+        "pid": 90208,
+        "code": 0,
+        "session_match": false
+      },
+      {
+        "id": "1792260127576-aag98z",
+        "status": "done",
+        "pid": 33888,
+        "code": 0,
+        "session_match": false
+      },
+      {
+        "id": "1792260159699-hre9bp",
+        "status": "done",
+        "pid": 93772,
+        "code": 0,
+        "session_match": false
+      },
+      {
+        "id": "1792179830027-y3slcn",
+        "record": "absent-at-snapshot"
+      },
+      {
+        "id": "1792264172390-3ns1ev",
+        "status": "done",
+        "pid": 81232,
+        "code": 0,
+        "session_match": true
+      }
+    ],
+    "current_open_request_or_claim_count": 0,
+    "previous_inventory_eight_pid_ppid_snapshot_matches_now": 0,
+    "pid_snapshot_fields": [
+      "ProcessId",
+      "ParentProcessId",
+      "Name",
+      "CreationDate"
+    ]
+  },
+  "limitations": [
+    "raw run1 archives and CMake logs remain lost",
+    "current snapshot cannot prove descendants, future requests, or durable fence",
+    "one older record in the earlier inventory is absent from the current watch directory"
+  ]
+}

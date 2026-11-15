@@ -1,0 +1,164 @@
+{
+  "rawLocator": "081-durable18-scope-KMQWpP",
+  "platform": "win32",
+  "node": "v24.15.0",
+  "Tms": 120000,
+  "preflight": {
+    "Elevated": false,
+    "StartProcessParameters": [
+      "FilePath",
+      "ArgumentList",
+      "Credential",
+      "WorkingDirectory",
+      "LoadUserProfile",
+      "NoNewWindow",
+      "PassThru",
+      "RedirectStandardError",
+      "RedirectStandardInput",
+      "RedirectStandardOutput",
+      "Verb",
+      "WindowStyle",
+      "Wait",
+      "UseNewEnvironment",
+      "Verbose",
+      "Debug",
+      "ErrorAction",
+      "WarningAction",
+      "InformationAction",
+      "ErrorVariable",
+      "WarningVariable",
+      "InformationVariable",
+      "OutVariable",
+      "OutBuffer",
+      "PipelineVariable"
+    ],
+    "Filesystem": "NTFS",
+    "OS": "Microsoft Windows NT 10.0.26300.0",
+    "PublicProcessJobMethods": [],
+    "DriveType": "Fixed",
+    "PowerShell": "5.1.26100.9711",
+    "ProcessStartInfoProperties": [
+      "Verb",
+      "Arguments",
+      "CreateNoWindow",
+      "EnvironmentVariables",
+      "Environment",
+      "RedirectStandardInput",
+      "RedirectStandardOutput",
+      "RedirectStandardError",
+      "StandardErrorEncoding",
+      "StandardOutputEncoding",
+      "UseShellExecute",
+      "Verbs",
+      "UserName",
+      "Password",
+      "PasswordInClearText",
+      "Domain",
+      "LoadUserProfile",
+      "FileName",
+      "WorkingDirectory",
+      "ErrorDialog",
+      "ErrorDialogParentHandle",
+      "WindowStyle"
+    ],
+    "MutexMethods": [
+      "ReleaseMutex",
+      "OpenExisting",
+      "TryOpenExisting",
+      "GetAccessControl",
+      "SetAccessControl",
+      "get_Handle",
+      "set_Handle",
+      "WaitOne",
+      "Close",
+      "Dispose",
+      "get_SafeWaitHandle",
+      "set_SafeWaitHandle",
+      "GetLifetimeService",
+      "InitializeLifetimeService",
+      "CreateObjRef",
+      "Equals",
+      "GetHashCode",
+      "GetType",
+      "ToString"
+    ],
+    "CLR": "4.0.30319.42000"
+  },
+  "preflightExit": 0,
+  "children": [
+    {
+      "mode": "recover",
+      "pid": 59580,
+      "mutexName": "Local\\CrewHarness081Durable18-64808ffe-8168-4b27-b523-62a50fce746b",
+      "closed": true,
+      "code": 0,
+      "signal": null,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "mode": "owner",
+      "pid": 18856,
+      "mutexName": "Local\\CrewHarness081Durable18-64808ffe-8168-4b27-b523-62a50fce746b",
+      "closed": true,
+      "code": 4294967295,
+      "signal": null,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "intent": {
+    "S": {
+      "project": "fixture",
+      "sessionID": "A",
+      "generation": 1
+    },
+    "R": {
+      "project": "fixture",
+      "sessionID": "A",
+      "generation": 1
+    },
+    "O": {
+      "id": "bounded-write",
+      "generation": 1
+    },
+    "effectID": "spawn#1",
+    "state": "admitted",
+    "outcome": "unknown",
+    "scope": null
+  },
+  "C": {
+    "sessionID": "A",
+    "generation": 1,
+    "revoked": true,
+    "outcome": "unresolved",
+    "reason": "admitted effect has no authoritative OS scope"
+  },
+  "recovery": {
+    "closeSuccess": false,
+    "outcome": "unknown",
+    "abandoned": true,
+    "replay": "not-executed",
+    "state": "admitted",
+    "effectID": "spawn#1"
+  },
+  "writer": {
+    "outcome": "written",
+    "C": {
+      "sessionID": "A",
+      "generation": 1,
+      "revoked": true,
+      "outcome": "unresolved",
+      "reason": "admitted effect has no authoritative OS scope"
+    }
+  },
+  "observerExit": {
+    "instrumentationOnly": true,
+    "exitCode": 0,
+    "pid": 36128,
+    "waitedExactHandle": true
+  },
+  "beforeSHA256": "4bc2f995f3746a98ddd862177035931feb3007b3ffcb1d9c68e89e210d00c34c",
+  "afterSHA256": "cbe1c785f3208cac53ab143ac40995cf2dc5877704c5b17e2603716c0f8d68b3",
+  "B": true
+}

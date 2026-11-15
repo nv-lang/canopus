@@ -1,0 +1,11 @@
+{
+  "fixture": "opencode-plugin/test/prototype081/os-lock-1/probe.mjs",
+  "runs": [
+    { "launch": "crew_watch machine=true", "exit": 1, "assertion": "expected second consumer exit 4 (mutex contention), got 0" },
+    { "launch": "separate crew_watch machine=true replay", "exit": 1, "assertion": "expected second consumer exit 4 (mutex contention), got 0" }
+  ],
+  "verdict": "STOP: contention not established; crash/reacquisition and intent recovery not run",
+  "interpretation": "fixture failure, not a negative finding about Windows Mutex semantics",
+  "no_crash_child_started": true,
+  "no_stale_lock_stealing": true
+}

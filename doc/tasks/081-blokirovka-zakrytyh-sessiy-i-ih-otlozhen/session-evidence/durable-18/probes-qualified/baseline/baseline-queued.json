@@ -1,0 +1,115 @@
+{
+  "mode": "baseline",
+  "schedule": "queued",
+  "expected": 1,
+  "code": 1,
+  "pid": 23920,
+  "signal": null,
+  "command": [
+    "<node>",
+    "<worktree>/opencode-plugin/test/prototype081/sol-1/lifecycle-oracle.mjs",
+    "<approved-temp>/081-durable18-before-64gP8e/source",
+    "<approved-temp>",
+    "baseline",
+    "queued"
+  ],
+  "fixture": "<approved-temp>/081-sol-nqugEf",
+  "stdoutSHA": "755aa0813a46e8b5849819826d3fa4149db16555056203ac26b4866790551590",
+  "stderrSHA": "71d916d6c8034659b64cd9527ddfb5ee779f421ff9c1cc793aa64bb7c2ff2264",
+  "oracleSHA": "c274a18bcaeec4cb0b584904fabd7114e4ec7ed737c1ef65e5b96ecf85adbc98",
+  "result": {
+    "mode": "baseline",
+    "schedule": "queued",
+    "fixture": "<approved-temp>/081-sol-nqugEf",
+    "base": "<approved-temp>/081-sol-nqugEf/data/opencode/crew-harness",
+    "events": [
+      {
+        "seq": 1,
+        "type": "queued",
+        "O": "1792355030609-b4gd9d",
+        "S": "sol-fixture-A-generation-1"
+      },
+      {
+        "seq": 2,
+        "type": "actual-release-closed",
+        "S": "sol-fixture-A-generation-1",
+        "terminalCloseProven": false
+      },
+      {
+        "seq": 3,
+        "type": "owned-wrapper-children-closed"
+      },
+      {
+        "seq": 4,
+        "type": "sample",
+        "A": true,
+        "B": true
+      }
+    ],
+    "children": [
+      {
+        "pid": 86088,
+        "command": [
+          "C:/Program Files/Git/bin/bash.exe",
+          "-c",
+          "timeout 7200 bash -c 'printf effect > '/''<approved-temp>/081-sol-nqugEf/A.effect'/''' > '<approved-temp>/081-sol-nqugEf/data/opencode/crew-harness/watches/1792355030609-b4gd9d.out' 2>&1; echo $? > '<approved-temp>/081-sol-nqugEf/data/opencode/crew-harness/watches/1792355030609-b4gd9d.exit.tmp' && mv '<approved-temp>/081-sol-nqugEf/data/opencode/crew-harness/watches/1792355030609-b4gd9d.exit.tmp' '<approved-temp>/081-sol-nqugEf/data/opencode/crew-harness/watches/1792355030609-b4gd9d.exit'"
+        ],
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      },
+      {
+        "pid": 85140,
+        "command": [
+          "C:/Program Files/Git/bin/bash.exe",
+          "-c",
+          "timeout 7200 bash -c 'printf effect > '/''<approved-temp>/081-sol-nqugEf/B.effect'/''' > '<approved-temp>/081-sol-nqugEf/data/opencode/crew-harness/watches/1792355030611-4aeupp.out' 2>&1; echo $? > '<approved-temp>/081-sol-nqugEf/data/opencode/crew-harness/watches/1792355030611-4aeupp.exit.tmp' && mv '<approved-temp>/081-sol-nqugEf/data/opencode/crew-harness/watches/1792355030611-4aeupp.exit.tmp' '<approved-temp>/081-sol-nqugEf/data/opencode/crew-harness/watches/1792355030611-4aeupp.exit'"
+        ],
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      }
+    ],
+    "A": {
+      "before": "running",
+      "after": "closed",
+      "effectAfterTerminalSample": true
+    },
+    "B": {
+      "status": "running",
+      "effect": true
+    },
+    "records": [
+      {
+        "id": "1792355030609-b4gd9d",
+        "session": "sol-fixture-A-generation-1",
+        "command": "printf effect > '<approved-temp>/081-sol-nqugEf/A.effect'",
+        "cwd": "<approved-temp>/081-sol-nqugEf",
+        "minutes": 120,
+        "created": 1792355030609,
+        "status": "done",
+        "pid": 86088,
+        "started": 1792355030614,
+        "ended": 1792355031058,
+        "code": 0
+      },
+      {
+        "id": "1792355030611-4aeupp",
+        "session": "sol-fixture-B-generation-1",
+        "command": "printf effect > '<approved-temp>/081-sol-nqugEf/B.effect'",
+        "cwd": "<approved-temp>/081-sol-nqugEf",
+        "minutes": 120,
+        "created": 1792355030611,
+        "status": "done",
+        "pid": 85140,
+        "started": 1792355030614,
+        "ended": 1792355031088,
+        "code": 0
+      }
+    ],
+    "gateEvents": ""
+  },
+  "stderr": "node:internal/modules/run_main:107\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: SAFETY ORACLE: C before queued admission forbids A effect; D before C is separately accounted\r\n\r\ntrue !== false\r\n\r\n    at file:///<worktree>/opencode-plugin/test/prototype081/sol-1/lifecycle-oracle.mjs:91:8 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: true,\r\n  expected: false,\r\n  operator: 'strictEqual',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v24.15.0\r\n"
+}

@@ -1,0 +1,23 @@
+{
+  "old_spec_sha256": "22e641def114d3207f3ec303e6e5f5eebaaac82973cb2d2bc0ccbd46350aa43e",
+  "approved_spec_sha256": "38aa3a2c36ece056435ca348b6b3b72bef5adf82a730d6d6c0035245f180f12e",
+  "changed_contract_only_AC05": true,
+  "identifiers_unchanged": true,
+  "counts": {
+    "REQ": 18,
+    "AC": 18,
+    "DNC": 6
+  },
+  "analysis_trace_unchanged": {
+    "analysis.md": true,
+    "spec-trace.md": true
+  },
+  "review5_unchanged": true,
+  "C_before_D": "0 admissions / 0 effects",
+  "per_effect": "stable (O,effectID); <=1 D/execution; different effects keep distinct D/causation",
+  "positive_L": "обязателен по AC-02/04/11; always STOP запрещён",
+  "product_tests": "не запускались",
+  "spec_approved": true,
+  "plan_code_admin_live_authorized": false,
+  "S2_6": "не назначена"
+}

@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>138 — эскиз 06 «Диспетчерская: разговор»</title>
+<style>
+  :root {
+    --bg: #101314;
+    --panel: #171b1d;
+    --panel2: #1d2225;
+    --line: #2b3237;
+    --text: #d8dcde;
+    --muted: #8a939a;
+    --dim: #5c656b;
+    --amber: #d29922;
+    --green: #3fb950;
+    --red: #f85149;
+    --blue: #58a6ff;
+    --steel: #7e9cc4;
+    --mono: "Cascadia Mono", Consolas, "Courier New", monospace;
+    --sans: "Segoe UI", system-ui, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0b0d0e; color: var(--text); font-family: var(--sans); font-size: 13px; padding: 14px 18px; }
+
+  .board { display: flex; align-items: baseline; gap: 24px; padding: 2px 2px 10px; }
+  .eyebrow { font: 10px var(--mono); letter-spacing: 2px; color: var(--dim); }
+  .board h1 { font-size: 21px; font-weight: 600; margin-top: 3px; }
+  .board .note { color: var(--muted); font-size: 12px; flex: 1; }
+  .draft { font: 10px var(--mono); color: var(--dim); border: 1px solid var(--line); padding: 3px 8px; border-radius: 3px; }
+
+  .console { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+
+  .statusbar {
+    display: flex; align-items: center; gap: 18px;
+    font: 11px var(--mono); color: var(--muted);
+    background: var(--panel); border-bottom: 1px solid var(--line); padding: 6px 12px;
+  }
+  .statusbar b { color: var(--text); font-weight: 600; }
+  .statusbar .ok { color: var(--green); }
+  .statusbar .spacer { flex: 1; }
+
+  .attention { border-bottom: 1px solid var(--line); background: #1a1710; display: flex; align-items: center; gap: 8px; padding: 6px 12px; }
+  .attention .count { background: var(--amber); color: #111; padding: 0 6px; border-radius: 2px; font: 700 11px var(--mono); }
+  .attention .lead { font: 11px var(--mono); color: var(--amber); }
+  .attention .who { font: 11px var(--mono); color: var(--text); }
+  .attention .what { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .attention .more { margin-left: auto; font: 10.5px var(--mono); color: var(--dim); white-space: nowrap; }
+
+  .main { display: grid; grid-template-columns: 1.15fr 1.3fr; min-height: 690px; }
+
+  .boardpane { border-right: 1px solid var(--line); display: flex; flex-direction: column; }
+  .pane-head { display: flex; align-items: baseline; gap: 12px; padding: 8px 12px 6px; border-bottom: 1px solid var(--line); font: 11px var(--mono); color: var(--dim); letter-spacing: 1px; }
+  .pane-head .filter { margin-left: auto; color: var(--muted); }
+
+  .trow {
+    display: grid; grid-template-columns: 40px 1fr 64px 92px 78px 52px;
+    gap: 8px; align-items: center; padding: 5px 12px;
+    border-left: 2px solid transparent; border-bottom: 1px solid #202628;
+  }
+  .trow.selected { background: var(--panel2); border-left-color: var(--blue); }
+  .trow .no { font: 12px var(--mono); color: var(--muted); }
+  .trow .name { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .trow .name small { display: block; font: 10.5px var(--mono); color: var(--dim); font-weight: 400; }
+  .trow .sess { font: 10.5px var(--mono); color: var(--muted); white-space: nowrap; }
+  .trow .prog { display: flex; align-items: center; gap: 6px; }
+  .trow .bar { flex: 1; height: 4px; background: #262c31; border-radius: 2px; overflow: hidden; }
+  .trow .bar i { display: block; height: 100%; background: var(--green); }
+  .trow .kn { font: 10px var(--mono); color: var(--muted); }
+  .trow .age { font: 10.5px var(--mono); color: var(--dim); text-align: right; }
+
+  .chip { font: 600 9.5px var(--mono); padding: 1px 6px; border-radius: 2px; white-space: nowrap; justify-self: start; letter-spacing: .5px; }
+  .chip.run   { color: var(--green); border: 1px solid #234028; background: #12241a; }
+  .chip.wait  { color: var(--amber); border: 1px solid #4a3a16; background: #1f1a0e; }
+  .chip.stuck { color: var(--red);   border: 1px solid #5a2622; background: #251311; }
+  .chip.done  { color: var(--dim);   border: 1px solid var(--line); }
+
+  .boardfoot { margin-top: auto; border-top: 1px solid var(--line); padding: 7px 12px; font: 10.5px var(--mono); color: var(--dim); display: flex; gap: 16px; }
+
+  /* разговор */
+  .detail { display: flex; flex-direction: column; background: var(--panel); }
+  .detail-head { padding: 8px 12px 0; }
+  .detail-title { display: flex; align-items: center; gap: 10px; padding-bottom: 7px; }
+  .detail-title h2 { font-size: 13.5px; font-weight: 600; }
+  .detail-title .meta { margin-left: auto; font: 10.5px var(--mono); color: var(--dim); }
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); font: 11.5px var(--mono); }
+  .tabs span { padding: 5px 10px; color: var(--muted); border-bottom: 2px solid transparent; }
+  .tabs span b { color: var(--dim); font-weight: 400; }
+  .tabs .on { color: var(--text); border-bottom-color: var(--blue); }
+
+  .thread { flex: 1; padding: 10px 14px; overflow: hidden; }
+  .msg { margin-bottom: 13px; }
+  .msg .m-meta { font: 10.5px var(--mono); color: var(--dim); margin-bottom: 3px; display: flex; gap: 8px; align-items: baseline; }
+  .msg .m-meta b { color: var(--muted); font-weight: 600; }
+  .msg .m-body { font-size: 12.5px; line-height: 1.5; }
+  .msg.user .m-meta b { color: var(--steel); }
+  .msg.user .m-body { border-left: 2px solid var(--steel); padding-left: 9px; }
+  .msg.agent .m-body { border-left: 2px solid var(--line); padding-left: 9px; }
+  .msg .m-body code { font-family: var(--mono); font-size: 11.5px; background: #22282c; padding: 1px 4px; border-radius: 2px; }
+  .workline { font: 10.5px var(--mono); color: var(--muted); padding: 2px 0 2px 9px; margin: 6px 0 0 11px; border-left: 1px solid var(--line); }
+  .workline .ok { color: var(--green); }
+
+  .streaming { display: flex; gap: 8px; align-items: baseline; font: 11px var(--mono); color: var(--muted); margin: 2px 0 10px 11px; }
+  .streaming .cursor { color: var(--green); }
+
+  /* запрос разрешения */
+  .perm {
+    margin: 4px 0 12px 11px; border: 1px solid #4a3a16; background: #1c170d; border-radius: 4px;
+    padding: 7px 10px;
+  }
+  .perm .p-head { font: 600 10.5px var(--mono); color: var(--amber); letter-spacing: 1px; padding-bottom: 4px; }
+  .perm .p-cmd { font: 11.5px var(--mono); color: var(--text); background: #12100a; border: 1px solid #2e2616; border-radius: 3px; padding: 4px 8px; }
+  .perm .p-actions { display: flex; gap: 8px; padding-top: 7px; font: 11px var(--mono); }
+  .perm .p-actions .yes { color: #111; background: var(--amber); border-radius: 2px; padding: 2px 10px; font-weight: 700; }
+  .perm .p-actions .no { color: var(--muted); border: 1px solid var(--line); border-radius: 2px; padding: 2px 10px; }
+  .perm .p-actions .always { color: var(--dim); padding: 2px 4px; }
+
+  /* поле ввода */
+  .compose { border-top: 1px solid var(--line); padding: 8px 12px 9px; }
+  .compose .box { background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; color: var(--dim); font-size: 12.5px; display: flex; align-items: center; }
+  .compose .box .send { margin-left: auto; font: 11px var(--mono); color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 1px 8px; }
+  .compose .box .stop { margin-left: auto; font: 11px var(--mono); color: var(--red); border: 1px solid #5a2622; border-radius: 3px; padding: 1px 8px; }
+  .compose .hint { font: 10px var(--mono); color: var(--dim); margin-top: 5px; display: flex; justify-content: space-between; }
+  .compose .agents { display: flex; gap: 10px; font: 10.5px var(--mono); color: var(--muted); margin-bottom: 6px; }
+  .compose .agents b { color: var(--steel); font-weight: 400; }
+  .compose .agents .on { color: var(--text); border-bottom: 1px solid var(--blue); }
+
+  .footbar { display: flex; gap: 18px; padding: 6px 12px; border-top: 1px solid var(--line); background: var(--panel); font: 10.5px var(--mono); color: var(--dim); }
+  .footbar .warn { color: var(--amber); }
+
+  .board-footer { display: flex; justify-content: space-between; padding: 10px 2px 0; font: 10.5px var(--mono); color: var(--dim); }
+</style>
+</head>
+<body>
+  <header class="board">
+    <div><span class="eyebrow">CREWHARNESS / ДИЗАЙН 138</span><h1>06 — Диспетчерская: разговор</h1></div>
+    <p class="note">Вкладка «Разговор» выбранной задачи: лента, поток ответа, запрос разрешения, выбор агента, отправка/отмена.</p>
+    <span class="draft">ЭСКИЗ · данные вымышлены</span>
+  </header>
+
+  <div class="console">
+    <div class="statusbar">
+      <b>CREWHARNESS</b>
+      <span>crew-harness</span>
+      <span class="ok">● connected</span>
+      <span>очередь машины: 1</span>
+      <span>замок: свободен</span>
+      <span class="spacer"></span>
+      <span>события</span>
+      <span>03:12</span>
+    </div>
+
+    <div class="attention">
+      <span class="count">3</span><span class="lead">ЖДУТ ВАС</span>
+      <span class="who">138 исп</span><span class="what">«Какую сетку доски берём — плитки или строки?» · 12м</span>
+      <span class="more">ещё 2 · с 02:47</span>
+    </div>
+
+    <div class="main">
+      <section class="boardpane">
+        <div class="pane-head">ДОСКА <span class="filter">все ▾</span></div>
+
+        <div class="trow selected">
+          <span class="no">138</span>
+          <span class="name">Новый дизайн веб-пульта<small>исп · разговор с владельцем</small></span>
+          <span class="chip run">ИДЁТ</span>
+          <span class="prog"><span class="bar"><i style="width:17%"></i></span><span class="kn">1/6</span></span>
+          <span class="sess">исп 1/6</span>
+          <span class="age">24м</span>
+        </div>
+        <div class="trow">
+          <span class="no">137</span>
+          <span class="name">Server streaming fix<small>С5-2 · реализация</small></span>
+          <span class="chip run">ИДЁТ</span>
+          <span class="prog"><span class="bar"><i style="width:64%"></i></span><span class="kn">7/11</span></span>
+          <span class="sess">С5-2</span>
+          <span class="age">1ч 08м</span>
+        </div>
+        <div class="trow">
+          <span class="no">135</span>
+          <span class="name">Карточки задач в пульте<small>С3-1 · план</small></span>
+          <span class="chip run">ИДЁТ</span>
+          <span class="prog"><span class="bar"><i style="width:44%"></i></span><span class="kn">4/9</span></span>
+          <span class="sess">С3-1</span>
+          <span class="age">52м</span>
+        </div>
+        <div class="trow">
+          <span class="no">061</span>
+          <span class="name">Канон и актуальная методика<small>С2-5 · ворота, вопроса нет</small></span>
+          <span class="chip wait">ЖДЁТ</span>
+          <span class="prog"><span class="bar"><i style="width:100%"></i></span><span class="kn">34/34</span></span>
+          <span class="sess">С2-5</span>
+          <span class="age">22ч</span>
+        </div>
+        <div class="trow">
+          <span class="no">099</span>
+          <span class="name">Session server<small>исп · молчит с 01:40</small></span>
+          <span class="chip stuck">ЗАСТРЯЛА</span>
+          <span class="prog"><span class="bar"><i style="width:30%;background:var(--red)"></i></span><span class="kn">3/10</span></span>
+          <span class="sess">исп ⚠</span>
+          <span class="age">1ч 32м</span>
+        </div>
+
+        <div class="boardfoot"><span>строк: 5 · обновление 2 с</span><span>все: /crew</span></div>
+      </section>
+
+      <section class="detail">
+        <div class="detail-head">
+          <div class="detail-title">
+            <h2>138 Новый дизайн веб-пульта</h2>
+            <span class="chip run">ИДЁТ</span>
+            <span class="meta">task/138… · OpenCode</span>
+          </div>
+          <div class="tabs">
+            <span class="on">Разговор</span><span>Ход <b>1/6</b></span><span>Результаты <b>2</b></span><span>Проверки</span><span>Учёт</span><span>Отчёт</span>
+          </div>
+        </div>
+
+        <div class="thread">
+          <div class="msg user">
+            <div class="m-meta"><b>Вы</b><span>03:02</span></div>
+            <div class="m-body">Направление «диспетчерская» подтверждаю. Покажи тёмную утилитарную версию, доску строками.</div>
+          </div>
+          <div class="msg agent">
+            <div class="m-meta"><b>исп</b><span>03:05</span><span>модель из сессии</span></div>
+            <div class="m-body">Собрал доску строками: номер, чип состояния, прогресс <code>k/N</code>, возраст. Разговор уехал во вкладку, контекст — в строку фактов.</div>
+            <div class="workline"><span class="ok">✓</span> sketch 04 · 1 файл · 9 с</div>
+            <div class="m-body" style="padding-top:6px">Для полосы «ждут вас» нужен запуск тестовой сборки страницы — запрашиваю разрешение:</div>
+          </div>
+
+          <div class="perm">
+            <div class="p-head">ЗАПРОС РАЗРЕШЕНИЯ · BASH</div>
+            <div class="p-cmd">node sketches2/capture.mjs … — снять снимок эскиза (1440×1000)</div>
+            <div class="p-actions"><span class="yes">Разрешить</span><span class="no">Отклонить</span><span class="always">всегда для этой команды</span></div>
+          </div>
+
+          <div class="streaming"><span class="cursor">▍</span> исп печатает · 14 с · Esc — отменить ход</div>
+        </div>
+
+        <div class="compose">
+          <div class="agents"><span class="on">OpenCode</span><span>Kimi</span><span style="margin-left:auto">модель: <b>из сессии</b> · контекст 24%</span></div>
+          <div class="box">Сообщение исполнителю 138… <span class="stop">■ Стоп</span>&nbsp;<span class="send">Enter ↵</span></div>
+          <div class="hint"><span>Enter — отправить · Shift+Enter — новая строка</span><span>во время хода сообщение встанет в очередь письмом</span></div>
+        </div>
+      </section>
+    </div>
+
+    <div class="footbar">
+      <span>ход: 137 С5-2 7/11 · 135 С3-1 4/9 · 138 исп 1/6</span>
+      <span class="warn">⧗ гейт 099 ждёт слот очереди 12м</span>
+      <span style="margin-left:auto">просроченных вопросов: 0</span>
+    </div>
+  </div>
+
+  <footer class="board-footer"><span>06 / Разговор — вкладка задачи · разрешения в ленте · выбор агента у ввода</span><span>Макет, не работающий пульт</span></footer>
+</body>
+</html>

@@ -1,0 +1,102 @@
+{
+  "mode": "gate",
+  "schedule": "queued",
+  "expected": 0,
+  "code": 0,
+  "pid": 73352,
+  "signal": null,
+  "command": [
+    "<node>",
+    "<approved-temp>/081-sol-final-drivers-7NCYi8/lifecycle-oracle.mjs",
+    "<approved-temp>/081-prototype-base-o00ntsja/source",
+    "<approved-temp>",
+    "gate",
+    "queued"
+  ],
+  "fixture": "<approved-temp>/081-sol-GScghT",
+  "stdoutSHA": "fbb744f1ce3aa397d3d1edfa2f6bd64f457c9319cbd431d755425dc511a03ee8",
+  "stderrSHA": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "oracleSHA": "c274a18bcaeec4cb0b584904fabd7114e4ec7ed737c1ef65e5b96ecf85adbc98",
+  "result": {
+    "mode": "gate",
+    "schedule": "queued",
+    "fixture": "<approved-temp>/081-sol-GScghT",
+    "base": "<approved-temp>/081-sol-GScghT/data/opencode/crew-harness",
+    "events": [
+      {
+        "seq": 1,
+        "type": "queued",
+        "O": "1792344438699-kss8fq",
+        "S": "sol-fixture-A-generation-1"
+      },
+      {
+        "seq": 2,
+        "type": "actual-release-closed",
+        "S": "sol-fixture-A-generation-1",
+        "terminalCloseProven": false
+      },
+      {
+        "seq": 3,
+        "type": "owned-wrapper-children-closed"
+      },
+      {
+        "seq": 4,
+        "type": "sample",
+        "A": false,
+        "B": true
+      }
+    ],
+    "children": [
+      {
+        "pid": 38244,
+        "command": [
+          "C:/Program Files/Git/bin/bash.exe",
+          "-c",
+          "timeout 7200 bash -c 'printf effect > '/''<approved-temp>/081-sol-GScghT/B.effect'/''' > '<approved-temp>/081-sol-GScghT/data/opencode/crew-harness/watches/1792344438716-awo6r0.out' 2>&1; echo $? > '<approved-temp>/081-sol-GScghT/data/opencode/crew-harness/watches/1792344438716-awo6r0.exit.tmp' && mv '<approved-temp>/081-sol-GScghT/data/opencode/crew-harness/watches/1792344438716-awo6r0.exit.tmp' '<approved-temp>/081-sol-GScghT/data/opencode/crew-harness/watches/1792344438716-awo6r0.exit'"
+        ],
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      }
+    ],
+    "A": {
+      "before": "running",
+      "after": "closed",
+      "effectAfterTerminalSample": false
+    },
+    "B": {
+      "status": "running",
+      "effect": true
+    },
+    "records": [
+      {
+        "id": "1792344438699-kss8fq",
+        "session": "sol-fixture-A-generation-1",
+        "command": "printf effect > '<approved-temp>/081-sol-GScghT/A.effect'",
+        "cwd": "<approved-temp>/081-sol-GScghT",
+        "minutes": 120,
+        "created": 1792344438699,
+        "status": "done",
+        "ended": 1792344438717,
+        "code": 0,
+        "dropped": true
+      },
+      {
+        "id": "1792344438716-awo6r0",
+        "session": "sol-fixture-B-generation-1",
+        "command": "printf effect > '<approved-temp>/081-sol-GScghT/B.effect'",
+        "cwd": "<approved-temp>/081-sol-GScghT",
+        "minutes": 120,
+        "created": 1792344438716,
+        "status": "done",
+        "pid": 38244,
+        "started": 1792344438717,
+        "ended": 1792344439279,
+        "code": 0
+      }
+    ],
+    "gateEvents": "{\"type\":\"C\",\"pid\":73352,\"owner\":\"sol-fixture-A-generation-1\"}\n{\"type\":\"deny-closed\",\"pid\":73352,\"S\":\"sol-fixture-A-generation-1\",\"R\":\"sol-fixture-A-generation-1\",\"O\":\"1792344438699-kss8fq\",\"effectID\":\"spawn\"}\n{\"type\":\"D\",\"pid\":73352,\"S\":\"sol-fixture-B-generation-1\",\"R\":\"sol-fixture-B-generation-1\",\"O\":\"1792344438716-awo6r0\",\"effectID\":\"spawn\"}\n{\"type\":\"effect-returned\",\"pid\":73352,\"S\":\"sol-fixture-B-generation-1\",\"R\":\"sol-fixture-B-generation-1\",\"O\":\"1792344438716-awo6r0\",\"effectID\":\"spawn\"}\n{\"type\":\"wrapper-terminal\",\"pid\":73352,\"S\":\"sol-fixture-B-generation-1\",\"R\":\"sol-fixture-B-generation-1\",\"O\":\"1792344438716-awo6r0\",\"effectID\":\"spawn\",\"code\":0,\"signal\":null,\"scopeExitProven\":false}\n"
+  },
+  "stderr": ""
+}

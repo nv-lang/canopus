@@ -1,0 +1,41 @@
+{
+  "probe": "read-only-addressed-v2-get",
+  "cli": "opencode api get",
+  "cwd": "task worktree",
+  "expected": "session metadata for exact id; inbox list only, zero or IDs/types/status; no bodies or mutations",
+  "actual": [
+    {
+      "endpoint": "/api/session/ses_mvawdsam690xeqwzpp",
+      "method": "GET",
+      "exit_code": 0,
+      "response_bytes": 658,
+      "sha256": "c51a4b398e80d48244a1ef7d0c5b7ce31af3e91620544ab43de27666039e3cb1",
+      "stderr_bytes": 0,
+      "response_type": "dict",
+      "metadata_keys": [
+        "cost",
+        "id",
+        "location",
+        "metadata",
+        "model",
+        "outcome",
+        "projectID",
+        "time",
+        "title",
+        "tokens"
+      ],
+      "identity_match": true
+    },
+    {
+      "endpoint": "/api/session/ses_mvawdsam690xeqwzpp/inbox",
+      "method": "GET",
+      "exit_code": 0,
+      "response_bytes": 13,
+      "sha256": "f23981203d140ae941fad993faddd66ce46739cc81f159071f8eacaa3dfcb7f9",
+      "stderr_bytes": 0,
+      "count": 0,
+      "items": []
+    }
+  ],
+  "raw_location": "external temporary storage; raw not included in repository"
+}

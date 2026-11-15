@@ -1,0 +1,21 @@
+{
+  "before_files": 734,
+  "changed_existing": [
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/analysis.md",
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/progress.log",
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-3/before-manifest.json",
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-trace.md",
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec.md"
+  ],
+  "missing_existing": [],
+  "unexpected_existing": [],
+  "unexpected_new": [],
+  "root3_before_copies_match": true,
+  "root3_diff_lines": 1066,
+  "prefixes_preserved": [
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/progress.log",
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/profile.log",
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/usage.log"
+  ],
+  "область": "Всё дерево, включая hidden/untracked/.git как hash/bytes. Внешний gitdir не читался. Стадия до итоговых progress/usage/submit."
+}

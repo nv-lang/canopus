@@ -1,0 +1,24 @@
+{
+  "изменяемые": [
+    "analysis.md",
+    "spec.md",
+    "spec-trace.md"
+  ],
+  "append": [
+    "progress.log",
+    "profile.log",
+    "usage.log"
+  ],
+  "единственная_производная": "session-evidence/s2-3/before-manifest.json",
+  "новые": "session-evidence/s1p-2/**",
+  "защита": "Все остальные существовавшие файлы побайтно неизменны; root3 исключены только из проверки неизменности, копии сохранены.",
+  "досье": {
+    "bytes": 15150,
+    "sha256": "7a1f831a85caa227d9d3c36c45f6bf34bab144ea29e1080b58607ed8825d9969"
+  },
+  "пробы": {
+    "green": "поддерживаемая операция обязана завершиться положительным исходом; вечный STOP отвергается",
+    "ownership": "старый source/recipient запрещён; новый B разрешён; старое role item не переназначается",
+    "derivative": "raw SHA подтверждён заранее; entries идентичны; меняются только root и provenance"
+  }
+}

@@ -1,0 +1,18 @@
+Публичный структурный diff; исходный root скрыт, не raw byte diff.
+--- raw с обезличенным root
++++ санитизированная производная
+@@ -1,5 +1,13 @@
+ {
+-  "root": "<исходный машинный root скрыт; точные bytes только во внешнем raw>",
++  "root": "<дерево задачи 081>",
++  "provenance": {
++    "статус": "Санитизированная публичная производная; не исходный raw early before",
++    "raw_sha256": "676911c617282bb80dc3c4bd0f6c7b575ccd319a3794dc1046634fb9f9eaa147",
++    "raw_bytes": 130581,
++    "raw_locator": "Внешний freeze интегратора С2-3 / session-evidence/s2-3/before-manifest.json",
++    "изменение": "Только root и это поле provenance; files bytes/SHA неизменны",
++    "ограничение": "Не исправляет ошибки, неполноту и вердикт прежней С2-3"
++  },
+   "phase": "early-before",
+   "excluded_exact": [
+     "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-review-3.md",

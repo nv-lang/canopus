@@ -1,0 +1,48 @@
+{
+  "источник": "внешний первичный intake; raw-manifest.json",
+  "files": 87,
+  "bytes": 1804234,
+  "mismatches": [],
+  "dossier_actual": {
+    "bytes": 15150,
+    "sha256": "7a1f831a85caa227d9d3c36c45f6bf34bab144ea29e1080b58607ed8825d9969"
+  },
+  "partition": [
+    {
+      "id": "1792260030319-ie8bde",
+      "session": "ses_mvcoxay3pjag7acd92",
+      "status": "done"
+    },
+    {
+      "id": "1792260067690-t7zy8c",
+      "session": "ses_mvcoxay3pjag7acd92",
+      "status": "done"
+    },
+    {
+      "id": "1792260097037-xabdxk",
+      "session": "ses_mvcoxay3pjag7acd92",
+      "status": "done"
+    },
+    {
+      "id": "1792260111664-pr9xpd",
+      "session": "ses_mvcoxay3pjag7acd92",
+      "status": "done"
+    },
+    {
+      "id": "1792260127576-aag98z",
+      "session": "ses_mvcoxay3pjag7acd92",
+      "status": "done"
+    },
+    {
+      "id": "1792260159699-hre9bp",
+      "session": "ses_mvcoxay3pjag7acd92",
+      "status": "done"
+    },
+    {
+      "id": "1792264172390-3ns1ev",
+      "session": "ses_mvawdsam690xeqwzpp",
+      "status": "done"
+    }
+  ],
+  "ограничение": "Повторно проверены существующие копии, не восстановлены утраченные архивы и логи run1. Не новый snapshot exit/OS."
+}

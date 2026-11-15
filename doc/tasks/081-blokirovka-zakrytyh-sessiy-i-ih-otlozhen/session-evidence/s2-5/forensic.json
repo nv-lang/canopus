@@ -1,0 +1,588 @@
+{
+  "kind": "новый read-only замер существующих копий, не live snapshot/exit proof",
+  "raw_files": 87,
+  "raw_bytes": 1804234,
+  "mismatches": [],
+  "dossier": {
+    "bytes": 15150,
+    "sha256": "7a1f831a85caa227d9d3c36c45f6bf34bab144ea29e1080b58607ed8825d9969"
+  },
+  "partition": [
+    {
+      "id": "1792260030319-ie8bde",
+      "session": "ses_mvcoxay3pjag7acd92",
+      "status": "done"
+    },
+    {
+      "id": "1792260067690-t7zy8c",
+      "session": "ses_mvcoxay3pjag7acd92",
+      "status": "done"
+    },
+    {
+      "id": "1792260097037-xabdxk",
+      "session": "ses_mvcoxay3pjag7acd92",
+      "status": "done"
+    },
+    {
+      "id": "1792260111664-pr9xpd",
+      "session": "ses_mvcoxay3pjag7acd92",
+      "status": "done"
+    },
+    {
+      "id": "1792260127576-aag98z",
+      "session": "ses_mvcoxay3pjag7acd92",
+      "status": "done"
+    },
+    {
+      "id": "1792260159699-hre9bp",
+      "session": "ses_mvcoxay3pjag7acd92",
+      "status": "done"
+    },
+    {
+      "id": "1792264172390-3ns1ev",
+      "session": "ses_mvawdsam690xeqwzpp",
+      "status": "done"
+    }
+  ],
+  "derivative": {
+    "raw_bytes": 130581,
+    "raw_sha256": "676911c617282bb80dc3c4bd0f6c7b575ccd319a3794dc1046634fb9f9eaa147",
+    "derivative_bytes": 131165,
+    "derivative_sha256": "aeebd8404ff0b276d9ee17076aad9c9fe24fccccc896cb39bf38b2273230c97c",
+    "unchanged_fields": {
+      "files": true,
+      "phase": true,
+      "excluded_exact": true
+    },
+    "changed_keys": [
+      "root",
+      "provenance"
+    ]
+  },
+  "entries": [
+    {
+      "saved": "watches/1792179830027-y3slcn.json",
+      "bytes": 529,
+      "sha256": "957468da0ca7a26b24f41f722dc9e3d99da38c6c6bf28349696d6d9e592c0bea",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792179830027-y3slcn.out",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792179830027-y3slcn.exit",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792183468927-mmg9gt.json",
+      "bytes": 534,
+      "sha256": "5cf8df271e685fcf056a4e4b682ba75391ae181ded49150e8d43eec624aa0b6a",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792183468927-mmg9gt.out",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792183468927-mmg9gt.exit",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792187099073-itfcuj.json",
+      "bytes": 534,
+      "sha256": "92ba3bbf2d52442b0b0424f314f0e4c38c348f2654223bc8da0373836c330a41",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792187099073-itfcuj.out",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792187099073-itfcuj.exit",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792190755214-ea51zn.json",
+      "bytes": 534,
+      "sha256": "08ba3f3390cedeb75284d93923a47aa183acd654cb250d2a090d679f3f833e15",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792190755214-ea51zn.out",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792190755214-ea51zn.exit",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792194428378-i8kvs7.json",
+      "bytes": 535,
+      "sha256": "07727c9ab5a17cb883d373f0c67881c43901e141f009f2979818b30903ce6610",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792194428378-i8kvs7.out",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792194428378-i8kvs7.exit",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792209979806-8xdhpt.json",
+      "bytes": 531,
+      "sha256": "e041fb8f48879a62744f9b334c79849a8a9080ae3574a54bedc672dfc17cc2ce",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792209979806-8xdhpt.out",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792209979806-8xdhpt.exit",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792224406828-s0k28y.json",
+      "bytes": 531,
+      "sha256": "86cf159aa95a010eb9fcf8f92167bb17439a62d125b22fe9889b5f18d9a5e126",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792224406828-s0k28y.out",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792224406828-s0k28y.exit",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792259779605-vwp6le.json",
+      "bytes": 622,
+      "sha256": "334748f174e14d5a0868a710ab3fe3c135875158b437cc5e22f7fa3a708a42a6",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792259779605-vwp6le.out",
+      "bytes": 562,
+      "sha256": "6bcc4bf301c5bf0a998060b19bc9212f49318b34fab4612905a493e01f21a7a2",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792259779605-vwp6le.exit",
+      "bytes": 2,
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792260030319-ie8bde.json",
+      "bytes": 652,
+      "sha256": "9fef4936adb28960eac72659986c5fdfffaa1884c1856516765d719d50aa7318",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792260030319-ie8bde.out",
+      "bytes": 523,
+      "sha256": "b15d4e44af898f59636316cdb6a308d03bc9b74c0ecd04242a66c02001020f6d",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792260030319-ie8bde.exit",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792260067690-t7zy8c.json",
+      "bytes": 634,
+      "sha256": "188ac5687ae6211bce3199d219deb243cc6a7f5216a8f6b2128d03fa3c36e3df",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792260067690-t7zy8c.out",
+      "bytes": 528,
+      "sha256": "a07aa63a40badac86be4945cb8abfb2b354fb1be848481f1b62f88556fcf2ab1",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792260067690-t7zy8c.exit",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792260097037-xabdxk.json",
+      "bytes": 630,
+      "sha256": "147104f4e5103c1687d66d846ad0dbe4aab6cb19f9b6feeecae1766d9789199d",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792260097037-xabdxk.out",
+      "bytes": 542,
+      "sha256": "1f56d3711a303365e0f6c5819761f78fdf8aa89430f5f3a28cfaaa43aee61308",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792260097037-xabdxk.exit",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792260111664-pr9xpd.json",
+      "bytes": 635,
+      "sha256": "e4f3b669d2f66560ca0d28ebbe351d100ca35f86cf8692b35af3937ca6e89920",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792260111664-pr9xpd.out",
+      "bytes": 552,
+      "sha256": "9ebe746704ec90572728165f754c570efa3672a1114d2c70c312b5fc4a56a54e",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792260111664-pr9xpd.exit",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792260127576-aag98z.json",
+      "bytes": 619,
+      "sha256": "c435238013dd85c486cca332d1218607eb86b773efa56a77346669f27546e7fd",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792260127576-aag98z.out",
+      "bytes": 513,
+      "sha256": "984a98315e2e933dbae3accaaa9dce379bb2f7c614386e573e38203acfd353fd",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792260127576-aag98z.exit",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792260159699-hre9bp.json",
+      "bytes": 624,
+      "sha256": "0be788046b942ca9fb8442a8916244316d284072363476be70e946dcc2ac6a36",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792260159699-hre9bp.out",
+      "bytes": 516,
+      "sha256": "b3e73013cc771f940ba1e65da545265c004ab12cae1c08d7a50fefd40ce8de08",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792260159699-hre9bp.exit",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792264172390-3ns1ev.json",
+      "bytes": 649,
+      "sha256": "f40cad12d7fad39b6d8ebe30219bf1814ef826da8640ea4826b04d93a547ab18",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792264172390-3ns1ev.out",
+      "bytes": 2191,
+      "sha256": "638b3cd38aac43046a771499d263cf287a60ddd9d90c6aff0801ea29d1eaaeda",
+      "matches": true
+    },
+    {
+      "saved": "watches/1792264172390-3ns1ev.exit",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "matches": true
+    },
+    {
+      "saved": "cards/ses_mvawdsam690xeqwzpp.json",
+      "bytes": 1281,
+      "sha256": "3ca47b2129d16e3b83bed9208f5dc35e994cdb80c1a6b31b119e9414d5b1dc85",
+      "matches": true
+    },
+    {
+      "saved": "cards/ses_mvcoxay3pjag7acd92.json",
+      "bytes": 1298,
+      "sha256": "4422bd6b78eb83060c6bb30675853953889e022ec20d03c1533685221e0a73cd",
+      "matches": true
+    },
+    {
+      "saved": "incident/incident-phase1-double-run.json",
+      "bytes": 15150,
+      "sha256": "7a1f831a85caa227d9d3c36c45f6bf34bab144ea29e1080b58607ed8825d9969",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run1-accepted-2105/cmd0-libuv-configure.attempt1-transport-failed.json",
+      "bytes": 6837,
+      "sha256": "51ac1561eb1582b76f8425c7ec496a5a1576dbcadd52b6171ae52f504b87d074",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run1-accepted-2105/cmd0-libuv-configure.json",
+      "bytes": 9507,
+      "sha256": "eef652f6f8d04bdf527ac5bfe4cabc3ec20d3f01863583e39dd6f9b187b68d14",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run1-accepted-2105/cmd1-libuv-build_archive.json",
+      "bytes": 7612,
+      "sha256": "d042846c3ee254441f28babd28631635c16f3844e2d4e46e8a57a40519043c89",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run1-accepted-2105/cmd2-libatomic_ops-configure.json",
+      "bytes": 9709,
+      "sha256": "ecb553ea47a086f0e640ffb87abcaa597c68b22260fc112734cb76bc31d58192",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run1-accepted-2105/cmd3-libatomic_ops-build_archive.json",
+      "bytes": 7779,
+      "sha256": "830d951a6892dec1d25a7d2f368f078b649fa1d5c92c3b2f9d4d6f5b48ad471c",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run1-accepted-2105/cmd4-gc-configure.json",
+      "bytes": 10162,
+      "sha256": "3658200c08cc5906e3e0cef9216ec371471cf2da25aceb7d103019b272bb5ae7",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run1-accepted-2105/cmd5-gc-build_archive.json",
+      "bytes": 7542,
+      "sha256": "cc60147a1161de740863e239ace60a05155c5c313e1e7624cce123bd0f7a505b",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run1-accepted-2105/manifest-v7-phase1-measured.addendum-A1.json",
+      "bytes": 1836,
+      "sha256": "904e0f591c6cc31ca526ebddb2df01f1b342b180e47142399f4ad234ea1c6e64",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run1-accepted-2105/manifest-v7-phase1-measured.json",
+      "bytes": 66745,
+      "sha256": "4ee70e1d9fb8d8fd694bdc16ec098135cec52c7d83678d968cefa49a9e69d7e9",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/atomic_ops.lib",
+      "bytes": 1782,
+      "sha256": "1a4485492762acb6edf5527891741bc3f5a80c3f39be097bce2b83c360622888",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/gc-build_archive.exit",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/gc-build_archive.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/gc-build_archive.stdout",
+      "bytes": 1406,
+      "sha256": "cf5d9835037a579f003891a46f749bbbdc09290d6b9bf010c4dc2df67a9ed81c",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/gc-build_archive.vcvars.log",
+      "bytes": 400,
+      "sha256": "c926e25f11b41865decd6dc53b9b2950e68447e208e4baeaeb3de6e8c3b0ba16",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/gc-configure.exit",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/gc-configure.stderr",
+      "bytes": 371,
+      "sha256": "e21fb82015d5b19059c46bb90690605cabc7c77744f54e6ac54f730854ea3718",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/gc-configure.stdout",
+      "bytes": 273,
+      "sha256": "ade96352c218818f0559cd04c25263595c8b2fe1a7ef114cadc5a582ccd3ff8e",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/gc-configure.vcvars.log",
+      "bytes": 400,
+      "sha256": "c926e25f11b41865decd6dc53b9b2950e68447e208e4baeaeb3de6e8c3b0ba16",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/gc.lib",
+      "bytes": 641980,
+      "sha256": "3e8b936872aa13994395d97a32ac6e5a697b2ab4e1d2bf9d4dcbc2ea7386c396",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/libatomic_ops-build_archive.exit",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/libatomic_ops-build_archive.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/libatomic_ops-build_archive.stdout",
+      "bytes": 119,
+      "sha256": "93f28c75a23b5d8d84a6818205154837787c8b6a3780bfde78e97017505aadd7",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/libatomic_ops-build_archive.vcvars.log",
+      "bytes": 400,
+      "sha256": "c926e25f11b41865decd6dc53b9b2950e68447e208e4baeaeb3de6e8c3b0ba16",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/libatomic_ops-configure.exit",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/libatomic_ops-configure.stderr",
+      "bytes": 371,
+      "sha256": "4b7dc3d0f7b17c789ac59e86d5770203b5ebdc1003d9c4c669fd720c578cba3b",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/libatomic_ops-configure.stdout",
+      "bytes": 236,
+      "sha256": "a218d9ff9e0f99f01d16c660d768a45e289ed1e03a600a3ae70d69c1939e7501",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/libatomic_ops-configure.vcvars.log",
+      "bytes": 400,
+      "sha256": "c926e25f11b41865decd6dc53b9b2950e68447e208e4baeaeb3de6e8c3b0ba16",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/libuv-build_archive.exit",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/libuv-build_archive.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/libuv-build_archive.stdout",
+      "bytes": 43520,
+      "sha256": "b04c3362ee6320532d32561b7b07127d2430814807e33c7fdf00a4fc7add9ceb",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/libuv-build_archive.vcvars.log",
+      "bytes": 400,
+      "sha256": "c926e25f11b41865decd6dc53b9b2950e68447e208e4baeaeb3de6e8c3b0ba16",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/libuv-configure.exit",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/libuv-configure.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/libuv-configure.stdout",
+      "bytes": 604,
+      "sha256": "2647c709511411ee9df6e4702a1960b5024d276a799675e468e73f7d90e483b7",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/libuv-configure.vcvars.log",
+      "bytes": 400,
+      "sha256": "c926e25f11b41865decd6dc53b9b2950e68447e208e4baeaeb3de6e8c3b0ba16",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/libuv.lib",
+      "bytes": 874646,
+      "sha256": "729dae42acbaf73e45f43f5b6b486e8282205ab19832d6d464b5902ba7b029e6",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/phase1-execution-summary.json",
+      "bytes": 25039,
+      "sha256": "cf31989506ae9eff7d5d81f6bcef12b229844c188b29bdb30a498b404ac16489",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/phase1-measured-manifest-v1.json",
+      "bytes": 47603,
+      "sha256": "d300bf6f237a3c29eab5434a202cf010e7c549e49b48d4d5beac0ce485a65989",
+      "matches": true
+    },
+    {
+      "saved": "incident/evidence-phase1-run2-foreign-2210/phase1-runtime-archive-runner.py",
+      "bytes": 3658,
+      "sha256": "8efa61f216a81dd5cde1e77fca9f6494f384b3d14e28103963e1be71db7f8045",
+      "matches": true
+    }
+  ],
+  "missing_run1": "утраченные архивы/raw CMake logs не восстановлены; manifest missing0 не полнота инцидента",
+  "payload_read": "только ID/session/status семи watch records; bytes остальных хешировались без печати/семантического чтения"
+}

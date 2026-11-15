@@ -1,0 +1,120 @@
+{
+  "mode": "baseline",
+  "schedule": "running",
+  "expected": 0,
+  "code": 0,
+  "pid": 57232,
+  "signal": null,
+  "command": [
+    "<node>",
+    "<worktree>/opencode-plugin/test/prototype081/sol-1/lifecycle-oracle.mjs",
+    "<approved-temp>/081-durable18-before-64gP8e/source",
+    "<approved-temp>",
+    "baseline",
+    "running"
+  ],
+  "fixture": "<approved-temp>/081-sol-svtmo7",
+  "stdoutSHA": "395b5e6dd6b1036b14674049ea528d6e6c0d0f2586c8300f654d83a78c4851d5",
+  "stderrSHA": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "oracleSHA": "c274a18bcaeec4cb0b584904fabd7114e4ec7ed737c1ef65e5b96ecf85adbc98",
+  "result": {
+    "mode": "baseline",
+    "schedule": "running",
+    "fixture": "<approved-temp>/081-sol-svtmo7",
+    "base": "<approved-temp>/081-sol-svtmo7/data/opencode/crew-harness",
+    "events": [
+      {
+        "seq": 1,
+        "type": "queued",
+        "O": "1792354466806-dogzpv",
+        "S": "sol-fixture-A-generation-1"
+      },
+      {
+        "seq": 2,
+        "type": "D-observed-running",
+        "O": "1792354466806-dogzpv"
+      },
+      {
+        "seq": 3,
+        "type": "actual-release-closed",
+        "S": "sol-fixture-A-generation-1",
+        "terminalCloseProven": false
+      },
+      {
+        "seq": 4,
+        "type": "owned-wrapper-children-closed"
+      },
+      {
+        "seq": 5,
+        "type": "sample",
+        "A": true,
+        "B": true
+      }
+    ],
+    "children": [
+      {
+        "pid": 83840,
+        "command": [
+          "C:/Program Files/Git/bin/bash.exe",
+          "-c",
+          "timeout 7200 bash -c 'printf ready > '/''<approved-temp>/081-sol-svtmo7/A.ready'/''; for i in {1..400}; do [ -f '/''<approved-temp>/081-sol-svtmo7/A.release'/'' ] && break; sleep 0.02; done; [ -f '/''<approved-temp>/081-sol-svtmo7/A.release'/'' ] || exit 19; printf effect > '/''<approved-temp>/081-sol-svtmo7/A.effect'/''' > '<approved-temp>/081-sol-svtmo7/data/opencode/crew-harness/watches/1792354466806-dogzpv.out' 2>&1; echo $? > '<approved-temp>/081-sol-svtmo7/data/opencode/crew-harness/watches/1792354466806-dogzpv.exit.tmp' && mv '<approved-temp>/081-sol-svtmo7/data/opencode/crew-harness/watches/1792354466806-dogzpv.exit.tmp' '<approved-temp>/081-sol-svtmo7/data/opencode/crew-harness/watches/1792354466806-dogzpv.exit'"
+        ],
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      },
+      {
+        "pid": 76000,
+        "command": [
+          "C:/Program Files/Git/bin/bash.exe",
+          "-c",
+          "timeout 7200 bash -c 'printf effect > '/''<approved-temp>/081-sol-svtmo7/B.effect'/''' > '<approved-temp>/081-sol-svtmo7/data/opencode/crew-harness/watches/1792354467152-dxjuel.out' 2>&1; echo $? > '<approved-temp>/081-sol-svtmo7/data/opencode/crew-harness/watches/1792354467152-dxjuel.exit.tmp' && mv '<approved-temp>/081-sol-svtmo7/data/opencode/crew-harness/watches/1792354467152-dxjuel.exit.tmp' '<approved-temp>/081-sol-svtmo7/data/opencode/crew-harness/watches/1792354467152-dxjuel.exit'"
+        ],
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      }
+    ],
+    "A": {
+      "before": "running",
+      "after": "closed",
+      "effectAfterTerminalSample": true
+    },
+    "B": {
+      "status": "running",
+      "effect": true
+    },
+    "records": [
+      {
+        "id": "1792354466806-dogzpv",
+        "session": "sol-fixture-A-generation-1",
+        "command": "printf ready > '<approved-temp>/081-sol-svtmo7/A.ready'; for i in {1..400}; do [ -f '<approved-temp>/081-sol-svtmo7/A.release' ] && break; sleep 0.02; done; [ -f '<approved-temp>/081-sol-svtmo7/A.release' ] || exit 19; printf effect > '<approved-temp>/081-sol-svtmo7/A.effect'",
+        "cwd": "<approved-temp>/081-sol-svtmo7",
+        "minutes": 120,
+        "created": 1792354466806,
+        "status": "done",
+        "pid": 83840,
+        "started": 1792354466807,
+        "ended": 1792354467275,
+        "code": 0
+      },
+      {
+        "id": "1792354467152-dxjuel",
+        "session": "sol-fixture-B-generation-1",
+        "command": "printf effect > '<approved-temp>/081-sol-svtmo7/B.effect'",
+        "cwd": "<approved-temp>/081-sol-svtmo7",
+        "minutes": 120,
+        "created": 1792354467152,
+        "status": "done",
+        "pid": 76000,
+        "started": 1792354467154,
+        "ended": 1792354467401,
+        "code": 0
+      }
+    ],
+    "gateEvents": ""
+  },
+  "stderr": ""
+}

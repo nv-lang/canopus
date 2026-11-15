@@ -1,0 +1,72 @@
+{
+  "phase": "expected-before-invocation",
+  "kind": "документальные проверки, не тест продукта",
+  "groups": [
+    {
+      "id": "P1",
+      "input": [
+        "L: все входные признаки заданы до результата",
+        "always-STOP после spawn-before-PID",
+        "bounded success и B",
+        "fair consumer с задержкой/большой конечный реестр O"
+      ],
+      "expected": [
+        "always-STOP отвергается AC-16",
+        "реализация с success+B не отвергается лишь потому, что primitive ещё не выбран",
+        "проверить наличие входных границ и часов для T; пробел фиксировать, не объявлять весь профиль невозможным"
+      ],
+      "route": "ручная проверка spec 68–114,235–245,285–372; execution N/A"
+    },
+    {
+      "id": "P2",
+      "input": [
+        "persisted A-source/open R, затем C до D",
+        "live S/A-recipient, затем C до D",
+        "B-only positive",
+        "bound role item A против независимой open role request",
+        "claim before C без D",
+        "D перед C, effect не начат",
+        "consumer получил input до C",
+        "mailbox и host effect одной O, затем recovery второго consumer"
+      ],
+      "expected": [
+        "отказ старой O на обоих концах",
+        "не retarget bound A в B",
+        "open request живого S может выбрать B",
+        "claim не admission",
+        "terminal proof после D; external unknown остаётся HOLD",
+        "у всех законных этапов согласованная дедупликация, B положительна"
+      ],
+      "route": "ручное проведение spec 34–66,116–149,REQ-03/05/10/12–14,AC-05/12–14; runtime N/A"
+    },
+    {
+      "id": "P3",
+      "input": [
+        "первичный raw-manifest: все 87 saved-relative файлов",
+        "семь exact watch records: 6 B,1 A",
+        "raw before С2-3 и public derivative",
+        "old erroneous63 expected",
+        "собственный whole-after/name-set/prefixes"
+      ],
+      "expected": {
+        "raw_count": 87,
+        "raw_bytes": 1804234,
+        "dossier_bytes": 15150,
+        "dossier_sha256": "7a1f831a85caa227d9d3c36c45f6bf34bab144ea29e1080b58607ed8825d9969",
+        "raw_before_sha256": "676911c617282bb80dc3c4bd0f6c7b575ccd319a3794dc1046634fb9f9eaa147",
+        "derivative_sha256": "aeebd8404ff0b276d9ee17076aad9c9fe24fccccc896cb39bf38b2273230c97c",
+        "fields_unchanged": [
+          "files",
+          "phase",
+          "excluded_exact"
+        ],
+        "replacement_session": "ses_mvcoxay3pjag7acd92",
+        "old_session": "ses_mvawdsam690xeqwzpp",
+        "protected_changed": 0,
+        "unexpected_new": 0,
+        "prefix_mismatch": 0
+      },
+      "route": "Python -B только bytes/hash и выбранные identity/status; raw paths/payload/env не выводить; originals readonly; actual в forensic.json/scope-audit.json"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "frozen": "<approved-temp>/081-sol-final-drivers-cuK3Vw",
+  "hashes": {
+    "concurrent-probe.mjs": "3f342fd91a81d7b6eb615d674fb57710dac8112de4d6b850df8e640a6e8db1f6",
+    "consumer.mjs": "991ff2ee74f3c6cef3a26fce364a858fb424d595e523a2832471903665427c04",
+    "filesystem-gate.mjs": "6d441bf734ec64eefdf4c6139828c1a3caee5c59af2b05286cdad20be168d8ca",
+    "final-replay.mjs": "d2269e3ef97f02fe8cfee41ba51e8f721a6cf448710286701ae00d88b2f82e62",
+    "lifecycle-oracle.mjs": "c274a18bcaeec4cb0b584904fabd7114e4ec7ed737c1ef65e5b96ecf85adbc98",
+    "prepare.mjs": "fbddf035bfaac5d7aa70d1120eb893d7815e3ee578eb588171676efb6125d4df",
+    "run-lifecycle.mjs": "457492aa9cae431bc989310e8cc4004aa259cda9852ac7aef6e10f16ecf20cd9"
+  }
+}

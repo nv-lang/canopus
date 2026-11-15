@@ -1,0 +1,9 @@
+{
+  "source": "Microsoft Learn",
+  "docs": [
+    "https://learn.microsoft.com/en-us/dotnet/api/system.threading.mutex?view=net-10.0",
+    "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_powershell_exe?view=powershell-5.1"
+  ],
+  "check": "Windows PowerShell 5.1.26100.9711; named System.Threading.Mutex; WaitOne(0)=true; ReleaseMutex succeeded",
+  "scope": "availability only"
+}

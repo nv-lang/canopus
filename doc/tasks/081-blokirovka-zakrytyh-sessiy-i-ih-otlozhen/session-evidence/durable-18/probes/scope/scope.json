@@ -1,0 +1,82 @@
+{
+  "rawLocator": "081-durable18-scope-VHuzv1",
+  "platform": "win32",
+  "node": "v24.15.0",
+  "Tms": 120000,
+  "children": [
+    {
+      "mode": "recover",
+      "pid": 95284,
+      "mutexName": "Local\\CrewHarness081Durable18-c989df57-486a-4201-80ba-aabaa1bf4cf2",
+      "closed": true,
+      "code": 0,
+      "signal": null,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "mode": "owner",
+      "pid": 84268,
+      "mutexName": "Local\\CrewHarness081Durable18-c989df57-486a-4201-80ba-aabaa1bf4cf2",
+      "closed": true,
+      "code": 4294967295,
+      "signal": null,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "intent": {
+    "S": {
+      "project": "fixture",
+      "sessionID": "A",
+      "generation": 1
+    },
+    "R": {
+      "project": "fixture",
+      "sessionID": "A",
+      "generation": 1
+    },
+    "O": {
+      "id": "bounded-write",
+      "generation": 1
+    },
+    "effectID": "spawn#1",
+    "state": "admitted",
+    "outcome": "unknown",
+    "scope": null
+  },
+  "C": {
+    "sessionID": "A",
+    "generation": 1,
+    "revoked": true,
+    "outcome": "unresolved",
+    "reason": "admitted effect has no authoritative OS scope"
+  },
+  "recovery": {
+    "closeSuccess": false,
+    "outcome": "unknown",
+    "abandoned": true,
+    "replay": "not-executed",
+    "state": "admitted",
+    "effectID": "spawn#1"
+  },
+  "writer": {
+    "outcome": "written",
+    "C": {
+      "sessionID": "A",
+      "generation": 1,
+      "revoked": true,
+      "outcome": "unresolved",
+      "reason": "admitted effect has no authoritative OS scope"
+    }
+  },
+  "observerExit": {
+    "instrumentationOnly": true,
+    "exitCode": 0,
+    "pid": 35452,
+    "waitedExactHandle": true
+  },
+  "beforeSHA256": "4bc2f995f3746a98ddd862177035931feb3007b3ffcb1d9c68e89e210d00c34c",
+  "afterSHA256": "cbe1c785f3208cac53ab143ac40995cf2dc5877704c5b17e2603716c0f8d68b3",
+  "B": true
+}

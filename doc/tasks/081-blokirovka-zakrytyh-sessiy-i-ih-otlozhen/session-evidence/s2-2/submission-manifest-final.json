@@ -1,0 +1,143 @@
+{
+  "kind": "final actual-output manifest for handoff",
+  "task": 81,
+  "session": "С2-2",
+  "launch": 4,
+  "pass": 2,
+  "branch": "task/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen",
+  "head": "26429fa11424f4a5bb0b6a595dc0a95cea6e1601",
+  "review_first_line": "Заход 2: существенных 5, поверхностных 2, проб 5",
+  "artifacts": [
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-review-2.md",
+      "bytes": 29162,
+      "sha256": "6aedb3d334f6c5e841dfb9a9fac44d8d9a4f7520fc41bd4f1253c84c42005333"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/progress.log",
+      "bytes": 2653,
+      "sha256": "808bf764c4ae94fd35829126943d55fe8e1af7a0ea8543cf880a9ea7624d2bb0"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/profile.log",
+      "bytes": 416,
+      "sha256": "174f6399b3f3dc1ecf72a5e5006ec8a27c125e32b3dde1017319cbf431edc955"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/usage.log",
+      "bytes": 2455,
+      "sha256": "e87b2933030936520e32f8d976d26357f813fc18ee5ababdcd5ad91ea2d282d2"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/after-corrected.json",
+      "bytes": 4730,
+      "sha256": "b8c794a8394bc175929bc5306a4deb9afb1f70d0126567cd70fe05baa1a59b1f"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/after-final.json",
+      "bytes": 4981,
+      "sha256": "a8be0435316f0feed4f2a22e5bd7f5debbea28ecca144800bb3161daed229494"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/after-manifest.json",
+      "bytes": 4461,
+      "sha256": "33a8b768895b05e2d436e9849fe9a9774e24ce93c3393f3d98bf71ab15d8a8c1"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/api-readonly.json",
+      "bytes": 1129,
+      "sha256": "f0db29ab7a7c0be3d479db60232706bd954ad4c8f22ab378fe348f32000fdb90"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/before-corrected.json",
+      "bytes": 2919,
+      "sha256": "1bff31c419a575253217ad721187098994d60dee59aea8a32080b67e610ca4c2"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/before.json",
+      "bytes": 1898,
+      "sha256": "2f7ad5e67bd0352e09c4ef0ffa0aa129f5503c8b31794d20af0af7205e0828d8"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/contract-audit.md",
+      "bytes": 5321,
+      "sha256": "98a4f2317308e0c417c040a3d7aa03b318a2e27860df27214504d661a60d636a"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/coverage-reconciliation.json",
+      "bytes": 5828,
+      "sha256": "ad44bf2c1a51c6faa7dbe0bc1214cdd97328f8ad3898353d880fbf5566e8a5d7"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/forensic-verification.json",
+      "bytes": 2326,
+      "sha256": "9f4276b2a25887be92ca83b355c396635514ec5ea1d30f2ce998c1e1b6acadd1"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/package-doc-audit.md",
+      "bytes": 1836,
+      "sha256": "f86acbdd43804cf850b374508d40f5c9c8e40d122d357b61f6b5e1891ac84f52"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/package-doc-probe-plan.md",
+      "bytes": 509,
+      "sha256": "a7c1928cc87f29abbafa3de8288d6ab6b29f0ab787a7ac5b0c9e7504e4065bbd"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/probe-plan.md",
+      "bytes": 2847,
+      "sha256": "c7eac97457a80f9d8e37cf6b8d32a2970fd3218e823167db50d1ae417c8f3821"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/public-path-probe-initial-error.md",
+      "bytes": 1492,
+      "sha256": "4cf52e0017575e9b6307ae247e939e2f9327ce71cf1220f847f4a2f2e2a71ca4"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/public-path-probe-plan.md",
+      "bytes": 874,
+      "sha256": "96c2f125c13caa80c83d78a53effd95c1f791033e367f1dced611b189677db9d"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/read-map.md",
+      "bytes": 4500,
+      "sha256": "cd1d5970275a1bc3d1ba256f0abd259d4ef9019b022e0924276d77391f04372c"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/requirement-map.md",
+      "bytes": 7333,
+      "sha256": "0379aa4c9fa3c5fca657bfeb3d8dfbb947aa0146f080b16f5a4412c7a3562a43"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/source-hash-plan.md",
+      "bytes": 756,
+      "sha256": "c5e630d1d9fafefa157be56196dd8033079db0bd8f89fe3a12f33e4c84239253"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/source-preservation.json",
+      "bytes": 3366,
+      "sha256": "1a723e727a9aead0f768707b833a5f7b939212048a5aa01a6df43d7ef3a45cfb"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/submission-manifest.json",
+      "bytes": 5388,
+      "sha256": "d642a2f7b0d8d1d00bbf27b7fe27fb406ab5ab1d5088e26110e032c48215671b"
+    }
+  ],
+  "verified_source_bytes": {
+    "author_sources_match": true,
+    "prior_evidence_count": 11,
+    "87_intake_copy_verification": "session-evidence/s2-2/forensic-verification.json"
+  },
+  "after_check": "session-evidence/s2-2/after-final.json; late snapshot, 0 unexpected changed/missing baseline paths",
+  "limitations": [
+    "early before snapshots incomplete; late reconciliation does not retroactively repair them",
+    "external gitdir contents not inventoried",
+    "raw run1 original archives/CMake logs still missing",
+    "full code fix, tests, fence and Nova #94 release not done"
+  ],
+  "tests_builds_mutations": "not run / prohibited in this review",
+  "code_config_plan_changes": "none",
+  "no_commit_or_push": true,
+  "prior_manifest": "submission-manifest.json is retained; this final manifest adds later evidence and usage accounting"
+}

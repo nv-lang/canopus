@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>138 — эскиз 05 «Диспетчерская: доска + учёт»</title>
+<style>
+  :root {
+    --bg: #101314;
+    --panel: #171b1d;
+    --panel2: #1d2225;
+    --line: #2b3237;
+    --text: #d8dcde;
+    --muted: #8a939a;
+    --dim: #5c656b;
+    --amber: #d29922;
+    --green: #3fb950;
+    --red: #f85149;
+    --blue: #58a6ff;
+    --steel: #7e9cc4;
+    --mono: "Cascadia Mono", Consolas, "Courier New", monospace;
+    --sans: "Segoe UI", system-ui, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0b0d0e; color: var(--text); font-family: var(--sans); font-size: 13px; padding: 14px 18px; }
+
+  .board { display: flex; align-items: baseline; gap: 24px; padding: 2px 2px 10px; }
+  .eyebrow { font: 10px var(--mono); letter-spacing: 2px; color: var(--dim); }
+  .board h1 { font-size: 21px; font-weight: 600; margin-top: 3px; }
+  .board .note { color: var(--muted); font-size: 12px; flex: 1; }
+  .draft { font: 10px var(--mono); color: var(--dim); border: 1px solid var(--line); padding: 3px 8px; border-radius: 3px; }
+
+  .console { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+
+  .statusbar {
+    display: flex; align-items: center; gap: 18px;
+    font: 11px var(--mono); color: var(--muted);
+    background: var(--panel); border-bottom: 1px solid var(--line); padding: 6px 12px;
+  }
+  .statusbar b { color: var(--text); font-weight: 600; }
+  .statusbar .ok { color: var(--green); }
+  .statusbar .spacer { flex: 1; }
+
+  .attention { border-bottom: 1px solid var(--line); background: #1a1710; display: flex; align-items: center; gap: 8px; padding: 6px 12px; }
+  .attention .count { background: var(--amber); color: #111; padding: 0 6px; border-radius: 2px; font: 700 11px var(--mono); }
+  .attention .lead { font: 11px var(--mono); color: var(--amber); }
+  .attention .who { font: 11px var(--mono); color: var(--text); }
+  .attention .what { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .attention .more { margin-left: auto; font: 10.5px var(--mono); color: var(--dim); white-space: nowrap; }
+
+  .main { display: grid; grid-template-columns: 1.15fr 1.3fr; min-height: 690px; }
+
+  /* доска: одна строка на задачу, чип состояния */
+  .boardpane { border-right: 1px solid var(--line); display: flex; flex-direction: column; }
+  .pane-head { display: flex; align-items: baseline; gap: 12px; padding: 8px 12px 6px; border-bottom: 1px solid var(--line); font: 11px var(--mono); color: var(--dim); letter-spacing: 1px; }
+  .pane-head .filter { margin-left: auto; color: var(--muted); }
+
+  .trow {
+    display: grid; grid-template-columns: 40px 1fr 64px 92px 78px 52px;
+    gap: 8px; align-items: center; padding: 5px 12px;
+    border-left: 2px solid transparent; border-bottom: 1px solid #202628;
+  }
+  .trow:hover { background: var(--panel2); }
+  .trow.selected { background: var(--panel2); border-left-color: var(--blue); }
+  .trow .no { font: 12px var(--mono); color: var(--muted); }
+  .trow .name { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .trow .name small { display: block; font: 10.5px var(--mono); color: var(--dim); font-weight: 400; }
+  .trow .sess { font: 10.5px var(--mono); color: var(--muted); white-space: nowrap; }
+  .trow .prog { display: flex; align-items: center; gap: 6px; }
+  .trow .bar { flex: 1; height: 4px; background: #262c31; border-radius: 2px; overflow: hidden; }
+  .trow .bar i { display: block; height: 100%; background: var(--green); }
+  .trow .kn { font: 10px var(--mono); color: var(--muted); }
+  .trow .age { font: 10.5px var(--mono); color: var(--dim); text-align: right; }
+
+  .chip { font: 600 9.5px var(--mono); padding: 1px 6px; border-radius: 2px; white-space: nowrap; justify-self: start; letter-spacing: .5px; }
+  .chip.run   { color: var(--green); border: 1px solid #234028; background: #12241a; }
+  .chip.wait  { color: var(--amber); border: 1px solid #4a3a16; background: #1f1a0e; }
+  .chip.stuck { color: var(--red);   border: 1px solid #5a2622; background: #251311; }
+  .chip.done  { color: var(--dim);   border: 1px solid var(--line); }
+
+  .boardfoot { margin-top: auto; border-top: 1px solid var(--line); padding: 7px 12px; font: 10.5px var(--mono); color: var(--dim); display: flex; gap: 16px; }
+
+  /* деталь задачи с вкладками */
+  .detail { display: flex; flex-direction: column; background: var(--panel); }
+  .detail-head { padding: 8px 12px 0; }
+  .detail-title { display: flex; align-items: center; gap: 10px; padding-bottom: 7px; }
+  .detail-title h2 { font-size: 13.5px; font-weight: 600; }
+  .detail-title .meta { margin-left: auto; font: 10.5px var(--mono); color: var(--dim); }
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); font: 11.5px var(--mono); }
+  .tabs span { padding: 5px 10px; color: var(--muted); border-bottom: 2px solid transparent; }
+  .tabs span b { color: var(--dim); font-weight: 400; }
+  .tabs .on { color: var(--text); border-bottom-color: var(--blue); }
+
+  .usage { padding: 10px 12px; overflow: hidden; }
+  .usage-summary { display: flex; gap: 22px; font: 11px var(--mono); color: var(--muted); padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  .usage-summary b { color: var(--text); font-weight: 600; }
+
+  .usage h4 { font: 10px var(--mono); color: var(--dim); letter-spacing: 2px; padding: 12px 0 6px; }
+
+  table.stages { width: 100%; border-collapse: collapse; font: 11.5px var(--mono); }
+  table.stages th { text-align: left; color: var(--dim); font-weight: 400; font-size: 10px; letter-spacing: 1px; padding: 3px 8px 3px 0; border-bottom: 1px solid var(--line); }
+  table.stages td { padding: 5px 8px 5px 0; border-bottom: 1px solid #202628; color: var(--text); }
+  table.stages td.num { text-align: right; color: var(--muted); }
+  table.stages th.num { text-align: right; }
+  table.stages .who { color: var(--steel); }
+
+  .meters { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 26px; padding-top: 4px; }
+  .meter { display: grid; grid-template-columns: 86px 1fr 64px; align-items: center; gap: 8px; font: 10.5px var(--mono); color: var(--muted); padding: 2.5px 0; }
+  .meter .m-bar { height: 7px; background: #22282c; border-radius: 2px; overflow: hidden; }
+  .meter .m-bar i { display: block; height: 100%; }
+  .meter .m-val { text-align: right; color: var(--dim); }
+  .m-blue  { background: var(--steel); }
+  .m-green { background: #3d7a4c; }
+  .m-grey  { background: #6b757c; }
+  .m-amber { background: #8a6d1f; }
+
+  .usage-note { font: 10px var(--mono); color: var(--dim); padding-top: 10px; }
+
+  .footbar { display: flex; gap: 18px; padding: 6px 12px; border-top: 1px solid var(--line); background: var(--panel); font: 10.5px var(--mono); color: var(--dim); }
+  .footbar .warn { color: var(--amber); }
+
+  .board-footer { display: flex; justify-content: space-between; padding: 10px 2px 0; font: 10.5px var(--mono); color: var(--dim); }
+</style>
+</head>
+<body>
+  <header class="board">
+    <div><span class="eyebrow">CREWHARNESS / ДИЗАЙН 138</span><h1>05 — Диспетчерская: доска + учёт</h1></div>
+    <p class="note">Строки доски с чипами состояния; деталь задачи — вкладки (Разговор · Ход · Результаты · Проверки · Учёт · Отчёт), открыт «Учёт» из данных usage.log.</p>
+    <span class="draft">ЭСКИЗ · данные вымышлены</span>
+  </header>
+
+  <div class="console">
+    <div class="statusbar">
+      <b>CREWHARNESS</b>
+      <span>crew-harness</span>
+      <span class="ok">● connected</span>
+      <span>очередь машины: 1</span>
+      <span>замок: свободен</span>
+      <span class="spacer"></span>
+      <span>события</span>
+      <span>03:12</span>
+    </div>
+
+    <div class="attention">
+      <span class="count">3</span><span class="lead">ЖДУТ ВАС</span>
+      <span class="who">138 исп</span><span class="what">«Какую сетку доски берём — плитки или строки?» · 12м</span>
+      <span class="more">ещё 2 · с 02:47</span>
+    </div>
+
+    <div class="main">
+      <section class="boardpane">
+        <div class="pane-head">ДОСКА <span class="filter">все ▾</span></div>
+
+        <div class="trow selected">
+          <span class="no">138</span>
+          <span class="name">Новый дизайн веб-пульта<small>исп · разговор с владельцем</small></span>
+          <span class="chip run">ИДЁТ</span>
+          <span class="prog"><span class="bar"><i style="width:17%"></i></span><span class="kn">1/6</span></span>
+          <span class="sess">исп 1/6</span>
+          <span class="age">24м</span>
+        </div>
+        <div class="trow">
+          <span class="no">137</span>
+          <span class="name">Server streaming fix<small>С5-2 · реализация</small></span>
+          <span class="chip run">ИДЁТ</span>
+          <span class="prog"><span class="bar"><i style="width:64%"></i></span><span class="kn">7/11</span></span>
+          <span class="sess">С5-2</span>
+          <span class="age">1ч 08м</span>
+        </div>
+        <div class="trow">
+          <span class="no">135</span>
+          <span class="name">Карточки задач в пульте<small>С3-1 · план</small></span>
+          <span class="chip run">ИДЁТ</span>
+          <span class="prog"><span class="bar"><i style="width:44%"></i></span><span class="kn">4/9</span></span>
+          <span class="sess">С3-1</span>
+          <span class="age">52м</span>
+        </div>
+        <div class="trow">
+          <span class="no">061</span>
+          <span class="name">Канон и актуальная методика<small>С2-5 · ворота, вопроса нет</small></span>
+          <span class="chip wait">ЖДЁТ</span>
+          <span class="prog"><span class="bar"><i style="width:100%"></i></span><span class="kn">34/34</span></span>
+          <span class="sess">С2-5</span>
+          <span class="age">22ч</span>
+        </div>
+        <div class="trow">
+          <span class="no">094</span>
+          <span class="name">Console Claude layout<small>прм · приёмка 9/12</small></span>
+          <span class="chip wait">ЖДЁТ</span>
+          <span class="prog"><span class="bar"><i style="width:75%"></i></span><span class="kn">9/12</span></span>
+          <span class="sess">прм</span>
+          <span class="age">39м</span>
+        </div>
+        <div class="trow">
+          <span class="no">099</span>
+          <span class="name">Session server<small>исп · молчит с 01:40</small></span>
+          <span class="chip stuck">ЗАСТРЯЛА</span>
+          <span class="prog"><span class="bar"><i style="width:30%;background:var(--red)"></i></span><span class="kn">3/10</span></span>
+          <span class="sess">исп ⚠</span>
+          <span class="age">1ч 32м</span>
+        </div>
+        <div class="trow">
+          <span class="no">133</span>
+          <span class="name">Миграция legacy-писем<small>сдана · убрана</small></span>
+          <span class="chip done">СДАНА</span>
+          <span class="prog"><span class="bar"><i style="width:100%"></i></span><span class="kn">8/8</span></span>
+          <span class="sess">✓</span>
+          <span class="age">вчера</span>
+        </div>
+
+        <div class="boardfoot"><span>строк: 7 · обновление 2 с</span><span>все: /crew</span></div>
+      </section>
+
+      <section class="detail">
+        <div class="detail-head">
+          <div class="detail-title">
+            <h2>137 Server streaming fix</h2>
+            <span class="chip run">ИДЁТ</span>
+            <span class="chip done">БЫСТРЫЙ ПУТЬ</span>
+            <span class="meta">task/137… · OpenCode</span>
+          </div>
+          <div class="tabs">
+            <span>Разговор</span><span>Ход <b>7/11</b></span><span>Результаты <b>3</b></span><span>Проверки</span><span class="on">Учёт</span><span>Отчёт</span>
+          </div>
+        </div>
+
+        <div class="usage">
+          <div class="usage-summary">
+            <span>сессий <b>3</b></span>
+            <span>время <b>1ч 04м</b></span>
+            <span>токены <b>412 тыс</b></span>
+            <span>стоимость <b>$0 · подписка</b></span>
+          </div>
+
+          <h4>СЕССИИ ЗАДАЧИ</h4>
+          <table class="stages">
+            <tr><th>Сессия</th><th>Модель</th><th class="num">Время</th><th class="num">Токены</th><th class="num">Ст-ть</th></tr>
+            <tr><td>С5-1 реализация</td><td class="who">sonnet</td><td class="num">31м 12с</td><td class="num">188 тыс</td><td class="num">—</td></tr>
+            <tr><td>С5д-1 доработка</td><td class="who">sonnet</td><td class="num">18м 44с</td><td class="num">121 тыс</td><td class="num">—</td></tr>
+            <tr><td>С5-2 реализация</td><td class="who">kimi-k3</td><td class="num">14м 07с</td><td class="num">103 тыс</td><td class="num">—</td></tr>
+          </table>
+
+          <h4>ВРЕМЯ ПО МОДЕЛЯМ</h4>
+          <div class="meters">
+            <div class="meter"><span>sonnet</span><span class="m-bar"><i class="m-blue" style="width:78%"></i></span><span class="m-val">49м 56с</span></div>
+            <div class="meter"><span>kimi-k3</span><span class="m-bar"><i class="m-green" style="width:22%"></i></span><span class="m-val">14м 07с</span></div>
+          </div>
+
+          <h4>ТОКЕНЫ ПО МОДЕЛЯМ</h4>
+          <div class="meters">
+            <div class="meter"><span>sonnet</span><span class="m-bar"><i class="m-grey" style="width:75%"></i></span><span class="m-val">309 тыс</span></div>
+            <div class="meter"><span>kimi-k3</span><span class="m-bar"><i class="m-amber" style="width:25%"></i></span><span class="m-val">103 тыс</span></div>
+          </div>
+
+          <div class="usage-note">источник: usage.log задачи · кэш входа не тарифицируется · прерывания таймаутом не списываются</div>
+        </div>
+
+        <div class="footbar" style="border-top:1px solid var(--line); margin-top:auto">
+          <span>ветка task/137-… · контекст 24%</span>
+          <span style="margin-left:auto">написать исполнителю · разговор</span>
+        </div>
+      </section>
+    </div>
+
+    <div class="footbar">
+      <span>ход: 137 С5-2 7/11 · 135 С3-1 4/9 · 138 исп 1/6</span>
+      <span class="warn">⧗ гейт 099 ждёт слот очереди 12м</span>
+      <span style="margin-left:auto">просроченных вопросов: 0</span>
+    </div>
+  </div>
+
+  <footer class="board-footer"><span>05 / Чипы состояния · вкладки задачи · учёт из usage.log</span><span>Макет, не работающий пульт</span></footer>
+</body>
+</html>

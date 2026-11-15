@@ -1,0 +1,108 @@
+﻿{
+    "scope":  "exact session ID and current watch directory snapshot",
+    "oldSessionRecordCount":  8,
+    "records":  [
+                    {
+                        "id":  "1792179830027-y3slcn",
+                        "extension":  ".json",
+                        "bytes":  529,
+                        "sha256":  "957468DA0CA7A26B24F41F722DC9E3D99DA38C6C6BF28349696D6D9E592C0BEA",
+                        "status":  "done",
+                        "recordedPid":  51984,
+                        "started":  1792179834095,
+                        "ended":  1792183435105,
+                        "code":  0
+                    },
+                    {
+                        "id":  "1792183468927-mmg9gt",
+                        "extension":  ".json",
+                        "bytes":  534,
+                        "sha256":  "5CF8DF271E685FCF056A4E4B682BA75391AE181DED49150E8D43EEC624AA0B6A",
+                        "status":  "done",
+                        "recordedPid":  86692,
+                        "started":  1792183472151,
+                        "ended":  1792187074548,
+                        "code":  0
+                    },
+                    {
+                        "id":  "1792187099073-itfcuj",
+                        "extension":  ".json",
+                        "bytes":  534,
+                        "sha256":  "92BA3BBF2D52442B0B0424F314F0E4C38C348F2654223BC8DA0373836C330A41",
+                        "status":  "done",
+                        "recordedPid":  34072,
+                        "started":  1792187104058,
+                        "ended":  1792190712372,
+                        "code":  0
+                    },
+                    {
+                        "id":  "1792190755214-ea51zn",
+                        "extension":  ".json",
+                        "bytes":  534,
+                        "sha256":  "08BA3F3390CEDEB75284D93923A47AA183ACD654CB250D2A090D679F3F833E15",
+                        "status":  "done",
+                        "recordedPid":  56580,
+                        "started":  1792190763259,
+                        "ended":  1792194365230,
+                        "code":  0
+                    },
+                    {
+                        "id":  "1792194428378-i8kvs7",
+                        "extension":  ".json",
+                        "bytes":  535,
+                        "sha256":  "07727C9AB5A17CB883D373F0C67881C43901E141F009F2979818B30903CE6610",
+                        "status":  "done",
+                        "recordedPid":  84596,
+                        "started":  1792194441714,
+                        "ended":  1792209960591,
+                        "code":  0
+                    },
+                    {
+                        "id":  "1792209979806-8xdhpt",
+                        "extension":  ".json",
+                        "bytes":  531,
+                        "sha256":  "E041FB8F48879A62744F9B334C79849A8A9080AE3574A54BEDC672DFC17CC2CE",
+                        "status":  "done",
+                        "recordedPid":  52844,
+                        "started":  1792209981558,
+                        "ended":  1792224381141,
+                        "code":  0
+                    },
+                    {
+                        "id":  "1792224406828-s0k28y",
+                        "extension":  ".json",
+                        "bytes":  531,
+                        "sha256":  "86CF159AA95A010EB9FCF8F92167BB17439A62D125B22FE9889B5F18D9A5E126",
+                        "status":  "done",
+                        "recordedPid":  66548,
+                        "started":  1792224407768,
+                        "ended":  1792238809574,
+                        "code":  0
+                    },
+                    {
+                        "id":  "1792264172390-3ns1ev",
+                        "extension":  ".json",
+                        "bytes":  649,
+                        "sha256":  "F40CAD12D7FAD39B6D8EBE30219BF1814EF826DA8640EA4826B04D93A547AB18",
+                        "status":  "done",
+                        "recordedPid":  81232,
+                        "started":  1792264175512,
+                        "ended":  1792264214516,
+                        "code":  0
+                    }
+                ],
+    "requestedOrClaimCount":  0,
+    "processQuery":  {
+                         "fields":  [
+                                        "ProcessId",
+                                        "ParentProcessId",
+                                        "Name",
+                                        "CreationDate"
+                                    ],
+                         "recordedPidCount":  8,
+                         "matches":  [
+
+                                     ],
+                         "limitations":  "PID/PPID snapshot only; creation identity compared without command line or environment; cannot exclude detached/reparented descendants or future requests."
+                     }
+}

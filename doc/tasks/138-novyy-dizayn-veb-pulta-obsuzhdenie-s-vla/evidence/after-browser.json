@@ -1,0 +1,86 @@
+{
+  "baseline": false,
+  "captureOnly": true,
+  "policy": "default-src 'self'; connect-src 'self' ws://127.0.0.1:*",
+  "captures": [
+    {
+      "theme": "light",
+      "width": 1440,
+      "height": 1000,
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "bodyWidth": 1440,
+      "composerOnScreen": true,
+      "columns": true,
+      "localFonts": [
+        "Manrope",
+        "Manrope",
+        "JetBrains Mono",
+        "JetBrains Mono"
+      ]
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "height": 844,
+      "viewport": 390,
+      "documentWidth": 390,
+      "bodyWidth": 390,
+      "composerOnScreen": true,
+      "columns": false,
+      "localFonts": [
+        "Manrope",
+        "Manrope",
+        "JetBrains Mono",
+        "JetBrains Mono"
+      ]
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "height": 1000,
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "bodyWidth": 1440,
+      "composerOnScreen": true,
+      "columns": true,
+      "localFonts": [
+        "Manrope",
+        "Manrope",
+        "JetBrains Mono",
+        "JetBrains Mono"
+      ]
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "height": 844,
+      "viewport": 390,
+      "documentWidth": 390,
+      "bodyWidth": 390,
+      "composerOnScreen": true,
+      "columns": false,
+      "localFonts": [
+        "Manrope",
+        "Manrope",
+        "JetBrains Mono",
+        "JetBrains Mono"
+      ]
+    }
+  ],
+  "probes": [],
+  "errors": [],
+  "external": [],
+  "checkoutCommit": "1788fff5f5e22b6d31165c33d3d5057d0524ce25",
+  "sourceMode": "рабочая копия src/web",
+  "sourceDirty": true,
+  "sourceHashes": {
+    "index.html": "0dc4703cb381ae4cce543a2e6728a3a55ec1e9902feda5e2396d48e8b325ffef",
+    "app.js": "bd100a047e6e8f0c091617cf5cda9eaac75a34aa589e683c6a30e6c29f7b6eb1",
+    "app.css": "ea4bc609af5e05bcd370ae794d3dcf8b5ea9d855d9b76d7d672c13842284c5da",
+    "view.js": "da90b78aaf7447a3c5ef6dc74435b9de0220d89bd8d00317436988ac3bc886be",
+    "strings.js": "39a2fbf70af06fbb771cd85d346e604442c30dbbda74c4eb2eb864f5373ad7ab",
+    "state.js": "fa747f868131fc281b7456150376e9de18322be7c7541800a9fd13f87ca61981",
+    "transport.js": "15dc1127727b57c21e61b6e4e0212c3abee2065017b0ac25fb84147a42002eb5"
+  }
+}

@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>138 — эскиз 04 «Диспетчерская»</title>
+<style>
+  :root {
+    --bg: #101314;
+    --panel: #171b1d;
+    --panel2: #1d2225;
+    --line: #2b3237;
+    --text: #d8dcde;
+    --muted: #8a939a;
+    --dim: #5c656b;
+    --amber: #d29922;
+    --green: #3fb950;
+    --red: #f85149;
+    --blue: #58a6ff;
+    --mono: "Cascadia Mono", Consolas, "Courier New", monospace;
+    --sans: "Segoe UI", system-ui, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0b0d0e; color: var(--text); font-family: var(--sans); font-size: 13px; padding: 14px 18px; }
+
+  /* рамка эскиза */
+  .board { display: flex; align-items: baseline; gap: 24px; padding: 2px 2px 10px; }
+  .eyebrow { font: 10px var(--mono); letter-spacing: 2px; color: var(--dim); }
+  .board h1 { font-size: 21px; font-weight: 600; margin-top: 3px; }
+  .board .note { color: var(--muted); font-size: 12px; flex: 1; }
+  .draft { font: 10px var(--mono); color: var(--dim); border: 1px solid var(--line); padding: 3px 8px; border-radius: 3px; }
+
+  .console { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+
+  /* верхняя статус-строка */
+  .statusbar {
+    display: flex; align-items: center; gap: 18px;
+    font: 11px var(--mono); color: var(--muted);
+    background: var(--panel); border-bottom: 1px solid var(--line);
+    padding: 6px 12px;
+  }
+  .statusbar b { color: var(--text); font-weight: 600; }
+  .statusbar .ok { color: var(--green); }
+  .statusbar .spacer { flex: 1; }
+
+  /* полоса «ждут вас» */
+  .attention { border-bottom: 1px solid var(--line); background: #1a1710; }
+  .attention-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 12px 5px; font: 11px var(--mono); color: var(--amber);
+  }
+  .attention-head .count { background: var(--amber); color: #111; padding: 0 6px; border-radius: 2px; font-weight: 700; }
+  .attention-row {
+    display: flex; gap: 10px; align-items: baseline;
+    padding: 3px 12px 3px 26px; font-size: 12px; cursor: default;
+  }
+  .attention-row:last-child { padding-bottom: 7px; }
+  .attention-row .mark { font-family: var(--mono); color: var(--amber); width: 12px; }
+  .attention-row .who { font-family: var(--mono); color: var(--text); white-space: nowrap; }
+  .attention-row .what { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .attention-row .age { margin-left: auto; font: 11px var(--mono); color: var(--dim); }
+
+  .main { display: grid; grid-template-columns: 1.35fr 1fr; min-height: 690px; }
+
+  /* доска задач */
+  .boardpane { border-right: 1px solid var(--line); display: flex; flex-direction: column; }
+  .pane-head {
+    display: flex; align-items: baseline; gap: 12px;
+    padding: 8px 12px 6px; border-bottom: 1px solid var(--line);
+    font: 11px var(--mono); color: var(--dim); letter-spacing: 1px;
+  }
+  .pane-head .filter { margin-left: auto; color: var(--muted); }
+  .group-label { font: 10px var(--mono); color: var(--dim); letter-spacing: 2px; padding: 10px 12px 4px; }
+
+  .trow {
+    display: grid; grid-template-columns: 44px 1fr 118px 130px 66px;
+    gap: 10px; align-items: center;
+    padding: 5px 12px; border-left: 2px solid transparent; cursor: default;
+  }
+  .trow:hover { background: var(--panel2); }
+  .trow.selected { background: var(--panel2); border-left-color: var(--blue); }
+  .trow .no { font: 12px var(--mono); color: var(--muted); }
+  .trow .name { overflow: hidden; }
+  .trow .name b { font-weight: 600; font-size: 12.5px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .trow .name small { color: var(--dim); font: 10.5px var(--mono); }
+  .trow .sess { font: 11px var(--mono); color: var(--muted); white-space: nowrap; }
+  .trow .prog { display: flex; align-items: center; gap: 7px; }
+  .trow .bar { flex: 1; height: 4px; background: #262c31; border-radius: 2px; overflow: hidden; }
+  .trow .bar i { display: block; height: 100%; background: var(--green); }
+  .trow .kn { font: 10.5px var(--mono); color: var(--muted); white-space: nowrap; }
+  .trow .age { font: 11px var(--mono); color: var(--dim); text-align: right; }
+  .trow.wait .markdot { color: var(--amber); }
+  .trow.stuck .no, .trow.stuck .sess { color: var(--red); }
+  .trow.stuck .bar i { background: var(--red); }
+  .trow.done { opacity: .45; }
+
+  .boardfoot {
+    margin-top: auto; border-top: 1px solid var(--line);
+    padding: 7px 12px; font: 10.5px var(--mono); color: var(--dim);
+    display: flex; gap: 16px;
+  }
+
+  /* разговор выбранной задачи */
+  .chatpane { display: flex; flex-direction: column; background: var(--panel); }
+  .chat-head { padding: 8px 12px 6px; border-bottom: 1px solid var(--line); display: flex; align-items: baseline; gap: 10px; }
+  .chat-head h2 { font-size: 13px; font-weight: 600; }
+  .chat-head .tag { font: 10px var(--mono); color: var(--green); border: 1px solid #234028; padding: 1px 6px; border-radius: 2px; }
+  .chat-head .meta { margin-left: auto; font: 10.5px var(--mono); color: var(--dim); }
+  .thread { flex: 1; padding: 10px 12px; overflow: hidden; }
+  .msg { margin-bottom: 12px; }
+  .msg .m-meta { font: 10.5px var(--mono); color: var(--dim); margin-bottom: 3px; display: flex; gap: 8px; }
+  .msg .m-meta b { color: var(--muted); font-weight: 600; }
+  .msg .m-body { font-size: 12.5px; line-height: 1.45; color: var(--text); }
+  .msg.user .m-body { color: var(--blue); }
+  .msg .m-body code { font-family: var(--mono); font-size: 11.5px; background: #22282c; padding: 1px 4px; border-radius: 2px; }
+  .workline { font: 11px var(--mono); color: var(--muted); border-left: 2px solid var(--line); padding: 2px 0 2px 8px; margin: 6px 0; }
+  .workline .ok { color: var(--green); }
+
+  .facts { border-top: 1px solid var(--line); padding: 7px 12px; display: flex; gap: 18px; font: 10.5px var(--mono); color: var(--dim); }
+  .facts b { color: var(--muted); font-weight: 400; }
+  .facts .ctx { display: flex; align-items: center; gap: 6px; }
+  .facts .ctxbar { width: 60px; height: 4px; background: #262c31; border-radius: 2px; overflow: hidden; }
+  .facts .ctxbar i { display: block; height: 100%; width: 24%; background: var(--blue); }
+
+  .compose { border-top: 1px solid var(--line); padding: 8px 12px; }
+  .compose .box {
+    background: var(--bg); border: 1px solid var(--line); border-radius: 4px;
+    padding: 8px 10px; color: var(--dim); font-size: 12.5px;
+    display: flex; align-items: center;
+  }
+  .compose .box .send { margin-left: auto; color: var(--muted); font-family: var(--mono); border: 1px solid var(--line); border-radius: 3px; padding: 1px 8px; }
+  .compose .hint { font: 10px var(--mono); color: var(--dim); margin-top: 5px; display: flex; justify-content: space-between; }
+
+  /* нижняя строка */
+  .footbar {
+    display: flex; gap: 18px; padding: 6px 12px;
+    border-top: 1px solid var(--line); background: var(--panel);
+    font: 10.5px var(--mono); color: var(--dim);
+  }
+  .footbar .warn { color: var(--amber); }
+
+  .board-footer { display: flex; justify-content: space-between; padding: 10px 2px 0; font: 10.5px var(--mono); color: var(--dim); }
+</style>
+</head>
+<body>
+  <header class="board">
+    <div><span class="eyebrow">CREWHARNESS / ДИЗАЙН 138</span><h1>04 — Диспетчерская</h1></div>
+    <p class="note">Обзор команды — первичный экран: ждут вас, доска задач с прогрессом; разговор — панель выбранной задачи. Строгая утилитарная подача, высокая плотность.</p>
+    <span class="draft">ЭСКИЗ · данные вымышлены</span>
+  </header>
+
+  <div class="console">
+    <div class="statusbar">
+      <b>CREWHARNESS</b>
+      <span>crew-harness</span>
+      <span class="ok">● connected</span>
+      <span>очередь машины: 1</span>
+      <span>замок: свободен</span>
+      <span class="spacer"></span>
+      <span>сессий: 6 · задач: 4</span>
+      <span>03:12</span>
+    </div>
+
+    <div class="attention">
+      <div class="attention-head"><span class="count">3</span> ЖДУТ ВАС · с 02:47</div>
+      <div class="attention-row"><span class="mark">?</span><span class="who">138 исп</span><span class="what">«Какую из двух сеток доски берём — плитки или строки?»</span><span class="age">12м</span></div>
+      <div class="attention-row"><span class="mark">⚠</span><span class="who">061 С2-5</span><span class="what">ждёт вашего решения, вопроса нет — ворота записаны 22ч назад</span><span class="age">22ч</span></div>
+      <div class="attention-row"><span class="mark">‖</span><span class="who">094 прм</span><span class="what">«жду дальнейших указаний» — приёмка остановилась после шага 9/12</span><span class="age">39м</span></div>
+    </div>
+
+    <div class="main">
+      <section class="boardpane">
+        <div class="pane-head">ДОСКА <span class="filter">фильтр: все ▾</span></div>
+
+        <div class="group-label">ИДУТ</div>
+        <div class="trow selected">
+          <span class="no">138</span>
+          <span class="name"><b>Новый дизайн веб-пульта</b><small>исп · работает</small></span>
+          <span class="sess">исп 1/6</span>
+          <span class="prog"><span class="bar"><i style="width:17%"></i></span><span class="kn">1/6</span></span>
+          <span class="age">24м</span>
+        </div>
+        <div class="trow">
+          <span class="no">137</span>
+          <span class="name"><b>Server streaming fix</b><small>С5-2 · реализация</small></span>
+          <span class="sess">С5-2 7/11</span>
+          <span class="prog"><span class="bar"><i style="width:64%"></i></span><span class="kn">7/11</span></span>
+          <span class="age">1ч 08м</span>
+        </div>
+        <div class="trow">
+          <span class="no">135</span>
+          <span class="name"><b>Карточки задач в пульте</b><small>С3-1 · план</small></span>
+          <span class="sess">С3-1 4/9</span>
+          <span class="prog"><span class="bar"><i style="width:44%"></i></span><span class="kn">4/9</span></span>
+          <span class="age">52м</span>
+        </div>
+
+        <div class="group-label">ЖДУТ ВАС</div>
+        <div class="trow wait">
+          <span class="no markdot">061</span>
+          <span class="name"><b>Канон и актуальная методика</b><small>С2-5 · проверка спецификации</small></span>
+          <span class="sess">ворота</span>
+          <span class="prog"><span class="bar"><i style="width:100%"></i></span><span class="kn">34/34</span></span>
+          <span class="age">22ч</span>
+        </div>
+        <div class="trow wait">
+          <span class="no markdot">094</span>
+          <span class="name"><b>Console Claude layout</b><small>прм · приёмка 9/12</small></span>
+          <span class="sess">прм 9/12</span>
+          <span class="prog"><span class="bar"><i style="width:75%"></i></span><span class="kn">9/12</span></span>
+          <span class="age">39м</span>
+        </div>
+
+        <div class="group-label">ЗАСТРЯЛИ</div>
+        <div class="trow stuck">
+          <span class="no">099</span>
+          <span class="name"><b>Session server</b><small>исп · молчит с 01:40</small></span>
+          <span class="sess">исп ⚠</span>
+          <span class="prog"><span class="bar"><i style="width:30%"></i></span><span class="kn">3/10</span></span>
+          <span class="age">1ч 32м</span>
+        </div>
+
+        <div class="group-label">НЕДАВНО ЗАВЕРШЕНЫ</div>
+        <div class="trow done">
+          <span class="no">133</span>
+          <span class="name"><b>Миграция legacy-писем</b><small>сдана · убрана</small></span>
+          <span class="sess">✓</span>
+          <span class="prog"><span class="bar"><i style="width:100%"></i></span><span class="kn">8/8</span></span>
+          <span class="age">вчера</span>
+        </div>
+
+        <div class="boardfoot"><span>строк: 7 · обновление 2 с</span><span>все: /crew</span></div>
+      </section>
+
+      <section class="chatpane">
+        <div class="chat-head">
+          <h2>138 Новый дизайн веб-пульта</h2>
+          <span class="tag">исп · работает</span>
+          <span class="meta">task/138… · OpenCode</span>
+        </div>
+        <div class="thread">
+          <div class="msg user">
+            <div class="m-meta"><b>Вы</b><span>02:47</span></div>
+            <div class="m-body">Три эскиза не нравятся — это один чат в трёх расцветках. Нужен пульт: обзор команды первым экраном.</div>
+          </div>
+          <div class="msg">
+            <div class="m-meta"><b>исп</b><span>02:51</span><span>модель из сессии</span></div>
+            <div class="m-body">Понял: главный экран — доска. Разговор открывается из строки задачи, контекст сворачивается в одну строку фактов.</div>
+            <div class="workline"><span class="ok">✓</span> прочитан design-direction.md · 4 файла · 11 с</div>
+            <div class="m-body">Сетку доски делаю строками, не плитками: плотнее, сортировка по состоянию, на узком экране строки складываются.</div>
+          </div>
+          <div class="msg user">
+            <div class="m-meta"><b>Вы</b><span>03:02</span></div>
+            <div class="m-body">Направление «диспетчерская» подтверждаю. Покажи тёмную утилитарную версию.</div>
+          </div>
+        </div>
+        <div class="facts">
+          <span>ветка <b>task/138-…</b></span>
+          <span>агент <b>OpenCode</b></span>
+          <span>модель <b>из сессии</b></span>
+          <span class="ctx">контекст <span class="ctxbar"><i></i></span> 24%</span>
+          <span>результаты <b>2</b></span>
+        </div>
+        <div class="compose">
+          <div class="box">Сообщение исполнителю 138… <span class="send">Enter ↵</span></div>
+          <div class="hint"><span>Enter — отправить · Shift+Enter — новая строка</span><span>ответ уйдёт письмом, если ход идёт</span></div>
+        </div>
+      </section>
+    </div>
+
+    <div class="footbar">
+      <span>ход: 137 С5-2 7/11 · 135 С3-1 4/9 · 138 исп 1/6</span>
+      <span class="warn">⧗ гейт 099 ждёт слот очереди 12м</span>
+      <span style="margin-left:auto">просроченных вопросов: 0</span>
+    </div>
+  </div>
+
+  <footer class="board-footer"><span>04 / Обзор вместо чата · строки вместо плиток · моноширинные данные</span><span>Макет, не работающий пульт</span></footer>
+</body>
+</html>

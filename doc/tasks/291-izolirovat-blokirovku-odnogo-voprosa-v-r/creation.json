@@ -1,0 +1,19 @@
+{
+  "reason": "Владелец прямо разрешил отдельное исправление после read-only подтверждения: исторический lock прерывает общий router tick и удерживает независимые вопросы без target/epoch.",
+  "checked_tasks": [
+    280,
+    281,
+    287,
+    290
+  ],
+  "why_new": "280 уже принята; 281 сдана и имеет собственную паузу/бюджет, это не разрешение расширять её scope; 287 регулирует подтверждения жизненного цикла; 290 исправляет межрепозиторный snapshot. В списке действующих задач отдельного per-record lock isolation не найдено. Владелец выбрал отдельную узкую задачу, чтобы не смешивать работы.",
+  "approval": {
+    "id": "edc06fa3f91ea29b7040c2cd3e804b21558dec064cca3b5a85bac1a23e7e3574",
+    "digest": "edc06fa3f91ea29b7040c2cd3e804b21558dec064cca3b5a85bac1a23e7e3574",
+    "session": "ses_e3eedd53effexHYN29SQMAJX01",
+    "form": "frm_canopus_edc06fa3f91ea29b7040c2cd3e804b21558dec064cca3b5a85bac1a23e7e3574",
+    "confirmed_by": "native_owner",
+    "observed": 1794424768381,
+    "evidence": "662206bddc13d702467eb6f300810cb320badac1881d3ed5304d4f01822068bd"
+  }
+}

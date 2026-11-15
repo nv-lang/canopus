@@ -1,0 +1,24 @@
+{
+  "raw": {
+    "bytes": 130581,
+    "sha256": "676911c617282bb80dc3c4bd0f6c7b575ccd319a3794dc1046634fb9f9eaa147"
+  },
+  "derivative": {
+    "bytes": 131165,
+    "sha256": "aeebd8404ff0b276d9ee17076aad9c9fe24fccccc896cb39bf38b2273230c97c"
+  },
+  "неизменные_поля": [
+    "phase",
+    "excluded_exact",
+    "files"
+  ],
+  "изменения": [
+    "root",
+    "добавлено provenance"
+  ],
+  "точный_raw_diff": "внешний freeze С1п-2 / derivative-raw.diff",
+  "публичный_diff": "derivative.diff: структурный, исходное значение root скрыто",
+  "исходный_raw": "внешний freeze интегратора С2-3 / session-evidence/s2-3/before-manifest.json",
+  "дополнительная_raw_копия": "внешний freeze С1п-2 / s2-3-before-raw.json",
+  "не_исправляет_старый_вердикт": true
+}

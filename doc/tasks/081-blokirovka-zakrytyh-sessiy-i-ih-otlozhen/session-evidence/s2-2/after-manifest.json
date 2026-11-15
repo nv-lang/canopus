@@ -1,0 +1,99 @@
+{
+  "kind": "own after vs late coverage reconciliation; not an early-before substitute",
+  "branch": "task/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen",
+  "head": "26429fa11424f4a5bb0b6a595dc0a95cea6e1601",
+  "baseline_files": 26,
+  "changed_baseline_files": [
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/progress.log",
+      "expected_bytes": 2386,
+      "actual_bytes": 2653,
+      "expected_sha256": "187c79e547120790311e8a9e9cee7a64ea1641697bc0e9ab72e4d80f87fbd9a7",
+      "actual_sha256": "808bf764c4ae94fd35829126943d55fe8e1af7a0ea8543cf880a9ea7624d2bb0"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-review-2.md",
+      "expected_bytes": 25681,
+      "actual_bytes": 26208,
+      "expected_sha256": "94167c0ca95c7a6339ffeb6323e564bd4694db0ee7d5496331d74dc8139b20d0",
+      "actual_sha256": "f0cd5009f785379905d3335fb43d20b3c2858fc92b11b231f28709b93439a33a"
+    }
+  ],
+  "missing_baseline_files": [],
+  "progress_prefix_19_lines_preserved": false,
+  "progress_prefix_lines": 19,
+  "usage_unchanged_since_snapshot": true,
+  "profile_log_new_allowed_append": true,
+  "unexpected_new_paths": [
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/"
+  ],
+  "own_outputs_excluding_this_manifest": [
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/profile.log",
+      "bytes": 416,
+      "sha256": "174f6399b3f3dc1ecf72a5e5006ec8a27c125e32b3dde1017319cbf431edc955"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/api-readonly.json",
+      "bytes": 1129,
+      "sha256": "f0db29ab7a7c0be3d479db60232706bd954ad4c8f22ab378fe348f32000fdb90"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/before-corrected.json",
+      "bytes": 2919,
+      "sha256": "1bff31c419a575253217ad721187098994d60dee59aea8a32080b67e610ca4c2"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/before.json",
+      "bytes": 1898,
+      "sha256": "2f7ad5e67bd0352e09c4ef0ffa0aa129f5503c8b31794d20af0af7205e0828d8"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/coverage-reconciliation.json",
+      "bytes": 5828,
+      "sha256": "ad44bf2c1a51c6faa7dbe0bc1214cdd97328f8ad3898353d880fbf5566e8a5d7"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/forensic-verification.json",
+      "bytes": 2326,
+      "sha256": "9f4276b2a25887be92ca83b355c396635514ec5ea1d30f2ce998c1e1b6acadd1"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/package-doc-audit.md",
+      "bytes": 1836,
+      "sha256": "f86acbdd43804cf850b374508d40f5c9c8e40d122d357b61f6b5e1891ac84f52"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/package-doc-probe-plan.md",
+      "bytes": 509,
+      "sha256": "a7c1928cc87f29abbafa3de8288d6ab6b29f0ab787a7ac5b0c9e7504e4065bbd"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/probe-plan.md",
+      "bytes": 2847,
+      "sha256": "c7eac97457a80f9d8e37cf6b8d32a2970fd3218e823167db50d1ae417c8f3821"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/requirement-map.md",
+      "bytes": 7333,
+      "sha256": "0379aa4c9fa3c5fca657bfeb3d8dfbb947aa0146f080b16f5a4412c7a3562a43"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/source-hash-plan.md",
+      "bytes": 756,
+      "sha256": "c5e630d1d9fafefa157be56196dd8033079db0bd8f89fe3a12f33e4c84239253"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/source-preservation.json",
+      "bytes": 3366,
+      "sha256": "1a723e727a9aead0f768707b833a5f7b939212048a5aa01a6df43d7ef3a45cfb"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-review-2.md",
+      "bytes": 26208,
+      "sha256": "f0cd5009f785379905d3335fb43d20b3c2858fc92b11b231f28709b93439a33a"
+    }
+  ],
+  "tests_or_mutations_run": false,
+  "snapshot_limit": "Late reconciliation includes current hidden/untracked/modified files, not historical clean state; external gitdir contents not inventoried."
+}

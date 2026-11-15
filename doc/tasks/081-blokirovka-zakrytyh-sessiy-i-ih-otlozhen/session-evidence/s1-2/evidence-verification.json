@@ -1,0 +1,43 @@
+﻿{
+    "source":  "integrator-provided immutable forensic intake, independently checked in S1-2",
+    "manifest":  {
+                     "bytes":  28762,
+                     "sha256":  "3CF640E217108BB021311523F66A8B11B9CA71B2311BC399ED2ACC2F2DA8D2C0",
+                     "entries":  87,
+                     "verifiedCopies":  87,
+                     "copyFailures":  0,
+                     "missingCount":  0
+                 },
+    "incidentDossier":  {
+                            "portableName":  "incident-phase1-double-run.json",
+                            "bytes":  15150,
+                            "sha256":  "7A1F831A85CAA227D9D3C36C45F6BF34BAB144EA29E1080B58607ED8825D9969"
+                        },
+    "runEvidence":  [
+                        {
+                            "status":  "original archives and raw CMake logs reported lost; not reconstructed",
+                            "run":  "Phase1 run1",
+                            "scope":  "run1 evidence directory present in intake",
+                            "verdict":  "cannot claim full raw preservation",
+                            "bytes":  null
+                        },
+                        {
+                            "run":  "Phase1 run2",
+                            "verdict":  "preserved by integrator intake",
+                            "status":  "foreign repeat evidence exists in intake; no modifications made"
+                        }
+                    ],
+    "ownObservation":  {
+                           "oldSession":  8,
+                           "allObservedStatusDone":  true,
+                           "requestedClaim":  0,
+                           "pidPpidMatches":  0,
+                           "limits":  "PID/PPID snapshot only; creation identity compared without command line or environment; cannot exclude detached/reparented descendants or future requests."
+                       },
+    "boundaries":  [
+                       "No environment dump; no command line or credentials read.",
+                       "Inherited intake remains unchanged.",
+                       "The exact current snapshot is not a durable fence.",
+                       "Missing=0 only means no manifest-listed copy missing; not completeness of run1."
+                   ]
+}

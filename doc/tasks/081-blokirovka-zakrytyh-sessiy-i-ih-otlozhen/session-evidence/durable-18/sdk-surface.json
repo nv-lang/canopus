@@ -1,0 +1,58 @@
+{
+  "sourceLocator": "081-opencode-2.0.26-readonly-vrnblyuy",
+  "records": [
+    {
+      "name": "@opencode/plugin",
+      "version": "2.0.26",
+      "tarSHA256": "3d51d69622270848de0382346b0becdb2a449908dca8c7afe4f665f695cbad1b"
+    },
+    {
+      "name": "@opencode/client",
+      "version": "2.0.26",
+      "tarSHA256": "fef1ba35cc5a47999500972aeec21d6c4861bc389b226a473a262c56876d9bd2"
+    }
+  ],
+  "files": [
+    {
+      "file": "plugin/package/dist/promise/session.d.ts",
+      "bytes": 5563,
+      "sha256": "08f5c8728a15839df02f505e38c4cf1b586ccd2de3885eb4f0e471730680b48b"
+    },
+    {
+      "file": "plugin/package/dist/promise/permission.d.ts",
+      "bytes": 825,
+      "sha256": "533417da01f54839b003909e11863916b171d7641d0efe47f30d347e5e45a5e3"
+    },
+    {
+      "file": "plugin/package/dist/promise/tool.d.ts",
+      "bytes": 2510,
+      "sha256": "14ead93a2c03136af9768f9f02447c5fb357d1bce12a4b38a5e9fe31a0e91eff"
+    },
+    {
+      "file": "plugin/package/dist/promise/shell.d.ts",
+      "bytes": 362,
+      "sha256": "38168a362cbc5a714efe7d7df75cd75b7896a8feb261d2b5e869c218f29041a3"
+    },
+    {
+      "file": "plugin/package/dist/promise/registration.d.ts",
+      "bytes": 710,
+      "sha256": "16436600a035f85d035e3baebb8412084119f620ee4eafc9feba1c7438f6f5ff"
+    },
+    {
+      "file": "plugin/package/dist/promise/plugin.d.ts",
+      "bytes": 2475,
+      "sha256": "ad8e00e94b4c94587800db750132a44754f42fe322d5cfb6da9fb0168ced09f1"
+    },
+    {
+      "file": "client/package/dist/promise/service.js",
+      "bytes": 5957,
+      "sha256": "2e52173e1929bf68c81ea2f62d2734d601110460df2c529ed0d1da9a78f205ae"
+    },
+    {
+      "file": "client/package/dist/chunks/service-timing-8ye1ye6f.js",
+      "bytes": 3182,
+      "sha256": "b27a6579a103bec45ee6c054b3a8f8dcc0272172b27bc9ee575ffdde8a0fa411"
+    }
+  ],
+  "boundary": "published exact-version SDK plus actual runtime OpenAPI, not executable host-hook coverage proof"
+}

@@ -1,0 +1,120 @@
+{
+  "mode": "gate",
+  "schedule": "running",
+  "expected": 0,
+  "code": 0,
+  "pid": 100000,
+  "signal": null,
+  "command": [
+    "<node>",
+    "<approved-temp>/081-sol-final-drivers-7NCYi8/lifecycle-oracle.mjs",
+    "<approved-temp>/081-prototype-base-o00ntsja/source",
+    "<approved-temp>",
+    "gate",
+    "running"
+  ],
+  "fixture": "<approved-temp>/081-sol-VDmE1w",
+  "stdoutSHA": "6b60f7648346dd922e8cabe4622e812f1d84cb5faeff287552d3052d39ccdbb9",
+  "stderrSHA": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "oracleSHA": "c274a18bcaeec4cb0b584904fabd7114e4ec7ed737c1ef65e5b96ecf85adbc98",
+  "result": {
+    "mode": "gate",
+    "schedule": "running",
+    "fixture": "<approved-temp>/081-sol-VDmE1w",
+    "base": "<approved-temp>/081-sol-VDmE1w/data/opencode/crew-harness",
+    "events": [
+      {
+        "seq": 1,
+        "type": "queued",
+        "O": "1792344442227-36qdce",
+        "S": "sol-fixture-A-generation-1"
+      },
+      {
+        "seq": 2,
+        "type": "D-observed-running",
+        "O": "1792344442227-36qdce"
+      },
+      {
+        "seq": 3,
+        "type": "actual-release-closed",
+        "S": "sol-fixture-A-generation-1",
+        "terminalCloseProven": false
+      },
+      {
+        "seq": 4,
+        "type": "owned-wrapper-children-closed"
+      },
+      {
+        "seq": 5,
+        "type": "sample",
+        "A": true,
+        "B": true
+      }
+    ],
+    "children": [
+      {
+        "pid": 41972,
+        "command": [
+          "C:/Program Files/Git/bin/bash.exe",
+          "-c",
+          "timeout 7200 bash -c 'printf ready > '/''<approved-temp>/081-sol-VDmE1w/A.ready'/''; for i in {1..400}; do [ -f '/''<approved-temp>/081-sol-VDmE1w/A.release'/'' ] && break; sleep 0.02; done; [ -f '/''<approved-temp>/081-sol-VDmE1w/A.release'/'' ] || exit 19; printf effect > '/''<approved-temp>/081-sol-VDmE1w/A.effect'/''' > '<approved-temp>/081-sol-VDmE1w/data/opencode/crew-harness/watches/1792344442227-36qdce.out' 2>&1; echo $? > '<approved-temp>/081-sol-VDmE1w/data/opencode/crew-harness/watches/1792344442227-36qdce.exit.tmp' && mv '<approved-temp>/081-sol-VDmE1w/data/opencode/crew-harness/watches/1792344442227-36qdce.exit.tmp' '<approved-temp>/081-sol-VDmE1w/data/opencode/crew-harness/watches/1792344442227-36qdce.exit'"
+        ],
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      },
+      {
+        "pid": 36960,
+        "command": [
+          "C:/Program Files/Git/bin/bash.exe",
+          "-c",
+          "timeout 7200 bash -c 'printf effect > '/''<approved-temp>/081-sol-VDmE1w/B.effect'/''' > '<approved-temp>/081-sol-VDmE1w/data/opencode/crew-harness/watches/1792344442934-7udnpr.out' 2>&1; echo $? > '<approved-temp>/081-sol-VDmE1w/data/opencode/crew-harness/watches/1792344442934-7udnpr.exit.tmp' && mv '<approved-temp>/081-sol-VDmE1w/data/opencode/crew-harness/watches/1792344442934-7udnpr.exit.tmp' '<approved-temp>/081-sol-VDmE1w/data/opencode/crew-harness/watches/1792344442934-7udnpr.exit'"
+        ],
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      }
+    ],
+    "A": {
+      "before": "running",
+      "after": "closed",
+      "effectAfterTerminalSample": true
+    },
+    "B": {
+      "status": "running",
+      "effect": true
+    },
+    "records": [
+      {
+        "id": "1792344442227-36qdce",
+        "session": "sol-fixture-A-generation-1",
+        "command": "printf ready > '<approved-temp>/081-sol-VDmE1w/A.ready'; for i in {1..400}; do [ -f '<approved-temp>/081-sol-VDmE1w/A.release' ] && break; sleep 0.02; done; [ -f '<approved-temp>/081-sol-VDmE1w/A.release' ] || exit 19; printf effect > '<approved-temp>/081-sol-VDmE1w/A.effect'",
+        "cwd": "<approved-temp>/081-sol-VDmE1w",
+        "minutes": 120,
+        "created": 1792344442227,
+        "status": "done",
+        "pid": 41972,
+        "started": 1792344442230,
+        "ended": 1792344443196,
+        "code": 0
+      },
+      {
+        "id": "1792344442934-7udnpr",
+        "session": "sol-fixture-B-generation-1",
+        "command": "printf effect > '<approved-temp>/081-sol-VDmE1w/B.effect'",
+        "cwd": "<approved-temp>/081-sol-VDmE1w",
+        "minutes": 120,
+        "created": 1792344442934,
+        "status": "done",
+        "pid": 36960,
+        "started": 1792344442937,
+        "ended": 1792344443526,
+        "code": 0
+      }
+    ],
+    "gateEvents": "{\"type\":\"D\",\"pid\":100000,\"S\":\"sol-fixture-A-generation-1\",\"R\":\"sol-fixture-A-generation-1\",\"O\":\"1792344442227-36qdce\",\"effectID\":\"spawn\"}\n{\"type\":\"effect-returned\",\"pid\":100000,\"S\":\"sol-fixture-A-generation-1\",\"R\":\"sol-fixture-A-generation-1\",\"O\":\"1792344442227-36qdce\",\"effectID\":\"spawn\"}\n{\"type\":\"C\",\"pid\":100000,\"owner\":\"sol-fixture-A-generation-1\"}\n{\"type\":\"D\",\"pid\":100000,\"S\":\"sol-fixture-B-generation-1\",\"R\":\"sol-fixture-B-generation-1\",\"O\":\"1792344442934-7udnpr\",\"effectID\":\"spawn\"}\n{\"type\":\"effect-returned\",\"pid\":100000,\"S\":\"sol-fixture-B-generation-1\",\"R\":\"sol-fixture-B-generation-1\",\"O\":\"1792344442934-7udnpr\",\"effectID\":\"spawn\"}\n{\"type\":\"wrapper-terminal\",\"pid\":100000,\"S\":\"sol-fixture-A-generation-1\",\"R\":\"sol-fixture-A-generation-1\",\"O\":\"1792344442227-36qdce\",\"effectID\":\"spawn\",\"code\":0,\"signal\":null,\"scopeExitProven\":false}\n{\"type\":\"wrapper-terminal\",\"pid\":100000,\"S\":\"sol-fixture-B-generation-1\",\"R\":\"sol-fixture-B-generation-1\",\"O\":\"1792344442934-7udnpr\",\"effectID\":\"spawn\",\"code\":0,\"signal\":null,\"scopeExitProven\":false}\n"
+  },
+  "stderr": ""
+}

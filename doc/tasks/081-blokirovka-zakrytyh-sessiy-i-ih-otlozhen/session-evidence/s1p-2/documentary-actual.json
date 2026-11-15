@@ -1,0 +1,13 @@
+{
+  "REQ": 18,
+  "AC": 18,
+  "DNC": 6,
+  "atoms": 178,
+  "подмена_entry_отвергнута": true,
+  "historical_expected_length": 63,
+  "подмена_B_как_old_отвергнута": true,
+  "privacy_files": 23,
+  "machine_path_hits": [],
+  "положительный_контроль_шаблона": true,
+  "полный_guards_PASS": false
+}

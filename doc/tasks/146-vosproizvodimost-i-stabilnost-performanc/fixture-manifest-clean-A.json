@@ -1,0 +1,128 @@
+{
+  "schema": "clean-A-fixture-v1",
+  "journals": 20,
+  "totalLines": 12250,
+  "totalBytes": 775444,
+  "files": [
+    {
+      "label": "main/001-job/progress.log",
+      "lines": 612,
+      "bytes": 38718,
+      "sha256": "50a407e86aa0db1f5187e2e1111900170f623f6ff162103a2476b01cfc72d20f"
+    },
+    {
+      "label": "tree/001-job/progress.log",
+      "lines": 613,
+      "bytes": 38746,
+      "sha256": "085be82c2b457b9f55c7e6e42e55768a44c46835f83306c40a35ffa569abc6d4"
+    },
+    {
+      "label": "main/002-job/progress.log",
+      "lines": 612,
+      "bytes": 38692,
+      "sha256": "58ad523834cc0243c86b074383099df57b8e816f33e8a9aad2b0af9dafd7e46e"
+    },
+    {
+      "label": "tree/002-job/progress.log",
+      "lines": 613,
+      "bytes": 38720,
+      "sha256": "0c342dfedf174eb3614f38e745e9194063c9db57e38b61ece3382c736e0222c1"
+    },
+    {
+      "label": "main/003-job/progress.log",
+      "lines": 612,
+      "bytes": 38692,
+      "sha256": "34a773c7388092a761ab7051fa9232282bfc894624562f77e1ff59d8e984a0e0"
+    },
+    {
+      "label": "tree/003-job/progress.log",
+      "lines": 613,
+      "bytes": 38720,
+      "sha256": "467c0b861eb1468885acd916b7a47e60a7457980b6aaa8eb7cd9499e99eb2863"
+    },
+    {
+      "label": "main/004-job/progress.log",
+      "lines": 612,
+      "bytes": 38718,
+      "sha256": "2524a4959365e322a8953bb076bec3247a8ff1ffc51a6d1570cbf38716d9fcb3"
+    },
+    {
+      "label": "tree/004-job/progress.log",
+      "lines": 613,
+      "bytes": 38746,
+      "sha256": "5fc23712217f8f91de5c35a71c0ea075bc97c4d92f74e25f6a3ddcbe0b2541ba"
+    },
+    {
+      "label": "main/005-job/progress.log",
+      "lines": 612,
+      "bytes": 38718,
+      "sha256": "50c0d8bb2ea1aae94220edee0437cf72081b7c048ae7e345df8ebb1b89d59644"
+    },
+    {
+      "label": "tree/005-job/progress.log",
+      "lines": 613,
+      "bytes": 38746,
+      "sha256": "904339d692d7e8d96ab6767a0a99a2f1cb08ff3c17ac01db9b9f38d9547960f7"
+    },
+    {
+      "label": "main/006-job/progress.log",
+      "lines": 612,
+      "bytes": 38718,
+      "sha256": "fdf7ce526946bd0a064bd128ceb7fdc60e3d84e14bb4d22be345fffcd459772c"
+    },
+    {
+      "label": "tree/006-job/progress.log",
+      "lines": 613,
+      "bytes": 38746,
+      "sha256": "9d05259acb44bd821959b36027cab0cccf9883e0c2c491459b31c34cdd12bb74"
+    },
+    {
+      "label": "main/007-job/progress.log",
+      "lines": 612,
+      "bytes": 38718,
+      "sha256": "105bcb36f166a9b71cf5ada9e954ad7df855a8e5f47cdc35006275615b2d3510"
+    },
+    {
+      "label": "tree/007-job/progress.log",
+      "lines": 613,
+      "bytes": 38746,
+      "sha256": "e621f34cd716834ea0963f914a8b438592ef12dcd2660bdbcd9f303a556d4485"
+    },
+    {
+      "label": "main/008-job/progress.log",
+      "lines": 612,
+      "bytes": 38692,
+      "sha256": "31815c4abbbbbd123d591f03422439c498ec21c923967ea0ebfee53f2b5e5738"
+    },
+    {
+      "label": "tree/008-job/progress.log",
+      "lines": 613,
+      "bytes": 38720,
+      "sha256": "0d9c737a6d9bfb9daece4f894f7e55a8ada3c2010b4600d68c9013d1f667d8f4"
+    },
+    {
+      "label": "main/009-job/progress.log",
+      "lines": 612,
+      "bytes": 38692,
+      "sha256": "77b7072d3801f8d64129af05d2162add96a00544ae0fa43b9217cd667d232e79"
+    },
+    {
+      "label": "tree/009-job/progress.log",
+      "lines": 613,
+      "bytes": 38720,
+      "sha256": "9e1689b4fb47aec3d00190d2f501ec7ac8148d2f011d75aa867497096668aa2c"
+    },
+    {
+      "label": "main/010-job/progress.log",
+      "lines": 612,
+      "bytes": 39224,
+      "sha256": "bb0cca2aa47bcaacde958a4e17a9b3686a5cb4c4439a57bd22aad4f658074f0b"
+    },
+    {
+      "label": "tree/010-job/progress.log",
+      "lines": 613,
+      "bytes": 39252,
+      "sha256": "134e3f424421a9ad00da2a9ef8ee15f20e8bfa837af3a506dcf6e52eee3c4b0a"
+    }
+  ]
+}

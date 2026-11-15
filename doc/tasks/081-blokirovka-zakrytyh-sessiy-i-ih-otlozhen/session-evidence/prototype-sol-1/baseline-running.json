@@ -1,0 +1,120 @@
+{
+  "mode": "baseline",
+  "schedule": "running",
+  "expected": 0,
+  "code": 0,
+  "pid": 100848,
+  "signal": null,
+  "command": [
+    "<node>",
+    "<worktree>/opencode-plugin/test/prototype081/sol-1/lifecycle-oracle.mjs",
+    "<approved-temp>/081-prototype-base-o00ntsja/source",
+    "<approved-temp>",
+    "baseline",
+    "running"
+  ],
+  "fixture": "<approved-temp>/081-sol-NwXuuN",
+  "stdoutSHA": "bb0654b1baafd9c9fbc8fa3f1797f6cbfc3c7082ed40d0742580d1b89db570bc",
+  "stderrSHA": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "oracleSHA": "c274a18bcaeec4cb0b584904fabd7114e4ec7ed737c1ef65e5b96ecf85adbc98",
+  "result": {
+    "mode": "baseline",
+    "schedule": "running",
+    "fixture": "<approved-temp>/081-sol-NwXuuN",
+    "base": "<approved-temp>/081-sol-NwXuuN/data/opencode/crew-harness",
+    "events": [
+      {
+        "seq": 1,
+        "type": "queued",
+        "O": "1792344072054-fbpx3r",
+        "S": "sol-fixture-A-generation-1"
+      },
+      {
+        "seq": 2,
+        "type": "D-observed-running",
+        "O": "1792344072054-fbpx3r"
+      },
+      {
+        "seq": 3,
+        "type": "actual-release-closed",
+        "S": "sol-fixture-A-generation-1",
+        "terminalCloseProven": false
+      },
+      {
+        "seq": 4,
+        "type": "owned-wrapper-children-closed"
+      },
+      {
+        "seq": 5,
+        "type": "sample",
+        "A": true,
+        "B": true
+      }
+    ],
+    "children": [
+      {
+        "pid": 84512,
+        "command": [
+          "C:/Program Files/Git/bin/bash.exe",
+          "-c",
+          "timeout 7200 bash -c 'printf ready > '/''<approved-temp>/081-sol-NwXuuN/A.ready'/''; for i in {1..400}; do [ -f '/''<approved-temp>/081-sol-NwXuuN/A.release'/'' ] && break; sleep 0.02; done; [ -f '/''<approved-temp>/081-sol-NwXuuN/A.release'/'' ] || exit 19; printf effect > '/''<approved-temp>/081-sol-NwXuuN/A.effect'/''' > '<approved-temp>/081-sol-NwXuuN/data/opencode/crew-harness/watches/1792344072054-fbpx3r.out' 2>&1; echo $? > '<approved-temp>/081-sol-NwXuuN/data/opencode/crew-harness/watches/1792344072054-fbpx3r.exit.tmp' && mv '<approved-temp>/081-sol-NwXuuN/data/opencode/crew-harness/watches/1792344072054-fbpx3r.exit.tmp' '<approved-temp>/081-sol-NwXuuN/data/opencode/crew-harness/watches/1792344072054-fbpx3r.exit'"
+        ],
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      },
+      {
+        "pid": 34640,
+        "command": [
+          "C:/Program Files/Git/bin/bash.exe",
+          "-c",
+          "timeout 7200 bash -c 'printf effect > '/''<approved-temp>/081-sol-NwXuuN/B.effect'/''' > '<approved-temp>/081-sol-NwXuuN/data/opencode/crew-harness/watches/1792344072522-wrq4j4.out' 2>&1; echo $? > '<approved-temp>/081-sol-NwXuuN/data/opencode/crew-harness/watches/1792344072522-wrq4j4.exit.tmp' && mv '<approved-temp>/081-sol-NwXuuN/data/opencode/crew-harness/watches/1792344072522-wrq4j4.exit.tmp' '<approved-temp>/081-sol-NwXuuN/data/opencode/crew-harness/watches/1792344072522-wrq4j4.exit'"
+        ],
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      }
+    ],
+    "A": {
+      "before": "running",
+      "after": "closed",
+      "effectAfterTerminalSample": true
+    },
+    "B": {
+      "status": "running",
+      "effect": true
+    },
+    "records": [
+      {
+        "id": "1792344072054-fbpx3r",
+        "session": "sol-fixture-A-generation-1",
+        "command": "printf ready > '<approved-temp>/081-sol-NwXuuN/A.ready'; for i in {1..400}; do [ -f '<approved-temp>/081-sol-NwXuuN/A.release' ] && break; sleep 0.02; done; [ -f '<approved-temp>/081-sol-NwXuuN/A.release' ] || exit 19; printf effect > '<approved-temp>/081-sol-NwXuuN/A.effect'",
+        "cwd": "<approved-temp>/081-sol-NwXuuN",
+        "minutes": 120,
+        "created": 1792344072054,
+        "status": "done",
+        "pid": 84512,
+        "started": 1792344072056,
+        "ended": 1792344072690,
+        "code": 0
+      },
+      {
+        "id": "1792344072522-wrq4j4",
+        "session": "sol-fixture-B-generation-1",
+        "command": "printf effect > '<approved-temp>/081-sol-NwXuuN/B.effect'",
+        "cwd": "<approved-temp>/081-sol-NwXuuN",
+        "minutes": 120,
+        "created": 1792344072522,
+        "status": "done",
+        "pid": 34640,
+        "started": 1792344072523,
+        "ended": 1792344072843,
+        "code": 0
+      }
+    ],
+    "gateEvents": ""
+  },
+  "stderr": ""
+}

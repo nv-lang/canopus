@@ -1,0 +1,150 @@
+{
+  "стадия": "Фактическая авторская сдача до финальных append accounting/submit",
+  "files": {
+    "analysis.md": {
+      "bytes": 10024,
+      "sha256": "1750a21b58cf27840dc22113d4ffec5bca6c97c6d28108f405da9cc0bbea6ab6"
+    },
+    "session-evidence/s1p-2/after-manifest.json": {
+      "bytes": 130091,
+      "sha256": "942d0bf20d0b648298df8a66b0ae7888cbd6c141bf84a8d7e04bcedac8eff1f3"
+    },
+    "session-evidence/s1p-2/api-schema-selected.json": {
+      "bytes": 26259,
+      "sha256": "5c0278df528c2f24431a98a22f3474d2648218fecbdb0dc3ae0d9968cf259eae"
+    },
+    "session-evidence/s1p-2/before-analysis.md": {
+      "bytes": 8859,
+      "sha256": "1920eff292b14a4d0e770395e08c6d14f149d6758200e30965cbd4b13b10ab14"
+    },
+    "session-evidence/s1p-2/before-manifest.json": {
+      "bytes": 122656,
+      "sha256": "6fb0725bb8131f43c4c7618394c7d1ed9e57aeb9ae8ff8f4789c7f1ad0714b96"
+    },
+    "session-evidence/s1p-2/before-profile.log": {
+      "bytes": 921,
+      "sha256": "31976145d97edae73f2423f7126d76a125d358712a64112196ded910e85ea6a0"
+    },
+    "session-evidence/s1p-2/before-progress.log": {
+      "bytes": 5264,
+      "sha256": "24be84bc63e8f30edb34395255018e4b969caa2afeb69cda8794264030c4a1f4"
+    },
+    "session-evidence/s1p-2/before-spec-trace.md": {
+      "bytes": 12415,
+      "sha256": "b2319ef51501a3b714d91e4e88740bbbcc3265ebab167849af9d5672a0c6b90e"
+    },
+    "session-evidence/s1p-2/before-spec.md": {
+      "bytes": 16231,
+      "sha256": "eab33a1c3cd77cf99c696b82acb7add65b46a837a23a06e2e9881b652dc4986a"
+    },
+    "session-evidence/s1p-2/before-usage.log": {
+      "bytes": 3655,
+      "sha256": "f8300fa64336f0a3eff6a0d7cbb342967d6ebe9717ab9860543049189ce20412"
+    },
+    "session-evidence/s1p-2/derivative-actual.json": {
+      "bytes": 916,
+      "sha256": "77097c46534cf65787257daa285c2adb84ea2a7060dce82d31ca0c0b6ea980d1"
+    },
+    "session-evidence/s1p-2/derivative-expected.json": {
+      "bytes": 662,
+      "sha256": "c078ace6457d1d8abb7b05458547711b7a8d0984431a5d18971a5eb53d778bf8"
+    },
+    "session-evidence/s1p-2/derivative.diff": {
+      "bytes": 1164,
+      "sha256": "d7e3c6febd72adab64c4436a5d46201184600885d444f805c15406b57dbfb1d3"
+    },
+    "session-evidence/s1p-2/documentary-actual.json": {
+      "bytes": 375,
+      "sha256": "a82b11e320c9f74afbdeea5491a78df14d9e76ce208c9291837869f8749332a1"
+    },
+    "session-evidence/s1p-2/expected.json": {
+      "bytes": 1182,
+      "sha256": "09ebf2bc5f82a29acd45d05ab331620f2325c945e306481c1b910561aa73acfc"
+    },
+    "session-evidence/s1p-2/finding-response.md": {
+      "bytes": 6267,
+      "sha256": "027982a7b8f3b24bdb03658b1c30ba8b6076b96171cfc5cc0aa3d1400dc77db2"
+    },
+    "session-evidence/s1p-2/forensic-actual.json": {
+      "bytes": 1319,
+      "sha256": "adb18372cdc98ed1935c2f1e6caccec432b341747e25b939fa349bde4c76f67a"
+    },
+    "session-evidence/s1p-2/freeze-locator.json": {
+      "bytes": 512,
+      "sha256": "16b98e65e5cab3a6bee1b64a632fb037a4560d5549a8f261b2c1b88a0ea4aaef"
+    },
+    "session-evidence/s1p-2/frozen-root3/analysis.md": {
+      "bytes": 10024,
+      "sha256": "1750a21b58cf27840dc22113d4ffec5bca6c97c6d28108f405da9cc0bbea6ab6"
+    },
+    "session-evidence/s1p-2/frozen-root3/spec-trace.md": {
+      "bytes": 40896,
+      "sha256": "cacad23b828a51c8a1e6d6c30ed1bca0a2b998bbf6e7b384635a24f71211752c"
+    },
+    "session-evidence/s1p-2/frozen-root3/spec.md": {
+      "bytes": 43139,
+      "sha256": "22e641def114d3207f3ec303e6e5f5eebaaac82973cb2d2bc0ccbd46350aa43e"
+    },
+    "session-evidence/s1p-2/measurement-error.md": {
+      "bytes": 1371,
+      "sha256": "0d44f9136e3f50c1d69a7e4efe112ea1d4eef6a4b1956cc7ffe71bae5dc8aa1b"
+    },
+    "session-evidence/s1p-2/platform-and-consumers.md": {
+      "bytes": 7339,
+      "sha256": "153dd9c48d7af85695d5ca32ecea5d4e19b14e7a72fa689c23a30ffcfd11d2b8"
+    },
+    "session-evidence/s1p-2/preservation-actual.json": {
+      "bytes": 1050,
+      "sha256": "42198fe9b2b2b68d0dd4fd302e436d46d4213bdfebba6bd2e129ee1bf721c74b"
+    },
+    "session-evidence/s1p-2/probe-plan.md": {
+      "bytes": 4470,
+      "sha256": "4f275d6309731434fd744d1c79a809dfca9d690024f4c52ed7d1595551819a92"
+    },
+    "session-evidence/s1p-2/probes.md": {
+      "bytes": 5770,
+      "sha256": "a837ee4e14dbe5414e7aa55e2bd36aaf1c953926017a76252b0e29099a39d4ec"
+    },
+    "session-evidence/s1p-2/qualification.md": {
+      "bytes": 6859,
+      "sha256": "eb79088ca661baf278e7e7ed3a6e73a92d676447ed6f2b886788c241e0a5ee3e"
+    },
+    "session-evidence/s1p-2/read-map.md": {
+      "bytes": 7100,
+      "sha256": "1554fbefa1217cc619bd7577e6f5d3247412f5a9a4de6195189c1c23ece9b20e"
+    },
+    "session-evidence/s1p-2/root3.diff": {
+      "bytes": 109843,
+      "sha256": "c5fd6b63d5e8fae6de8587861e1f793485f1c4c5abeb81dcedd3b48206b22f4c"
+    },
+    "session-evidence/s2-3/before-manifest.json": {
+      "bytes": 131165,
+      "sha256": "aeebd8404ff0b276d9ee17076aad9c9fe24fccccc896cb39bf38b2273230c97c"
+    },
+    "spec-trace.md": {
+      "bytes": 40896,
+      "sha256": "cacad23b828a51c8a1e6d6c30ed1bca0a2b998bbf6e7b384635a24f71211752c"
+    },
+    "spec.md": {
+      "bytes": 43139,
+      "sha256": "22e641def114d3207f3ec303e6e5f5eebaaac82973cb2d2bc0ccbd46350aa43e"
+    }
+  },
+  "self": "Этот manifest не хеширует сам себя; точная копия/hash доступны во внешнем freeze manifest.",
+  "append_prefixes": {
+    "progress.log": {
+      "bytes": 5897,
+      "sha256": "5dc47db632b557404f9e724cc879d5bf65ca1955ee135d4d468d37ace85ad142"
+    },
+    "profile.log": {
+      "bytes": 921,
+      "sha256": "31976145d97edae73f2423f7126d76a125d358712a64112196ded910e85ea6a0"
+    },
+    "usage.log": {
+      "bytes": 3655,
+      "sha256": "f8300fa64336f0a3eff6a0d7cbb342967d6ebe9717ab9860543049189ce20412"
+    }
+  },
+  "protected_result": "734 before entries: 0 missing/0 unexpected; root3 и единственная derivative разрешены; остальное unchanged.",
+  "готовность": "Только авторская редакция, не approval/feasibility/GO; Nova #94 HOLD."
+}

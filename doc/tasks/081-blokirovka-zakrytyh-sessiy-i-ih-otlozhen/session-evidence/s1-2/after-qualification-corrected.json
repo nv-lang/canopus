@@ -1,0 +1,33 @@
+﻿{
+    "kind":  "corrected own after comparison; preserves prior erroneous manifests",
+    "head":  "26429fa11424f4a5bb0b6a595dc0a95cea6e1601",
+    "branch":  "task/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen",
+    "currentFilesExcludingOwnEvidence":  681,
+    "baselineFiles":  678,
+    "excluded":  [
+                     "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/progress.log",
+                     "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/profile.log",
+                     "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/usage.log",
+                     "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/analysis.md",
+                     "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec.md",
+                     "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-trace.md"
+                 ],
+    "changedBaselineFiles":  [
+
+                             ],
+    "missingBaselineFiles":  [
+
+                             ],
+    "newPaths":  [
+                     "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/analysis.md",
+                     "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec.md",
+                     "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-trace.md"
+                 ],
+    "hashErrors":  [
+
+                   ],
+    "gitFileBytes":  105,
+    "gitFileSha256":  "9ECE78A917CE3902C197A74270ACAA9F7B4B7CA4C1DCA1EFCFC0235F0B21E9EC",
+    "gitFileUnchanged":  true,
+    "priorCaptureQualification":  "Initial before-manifest and after-manifest are retained as generated; their backslash filtering was wrong. This independently normalized comparison excludes the exact requested paths and does not rewrite those manifests."
+}

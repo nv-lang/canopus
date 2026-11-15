@@ -1,0 +1,120 @@
+{
+  "mode": "baseline",
+  "schedule": "running",
+  "expected": 0,
+  "code": 0,
+  "pid": 8652,
+  "signal": null,
+  "command": [
+    "<node>",
+    "<worktree>/opencode-plugin/test/prototype081/sol-1/lifecycle-oracle.mjs",
+    "<approved-temp>/081-prototype-base-o00ntsja/source",
+    "<approved-temp>",
+    "baseline",
+    "running"
+  ],
+  "fixture": "<approved-temp>/081-sol-8ORytD",
+  "stdoutSHA": "061e46c86fc99e397da0a877866260c777533dbc5a4971f4848068577022ac14",
+  "stderrSHA": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "oracleSHA": "c274a18bcaeec4cb0b584904fabd7114e4ec7ed737c1ef65e5b96ecf85adbc98",
+  "result": {
+    "mode": "baseline",
+    "schedule": "running",
+    "fixture": "<approved-temp>/081-sol-8ORytD",
+    "base": "<approved-temp>/081-sol-8ORytD/data/opencode/crew-harness",
+    "events": [
+      {
+        "seq": 1,
+        "type": "queued",
+        "O": "1792345217951-kg3lbe",
+        "S": "sol-fixture-A-generation-1"
+      },
+      {
+        "seq": 2,
+        "type": "D-observed-running",
+        "O": "1792345217951-kg3lbe"
+      },
+      {
+        "seq": 3,
+        "type": "actual-release-closed",
+        "S": "sol-fixture-A-generation-1",
+        "terminalCloseProven": false
+      },
+      {
+        "seq": 4,
+        "type": "owned-wrapper-children-closed"
+      },
+      {
+        "seq": 5,
+        "type": "sample",
+        "A": true,
+        "B": true
+      }
+    ],
+    "children": [
+      {
+        "pid": 39020,
+        "command": [
+          "C:/Program Files/Git/bin/bash.exe",
+          "-c",
+          "timeout 7200 bash -c 'printf ready > '/''<approved-temp>/081-sol-8ORytD/A.ready'/''; for i in {1..400}; do [ -f '/''<approved-temp>/081-sol-8ORytD/A.release'/'' ] && break; sleep 0.02; done; [ -f '/''<approved-temp>/081-sol-8ORytD/A.release'/'' ] || exit 19; printf effect > '/''<approved-temp>/081-sol-8ORytD/A.effect'/''' > '<approved-temp>/081-sol-8ORytD/data/opencode/crew-harness/watches/1792345217951-kg3lbe.out' 2>&1; echo $? > '<approved-temp>/081-sol-8ORytD/data/opencode/crew-harness/watches/1792345217951-kg3lbe.exit.tmp' && mv '<approved-temp>/081-sol-8ORytD/data/opencode/crew-harness/watches/1792345217951-kg3lbe.exit.tmp' '<approved-temp>/081-sol-8ORytD/data/opencode/crew-harness/watches/1792345217951-kg3lbe.exit'"
+        ],
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      },
+      {
+        "pid": 18384,
+        "command": [
+          "C:/Program Files/Git/bin/bash.exe",
+          "-c",
+          "timeout 7200 bash -c 'printf effect > '/''<approved-temp>/081-sol-8ORytD/B.effect'/''' > '<approved-temp>/081-sol-8ORytD/data/opencode/crew-harness/watches/1792345218349-e3hltf.out' 2>&1; echo $? > '<approved-temp>/081-sol-8ORytD/data/opencode/crew-harness/watches/1792345218349-e3hltf.exit.tmp' && mv '<approved-temp>/081-sol-8ORytD/data/opencode/crew-harness/watches/1792345218349-e3hltf.exit.tmp' '<approved-temp>/081-sol-8ORytD/data/opencode/crew-harness/watches/1792345218349-e3hltf.exit'"
+        ],
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      }
+    ],
+    "A": {
+      "before": "running",
+      "after": "closed",
+      "effectAfterTerminalSample": true
+    },
+    "B": {
+      "status": "running",
+      "effect": true
+    },
+    "records": [
+      {
+        "id": "1792345217951-kg3lbe",
+        "session": "sol-fixture-A-generation-1",
+        "command": "printf ready > '<approved-temp>/081-sol-8ORytD/A.ready'; for i in {1..400}; do [ -f '<approved-temp>/081-sol-8ORytD/A.release' ] && break; sleep 0.02; done; [ -f '<approved-temp>/081-sol-8ORytD/A.release' ] || exit 19; printf effect > '<approved-temp>/081-sol-8ORytD/A.effect'",
+        "cwd": "<approved-temp>/081-sol-8ORytD",
+        "minutes": 120,
+        "created": 1792345217951,
+        "status": "done",
+        "pid": 39020,
+        "started": 1792345217953,
+        "ended": 1792345218531,
+        "code": 0
+      },
+      {
+        "id": "1792345218349-e3hltf",
+        "session": "sol-fixture-B-generation-1",
+        "command": "printf effect > '<approved-temp>/081-sol-8ORytD/B.effect'",
+        "cwd": "<approved-temp>/081-sol-8ORytD",
+        "minutes": 120,
+        "created": 1792345218349,
+        "status": "done",
+        "pid": 18384,
+        "started": 1792345218352,
+        "ended": 1792345218689,
+        "code": 0
+      }
+    ],
+    "gateEvents": ""
+  },
+  "stderr": ""
+}

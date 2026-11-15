@@ -1,0 +1,32 @@
+{
+  "rawLocator": "081-durable18-run-OSCGCh",
+  "records": [
+    {
+      "name": "unchanged-baseline",
+      "expected": 0,
+      "code": 0,
+      "closed": true,
+      "stdoutSHA256": "a23133d3d75c62258004449f10c5cb5101a4c3623e18cb53bc18d8748d2240c8",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "assertion": null
+    },
+    {
+      "name": "scope",
+      "expected": 1,
+      "code": 1,
+      "closed": true,
+      "stdoutSHA256": "2267d3abc1e3533901bc3c620bdc3d41b2b297a7269cb31efffabaca94f27923",
+      "stderrSHA256": "8bbb417ae0cabea3ede199c5790f6cff4118179ee94b16785ee42d353c44b9da",
+      "assertion": "SAFETY ORACLE AC-08:"
+    },
+    {
+      "name": "scope-repeat",
+      "expected": 1,
+      "code": 1,
+      "closed": true,
+      "stdoutSHA256": "6c52abe27908ab8d7f06171e3847fc19a60ee22ffa0403e2eedb7797d9e8a0fa",
+      "stderrSHA256": "8bbb417ae0cabea3ede199c5790f6cff4118179ee94b16785ee42d353c44b9da",
+      "assertion": "SAFETY ORACLE AC-08:"
+    }
+  ]
+}

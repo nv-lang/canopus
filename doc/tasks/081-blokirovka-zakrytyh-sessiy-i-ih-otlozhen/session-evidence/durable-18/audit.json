@@ -1,0 +1,933 @@
+{
+  "kind": "scoped privacy and source preservation; not full CI",
+  "preservation": [
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/analysis.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/fast-path-setup/durable-fence-assignment.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/fast-path-setup/nova-scope-input.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/fast-path-setup/os-lock-correction-assignment.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/fast-path-setup/os-lock-prototype-assignment.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/fast-path-setup/prototype-acceptance-assignment.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/fast-path-setup/prototype-assignment.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/fast-path-setup/prototype-correction-assignment.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/fast-path-setup/s3-assignment.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/fast-path-setup/sol-probes-assignment.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/final-spec-review-setup/assignment.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/integrator-s1p-2-qualification.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/log.md",
+      "status": "prefix-preserved"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/next-terminal-step-readonly.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/plan-trace.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/plan.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/profile.log",
+      "status": "prefix-preserved"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/progress.log",
+      "status": "prefix-preserved"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/prototype-correction-result.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/prototype-os-lock-correction-result.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/prototype-os-lock-result.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/prototype-os-lock-review-1.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/prototype-result.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/prototype-review-1.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/prototype-sol-result.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/replacement-spec-review-setup/assignment.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/integrator-intake.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/integrator-s1-2-qualification.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/integrator-s1p-1-qualification.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/integrator-s2-1-qualification.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/integrator-s2-2-qualification.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/integrator-s2-3-qualification.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-1/integrator-qualification.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-1/manifest.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-correction-1/integrator-qualification.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-correction-1/README.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-os-lock-1/availability.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-os-lock-1/contention-attempts.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-os-lock-2/manifest.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-os-lock-2/restart-boundary.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-os-lock-review-1/manifest.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-review-1/baseline/baseline-queued.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-review-1/baseline/baseline-running.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-review-1/final-replay/concurrency.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-review-1/final-replay/drivers.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-review-1/final-replay/gate-queued.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-review-1/final-replay/gate-running.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-review-1/final-replay/removed-queued.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/audit-first-failed.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/audit.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/baseline-queued.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/baseline-running.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/concurrency.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/final-replay/concurrency.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/final-replay/drivers.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/final-replay/gate-queued.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/final-replay/gate-running.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/final-replay/removed-queued.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/gate-queued.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/gate-running.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/intake.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/ownership-after-first.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/ownership-after.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/removed-queued.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/after-manifest.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/after-qualification-corrected.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/after-qualification.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/before-manifest.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/evidence-verification.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/submission-manifest.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/watch-inventory.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-1/after-final.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-1/after-tree.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-1/before-tree.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-1/finding-response.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-1/read-map.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-1/regression-probes.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-1/root-before/analysis.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-1/root-before/spec-trace.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-1/root-before/spec.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-1/writer-consumer-matrix.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/actual-output-manifest.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/after-manifest.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/api-schema-selected.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/before-analysis.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/before-manifest.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/before-profile.log",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/before-progress.log",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/before-spec-trace.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/before-spec.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/before-usage.log",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/derivative-actual.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/derivative-expected.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/derivative.diff",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/documentary-actual.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/expected.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/finding-response.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/forensic-actual.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/freeze-locator.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/frozen-root3/analysis.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/frozen-root3/spec-trace.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/frozen-root3/spec.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/measurement-error.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/platform-and-consumers.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/preservation-actual.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/probe-plan.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/probes.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/qualification.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/read-map.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/root3.diff",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-1/read-map-and-probes.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/after-corrected.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/after-final.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/after-manifest.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/api-readonly.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/before-corrected.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/before.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/contract-audit.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/coverage-reconciliation.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/forensic-verification.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/package-doc-audit.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/package-doc-probe-plan.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/probe-plan.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/public-path-probe-initial-error.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/public-path-probe-plan.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/read-map.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/requirement-map.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/source-hash-plan.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/source-preservation.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/submission-manifest-final.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/submission-manifest.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-3/after-manifest.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-3/before-manifest.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-3/own-expected.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-3/probes.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-3/read-map.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-4/before-manifest.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-4/own-expected.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-4/read-map.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-5/after-manifest.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-5/before-manifest.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-5/consumer-audit.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-5/forensic.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-5/own-expected.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-5/probes.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-5/read-map.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-5/scope-audit.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-5/source-audit.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s3-1/basis.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/sol-correction-setup/assignment.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-approval-2026-10-18/approval-check.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-approval-2026-10-18/approved-spec.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-approval-2026-10-18/before-fingerprints.json",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-approval-2026-10-18/before-spec.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-approval-2026-10-18/owner-input.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-approval-2026-10-18/spec.diff",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-review-1.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-review-2.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-review-3.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-review-5.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-trace.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/task/message.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/usage.log",
+      "status": "prefix-preserved"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/correction-1/filesystem-gate.mjs",
+      "status": "unchanged"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/correction-1/gate-probe.mjs",
+      "status": "unchanged"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/correction-1/lifecycle-oracle.mjs",
+      "status": "unchanged"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/durable-18/capture.mjs",
+      "status": "own-new-driver-before-preserved"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/durable-18/host-readonly.mjs",
+      "status": "own-new-driver-before-preserved"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/durable-tombstone.mjs",
+      "status": "unchanged"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/os-lock-1/consumer.mjs",
+      "status": "unchanged"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/os-lock-1/probe.mjs",
+      "status": "unchanged"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/os-lock-2/consumer.ps1",
+      "status": "unchanged"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/os-lock-2/probe.mjs",
+      "status": "unchanged"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/red-close-watch.mjs",
+      "status": "unchanged"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/sol-1/audit.py",
+      "status": "unchanged"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/sol-1/concurrent-probe.mjs",
+      "status": "unchanged"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/sol-1/consumer.mjs",
+      "status": "unchanged"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/sol-1/filesystem-gate.mjs",
+      "status": "unchanged"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/sol-1/final-replay.mjs",
+      "status": "unchanged"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/sol-1/lifecycle-oracle.mjs",
+      "status": "unchanged"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/sol-1/prepare.mjs",
+      "status": "unchanged"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/sol-1/run-lifecycle.mjs",
+      "status": "unchanged"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/tombstone-probe.mjs",
+      "status": "unchanged"
+    },
+    {
+      "file": ".git",
+      "status": "unchanged"
+    },
+    {
+      "file": "opencode-plugin/core.ts",
+      "status": "unchanged"
+    },
+    {
+      "file": "opencode-plugin/index.ts",
+      "status": "unchanged"
+    },
+    {
+      "file": "opencode-plugin/watch.ts",
+      "status": "unchanged"
+    },
+    {
+      "file": "opencode-plugin/README.md",
+      "status": "unchanged"
+    },
+    {
+      "file": "opencode-plugin/package.json",
+      "status": "unchanged"
+    }
+  ],
+  "entries": [
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/current.md",
+      "bytes": 781,
+      "sha256": "7d5657dd89f4e71f9baae4ca8cf0dc77f99b2beb2fc366e18c4ece7867c2eee3"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/durable-terminal-result-18.md",
+      "bytes": 13755,
+      "sha256": "9d777196a114107f8babc4750f3477d8088823a96cc538576652e0a68f5799fe"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/durable-18/ac-status.md",
+      "bytes": 4444,
+      "sha256": "537fa3385fba7059e117d739bf9164cb936e685d0104dfbccfef681e3097213c"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/durable-18/before.json",
+      "bytes": 43274,
+      "sha256": "f0b509cda2799d013fbcccd51ad89088f2d1561f224c3e9538880a8376224114"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/durable-18/host-boundary.md",
+      "bytes": 12692,
+      "sha256": "a1c99563f4d6b9ce1d5b62bfd1b946d527238658fafb5c3622b693b54eed0064"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/durable-18/host-exact26/host-schema.json",
+      "bytes": 353245,
+      "sha256": "cb9343f4ff722558ebc50d4030c0b5777f111cd328665fc60812061e66114d0d"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/durable-18/host-schema.json",
+      "bytes": 353207,
+      "sha256": "2cd6a6615888858e2219554fe4b640429180789591567bd9a72fecb8ae16b3d1"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/durable-18/legacy-metadata.json",
+      "bytes": 1020,
+      "sha256": "e8ba2b6d3ff052b6e441da48d51d1df4863624ba0dbf384de30885e8f07356f2"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/durable-18/probes/baseline/baseline-queued.json",
+      "bytes": 4369,
+      "sha256": "89fc4d06f66743d6ea2914a34b87c946d1dd1c8675dcdfd834bb0c0f0c0e4a71"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/durable-18/probes/baseline/baseline-running.json",
+      "bytes": 4423,
+      "sha256": "4c357eebf228d3a592c4a006784538b5daf1c36ef8911fe9ccb87bb15c7757d1"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/durable-18/probes/runs.json",
+      "bytes": 1021,
+      "sha256": "f22b6249b081686d620fd09bdad949cda2e65e181f508d623900f10647c6f8f2"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/durable-18/probes/scope/scope.json",
+      "bytes": 2164,
+      "sha256": "9d8fd0fe70f8160a558251b8dc9d2bedc74549fe38e5eec6bbd6a3280a4da5b5"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/durable-18/probes/scope-repeat/scope.json",
+      "bytes": 2165,
+      "sha256": "360129e2138908f098ce793e14c4fa4271c9bce02f734a80382f2a3cc575b962"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/durable-18/probes-qualified/baseline/baseline-queued.json",
+      "bytes": 4369,
+      "sha256": "8bcdbd2cc3b32e4f25554b69d374b20a4d0c225a7b447ecdc37473c598609762"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/durable-18/probes-qualified/baseline/baseline-running.json",
+      "bytes": 4423,
+      "sha256": "e42375c982848f6d2ebe3020d405818374a68725a68e5d3b6c1048dfe769f889"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/durable-18/probes-qualified/runs.json",
+      "bytes": 1021,
+      "sha256": "cd50cbf663e52dca6101b8de0249ccaf64e655cac756449716d180b04964c878"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/durable-18/probes-qualified/scope/scope.json",
+      "bytes": 4057,
+      "sha256": "e982436f68d22f5f4e294c5bb32c10d314479909c2553b2bf835b56626d8d834"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/durable-18/probes-qualified/scope/stock-capabilities.json",
+      "bytes": 3868,
+      "sha256": "060d1ba67f191c0d2915c914040ef3d50ec7d7fe537959108c2c3d4827f3d161"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/durable-18/probes-qualified/scope-repeat/scope.json",
+      "bytes": 4057,
+      "sha256": "9945ba9806b010502a45292511cdcdbd44989baf68843d4fc5c83a03adf8a07c"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/durable-18/probes-qualified/scope-repeat/stock-capabilities.json",
+      "bytes": 3868,
+      "sha256": "060d1ba67f191c0d2915c914040ef3d50ec7d7fe537959108c2c3d4827f3d161"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/durable-18/sdk-surface.json",
+      "bytes": 1942,
+      "sha256": "49ee1cf3f2bac49b8c759c967c63d8aa7217a6286f5baddf643ed86297151598"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/durable-18/stock-capabilities.json",
+      "bytes": 3868,
+      "sha256": "060d1ba67f191c0d2915c914040ef3d50ec7d7fe537959108c2c3d4827f3d161"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/durable-18/audit.py",
+      "bytes": 3695,
+      "sha256": "8655018b55a18af614da2d38cccb1b533d9c1e8587193dc9128f83471409d361"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/durable-18/capabilities.ps1",
+      "bytes": 1121,
+      "sha256": "664f98ca563e9cc9d06b61edf01ba8f46e957dc86ed876d1a440c285d49c0b8b"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/durable-18/capture.mjs",
+      "bytes": 2161,
+      "sha256": "e73622213a13a761e5b6d3d6921e5a176b6bedebeb954d1dcbbf9e6bdb57a450"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/durable-18/host-readonly.mjs",
+      "bytes": 4145,
+      "sha256": "59cf4e1b2a1e92acc2025a48441a83650bd7e2ebea1b05b7a4116e0ce4908757"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/durable-18/metadata-readonly.mjs",
+      "bytes": 2523,
+      "sha256": "d2944bd17e06e6761c0d732992132daad9261091e419071915aa27cdfd4576c2"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/durable-18/run.mjs",
+      "bytes": 2144,
+      "sha256": "7635b01c3cc9a2b48ab5f26355c479514bc0dc0bf12dc7411b53f29c870dadd4"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/durable-18/scope-oracle.mjs",
+      "bytes": 4778,
+      "sha256": "275ee62f9af9fd6d7fb26f5ae4af26628119b1980e1433c10c014c9a58cd1a4a"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/durable-18/scope-owner.ps1",
+      "bytes": 3778,
+      "sha256": "c49c9d04e1a40cce8032e2f0aa92fa433ee4d112b3630442e856739361927cd1"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/durable-18/scope-writer.mjs",
+      "bytes": 945,
+      "sha256": "961144f73d650e83f113244378fab99f0b30ef79d3a53acf3d9482b439044d19"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/durable-18/sdk-surface.mjs",
+      "bytes": 1851,
+      "sha256": "da0c396f9e6d1208e3a7137ef22f793e6a42e89c889f49aa18b11a50dc5abc69"
+    }
+  ],
+  "errors": [],
+  "productionTrackedDiff": [],
+  "actualFreshNpmCommands": 129,
+  "actualFreshNpmTestFiles": 128,
+  "npmRun": false,
+  "fullGuardsRun": false
+}

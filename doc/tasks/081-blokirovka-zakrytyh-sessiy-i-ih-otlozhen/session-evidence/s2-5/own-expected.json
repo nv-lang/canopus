@@ -1,0 +1,29 @@
+{
+  "new_exact": [
+    "spec-review-5.md",
+    "session-evidence/s2-5/before-manifest.json",
+    "session-evidence/s2-5/own-expected.json",
+    "session-evidence/s2-5/read-map.md",
+    "session-evidence/s2-5/source-audit.md",
+    "session-evidence/s2-5/consumer-audit.md",
+    "session-evidence/s2-5/probes.json",
+    "session-evidence/s2-5/forensic.json",
+    "session-evidence/s2-5/after-manifest.json",
+    "session-evidence/s2-5/scope-audit.json"
+  ],
+  "append_exact": [
+    "progress.log",
+    "profile.log",
+    "usage.log"
+  ],
+  "plugin_concurrent_exact": [
+    "log.md",
+    ".opencode/opencode.json"
+  ],
+  "path_gate": "resolved absolute equals exact new path; exclusive create; no old helpers",
+  "root_expected": {
+    "spec.md": "22e641def114d3207f3ec303e6e5f5eebaaac82973cb2d2bc0ccbd46350aa43e",
+    "analysis.md": "1750a21b58cf27840dc22113d4ffec5bca6c97c6d28108f405da9cc0bbea6ab6",
+    "spec-trace.md": "cacad23b828a51c8a1e6d6c30ed1bca0a2b998bbf6e7b384635a24f71211752c"
+  }
+}

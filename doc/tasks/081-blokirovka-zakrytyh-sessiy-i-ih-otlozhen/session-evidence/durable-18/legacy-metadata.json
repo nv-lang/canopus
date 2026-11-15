@@ -1,0 +1,36 @@
+{
+  "rawLocator": "081-durable18-metadata-P7GFV5",
+  "watches": [],
+  "cards": [
+    {
+      "scope": "OLD094",
+      "id": "ses_mvawdsam690xeqwzpp",
+      "spawnedStatus": "closed",
+      "generationPresent": false,
+      "bytes": 1281,
+      "sha256": "d544d6c7a8849452ae8738707181feb81c2425b59e88e4da8a1d31626323256d"
+    },
+    {
+      "scope": "ORPHAN001-worker",
+      "id": "ses_mvdby07ezj5i87u77l",
+      "spawnedStatus": "running",
+      "generationPresent": false,
+      "bytes": 1194,
+      "sha256": "8bf698bd8bc1591e6c94f21a26124be750c8002a364aa9a8f5bd3515d100f83f"
+    },
+    {
+      "scope": "ORPHAN001-reviewer",
+      "id": "ses_mvdmmbf3buiy0woi5q",
+      "spawnedStatus": "done",
+      "generationPresent": false,
+      "bytes": 733,
+      "sha256": "0868626239e93b005a7b5c95c5d160e86bf302cec46f5b220e00233c3fcf2144"
+    }
+  ],
+  "limitations": [
+    "metadata is not exit proof",
+    "mailbox/inbox bodies not read",
+    "no complete effect or descendant inventory",
+    "no generation inferred"
+  ]
+}

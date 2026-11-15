@@ -1,0 +1,480 @@
+{
+  "rawSHA": "13bcf339d0c5a665cb299647117ee007a2c2577a37661bfc8b8e1d543e2ec7d3",
+  "scope": "<approved-temp>/081-sol-concurrent-43JxQr",
+  "node": "v24.15.0",
+  "platform": "win32",
+  "checks": [
+    "two simultaneous consumers: one D, one actual effect, one duplicate; observed EEXIST while first holds lock",
+    "fresh-process restart/retry preserves (O,effectID); effect-2 of same O executes separately",
+    "C<D: old source wake and closed recipient denied without D; independent B allowed",
+    "D<C: actual close consumer waits for bounded synchronous effect terminal, then records C; not OS revoke proof",
+    "counterexample: owned crash after durable D leaves stale mkdir lock; fresh close unresolved, no stealing/recovery; L positive close FAIL"
+  ],
+  "jobs": [
+    {
+      "name": "0-one",
+      "pid": 54848,
+      "command": [
+        "<node>",
+        "<approved-temp>/081-sol-final-drivers-cuK3Vw/consumer.mjs",
+        "<approved-temp>/081-sol-concurrent-43JxQr/0-one.job.json"
+      ],
+      "job": {
+        "name": "one",
+        "action": "effect",
+        "root": "<approved-temp>/081-sol-concurrent-43JxQr/state",
+        "identity": {
+          "S": "B-generation-2",
+          "R": "B-generation-2",
+          "O": "O-shared-generation-1",
+          "effectID": "effect-1"
+        },
+        "barrier": "<approved-temp>/081-sol-concurrent-43JxQr/race-barrier",
+        "holdEffect": true
+      },
+      "code": 0,
+      "signal": null,
+      "stdout": "{\"pid\":54848,\"result\":{\"allowed\":true,\"value\":\"bounded-file-effect-complete\"}}\n",
+      "stderr": ""
+    },
+    {
+      "name": "1-two",
+      "pid": 49484,
+      "command": [
+        "<node>",
+        "<approved-temp>/081-sol-final-drivers-cuK3Vw/consumer.mjs",
+        "<approved-temp>/081-sol-concurrent-43JxQr/1-two.job.json"
+      ],
+      "job": {
+        "name": "two",
+        "action": "effect",
+        "root": "<approved-temp>/081-sol-concurrent-43JxQr/state",
+        "identity": {
+          "S": "B-generation-2",
+          "R": "B-generation-2",
+          "O": "O-shared-generation-1",
+          "effectID": "effect-1"
+        },
+        "barrier": "<approved-temp>/081-sol-concurrent-43JxQr/race-barrier",
+        "holdEffect": true
+      },
+      "code": 0,
+      "signal": null,
+      "stdout": "{\"pid\":49484,\"result\":{\"allowed\":false,\"reason\":\"duplicate\",\"prior\":{\"identity\":{\"S\":\"B-generation-2\",\"R\":\"B-generation-2\",\"O\":\"O-shared-generation-1\",\"effectID\":\"effect-1\"},\"state\":\"terminal\",\"proof\":\"bounded synchronous fixture effect returned\"}}}\n",
+      "stderr": ""
+    },
+    {
+      "name": "2-effect",
+      "pid": 42652,
+      "command": [
+        "<node>",
+        "<approved-temp>/081-sol-final-drivers-cuK3Vw/consumer.mjs",
+        "<approved-temp>/081-sol-concurrent-43JxQr/2-effect.job.json"
+      ],
+      "job": {
+        "action": "effect",
+        "root": "<approved-temp>/081-sol-concurrent-43JxQr/state",
+        "identity": {
+          "S": "B-generation-2",
+          "R": "B-generation-2",
+          "O": "O-shared-generation-1",
+          "effectID": "effect-1"
+        }
+      },
+      "code": 0,
+      "signal": null,
+      "stdout": "{\"pid\":42652,\"result\":{\"allowed\":false,\"reason\":\"duplicate\",\"prior\":{\"identity\":{\"S\":\"B-generation-2\",\"R\":\"B-generation-2\",\"O\":\"O-shared-generation-1\",\"effectID\":\"effect-1\"},\"state\":\"terminal\",\"proof\":\"bounded synchronous fixture effect returned\"}}}\n",
+      "stderr": ""
+    },
+    {
+      "name": "3-effect",
+      "pid": 47760,
+      "command": [
+        "<node>",
+        "<approved-temp>/081-sol-final-drivers-cuK3Vw/consumer.mjs",
+        "<approved-temp>/081-sol-concurrent-43JxQr/3-effect.job.json"
+      ],
+      "job": {
+        "action": "effect",
+        "root": "<approved-temp>/081-sol-concurrent-43JxQr/state",
+        "identity": {
+          "S": "B-generation-2",
+          "R": "B-generation-2",
+          "O": "O-shared-generation-1",
+          "effectID": "effect-2"
+        }
+      },
+      "code": 0,
+      "signal": null,
+      "stdout": "{\"pid\":47760,\"result\":{\"allowed\":true,\"value\":\"bounded-file-effect-complete\"}}\n",
+      "stderr": ""
+    },
+    {
+      "name": "4-close",
+      "pid": 60552,
+      "command": [
+        "<node>",
+        "<approved-temp>/081-sol-final-drivers-cuK3Vw/consumer.mjs",
+        "<approved-temp>/081-sol-concurrent-43JxQr/4-close.job.json"
+      ],
+      "job": {
+        "action": "close",
+        "root": "<approved-temp>/081-sol-concurrent-43JxQr/state",
+        "owner": "A-generation-1"
+      },
+      "code": 0,
+      "signal": null,
+      "stdout": "{\"pid\":60552,\"result\":{\"C\":true,\"terminalCloseProven\":false}}\n",
+      "stderr": ""
+    },
+    {
+      "name": "5-effect",
+      "pid": 35572,
+      "command": [
+        "<node>",
+        "<approved-temp>/081-sol-final-drivers-cuK3Vw/consumer.mjs",
+        "<approved-temp>/081-sol-concurrent-43JxQr/5-effect.job.json"
+      ],
+      "job": {
+        "action": "effect",
+        "root": "<approved-temp>/081-sol-concurrent-43JxQr/state",
+        "identity": {
+          "S": "A-generation-1",
+          "R": "B-generation-2",
+          "O": "old-wake",
+          "effectID": "wake"
+        }
+      },
+      "code": 0,
+      "signal": null,
+      "stdout": "{\"pid\":35572,\"result\":{\"allowed\":false,\"reason\":\"closed\"}}\n",
+      "stderr": ""
+    },
+    {
+      "name": "6-effect",
+      "pid": 20976,
+      "command": [
+        "<node>",
+        "<approved-temp>/081-sol-final-drivers-cuK3Vw/consumer.mjs",
+        "<approved-temp>/081-sol-concurrent-43JxQr/6-effect.job.json"
+      ],
+      "job": {
+        "action": "effect",
+        "root": "<approved-temp>/081-sol-concurrent-43JxQr/state",
+        "identity": {
+          "S": "B-generation-2",
+          "R": "A-generation-1",
+          "O": "closed-recipient",
+          "effectID": "delivery"
+        }
+      },
+      "code": 0,
+      "signal": null,
+      "stdout": "{\"pid\":20976,\"result\":{\"allowed\":false,\"reason\":\"closed\"}}\n",
+      "stderr": ""
+    },
+    {
+      "name": "7-effect",
+      "pid": 63592,
+      "command": [
+        "<node>",
+        "<approved-temp>/081-sol-final-drivers-cuK3Vw/consumer.mjs",
+        "<approved-temp>/081-sol-concurrent-43JxQr/7-effect.job.json"
+      ],
+      "job": {
+        "action": "effect",
+        "root": "<approved-temp>/081-sol-concurrent-43JxQr/state",
+        "identity": {
+          "S": "B-generation-2",
+          "R": "B-generation-2",
+          "O": "positive-B",
+          "effectID": "write"
+        }
+      },
+      "code": 0,
+      "signal": null,
+      "stdout": "{\"pid\":63592,\"result\":{\"allowed\":true,\"value\":\"bounded-file-effect-complete\"}}\n",
+      "stderr": ""
+    },
+    {
+      "name": "8-running",
+      "pid": 54708,
+      "command": [
+        "<node>",
+        "<approved-temp>/081-sol-final-drivers-cuK3Vw/consumer.mjs",
+        "<approved-temp>/081-sol-concurrent-43JxQr/8-running.job.json"
+      ],
+      "job": {
+        "name": "running",
+        "action": "effect",
+        "root": "<approved-temp>/081-sol-concurrent-43JxQr/D-before-C",
+        "identity": {
+          "S": "A-generation-1",
+          "R": "A-generation-1",
+          "O": "O-running",
+          "effectID": "write"
+        },
+        "barrier": "<approved-temp>/081-sol-concurrent-43JxQr/running-barrier",
+        "holdEffect": true
+      },
+      "code": 0,
+      "signal": null,
+      "stdout": "{\"pid\":54708,\"result\":{\"allowed\":true,\"value\":\"bounded-file-effect-complete\"}}\n",
+      "stderr": ""
+    },
+    {
+      "name": "9-closing",
+      "pid": 79832,
+      "command": [
+        "<node>",
+        "<approved-temp>/081-sol-final-drivers-cuK3Vw/consumer.mjs",
+        "<approved-temp>/081-sol-concurrent-43JxQr/9-closing.job.json"
+      ],
+      "job": {
+        "name": "closing",
+        "action": "close",
+        "root": "<approved-temp>/081-sol-concurrent-43JxQr/D-before-C",
+        "owner": "A-generation-1",
+        "barrier": "<approved-temp>/081-sol-concurrent-43JxQr/running-barrier"
+      },
+      "code": 0,
+      "signal": null,
+      "stdout": "{\"pid\":79832,\"result\":{\"C\":true,\"terminalCloseProven\":false}}\n",
+      "stderr": ""
+    },
+    {
+      "name": "10-crash",
+      "pid": 56636,
+      "command": [
+        "<node>",
+        "<approved-temp>/081-sol-final-drivers-cuK3Vw/consumer.mjs",
+        "<approved-temp>/081-sol-concurrent-43JxQr/10-crash.job.json"
+      ],
+      "job": {
+        "action": "crash",
+        "root": "<approved-temp>/081-sol-concurrent-43JxQr/crash-after-D",
+        "identity": {
+          "S": "A-generation-1",
+          "R": "A-generation-1",
+          "O": "O-crash",
+          "effectID": "write"
+        }
+      },
+      "code": 23,
+      "signal": null,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "11-close",
+      "pid": 66448,
+      "command": [
+        "<node>",
+        "<approved-temp>/081-sol-final-drivers-cuK3Vw/consumer.mjs",
+        "<approved-temp>/081-sol-concurrent-43JxQr/11-close.job.json"
+      ],
+      "job": {
+        "action": "close",
+        "root": "<approved-temp>/081-sol-concurrent-43JxQr/crash-after-D",
+        "owner": "A-generation-1",
+        "lockBudget": 1500
+      },
+      "code": 2,
+      "signal": null,
+      "stdout": "{\"pid\":66448,\"error\":\"LOCK_UNRESOLVED\"}\n",
+      "stderr": ""
+    }
+  ],
+  "stores": [
+    {
+      "name": "crash-after-D",
+      "events": [
+        {
+          "type": "D",
+          "pid": 56636,
+          "S": "A-generation-1",
+          "R": "A-generation-1",
+          "O": "O-crash",
+          "effectID": "write"
+        }
+      ],
+      "actual": []
+    },
+    {
+      "name": "D-before-C",
+      "events": [
+        {
+          "type": "D",
+          "pid": 54708,
+          "S": "A-generation-1",
+          "R": "A-generation-1",
+          "O": "O-running",
+          "effectID": "write"
+        },
+        {
+          "type": "effect-returned",
+          "pid": 54708,
+          "S": "A-generation-1",
+          "R": "A-generation-1",
+          "O": "O-running",
+          "effectID": "write"
+        },
+        {
+          "type": "terminal",
+          "pid": 54708,
+          "S": "A-generation-1",
+          "R": "A-generation-1",
+          "O": "O-running",
+          "effectID": "write"
+        },
+        {
+          "type": "C",
+          "pid": 79832,
+          "owner": "A-generation-1"
+        }
+      ],
+      "actual": [
+        {
+          "S": "A-generation-1",
+          "R": "A-generation-1",
+          "O": "O-running",
+          "effectID": "write"
+        }
+      ]
+    },
+    {
+      "name": "state",
+      "events": [
+        {
+          "type": "D",
+          "pid": 54848,
+          "S": "B-generation-2",
+          "R": "B-generation-2",
+          "O": "O-shared-generation-1",
+          "effectID": "effect-1"
+        },
+        {
+          "type": "effect-returned",
+          "pid": 54848,
+          "S": "B-generation-2",
+          "R": "B-generation-2",
+          "O": "O-shared-generation-1",
+          "effectID": "effect-1"
+        },
+        {
+          "type": "terminal",
+          "pid": 54848,
+          "S": "B-generation-2",
+          "R": "B-generation-2",
+          "O": "O-shared-generation-1",
+          "effectID": "effect-1"
+        },
+        {
+          "type": "duplicate",
+          "pid": 49484,
+          "S": "B-generation-2",
+          "R": "B-generation-2",
+          "O": "O-shared-generation-1",
+          "effectID": "effect-1"
+        },
+        {
+          "type": "duplicate",
+          "pid": 42652,
+          "S": "B-generation-2",
+          "R": "B-generation-2",
+          "O": "O-shared-generation-1",
+          "effectID": "effect-1"
+        },
+        {
+          "type": "D",
+          "pid": 47760,
+          "S": "B-generation-2",
+          "R": "B-generation-2",
+          "O": "O-shared-generation-1",
+          "effectID": "effect-2"
+        },
+        {
+          "type": "effect-returned",
+          "pid": 47760,
+          "S": "B-generation-2",
+          "R": "B-generation-2",
+          "O": "O-shared-generation-1",
+          "effectID": "effect-2"
+        },
+        {
+          "type": "terminal",
+          "pid": 47760,
+          "S": "B-generation-2",
+          "R": "B-generation-2",
+          "O": "O-shared-generation-1",
+          "effectID": "effect-2"
+        },
+        {
+          "type": "C",
+          "pid": 60552,
+          "owner": "A-generation-1"
+        },
+        {
+          "type": "deny-closed",
+          "pid": 35572,
+          "S": "A-generation-1",
+          "R": "B-generation-2",
+          "O": "old-wake",
+          "effectID": "wake"
+        },
+        {
+          "type": "deny-closed",
+          "pid": 20976,
+          "S": "B-generation-2",
+          "R": "A-generation-1",
+          "O": "closed-recipient",
+          "effectID": "delivery"
+        },
+        {
+          "type": "D",
+          "pid": 63592,
+          "S": "B-generation-2",
+          "R": "B-generation-2",
+          "O": "positive-B",
+          "effectID": "write"
+        },
+        {
+          "type": "effect-returned",
+          "pid": 63592,
+          "S": "B-generation-2",
+          "R": "B-generation-2",
+          "O": "positive-B",
+          "effectID": "write"
+        },
+        {
+          "type": "terminal",
+          "pid": 63592,
+          "S": "B-generation-2",
+          "R": "B-generation-2",
+          "O": "positive-B",
+          "effectID": "write"
+        }
+      ],
+      "actual": [
+        {
+          "S": "B-generation-2",
+          "R": "B-generation-2",
+          "O": "O-shared-generation-1",
+          "effectID": "effect-1"
+        },
+        {
+          "S": "B-generation-2",
+          "R": "B-generation-2",
+          "O": "O-shared-generation-1",
+          "effectID": "effect-2"
+        },
+        {
+          "S": "B-generation-2",
+          "R": "B-generation-2",
+          "O": "positive-B",
+          "effectID": "write"
+        }
+      ]
+    }
+  ]
+}

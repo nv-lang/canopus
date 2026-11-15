@@ -1,0 +1,37 @@
+﻿{
+    "kind":  "own-tree-after",
+    "head":  "26429fa11424f4a5bb0b6a595dc0a95cea6e1601",
+    "branch":  "task/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen",
+    "status":  [
+                   "## task/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen",
+                   " M doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/log.md",
+                   "?? doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/analysis.md",
+                   "?? doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/progress.log",
+                   "?? doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/",
+                   "?? doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-trace.md",
+                   "?? doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec.md",
+                   "?? doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/usage.log"
+               ],
+    "git_file":  {
+                     "bytes":  105,
+                     "sha256":  "9ECE78A917CE3902C197A74270ACAA9F7B4B7CA4C1DCA1EFCFC0235F0B21E9EC",
+                     "payload_not_read":  true
+                 },
+    "capturedFiles":  676,
+    "changedOrMissingFromBefore":  [
+                                       "MISSING doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/progress.log",
+                                       "MISSING doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/usage.log"
+                                   ],
+    "newFiles":  [
+
+                 ],
+    "beforeExclusions":  [
+                             "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/progress.log",
+                             "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/profile.log",
+                             "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/usage.log",
+                             "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/analysis.md",
+                             "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec.md",
+                             "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-trace.md"
+                         ],
+    "scope":  "whole readable tree excluding only the exact three append-only journals and own output files"
+}

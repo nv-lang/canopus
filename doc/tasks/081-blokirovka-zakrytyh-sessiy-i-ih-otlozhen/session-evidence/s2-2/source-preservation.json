@@ -1,0 +1,82 @@
+{
+  "probe": "read-only source preservation",
+  "expected": "all three author source hashes match prompt; prior review/evidence remain present and hashable",
+  "author_sources": [
+    {
+      "path": "spec.md",
+      "bytes": 12258,
+      "sha256": "2b56bfb8aed137548e0a4bb1c67d027447d5016f0b07f42f4c7980fcbb749e93",
+      "expected_match": true
+    },
+    {
+      "path": "analysis.md",
+      "bytes": 15183,
+      "sha256": "645ff6bb2f32dcdb064b4fe5c68145d9db97d0f5b335bb8a3034b8e4a9ee7bf3",
+      "expected_match": true
+    },
+    {
+      "path": "spec-trace.md",
+      "bytes": 6134,
+      "sha256": "e7ccec5cf8c7ac41f34957d71684d2a2d72162b9696d92c5f6e6bf7e9516bdb7",
+      "expected_match": true
+    }
+  ],
+  "prior_evidence_file_count": 11,
+  "prior_evidence": [
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/integrator-intake.md",
+      "bytes": 4194,
+      "sha256": "66d11f789facdec18c608e25bbadb9b775ce6f3267acf9dd7d70dfd064e5573b"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/integrator-s1-2-qualification.md",
+      "bytes": 3935,
+      "sha256": "0d05ce286bb88ec16177df060e4ea6eb2451d78b8fd46d14077c08e083158953"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/integrator-s2-1-qualification.md",
+      "bytes": 4469,
+      "sha256": "2715d94669e0b7d75761c93ac8a429b8f3ad06b5afabec027af92ef4cbddeece"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/after-manifest.json",
+      "bytes": 2301,
+      "sha256": "d90867710de288dc44abe2d3431135c015f10dc1c7d7f33f0bcab733f59a7a80"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/after-qualification-corrected.json",
+      "bytes": 1788,
+      "sha256": "885f0b927dbf90f83f46d9142ed0300ef662882c6b614e2578ac33505290e21f"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/after-qualification.json",
+      "bytes": 2657,
+      "sha256": "1b5915244529d07c2297309baf1ce48d50c20f50ba28a496900166f4e813debd"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/before-manifest.json",
+      "bytes": 208266,
+      "sha256": "605791fdbe82f80b3a4aaad80dd1dfebd06963660c8c01a03449ffeab33f7c9c"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/evidence-verification.json",
+      "bytes": 2333,
+      "sha256": "1e4dd942e08ff99e8a17ab938af321cdaf8984716f8ba368c662eedfb0f976cc"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/submission-manifest.json",
+      "bytes": 3840,
+      "sha256": "0ed6f74f7b2daed3823b8b9d35b1f8d69410a22350d0da357accc62fa05acad6"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/watch-inventory.json",
+      "bytes": 5065,
+      "sha256": "30ca2f70b956f7b494ab7255895657666b921df2e0eedd2d2a6c236caceb7cd4"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-1/read-map-and-probes.md",
+      "bytes": 4485,
+      "sha256": "38c4e90ad6e8e4aea0d573ec1935f2dd1edcdc406ef3101756e78b322a6de14b"
+    }
+  ]
+}

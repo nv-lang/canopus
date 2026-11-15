@@ -1,0 +1,78 @@
+{
+  "kind": "corrected-current-tree-before",
+  "note": "Первый before.json неполон: .git worktree-file посчитан как обычный файл; сохранён без исправления. Этот исправленный снимок не является ретроснимком.",
+  "head": "26429fa11424f4a5bb0b6a595dc0a95cea6e1601",
+  "branch": "task/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen",
+  "files": [
+    {
+      "path": ".claude/settings.json",
+      "bytes": 370,
+      "sha256": "32861efdcca0296b0092a6127a561f24be0b64681dc67c5ff9db12c35ff52148"
+    },
+    {
+      "path": ".git",
+      "bytes": 105,
+      "sha256": "9ece78a917ce3902c197a74270acaa9f7b4b7ca4c1dca1efcfc0235f0b21e9ec"
+    },
+    {
+      "path": ".gitattributes",
+      "bytes": 19,
+      "sha256": "d60f352d0db1404c70afb4bb8b2ca3fd1c610572aa40720e8a0b7baa7885418c"
+    },
+    {
+      "path": ".github/workflows/guards.yml",
+      "bytes": 3666,
+      "sha256": "8887cae842f0091b0332e8ba1697ad4f366a4758fd1de93fd90ffb761be00263"
+    },
+    {
+      "path": ".gitignore",
+      "bytes": 14,
+      "sha256": "4d56952b0fb13bf8f9b6c13a6d4c34a075bac3af447636a1df4335d7576e2f97"
+    },
+    {
+      "path": ".opencode/crew-harness.json",
+      "bytes": 2605,
+      "sha256": "03e8a7f8dccdaf65e183ef7fd84947ac0e102214e677643316805d272ef9bf60"
+    },
+    {
+      "path": ".opencode/opencode.json",
+      "bytes": 735,
+      "sha256": "458360ca829da24bb5473e779d56bc6891f180a21bd159bba29c3b6675b88c31"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/analysis.md",
+      "bytes": 15183,
+      "sha256": "645ff6bb2f32dcdb064b4fe5c68145d9db97d0f5b335bb8a3034b8e4a9ee7bf3"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/log.md",
+      "bytes": 7276,
+      "sha256": "902e6d6d3e285e3ebe1f3b93d13abdb2260097cdc268c20a966cc0ff4ee8e316"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/progress.log",
+      "bytes": 1920,
+      "sha256": "913607aabc1c854058383b9634124d0a108dcccef051ad1c48433d17e0cbbd09"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-review-1.md",
+      "bytes": 11884,
+      "sha256": "98707521a8287a156af8b0290934195031ac7289a78098106d9f06ddfe51de87"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-trace.md",
+      "bytes": 6134,
+      "sha256": "e7ccec5cf8c7ac41f34957d71684d2a2d72162b9696d92c5f6e6bf7e9516bdb7"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec.md",
+      "bytes": 12258,
+      "sha256": "2b56bfb8aed137548e0a4bb1c67d027447d5016f0b07f42f4c7980fcbb749e93"
+    },
+    {
+      "path": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/usage.log",
+      "bytes": 1817,
+      "sha256": "aa753b7a963f6197f818757d17349a7f2ad52a2d4b4e3c6f90a59f6a8d4b8e01"
+    }
+  ]
+}

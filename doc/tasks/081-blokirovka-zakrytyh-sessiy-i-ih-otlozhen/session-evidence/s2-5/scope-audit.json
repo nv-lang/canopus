@@ -1,0 +1,98 @@
+{
+  "phase": "scope/output audit после whole-after",
+  "before_files": 769,
+  "final_expected_files": 779,
+  "new_exact_count": 10,
+  "new_exact": [
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-5/after-manifest.json",
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-5/before-manifest.json",
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-5/consumer-audit.md",
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-5/forensic.json",
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-5/own-expected.json",
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-5/probes.json",
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-5/read-map.md",
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-5/scope-audit.json",
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-5/source-audit.md",
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-review-5.md"
+  ],
+  "output_manifest": {
+    "spec-review-5.md": {
+      "bytes": 20370,
+      "sha256": "336da6efe1ebdc303cd4aa3081c588190861745b99f6b9a2596f9e36db8cff0d"
+    },
+    "session-evidence/s2-5/before-manifest.json": {
+      "bytes": 130301,
+      "sha256": "3d4b426f25374eab6eee304900b224c16896559ce0b4eb2b8a46a66e0f59d180"
+    },
+    "session-evidence/s2-5/own-expected.json": {
+      "bytes": 993,
+      "sha256": "3319b5fe01dcadb126153241fe3ffa1c3adee07aa09ee412eaaaf52bbcf0582e"
+    },
+    "session-evidence/s2-5/read-map.md": {
+      "bytes": 10030,
+      "sha256": "7e4326fb6d0322356dfe86133531b301897498b7dde3fe834cb7a4d75971e39f"
+    },
+    "session-evidence/s2-5/source-audit.md": {
+      "bytes": 4890,
+      "sha256": "f113b0e13e5aa0163eec80ca2cfd6d6f03f0f7229f0b686f2f8cd1b9b9d449af"
+    },
+    "session-evidence/s2-5/consumer-audit.md": {
+      "bytes": 43531,
+      "sha256": "bf140c4302b2e29d1fb802320935a07b4959461ccc018a7dc3bc452a468eb49c"
+    },
+    "session-evidence/s2-5/probes.json": {
+      "bytes": 3300,
+      "sha256": "8a9c0458a1cbdd1e739c1aec928198dba9d9f34e8dd8c713d0404d793c1348e9"
+    },
+    "session-evidence/s2-5/forensic.json": {
+      "bytes": 19940,
+      "sha256": "e005e6b1473d6de59ed34f8ae8598acd5aa1ee66033a360a095aebd9cd010e14"
+    },
+    "session-evidence/s2-5/after-manifest.json": {
+      "bytes": 133992,
+      "sha256": "549ec104be46ed751ff15a5a5e2d8714b865c4c6b87f0fd01792de4a035826e2"
+    }
+  },
+  "self_exact": "session-evidence/s2-5/scope-audit.json",
+  "self_hash": "не включён рекурсивно; bytes/SHA доступны финальному принимающему",
+  "protected_unexpected_changed": [],
+  "unexpected_new": [],
+  "unexpected_missing": [],
+  "prefixes_preserved": {
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/profile.log": true,
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/usage.log": true,
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/log.md": true,
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/progress.log": true
+  },
+  "generated_config": {
+    "before": true,
+    "at_after": true,
+    "unchanged": true
+  },
+  "git_file_unchanged": true,
+  "root3_unchanged": true,
+  "raw87_verified": 87,
+  "raw_bytes": 1804234,
+  "raw_mismatches": 0,
+  "author_manifest32_mismatches": 0,
+  "P3_controls": {
+    "raw_freeze_manifest_matches": true,
+    "genuine_entries_match": true,
+    "tampered_entry_rejected": true,
+    "expected63_rejected": true,
+    "B_identity_positive": true,
+    "B_as_old_rejected": true,
+    "old_run2_positive": true
+  },
+  "measurement_errors": [
+    "TypeError: list indices must be integers or slices, not dict; exit1; readonly; result not created",
+    "KeyError: bytes; actual size; exit1; readonly; result not created"
+  ],
+  "privacy": {
+    "files_scanned": 9,
+    "machine_path_hits": [],
+    "positive_control": true,
+    "full_guards": false
+  },
+  "after_scan_allowed": "только append progress/profile/usage и штатный submit log/generated plugin dynamics; новые предметные writes запрещены"
+}

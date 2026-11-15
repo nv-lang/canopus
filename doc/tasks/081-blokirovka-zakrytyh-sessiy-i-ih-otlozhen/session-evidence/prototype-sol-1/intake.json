@@ -1,0 +1,30 @@
+{
+  "baseline": {
+    "base": "7e23895b8cb2c3ea9e4ac506455fedd440e6afd0",
+    "archive_sha256": "cdae970cd7e84270a18ebfe159d72f9f23b12bd2c89bd991dd7a36798775f4e3",
+    "source": "source",
+    "qualification": "Immutable source export for isolated P0-P2 probes, not a live worktree and not an integration candidate. Original task branch/evidence untouched.",
+    "watch_unchanged_from_task_head": true
+  },
+  "source_files_verified": 262,
+  "old_sha256": {
+    "opencode-plugin/test/prototype081/durable-tombstone.mjs": "f5861b7b781099392ba5ded0d4dd99fe77156e2d169fff131ef98dd0048c064c",
+    "opencode-plugin/test/prototype081/red-close-watch.mjs": "964f803096f6d038624f4ddf2c467a64dfb3f08b7cd81da4ca372641a9bf529c",
+    "opencode-plugin/test/prototype081/tombstone-probe.mjs": "1f331d7145f5f187977ad69a642692d529a3549c5b23af95ca1c8cf8ef3fe8d4",
+    "opencode-plugin/test/prototype081/correction-1/filesystem-gate.mjs": "164096223de46a7e0ade28e10d90cf88dc15d4eb57d439b0698536d8f69c0816",
+    "opencode-plugin/test/prototype081/correction-1/gate-probe.mjs": "519873f3e5c102409cdb893a88b91972a1db21783745b96d4dc75b52217b125e",
+    "opencode-plugin/test/prototype081/correction-1/lifecycle-oracle.mjs": "a2b9ea0520652a35f5e99442cf7cf16538042efe7947bd0f6fded66505a88990",
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/prototype-result.md": "e6f4e353861daed8f01d03b861ab60103098993bab4d60a2043ecdcafa6c5138",
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/prototype-correction-result.md": "296273d2b35a902f8e9ff9645a32154f9706de95be1b2c2ed038ff01bf03f085",
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec.md": "38aa3a2c36ece056435ca348b6b3b72bef5adf82a730d6d6c0035245f180f12e",
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-1/integrator-qualification.md": "1a9ba44a4d7875fc22122b846381cbe0c946072a7638da267c80444971a47f3d",
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-1/manifest.md": "e1de997933411b01b4551d3e417107d09e4e0510991c1392ee9efcb1a242a8e7",
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-correction-1/integrator-qualification.md": "0cc508a29a1ac70108d50687f58a4aa47e09eddcfbeafda723fa7b860cb0fba2",
+    "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-correction-1/README.md": "7e6d805a8332ecfb97d34f9bc46401da1e1a2691bc272bb8bcedcd20336a4967"
+  },
+  "old_scope": "read-only; no polling, process control or cleanup",
+  "storage_override": "fresh XDG_DATA_HOME/opencode/crew-harness; CREW_HARNESS_DB fresh unused.db; OPENCODE_CREW_PROJECTS empty object before import",
+  "T_seconds": 120,
+  "fixture_wait_seconds": 20,
+  "oracle_sha256": "c274a18bcaeec4cb0b584904fabd7114e4ec7ed737c1ef65e5b96ecf85adbc98"
+}

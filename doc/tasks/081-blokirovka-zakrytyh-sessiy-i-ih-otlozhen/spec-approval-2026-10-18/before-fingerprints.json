@@ -1,0 +1,21 @@
+{
+  "phase": "До адресной правки интегратора по ответу владельца 12:20",
+  "files": {
+    "spec.md": {
+      "bytes": 43139,
+      "sha256": "22e641def114d3207f3ec303e6e5f5eebaaac82973cb2d2bc0ccbd46350aa43e",
+      "matches_reviewed": true
+    },
+    "analysis.md": {
+      "bytes": 10024,
+      "sha256": "1750a21b58cf27840dc22113d4ffec5bca6c97c6d28108f405da9cc0bbea6ab6",
+      "matches_reviewed": true
+    },
+    "spec-trace.md": {
+      "bytes": 40896,
+      "sha256": "cacad23b828a51c8a1e6d6c30ed1bca0a2b998bbf6e7b384635a24f71211752c",
+      "matches_reviewed": true
+    }
+  },
+  "old_review": "spec-review-5.md; 1 существенная S1, не переписывается"
+}

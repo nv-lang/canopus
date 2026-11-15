@@ -1,0 +1,2140 @@
+{
+  "rawSHA": "00200a75b99d496a028aca03f4afb25603c6a87a598ffffe41a38862d9589ddb",
+  "registry": [
+    {
+      "scope": "<approved-temp>/081-sol-ya0oio",
+      "records": [
+        {
+          "record": "<approved-temp>/081-sol-ya0oio/data/opencode/crew-harness/watches/1792343992090-rirkoc.json",
+          "watch": {
+            "id": "1792343992090-rirkoc",
+            "session": "sol-fixture-A-generation-1",
+            "command": "printf effect > '<approved-temp>/081-sol-ya0oio/A.effect'",
+            "cwd": "<approved-temp>/081-sol-ya0oio",
+            "minutes": 120,
+            "created": 1792343992090,
+            "status": "done",
+            "pid": 20200,
+            "started": 1792343992094,
+            "ended": 1792343992702,
+            "code": 0
+          },
+          "exit": "0"
+        },
+        {
+          "record": "<approved-temp>/081-sol-ya0oio/data/opencode/crew-harness/watches/1792343992093-bixd3r.json",
+          "watch": {
+            "id": "1792343992093-bixd3r",
+            "session": "sol-fixture-B-generation-1",
+            "command": "printf effect > '<approved-temp>/081-sol-ya0oio/B.effect'",
+            "cwd": "<approved-temp>/081-sol-ya0oio",
+            "minutes": 120,
+            "created": 1792343992093,
+            "status": "done",
+            "pid": 97204,
+            "started": 1792343992094,
+            "ended": 1792343992702,
+            "code": 0
+          },
+          "exit": "0"
+        }
+      ],
+      "result": null,
+      "explicit_child_wait": false,
+      "limitation": "initial observer failure: later metadata is not retroactive ChildProcess wait"
+    },
+    {
+      "scope": "<approved-temp>/081-sol-9esC6r",
+      "records": [
+        {
+          "record": "<approved-temp>/081-sol-9esC6r/data/opencode/crew-harness/watches/1792344070616-ch2txl.json",
+          "watch": {
+            "id": "1792344070616-ch2txl",
+            "session": "sol-fixture-A-generation-1",
+            "command": "printf effect > '<approved-temp>/081-sol-9esC6r/A.effect'",
+            "cwd": "<approved-temp>/081-sol-9esC6r",
+            "minutes": 120,
+            "created": 1792344070616,
+            "status": "done",
+            "pid": 65148,
+            "started": 1792344070621,
+            "ended": 1792344071194,
+            "code": 0
+          },
+          "exit": "0"
+        },
+        {
+          "record": "<approved-temp>/081-sol-9esC6r/data/opencode/crew-harness/watches/1792344070619-zyueip.json",
+          "watch": {
+            "id": "1792344070619-zyueip",
+            "session": "sol-fixture-B-generation-1",
+            "command": "printf effect > '<approved-temp>/081-sol-9esC6r/B.effect'",
+            "cwd": "<approved-temp>/081-sol-9esC6r",
+            "minutes": 120,
+            "created": 1792344070619,
+            "status": "done",
+            "pid": 20696,
+            "started": 1792344070621,
+            "ended": 1792344071225,
+            "code": 0
+          },
+          "exit": "0"
+        }
+      ],
+      "result": {
+        "mode": "baseline",
+        "schedule": "queued",
+        "fixture": "<approved-temp>/081-sol-9esC6r",
+        "base": "<approved-temp>/081-sol-9esC6r/data/opencode/crew-harness",
+        "events": [
+          {
+            "seq": 1,
+            "type": "queued",
+            "O": "1792344070616-ch2txl",
+            "S": "sol-fixture-A-generation-1"
+          },
+          {
+            "seq": 2,
+            "type": "actual-release-closed",
+            "S": "sol-fixture-A-generation-1",
+            "terminalCloseProven": false
+          },
+          {
+            "seq": 3,
+            "type": "owned-wrapper-children-closed"
+          },
+          {
+            "seq": 4,
+            "type": "sample",
+            "A": true,
+            "B": true
+          }
+        ],
+        "children": [
+          {
+            "pid": 65148,
+            "command": [
+              "C:/Program Files/Git/bin/bash.exe",
+              "-c",
+              "timeout 7200 bash -c 'printf effect > '/''<approved-temp>/081-sol-9esC6r/A.effect'/''' > '<approved-temp>/081-sol-9esC6r/data/opencode/crew-harness/watches/1792344070616-ch2txl.out' 2>&1; echo $? > '<approved-temp>/081-sol-9esC6r/data/opencode/crew-harness/watches/1792344070616-ch2txl.exit.tmp' && mv '<approved-temp>/081-sol-9esC6r/data/opencode/crew-harness/watches/1792344070616-ch2txl.exit.tmp' '<approved-temp>/081-sol-9esC6r/data/opencode/crew-harness/watches/1792344070616-ch2txl.exit'"
+            ],
+            "exit": {
+              "code": 0,
+              "signal": null
+            }
+          },
+          {
+            "pid": 20696,
+            "command": [
+              "C:/Program Files/Git/bin/bash.exe",
+              "-c",
+              "timeout 7200 bash -c 'printf effect > '/''<approved-temp>/081-sol-9esC6r/B.effect'/''' > '<approved-temp>/081-sol-9esC6r/data/opencode/crew-harness/watches/1792344070619-zyueip.out' 2>&1; echo $? > '<approved-temp>/081-sol-9esC6r/data/opencode/crew-harness/watches/1792344070619-zyueip.exit.tmp' && mv '<approved-temp>/081-sol-9esC6r/data/opencode/crew-harness/watches/1792344070619-zyueip.exit.tmp' '<approved-temp>/081-sol-9esC6r/data/opencode/crew-harness/watches/1792344070619-zyueip.exit'"
+            ],
+            "exit": {
+              "code": 0,
+              "signal": null
+            }
+          }
+        ],
+        "A": {
+          "before": "running",
+          "after": "closed",
+          "effectAfterTerminalSample": true
+        },
+        "B": {
+          "status": "running",
+          "effect": true
+        },
+        "records": [
+          {
+            "id": "1792344070616-ch2txl",
+            "session": "sol-fixture-A-generation-1",
+            "command": "printf effect > '<approved-temp>/081-sol-9esC6r/A.effect'",
+            "cwd": "<approved-temp>/081-sol-9esC6r",
+            "minutes": 120,
+            "created": 1792344070616,
+            "status": "done",
+            "pid": 65148,
+            "started": 1792344070621,
+            "ended": 1792344071194,
+            "code": 0
+          },
+          {
+            "id": "1792344070619-zyueip",
+            "session": "sol-fixture-B-generation-1",
+            "command": "printf effect > '<approved-temp>/081-sol-9esC6r/B.effect'",
+            "cwd": "<approved-temp>/081-sol-9esC6r",
+            "minutes": 120,
+            "created": 1792344070619,
+            "status": "done",
+            "pid": 20696,
+            "started": 1792344070621,
+            "ended": 1792344071225,
+            "code": 0
+          }
+        ],
+        "gateEvents": ""
+      },
+      "explicit_child_wait": true,
+      "limitation": "wrapper wait is not arbitrary descendant/handle proof"
+    },
+    {
+      "scope": "<approved-temp>/081-sol-NwXuuN",
+      "records": [
+        {
+          "record": "<approved-temp>/081-sol-NwXuuN/data/opencode/crew-harness/watches/1792344072054-fbpx3r.json",
+          "watch": {
+            "id": "1792344072054-fbpx3r",
+            "session": "sol-fixture-A-generation-1",
+            "command": "printf ready > '<approved-temp>/081-sol-NwXuuN/A.ready'; for i in {1..400}; do [ -f '<approved-temp>/081-sol-NwXuuN/A.release' ] && break; sleep 0.02; done; [ -f '<approved-temp>/081-sol-NwXuuN/A.release' ] || exit 19; printf effect > '<approved-temp>/081-sol-NwXuuN/A.effect'",
+            "cwd": "<approved-temp>/081-sol-NwXuuN",
+            "minutes": 120,
+            "created": 1792344072054,
+            "status": "done",
+            "pid": 84512,
+            "started": 1792344072056,
+            "ended": 1792344072690,
+            "code": 0
+          },
+          "exit": "0"
+        },
+        {
+          "record": "<approved-temp>/081-sol-NwXuuN/data/opencode/crew-harness/watches/1792344072522-wrq4j4.json",
+          "watch": {
+            "id": "1792344072522-wrq4j4",
+            "session": "sol-fixture-B-generation-1",
+            "command": "printf effect > '<approved-temp>/081-sol-NwXuuN/B.effect'",
+            "cwd": "<approved-temp>/081-sol-NwXuuN",
+            "minutes": 120,
+            "created": 1792344072522,
+            "status": "done",
+            "pid": 34640,
+            "started": 1792344072523,
+            "ended": 1792344072843,
+            "code": 0
+          },
+          "exit": "0"
+        }
+      ],
+      "result": {
+        "mode": "baseline",
+        "schedule": "running",
+        "fixture": "<approved-temp>/081-sol-NwXuuN",
+        "base": "<approved-temp>/081-sol-NwXuuN/data/opencode/crew-harness",
+        "events": [
+          {
+            "seq": 1,
+            "type": "queued",
+            "O": "1792344072054-fbpx3r",
+            "S": "sol-fixture-A-generation-1"
+          },
+          {
+            "seq": 2,
+            "type": "D-observed-running",
+            "O": "1792344072054-fbpx3r"
+          },
+          {
+            "seq": 3,
+            "type": "actual-release-closed",
+            "S": "sol-fixture-A-generation-1",
+            "terminalCloseProven": false
+          },
+          {
+            "seq": 4,
+            "type": "owned-wrapper-children-closed"
+          },
+          {
+            "seq": 5,
+            "type": "sample",
+            "A": true,
+            "B": true
+          }
+        ],
+        "children": [
+          {
+            "pid": 84512,
+            "command": [
+              "C:/Program Files/Git/bin/bash.exe",
+              "-c",
+              "timeout 7200 bash -c 'printf ready > '/''<approved-temp>/081-sol-NwXuuN/A.ready'/''; for i in {1..400}; do [ -f '/''<approved-temp>/081-sol-NwXuuN/A.release'/'' ] && break; sleep 0.02; done; [ -f '/''<approved-temp>/081-sol-NwXuuN/A.release'/'' ] || exit 19; printf effect > '/''<approved-temp>/081-sol-NwXuuN/A.effect'/''' > '<approved-temp>/081-sol-NwXuuN/data/opencode/crew-harness/watches/1792344072054-fbpx3r.out' 2>&1; echo $? > '<approved-temp>/081-sol-NwXuuN/data/opencode/crew-harness/watches/1792344072054-fbpx3r.exit.tmp' && mv '<approved-temp>/081-sol-NwXuuN/data/opencode/crew-harness/watches/1792344072054-fbpx3r.exit.tmp' '<approved-temp>/081-sol-NwXuuN/data/opencode/crew-harness/watches/1792344072054-fbpx3r.exit'"
+            ],
+            "exit": {
+              "code": 0,
+              "signal": null
+            }
+          },
+          {
+            "pid": 34640,
+            "command": [
+              "C:/Program Files/Git/bin/bash.exe",
+              "-c",
+              "timeout 7200 bash -c 'printf effect > '/''<approved-temp>/081-sol-NwXuuN/B.effect'/''' > '<approved-temp>/081-sol-NwXuuN/data/opencode/crew-harness/watches/1792344072522-wrq4j4.out' 2>&1; echo $? > '<approved-temp>/081-sol-NwXuuN/data/opencode/crew-harness/watches/1792344072522-wrq4j4.exit.tmp' && mv '<approved-temp>/081-sol-NwXuuN/data/opencode/crew-harness/watches/1792344072522-wrq4j4.exit.tmp' '<approved-temp>/081-sol-NwXuuN/data/opencode/crew-harness/watches/1792344072522-wrq4j4.exit'"
+            ],
+            "exit": {
+              "code": 0,
+              "signal": null
+            }
+          }
+        ],
+        "A": {
+          "before": "running",
+          "after": "closed",
+          "effectAfterTerminalSample": true
+        },
+        "B": {
+          "status": "running",
+          "effect": true
+        },
+        "records": [
+          {
+            "id": "1792344072054-fbpx3r",
+            "session": "sol-fixture-A-generation-1",
+            "command": "printf ready > '<approved-temp>/081-sol-NwXuuN/A.ready'; for i in {1..400}; do [ -f '<approved-temp>/081-sol-NwXuuN/A.release' ] && break; sleep 0.02; done; [ -f '<approved-temp>/081-sol-NwXuuN/A.release' ] || exit 19; printf effect > '<approved-temp>/081-sol-NwXuuN/A.effect'",
+            "cwd": "<approved-temp>/081-sol-NwXuuN",
+            "minutes": 120,
+            "created": 1792344072054,
+            "status": "done",
+            "pid": 84512,
+            "started": 1792344072056,
+            "ended": 1792344072690,
+            "code": 0
+          },
+          {
+            "id": "1792344072522-wrq4j4",
+            "session": "sol-fixture-B-generation-1",
+            "command": "printf effect > '<approved-temp>/081-sol-NwXuuN/B.effect'",
+            "cwd": "<approved-temp>/081-sol-NwXuuN",
+            "minutes": 120,
+            "created": 1792344072522,
+            "status": "done",
+            "pid": 34640,
+            "started": 1792344072523,
+            "ended": 1792344072843,
+            "code": 0
+          }
+        ],
+        "gateEvents": ""
+      },
+      "explicit_child_wait": true,
+      "limitation": "wrapper wait is not arbitrary descendant/handle proof"
+    },
+    {
+      "scope": "<approved-temp>/081-sol-w1JR5m",
+      "records": [
+        {
+          "record": "<approved-temp>/081-sol-w1JR5m/data/opencode/crew-harness/watches/1792344226830-41sa1v.json",
+          "watch": {
+            "id": "1792344226830-41sa1v",
+            "session": "sol-fixture-A-generation-1",
+            "command": "printf effect > '<approved-temp>/081-sol-w1JR5m/A.effect'",
+            "cwd": "<approved-temp>/081-sol-w1JR5m",
+            "minutes": 120,
+            "created": 1792344226830,
+            "status": "done",
+            "ended": 1792344226850,
+            "code": 0,
+            "dropped": true
+          },
+          "exit": null
+        },
+        {
+          "record": "<approved-temp>/081-sol-w1JR5m/data/opencode/crew-harness/watches/1792344226848-to3a88.json",
+          "watch": {
+            "id": "1792344226848-to3a88",
+            "session": "sol-fixture-B-generation-1",
+            "command": "printf effect > '<approved-temp>/081-sol-w1JR5m/B.effect'",
+            "cwd": "<approved-temp>/081-sol-w1JR5m",
+            "minutes": 120,
+            "created": 1792344226848,
+            "status": "done",
+            "pid": 13400,
+            "started": 1792344226850,
+            "ended": 1792344227641,
+            "code": 0
+          },
+          "exit": "0"
+        }
+      ],
+      "result": {
+        "mode": "gate",
+        "schedule": "queued",
+        "fixture": "<approved-temp>/081-sol-w1JR5m",
+        "base": "<approved-temp>/081-sol-w1JR5m/data/opencode/crew-harness",
+        "events": [
+          {
+            "seq": 1,
+            "type": "queued",
+            "O": "1792344226830-41sa1v",
+            "S": "sol-fixture-A-generation-1"
+          },
+          {
+            "seq": 2,
+            "type": "actual-release-closed",
+            "S": "sol-fixture-A-generation-1",
+            "terminalCloseProven": false
+          },
+          {
+            "seq": 3,
+            "type": "owned-wrapper-children-closed"
+          },
+          {
+            "seq": 4,
+            "type": "sample",
+            "A": false,
+            "B": true
+          }
+        ],
+        "children": [
+          {
+            "pid": 13400,
+            "command": [
+              "C:/Program Files/Git/bin/bash.exe",
+              "-c",
+              "timeout 7200 bash -c 'printf effect > '/''<approved-temp>/081-sol-w1JR5m/B.effect'/''' > '<approved-temp>/081-sol-w1JR5m/data/opencode/crew-harness/watches/1792344226848-to3a88.out' 2>&1; echo $? > '<approved-temp>/081-sol-w1JR5m/data/opencode/crew-harness/watches/1792344226848-to3a88.exit.tmp' && mv '<approved-temp>/081-sol-w1JR5m/data/opencode/crew-harness/watches/1792344226848-to3a88.exit.tmp' '<approved-temp>/081-sol-w1JR5m/data/opencode/crew-harness/watches/1792344226848-to3a88.exit'"
+            ],
+            "exit": {
+              "code": 0,
+              "signal": null
+            }
+          }
+        ],
+        "A": {
+          "before": "running",
+          "after": "closed",
+          "effectAfterTerminalSample": false
+        },
+        "B": {
+          "status": "running",
+          "effect": true
+        },
+        "records": [
+          {
+            "id": "1792344226830-41sa1v",
+            "session": "sol-fixture-A-generation-1",
+            "command": "printf effect > '<approved-temp>/081-sol-w1JR5m/A.effect'",
+            "cwd": "<approved-temp>/081-sol-w1JR5m",
+            "minutes": 120,
+            "created": 1792344226830,
+            "status": "done",
+            "ended": 1792344226850,
+            "code": 0,
+            "dropped": true
+          },
+          {
+            "id": "1792344226848-to3a88",
+            "session": "sol-fixture-B-generation-1",
+            "command": "printf effect > '<approved-temp>/081-sol-w1JR5m/B.effect'",
+            "cwd": "<approved-temp>/081-sol-w1JR5m",
+            "minutes": 120,
+            "created": 1792344226848,
+            "status": "done",
+            "pid": 13400,
+            "started": 1792344226850,
+            "ended": 1792344227641,
+            "code": 0
+          }
+        ],
+        "gateEvents": "{\"type\":\"C\",\"pid\":54976,\"owner\":\"sol-fixture-A-generation-1\"}\n{\"type\":\"deny-closed\",\"pid\":54976,\"S\":\"sol-fixture-A-generation-1\",\"R\":\"sol-fixture-A-generation-1\",\"O\":\"1792344226830-41sa1v\",\"effectID\":\"spawn\"}\n{\"type\":\"D\",\"pid\":54976,\"S\":\"sol-fixture-B-generation-1\",\"R\":\"sol-fixture-B-generation-1\",\"O\":\"1792344226848-to3a88\",\"effectID\":\"spawn\"}\n{\"type\":\"effect-returned\",\"pid\":54976,\"S\":\"sol-fixture-B-generation-1\",\"R\":\"sol-fixture-B-generation-1\",\"O\":\"1792344226848-to3a88\",\"effectID\":\"spawn\"}\n{\"type\":\"wrapper-terminal\",\"pid\":54976,\"S\":\"sol-fixture-B-generation-1\",\"R\":\"sol-fixture-B-generation-1\",\"O\":\"1792344226848-to3a88\",\"effectID\":\"spawn\",\"code\":0,\"signal\":null,\"scopeExitProven\":false}\n"
+      },
+      "explicit_child_wait": true,
+      "limitation": "wrapper wait is not arbitrary descendant/handle proof"
+    },
+    {
+      "scope": "<approved-temp>/081-sol-dcCmqn",
+      "records": [
+        {
+          "record": "<approved-temp>/081-sol-dcCmqn/data/opencode/crew-harness/watches/1792344228716-sr88ou.json",
+          "watch": {
+            "id": "1792344228716-sr88ou",
+            "session": "sol-fixture-A-generation-1",
+            "command": "printf effect > '<approved-temp>/081-sol-dcCmqn/A.effect'",
+            "cwd": "<approved-temp>/081-sol-dcCmqn",
+            "minutes": 120,
+            "created": 1792344228716,
+            "status": "done",
+            "pid": 82996,
+            "started": 1792344228721,
+            "ended": 1792344229287,
+            "code": 0
+          },
+          "exit": "0"
+        },
+        {
+          "record": "<approved-temp>/081-sol-dcCmqn/data/opencode/crew-harness/watches/1792344228719-gxyuea.json",
+          "watch": {
+            "id": "1792344228719-gxyuea",
+            "session": "sol-fixture-B-generation-1",
+            "command": "printf effect > '<approved-temp>/081-sol-dcCmqn/B.effect'",
+            "cwd": "<approved-temp>/081-sol-dcCmqn",
+            "minutes": 120,
+            "created": 1792344228719,
+            "status": "done",
+            "pid": 23384,
+            "started": 1792344228721,
+            "ended": 1792344229318,
+            "code": 0
+          },
+          "exit": "0"
+        }
+      ],
+      "result": {
+        "mode": "removed",
+        "schedule": "queued",
+        "fixture": "<approved-temp>/081-sol-dcCmqn",
+        "base": "<approved-temp>/081-sol-dcCmqn/data/opencode/crew-harness",
+        "events": [
+          {
+            "seq": 1,
+            "type": "queued",
+            "O": "1792344228716-sr88ou",
+            "S": "sol-fixture-A-generation-1"
+          },
+          {
+            "seq": 2,
+            "type": "actual-release-closed",
+            "S": "sol-fixture-A-generation-1",
+            "terminalCloseProven": false
+          },
+          {
+            "seq": 3,
+            "type": "owned-wrapper-children-closed"
+          },
+          {
+            "seq": 4,
+            "type": "sample",
+            "A": true,
+            "B": true
+          }
+        ],
+        "children": [
+          {
+            "pid": 82996,
+            "command": [
+              "C:/Program Files/Git/bin/bash.exe",
+              "-c",
+              "timeout 7200 bash -c 'printf effect > '/''<approved-temp>/081-sol-dcCmqn/A.effect'/''' > '<approved-temp>/081-sol-dcCmqn/data/opencode/crew-harness/watches/1792344228716-sr88ou.out' 2>&1; echo $? > '<approved-temp>/081-sol-dcCmqn/data/opencode/crew-harness/watches/1792344228716-sr88ou.exit.tmp' && mv '<approved-temp>/081-sol-dcCmqn/data/opencode/crew-harness/watches/1792344228716-sr88ou.exit.tmp' '<approved-temp>/081-sol-dcCmqn/data/opencode/crew-harness/watches/1792344228716-sr88ou.exit'"
+            ],
+            "exit": {
+              "code": 0,
+              "signal": null
+            }
+          },
+          {
+            "pid": 23384,
+            "command": [
+              "C:/Program Files/Git/bin/bash.exe",
+              "-c",
+              "timeout 7200 bash -c 'printf effect > '/''<approved-temp>/081-sol-dcCmqn/B.effect'/''' > '<approved-temp>/081-sol-dcCmqn/data/opencode/crew-harness/watches/1792344228719-gxyuea.out' 2>&1; echo $? > '<approved-temp>/081-sol-dcCmqn/data/opencode/crew-harness/watches/1792344228719-gxyuea.exit.tmp' && mv '<approved-temp>/081-sol-dcCmqn/data/opencode/crew-harness/watches/1792344228719-gxyuea.exit.tmp' '<approved-temp>/081-sol-dcCmqn/data/opencode/crew-harness/watches/1792344228719-gxyuea.exit'"
+            ],
+            "exit": {
+              "code": 0,
+              "signal": null
+            }
+          }
+        ],
+        "A": {
+          "before": "running",
+          "after": "closed",
+          "effectAfterTerminalSample": true
+        },
+        "B": {
+          "status": "running",
+          "effect": true
+        },
+        "records": [
+          {
+            "id": "1792344228716-sr88ou",
+            "session": "sol-fixture-A-generation-1",
+            "command": "printf effect > '<approved-temp>/081-sol-dcCmqn/A.effect'",
+            "cwd": "<approved-temp>/081-sol-dcCmqn",
+            "minutes": 120,
+            "created": 1792344228716,
+            "status": "done",
+            "pid": 82996,
+            "started": 1792344228721,
+            "ended": 1792344229287,
+            "code": 0
+          },
+          {
+            "id": "1792344228719-gxyuea",
+            "session": "sol-fixture-B-generation-1",
+            "command": "printf effect > '<approved-temp>/081-sol-dcCmqn/B.effect'",
+            "cwd": "<approved-temp>/081-sol-dcCmqn",
+            "minutes": 120,
+            "created": 1792344228719,
+            "status": "done",
+            "pid": 23384,
+            "started": 1792344228721,
+            "ended": 1792344229318,
+            "code": 0
+          }
+        ],
+        "gateEvents": ""
+      },
+      "explicit_child_wait": true,
+      "limitation": "wrapper wait is not arbitrary descendant/handle proof"
+    },
+    {
+      "scope": "<approved-temp>/081-sol-CJ1gZG",
+      "records": [
+        {
+          "record": "<approved-temp>/081-sol-CJ1gZG/data/opencode/crew-harness/watches/1792344230278-dv9srf.json",
+          "watch": {
+            "id": "1792344230278-dv9srf",
+            "session": "sol-fixture-A-generation-1",
+            "command": "printf ready > '<approved-temp>/081-sol-CJ1gZG/A.ready'; for i in {1..400}; do [ -f '<approved-temp>/081-sol-CJ1gZG/A.release' ] && break; sleep 0.02; done; [ -f '<approved-temp>/081-sol-CJ1gZG/A.release' ] || exit 19; printf effect > '<approved-temp>/081-sol-CJ1gZG/A.effect'",
+            "cwd": "<approved-temp>/081-sol-CJ1gZG",
+            "minutes": 120,
+            "created": 1792344230278,
+            "status": "done",
+            "pid": 42384,
+            "started": 1792344230280,
+            "ended": 1792344230919,
+            "code": 0
+          },
+          "exit": "0"
+        },
+        {
+          "record": "<approved-temp>/081-sol-CJ1gZG/data/opencode/crew-harness/watches/1792344230753-00heqq.json",
+          "watch": {
+            "id": "1792344230753-00heqq",
+            "session": "sol-fixture-B-generation-1",
+            "command": "printf effect > '<approved-temp>/081-sol-CJ1gZG/B.effect'",
+            "cwd": "<approved-temp>/081-sol-CJ1gZG",
+            "minutes": 120,
+            "created": 1792344230753,
+            "status": "done",
+            "pid": 26728,
+            "started": 1792344230755,
+            "ended": 1792344231088,
+            "code": 0
+          },
+          "exit": "0"
+        }
+      ],
+      "result": {
+        "mode": "gate",
+        "schedule": "running",
+        "fixture": "<approved-temp>/081-sol-CJ1gZG",
+        "base": "<approved-temp>/081-sol-CJ1gZG/data/opencode/crew-harness",
+        "events": [
+          {
+            "seq": 1,
+            "type": "queued",
+            "O": "1792344230278-dv9srf",
+            "S": "sol-fixture-A-generation-1"
+          },
+          {
+            "seq": 2,
+            "type": "D-observed-running",
+            "O": "1792344230278-dv9srf"
+          },
+          {
+            "seq": 3,
+            "type": "actual-release-closed",
+            "S": "sol-fixture-A-generation-1",
+            "terminalCloseProven": false
+          },
+          {
+            "seq": 4,
+            "type": "owned-wrapper-children-closed"
+          },
+          {
+            "seq": 5,
+            "type": "sample",
+            "A": true,
+            "B": true
+          }
+        ],
+        "children": [
+          {
+            "pid": 42384,
+            "command": [
+              "C:/Program Files/Git/bin/bash.exe",
+              "-c",
+              "timeout 7200 bash -c 'printf ready > '/''<approved-temp>/081-sol-CJ1gZG/A.ready'/''; for i in {1..400}; do [ -f '/''<approved-temp>/081-sol-CJ1gZG/A.release'/'' ] && break; sleep 0.02; done; [ -f '/''<approved-temp>/081-sol-CJ1gZG/A.release'/'' ] || exit 19; printf effect > '/''<approved-temp>/081-sol-CJ1gZG/A.effect'/''' > '<approved-temp>/081-sol-CJ1gZG/data/opencode/crew-harness/watches/1792344230278-dv9srf.out' 2>&1; echo $? > '<approved-temp>/081-sol-CJ1gZG/data/opencode/crew-harness/watches/1792344230278-dv9srf.exit.tmp' && mv '<approved-temp>/081-sol-CJ1gZG/data/opencode/crew-harness/watches/1792344230278-dv9srf.exit.tmp' '<approved-temp>/081-sol-CJ1gZG/data/opencode/crew-harness/watches/1792344230278-dv9srf.exit'"
+            ],
+            "exit": {
+              "code": 0,
+              "signal": null
+            }
+          },
+          {
+            "pid": 26728,
+            "command": [
+              "C:/Program Files/Git/bin/bash.exe",
+              "-c",
+              "timeout 7200 bash -c 'printf effect > '/''<approved-temp>/081-sol-CJ1gZG/B.effect'/''' > '<approved-temp>/081-sol-CJ1gZG/data/opencode/crew-harness/watches/1792344230753-00heqq.out' 2>&1; echo $? > '<approved-temp>/081-sol-CJ1gZG/data/opencode/crew-harness/watches/1792344230753-00heqq.exit.tmp' && mv '<approved-temp>/081-sol-CJ1gZG/data/opencode/crew-harness/watches/1792344230753-00heqq.exit.tmp' '<approved-temp>/081-sol-CJ1gZG/data/opencode/crew-harness/watches/1792344230753-00heqq.exit'"
+            ],
+            "exit": {
+              "code": 0,
+              "signal": null
+            }
+          }
+        ],
+        "A": {
+          "before": "running",
+          "after": "closed",
+          "effectAfterTerminalSample": true
+        },
+        "B": {
+          "status": "running",
+          "effect": true
+        },
+        "records": [
+          {
+            "id": "1792344230278-dv9srf",
+            "session": "sol-fixture-A-generation-1",
+            "command": "printf ready > '<approved-temp>/081-sol-CJ1gZG/A.ready'; for i in {1..400}; do [ -f '<approved-temp>/081-sol-CJ1gZG/A.release' ] && break; sleep 0.02; done; [ -f '<approved-temp>/081-sol-CJ1gZG/A.release' ] || exit 19; printf effect > '<approved-temp>/081-sol-CJ1gZG/A.effect'",
+            "cwd": "<approved-temp>/081-sol-CJ1gZG",
+            "minutes": 120,
+            "created": 1792344230278,
+            "status": "done",
+            "pid": 42384,
+            "started": 1792344230280,
+            "ended": 1792344230919,
+            "code": 0
+          },
+          {
+            "id": "1792344230753-00heqq",
+            "session": "sol-fixture-B-generation-1",
+            "command": "printf effect > '<approved-temp>/081-sol-CJ1gZG/B.effect'",
+            "cwd": "<approved-temp>/081-sol-CJ1gZG",
+            "minutes": 120,
+            "created": 1792344230753,
+            "status": "done",
+            "pid": 26728,
+            "started": 1792344230755,
+            "ended": 1792344231088,
+            "code": 0
+          }
+        ],
+        "gateEvents": "{\"type\":\"D\",\"pid\":66820,\"S\":\"sol-fixture-A-generation-1\",\"R\":\"sol-fixture-A-generation-1\",\"O\":\"1792344230278-dv9srf\",\"effectID\":\"spawn\"}\n{\"type\":\"effect-returned\",\"pid\":66820,\"S\":\"sol-fixture-A-generation-1\",\"R\":\"sol-fixture-A-generation-1\",\"O\":\"1792344230278-dv9srf\",\"effectID\":\"spawn\"}\n{\"type\":\"C\",\"pid\":66820,\"owner\":\"sol-fixture-A-generation-1\"}\n{\"type\":\"D\",\"pid\":66820,\"S\":\"sol-fixture-B-generation-1\",\"R\":\"sol-fixture-B-generation-1\",\"O\":\"1792344230753-00heqq\",\"effectID\":\"spawn\"}\n{\"type\":\"effect-returned\",\"pid\":66820,\"S\":\"sol-fixture-B-generation-1\",\"R\":\"sol-fixture-B-generation-1\",\"O\":\"1792344230753-00heqq\",\"effectID\":\"spawn\"}\n{\"type\":\"wrapper-terminal\",\"pid\":66820,\"S\":\"sol-fixture-A-generation-1\",\"R\":\"sol-fixture-A-generation-1\",\"O\":\"1792344230278-dv9srf\",\"effectID\":\"spawn\",\"code\":0,\"signal\":null,\"scopeExitProven\":false}\n{\"type\":\"wrapper-terminal\",\"pid\":66820,\"S\":\"sol-fixture-B-generation-1\",\"R\":\"sol-fixture-B-generation-1\",\"O\":\"1792344230753-00heqq\",\"effectID\":\"spawn\",\"code\":0,\"signal\":null,\"scopeExitProven\":false}\n"
+      },
+      "explicit_child_wait": true,
+      "limitation": "wrapper wait is not arbitrary descendant/handle proof"
+    },
+    {
+      "scope": "<approved-temp>/081-sol-GScghT",
+      "records": [
+        {
+          "record": "<approved-temp>/081-sol-GScghT/data/opencode/crew-harness/watches/1792344438699-kss8fq.json",
+          "watch": {
+            "id": "1792344438699-kss8fq",
+            "session": "sol-fixture-A-generation-1",
+            "command": "printf effect > '<approved-temp>/081-sol-GScghT/A.effect'",
+            "cwd": "<approved-temp>/081-sol-GScghT",
+            "minutes": 120,
+            "created": 1792344438699,
+            "status": "done",
+            "ended": 1792344438717,
+            "code": 0,
+            "dropped": true
+          },
+          "exit": null
+        },
+        {
+          "record": "<approved-temp>/081-sol-GScghT/data/opencode/crew-harness/watches/1792344438716-awo6r0.json",
+          "watch": {
+            "id": "1792344438716-awo6r0",
+            "session": "sol-fixture-B-generation-1",
+            "command": "printf effect > '<approved-temp>/081-sol-GScghT/B.effect'",
+            "cwd": "<approved-temp>/081-sol-GScghT",
+            "minutes": 120,
+            "created": 1792344438716,
+            "status": "done",
+            "pid": 38244,
+            "started": 1792344438717,
+            "ended": 1792344439279,
+            "code": 0
+          },
+          "exit": "0"
+        }
+      ],
+      "result": {
+        "mode": "gate",
+        "schedule": "queued",
+        "fixture": "<approved-temp>/081-sol-GScghT",
+        "base": "<approved-temp>/081-sol-GScghT/data/opencode/crew-harness",
+        "events": [
+          {
+            "seq": 1,
+            "type": "queued",
+            "O": "1792344438699-kss8fq",
+            "S": "sol-fixture-A-generation-1"
+          },
+          {
+            "seq": 2,
+            "type": "actual-release-closed",
+            "S": "sol-fixture-A-generation-1",
+            "terminalCloseProven": false
+          },
+          {
+            "seq": 3,
+            "type": "owned-wrapper-children-closed"
+          },
+          {
+            "seq": 4,
+            "type": "sample",
+            "A": false,
+            "B": true
+          }
+        ],
+        "children": [
+          {
+            "pid": 38244,
+            "command": [
+              "C:/Program Files/Git/bin/bash.exe",
+              "-c",
+              "timeout 7200 bash -c 'printf effect > '/''<approved-temp>/081-sol-GScghT/B.effect'/''' > '<approved-temp>/081-sol-GScghT/data/opencode/crew-harness/watches/1792344438716-awo6r0.out' 2>&1; echo $? > '<approved-temp>/081-sol-GScghT/data/opencode/crew-harness/watches/1792344438716-awo6r0.exit.tmp' && mv '<approved-temp>/081-sol-GScghT/data/opencode/crew-harness/watches/1792344438716-awo6r0.exit.tmp' '<approved-temp>/081-sol-GScghT/data/opencode/crew-harness/watches/1792344438716-awo6r0.exit'"
+            ],
+            "exit": {
+              "code": 0,
+              "signal": null
+            }
+          }
+        ],
+        "A": {
+          "before": "running",
+          "after": "closed",
+          "effectAfterTerminalSample": false
+        },
+        "B": {
+          "status": "running",
+          "effect": true
+        },
+        "records": [
+          {
+            "id": "1792344438699-kss8fq",
+            "session": "sol-fixture-A-generation-1",
+            "command": "printf effect > '<approved-temp>/081-sol-GScghT/A.effect'",
+            "cwd": "<approved-temp>/081-sol-GScghT",
+            "minutes": 120,
+            "created": 1792344438699,
+            "status": "done",
+            "ended": 1792344438717,
+            "code": 0,
+            "dropped": true
+          },
+          {
+            "id": "1792344438716-awo6r0",
+            "session": "sol-fixture-B-generation-1",
+            "command": "printf effect > '<approved-temp>/081-sol-GScghT/B.effect'",
+            "cwd": "<approved-temp>/081-sol-GScghT",
+            "minutes": 120,
+            "created": 1792344438716,
+            "status": "done",
+            "pid": 38244,
+            "started": 1792344438717,
+            "ended": 1792344439279,
+            "code": 0
+          }
+        ],
+        "gateEvents": "{\"type\":\"C\",\"pid\":73352,\"owner\":\"sol-fixture-A-generation-1\"}\n{\"type\":\"deny-closed\",\"pid\":73352,\"S\":\"sol-fixture-A-generation-1\",\"R\":\"sol-fixture-A-generation-1\",\"O\":\"1792344438699-kss8fq\",\"effectID\":\"spawn\"}\n{\"type\":\"D\",\"pid\":73352,\"S\":\"sol-fixture-B-generation-1\",\"R\":\"sol-fixture-B-generation-1\",\"O\":\"1792344438716-awo6r0\",\"effectID\":\"spawn\"}\n{\"type\":\"effect-returned\",\"pid\":73352,\"S\":\"sol-fixture-B-generation-1\",\"R\":\"sol-fixture-B-generation-1\",\"O\":\"1792344438716-awo6r0\",\"effectID\":\"spawn\"}\n{\"type\":\"wrapper-terminal\",\"pid\":73352,\"S\":\"sol-fixture-B-generation-1\",\"R\":\"sol-fixture-B-generation-1\",\"O\":\"1792344438716-awo6r0\",\"effectID\":\"spawn\",\"code\":0,\"signal\":null,\"scopeExitProven\":false}\n"
+      },
+      "explicit_child_wait": true,
+      "limitation": "wrapper wait is not arbitrary descendant/handle proof"
+    },
+    {
+      "scope": "<approved-temp>/081-sol-ZT4Piy",
+      "records": [
+        {
+          "record": "<approved-temp>/081-sol-ZT4Piy/data/opencode/crew-harness/watches/1792344440117-86g6gg.json",
+          "watch": {
+            "id": "1792344440117-86g6gg",
+            "session": "sol-fixture-A-generation-1",
+            "command": "printf effect > '<approved-temp>/081-sol-ZT4Piy/A.effect'",
+            "cwd": "<approved-temp>/081-sol-ZT4Piy",
+            "minutes": 120,
+            "created": 1792344440117,
+            "status": "done",
+            "pid": 97700,
+            "started": 1792344440123,
+            "ended": 1792344441006,
+            "code": 0
+          },
+          "exit": "0"
+        },
+        {
+          "record": "<approved-temp>/081-sol-ZT4Piy/data/opencode/crew-harness/watches/1792344440121-q1ofuz.json",
+          "watch": {
+            "id": "1792344440121-q1ofuz",
+            "session": "sol-fixture-B-generation-1",
+            "command": "printf effect > '<approved-temp>/081-sol-ZT4Piy/B.effect'",
+            "cwd": "<approved-temp>/081-sol-ZT4Piy",
+            "minutes": 120,
+            "created": 1792344440121,
+            "status": "done",
+            "pid": 48240,
+            "started": 1792344440123,
+            "ended": 1792344441073,
+            "code": 0
+          },
+          "exit": "0"
+        }
+      ],
+      "result": {
+        "mode": "removed",
+        "schedule": "queued",
+        "fixture": "<approved-temp>/081-sol-ZT4Piy",
+        "base": "<approved-temp>/081-sol-ZT4Piy/data/opencode/crew-harness",
+        "events": [
+          {
+            "seq": 1,
+            "type": "queued",
+            "O": "1792344440117-86g6gg",
+            "S": "sol-fixture-A-generation-1"
+          },
+          {
+            "seq": 2,
+            "type": "actual-release-closed",
+            "S": "sol-fixture-A-generation-1",
+            "terminalCloseProven": false
+          },
+          {
+            "seq": 3,
+            "type": "owned-wrapper-children-closed"
+          },
+          {
+            "seq": 4,
+            "type": "sample",
+            "A": true,
+            "B": true
+          }
+        ],
+        "children": [
+          {
+            "pid": 97700,
+            "command": [
+              "C:/Program Files/Git/bin/bash.exe",
+              "-c",
+              "timeout 7200 bash -c 'printf effect > '/''<approved-temp>/081-sol-ZT4Piy/A.effect'/''' > '<approved-temp>/081-sol-ZT4Piy/data/opencode/crew-harness/watches/1792344440117-86g6gg.out' 2>&1; echo $? > '<approved-temp>/081-sol-ZT4Piy/data/opencode/crew-harness/watches/1792344440117-86g6gg.exit.tmp' && mv '<approved-temp>/081-sol-ZT4Piy/data/opencode/crew-harness/watches/1792344440117-86g6gg.exit.tmp' '<approved-temp>/081-sol-ZT4Piy/data/opencode/crew-harness/watches/1792344440117-86g6gg.exit'"
+            ],
+            "exit": {
+              "code": 0,
+              "signal": null
+            }
+          },
+          {
+            "pid": 48240,
+            "command": [
+              "C:/Program Files/Git/bin/bash.exe",
+              "-c",
+              "timeout 7200 bash -c 'printf effect > '/''<approved-temp>/081-sol-ZT4Piy/B.effect'/''' > '<approved-temp>/081-sol-ZT4Piy/data/opencode/crew-harness/watches/1792344440121-q1ofuz.out' 2>&1; echo $? > '<approved-temp>/081-sol-ZT4Piy/data/opencode/crew-harness/watches/1792344440121-q1ofuz.exit.tmp' && mv '<approved-temp>/081-sol-ZT4Piy/data/opencode/crew-harness/watches/1792344440121-q1ofuz.exit.tmp' '<approved-temp>/081-sol-ZT4Piy/data/opencode/crew-harness/watches/1792344440121-q1ofuz.exit'"
+            ],
+            "exit": {
+              "code": 0,
+              "signal": null
+            }
+          }
+        ],
+        "A": {
+          "before": "running",
+          "after": "closed",
+          "effectAfterTerminalSample": true
+        },
+        "B": {
+          "status": "running",
+          "effect": true
+        },
+        "records": [
+          {
+            "id": "1792344440117-86g6gg",
+            "session": "sol-fixture-A-generation-1",
+            "command": "printf effect > '<approved-temp>/081-sol-ZT4Piy/A.effect'",
+            "cwd": "<approved-temp>/081-sol-ZT4Piy",
+            "minutes": 120,
+            "created": 1792344440117,
+            "status": "done",
+            "pid": 97700,
+            "started": 1792344440123,
+            "ended": 1792344441006,
+            "code": 0
+          },
+          {
+            "id": "1792344440121-q1ofuz",
+            "session": "sol-fixture-B-generation-1",
+            "command": "printf effect > '<approved-temp>/081-sol-ZT4Piy/B.effect'",
+            "cwd": "<approved-temp>/081-sol-ZT4Piy",
+            "minutes": 120,
+            "created": 1792344440121,
+            "status": "done",
+            "pid": 48240,
+            "started": 1792344440123,
+            "ended": 1792344441073,
+            "code": 0
+          }
+        ],
+        "gateEvents": ""
+      },
+      "explicit_child_wait": true,
+      "limitation": "wrapper wait is not arbitrary descendant/handle proof"
+    },
+    {
+      "scope": "<approved-temp>/081-sol-VDmE1w",
+      "records": [
+        {
+          "record": "<approved-temp>/081-sol-VDmE1w/data/opencode/crew-harness/watches/1792344442227-36qdce.json",
+          "watch": {
+            "id": "1792344442227-36qdce",
+            "session": "sol-fixture-A-generation-1",
+            "command": "printf ready > '<approved-temp>/081-sol-VDmE1w/A.ready'; for i in {1..400}; do [ -f '<approved-temp>/081-sol-VDmE1w/A.release' ] && break; sleep 0.02; done; [ -f '<approved-temp>/081-sol-VDmE1w/A.release' ] || exit 19; printf effect > '<approved-temp>/081-sol-VDmE1w/A.effect'",
+            "cwd": "<approved-temp>/081-sol-VDmE1w",
+            "minutes": 120,
+            "created": 1792344442227,
+            "status": "done",
+            "pid": 41972,
+            "started": 1792344442230,
+            "ended": 1792344443196,
+            "code": 0
+          },
+          "exit": "0"
+        },
+        {
+          "record": "<approved-temp>/081-sol-VDmE1w/data/opencode/crew-harness/watches/1792344442934-7udnpr.json",
+          "watch": {
+            "id": "1792344442934-7udnpr",
+            "session": "sol-fixture-B-generation-1",
+            "command": "printf effect > '<approved-temp>/081-sol-VDmE1w/B.effect'",
+            "cwd": "<approved-temp>/081-sol-VDmE1w",
+            "minutes": 120,
+            "created": 1792344442934,
+            "status": "done",
+            "pid": 36960,
+            "started": 1792344442937,
+            "ended": 1792344443526,
+            "code": 0
+          },
+          "exit": "0"
+        }
+      ],
+      "result": {
+        "mode": "gate",
+        "schedule": "running",
+        "fixture": "<approved-temp>/081-sol-VDmE1w",
+        "base": "<approved-temp>/081-sol-VDmE1w/data/opencode/crew-harness",
+        "events": [
+          {
+            "seq": 1,
+            "type": "queued",
+            "O": "1792344442227-36qdce",
+            "S": "sol-fixture-A-generation-1"
+          },
+          {
+            "seq": 2,
+            "type": "D-observed-running",
+            "O": "1792344442227-36qdce"
+          },
+          {
+            "seq": 3,
+            "type": "actual-release-closed",
+            "S": "sol-fixture-A-generation-1",
+            "terminalCloseProven": false
+          },
+          {
+            "seq": 4,
+            "type": "owned-wrapper-children-closed"
+          },
+          {
+            "seq": 5,
+            "type": "sample",
+            "A": true,
+            "B": true
+          }
+        ],
+        "children": [
+          {
+            "pid": 41972,
+            "command": [
+              "C:/Program Files/Git/bin/bash.exe",
+              "-c",
+              "timeout 7200 bash -c 'printf ready > '/''<approved-temp>/081-sol-VDmE1w/A.ready'/''; for i in {1..400}; do [ -f '/''<approved-temp>/081-sol-VDmE1w/A.release'/'' ] && break; sleep 0.02; done; [ -f '/''<approved-temp>/081-sol-VDmE1w/A.release'/'' ] || exit 19; printf effect > '/''<approved-temp>/081-sol-VDmE1w/A.effect'/''' > '<approved-temp>/081-sol-VDmE1w/data/opencode/crew-harness/watches/1792344442227-36qdce.out' 2>&1; echo $? > '<approved-temp>/081-sol-VDmE1w/data/opencode/crew-harness/watches/1792344442227-36qdce.exit.tmp' && mv '<approved-temp>/081-sol-VDmE1w/data/opencode/crew-harness/watches/1792344442227-36qdce.exit.tmp' '<approved-temp>/081-sol-VDmE1w/data/opencode/crew-harness/watches/1792344442227-36qdce.exit'"
+            ],
+            "exit": {
+              "code": 0,
+              "signal": null
+            }
+          },
+          {
+            "pid": 36960,
+            "command": [
+              "C:/Program Files/Git/bin/bash.exe",
+              "-c",
+              "timeout 7200 bash -c 'printf effect > '/''<approved-temp>/081-sol-VDmE1w/B.effect'/''' > '<approved-temp>/081-sol-VDmE1w/data/opencode/crew-harness/watches/1792344442934-7udnpr.out' 2>&1; echo $? > '<approved-temp>/081-sol-VDmE1w/data/opencode/crew-harness/watches/1792344442934-7udnpr.exit.tmp' && mv '<approved-temp>/081-sol-VDmE1w/data/opencode/crew-harness/watches/1792344442934-7udnpr.exit.tmp' '<approved-temp>/081-sol-VDmE1w/data/opencode/crew-harness/watches/1792344442934-7udnpr.exit'"
+            ],
+            "exit": {
+              "code": 0,
+              "signal": null
+            }
+          }
+        ],
+        "A": {
+          "before": "running",
+          "after": "closed",
+          "effectAfterTerminalSample": true
+        },
+        "B": {
+          "status": "running",
+          "effect": true
+        },
+        "records": [
+          {
+            "id": "1792344442227-36qdce",
+            "session": "sol-fixture-A-generation-1",
+            "command": "printf ready > '<approved-temp>/081-sol-VDmE1w/A.ready'; for i in {1..400}; do [ -f '<approved-temp>/081-sol-VDmE1w/A.release' ] && break; sleep 0.02; done; [ -f '<approved-temp>/081-sol-VDmE1w/A.release' ] || exit 19; printf effect > '<approved-temp>/081-sol-VDmE1w/A.effect'",
+            "cwd": "<approved-temp>/081-sol-VDmE1w",
+            "minutes": 120,
+            "created": 1792344442227,
+            "status": "done",
+            "pid": 41972,
+            "started": 1792344442230,
+            "ended": 1792344443196,
+            "code": 0
+          },
+          {
+            "id": "1792344442934-7udnpr",
+            "session": "sol-fixture-B-generation-1",
+            "command": "printf effect > '<approved-temp>/081-sol-VDmE1w/B.effect'",
+            "cwd": "<approved-temp>/081-sol-VDmE1w",
+            "minutes": 120,
+            "created": 1792344442934,
+            "status": "done",
+            "pid": 36960,
+            "started": 1792344442937,
+            "ended": 1792344443526,
+            "code": 0
+          }
+        ],
+        "gateEvents": "{\"type\":\"D\",\"pid\":100000,\"S\":\"sol-fixture-A-generation-1\",\"R\":\"sol-fixture-A-generation-1\",\"O\":\"1792344442227-36qdce\",\"effectID\":\"spawn\"}\n{\"type\":\"effect-returned\",\"pid\":100000,\"S\":\"sol-fixture-A-generation-1\",\"R\":\"sol-fixture-A-generation-1\",\"O\":\"1792344442227-36qdce\",\"effectID\":\"spawn\"}\n{\"type\":\"C\",\"pid\":100000,\"owner\":\"sol-fixture-A-generation-1\"}\n{\"type\":\"D\",\"pid\":100000,\"S\":\"sol-fixture-B-generation-1\",\"R\":\"sol-fixture-B-generation-1\",\"O\":\"1792344442934-7udnpr\",\"effectID\":\"spawn\"}\n{\"type\":\"effect-returned\",\"pid\":100000,\"S\":\"sol-fixture-B-generation-1\",\"R\":\"sol-fixture-B-generation-1\",\"O\":\"1792344442934-7udnpr\",\"effectID\":\"spawn\"}\n{\"type\":\"wrapper-terminal\",\"pid\":100000,\"S\":\"sol-fixture-A-generation-1\",\"R\":\"sol-fixture-A-generation-1\",\"O\":\"1792344442227-36qdce\",\"effectID\":\"spawn\",\"code\":0,\"signal\":null,\"scopeExitProven\":false}\n{\"type\":\"wrapper-terminal\",\"pid\":100000,\"S\":\"sol-fixture-B-generation-1\",\"R\":\"sol-fixture-B-generation-1\",\"O\":\"1792344442934-7udnpr\",\"effectID\":\"spawn\",\"code\":0,\"signal\":null,\"scopeExitProven\":false}\n"
+      },
+      "explicit_child_wait": true,
+      "limitation": "wrapper wait is not arbitrary descendant/handle proof"
+    },
+    {
+      "scope": "<approved-temp>/081-sol-concurrent-zu5p5A",
+      "node": "v24.15.0",
+      "platform": "win32",
+      "checks": [
+        "two simultaneous consumers: one D, one actual effect, one duplicate; observed EEXIST while first holds lock",
+        "fresh-process restart/retry preserves (O,effectID); effect-2 of same O executes separately",
+        "C<D: old source wake and closed recipient denied without D; independent B allowed",
+        "D<C: actual close consumer waits for bounded synchronous effect terminal, then records C; not OS revoke proof",
+        "counterexample: owned crash after durable D leaves stale mkdir lock; fresh close unresolved, no stealing/recovery; L positive close FAIL"
+      ],
+      "jobs": [
+        {
+          "name": "0-one",
+          "pid": 94736,
+          "command": [
+            "D:/Program Files/nodejs/node.exe",
+            "<worktree>/opencode-plugin/test/prototype081/sol-1/consumer.mjs",
+            "<approved-temp>/081-sol-concurrent-zu5p5A/0-one.job.json"
+          ],
+          "job": {
+            "name": "one",
+            "action": "effect",
+            "root": "<approved-temp>/081-sol-concurrent-zu5p5A/state",
+            "identity": {
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "O-shared-generation-1",
+              "effectID": "effect-1"
+            },
+            "barrier": "<approved-temp>/081-sol-concurrent-zu5p5A/race-barrier",
+            "holdEffect": true
+          },
+          "code": 0,
+          "signal": null,
+          "stdout": "{\"pid\":94736,\"result\":{\"allowed\":false,\"reason\":\"duplicate\",\"prior\":{\"identity\":{\"S\":\"B-generation-2\",\"R\":\"B-generation-2\",\"O\":\"O-shared-generation-1\",\"effectID\":\"effect-1\"},\"state\":\"terminal\",\"proof\":\"bounded synchronous fixture effect returned\"}}}\n",
+          "stderr": ""
+        },
+        {
+          "name": "1-two",
+          "pid": 29056,
+          "command": [
+            "D:/Program Files/nodejs/node.exe",
+            "<worktree>/opencode-plugin/test/prototype081/sol-1/consumer.mjs",
+            "<approved-temp>/081-sol-concurrent-zu5p5A/1-two.job.json"
+          ],
+          "job": {
+            "name": "two",
+            "action": "effect",
+            "root": "<approved-temp>/081-sol-concurrent-zu5p5A/state",
+            "identity": {
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "O-shared-generation-1",
+              "effectID": "effect-1"
+            },
+            "barrier": "<approved-temp>/081-sol-concurrent-zu5p5A/race-barrier",
+            "holdEffect": true
+          },
+          "code": 0,
+          "signal": null,
+          "stdout": "{\"pid\":29056,\"result\":{\"allowed\":true,\"value\":\"bounded-file-effect-complete\"}}\n",
+          "stderr": ""
+        },
+        {
+          "name": "2-effect",
+          "pid": 52608,
+          "command": [
+            "D:/Program Files/nodejs/node.exe",
+            "<worktree>/opencode-plugin/test/prototype081/sol-1/consumer.mjs",
+            "<approved-temp>/081-sol-concurrent-zu5p5A/2-effect.job.json"
+          ],
+          "job": {
+            "action": "effect",
+            "root": "<approved-temp>/081-sol-concurrent-zu5p5A/state",
+            "identity": {
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "O-shared-generation-1",
+              "effectID": "effect-1"
+            }
+          },
+          "code": 0,
+          "signal": null,
+          "stdout": "{\"pid\":52608,\"result\":{\"allowed\":false,\"reason\":\"duplicate\",\"prior\":{\"identity\":{\"S\":\"B-generation-2\",\"R\":\"B-generation-2\",\"O\":\"O-shared-generation-1\",\"effectID\":\"effect-1\"},\"state\":\"terminal\",\"proof\":\"bounded synchronous fixture effect returned\"}}}\n",
+          "stderr": ""
+        },
+        {
+          "name": "3-effect",
+          "pid": 18936,
+          "command": [
+            "D:/Program Files/nodejs/node.exe",
+            "<worktree>/opencode-plugin/test/prototype081/sol-1/consumer.mjs",
+            "<approved-temp>/081-sol-concurrent-zu5p5A/3-effect.job.json"
+          ],
+          "job": {
+            "action": "effect",
+            "root": "<approved-temp>/081-sol-concurrent-zu5p5A/state",
+            "identity": {
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "O-shared-generation-1",
+              "effectID": "effect-2"
+            }
+          },
+          "code": 0,
+          "signal": null,
+          "stdout": "{\"pid\":18936,\"result\":{\"allowed\":true,\"value\":\"bounded-file-effect-complete\"}}\n",
+          "stderr": ""
+        },
+        {
+          "name": "4-close",
+          "pid": 29812,
+          "command": [
+            "D:/Program Files/nodejs/node.exe",
+            "<worktree>/opencode-plugin/test/prototype081/sol-1/consumer.mjs",
+            "<approved-temp>/081-sol-concurrent-zu5p5A/4-close.job.json"
+          ],
+          "job": {
+            "action": "close",
+            "root": "<approved-temp>/081-sol-concurrent-zu5p5A/state",
+            "owner": "A-generation-1"
+          },
+          "code": 0,
+          "signal": null,
+          "stdout": "{\"pid\":29812,\"result\":{\"C\":true,\"terminalCloseProven\":false}}\n",
+          "stderr": ""
+        },
+        {
+          "name": "5-effect",
+          "pid": 96448,
+          "command": [
+            "D:/Program Files/nodejs/node.exe",
+            "<worktree>/opencode-plugin/test/prototype081/sol-1/consumer.mjs",
+            "<approved-temp>/081-sol-concurrent-zu5p5A/5-effect.job.json"
+          ],
+          "job": {
+            "action": "effect",
+            "root": "<approved-temp>/081-sol-concurrent-zu5p5A/state",
+            "identity": {
+              "S": "A-generation-1",
+              "R": "B-generation-2",
+              "O": "old-wake",
+              "effectID": "wake"
+            }
+          },
+          "code": 0,
+          "signal": null,
+          "stdout": "{\"pid\":96448,\"result\":{\"allowed\":false,\"reason\":\"closed\"}}\n",
+          "stderr": ""
+        },
+        {
+          "name": "6-effect",
+          "pid": 65952,
+          "command": [
+            "D:/Program Files/nodejs/node.exe",
+            "<worktree>/opencode-plugin/test/prototype081/sol-1/consumer.mjs",
+            "<approved-temp>/081-sol-concurrent-zu5p5A/6-effect.job.json"
+          ],
+          "job": {
+            "action": "effect",
+            "root": "<approved-temp>/081-sol-concurrent-zu5p5A/state",
+            "identity": {
+              "S": "B-generation-2",
+              "R": "A-generation-1",
+              "O": "closed-recipient",
+              "effectID": "delivery"
+            }
+          },
+          "code": 0,
+          "signal": null,
+          "stdout": "{\"pid\":65952,\"result\":{\"allowed\":false,\"reason\":\"closed\"}}\n",
+          "stderr": ""
+        },
+        {
+          "name": "7-effect",
+          "pid": 21480,
+          "command": [
+            "D:/Program Files/nodejs/node.exe",
+            "<worktree>/opencode-plugin/test/prototype081/sol-1/consumer.mjs",
+            "<approved-temp>/081-sol-concurrent-zu5p5A/7-effect.job.json"
+          ],
+          "job": {
+            "action": "effect",
+            "root": "<approved-temp>/081-sol-concurrent-zu5p5A/state",
+            "identity": {
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "positive-B",
+              "effectID": "write"
+            }
+          },
+          "code": 0,
+          "signal": null,
+          "stdout": "{\"pid\":21480,\"result\":{\"allowed\":true,\"value\":\"bounded-file-effect-complete\"}}\n",
+          "stderr": ""
+        },
+        {
+          "name": "8-running",
+          "pid": 98860,
+          "command": [
+            "D:/Program Files/nodejs/node.exe",
+            "<worktree>/opencode-plugin/test/prototype081/sol-1/consumer.mjs",
+            "<approved-temp>/081-sol-concurrent-zu5p5A/8-running.job.json"
+          ],
+          "job": {
+            "name": "running",
+            "action": "effect",
+            "root": "<approved-temp>/081-sol-concurrent-zu5p5A/D-before-C",
+            "identity": {
+              "S": "A-generation-1",
+              "R": "A-generation-1",
+              "O": "O-running",
+              "effectID": "write"
+            },
+            "barrier": "<approved-temp>/081-sol-concurrent-zu5p5A/running-barrier",
+            "holdEffect": true
+          },
+          "code": 0,
+          "signal": null,
+          "stdout": "{\"pid\":98860,\"result\":{\"allowed\":true,\"value\":\"bounded-file-effect-complete\"}}\n",
+          "stderr": ""
+        },
+        {
+          "name": "9-closing",
+          "pid": 57552,
+          "command": [
+            "D:/Program Files/nodejs/node.exe",
+            "<worktree>/opencode-plugin/test/prototype081/sol-1/consumer.mjs",
+            "<approved-temp>/081-sol-concurrent-zu5p5A/9-closing.job.json"
+          ],
+          "job": {
+            "name": "closing",
+            "action": "close",
+            "root": "<approved-temp>/081-sol-concurrent-zu5p5A/D-before-C",
+            "owner": "A-generation-1",
+            "barrier": "<approved-temp>/081-sol-concurrent-zu5p5A/running-barrier"
+          },
+          "code": 0,
+          "signal": null,
+          "stdout": "{\"pid\":57552,\"result\":{\"C\":true,\"terminalCloseProven\":false}}\n",
+          "stderr": ""
+        },
+        {
+          "name": "10-crash",
+          "pid": 46660,
+          "command": [
+            "D:/Program Files/nodejs/node.exe",
+            "<worktree>/opencode-plugin/test/prototype081/sol-1/consumer.mjs",
+            "<approved-temp>/081-sol-concurrent-zu5p5A/10-crash.job.json"
+          ],
+          "job": {
+            "action": "crash",
+            "root": "<approved-temp>/081-sol-concurrent-zu5p5A/crash-after-D",
+            "identity": {
+              "S": "A-generation-1",
+              "R": "A-generation-1",
+              "O": "O-crash",
+              "effectID": "write"
+            }
+          },
+          "code": 23,
+          "signal": null,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "name": "11-close",
+          "pid": 78828,
+          "command": [
+            "D:/Program Files/nodejs/node.exe",
+            "<worktree>/opencode-plugin/test/prototype081/sol-1/consumer.mjs",
+            "<approved-temp>/081-sol-concurrent-zu5p5A/11-close.job.json"
+          ],
+          "job": {
+            "action": "close",
+            "root": "<approved-temp>/081-sol-concurrent-zu5p5A/crash-after-D",
+            "owner": "A-generation-1",
+            "lockBudget": 1500
+          },
+          "code": 2,
+          "signal": null,
+          "stdout": "{\"pid\":78828,\"error\":\"LOCK_UNRESOLVED\"}\n",
+          "stderr": ""
+        }
+      ],
+      "stores": [
+        {
+          "name": "crash-after-D",
+          "events": [
+            {
+              "type": "D",
+              "pid": 46660,
+              "S": "A-generation-1",
+              "R": "A-generation-1",
+              "O": "O-crash",
+              "effectID": "write"
+            }
+          ],
+          "actual": []
+        },
+        {
+          "name": "D-before-C",
+          "events": [
+            {
+              "type": "D",
+              "pid": 98860,
+              "S": "A-generation-1",
+              "R": "A-generation-1",
+              "O": "O-running",
+              "effectID": "write"
+            },
+            {
+              "type": "effect-returned",
+              "pid": 98860,
+              "S": "A-generation-1",
+              "R": "A-generation-1",
+              "O": "O-running",
+              "effectID": "write"
+            },
+            {
+              "type": "terminal",
+              "pid": 98860,
+              "S": "A-generation-1",
+              "R": "A-generation-1",
+              "O": "O-running",
+              "effectID": "write"
+            },
+            {
+              "type": "C",
+              "pid": 57552,
+              "owner": "A-generation-1"
+            }
+          ],
+          "actual": [
+            {
+              "S": "A-generation-1",
+              "R": "A-generation-1",
+              "O": "O-running",
+              "effectID": "write"
+            }
+          ]
+        },
+        {
+          "name": "state",
+          "events": [
+            {
+              "type": "D",
+              "pid": 29056,
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "O-shared-generation-1",
+              "effectID": "effect-1"
+            },
+            {
+              "type": "effect-returned",
+              "pid": 29056,
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "O-shared-generation-1",
+              "effectID": "effect-1"
+            },
+            {
+              "type": "terminal",
+              "pid": 29056,
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "O-shared-generation-1",
+              "effectID": "effect-1"
+            },
+            {
+              "type": "duplicate",
+              "pid": 94736,
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "O-shared-generation-1",
+              "effectID": "effect-1"
+            },
+            {
+              "type": "duplicate",
+              "pid": 52608,
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "O-shared-generation-1",
+              "effectID": "effect-1"
+            },
+            {
+              "type": "D",
+              "pid": 18936,
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "O-shared-generation-1",
+              "effectID": "effect-2"
+            },
+            {
+              "type": "effect-returned",
+              "pid": 18936,
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "O-shared-generation-1",
+              "effectID": "effect-2"
+            },
+            {
+              "type": "terminal",
+              "pid": 18936,
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "O-shared-generation-1",
+              "effectID": "effect-2"
+            },
+            {
+              "type": "C",
+              "pid": 29812,
+              "owner": "A-generation-1"
+            },
+            {
+              "type": "deny-closed",
+              "pid": 96448,
+              "S": "A-generation-1",
+              "R": "B-generation-2",
+              "O": "old-wake",
+              "effectID": "wake"
+            },
+            {
+              "type": "deny-closed",
+              "pid": 65952,
+              "S": "B-generation-2",
+              "R": "A-generation-1",
+              "O": "closed-recipient",
+              "effectID": "delivery"
+            },
+            {
+              "type": "D",
+              "pid": 21480,
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "positive-B",
+              "effectID": "write"
+            },
+            {
+              "type": "effect-returned",
+              "pid": 21480,
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "positive-B",
+              "effectID": "write"
+            },
+            {
+              "type": "terminal",
+              "pid": 21480,
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "positive-B",
+              "effectID": "write"
+            }
+          ],
+          "actual": [
+            {
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "O-shared-generation-1",
+              "effectID": "effect-1"
+            },
+            {
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "O-shared-generation-1",
+              "effectID": "effect-2"
+            },
+            {
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "positive-B",
+              "effectID": "write"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scope": "<approved-temp>/081-sol-concurrent-SJjvYC",
+      "node": "v24.15.0",
+      "platform": "win32",
+      "checks": [
+        "two simultaneous consumers: one D, one actual effect, one duplicate; observed EEXIST while first holds lock",
+        "fresh-process restart/retry preserves (O,effectID); effect-2 of same O executes separately",
+        "C<D: old source wake and closed recipient denied without D; independent B allowed",
+        "D<C: actual close consumer waits for bounded synchronous effect terminal, then records C; not OS revoke proof",
+        "counterexample: owned crash after durable D leaves stale mkdir lock; fresh close unresolved, no stealing/recovery; L positive close FAIL"
+      ],
+      "jobs": [
+        {
+          "name": "0-one",
+          "pid": 22244,
+          "command": [
+            "D:/Program Files/nodejs/node.exe",
+            "<approved-temp>/081-sol-final-drivers-7NCYi8/consumer.mjs",
+            "<approved-temp>/081-sol-concurrent-SJjvYC/0-one.job.json"
+          ],
+          "job": {
+            "name": "one",
+            "action": "effect",
+            "root": "<approved-temp>/081-sol-concurrent-SJjvYC/state",
+            "identity": {
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "O-shared-generation-1",
+              "effectID": "effect-1"
+            },
+            "barrier": "<approved-temp>/081-sol-concurrent-SJjvYC/race-barrier",
+            "holdEffect": true
+          },
+          "code": 0,
+          "signal": null,
+          "stdout": "{\"pid\":22244,\"result\":{\"allowed\":true,\"value\":\"bounded-file-effect-complete\"}}\n",
+          "stderr": ""
+        },
+        {
+          "name": "1-two",
+          "pid": 98764,
+          "command": [
+            "D:/Program Files/nodejs/node.exe",
+            "<approved-temp>/081-sol-final-drivers-7NCYi8/consumer.mjs",
+            "<approved-temp>/081-sol-concurrent-SJjvYC/1-two.job.json"
+          ],
+          "job": {
+            "name": "two",
+            "action": "effect",
+            "root": "<approved-temp>/081-sol-concurrent-SJjvYC/state",
+            "identity": {
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "O-shared-generation-1",
+              "effectID": "effect-1"
+            },
+            "barrier": "<approved-temp>/081-sol-concurrent-SJjvYC/race-barrier",
+            "holdEffect": true
+          },
+          "code": 0,
+          "signal": null,
+          "stdout": "{\"pid\":98764,\"result\":{\"allowed\":false,\"reason\":\"duplicate\",\"prior\":{\"identity\":{\"S\":\"B-generation-2\",\"R\":\"B-generation-2\",\"O\":\"O-shared-generation-1\",\"effectID\":\"effect-1\"},\"state\":\"terminal\",\"proof\":\"bounded synchronous fixture effect returned\"}}}\n",
+          "stderr": ""
+        },
+        {
+          "name": "2-effect",
+          "pid": 32860,
+          "command": [
+            "D:/Program Files/nodejs/node.exe",
+            "<approved-temp>/081-sol-final-drivers-7NCYi8/consumer.mjs",
+            "<approved-temp>/081-sol-concurrent-SJjvYC/2-effect.job.json"
+          ],
+          "job": {
+            "action": "effect",
+            "root": "<approved-temp>/081-sol-concurrent-SJjvYC/state",
+            "identity": {
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "O-shared-generation-1",
+              "effectID": "effect-1"
+            }
+          },
+          "code": 0,
+          "signal": null,
+          "stdout": "{\"pid\":32860,\"result\":{\"allowed\":false,\"reason\":\"duplicate\",\"prior\":{\"identity\":{\"S\":\"B-generation-2\",\"R\":\"B-generation-2\",\"O\":\"O-shared-generation-1\",\"effectID\":\"effect-1\"},\"state\":\"terminal\",\"proof\":\"bounded synchronous fixture effect returned\"}}}\n",
+          "stderr": ""
+        },
+        {
+          "name": "3-effect",
+          "pid": 42396,
+          "command": [
+            "D:/Program Files/nodejs/node.exe",
+            "<approved-temp>/081-sol-final-drivers-7NCYi8/consumer.mjs",
+            "<approved-temp>/081-sol-concurrent-SJjvYC/3-effect.job.json"
+          ],
+          "job": {
+            "action": "effect",
+            "root": "<approved-temp>/081-sol-concurrent-SJjvYC/state",
+            "identity": {
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "O-shared-generation-1",
+              "effectID": "effect-2"
+            }
+          },
+          "code": 0,
+          "signal": null,
+          "stdout": "{\"pid\":42396,\"result\":{\"allowed\":true,\"value\":\"bounded-file-effect-complete\"}}\n",
+          "stderr": ""
+        },
+        {
+          "name": "4-close",
+          "pid": 62628,
+          "command": [
+            "D:/Program Files/nodejs/node.exe",
+            "<approved-temp>/081-sol-final-drivers-7NCYi8/consumer.mjs",
+            "<approved-temp>/081-sol-concurrent-SJjvYC/4-close.job.json"
+          ],
+          "job": {
+            "action": "close",
+            "root": "<approved-temp>/081-sol-concurrent-SJjvYC/state",
+            "owner": "A-generation-1"
+          },
+          "code": 0,
+          "signal": null,
+          "stdout": "{\"pid\":62628,\"result\":{\"C\":true,\"terminalCloseProven\":false}}\n",
+          "stderr": ""
+        },
+        {
+          "name": "5-effect",
+          "pid": 26020,
+          "command": [
+            "D:/Program Files/nodejs/node.exe",
+            "<approved-temp>/081-sol-final-drivers-7NCYi8/consumer.mjs",
+            "<approved-temp>/081-sol-concurrent-SJjvYC/5-effect.job.json"
+          ],
+          "job": {
+            "action": "effect",
+            "root": "<approved-temp>/081-sol-concurrent-SJjvYC/state",
+            "identity": {
+              "S": "A-generation-1",
+              "R": "B-generation-2",
+              "O": "old-wake",
+              "effectID": "wake"
+            }
+          },
+          "code": 0,
+          "signal": null,
+          "stdout": "{\"pid\":26020,\"result\":{\"allowed\":false,\"reason\":\"closed\"}}\n",
+          "stderr": ""
+        },
+        {
+          "name": "6-effect",
+          "pid": 58792,
+          "command": [
+            "D:/Program Files/nodejs/node.exe",
+            "<approved-temp>/081-sol-final-drivers-7NCYi8/consumer.mjs",
+            "<approved-temp>/081-sol-concurrent-SJjvYC/6-effect.job.json"
+          ],
+          "job": {
+            "action": "effect",
+            "root": "<approved-temp>/081-sol-concurrent-SJjvYC/state",
+            "identity": {
+              "S": "B-generation-2",
+              "R": "A-generation-1",
+              "O": "closed-recipient",
+              "effectID": "delivery"
+            }
+          },
+          "code": 0,
+          "signal": null,
+          "stdout": "{\"pid\":58792,\"result\":{\"allowed\":false,\"reason\":\"closed\"}}\n",
+          "stderr": ""
+        },
+        {
+          "name": "7-effect",
+          "pid": 73192,
+          "command": [
+            "D:/Program Files/nodejs/node.exe",
+            "<approved-temp>/081-sol-final-drivers-7NCYi8/consumer.mjs",
+            "<approved-temp>/081-sol-concurrent-SJjvYC/7-effect.job.json"
+          ],
+          "job": {
+            "action": "effect",
+            "root": "<approved-temp>/081-sol-concurrent-SJjvYC/state",
+            "identity": {
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "positive-B",
+              "effectID": "write"
+            }
+          },
+          "code": 0,
+          "signal": null,
+          "stdout": "{\"pid\":73192,\"result\":{\"allowed\":true,\"value\":\"bounded-file-effect-complete\"}}\n",
+          "stderr": ""
+        },
+        {
+          "name": "8-running",
+          "pid": 16796,
+          "command": [
+            "D:/Program Files/nodejs/node.exe",
+            "<approved-temp>/081-sol-final-drivers-7NCYi8/consumer.mjs",
+            "<approved-temp>/081-sol-concurrent-SJjvYC/8-running.job.json"
+          ],
+          "job": {
+            "name": "running",
+            "action": "effect",
+            "root": "<approved-temp>/081-sol-concurrent-SJjvYC/D-before-C",
+            "identity": {
+              "S": "A-generation-1",
+              "R": "A-generation-1",
+              "O": "O-running",
+              "effectID": "write"
+            },
+            "barrier": "<approved-temp>/081-sol-concurrent-SJjvYC/running-barrier",
+            "holdEffect": true
+          },
+          "code": 0,
+          "signal": null,
+          "stdout": "{\"pid\":16796,\"result\":{\"allowed\":true,\"value\":\"bounded-file-effect-complete\"}}\n",
+          "stderr": ""
+        },
+        {
+          "name": "9-closing",
+          "pid": 30636,
+          "command": [
+            "D:/Program Files/nodejs/node.exe",
+            "<approved-temp>/081-sol-final-drivers-7NCYi8/consumer.mjs",
+            "<approved-temp>/081-sol-concurrent-SJjvYC/9-closing.job.json"
+          ],
+          "job": {
+            "name": "closing",
+            "action": "close",
+            "root": "<approved-temp>/081-sol-concurrent-SJjvYC/D-before-C",
+            "owner": "A-generation-1",
+            "barrier": "<approved-temp>/081-sol-concurrent-SJjvYC/running-barrier"
+          },
+          "code": 0,
+          "signal": null,
+          "stdout": "{\"pid\":30636,\"result\":{\"C\":true,\"terminalCloseProven\":false}}\n",
+          "stderr": ""
+        },
+        {
+          "name": "10-crash",
+          "pid": 81408,
+          "command": [
+            "D:/Program Files/nodejs/node.exe",
+            "<approved-temp>/081-sol-final-drivers-7NCYi8/consumer.mjs",
+            "<approved-temp>/081-sol-concurrent-SJjvYC/10-crash.job.json"
+          ],
+          "job": {
+            "action": "crash",
+            "root": "<approved-temp>/081-sol-concurrent-SJjvYC/crash-after-D",
+            "identity": {
+              "S": "A-generation-1",
+              "R": "A-generation-1",
+              "O": "O-crash",
+              "effectID": "write"
+            }
+          },
+          "code": 23,
+          "signal": null,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "name": "11-close",
+          "pid": 41376,
+          "command": [
+            "D:/Program Files/nodejs/node.exe",
+            "<approved-temp>/081-sol-final-drivers-7NCYi8/consumer.mjs",
+            "<approved-temp>/081-sol-concurrent-SJjvYC/11-close.job.json"
+          ],
+          "job": {
+            "action": "close",
+            "root": "<approved-temp>/081-sol-concurrent-SJjvYC/crash-after-D",
+            "owner": "A-generation-1",
+            "lockBudget": 1500
+          },
+          "code": 2,
+          "signal": null,
+          "stdout": "{\"pid\":41376,\"error\":\"LOCK_UNRESOLVED\"}\n",
+          "stderr": ""
+        }
+      ],
+      "stores": [
+        {
+          "name": "crash-after-D",
+          "events": [
+            {
+              "type": "D",
+              "pid": 81408,
+              "S": "A-generation-1",
+              "R": "A-generation-1",
+              "O": "O-crash",
+              "effectID": "write"
+            }
+          ],
+          "actual": []
+        },
+        {
+          "name": "D-before-C",
+          "events": [
+            {
+              "type": "D",
+              "pid": 16796,
+              "S": "A-generation-1",
+              "R": "A-generation-1",
+              "O": "O-running",
+              "effectID": "write"
+            },
+            {
+              "type": "effect-returned",
+              "pid": 16796,
+              "S": "A-generation-1",
+              "R": "A-generation-1",
+              "O": "O-running",
+              "effectID": "write"
+            },
+            {
+              "type": "terminal",
+              "pid": 16796,
+              "S": "A-generation-1",
+              "R": "A-generation-1",
+              "O": "O-running",
+              "effectID": "write"
+            },
+            {
+              "type": "C",
+              "pid": 30636,
+              "owner": "A-generation-1"
+            }
+          ],
+          "actual": [
+            {
+              "S": "A-generation-1",
+              "R": "A-generation-1",
+              "O": "O-running",
+              "effectID": "write"
+            }
+          ]
+        },
+        {
+          "name": "state",
+          "events": [
+            {
+              "type": "D",
+              "pid": 22244,
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "O-shared-generation-1",
+              "effectID": "effect-1"
+            },
+            {
+              "type": "effect-returned",
+              "pid": 22244,
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "O-shared-generation-1",
+              "effectID": "effect-1"
+            },
+            {
+              "type": "terminal",
+              "pid": 22244,
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "O-shared-generation-1",
+              "effectID": "effect-1"
+            },
+            {
+              "type": "duplicate",
+              "pid": 98764,
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "O-shared-generation-1",
+              "effectID": "effect-1"
+            },
+            {
+              "type": "duplicate",
+              "pid": 32860,
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "O-shared-generation-1",
+              "effectID": "effect-1"
+            },
+            {
+              "type": "D",
+              "pid": 42396,
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "O-shared-generation-1",
+              "effectID": "effect-2"
+            },
+            {
+              "type": "effect-returned",
+              "pid": 42396,
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "O-shared-generation-1",
+              "effectID": "effect-2"
+            },
+            {
+              "type": "terminal",
+              "pid": 42396,
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "O-shared-generation-1",
+              "effectID": "effect-2"
+            },
+            {
+              "type": "C",
+              "pid": 62628,
+              "owner": "A-generation-1"
+            },
+            {
+              "type": "deny-closed",
+              "pid": 26020,
+              "S": "A-generation-1",
+              "R": "B-generation-2",
+              "O": "old-wake",
+              "effectID": "wake"
+            },
+            {
+              "type": "deny-closed",
+              "pid": 58792,
+              "S": "B-generation-2",
+              "R": "A-generation-1",
+              "O": "closed-recipient",
+              "effectID": "delivery"
+            },
+            {
+              "type": "D",
+              "pid": 73192,
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "positive-B",
+              "effectID": "write"
+            },
+            {
+              "type": "effect-returned",
+              "pid": 73192,
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "positive-B",
+              "effectID": "write"
+            },
+            {
+              "type": "terminal",
+              "pid": 73192,
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "positive-B",
+              "effectID": "write"
+            }
+          ],
+          "actual": [
+            {
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "O-shared-generation-1",
+              "effectID": "effect-1"
+            },
+            {
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "O-shared-generation-1",
+              "effectID": "effect-2"
+            },
+            {
+              "S": "B-generation-2",
+              "R": "B-generation-2",
+              "O": "positive-B",
+              "effectID": "write"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "raw": "<approved-temp>/081-sol-baseline-raw-uztwsY",
+      "limitation": "initial runner failed before manifest; stdout/stderr retained"
+    }
+  ],
+  "queriedOwnedPids": [
+    13400,
+    16796,
+    18936,
+    20200,
+    20696,
+    21480,
+    22244,
+    23384,
+    26020,
+    26728,
+    29056,
+    29812,
+    30636,
+    32860,
+    34640,
+    34728,
+    36960,
+    38244,
+    41376,
+    41972,
+    42384,
+    42396,
+    46660,
+    47144,
+    48240,
+    52608,
+    54976,
+    57552,
+    58792,
+    62628,
+    65148,
+    65952,
+    66820,
+    73192,
+    73352,
+    78828,
+    81408,
+    82996,
+    84512,
+    94736,
+    96448,
+    97084,
+    97204,
+    97700,
+    98764,
+    98860,
+    100000,
+    100848
+  ],
+  "snapshot": {
+    "code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "limits": "PID absence/reuse and watch metadata are not fence or OS scope-exit proof; no cleanup",
+  "oldFilesUnchanged": 13,
+  "baselineFilesUnchanged": 262,
+  "fixtureVolume": {
+    "drive": "C:",
+    "filesystem": "NTFS",
+    "health": "Healthy",
+    "ACLQualified": false
+  }
+}

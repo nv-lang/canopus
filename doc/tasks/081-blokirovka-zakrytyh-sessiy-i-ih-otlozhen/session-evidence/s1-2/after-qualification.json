@@ -1,0 +1,40 @@
+﻿{
+    "kind":  "after qualification; corrective comparison, not a regenerated before",
+    "head":  "26429fa11424f4a5bb0b6a595dc0a95cea6e1601",
+    "branch":  "task/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen",
+    "baselineFiles":  678,
+    "currentFiles":  681,
+    "exactAppendOnlyExclusions":  [
+                                      "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/progress.log",
+                                      "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/profile.log",
+                                      "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/usage.log",
+                                      "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/analysis.md",
+                                      "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec.md",
+                                      "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-trace.md"
+                                  ],
+    "changedBaselineFiles":  [
+
+                             ],
+    "missingBaselineFiles":  [
+
+                             ],
+    "newPaths":  [
+
+                 ],
+    "hashErrors":  [
+
+                   ],
+    "gitFileHashUnchanged":  true,
+    "knownBaselineDefect":  "before-manifest.json incorrectly included root journals because initial Windows path separator normalization was ineffective; excluded from this corrected comparison; baseline file not rewritten",
+    "expectedNewPaths":  [
+                             "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/analysis.md",
+                             "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec.md",
+                             "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-trace.md",
+                             "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/before-manifest.json",
+                             "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/watch-inventory.json",
+                             "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/evidence-verification.json",
+                             "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/after-manifest.json",
+                             "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/after-qualification.json"
+                         ],
+    "limits":  "Read-only evidence and files created by S1-2 only; root journals are append-only and not part of the baseline integrity comparison."
+}

@@ -1,0 +1,32 @@
+{
+  "rawLocator": "081-durable18-run-kpXEg1",
+  "records": [
+    {
+      "name": "unchanged-baseline",
+      "expected": 0,
+      "code": 0,
+      "closed": true,
+      "stdoutSHA256": "2e4d49427dbf4c6a51d974bb333b8a163370e8d701bc11224971a3fd0282627e",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "assertion": null
+    },
+    {
+      "name": "scope",
+      "expected": 1,
+      "code": 1,
+      "closed": true,
+      "stdoutSHA256": "316a48285f513715c71d1cd45bb77b16cd6fcd22bc89c21434fadc6af42e2845",
+      "stderrSHA256": "f0fc439abddcc726d0f37c547603ec0c3b797280e01df304229a69fe1f5c7558",
+      "assertion": "SAFETY ORACLE AC-08:"
+    },
+    {
+      "name": "scope-repeat",
+      "expected": 1,
+      "code": 1,
+      "closed": true,
+      "stdoutSHA256": "dd1c5f8ca52e5a8d579fff130e262b38ccb2f9e5c75940f1a74d4842664108dd",
+      "stderrSHA256": "f0fc439abddcc726d0f37c547603ec0c3b797280e01df304229a69fe1f5c7558",
+      "assertion": "SAFETY ORACLE AC-08:"
+    }
+  ]
+}

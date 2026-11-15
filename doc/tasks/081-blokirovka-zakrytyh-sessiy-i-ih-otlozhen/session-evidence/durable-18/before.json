@@ -1,0 +1,965 @@
+{
+  "rawLocator": "081-durable18-before-64gP8e",
+  "basis": {
+    "HEAD": "26429fa11424f4a5bb0b6a595dc0a95cea6e1601",
+    "originMain": "01b2c391cb1043022eaabe336ebca06d74f50707",
+    "spec": {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec.md",
+      "bytes": 44357,
+      "sha256": "38aa3a2c36ece056435ca348b6b3b72bef5adf82a730d6d6c0035245f180f12e"
+    },
+    "archiveSHA256": "4098954a4eacc756f725a0a7f5c8250b71afb853c4aba198a2de66578ce2d9d5"
+  },
+  "entries": [
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/analysis.md",
+      "bytes": 10024,
+      "sha256": "1750a21b58cf27840dc22113d4ffec5bca6c97c6d28108f405da9cc0bbea6ab6"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/fast-path-setup/durable-fence-assignment.md",
+      "bytes": 8121,
+      "sha256": "49ab7d29b8d312eabfa3eaab2dd36fe997f851b6057eae05c211663bcc770e32"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/fast-path-setup/nova-scope-input.md",
+      "bytes": 3649,
+      "sha256": "d865f902f765d09f03b0dd6cf51f958882770667e21d66b57ef5cf25602f921c"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/fast-path-setup/os-lock-correction-assignment.md",
+      "bytes": 5886,
+      "sha256": "f87903e1ee64dccfa20b8ea53231cf07d530f556661f7bb5af1f96f1fafae22e"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/fast-path-setup/os-lock-prototype-assignment.md",
+      "bytes": 5320,
+      "sha256": "c3e7c1e2bd632469263c0fe34f0dcac366396a4d75fa401850d5a7e72ae9c58a"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/fast-path-setup/prototype-acceptance-assignment.md",
+      "bytes": 5323,
+      "sha256": "d88f52e0b0614da900d04a6b25aebaa3617ad5b5f8729509d0e3ca95ed779f7f"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/fast-path-setup/prototype-assignment.md",
+      "bytes": 9318,
+      "sha256": "4062edaa958c634af2843993b9d0258ad678edefce790c627cc16ded375d9cb2"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/fast-path-setup/prototype-correction-assignment.md",
+      "bytes": 5496,
+      "sha256": "3c8546941f6b1d53a2b98b29ada397963afc982f73d6bc19ca146be816405cbf"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/fast-path-setup/s3-assignment.md",
+      "bytes": 8349,
+      "sha256": "71abb98bffe8780a027de74c95b097495516a68af06924529d25453da1d028a8"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/fast-path-setup/sol-probes-assignment.md",
+      "bytes": 7285,
+      "sha256": "bb8fbdc35be6e5573c315e8a3c62ee444338ec8616ae13b57db9c134ffca0828"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/final-spec-review-setup/assignment.md",
+      "bytes": 13484,
+      "sha256": "05c8eb5c4d005abb1b4acdfa41cf5c5f97cb3cbb662b51f45c4ce2a234f46414"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/integrator-s1p-2-qualification.md",
+      "bytes": 4384,
+      "sha256": "90abb85f13cd09a6b61a399dd6175c1654858cbe000e56de945a969e3cbc71b7"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/log.md",
+      "bytes": 52624,
+      "sha256": "e5ff8de0d12a5e1774f0033d6acd4e7f801b83cae8224dee502b144ce0e77907"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/next-terminal-step-readonly.md",
+      "bytes": 7873,
+      "sha256": "b31cc1d6604bf9f9c5f85ccdaceae3992586878c572db4161cb337eb36694688"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/plan-trace.md",
+      "bytes": 13661,
+      "sha256": "df1656d01543419357852f585b54ba9b95b1ada47a226856d0ea6651fdd71ff0"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/plan.md",
+      "bytes": 24232,
+      "sha256": "0ef07cc414371730951f46d631d4d86a69f9598ca6e1e8e7269faec496820746"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/profile.log",
+      "bytes": 1522,
+      "sha256": "2c2df829435a3c9adb5c2ec0d7e8a101158b508e4d8d0da77c4d39529fa95c5f"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/progress.log",
+      "bytes": 13796,
+      "sha256": "beef47b65b2a64021acb6d331d190fc956494ffdbcba937ca31d01295758414f"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/prototype-correction-result.md",
+      "bytes": 4993,
+      "sha256": "296273d2b35a902f8e9ff9645a32154f9706de95be1b2c2ed038ff01bf03f085"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/prototype-os-lock-correction-result.md",
+      "bytes": 6574,
+      "sha256": "acc72c291bdf3ec84343fafdc0f044b80610cfb3c0be7a83200d1947bd58901d"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/prototype-os-lock-result.md",
+      "bytes": 5160,
+      "sha256": "94810a2418cad3e2f6cb06c60547a5ccf17450a70b81ececdd2ea4453a523f0f"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/prototype-os-lock-review-1.md",
+      "bytes": 5299,
+      "sha256": "855a97c0bb1d9167f2db2a322021059ec45be87e5e7a24abeedf9f8938440bc4"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/prototype-result.md",
+      "bytes": 5763,
+      "sha256": "e6f4e353861daed8f01d03b861ab60103098993bab4d60a2043ecdcafa6c5138"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/prototype-review-1.md",
+      "bytes": 6022,
+      "sha256": "d35d514f771f48e8f25de9390bb4f528d64e5322be980504f4003fed7161bdd5"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/prototype-sol-result.md",
+      "bytes": 14279,
+      "sha256": "f040738d296cfd0a50cadf47faf0a8e42b9e7cfed9367a4ad2c4d10bff395e86"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/replacement-spec-review-setup/assignment.md",
+      "bytes": 6226,
+      "sha256": "10857df29c2fae34424cf5380bcec6471d4b2661b83b13dbe18007c4eeda48e0"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/integrator-intake.md",
+      "bytes": 4194,
+      "sha256": "66d11f789facdec18c608e25bbadb9b775ce6f3267acf9dd7d70dfd064e5573b"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/integrator-s1-2-qualification.md",
+      "bytes": 3935,
+      "sha256": "0d05ce286bb88ec16177df060e4ea6eb2451d78b8fd46d14077c08e083158953"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/integrator-s1p-1-qualification.md",
+      "bytes": 4071,
+      "sha256": "8b5a9813d9efb41e0ddae853b8efdf6c545b0c14a1441a5b59e41d536cd6ac02"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/integrator-s2-1-qualification.md",
+      "bytes": 4469,
+      "sha256": "2715d94669e0b7d75761c93ac8a429b8f3ad06b5afabec027af92ef4cbddeece"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/integrator-s2-2-qualification.md",
+      "bytes": 7189,
+      "sha256": "7de42f57837105716ba22f151a06195fd3987c5847adbe1427b5691d38f6f131"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/integrator-s2-3-qualification.md",
+      "bytes": 5415,
+      "sha256": "056581e28a0c748977daf6014604a9494a8f6176f825775ad339b0ca7f6b7f6a"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-1/integrator-qualification.md",
+      "bytes": 5377,
+      "sha256": "1a9ba44a4d7875fc22122b846381cbe0c946072a7638da267c80444971a47f3d"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-1/manifest.md",
+      "bytes": 1027,
+      "sha256": "e1de997933411b01b4551d3e417107d09e4e0510991c1392ee9efcb1a242a8e7"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-correction-1/integrator-qualification.md",
+      "bytes": 5212,
+      "sha256": "0cc508a29a1ac70108d50687f58a4aa47e09eddcfbeafda723fa7b860cb0fba2"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-correction-1/README.md",
+      "bytes": 751,
+      "sha256": "7e6d805a8332ecfb97d34f9bc46401da1e1a2691bc272bb8bcedcd20336a4967"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-os-lock-1/availability.json",
+      "bytes": 422,
+      "sha256": "ceb91111bbc5ed5c72e9330688f1975de47368bcaad8ad62e5a448a5fcd58b39"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-os-lock-1/contention-attempts.json",
+      "bytes": 624,
+      "sha256": "6ecde792c1bf74d97da77f3bca5f375c34b3a050e8eb0b29233cbd11c66fbca6"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-os-lock-2/manifest.md",
+      "bytes": 2807,
+      "sha256": "89c8381273b8c4beb17774a251ea51e8909c2cd1b41e6f500910440867588929"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-os-lock-2/restart-boundary.md",
+      "bytes": 3204,
+      "sha256": "dc4b4c948a218af9467bdd468a61e07b9e3fefb1cb2d9d42a4e96404939b22e0"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-os-lock-review-1/manifest.md",
+      "bytes": 2167,
+      "sha256": "7789a4e3bd39976a2ee9c59278271c1bdc87b60dd905cf07347908b9e25e252c"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-review-1/baseline/baseline-queued.json",
+      "bytes": 4455,
+      "sha256": "ae77c7bebec649f967973dcac8264ff2ee4922cd1517c0de79441f757f396e70"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-review-1/baseline/baseline-running.json",
+      "bytes": 4422,
+      "sha256": "1b283af5e721f200b67d03413273bc7ff199157f16e7b1158258bbda91750838"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-review-1/final-replay/concurrency.json",
+      "bytes": 14069,
+      "sha256": "fa37aafc5e32ce043dc21eac5977dfaaad1cdd5788f7fa7dd883d822b7fb97cc"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-review-1/final-replay/drivers.json",
+      "bytes": 727,
+      "sha256": "9d1e5f58763a1f1ffe3f8268e9dfdd0abe6d834813ae16e62bb7d39f3a034589"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-review-1/final-replay/gate-queued.json",
+      "bytes": 3899,
+      "sha256": "e62465384e28d5f0102196ddf32259a4828e9116313f7f1d926f6b8be57aeb30"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-review-1/final-replay/gate-running.json",
+      "bytes": 5602,
+      "sha256": "a5a9b75ba5dd47427d3834b3b983e306a31c84c4e783ac2d5458e690bfed5dc8"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-review-1/final-replay/removed-queued.json",
+      "bytes": 4418,
+      "sha256": "24e49407416ffe77cd90ec5d9cbff69f1fb9c9d68c77bf52433ced97f4e43cbd"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/audit-first-failed.json",
+      "bytes": 4142,
+      "sha256": "854f0f0479553e87dbaff7d44a34992b6fc6dcc74abe0a85d95abc90f4815a60"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/audit.json",
+      "bytes": 4398,
+      "sha256": "b40a7803c1ce5600d3f9eacc7e838998548a5d59f0b72e12c2740cd735f8baff"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/baseline-queued.json",
+      "bytes": 4483,
+      "sha256": "83873b0dfd6242da51f90d277b280242b9258dbe16e840041e78ae3b8d0f8abd"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/baseline-running.json",
+      "bytes": 4543,
+      "sha256": "a1f40af116eafdd20660c16e9f403bb46135dbb2a111b914246e27ae4ee687e6"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/concurrency.json",
+      "bytes": 14141,
+      "sha256": "1dd0373ae2e5c881768136282b8ed4b75fc5ca5b2400239d0b476b68f4be1eb3"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/final-replay/concurrency.json",
+      "bytes": 14069,
+      "sha256": "f93018811cacdb540b97ba4cf437471d3d0e21db7de711b101c81330215dd5aa"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/final-replay/drivers.json",
+      "bytes": 727,
+      "sha256": "d0faba5956236f5094dd3f35570df08caff8debc32d2a82fdfa45273a9040aec"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/final-replay/gate-queued.json",
+      "bytes": 3899,
+      "sha256": "9f8177a6bf182adfc612eeb2785036db76fb11a8285ff39eec4d1b744cd1b80b"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/final-replay/gate-running.json",
+      "bytes": 5610,
+      "sha256": "9dbb55e8aba41d14f725a6353836ae699ddb9feee366ddf06b5f1d05a62cbb49"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/final-replay/removed-queued.json",
+      "bytes": 4468,
+      "sha256": "1dbe9ff1aebcfc396e165ab8346b588fc4e003f19fcd372a4804b096250892fc"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/gate-queued.json",
+      "bytes": 3905,
+      "sha256": "3ecc1d4110c21d066fda043ff2c1d2343c65a5d9dd65c1d97c63e17827578e62"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/gate-running.json",
+      "bytes": 5608,
+      "sha256": "f9f8b38b30fc466ed2cba42fa112d6eaf36f8d0276222c1751df9b6e953e9c7e"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/intake.json",
+      "bytes": 2841,
+      "sha256": "e753d64a10de450ca0505be5799e9d416764682b99487f0663ceffb98214cc20"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/ownership-after-first.json",
+      "bytes": 82645,
+      "sha256": "deb4267f99eb0e74fb1f91145e3bb9644a63a917ae3a9b783092c22cabd39831"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/ownership-after.json",
+      "bytes": 82645,
+      "sha256": "deb4267f99eb0e74fb1f91145e3bb9644a63a917ae3a9b783092c22cabd39831"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/prototype-sol-1/removed-queued.json",
+      "bytes": 4366,
+      "sha256": "34c8f0112309e98d3932d6d2ee17a99cad16ba7e9f9a6359843f1196a40c4e61"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/after-manifest.json",
+      "bytes": 2301,
+      "sha256": "d90867710de288dc44abe2d3431135c015f10dc1c7d7f33f0bcab733f59a7a80"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/after-qualification-corrected.json",
+      "bytes": 1788,
+      "sha256": "885f0b927dbf90f83f46d9142ed0300ef662882c6b614e2578ac33505290e21f"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/after-qualification.json",
+      "bytes": 2657,
+      "sha256": "1b5915244529d07c2297309baf1ce48d50c20f50ba28a496900166f4e813debd"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/before-manifest.json",
+      "bytes": 208266,
+      "sha256": "605791fdbe82f80b3a4aaad80dd1dfebd06963660c8c01a03449ffeab33f7c9c"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/evidence-verification.json",
+      "bytes": 2333,
+      "sha256": "1e4dd942e08ff99e8a17ab938af321cdaf8984716f8ba368c662eedfb0f976cc"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/submission-manifest.json",
+      "bytes": 3840,
+      "sha256": "0ed6f74f7b2daed3823b8b9d35b1f8d69410a22350d0da357accc62fa05acad6"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1-2/watch-inventory.json",
+      "bytes": 5065,
+      "sha256": "30ca2f70b956f7b494ab7255895657666b921df2e0eedd2d2a6c236caceb7cd4"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-1/after-final.json",
+      "bytes": 135306,
+      "sha256": "96994129d7755376c14bd1925b8bba1b6f5e2168396f6fbd0ac14ba1df270aa3"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-1/after-tree.json",
+      "bytes": 135104,
+      "sha256": "a2939a022bc047b8bce14d2a93034ba16e07a678bc0644a70514bc8c9dc200b7"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-1/before-tree.json",
+      "bytes": 128642,
+      "sha256": "36f6ceb5356857e315ff93abafac37348208a86b8de5bcd6fb123c9c20448eba"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-1/finding-response.md",
+      "bytes": 3092,
+      "sha256": "b33c8903ffcbfad4d869f80a8de1825681c9edf79d3aed1f61e652b68b675e84"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-1/read-map.md",
+      "bytes": 2549,
+      "sha256": "85dfad3daebdb477a655138a6ea52711beca1d64a508c65596fec54c1009ee9e"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-1/regression-probes.md",
+      "bytes": 4535,
+      "sha256": "87c216f066dab9d552a8abeb8bb38040f9f786061e26d3c243fd1cea1ecb0d6d"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-1/root-before/analysis.md",
+      "bytes": 15183,
+      "sha256": "645ff6bb2f32dcdb064b4fe5c68145d9db97d0f5b335bb8a3034b8e4a9ee7bf3"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-1/root-before/spec-trace.md",
+      "bytes": 6134,
+      "sha256": "e7ccec5cf8c7ac41f34957d71684d2a2d72162b9696d92c5f6e6bf7e9516bdb7"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-1/root-before/spec.md",
+      "bytes": 12258,
+      "sha256": "2b56bfb8aed137548e0a4bb1c67d027447d5016f0b07f42f4c7980fcbb749e93"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-1/writer-consumer-matrix.md",
+      "bytes": 9954,
+      "sha256": "d7632130ade30b716c9841f8dbe9a8f6e6a4f11328d781dbb95ad51e746dc812"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/actual-output-manifest.json",
+      "bytes": 6127,
+      "sha256": "1493ac375dcffddaa80738d2b4ce2c309f53ea514996dfed39845985c0a2d88b"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/after-manifest.json",
+      "bytes": 130091,
+      "sha256": "942d0bf20d0b648298df8a66b0ae7888cbd6c141bf84a8d7e04bcedac8eff1f3"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/api-schema-selected.json",
+      "bytes": 26259,
+      "sha256": "5c0278df528c2f24431a98a22f3474d2648218fecbdb0dc3ae0d9968cf259eae"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/before-analysis.md",
+      "bytes": 8859,
+      "sha256": "1920eff292b14a4d0e770395e08c6d14f149d6758200e30965cbd4b13b10ab14"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/before-manifest.json",
+      "bytes": 122656,
+      "sha256": "6fb0725bb8131f43c4c7618394c7d1ed9e57aeb9ae8ff8f4789c7f1ad0714b96"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/before-profile.log",
+      "bytes": 921,
+      "sha256": "31976145d97edae73f2423f7126d76a125d358712a64112196ded910e85ea6a0"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/before-progress.log",
+      "bytes": 5264,
+      "sha256": "24be84bc63e8f30edb34395255018e4b969caa2afeb69cda8794264030c4a1f4"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/before-spec-trace.md",
+      "bytes": 12415,
+      "sha256": "b2319ef51501a3b714d91e4e88740bbbcc3265ebab167849af9d5672a0c6b90e"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/before-spec.md",
+      "bytes": 16231,
+      "sha256": "eab33a1c3cd77cf99c696b82acb7add65b46a837a23a06e2e9881b652dc4986a"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/before-usage.log",
+      "bytes": 3655,
+      "sha256": "f8300fa64336f0a3eff6a0d7cbb342967d6ebe9717ab9860543049189ce20412"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/derivative-actual.json",
+      "bytes": 916,
+      "sha256": "77097c46534cf65787257daa285c2adb84ea2a7060dce82d31ca0c0b6ea980d1"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/derivative-expected.json",
+      "bytes": 662,
+      "sha256": "c078ace6457d1d8abb7b05458547711b7a8d0984431a5d18971a5eb53d778bf8"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/derivative.diff",
+      "bytes": 1164,
+      "sha256": "d7e3c6febd72adab64c4436a5d46201184600885d444f805c15406b57dbfb1d3"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/documentary-actual.json",
+      "bytes": 375,
+      "sha256": "a82b11e320c9f74afbdeea5491a78df14d9e76ce208c9291837869f8749332a1"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/expected.json",
+      "bytes": 1182,
+      "sha256": "09ebf2bc5f82a29acd45d05ab331620f2325c945e306481c1b910561aa73acfc"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/finding-response.md",
+      "bytes": 6267,
+      "sha256": "027982a7b8f3b24bdb03658b1c30ba8b6076b96171cfc5cc0aa3d1400dc77db2"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/forensic-actual.json",
+      "bytes": 1319,
+      "sha256": "adb18372cdc98ed1935c2f1e6caccec432b341747e25b939fa349bde4c76f67a"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/freeze-locator.json",
+      "bytes": 512,
+      "sha256": "16b98e65e5cab3a6bee1b64a632fb037a4560d5549a8f261b2c1b88a0ea4aaef"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/frozen-root3/analysis.md",
+      "bytes": 10024,
+      "sha256": "1750a21b58cf27840dc22113d4ffec5bca6c97c6d28108f405da9cc0bbea6ab6"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/frozen-root3/spec-trace.md",
+      "bytes": 40896,
+      "sha256": "cacad23b828a51c8a1e6d6c30ed1bca0a2b998bbf6e7b384635a24f71211752c"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/frozen-root3/spec.md",
+      "bytes": 43139,
+      "sha256": "22e641def114d3207f3ec303e6e5f5eebaaac82973cb2d2bc0ccbd46350aa43e"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/measurement-error.md",
+      "bytes": 1371,
+      "sha256": "0d44f9136e3f50c1d69a7e4efe112ea1d4eef6a4b1956cc7ffe71bae5dc8aa1b"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/platform-and-consumers.md",
+      "bytes": 7339,
+      "sha256": "153dd9c48d7af85695d5ca32ecea5d4e19b14e7a72fa689c23a30ffcfd11d2b8"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/preservation-actual.json",
+      "bytes": 1050,
+      "sha256": "42198fe9b2b2b68d0dd4fd302e436d46d4213bdfebba6bd2e129ee1bf721c74b"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/probe-plan.md",
+      "bytes": 4470,
+      "sha256": "4f275d6309731434fd744d1c79a809dfca9d690024f4c52ed7d1595551819a92"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/probes.md",
+      "bytes": 5770,
+      "sha256": "a837ee4e14dbe5414e7aa55e2bd36aaf1c953926017a76252b0e29099a39d4ec"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/qualification.md",
+      "bytes": 6859,
+      "sha256": "eb79088ca661baf278e7e7ed3a6e73a92d676447ed6f2b886788c241e0a5ee3e"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/read-map.md",
+      "bytes": 7100,
+      "sha256": "1554fbefa1217cc619bd7577e6f5d3247412f5a9a4de6195189c1c23ece9b20e"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s1p-2/root3.diff",
+      "bytes": 109843,
+      "sha256": "c5fd6b63d5e8fae6de8587861e1f793485f1c4c5abeb81dcedd3b48206b22f4c"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-1/read-map-and-probes.md",
+      "bytes": 4485,
+      "sha256": "38c4e90ad6e8e4aea0d573ec1935f2dd1edcdc406ef3101756e78b322a6de14b"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/after-corrected.json",
+      "bytes": 4730,
+      "sha256": "b8c794a8394bc175929bc5306a4deb9afb1f70d0126567cd70fe05baa1a59b1f"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/after-final.json",
+      "bytes": 4981,
+      "sha256": "a8be0435316f0feed4f2a22e5bd7f5debbea28ecca144800bb3161daed229494"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/after-manifest.json",
+      "bytes": 4461,
+      "sha256": "33a8b768895b05e2d436e9849fe9a9774e24ce93c3393f3d98bf71ab15d8a8c1"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/api-readonly.json",
+      "bytes": 1129,
+      "sha256": "f0db29ab7a7c0be3d479db60232706bd954ad4c8f22ab378fe348f32000fdb90"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/before-corrected.json",
+      "bytes": 2919,
+      "sha256": "1bff31c419a575253217ad721187098994d60dee59aea8a32080b67e610ca4c2"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/before.json",
+      "bytes": 1898,
+      "sha256": "2f7ad5e67bd0352e09c4ef0ffa0aa129f5503c8b31794d20af0af7205e0828d8"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/contract-audit.md",
+      "bytes": 5321,
+      "sha256": "98a4f2317308e0c417c040a3d7aa03b318a2e27860df27214504d661a60d636a"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/coverage-reconciliation.json",
+      "bytes": 5828,
+      "sha256": "ad44bf2c1a51c6faa7dbe0bc1214cdd97328f8ad3898353d880fbf5566e8a5d7"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/forensic-verification.json",
+      "bytes": 2326,
+      "sha256": "9f4276b2a25887be92ca83b355c396635514ec5ea1d30f2ce998c1e1b6acadd1"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/package-doc-audit.md",
+      "bytes": 1836,
+      "sha256": "f86acbdd43804cf850b374508d40f5c9c8e40d122d357b61f6b5e1891ac84f52"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/package-doc-probe-plan.md",
+      "bytes": 509,
+      "sha256": "a7c1928cc87f29abbafa3de8288d6ab6b29f0ab787a7ac5b0c9e7504e4065bbd"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/probe-plan.md",
+      "bytes": 2847,
+      "sha256": "c7eac97457a80f9d8e37cf6b8d32a2970fd3218e823167db50d1ae417c8f3821"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/public-path-probe-initial-error.md",
+      "bytes": 1492,
+      "sha256": "4cf52e0017575e9b6307ae247e939e2f9327ce71cf1220f847f4a2f2e2a71ca4"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/public-path-probe-plan.md",
+      "bytes": 874,
+      "sha256": "96c2f125c13caa80c83d78a53effd95c1f791033e367f1dced611b189677db9d"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/read-map.md",
+      "bytes": 4500,
+      "sha256": "cd1d5970275a1bc3d1ba256f0abd259d4ef9019b022e0924276d77391f04372c"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/requirement-map.md",
+      "bytes": 7333,
+      "sha256": "0379aa4c9fa3c5fca657bfeb3d8dfbb947aa0146f080b16f5a4412c7a3562a43"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/source-hash-plan.md",
+      "bytes": 756,
+      "sha256": "c5e630d1d9fafefa157be56196dd8033079db0bd8f89fe3a12f33e4c84239253"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/source-preservation.json",
+      "bytes": 3366,
+      "sha256": "1a723e727a9aead0f768707b833a5f7b939212048a5aa01a6df43d7ef3a45cfb"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/submission-manifest-final.json",
+      "bytes": 6444,
+      "sha256": "99ec59f5a0edcb0f812b211334c863971e8b7abc0a09e0b4911a844eeb1f7e83"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-2/submission-manifest.json",
+      "bytes": 5388,
+      "sha256": "d642a2f7b0d8d1d00bbf27b7fe27fb406ab5ab1d5088e26110e032c48215671b"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-3/after-manifest.json",
+      "bytes": 127249,
+      "sha256": "4aad9825604b3af81e0bc354711df649a398d229881373bd05299df6a7717126"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-3/before-manifest.json",
+      "bytes": 131165,
+      "sha256": "aeebd8404ff0b276d9ee17076aad9c9fe24fccccc896cb39bf38b2273230c97c"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-3/own-expected.md",
+      "bytes": 1347,
+      "sha256": "c92636c05e058c5a6fc803f076c5a1e620fc54c1e46a343eafdbdbe6045c0dbe"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-3/probes.md",
+      "bytes": 5455,
+      "sha256": "59dd2269d584c468b5f1803df34bb87e8fb0a3a105206035c59aeb928ce10412"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-3/read-map.md",
+      "bytes": 4656,
+      "sha256": "2a992b38f51bc2b2c479c4749962bb5b7a72f22ca05c98fef4d8abb625ea720e"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-4/before-manifest.json",
+      "bytes": 130473,
+      "sha256": "b7371fb7837ec6d1c96ec5f1c1c0ef36b9bc22ade2dfcde3f2817f4f92cf29c2"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-4/own-expected.md",
+      "bytes": 1846,
+      "sha256": "a91eba9d66a03aba30dd0b40e22abf3bf6ef278765b640ebc03ccac455592d82"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-4/read-map.md",
+      "bytes": 21220,
+      "sha256": "60ac05edf3d0189a1904d3c455cc8eda1b9ff26414d9eaa3eb45b90a20376437"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-5/after-manifest.json",
+      "bytes": 133992,
+      "sha256": "549ec104be46ed751ff15a5a5e2d8714b865c4c6b87f0fd01792de4a035826e2"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-5/before-manifest.json",
+      "bytes": 130301,
+      "sha256": "3d4b426f25374eab6eee304900b224c16896559ce0b4eb2b8a46a66e0f59d180"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-5/consumer-audit.md",
+      "bytes": 43531,
+      "sha256": "bf140c4302b2e29d1fb802320935a07b4959461ccc018a7dc3bc452a468eb49c"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-5/forensic.json",
+      "bytes": 19940,
+      "sha256": "e005e6b1473d6de59ed34f8ae8598acd5aa1ee66033a360a095aebd9cd010e14"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-5/own-expected.json",
+      "bytes": 993,
+      "sha256": "3319b5fe01dcadb126153241fe3ffa1c3adee07aa09ee412eaaaf52bbcf0582e"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-5/probes.json",
+      "bytes": 3300,
+      "sha256": "8a9c0458a1cbdd1e739c1aec928198dba9d9f34e8dd8c713d0404d793c1348e9"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-5/read-map.md",
+      "bytes": 10030,
+      "sha256": "7e4326fb6d0322356dfe86133531b301897498b7dde3fe834cb7a4d75971e39f"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-5/scope-audit.json",
+      "bytes": 4247,
+      "sha256": "2dbddd2f5a3028368a3523da2e6c6e1bd23f18c4bb6a5501247f1389b2459080"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s2-5/source-audit.md",
+      "bytes": 4890,
+      "sha256": "f113b0e13e5aa0163eec80ca2cfd6d6f03f0f7229f0b686f2f8cd1b9b9d449af"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/s3-1/basis.md",
+      "bytes": 5894,
+      "sha256": "8f1c8e3287d7266b32a05e5cedfa1d498710c698fafa24e7f002d36547c29dcf"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/session-evidence/sol-correction-setup/assignment.md",
+      "bytes": 15145,
+      "sha256": "c928d4d7ae97f098bbb4a113fbd2a9a4389d774989c484b05e707d0a72776718"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-approval-2026-10-18/approval-check.json",
+      "bytes": 844,
+      "sha256": "97cc73e2bf3ebc68a558bb0b4b188ea6ed5d16681ced949b5c661b1d72597d08"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-approval-2026-10-18/approved-spec.md",
+      "bytes": 44357,
+      "sha256": "38aa3a2c36ece056435ca348b6b3b72bef5adf82a730d6d6c0035245f180f12e"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-approval-2026-10-18/before-fingerprints.json",
+      "bytes": 749,
+      "sha256": "dd73ab3224c7f85d8ccfdc8868e4b8d101a1cabb9cc248641cf0d1bb72083b8c"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-approval-2026-10-18/before-spec.md",
+      "bytes": 43139,
+      "sha256": "22e641def114d3207f3ec303e6e5f5eebaaac82973cb2d2bc0ccbd46350aa43e"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-approval-2026-10-18/owner-input.md",
+      "bytes": 2886,
+      "sha256": "b4a1af07e1036fd51f13afd4c2c591974407d552a68c108d60dfd494592a1269"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-approval-2026-10-18/spec.diff",
+      "bytes": 3879,
+      "sha256": "307abd35b1f08af096a4bb1261d9d29f444f2bf713cf8470e20e094d84dbf20c"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-review-1.md",
+      "bytes": 11884,
+      "sha256": "98707521a8287a156af8b0290934195031ac7289a78098106d9f06ddfe51de87"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-review-2.md",
+      "bytes": 29162,
+      "sha256": "6aedb3d334f6c5e841dfb9a9fac44d8d9a4f7520fc41bd4f1253c84c42005333"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-review-3.md",
+      "bytes": 19037,
+      "sha256": "e46ca773a89538c1269a73377f8b0b3a7efdac7a0d07d20d601e573c43c579c5"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-review-5.md",
+      "bytes": 20370,
+      "sha256": "336da6efe1ebdc303cd4aa3081c588190861745b99f6b9a2596f9e36db8cff0d"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec-trace.md",
+      "bytes": 40896,
+      "sha256": "cacad23b828a51c8a1e6d6c30ed1bca0a2b998bbf6e7b384635a24f71211752c"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/spec.md",
+      "bytes": 44357,
+      "sha256": "38aa3a2c36ece056435ca348b6b3b72bef5adf82a730d6d6c0035245f180f12e"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/task/message.md",
+      "bytes": 19795,
+      "sha256": "71815de623b78319e9b9366c10fd26c174ddb6777f2711c02d58f2cf84db7f1b"
+    },
+    {
+      "file": "doc/tasks/081-blokirovka-zakrytyh-sessiy-i-ih-otlozhen/usage.log",
+      "bytes": 5463,
+      "sha256": "186da11138478033a25f53dc51712b2ee110068b6edacefcffb7ed7728d79137"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/correction-1/filesystem-gate.mjs",
+      "bytes": 1730,
+      "sha256": "164096223de46a7e0ade28e10d90cf88dc15d4eb57d439b0698536d8f69c0816"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/correction-1/gate-probe.mjs",
+      "bytes": 2444,
+      "sha256": "519873f3e5c102409cdb893a88b91972a1db21783745b96d4dc75b52217b125e"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/correction-1/lifecycle-oracle.mjs",
+      "bytes": 2583,
+      "sha256": "a2b9ea0520652a35f5e99442cf7cf16538042efe7947bd0f6fded66505a88990"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/durable-18/capture.mjs",
+      "bytes": 2161,
+      "sha256": "e73622213a13a761e5b6d3d6921e5a176b6bedebeb954d1dcbbf9e6bdb57a450"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/durable-18/host-readonly.mjs",
+      "bytes": 2157,
+      "sha256": "0fbcaf4104986bfba343fb472c67912a926c54d7042b47e5cbf0e98cb3bb55a3"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/durable-tombstone.mjs",
+      "bytes": 1142,
+      "sha256": "f5861b7b781099392ba5ded0d4dd99fe77156e2d169fff131ef98dd0048c064c"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/os-lock-1/consumer.mjs",
+      "bytes": 2215,
+      "sha256": "db93206cb814a56800454955d05ee8f8301e12bc5a1658e35c9af4715b977314"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/os-lock-1/probe.mjs",
+      "bytes": 4309,
+      "sha256": "a2b218598d91debfa723ad276f44161c949542f2827f4ea20678dd97972beb5f"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/os-lock-2/consumer.ps1",
+      "bytes": 2634,
+      "sha256": "d6b8f9cb95fad4e672812dab0f38b6c3d4d2c52ccdef7020ac9681bd24725e82"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/os-lock-2/probe.mjs",
+      "bytes": 4945,
+      "sha256": "d4bfa7cb821bacb49dfd0ad5e9ea2b9bd2ffda638b78f93a6c4784989aedbd1f"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/red-close-watch.mjs",
+      "bytes": 2377,
+      "sha256": "964f803096f6d038624f4ddf2c467a64dfb3f08b7cd81da4ca372641a9bf529c"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/sol-1/audit.py",
+      "bytes": 6437,
+      "sha256": "1ed3a7b3c4674d5755fd55da1a91c2ad5b7444e87fd5f16b74c337bead2aa202"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/sol-1/concurrent-probe.mjs",
+      "bytes": 8218,
+      "sha256": "3f342fd91a81d7b6eb615d674fb57710dac8112de4d6b850df8e640a6e8db1f6"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/sol-1/consumer.mjs",
+      "bytes": 1501,
+      "sha256": "991ff2ee74f3c6cef3a26fce364a858fb424d595e523a2832471903665427c04"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/sol-1/filesystem-gate.mjs",
+      "bytes": 3627,
+      "sha256": "6d441bf734ec64eefdf4c6139828c1a3caee5c59af2b05286cdad20be168d8ca"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/sol-1/final-replay.mjs",
+      "bytes": 1428,
+      "sha256": "d2269e3ef97f02fe8cfee41ba51e8f721a6cf448710286701ae00d88b2f82e62"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/sol-1/lifecycle-oracle.mjs",
+      "bytes": 5275,
+      "sha256": "c274a18bcaeec4cb0b584904fabd7114e4ec7ed737c1ef65e5b96ecf85adbc98"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/sol-1/prepare.mjs",
+      "bytes": 2096,
+      "sha256": "fbddf035bfaac5d7aa70d1120eb893d7815e3ee578eb588171676efb6125d4df"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/sol-1/run-lifecycle.mjs",
+      "bytes": 2975,
+      "sha256": "457492aa9cae431bc989310e8cc4004aa259cda9852ac7aef6e10f16ecf20cd9"
+    },
+    {
+      "file": "opencode-plugin/test/prototype081/tombstone-probe.mjs",
+      "bytes": 1397,
+      "sha256": "1f331d7145f5f187977ad69a642692d529a3549c5b23af95ca1c8cf8ef3fe8d4"
+    },
+    {
+      "file": ".git",
+      "bytes": 105,
+      "sha256": "9ece78a917ce3902c197a74270acaa9f7b4b7ca4c1dca1efcfc0235f0b21e9ec"
+    },
+    {
+      "file": "opencode-plugin/core.ts",
+      "bytes": 320396,
+      "sha256": "ea17f0b8c34e5bf2b117ee2eda3d35908c388fe254efc4c6faa7c01328a2eaad"
+    },
+    {
+      "file": "opencode-plugin/index.ts",
+      "bytes": 181493,
+      "sha256": "f65a3cb77876c601183ecfab25f6aef9b41f9b7b2abd327939af993174b88115"
+    },
+    {
+      "file": "opencode-plugin/watch.ts",
+      "bytes": 15863,
+      "sha256": "10d27532f33c3ae6477c9a2147b5a2c12fb4edc4d572f78f1ae60c1aa9bb0d88"
+    },
+    {
+      "file": "opencode-plugin/README.md",
+      "bytes": 124161,
+      "sha256": "52dd041af6be6b4f5f56ae81e0e631d99c7b6b5221969832a8deb91f59252540"
+    },
+    {
+      "file": "opencode-plugin/package.json",
+      "bytes": 5152,
+      "sha256": "ac004c4086d199d68f1d9b6d04a76f6ebd21d8a27811ff3c015f3af0c7b34be1"
+    }
+  ]
+}

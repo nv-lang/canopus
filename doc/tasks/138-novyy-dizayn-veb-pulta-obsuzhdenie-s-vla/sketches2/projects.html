@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>138 — эскиз 07 «Диспетчерская: проекты»</title>
+<style>
+  :root {
+    --bg: #101314;
+    --panel: #171b1d;
+    --panel2: #1d2225;
+    --line: #2b3237;
+    --text: #d8dcde;
+    --muted: #8a939a;
+    --dim: #5c656b;
+    --amber: #d29922;
+    --green: #3fb950;
+    --red: #f85149;
+    --blue: #58a6ff;
+    --steel: #7e9cc4;
+    --mono: "Cascadia Mono", Consolas, "Courier New", monospace;
+    --sans: "Segoe UI", system-ui, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0b0d0e; color: var(--text); font-family: var(--sans); font-size: 13px; padding: 14px 18px; }
+
+  .board { display: flex; align-items: baseline; gap: 24px; padding: 2px 2px 10px; }
+  .eyebrow { font: 10px var(--mono); letter-spacing: 2px; color: var(--dim); }
+  .board h1 { font-size: 21px; font-weight: 600; margin-top: 3px; }
+  .board .note { color: var(--muted); font-size: 12px; flex: 1; }
+  .draft { font: 10px var(--mono); color: var(--dim); border: 1px solid var(--line); padding: 3px 8px; border-radius: 3px; }
+
+  .console { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+
+  .statusbar {
+    display: flex; align-items: center; gap: 18px;
+    font: 11px var(--mono); color: var(--muted);
+    background: var(--panel); border-bottom: 1px solid var(--line); padding: 6px 12px;
+  }
+  .statusbar b { color: var(--text); font-weight: 600; }
+  .statusbar .ok { color: var(--green); }
+  .statusbar .spacer { flex: 1; }
+
+  .attention { border-bottom: 1px solid var(--line); background: #1a1710; display: flex; align-items: center; gap: 8px; padding: 6px 12px; }
+  .attention .count { background: var(--amber); color: #111; padding: 0 6px; border-radius: 2px; font: 700 11px var(--mono); }
+  .attention .lead { font: 11px var(--mono); color: var(--amber); }
+  .attention .who { font: 11px var(--mono); color: var(--text); }
+  .attention .what { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .attention .more { margin-left: auto; font: 10.5px var(--mono); color: var(--dim); white-space: nowrap; }
+
+  .projects { min-height: 690px; display: flex; flex-direction: column; }
+  .pane-head { display: flex; align-items: baseline; gap: 12px; padding: 8px 12px 6px; border-bottom: 1px solid var(--line); font: 11px var(--mono); color: var(--dim); letter-spacing: 1px; }
+  .pane-head .filter { margin-left: auto; color: var(--muted); }
+
+  /* группа проекта */
+  .pgroup { border-bottom: 1px solid var(--line); }
+  .phead {
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 12px 6px; background: var(--panel);
+  }
+  .phead .p-name { font: 600 12.5px var(--mono); color: var(--text); letter-spacing: .5px; }
+  .phead .caret { color: var(--dim); font-family: var(--mono); font-size: 11px; }
+  .phead .p-stats { font: 10.5px var(--mono); color: var(--dim); display: flex; gap: 14px; }
+  .phead .p-stats .w { color: var(--amber); }
+  .phead .p-stats .r { color: var(--green); }
+  .phead .p-stats .s { color: var(--red); }
+  .phead .p-actions { margin-left: auto; font: 10.5px var(--mono); color: var(--muted); display: flex; gap: 12px; }
+
+  .trow {
+    display: grid; grid-template-columns: 40px 1fr 220px 76px 120px 100px 60px;
+    gap: 10px; align-items: center; padding: 5px 12px 5px 26px;
+    border-left: 2px solid transparent; border-bottom: 1px solid #202628;
+  }
+  .trow:hover { background: var(--panel2); }
+  .trow.selected { background: var(--panel2); border-left-color: var(--blue); }
+  .trow .no { font: 12px var(--mono); color: var(--muted); }
+  .trow .name { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .trow .name small { display: block; font: 10.5px var(--mono); color: var(--dim); font-weight: 400; }
+  .trow .last { font: 10.5px var(--mono); color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .trow .sess { font: 10.5px var(--mono); color: var(--muted); white-space: nowrap; }
+  .trow .prog { display: flex; align-items: center; gap: 6px; }
+  .trow .bar { flex: 1; height: 4px; background: #262c31; border-radius: 2px; overflow: hidden; }
+  .trow .bar i { display: block; height: 100%; background: var(--green); }
+  .trow .kn { font: 10px var(--mono); color: var(--muted); }
+  .trow .age { font: 10.5px var(--mono); color: var(--dim); text-align: right; }
+
+  .chip { font: 600 9.5px var(--mono); padding: 1px 6px; border-radius: 2px; white-space: nowrap; justify-self: start; letter-spacing: .5px; }
+  .chip.run   { color: var(--green); border: 1px solid #234028; background: #12241a; }
+  .chip.wait  { color: var(--amber); border: 1px solid #4a3a16; background: #1f1a0e; }
+  .chip.stuck { color: var(--red);   border: 1px solid #5a2622; background: #251311; }
+  .chip.done  { color: var(--dim);   border: 1px solid var(--line); }
+
+  .pgroup.idle .phead .p-name { color: var(--dim); }
+  .pgroup.idle .phead { padding: 7px 12px; }
+  .pgroup.idle .p-stats { color: #4a5157; }
+
+  .boardfoot { margin-top: auto; border-top: 1px solid var(--line); padding: 7px 12px; font: 10.5px var(--mono); color: var(--dim); display: flex; gap: 16px; }
+
+  .footbar { display: flex; gap: 18px; padding: 6px 12px; border-top: 1px solid var(--line); background: var(--panel); font: 10.5px var(--mono); color: var(--dim); }
+  .footbar .warn { color: var(--amber); }
+
+  .board-footer { display: flex; justify-content: space-between; padding: 10px 2px 0; font: 10.5px var(--mono); color: var(--dim); }
+</style>
+</head>
+<body>
+  <header class="board">
+    <div><span class="eyebrow">CREWHARNESS / ДИЗАЙН 138</span><h1>07 — Диспетчерская: проекты</h1></div>
+    <p class="note">Все проекты одним экраном: задачи сгруппированы под своим проектом, у проекта — свои счётчики, замок и очередь.</p>
+    <span class="draft">ЭСКИЗ · данные вымышлены</span>
+  </header>
+
+  <div class="console">
+    <div class="statusbar">
+      <b>CREWHARNESS</b>
+      <span class="ok">● connected</span>
+      <span>проектов: 3</span>
+      <span>задач: 9</span>
+      <span class="spacer"></span>
+      <span>события</span>
+      <span>03:12</span>
+    </div>
+
+    <div class="attention">
+      <span class="count">3</span><span class="lead">ЖДУТ ВАС</span>
+      <span class="who">crew-harness 138 исп</span><span class="what">«Какую сетку доски берём — плитки или строки?» · 12м</span>
+      <span class="more">ещё 2 · с 02:47 · все: /ask</span>
+    </div>
+
+    <div class="projects">
+      <div class="pane-head">ПРОЕКТЫ <span class="filter">все ▾</span></div>
+
+      <section class="pgroup">
+        <div class="phead">
+          <span class="caret">▾</span><span class="p-name">crew-harness</span>
+          <span class="p-stats"><span class="w">ждут 2</span><span class="r">идут 3</span><span class="s">застряла 1</span><span>очередь 1</span><span>замок свободен</span></span>
+          <span class="p-actions"><span>+ задача</span><span>настройки</span></span>
+        </div>
+        <div class="trow selected">
+          <span class="no">138</span>
+          <span class="name">Новый дизайн веб-пульта<small>исп · разговор с владельцем</small></span>
+          <span class="last">ответ дан: направление «диспетчерская» · 03:02</span>
+          <span class="chip run">ИДЁТ</span>
+          <span class="prog"><span class="bar"><i style="width:17%"></i></span><span class="kn">1/6</span></span>
+          <span class="sess">исп</span>
+          <span class="age">24м</span>
+        </div>
+        <div class="trow">
+          <span class="no">137</span>
+          <span class="name">Server streaming fix<small>С5-2 · реализация</small></span>
+          <span class="last">streaming: chunked write исправлен · 03:04</span>
+          <span class="chip run">ИДЁТ</span>
+          <span class="prog"><span class="bar"><i style="width:64%"></i></span><span class="kn">7/11</span></span>
+          <span class="sess">С5-2</span>
+          <span class="age">1ч 08м</span>
+        </div>
+        <div class="trow">
+          <span class="no">135</span>
+          <span class="name">Карточки задач в пульте<small>С3-1 · план</small></span>
+          <span class="last">план: 4-й пункт из 9 · 02:58</span>
+          <span class="chip run">ИДЁТ</span>
+          <span class="prog"><span class="bar"><i style="width:44%"></i></span><span class="kn">4/9</span></span>
+          <span class="sess">С3-1</span>
+          <span class="age">52м</span>
+        </div>
+        <div class="trow">
+          <span class="no">061</span>
+          <span class="name">Канон и актуальная методика<small>С2-5 · ворота, вопроса нет</small></span>
+          <span class="last">ворота записаны, вопрос не задан · вчера</span>
+          <span class="chip wait">ЖДЁТ</span>
+          <span class="prog"><span class="bar"><i style="width:100%"></i></span><span class="kn">34/34</span></span>
+          <span class="sess">С2-5</span>
+          <span class="age">22ч</span>
+        </div>
+        <div class="trow">
+          <span class="no">099</span>
+          <span class="name">Session server<small>исп · молчит с 01:40</small></span>
+          <span class="last">гейт ждёт слот очереди 12м · 03:00</span>
+          <span class="chip stuck">ЗАСТРЯЛА</span>
+          <span class="prog"><span class="bar"><i style="width:30%;background:var(--red)"></i></span><span class="kn">3/10</span></span>
+          <span class="sess">исп ⚠</span>
+          <span class="age">1ч 32м</span>
+        </div>
+      </section>
+
+      <section class="pgroup">
+        <div class="phead">
+          <span class="caret">▾</span><span class="p-name">nova</span>
+          <span class="p-stats"><span class="w">ждёт 1</span><span class="r">идут 2</span><span>очередь 0</span><span>замок: 094 · 6м</span></span>
+          <span class="p-actions"><span>+ задача</span><span>настройки</span></span>
+        </div>
+        <div class="trow">
+          <span class="no">094</span>
+          <span class="name">Console Claude layout<small>прм · приёмка 9/12</small></span>
+          <span class="last">шаг 9: пробы интерпретатора · 02:33</span>
+          <span class="chip wait">ЖДЁТ</span>
+          <span class="prog"><span class="bar"><i style="width:75%"></i></span><span class="kn">9/12</span></span>
+          <span class="sess">прм</span>
+          <span class="age">39м</span>
+        </div>
+        <div class="trow">
+          <span class="no">091</span>
+          <span class="name">Движок продукта<small>С5-1 · реализация</small></span>
+          <span class="last">machine_run: тесты 12/12 · 02:51</span>
+          <span class="chip run">ИДЁТ</span>
+          <span class="prog"><span class="bar"><i style="width:57%"></i></span><span class="kn">8/14</span></span>
+          <span class="sess">С5-1</span>
+          <span class="age">2ч 15м</span>
+        </div>
+        <div class="trow">
+          <span class="no">088</span>
+          <span class="name">Landing race и flaky rest<small>С6-1 · приёмка</small></span>
+          <span class="last">diff сверен с candidate · 02:40</span>
+          <span class="chip run">ИДЁТ</span>
+          <span class="prog"><span class="bar"><i style="width:90%"></i></span><span class="kn">9/10</span></span>
+          <span class="sess">С6-1</span>
+          <span class="age">1ч 47м</span>
+        </div>
+      </section>
+
+      <section class="pgroup idle">
+        <div class="phead">
+          <span class="caret">▸</span><span class="p-name">ai-dev-methodology</span>
+          <span class="p-stats"><span>нет активных задач</span><span>3 закрыты за неделю</span></span>
+          <span class="p-actions"><span>+ задача</span></span>
+        </div>
+      </section>
+
+      <div class="boardfoot"><span>проектов: 3 · строк: 8 · обновление 2 с</span><span>все сессии: /crew</span></div>
+    </div>
+
+    <div class="footbar">
+      <span>ход: 137 С5-2 7/11 · 135 С3-1 4/9 · nova 091 С5-1 8/14</span>
+      <span class="warn">⧗ гейт 099 ждёт слот очереди 12м</span>
+      <span style="margin-left:auto">просроченных вопросов: 0</span>
+    </div>
+  </div>
+
+  <footer class="board-footer"><span>07 / Проекты — группы доски · свои замок и очередь у проекта · последнее событие в строке</span><span>Макет, не работающий пульт</span></footer>
+</body>
+</html>

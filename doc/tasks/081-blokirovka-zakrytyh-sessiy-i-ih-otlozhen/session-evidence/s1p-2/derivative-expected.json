@@ -1,0 +1,13 @@
+{
+  "путь": "session-evidence/s2-3/before-manifest.json",
+  "raw": {
+    "bytes": 130581,
+    "sha256": "676911c617282bb80dc3c4bd0f6c7b575ccd319a3794dc1046634fb9f9eaa147"
+  },
+  "raw_locator": "внешний freeze интегратора С2-3 / session-evidence/s2-3/before-manifest.json",
+  "разрешённый_diff": [
+    "root: нейтральный переносимый корень",
+    "provenance: явная санитизированная производная с raw SHA"
+  ],
+  "entries": "Не менять ни значения, ни bytes/SHA entries; не raw early before; прежний вердикт не меняется."
+}

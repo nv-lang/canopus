@@ -1,0 +1,67 @@
+{
+  "baseline": true,
+  "policy": "default-src 'self'; connect-src 'self' ws://127.0.0.1:*",
+  "captures": [
+    {
+      "theme": "light",
+      "width": 1440,
+      "height": 1000,
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "bodyWidth": 1440,
+      "composerOnScreen": true,
+      "columns": true,
+      "manrope": true,
+      "mono": true
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "height": 844,
+      "viewport": 390,
+      "documentWidth": 390,
+      "bodyWidth": 390,
+      "composerOnScreen": true,
+      "columns": false,
+      "manrope": true,
+      "mono": true
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "height": 1000,
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "bodyWidth": 1440,
+      "composerOnScreen": true,
+      "columns": true,
+      "manrope": true,
+      "mono": true
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "height": 844,
+      "viewport": 390,
+      "documentWidth": 390,
+      "bodyWidth": 390,
+      "composerOnScreen": true,
+      "columns": false,
+      "manrope": true,
+      "mono": true
+    }
+  ],
+  "probes": [],
+  "errors": [],
+  "external": [],
+  "commit": "1788fff5f5e22b6d31165c33d3d5057d0524ce25",
+  "sourceHashes": {
+    "index.html": "450f6b0256b7a1e7a14adf59be700d515b4b2e30667802279daf960e5bdd7003",
+    "app.js": "bd100a047e6e8f0c091617cf5cda9eaac75a34aa589e683c6a30e6c29f7b6eb1",
+    "app.css": "93a7c97376484b4005285781b93426186cdf3ac668461ad15abf060bc3ec0447",
+    "view.js": "f4b6b0821411f7ba4d1e3a7ee4b656699db1c93b027343586a21b8406eeff9bf",
+    "strings.js": "d17f4a32d2da31d035d173b203bd1717c614ba8895022643bed9c895e18cdf4f",
+    "state.js": "fa747f868131fc281b7456150376e9de18322be7c7541800a9fd13f87ca61981",
+    "transport.js": "15dc1127727b57c21e61b6e4e0212c3abee2065017b0ac25fb84147a42002eb5"
+  }
+}
