@@ -98,6 +98,7 @@ export function createView(doc, refs, deps) {
   const drafts = createDraftStore((() => { try { return win?.localStorage; } catch { return null; } })());
   const attachDrafts = new Map(); // вложения по сессиям: как черновик, живут до отправки
   const workToggles = new Map();
+  const workAnimationStarts = new Map(); // preserve the loader phase when sidebar rows are rebuilt
   const open = new Set(); // раскрытые строки и карточки по ключу: переживают перерисовку
   let query = '';
   let railOpen = null; // null — «как задано шириной», true/false — выбор владельца
@@ -287,6 +288,8 @@ export function createView(doc, refs, deps) {
     const taskState = task?.number ? currentTaskDetails(s)?.status || (task.number === s.indexTaskNumber ? s.indexTaskState : '') || task.state
       : s.routeStep < 0 ? s.indexTaskState : '';
     const merge = taskState === 'done' ? { kind: 'done', text: t('task.details_done') } : mergeLabel(task);
+    const dot = h(doc, 'span', { class: 'dot', 'data-state': s.state, 'data-attn': attn.state, 'aria-hidden': 'true' });
+    if (s.state === 'answering') dot.style.setProperty('--work-delay', `${-Math.max(0, now() - workAnimationStarts.get(s.id))}ms`);
     const nameText = h(doc, 'span', { class: 'session-name-text', text: s.name });
     const name = h(doc, 'span', { class: 'session-name' }, nameText);
     const item = sideKit.isRenaming(s.id) ? sideKit.renameField(s) : h(doc, 'button', {
@@ -298,7 +301,7 @@ export function createView(doc, refs, deps) {
       'aria-current': active ? 'true' : 'false',
       title: t('sessions.time_title', { state: stateLabel, time: formatTime(s.updatedAt) }),
     },
-    h(doc, 'span', { class: 'dot', 'data-state': s.state, 'data-attn': attn.state, 'aria-hidden': 'true' }),
+    dot,
     depth > 0 ? icon(doc, 'i-branch', 'child-mark') : false,
     depth > 0 ? h(doc, 'span', { class: 'sr', text: t('sessions.child') }) : false,
     unread ? h(doc, 'span', { class: 'unread', role: 'img', 'aria-label': t('session.unread'), title: t('session.unread') }) : false,
@@ -552,6 +555,9 @@ export function createView(doc, refs, deps) {
     }
     projectsList = ui.projects ?? null;
     const all = sessionList(model).filter((x) => !x.draft);
+    const working = new Set(all.filter(s => s.state === 'answering').map(s => s.id));
+    for (const id of workAnimationStarts.keys()) if (!working.has(id)) workAnimationStarts.delete(id);
+    for (const id of working) if (!workAnimationStarts.has(id)) workAnimationStarts.set(id, now());
     const selectedSession = ui.selected ? model.sessions[ui.selected] : undefined;
     activeProject = selectedSession ? (selectedSession.projectId || '') : null;
     const pins = effectivePins(all, ui.pins);

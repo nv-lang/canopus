@@ -640,13 +640,14 @@ pre code { font: inherit; }
 @keyframes pulsar-flare { 0%, 100% { transform: scale(1); } 12% { transform: scale(1.35); } 30% { transform: scale(.9); } }
 /* Работающая сессия в списке: комета на орбите. */
 .dot[data-state="answering"] { position: relative; width: 16px; height: 16px; background: transparent; }
-.dot[data-state="answering"]::before { content: ''; position: absolute; inset: 5px; border-radius: 50%; background: var(--accent); animation: work-core 1.2s ease-in-out infinite; }
+.dot[data-state="answering"]::before { content: ''; position: absolute; inset: 5px; border-radius: 50%; background: var(--accent); animation: work-core 1.2s ease-in-out infinite; animation-delay: var(--work-delay, 0ms); }
 .dot[data-state="answering"]::after {
   content: ''; position: absolute; inset: 0; border-radius: 50%;
   background: conic-gradient(from 0deg, var(--accent), transparent 75%);
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), black calc(100% - 1px));
   mask: radial-gradient(farthest-side, transparent calc(100% - 2px), black calc(100% - 1px));
   animation: work-comet 1.1s linear infinite;
+  animation-delay: var(--work-delay, 0ms);
 }
 @keyframes work-core { 50% { transform: scale(.55); opacity: .45; } }
 @keyframes work-comet { to { transform: rotate(1turn); } }
