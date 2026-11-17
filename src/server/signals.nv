@@ -43,6 +43,7 @@ export fn signals_given_by_code() -> []CodeSignal => [
     cs("task_extended", "input", "src/server/canopus_task_hub.nv: Hub.ct_auto_extend (the addition to an open task was applied at once)", "{id, task, title, text, at, file, added} (JSON text)", false),
     cs("task_extend_undone", "input", "src/server/canopus_task_hub.nv: Hub.ct_ext_undo (the owner took the addition back)", "{id, task, at} (JSON text)", false),
     cs("route_note", "input", "src/server/routes_hub.nv: Hub.rt_note (a line of the hub in the feed)", "text (JSON text)", false),
+    cs("task_continuation", "input", "src/server/canopus_task_hub.nv: Hub.task_continue_record (315: bounded continuation and stop reason)", "{turn, count, reason} (JSON text)", false),
     cs("route_review", "input", "src/server/routes_hub.nv: Hub.route_review_finish (the block of the independent review in the feed)", "family, step, text (JSON text)", false),
     cs("setting_chosen", "input", "src/server/hub.nv: Hub.watch_agent (the agent took a choice of the owner)", "agent, setting, value, at (JSON text)", false),
     cs("setting_dropped", "input", "src/server/hub.nv: Hub.watch_agent (the agent does not offer a saved choice any more)", "agent, setting, value, used (JSON text)", false)

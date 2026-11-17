@@ -174,7 +174,7 @@ fn Hub mut @mcp_recovery_letter(session str, key str, text str) -> () {
 // The signals of the journal that carry the mode of work (task 192q, `routes_hub.nv`).
 fn is_route_signal(name str) -> bool {
     name == "route_set" || name == "route_task" || name == "route_step" || name == "route_note" ||
-        name == "route_review" || name == "context_compacted" || name == "task_extended" || name == "task_extend_undone"
+        name == "route_review" || name == "context_compacted" || name == "task_extended" || name == "task_extend_undone" || name == "task_continuation"
 }
 
 /// Hub: the sessions, the pages, the output not yet taken, the log.
@@ -1713,6 +1713,7 @@ fn Hub mut @say_with_source(trace str, text str, items []JsonValue, source Optio
         @tell_error(0, trace, @sessions[at].engine.step_number(), "", "the agent cannot be started: ${reason}")
         return
     }
+    @task_continue_record(at, "", 0, "")
     mut s = @sessions[at]
     mut prepared = prepare_none()
     if items.len() > 0 {

@@ -6,6 +6,44 @@ import alula.engine.{Incoming}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 import std.fs.{Fs, real_fs, read_text}
 
+test "315: explaining the context counter does not finish task 311" {
+    mut rt = route_session_new()
+    rt.task_open = true
+    rt.number = "311"
+    assert(task_continue_action(rt, true, false, 0) == "continue")
+    // A necessary question or an external wait is a reason to stop.
+    assert(task_continue_action(rt, true, true, 0) == "wait")
+    assert(task_continue_action(rt, false, false, 0) == "wait")
+    // Elapsed turns alone are never a reason to abandon assigned work.
+    assert(task_continue_action(rt, true, false, 2) == "continue")
+    assert(task_continue_action(rt, true, false, 100) == "continue")
+    rt.tstate = "ready"
+    assert(task_continue_action(rt, true, false, 0) == "wait")
+    rt.tstate = "done"
+    assert(task_continue_action(rt, true, false, 0) == "wait")
+    rt.tstate = "active"
+    rt.task_closed = true
+    assert(task_continue_action(rt, true, false, 0) == "wait")
+}
+
+test "315: continuation is replayable and a stop requires a reason" {
+    mut rt = route_session_new()
+    rt.apply("task_continuation", "{\"turn\":\"t311\",\"count\":2,\"reason\":\"Необходим доступ к внешней сборке\"}")
+    assert(rt.continue_turn == "t311")
+    assert(rt.continue_count == 2)
+    assert(rt.continue_reason == "Необходим доступ к внешней сборке")
+    assert(task_stop_valid("external", "Сборка недоступна"))
+    assert(task_stop_valid("decision", "Нужен выбор версии владельцем"))
+    assert(!task_stop_valid("external", ""))
+    assert(!task_stop_valid("explanation", "Объяснил, как работает"))
+    rt.task_open = true
+    assert(task_continue_action(rt, true, false, 0) == "wait")
+    rt.apply("task_continuation", "{\"turn\":\"\",\"count\":0,\"reason\":\"\"}")
+    assert(task_continue_action(rt, true, false, rt.continue_count) == "continue")
+    rt.route = "planning"
+    assert(task_continue_action(rt, true, false, 0) == "wait")
+}
+
 fn rt_doc_text() -> str => "# Режим\n\nпояснение\n\n## инструкция\n\nДелай быстро.\nВторая строка.\n\n## шаг 1 · self · Постановка\n\nНапиши постановку {N} в {task}.\n\n## шаг two · independent · Проверка · обязательный\n\nПроверь.\n\n## шаг 3 · self · Итог\n\nИтог.\n"
 
 test "routes: the file of a mode is cut into the instruction and the steps" {
@@ -566,4 +604,5 @@ test "routes: only a successful current turn advances the route" {
     assert(!route_turn_succeeded([start, chunk, refused]))
     assert(!route_turn_succeeded([start, timeout]))
     assert(!route_turn_succeeded([start, done, start, chunk]))
+    assert(!route_turn_succeeded([start, done, Incoming.signal("cancel_request", "")]))
 }

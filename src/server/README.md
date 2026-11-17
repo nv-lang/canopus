@@ -49,6 +49,15 @@ The first slice of the MVP: **open the page in a browser, create a session, talk
 
 ## Canopus process
 
+In the interactive route, a successful agent turn does not finish an active task (315).
+The hub reminds the agent to continue until it has a result or a substantial reason to
+stop. It never continues a cancelled turn, a paused route, a native question or a
+registered wait. `canopus_step_note {stop:"decision"|"external",reason:"..."}` records
+a necessary owner decision or an external obstruction; a nonempty reason is required
+and appears in the task card and session journal. The continuation counter and reason
+survive replay. A new owner message clears them; a service reminder does not. This
+mechanism grants no permission to publish, merge, restart or accept the task.
+
 The HTTP/WebSocket front (Polaris) and the session hub run in one process. The front serves the panel and `/ws` on
 `127.0.0.1`. Internal channels carry commands and events between the front and the hub. The hub runs one engine per
 session and manages the file or PostgreSQL store and the ACP agent subprocesses.

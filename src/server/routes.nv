@@ -22,6 +22,16 @@ export type RouteDoc { route str, instruction str, steps []RouteStep }
 /// The four modes: "interactive", "fast", "full" and "planning" (the agent writes the task, `spec.md` and `plan.md`, and does not change the code).
 export fn route_valid(route str) -> bool => route == "interactive" || route == "fast" || route == "full" || route == "planning"
 
+/// A completed model turn is not proof that the assigned task is complete.
+/// Only a real wait or recorded obstruction permits a stop; the count is diagnostic.
+export fn task_continue_action(rt RouteSession, succeeded bool, waiting bool, count int) -> str {
+    if !rt.task_open || rt.task_closed || rt.tstate != "active" || rt.route != "interactive" { return "wait" }
+    if !succeeded || waiting || rt.continue_reason.byte_len() > 0 { return "wait" }
+    "continue"
+}
+
+export fn task_stop_valid(kind str, reason str) -> bool => (kind == "external" || kind == "decision") && reason.trim_ascii().byte_len() > 0
+
 const STEP_MARK = "## шаг "
 const INSTRUCTION_MARK = "## инструкция"
 const DOT = " · "
@@ -380,6 +390,9 @@ export type DiffRec { path str, added int, removed int }
 
 /// RouteSession: the mode of a session and its task. Rebuilt from the journal (`apply`); `running`, `current`, `awaiting`, `reviewing` live only in the process.
 export type RouteSession {
+    continue_turn str,
+    continue_count int,
+    continue_reason str,
     run_source Option[JsonObject],
     route str,
     told bool,
@@ -491,6 +504,7 @@ export type RouteSession {
 }
 
 export fn route_session_new() -> RouteSession => {
+    continue_turn: "", continue_count: 0, continue_reason: "",
     run_source: None, route: "interactive", told: false, states: []str.new(), running: false, current: -1, awaiting: false, reviewing: false,
     task_open: false, task_closed: false, by_crew: false, task_id: "", number: "", task_dir: "", task_shown: "", branch: "", worktree: "", title: "",
     messages: 0, subs: []SubRec.new(), merged_into: 0, force: "", last_state: "", last_check: 0, cwd_now: "", base: "", tstate: "active", tnote: "", unmerged: 0, unmerged_at: 0,
@@ -601,6 +615,9 @@ export fn RouteSession mut @normalize() -> () {
 }
 
 fn RouteSession mut @reset_task() -> () {
+    @continue_turn = ""
+    @continue_count = 0
+    @continue_reason = ""
     @task_open = false
     @task_closed = false
     @by_crew = false
@@ -659,6 +676,12 @@ fn RouteSession mut @change_sub(n int, f str, value str, flag bool) -> () {
 /// Apply a signal of the journal (`route_set`, `route_task`, `route_step`); any other name changes nothing.
 export fn RouteSession mut @apply(name str, text str) -> () {
     ro o = rj_object(text)
+    if name == "task_continuation" {
+        @continue_turn = jtext(o, "turn")
+        @continue_count = rj_int(o, "count")
+        @continue_reason = jtext(o, "reason")
+        return
+    }
     if name == "route_set" {
         // the place of work of the session (the new session: a tree of the task or the folder of the project itself); the key may stand alone
         match o.get("worktree") {
@@ -998,8 +1021,9 @@ export fn route_view_text(rt RouteSession, titles []str, progress []Progress, su
         jput(t, "messages", JsonValue.int(rt.messages))
         jput(t, "state", JsonValue.str(rt.tstate))
         jput(t, "unmerged_commits", JsonValue.int(rt.unmerged))
-        jput(t, "needs_owner", JsonValue.bool(rt.tnote.byte_len() > 0))
-        jput(t, "note", JsonValue.str(rt.tnote))
+        jput(t, "needs_owner", JsonValue.bool(rt.tnote.byte_len() > 0 || rt.continue_reason.byte_len() > 0))
+        jput(t, "note", JsonValue.str(if rt.tnote.byte_len() > 0 { rt.tnote } else { rt.continue_reason }))
+        jput(t, "continuation_reason", JsonValue.str(rt.continue_reason))
         jput(t, "finish", JsonValue.bool(rt.worktree.byte_len() > 0 && rt.tstate != "done" && tree_has_work(rt)))
         jput(t, "finish_options", if rt.tstate == "finishing" { finish_options() } else { JsonValue.null() })
         mut files = []JsonValue.new()

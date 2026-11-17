@@ -536,6 +536,37 @@ fn Hub mut @ct_word(at int, text str) Proc Detach Time -> bool {
 
 // ----- the queue and the service turns -----
 
+fn Hub mut @task_continue_record(at int, turn str, count int, reason str) Proc Detach Time -> () {
+    mut o = JsonObject.new()
+    js(o, "turn", turn)
+    ji(o, "count", count)
+    js(o, "reason", reason)
+    @rt_journal(at, "task_continuation", JsonValue.object(o).to_str())
+}
+
+// Only successful, idle interactive turns are candidates. Native questions, timers,
+// preparation, owner pauses and a declared obstruction never authorize another turn.
+fn Hub mut @task_continue(at int) Proc Detach Time -> () {
+    ro s = @sessions[at]
+    if s.turn.byte_len() == 0 || s.rt.continue_turn == s.turn || !@work_allowed(at, "execute") { return }
+    if s.rt.kicks.len() > 0 || s.rt.queued_c || s.rt.waits_sib.byte_len() > 0 { return }
+    mut waiting = s.list_question.byte_len() > 0 || s.list_permission.byte_len() > 0
+    for w in @ctl_waits { if w.session == s.id { waiting = true } }
+    for question in @ctl_letters {
+        if question.from == s.id && question.qid.byte_len() > 0 {
+            mut answered = false
+            for reply in @ctl_letters { if reply.reply_to == question.qid && reply.to == s.id { answered = true } }
+            if !answered { waiting = true }
+        }
+    }
+    ro action = task_continue_action(s.rt, route_turn_succeeded(s.machine_tail), waiting, s.rt.continue_count)
+    if action == "wait" { return }
+    // Persist before enqueue: replay must not duplicate a reminder after restart.
+    @task_continue_record(at, s.turn, s.rt.continue_count + 1, "")
+    @rt_note(at, "▸ Задача ${s.rt.number} не завершена: агенту отправлено напоминание продолжить.")
+    @ct_kick(at, s.rt.focus, "Задача ${s.rt.number} ещё активна. Продолжи порученную работу до проверенного результата: объяснение не завершает задачу (случай 311). Коммит, пуш, слияние и живая система требуют решения владельца. Если необходимо решение или есть внешняя блокировка, запиши canopus_step_note {stop: \"decision\" | \"external\", reason: \"точная причина и необходимый следующий шаг\"}; для готового результата укажи требуемое решение о приёмке. Явную паузу владельца соблюдай.")
+}
+
 // A waiting subtask starts when the one it waits for is done and the limit allows; one start for each look.
 fn Hub mut @ct_queue(at int) Proc Detach Time -> () {
     if !@work_allowed(at, "execute") { return }
@@ -631,6 +662,7 @@ fn Hub mut @ct_pump(at int) Proc Detach Time -> () {
     if s.rt.running || s.rt.awaiting || s.rt.reviewing || s.rt.job.byte_len() > 0 { return }
     if !@takes_message_at(at) { return }
     @ct_marker(at)
+    @task_continue(at)
     ro me = @sessions[at]
     if me.rt.kicks.len() == 0 { return }
     // one decision for a turn: the agent works in the folder of that subtask (its tree, else the tree of the task)

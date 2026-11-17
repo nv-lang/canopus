@@ -661,6 +661,11 @@ fn Hub mut @ctl_doctor(at int) Proc -> CtlRes {
 fn Hub mut @ctl_step_note(at int, a JsonObject) Proc Detach Time -> CtlRes {
     ro done = jflag(a, "done")
     ro reason = jtext(a, "reason").trim_ascii()
+    ro stop = jtext(a, "stop").trim_ascii()
+    if stop.byte_len() > 0 {
+        if !task_stop_valid(stop, reason) { return ctl_err("stop: decision или external; обязательна точная непустая reason. Объяснение или длительность работы не причина остановки.") }
+        @task_continue_record(at, @sessions[at].turn, @sessions[at].rt.continue_count, "${stop}: ${reason}")
+    }
     ro minutes = jint(a, "minutes")
     ro s = @sessions[at]
     mut text = "▸ шаг${if s.rt.number.byte_len() > 0 { " задачи ${s.rt.number}" } else { "" }}: "

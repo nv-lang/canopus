@@ -742,7 +742,10 @@ fn Hub mut @route_stop(at int) Proc Detach Time -> () {
 
 fn Hub mut @route_stop_signal(trace str) Proc Detach Time -> () {
     ro at = @find(trace)
-    if at >= 0 { @route_stop(at) }
+    if at >= 0 {
+        @task_continue_record(at, @sessions[at].turn, @sessions[at].rt.continue_count, "Пауза владельца")
+        @route_stop(at)
+    }
 }
 
 fn Hub mut @route_subtree_signal(trace str, n int) Proc Detach Time -> () {
@@ -973,7 +976,7 @@ fn route_turn_succeeded(events []Incoming) -> bool {
         ro e = events[i]
         if e.kind == EventKind.Input && e.name == "user_message" { return false }
         if e.name == "agent_done" { return true }
-        if e.name == "agent_refused" || e.name == "no_answer_in_time" { return false }
+        if e.name == "agent_refused" || e.name == "no_answer_in_time" || e.name == "cancel" || e.name == "cancel_request" { return false }
     }
     false
 }
