@@ -71,6 +71,7 @@ type Dialog {
     slow_told bool,
     agent_event_at int,
     client_updates int,
+    auth_told str,
     folder str,
     project_id str,
     has_rank bool,
@@ -1182,14 +1183,18 @@ fn Hub mut @orphan_sweep() Proc Detach Time -> () {
     }
 }
 
+/// Task 317: does an error text of the agent say that a sign-in is needed?
+export fn auth_signal(text str) -> bool {
+    ro lower = text.to_ascii_lower()
+    lower.contains("login") || lower.contains("sign in") || lower.contains("signin") || lower.contains("unauthorized") || lower.contains("unauthenticated") || lower.contains("not authorized") || lower.contains("auth required") || lower.contains("credential") || lower.contains("401")
+}
+
 // task 317: the hub watch lets the machine's own turn term fire first; it acts only after this extra silence.
 const WATCH_GRACE_MS = 30000
 
 // A CLI that advertised sign-in methods but is not ready by then needs the owner, not a longer wait.
 const AUTH_NOTICE_MS = 8000
 
-// A turn on an agent that advertises a sign-in and stays silent this long is closed with that hint.
-const AUTH_SILENCE_MS = 30000
 
 fn Hub @execution_problem(at int) Proc Detach Time -> str {
     ro shared = @sessions[at]
@@ -1497,7 +1502,7 @@ fn Hub mut @install_restore(id str, prepared Option[PreparedRestore]) Proc Detac
         None => @say_log("the session ${id} cannot be resumed: no usable snapshot")
         Some(restored) => {
             ro engine = restored.engine
-            mut s = Dialog { id, name: id, agent: "", engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, agent_event_at: 0, client_updates: 0, folder: "", project_id: "", has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
+            mut s = Dialog { id, name: id, agent: "", engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, agent_event_at: 0, client_updates: 0, auth_told: "", folder: "", project_id: "", has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
             ro tail_start = if restored.events.len() > MACHINE_JOURNAL_LINES { restored.events.len() - MACHINE_JOURNAL_LINES } else { 0 }
             s.machine_tail = restored.events[tail_start..restored.events.len()]
             // task 317: a turn open after the restart counts its silence from the last live sign in the journal;
@@ -1674,7 +1679,7 @@ fn Hub mut @cs_make_session(cid str, name str, agent str, folder str, project_id
     ro root = @settings.data_dir
     mut world = PgWorld.open(@settings.pg, cid)
     ro engine = begin_session_engine(pg, root, world, @machine, cid)
-    mut s = Dialog { id: cid, name, agent, engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, agent_event_at: 0, client_updates: 0, folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
+    mut s = Dialog { id: cid, name, agent, engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, agent_event_at: 0, client_updates: 0, auth_told: "", folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
     accept_in(pg, root, s, Incoming.signal("session_created", meta_text_child(name, agent, folder, "", project_id, parent, pkind)))
     @add_session(s)
     ro at = @sessions.len() - 1
@@ -1724,7 +1729,7 @@ fn Hub mut @create(conn int, trace str, input JsonObject) Proc Detach Time -> ()
             ro root = @settings.data_dir
             mut world = PgWorld.open(@settings.pg, trace)
             ro engine = begin_session_engine(pg, root, world, @machine, trace)
-            mut s = Dialog { id: trace, name, agent, engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, agent_event_at: 0, client_updates: 0, folder: launch.folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
+            mut s = Dialog { id: trace, name, agent, engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, agent_event_at: 0, client_updates: 0, auth_told: "", folder: launch.folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
             accept_in(pg, root, s, Incoming.signal("session_created", meta_text(name, agent, launch.folder, project, project_id)))
             @add_session(s)
             ro at = @sessions.len() - 1
@@ -3368,6 +3373,15 @@ fn Hub mut @watch_agent(at int) Time -> () {
         told = true
     }
     // a genuine session/update the client accepted is the only sign that the backend is alive (task 317)
+    // task 317: a prompt/new failure that names a sign-in is told to the owner for the open turn
+    ro failure = s.clients[0].last_error()
+    if failure.byte_len() > 0 && failure != s.auth_told && auth_signal(failure) {
+        s.auth_told = failure
+        ro sign_in = s.clients[0].auth_methods()
+        ro hint = if sign_in.byte_len() > 0 { "агент ${s.agent} требует вход: ${sign_in}." } else { "агент ${s.agent} требует вход." }
+        @say_log("the agent of ${s.id} needs a sign-in: ${failure}")
+        @tell_error(0, s.id, s.engine.step_number(), if s.engine.open_ids().len() > 0 { s.turn } else { "" }, "${hint} Войдите в CLI на машине и повторите ход (${failure})")
+    }
     ro updates = s.clients[0].updates()
     if updates != s.client_updates {
         s.client_updates = updates
@@ -3427,7 +3441,7 @@ fn Hub mut @watch_agent(at int) Time -> () {
         s.clients[0].close()
         s.clients = []AcpClient.new()
         @sessions[at] = s
-        @tell_error(0, s.id, s.engine.step_number(), if s.engine.open_ids().len() > 0 { s.turn } else { "" }, "агент ${s.agent} требует вход: ${methods}. Войдите в CLI и повторите ход; сессия жива")
+        @tell_error(0, s.id, s.engine.step_number(), if s.engine.open_ids().len() > 0 { s.turn } else { "" }, "агент ${s.agent} требует вход: ${methods}. Войдите в CLI на машине и повторите ход; сессия жива")
         return
     }
     // task 192.8: an agent that does not answer `initialize` in `agent_start_timeout_seconds` is told to the owner (a red line); the session stays alive, the next message starts a new agent
@@ -3477,7 +3491,7 @@ fn Hub mut @watch_agent(at int) Time -> () {
         @say_log("the agent of ${s.id} refused to start: ${why}")
         // task 317: the same refusal, when the agent offered sign-in methods, tells the owner what to do next
         ro sign_in = s.clients[0].auth_methods()
-        ro refused_text = if sign_in.byte_len() > 0 { "агент ${s.agent} требует вход: ${sign_in}. Войдите в CLI и повторите ход; сессия жива (${why})" } else { "the agent refused to start: ${why}" }
+        ro refused_text = if sign_in.byte_len() > 0 { "агент ${s.agent} требует вход: ${sign_in}. Войдите в CLI на машине и повторите ход; сессия жива (${why})" } else { "the agent refused to start: ${why}" }
         @tell_error(0, s.id, s.engine.step_number(), if s.engine.open_ids().len() > 0 { s.turn } else { "" }, refused_text)
     }
     @sessions[at] = s

@@ -27,3 +27,13 @@ test "orphans: a failed or malformed sweep never claims that anything was ended"
     ro corrupt = registry_report(raw("<html>", 0, true))
     assert(corrupt.len() == 1 && corrupt[0].contains("no unverified process"))
 }
+
+test "orphans: an agent error names a sign-in, a model error does not" {
+    assert(auth_signal("session/prompt failed: 4 login required"))
+    assert(auth_signal("Unauthorized: run qodercli login"))
+    assert(auth_signal("auth required before any model call"))
+    assert(auth_signal("HTTP 401 from provider"))
+    assert(!auth_signal("model overloaded, retry later"))
+    assert(!auth_signal("context_window_exceeded"))
+    assert(!auth_signal(""))
+}
