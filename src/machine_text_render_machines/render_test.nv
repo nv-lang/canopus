@@ -90,7 +90,7 @@ test "rn circle product table" {
 }
 
 test "rn circle examples" {
-    // the pilot of the package (`agent-step.alula.md`) calls the primitives of the methodology: its registry left the product (task 249)
+    // the pilot of the package (`agent-step.alula.md`) calls the tools of the methodology: its registry left the product (task 249)
     // the examples of the format are pieces of a machine, not a machine: they are translated without the checks of the table
     ro examples = translate_report_with(case_text("format-examples.alula.md"), translation_files()).json
     assert(examples.byte_len() > 1000)

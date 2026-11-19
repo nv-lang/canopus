@@ -2,7 +2,7 @@
 // of the product loads, and every machine loads with it. The machines of the methodology left the product with task 249.
 module canopus.machines
 
-import alula.machine.{NamedText, text_of_file, find_primitive, journal_find, is_machine_json_name, is_table_name}
+import alula.machine.{NamedText, text_of_file, find_tool, journal_find, is_machine_json_name, is_table_name}
 import alula.machine_run.{load_alula_machine}
 
 fn dt_names(files []NamedText) -> []str {
@@ -79,9 +79,9 @@ test "dt the machines of the product load with the registry of the product" {
 
 test "dt the registry of the product is the language and the journal of the product" {
     ro reg = product_registry()
-    assert(reg.primitives.len() == 1)
-    assert(find_primitive(reg, "new_id").is_some())
-    assert(find_primitive(reg, "time_now").is_none())
+    assert(reg.tools.len() == 1)
+    assert(find_tool(reg, "new_id").is_some())
+    assert(find_tool(reg, "time_now").is_none())
     assert(journal_find(reg.journal, "user_message").is_some())
     assert(journal_find(reg.journal, "turn_failed").is_none())
 }

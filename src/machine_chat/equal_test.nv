@@ -70,11 +70,18 @@ fn data_text(data JsonObject, key str) -> str {
     }
 }
 
-// The code of a failure in the data of the table machine: `{"$variant":"FailCode","name":"Timeout"}`.
+// The code of a failure in the data of the table machine: a present optional is `{"$some":{"$variant":"FailCode","name":"Timeout"}}` on the wire
+// (Alula 0.29, AL-153: a distinguishable optional), an absent one is `null`.
 fn code_name(data JsonObject) -> str {
     match data.get("stop_code") {
         Some(v) => match v.object() {
-            Some(o) => text_field(o, "name")
+            Some(o) => match o.get("$some") {
+                Some(inner) => match inner.object() {
+                    Some(vo) => text_field(vo, "name")
+                    None => ""
+                }
+                None => ""
+            }
             None => ""
         }
         None => ""

@@ -50,7 +50,15 @@ tls = { git = "https://github.com/nv-lang/nova-tls", version = "0.2" }
 # without a counter is the kind `свободный_ввод` (`free_input`), the keys `Набор`/`Проверка` one per item, the rerun is the column `заново`, the target `то_же` and the word `полный_словарь` are one word each, `<br>` is the only
 # separator of the actions of a cell, the connection is `- Экземпляр:` (`- As:`), the tree holds no type of a parse (the type is the declaration of the function); the package reads only the format 0.28, the tables of
 # `machines/` are moved to it by its script `tools/migrate-alula-228.py` (task 255).
-alula = { git = "https://github.com/nv-lang/nova-alula", version = "0.28.0" }
+# Version 0.29.0 (the tag v0.29.0, the epic AL-153…AL-157) is Alula 0.29: the external codec of a reply, the distinguishable optional, `декодировать`, `?x`, the chains «иначе если» (the norms
+# already in 0.28.0-plus); the one mechanical place is the equality of an optional with a bare value (AL-154), named by the compiler check and fixed by hand (`есть(x)` then `обязательно(x) == v`);
+# the package reads only the format 0.29, the tables of `machines/` are moved to it by its script `tools/migrate-alula-229.py` (task 319).
+# Version 0.30.0 (the tag v0.30.0, AL-158) is Alula 0.30: the primitives are renamed to tools, the section `## Внешние функции` becomes `## Инструменты` (the English `## External functions` — `## Tools`);
+# the JSON op `primitive_call` and the Nova API of the package stay; the package reads only the format 0.30, the tables of `machines/` are moved to it by its script `tools/migrate-alula-230.py` (task 319).
+# Version 0.31.0 (the tag v0.31.0, the lambda in the form of Nova, the owner's decision 2026-11-19) is Alula 0.31: a lambda is written `|x| expr`, a two-place one `|a, b| expr`, the former `x => expr` /
+# `(a, b) => expr` is an error; in a table cell the bars are escaped `\|x\|`, in a code block `|x|`; the branches of `выбор`, the bodies of functions, strings and comments are not touched, the tree node
+# `lambda` {params, body} stays; the package reads only the format 0.31, the tables of `machines/` are moved to it by its script `tools/migrate-alula-231.py` (task 319).
+alula = { git = "https://github.com/nv-lang/nova-alula", version = "0.31.0" }
 
 [package]
 name = "canopus"

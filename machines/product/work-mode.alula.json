@@ -1,5 +1,5 @@
 {
-  "kind":"machine","alula_version":"0.28","machine":"WorkModePolicy","revision":3,"title":"Политика режима работы",
+  "kind":"machine","alula_version":"0.31","machine":"WorkModePolicy","revision":3,"title":"Политика режима работы",
   "parties":[{"name":"хаб","id":"hub","kind":"free_input","signals":[{"name":"interactive"},{"name":"fast"},{"name":"full"},{"name":"draft"},{"name":"recognize"},{"name":"execute"},{"name":"tree"},{"name":"repository"},{"name":"workspace"},{"name":"workspace_locked"},{"name":"workspace_unavailable"},{"name":"dispatch"},{"name":"workspace_pending"},{"name":"workspace_ready"},{"name":"workspace_failed"},{"name":"close"}]}],
   "initial":"Preparation",
   "states":[

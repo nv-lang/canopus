@@ -1,5 +1,5 @@
 {
-  "kind":"machine","alula_version":"0.28","machine":"FamilyApprovalPolicy","revision":1,"title":"Выбор родного режима семьи",
+  "kind":"machine","alula_version":"0.31","machine":"FamilyApprovalPolicy","revision":1,"title":"Выбор родного режима семьи",
   "parties":[{"name":"хаб","id":"hub","kind":"free_input","signals":[{"name":"offered"},{"name":"unknown"},{"name":"apply"},{"name":"close"}]}],
   "initial":"Unverified",
   "states":[

@@ -1,5 +1,5 @@
 // table_test.nv - the many-turn chat as data (task 114): the table `machines/dialog.alula.md` (Alula 2.11) translates without a note, its translation is the committed file
-// `dialog.alula.json`, the machine loads, builds, takes the idle term from the parameter of the project, has no primitives; every row of the table has a scenario (the mark `taken`).
+// `dialog.alula.json`, the machine loads, builds, takes the idle term from the parameter of the project, has no tools; every row of the table has a scenario (the mark `taken`).
 module canopus.machine_dialog
 
 import std.text
@@ -52,9 +52,9 @@ test "dl file is translation" {
 }
 
 test "dl header" {
-    assert(dialog_table_text().contains("- alula_version: 0.28"))
+    assert(dialog_table_text().contains("- alula_version: 0.31"))
     assert(dialog_table_text().contains("- machine: DialogSession"))
-    assert(dialog_machine_text().contains("\"alula_version\": \"0.28\"") || dialog_machine_text().contains("\"alula_version\":\"0.28\""))
+    assert(dialog_machine_text().contains("\"alula_version\": \"0.31\"") || dialog_machine_text().contains("\"alula_version\":\"0.31\""))
 }
 
 test "dl loads" {
@@ -78,9 +78,9 @@ test "dl loads" {
     assert(def.common.len() == 2)
 }
 
-test "dl no primitives" {
+test "dl no tools" {
     ro def = dialog_def()
-    assert(def.primitives.len() == 0)
+    assert(def.tools.len() == 0)
     assert(def.definitions.len() == 0)
     assert(def.request_limit.len() == 0)
 }

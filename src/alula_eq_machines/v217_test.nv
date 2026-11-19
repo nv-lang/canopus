@@ -32,10 +32,10 @@ fn has_bracket_after_name217(line str) -> bool {
     false
 }
 
-test "v217 tables say alula_version 0.28" {
+test "v217 tables say alula_version 0.31" {
     for name in tables217() {
         ro text = text_of_file(table_files(), name)
-        assert(text.contains("alula_version: 0.28"))
+        assert(text.contains("alula_version: 0.31"))
         assert(!text.contains("format: 2.14"))
     }
 }
