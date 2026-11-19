@@ -88,6 +88,8 @@ export type AcpClient {
     queue []AcpQueued,
     active str,
     cancelling bool,
+    updates int,
+    auth_methods str,
     permissions []AcpPending,
     handoff_only bool,
     handoff_context str,
@@ -364,7 +366,7 @@ export fn open_client_full(config AcpConfig, trace_path str, trace_limit int, as
             }
             mut client = AcpClient {
                 config, link, phase: "initializing", next_rpc: 0, init_rpc: -1, new_rpc: -1, prompt_rpc: -1,
-                session: "", agent: "", model_name: "", modes: JsonValue.null(), models: JsonValue.null(), choices_cfg: JsonValue.null(), mode_now: "", model_now: "", sets: []AcpSet.new(), queue: []AcpQueued.new(), active: "", cancelling: false, permissions: []AcpPending.new(), handoff_only: false, handoff_context: "", hold_prompt: false, ask, asks: []AcpAsk.new(), mcp_http: false, hint_due: false,
+                session: "", agent: "", model_name: "", modes: JsonValue.null(), models: JsonValue.null(), choices_cfg: JsonValue.null(), mode_now: "", model_now: "", sets: []AcpSet.new(), queue: []AcpQueued.new(), active: "", cancelling: false, updates: 0, auth_methods: "", permissions: []AcpPending.new(), handoff_only: false, handoff_context: "", hold_prompt: false, ask, asks: []AcpAsk.new(), mcp_http: false, hint_due: false,
                 ready, taken: []AcpInboxItem.new(), next_seq: next, stderr: "", exit_code: -2, last_error: "", trace,
                 images_ok: false, attached: []AcpImage.new(), prelude: "", presets: []AcpPreset.new(), strict_source: false, dispatch_role: "dev", dispatch_family: "", required_mode: "", settled: []AcpPreset.new(), dropped: []AcpDrop.new(), marker: marker_start(), commands: []str.new()
             }
@@ -460,6 +462,16 @@ fn AcpClient mut @on_result(id JsonValue, result JsonValue) -> () {
             Some(info) => field_text(info, "name") ?? ""
             None => ""
         }
+        // task 317: a CLI that offers sign-in methods tells the hub what the owner must do
+        mut methods = []str.new()
+        for item in (field(result, "authMethods") ?? JsonValue.null()).array() ?? []JsonValue.new() {
+            ro name = field_text(item, "name") ?? ""
+            ro about = field_text(item, "description") ?? ""
+            if name.byte_len() > 0 { methods.push(if about.byte_len() > 0 { "${name} — ${about}" } else { name }) }
+        }
+        mut joined_methods = ""
+        for m in methods { joined_methods = if joined_methods.byte_len() > 0 { "${joined_methods}; ${m}" } else { m } }
+        @auth_methods = joined_methods
         @mcp_http = match field(result, "agentCapabilities") {
             Some(caps) => match field(caps, "mcpCapabilities") {
                 Some(mcp) => (field(mcp, "http") ?? JsonValue.null()).bool() ?? false
@@ -553,6 +565,8 @@ fn AcpClient mut @on_update(params JsonValue) -> () {
         @note("an update of another session: ${session}")
         return
     }
+    // task 317: only a genuine session/update of this session proves the backend is alive
+    @updates += 1
     ro update = match field(params, "update") {
         Some(u) => u
         None => JsonValue.null()
@@ -1013,21 +1027,26 @@ export fn AcpClient @accepts_images() -> bool => @images_ok
 
 /// Take what the fibers around the process have brought: the handshake moves on, lines become events, the next
 /// waiting prompt goes out. Never waits.
-export fn AcpClient mut @poll() -> () {
+export fn AcpClient mut @poll(max_items int = 0) -> () {
     if @phase == "closed" { return }
     mut more = true
-    while more && @phase != "closed" {
+    mut read = 0
+    while more && @phase != "closed" && (max_items <= 0 || read < max_items) {
         match @link.inb.try_recv() {
-            Some(item) => @take(item)
+            Some(item) => {
+                @take(item)
+                read += 1
+            }
             None => { more = false }
         }
     }
-    @drive()
+    // Finish consuming the already queued protocol messages before starting another prompt.
+    if !more { @drive() }
 }
 
 // ----- the handler of the effect Link -----
 
-fn AcpClient mut @enqueue(request PartyRequest[str]) -> () {
+fn AcpClient mut @enqueue(request PartyRequest[str], poll_wire bool) -> () {
     if @phase == "dead" || @phase == "closed" {
         @refuse(request.id, FailCode.ConnectionLost)
         return
@@ -1039,7 +1058,7 @@ fn AcpClient mut @enqueue(request PartyRequest[str]) -> () {
     @queue.push(AcpQueued { request: request.id, text: request.input, images: @attached, pre: @prelude })
     @attached = []AcpImage.new()
     @prelude = ""
-    if !@hold_prompt { @poll() }
+    if !@hold_prompt && poll_wire { @poll() }
 }
 
 fn AcpClient mut @cancel_request(request_id str) -> () {
@@ -1059,10 +1078,13 @@ fn AcpClient mut @cancel_request(request_id str) -> () {
     @permissions = []AcpPending.new()
     for p in open { @say(rpc_result_line(p.id, outcome_result("cancelled", ""))) }
     @resolve_asks(true)
+    // task 317: the slot stays taken until the agent's terminal reply, so late updates of the cancelled turn
+    // are never attributed to the next one; a reply that never comes is handled by the hub (`@ensure_client`
+    // starts a fresh agent when a cancelled turn is already closed and the agent still has not answered).
 }
 
-fn AcpClient mut @next_event() -> Option[Incoming] {
-    @poll()
+fn AcpClient mut @next_event(poll_wire bool) -> Option[Incoming] {
+    if poll_wire { @poll() }
     if @ready.len() == 0 { return None }
     ro item = @ready.remove(0)
     @taken.push(item)
@@ -1092,12 +1114,24 @@ fn AcpClient mut @acknowledge(source str) -> () {
 /// The handler of `Link` over a client. `send` queues the request (one turn at a time, in the order of sending),
 /// `receive` takes what has come and hands out one event or None, `cancel` cancels a waiting or a running turn,
 /// `ack` forgets an event the engine has committed.
-export fn acp_link(mut client AcpClient) -> Effect[Link] {
+// The browser hub lends the link to one engine pass at a time. Bound both the
+// wire messages persisted to the inbox and the events the engine commits in that pass.
+const ACP_PUMP_QUANTUM = 4
+
+export fn acp_link(mut client AcpClient, bounded bool = false) -> Effect[Link] {
+    ro quantum = ACP_PUMP_QUANTUM
+    mut remaining = ACP_PUMP_QUANTUM
     effect Link {
         send(request) -> () {
-            client.enqueue(request)
+            client.enqueue(request, !bounded)
         }
-        receive() -> Option[Incoming] => client.next_event()
+        receive() -> Option[Incoming] {
+            if !bounded { return client.next_event(true) }
+            if remaining == 0 { return None }
+            if remaining == quantum { client.poll(max_items: quantum) }
+            remaining -= 1
+            client.next_event(false)
+        }
         cancel(request_id) -> () {
             client.cancel_request(request_id)
         }
@@ -1311,6 +1345,18 @@ fn AcpClient mut @set_inbox(path str) -> bool {
 
 /// The phase: initializing, opening, ready, dead, failed or closed.
 export fn AcpClient @phase() -> str => @phase
+
+/// The process id of the agent (-1 - the keeper did not name it): the hub writes it down (task 317).
+export fn AcpClient @pid() -> int => @link.pid
+
+/// How many genuine session/update messages of this session the client accepted (the hub's turn deadline, task 317).
+export fn AcpClient @updates() -> int => @updates
+
+/// Is a cancelled prompt still waiting for the agent's terminal reply (task 317)?
+export fn AcpClient @cancelling() -> bool => @cancelling
+
+/// The sign-in methods the agent offered at `initialize` ("" - none): what the owner must do before a turn.
+export fn AcpClient @auth_methods() -> str => @auth_methods
 
 /// The commands the agent has announced (`available_commands_update`), one line each: `name - description`.
 export fn AcpClient @commands_seen() -> []str => @commands

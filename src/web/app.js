@@ -165,7 +165,7 @@ const requestedPreview = new Set();
 const attemptedPreview = new Set();
 const previewVersion = new Map();
 
-function applySessionIndex(entries) {
+function applySessionIndex(entries, refreshHistory = true) {
   for (const event of entries) {
     if (event?.kind !== 'session_created' || typeof event.trace !== 'string') continue;
     const previous = model.sessions[event.trace];
@@ -179,7 +179,7 @@ function applySessionIndex(entries) {
         updatedAt: Math.max(previous.updatedAt, event.time),
       } } };
     }
-    ui.historyPending.add(event.trace);
+    if (refreshHistory || !previous || previous.draft) ui.historyPending.add(event.trace);
   }
 }
 
@@ -1059,7 +1059,10 @@ async function start() {
       }
       render();
     },
-    onSessionsIndex(entries) { applySessionIndex(entries); },
+    onSessionsIndex(entries) {
+      applySessionIndex(entries, !sessionTransportReady);
+      if (sessionTransportReady) render();
+    },
     onSessionHistory(trace, entries, unchanged, from) {
       if (!requestedHistory.delete(trace)) return;
       const usingPreview = ui.historyPreview.has(trace);

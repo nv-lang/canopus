@@ -14,7 +14,8 @@ module canopus.server
 
 import std.text
 import std.fs.{Fs, read_text, write_text, try_exists, remove_dir, remove_file, canonicalize, Path}
-import std.os.{Os, Command, Stdio, Tree, env}
+import std.os.{Os, Command, Tree, env}
+import canopus.process.{command_run_timed}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 
 /// Time limits, in milliseconds: a local call, a call over the network.
@@ -222,7 +223,7 @@ fn tw_log_call(dir str, args []str) Fs -> () {
     ro written = write_text(p, "${before}${line}\n")
 }
 
-fn tw_exec(dir str, args []str, timeout_ms int) Proc Os Fs -> GitOut {
+fn tw_exec(dir str, args []str, timeout_ms int) Proc Os Fs Time -> GitOut {
     tw_log_call(dir, args)
     mut command = Command.new("git")
     // the setters change the command in place and return it; the result is dropped, as in src/acp/link.nv
@@ -242,31 +243,45 @@ fn tw_exec(dir str, args []str, timeout_ms int) Proc Os Fs -> GitOut {
         Some(trace) => { command.env("GIT_TRACE", trace) }
         None => ()
     }
-    command.tree(Tree.Group)
-    mut res = GitOut { code: -1, out: "", err: "cannot run git" }
-    ro finished = with Fail[TimeoutError] = |_e| { false } {
-        supervised(timeout: timeout_ms.to_millis()) {
-            match command.output() {
-                Ok(o) => {
-                    res = GitOut { code: o.status.code(), out: o.stdout.to_str_lossy(), err: o.stderr.to_str_lossy() }
-                }
-                Err(e) => {
-                    res = GitOut { code: -1, out: "", err: "cannot run git: ${e}" }
-                }
-            }
-        }
-        true
-    }
-    if !finished {
+    // task 317: the term is the runner's own (`wait_timeout` + a kill of the whole tree), not a cancel of the
+    // fiber around `output()`: on the 0.1.5 toolchain that cancel left the child alive to its own end (measured)
+    ro run = command_run_timed(command, timeout_ms)
+    if !run.finished {
         ro what = if args.len() > 0 { args[0] } else { "" }
         return GitOut { code: -1, out: "", err: "git ${what} did not finish in ${timeout_ms} ms" }
     }
-    res
+    if run.note.byte_len() > 0 { return GitOut { code: -1, out: "", err: run.note } }
+    GitOut { code: run.code, out: run.out.to_str_lossy(), err: run.err.to_str_lossy() }
 }
 
-fn tw_git(dir str, args []str) Proc Os Fs -> GitOut => tw_exec(dir, args, TW_LOCAL_MS)
+type ObservedGit { ok bool, bytes []u8 }
 
-fn tw_git_net(dir str, args []str) Proc Os Fs -> GitOut => tw_exec(dir, args, TW_NET_MS)
+// Pass owned bytes through the channel; decoding takes place outside the background fiber.
+fn observe_git(tree str, args []str) Proc Time -> ObservedGit {
+    mut command = Command.new("git")
+    command.arg("-c")
+    command.arg("core.quotepath=off")
+    command.arg("-C")
+    command.arg(tree)
+    for arg in args { command.arg(arg) }
+    command.env("GIT_TERMINAL_PROMPT", "0")
+    command.env("GIT_EDITOR", "true")
+    command.tree(Tree.Group)
+    // task 317: the same term as `tw_exec` has (the runner kills the whole tree at the deadline)
+    ro run = command_run_timed(command, TW_LOCAL_MS)
+    if run.finished && run.note.byte_len() == 0 && run.code == 0 { ObservedGit { ok: true, bytes: run.out } } else { ObservedGit { ok: false, bytes: []u8.new() } }
+}
+
+fn observe_base(tree str) Proc -> str {
+    if observe_git(tree, ["show-ref", "--verify", "--quiet", "refs/remotes/origin/main"]).ok { return "origin/main" }
+    if observe_git(tree, ["show-ref", "--verify", "--quiet", "refs/heads/main"]).ok { return "main" }
+    // With neither main ref, the current branch (or detached HEAD) points at HEAD.
+    "HEAD"
+}
+
+fn tw_git(dir str, args []str) Proc Os Fs Time -> GitOut => tw_exec(dir, args, TW_LOCAL_MS)
+
+fn tw_git_net(dir str, args []str) Proc Os Fs Time -> GitOut => tw_exec(dir, args, TW_NET_MS)
 
 /// The reason of a failed call, without secrets.
 fn tw_why(r GitOut) -> str {
@@ -679,11 +694,15 @@ export fn unmerged_count(task_tree_path str) Proc Os Fs -> int {
 
 /// The files the task changed against `origin/main` (`git diff --numstat <base>...HEAD`); a binary file has 0 and 0.
 export fn diff_stat(task_tree_path str) Proc Os Fs -> []DiffStat {
-    mut out = []DiffStat.new()
     ro dir = tw_norm(task_tree_path)
     ro r = tw_git(dir, ["diff", "--numstat", "--no-renames", "${tw_base_ref(dir)}...HEAD"])
-    if r.code != 0 { return out }
-    for line in tw_lines(r.out) {
+    if r.code != 0 { return []DiffStat.new() }
+    parse_diff_stat(r.out)
+}
+
+fn parse_diff_stat(text str) -> []DiffStat {
+    mut out = []DiffStat.new()
+    for line in tw_lines(text) {
         ro parts = tw_split(line, "\t")
         if parts.len() >= 3 {
             ro added = parts[0].to_int() ?? 0
@@ -1011,6 +1030,10 @@ export fn parse_ci_run(text str) -> CiRun {
 
 /// The last run of CI on main, asked of `gh` in the main copy (15 s at most); no data when `gh` is not there or says no.
 export fn ci_latest(main_copy str) Proc Os Fs -> CiRun {
+    parse_ci_run(ci_latest_bytes(main_copy).to_str_lossy())
+}
+
+fn ci_latest_bytes(main_copy str) Proc -> []u8 {
     mut command = Command.new("gh")
     command.arg("run")
     command.arg("list")
@@ -1022,19 +1045,8 @@ export fn ci_latest(main_copy str) Proc Os Fs -> CiRun {
     command.arg("conclusion,status,headSha,updatedAt")
     command.env("GH_PROMPT_DISABLED", "1")
     command.dir(Path.from_bytes(tw_norm(main_copy).bytes()))
-    command.tree(Tree.Group)
-    mut out = ""
-    ro finished = with Fail[TimeoutError] = |_e| { false } {
-        supervised(timeout: 15000.to_millis()) {
-            match command.output() {
-                Ok(o) => { if o.status.code() == 0 { out = o.stdout.to_str_lossy() } }
-                Err(e) => ()
-            }
-        }
-        true
-    }
-    if !finished || out.byte_len() == 0 { return ci_none() }
-    parse_ci_run(out)
+    ro run = command_run_timed(command, SHELL_RUN_MS)
+    if run.finished && run.code == 0 { run.out } else { []u8.new() }
 }
 
 // ----- the tree of a work in the background (task 192.8) -----
@@ -1091,30 +1103,23 @@ export fn wip_tree_plan_from(repo str, name str, trees str, source str) Proc Os 
 /// WipRun: the answer of a git call made off the thread of the hub: the exit code (-1 - not started or not finished), the bytes of its error stream, the note.
 export type WipRun { code int, err []u8, note str }
 
-fn tw_run_bytes(dir str, args []str, timeout_ms int) Proc Os -> WipRun {
+fn tw_run_bytes(dir str, args []str, timeout_ms int) Proc Os Time -> WipRun {
     mut command = Command.new("git")
     command.arg("-C")
     command.arg(dir)
     for a in args { command.arg(a) }
     command.env("GIT_TERMINAL_PROMPT", "0")
     command.env("GIT_EDITOR", "true")
-    command.tree(Tree.Group)
-    mut code = -1
-    mut err = []u8.new()
-    mut note = ""
-    // no `supervised(timeout)` here: this runs in a detached fiber, and the term of the tree is kept by the hub (`wip_timeout_ms`); a tree that came late is not taken
-    match command.output() {
-        Ok(o) => {
-            code = o.status.code()
-            err = o.stderr
-        }
-        Err(e) => { note = "cannot run git" }
-    }
-    WipRun { code, err, note }
+    // task 317: the child has a term of its own (`wait_timeout` + a kill of the whole tree): a git call that
+    // hangs must not hold the caller for good, whatever the hub does with the fiber around it
+    ro run = command_run_timed(command, timeout_ms)
+    if !run.finished { return WipRun { code: -1, err: []u8.new(), note: "git did not finish in ${timeout_ms} ms and was ended" } }
+    if run.note.byte_len() > 0 { return WipRun { code: -1, err: []u8.new(), note: run.note } }
+    WipRun { code: run.code, err: run.err, note: "" }
 }
 
 /// The slow part of the tree: `git fetch origin` (a failure is no error) and `git worktree add --detach <path> <base>` with the time limit of a check-out. No text is decoded here (the thread of the hub does it).
-export fn wip_add_run(plan WipPlan) Proc Os -> WipRun {
+export fn wip_add_run(plan WipPlan) Proc Os Time -> WipRun {
     if plan.origin {
         ro fetched = tw_run_bytes(plan.dir, ["fetch", "origin"], TW_NET_MS)
     }

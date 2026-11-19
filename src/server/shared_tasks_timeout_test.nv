@@ -1,0 +1,38 @@
+// shared_tasks_timeout_test.nv - task 317: `shared_task_call` must never park the hub fiber:
+// a task-store child that never closes its pipes is killed by the timeout, the call returns
+// a plain error. The fake script sleeps past the limit and (the pipes case) spawns a child
+// that holds the output pipe open after the direct child exits.
+module canopus.server
+
+import std.fs.{Fs, real_fs, write_text, create_dir_all, Path}
+import std.os.{Command}
+import std.time.{Time}
+
+const FAKE_ROOT = "target/shared-task-fake"
+
+// A task-store that hangs: sleeps long, and its own child keeps the pipes open.
+const FAKE_HANG = "setTimeout(() => {}, 600000); require('child_process').spawn(process.execPath, ['-e', 'setTimeout(()=>process.exit(0), 60000)'], { detached: true, stdio: 'ignore' });"
+
+fn fake_store(name str, body str) Fs -> str {
+    ro made = create_dir_all(Path.from_bytes(FAKE_ROOT.bytes()))
+    ro path = "${FAKE_ROOT}/${name}"
+    ro w = write_text(Path.from_bytes(path.bytes()), body)
+    path
+}
+
+// The hang case cannot point install_paths at the fake script (its path is fixed),
+// so the timing contract is verified through the same timed runner the fix uses:
+// a hanging child with a pipe-holding grandchild is killed, the runner returns
+// quickly and reports "unfinished".
+test "shared_task runner: a hanging child with a pipe-holding grandchild is killed in seconds" {
+    ro script = fake_store("hang.cjs", FAKE_HANG)
+    mut command = Command.new("node")
+    command.arg(script)
+    command.arg("read")
+    ro began = Time.now().unix_millis()
+    ro run = command_output_timed(command, 3000)
+    ro took = Time.now().unix_millis() - began
+    if run.finished { panic("the runner missed the timeout: took ${took} ms") }
+    if took >= 15000 { panic("the kill lands late: took ${took} ms, out=${run.out.text}") }
+    if !run.out.text.contains("did not finish") { panic("the timeout is not reported: out=${run.out.text}") }
+}

@@ -36,7 +36,7 @@ async function app(storage = memory(), sendResult = true, hash = '#s=s', session
     localStorage: storage, sessionStorage: memory(),
     location: { search: '', protocol: 'http:', host: 'test.invalid', hash },
     document: { documentElement: { setAttribute() {}, removeAttribute() {} }, getElementById() {}, addEventListener() {} },
-    addEventListener() {}, requestAnimationFrame() {},
+    addEventListener() {}, requestAnimationFrame(callback) { wire.frame?.(callback); },
     setInterval() {}, setTimeout(fn, delay) { timeouts.push(fn); delays.push(delay); return timeouts.length; }, clearTimeout() {},
     fetch: async (url, options) => url.startsWith('/api/session-image/') && wire.postImage
       ? wire.postImage(url, options)
@@ -376,6 +376,11 @@ test('индекс показывает сессии до готовности �
   assert.equal(page.getModel().sessions.two.messages[0].text, 'история из файла');
   assert.equal(page.getModel().sessions.one.messages.length, 0);
   assert.equal(page.getUI().historyPending.has('two'), false);
+  page.callbacks.onSessionsIndex([entry('two', 'session_created',
+    { ...index[1].input, task_number: '309', task_title: 'Индекс', task_state: 'done' }, 0)]);
+  assert.equal(page.getModel().sessions.two.indexTaskNumber, '309');
+  assert.equal(page.getModel().sessions.two.messages[0].text, 'история из файла');
+  assert.equal(page.getUI().historyPending.has('two'), false);
   assert.equal(page.sent.length, 1, 'пока не получено состояние маршрута');
   page.event('route_state', { route: 'interactive' }, { trace: 'two', step: 5 });
   assert.equal(page.sent.length, 2);
@@ -458,6 +463,26 @@ test('session index exposes sidebar status before any history request', async ()
   assert.equal(a.sent.some(event => event.kind === 'session_history_get' && event.trace === 'other'), false);
 })
 
+
+test('restored session metadata refreshes the sidebar after sessions_ready', async () => {
+  const frames = [];
+  const page = await app(memory(), true, '#s=s', undefined, {}, { frame: callback => frames.push(callback) });
+  page.callbacks.onSnapshot('ready', ['s', 'restoring']);
+  assert.equal(page.getModel().sessions.restoring, undefined);
+  for (const frame of frames.splice(0)) frame();
+  const before = page.renderedDelivery.length;
+
+  page.callbacks.onSessionsIndex([{
+    id: 'summary-restoring', trace: 'restoring', step: 0, kind: 'session_created', time: 1,
+    input: { name: 'Restored chat', agent: 'agent', list_status: 'idle' },
+  }]);
+
+  assert.equal(page.getModel().sessions.restoring.name, 'Restored chat');
+  assert.equal(page.getUI().historyPending.has('restoring'), true);
+  assert.equal(frames.length, 1);
+  frames.shift()();
+  assert.equal(page.renderedDelivery.length, before + 1);
+});
 
 test('picking a model starts a separate background check before sending chat text', async () => {
   const a = await app();

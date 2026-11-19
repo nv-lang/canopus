@@ -1676,14 +1676,14 @@ the first question, in `/canopus`, the sidebar and the notice. `form.replied` an
 the status returns by itself. No model is involved, and the same applies to task sessions (the questionnaire is always
 addressed to a human). Events arrive in copies (several windows), so records are idempotent by form id; a form older
 than 12 hours does not count. The wait phrases stay as a safety net for plain prose.
-Details: [doc/tasks/026-crew-question/task/analysis.md](../doc/tasks/026-crew-question/task/analysis.md).
+Details: [doc/tasks/026-crew-question/analysis.md](../doc/tasks/026-crew-question/analysis.md).
 
 ## Event probe
 
 A diagnostic, off by default (task 026): `CANOPUS_EVENT_PROBE=1` in the service environment, then restart.
 It subscribes to OpenCode bus events and logs `form.*`, `permission.*`, `question.*`, `session.idle|status`, `tool.*`
 lines to `%TEMP%/opencode-plugins.log` (lines start with `event probe:`). It changes no plugin behaviour.
-Details: [doc/tasks/026-crew-question/task/probe.md](../doc/tasks/026-crew-question/task/probe.md).
+Details: [doc/tasks/026-crew-question/probe.md](../doc/tasks/026-crew-question/probe.md).
 
 ## Test
 

@@ -31,6 +31,7 @@
 | `check-oracle-workarounds.py` | метки обходов дефектов Oracle ведут к пункту README |
 | `check-private-names.py` | имена из списка владельца (`~/.canopus/guards/private-names.txt`; в CI — секрет) не встречаются |
 | `check-release-kit.py` | машины, которые хаб читает с диска, согласованы с релизным комплектом |
+| `check-shell-timeout.py` | у ожиданий есть срок, у порождённых процессов — сторож: голый `output()` / `start()` в `src` без обёртки или пометки запрещены |
 | `check-task-docs.py` | форматы документов задач: статусы spec/plan, заходы проверок, журнал хода, задания, номера |
 | `check-tests-have-checks.py` | файл теста плагина не пустой: хотя бы одна проверка |
 | `check-text-hygiene.py` | гигиена текста: управляющие байты, NUL, UTF-16, U+FFFD, BOM, смешанные концы строк |

@@ -347,6 +347,13 @@ test "agent env: the hub marker is set once, over an entry of the project (task 
     assert(twice.len() == 2, "the marker never doubles")
 }
 
+test "agent env: the turn deadline of the hub is set once, over an entry of the project (task 317)" {
+    ro env = with_turn_deadline([EnvEntry { key: "A", value: "1" }], 900000)
+    assert(env.len() == 2 && env[0].key == "A" && env[1].key == AGENT_TURN_DEADLINE_ENV && env[1].value == "900")
+    ro replaced = with_turn_deadline([EnvEntry { key: AGENT_TURN_DEADLINE_ENV, value: "5" }], 60000)
+    assert(replaced.len() == 1 && replaced[0].key == AGENT_TURN_DEADLINE_ENV && replaced[0].value == "60", "the deadline never doubles")
+}
+
 test "ctx agent compaction: a completed compaction_update line is seen" {
     assert(ctx_agent_compacted([ctx_line("usage_update", 1000, 200000)]) == false)
     assert(ctx_agent_compacted(["{\"kind\":\"compaction_update\",\"input\":{\"status\":\"failed\"}}"]) == false)

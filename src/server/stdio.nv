@@ -15,6 +15,7 @@ module canopus.server
 import canopus.acp.{LineSplitter}
 import canopus.storage.{replace_file}
 import std.fs.{Path}
+import std.os.{env}
 import std.concurrency.nvchan.{Chan, ChanTx, ChanRx}
 import std.io.{stdin, stdout, stderr, Stdin, IoError}
 
@@ -118,7 +119,15 @@ export fn run_hub_stdio(settings ServerSettings) Proc Detach Time Net Fs Os Io -
     run_hub_loop(settings, commands.rx, events.tx, true)
 }
 
+fn trace_ready_stage(enabled bool, stage str, started int) Time Io -> () {
+    if !enabled { return }
+    ro finished = Time.now().unix_millis()
+    ro elapsed = finished - started
+    if elapsed >= 500 { to_log("sessions_ready ${finished} ${stage} ms=${elapsed}") }
+}
+
 export fn run_hub_loop(settings ServerSettings, commands ChanRx[HubCommand], events ChanTx[Outgoing], stdio bool) Proc Detach Time Net Fs Os Io -> int {
+    ro trace_ready = (env("CANOPUS_TRACE_SESSIONS_READY") ?? "") == "1"
     match start_hub_for_pages(settings) {
         Err(reason) => {
             to_log("the hub cannot start: ${reason}")
@@ -128,10 +137,9 @@ export fn run_hub_loop(settings ServerSettings, commands ChanRx[HubCommand], eve
             mut running_hub = Running { hub: started }
             for line in running_hub.hub.take_log() { to_log(line) }
             if stdio { to_front("ready") }
-            running_hub.hub.save_history_previews()
             ro index_path = Path.from_bytes("${settings.layout.cache}/sessions-index.json".bytes())
             mut saved_index = ""
-            mut preview_due = 0
+            mut preview_due = Time.now().unix_millis() + 250
             mut running = true
             while running {
                 mut busy = false
@@ -140,6 +148,12 @@ export fn run_hub_loop(settings ServerSettings, commands ChanRx[HubCommand], eve
                     match commands.try_recv() {
                         Some(cmd) => {
                             busy = true
+                            if trace_ready {
+                                match cmd {
+                                    HubAttach { conn, lazy } => to_log("sessions_ready ${Time.now().unix_millis()} conn=${conn} hub attach lazy=${lazy}")
+                                    _ => ()
+                                }
+                            }
                             if !apply_command(running_hub.hub, cmd) {
                                 running = false
                                 more = false
@@ -148,25 +162,40 @@ export fn run_hub_loop(settings ServerSettings, commands ChanRx[HubCommand], eve
                         None => { more = false }
                     }
                 }
-                if running { running_hub.hub.pump_restores() }
                 ro outgoing = running_hub.hub.take_output()
                 for o in outgoing {
-                    if stdio { to_front("${o.conn}\t${o.text}") }
-                    else { ro sent = events.send(o) }
+                    if stdio { to_front("${o.conn}\t${o.complete_text()}") }
+                    else {
+                        ro ready = trace_ready && o.text.starts_with("{\"kind\":\"sessions_ready\"")
+                        if ready { to_log("sessions_ready ${Time.now().unix_millis()} conn=${o.conn} hub publish") }
+                        ro sent = events.send(o)
+                        if ready { to_log("sessions_ready ${Time.now().unix_millis()} conn=${o.conn} hub published=${sent}") }
+                    }
                     busy = true
                 }
+                // Flush answers to newly attached pages before installing the next restored session.
+                ro restore_started = if trace_ready { Time.now().unix_millis() } else { 0 }
+                if running { running_hub.hub.pump_restores() }
+                trace_ready_stage(trace_ready, "restore", restore_started)
                 // A preview is a cache. Give the browser time to submit after receiving the history.
                 if outgoing.len() > 0 { preview_due = Time.now().unix_millis() + 250 }
-                if saved_index.byte_len() == 0 || outgoing.len() > 0 {
+                ro metadata_changed = if running { running_hub.hub.pump_session_index_metadata() } else { false }
+                if metadata_changed || saved_index.byte_len() == 0 || outgoing.len() > 0 {
+                    ro index_started = if trace_ready { Time.now().unix_millis() } else { 0 }
                     ro index = running_hub.hub.session_index()
                     if index != saved_index && replace_file(index_path, index) { saved_index = index }
+                    trace_ready_stage(trace_ready, "index", index_started)
                 }
                 if running {
-                    ro made = running_hub.hub.pump()
+                    ro pump_started = if trace_ready { Time.now().unix_millis() } else { 0 }
+                    ro made = running_hub.hub.pump(agent_budget_ms: if stdio { 0 } else { 40 })
+                    trace_ready_stage(trace_ready, "pump", pump_started)
                     if made > 0 { busy = true }
                 }
                 if !busy && preview_due > 0 && Time.now().unix_millis() >= preview_due && !running_hub.hub.prioritize_agent_start() {
+                    ro preview_started = if trace_ready { Time.now().unix_millis() } else { 0 }
                     running_hub.hub.save_history_previews()
+                    trace_ready_stage(trace_ready, "preview", preview_started)
                     preview_due = 0
                 }
                 for line in running_hub.hub.take_log() { to_log(line) }

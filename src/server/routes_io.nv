@@ -4,6 +4,7 @@ module canopus.server
 
 import std.fs.{Fs, real_fs, Path, read_text, write_text, create_dir_all, try_exists, read_dir, metadata, copy_file, remove_file}
 import std.os.{Command}
+import canopus.process.{command_run_timed}
 
 fn rio_path(p str) -> Path => Path.from_bytes(p.bytes())
 
@@ -136,23 +137,28 @@ export fn io_remove_file(p str) -> bool {
 /// ShellOut: did the command end with 0, and what it printed (the output; the error text when it failed).
 export type ShellOut { ok bool, text str }
 
+/// The time for one child of the hub (the shared task adapter, `git`): the taskwt convention.
+const SHELL_RUN_MS = 15000
+
+type TimedRun { finished bool, out ShellOut }
+
+fn command_output_timed(mut command Command, timeout_ms int) Proc Time -> TimedRun {
+    ro raw = command_run_timed(command, timeout_ms)
+    if raw.note.byte_len() > 0 { return TimedRun { finished: raw.finished, out: ShellOut { ok: false, text: raw.note } } }
+    ro printed = raw.out.to_str_lossy().trim_ascii()
+    if raw.code == 0 { return TimedRun { finished: raw.finished, out: ShellOut { ok: true, text: printed } } }
+    TimedRun { finished: raw.finished, out: ShellOut { ok: false, text: joined([printed, raw.err.to_str_lossy().trim_ascii()], "\n") } }
+}
+
 /// `git -C dir args...` without a terminal prompt or an editor.
-export fn git_run(dir str, args []str) Proc -> ShellOut {
+export fn git_run(dir str, args []str) Proc Time -> ShellOut {
     mut command = Command.new("git")
     command.arg("-C")
     command.arg(dir)
     for a in args { command.arg(a) }
     command.env("GIT_TERMINAL_PROMPT", "0")
     command.env("GIT_EDITOR", "true")
-    match command.output() {
-        Ok(out) => {
-            ro printed = out.stdout.to_str_lossy().trim_ascii()
-            if out.status.success() {
-                { ok: true, text: printed }
-            } else {
-                { ok: false, text: "${printed}\n${out.stderr.to_str_lossy().trim_ascii()}".trim_ascii() }
-            }
-        }
-        Err(e) => { ok: false, text: "git cannot be started" }
-    }
+    ro run = command_output_timed(command, SHELL_RUN_MS)
+    // finished=false means the child was ended by the timeout: run.out already says so.
+    run.out
 }

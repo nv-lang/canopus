@@ -36,6 +36,40 @@ See the [plugin guide](opencode-plugin/README.md) for OpenCode setup and operati
 The application uses Nova; its dependencies are declared in [`nova.toml`](nova.toml).
 The [release packaging script](scripts/package-release.sh) assembles and checks an application kit.
 
+### Windows x64 release with Oracle 0.1.4
+
+For a long-running server, build with a static Boehm GC that enables
+`LARGE_CONFIG`. The stock Windows x64 Oracle 0.1.4 library has a 1,024-section
+heap table. Boehm 8.2.12 with `LARGE_CONFIG` raises this limit to 81,920.
+
+In an x64 Developer Command Prompt with CMake and Ninja on PATH, build Boehm
+8.2.12 with the libatomic_ops headers from Oracle. Adjust the example paths
+to match the extracted source and toolchain.
+
+```bat
+set "INCLUDE=C:\work\oracle-0.1.4\gc\include;%INCLUDE%"
+cmake -S C:/work/bdwgc-8.2.12 -B C:/work/bdwgc-large -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DBUILD_SHARED_LIBS=OFF -Denable_large_config=ON -Dbuild_cord=OFF -Denable_docs=OFF
+cmake --build C:/work/bdwgc-large --target gc
+```
+
+From the Canopus checkout, use the resulting `gc.lib` and Oracle's
+`atomic_ops.lib` in a separate library directory. Set the override after
+loading Oracle's environment.
+
+```powershell
+. 'C:/work/oracle-0.1.4/setup-env.ps1'
+Copy-Item "$env:NOVA_GC_LIB_DIR/atomic_ops.lib" 'C:/work/bdwgc-large'
+$env:NOVA_GC_LIB_DIR = 'C:/work/bdwgc-large'
+New-Item -ItemType Directory -Force target | Out-Null
+nova build --mode release src/canopus.nv -o target/canopus.exe --timeout 900
+```
+
+Verify the limit in the resulting executable before packaging, for example
+by checking that the Windows abort path for `Too many heap sections` compares
+the section count to `0x14000` (81,920). Package that binary with the release
+packaging script. Keep the collector version, build flags and executable hash
+with the release verification.
+
 ## Configuration and data
 
 With the application executable on `PATH`, run `canopus` or `canopus serve`.

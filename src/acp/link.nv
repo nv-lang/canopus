@@ -35,7 +35,8 @@ export type Inbound { kind str, text str, code int }
 
 /// AgentLink: the three channels of a started process. `out` takes the lines to write (without a line break) - the writer adds
 /// it; a closed `out` closes the stdin; `inb` brings what the fibers tell; a number sent to `kill` kills the process tree.
-export type AgentLink { out ChanTx[str], inb ChanRx[Inbound], kill ChanTx[int] }
+/// `pid` is the process id of the child (-1 - the keeper did not name it), so that the hub can write down what it started (task 317).
+export type AgentLink { out ChanTx[str], inb ChanRx[Inbound], kill ChanTx[int], pid int }
 
 fn inbound_of(kind str, text str, code int) -> Inbound => { kind, text, code }
 
@@ -216,7 +217,8 @@ fn keep_link(program str, args []str, dir str, env []EnvEntry, inbound ChanTx[In
             consume stderr_pipe = stderr_of(child.take_stderr())
             ro marks = Chan[int].new(64)
             ro stop = CancelToken.new()
-            ro told = started.send("")
+            // task 317: the starter needs the pid of the child to write down what the hub started ("ok:<pid>" - it went well)
+            ro told = started.send("ok:${child.pid()}")
             supervised {
                 spawn consume stdout_pipe { read_stdout(stdout_pipe, inbound) }
                 spawn consume stderr_pipe { read_stderr(stderr_pipe, inbound) }
@@ -266,8 +268,9 @@ export fn connect_env(program str, args []str, dir str, env []EnvEntry) Proc Det
     detach { keep_link(program, args, dir, block, inbound.tx, outbound.rx, outbound.tx, killing.rx, started.tx) }
     match started.rx.recv() {
         Some(reason) => {
-            if reason.byte_len() > 0 { return Err(reason) }
-            Ok(AgentLink { out: outbound.tx, inb: inbound.rx, kill: killing.tx })
+            if !reason.starts_with("ok:") { return Err(if reason.byte_len() > 0 { reason } else { "the keeper of ${program} ended before the process was started" }) }
+            ro pid = match reason[3..reason.byte_len()].to_int() { Ok(n) => n, Err(e) => -1 }
+            Ok(AgentLink { out: outbound.tx, inb: inbound.rx, kill: killing.tx, pid })
         }
         None => Err("the keeper of ${program} ended before the process was started")
     }

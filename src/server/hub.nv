@@ -22,11 +22,12 @@ import canopus.product_machines.{find_machines_dir, load_product_machines}
 import alula.machine_run.{AlulaMachine, AlulaState}
 import canopus.acp.{AcpConfig, AcpClient, AcpImage, AcpPreset, AcpQueued, AskSetup, no_ask, open_client_full, acp_link, page_event, refused_event, acp_context_overflow, TRACE_LIMIT}
 import canopus.agent_config.{opencode_env}
+import canopus.process.{ShellRaw}
 import canopus.config.{pick_prompt, ConfigLayout, load_presets, preset_named, preset_family, DEFAULT_PRESET, presets_reply}
 import canopus.config.{PoolEntry, ModelPool, parse_agent_source, preset_pick_weight, pick_source_json, pool_level_ok, resolve_pool_pinned}
 import canopus.config.{load_roles, role_of}
 import canopus.projects.{EnvEntry, projects_get, parse_dotenv, normalize_folder_path, project_has_folder, valid_project_id}
-import canopus.storage.{remove_session_dir, open_data_dir, file_journal, file_replay_journal, replay_history, file_store, list_sessions, valid_session_name, session_file_made, migrate_flat_sessions, image_ext, decode_image, save_image, find_image, replace_file}
+import canopus.storage.{remove_session_dir, open_data_dir, file_journal, file_replay_journal, replay_history, file_store, list_sessions, valid_session_name, session_file_made, migrate_flat_sessions, image_ext, decode_image, save_image, find_image, replace_file, replace_file_parts}
 import canopus.pgstore.{PgWorld, pg_journal, pg_store}
 import canopus.pgdb.{pg_list}
 import std.concurrency.nvchan.{Chan, ChanTx, ChanRx}
@@ -34,11 +35,19 @@ import std.encoding.hex.{Hex}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 import std.fs.{Fs, real_fs}
 import std.prelude.effects.{real_random}
-import std.os.{Os, real_os, cwd, args}
+import std.os.{Os, real_os, cwd, args, pid}
 import std.fs.{Fs, real_fs, Path, read_text, try_exists, create_dir_all}
 
 /// Outgoing: a text for the page `conn`; conn 0 - for every page that is attached.
-export type Outgoing { conn int, text str }
+// For history, text is the JSON prefix and the entries are sent as fragments of one message.
+export type Outgoing { conn int, text str, history Option[[]str] }
+
+export fn Outgoing @complete_text() -> str {
+    match @history {
+        Some(entries) => "${@text}${joined(entries, ",")}]}"
+        None => @text
+    }
+}
 
 // ORACLE-WORKAROUND(29): the record is `Dialog`, not `Session` (the driver has a `Session`); name it `Session` when item 29 is fixed
 type Dialog {
@@ -60,6 +69,8 @@ type Dialog {
     model_announced bool,
     started_at int,
     slow_told bool,
+    agent_event_at int,
+    client_updates int,
     folder str,
     project_id str,
     has_rank bool,
@@ -231,10 +242,22 @@ export type Hub {
     sessions []Dialog,
     restoring JsonObject,
     restore_jobs []str,
+    pump_cursor int,
     restore_commands []RestoreCommand,
     legacy_open []int,
     restore_tx ChanTx[RestoreDone],
     restore_rx ChanRx[RestoreDone],
+    orphan_swept_at int,
+    orphan_running bool,
+    orphan_tx ChanTx[ShellRaw],
+    orphan_rx ChanRx[ShellRaw],
+    index_tasks JsonObject,
+    index_states JsonObject,
+    index_signature str,
+    index_next int,
+    index_pending bool,
+    index_tx ChanTx[SessionIndexMetadata],
+    index_rx ChanRx[SessionIndexMetadata],
     conns []int,
     out []Outgoing,
     log []str,
@@ -252,6 +275,9 @@ export type Hub {
     choices []PendingChoice,
     reviews []Review,
     route_obs int,
+    route_git_pending bool,
+    route_git_tx ChanTx[RouteGitResult],
+    route_git_rx ChanRx[RouteGitResult],
     marks []MachMark,
     trees_tx ChanTx[TreeDone],
     trees_rx ChanRx[TreeDone],
@@ -372,13 +398,14 @@ fn feed_with_client(pg bool, root str, mut s Dialog, mut client AcpClient, event
     }
 }
 
-fn pump_in(pg bool, root str, mut s Dialog) Time -> int {
+fn pump_in(pg bool, root str, mut s Dialog, bounded bool) Time -> int {
+    ro link = acp_link(s.clients[0], bounded: bounded)
     if pg {
-        with Journal = pg_journal(s.world), Store = pg_store(s.world), Link = acp_link(s.clients[0]) {
+        with Journal = pg_journal(s.world), Store = pg_store(s.world), Link = link {
             s.engine.pump()
         }
     } else {
-        with Journal = file_journal(root, s.id), Store = file_store(root), Link = acp_link(s.clients[0]) {
+        with Journal = file_journal(root, s.id), Store = file_store(root), Link = link {
             s.engine.pump()
         }
     }
@@ -526,7 +553,7 @@ fn Hub @find(id str) -> int {
 }
 
 fn Hub mut @send(conn int, text str) -> () {
-    @out.push(Outgoing { conn, text })
+    @out.push(Outgoing { conn, text, history: None })
 }
 
 // The accepted events of a session become lines of the page; the lines are kept and sent to every page.
@@ -538,6 +565,8 @@ fn Hub mut @drain(at int) Time -> () {
     for e in s.engine.take_events() {
         if s.machine_tail.len() == MACHINE_JOURNAL_LINES { s.machine_tail.remove(0) }
         s.machine_tail.push(e)
+        // task 317: the message that opened the turn is the zero point; the agent's own ACP updates renew the count
+        if e.kind == EventKind.Input && e.name == "user_message" { s.agent_event_at = e.at }
         if e.name == "usage_update" && s.clients.len() > 0 {
             ro size = jnumber(jobject(e.input) ?? JsonObject.new(), "size")
             ro model = jtext(jobject(s.clients[0].options()) ?? JsonObject.new(), "model_id")
@@ -642,13 +671,18 @@ export fn Hub @catalog_agents() -> []str => @catalog.keys()
 
 // Older sessions may have a task record without a route attachment. The
 // record's application session is an explicit link, independent of its title.
-fn indexed_task_records(root str) -> JsonObject {
+type SessionIndexMetadata { tasks JsonObject, states JsonObject }
+
+fn indexed_task_records(root str, sessions []str) -> JsonObject {
     mut records = JsonObject.new()
     for name in dir_names(root) {
         ro record = jobject(read_file("${root}/${name}/state.json") ?? "") ?? JsonObject.new()
         ro application = jchild(record, "application") ?? JsonObject.new()
         ro session = jtext(application, "session")
-        if session == "" || jtext(record, "status") != "done" { continue }
+        if jtext(record, "status") != "done" { continue }
+        mut matches = false
+        for id in sessions { if id == session { matches = true; break } }
+        if !matches { continue }
         if records.get(session).is_some() {
             jput(records, session, JsonValue.null())
             continue
@@ -663,12 +697,79 @@ fn indexed_task_records(root str) -> JsonObject {
     records
 }
 
-fn add_indexed_task(mut input JsonObject, mut task_indexes JsonObject, session str) -> () {
+fn read_session_index_metadata(tx ChanTx[SessionIndexMetadata], folders []str, paths []str, ids []str) -> () {
+    mut tasks = JsonObject.new()
+    for folder in folders {
+        jput(tasks, folder, JsonValue.object(indexed_task_records("${folder}/doc/tasks", ids)))
+    }
+    mut states = JsonObject.new()
+    for path in paths {
+        ro record = jobject(read_file("${path}/state.json") ?? "") ?? JsonObject.new()
+        ro status = jtext(record, "status")
+        if status != "" { js(states, path, status) }
+    }
+    ro sent = tx.send(SessionIndexMetadata { tasks, states })
+}
+
+fn Hub mut @schedule_session_index_metadata() Detach Time -> () {
+    if @index_pending || now_millis() < @index_next { return }
+    @index_next = now_millis() + 5000
+    mut folders = []str.new()
+    mut paths = []str.new()
+    mut ids = []str.new()
+    for key in @restoring.keys() {
+        ro item = jchild(@restoring, key) ?? JsonObject.new()
+        ro input = jchild(item, "input") ?? JsonObject.new()
+        ro folder = jtext(input, "folder")
+        if jtext(input, "task_number") == "" && jtext(input, "project_id") != "" && folder != "" {
+            if !folders.contains(folder) { folders.push(folder) }
+            ids.push(key)
+        }
+    }
+    for s in @sessions {
+        if s.rt.task_open && s.rt.number != "" {
+            if s.rt.task_dir != "" {
+                ro path = task_artifact_dir(s.rt.task_dir)
+                if !paths.contains(path) { paths.push(path) }
+            }
+        } else if s.project_id != "" && s.folder != "" {
+            if !folders.contains(s.folder) { folders.push(s.folder) }
+            ids.push(s.id)
+        }
+    }
+    if folders.len() == 0 && paths.len() == 0 && @index_tasks.keys().len() == 0 && @index_states.keys().len() == 0 { return }
+    ro scan_folders = folders
+    ro scan_paths = paths
+    ro scan_ids = ids
+    ro tx = @index_tx
+    @index_pending = true
+    detach { read_session_index_metadata(tx, scan_folders, scan_paths, scan_ids) }
+}
+
+/// Install a snapshot between command batches. The cache file and connected pages use the same metadata.
+export fn Hub mut @pump_session_index_metadata() Detach Time -> bool {
+    mut changed = false
+    match @index_rx.try_recv() {
+        Some(snapshot) => {
+            @index_pending = false
+            ro signature = JsonValue.object(snapshot.tasks).to_str() + JsonValue.object(snapshot.states).to_str()
+            if signature != @index_signature {
+                @index_signature = signature
+                @index_tasks = snapshot.tasks
+                @index_states = snapshot.states
+                changed = true
+                if @conns.len() > 0 { @send(0, "{\"kind\":\"sessions_index\",\"entries\":${@session_index()}}") }
+            }
+        }
+        None => ()
+    }
+    @schedule_session_index_metadata()
+    changed
+}
+
+fn add_indexed_task(mut input JsonObject, task_indexes JsonObject, session str) -> () {
     ro folder = jtext(input, "folder")
     if jtext(input, "project_id") == "" || folder == "" { return }
-    if !task_indexes.get(folder).is_some() {
-        jput(task_indexes, folder, JsonValue.object(indexed_task_records("${folder}/doc/tasks")))
-    }
     ro records = jchild(task_indexes, folder) ?? JsonObject.new()
     ro record = jchild(records, session) ?? JsonObject.new()
     ro number = jnumber(record, "n")
@@ -682,54 +783,56 @@ fn add_indexed_task(mut input JsonObject, mut task_indexes JsonObject, session s
 /// Small, journal-derived index. No message, request, or tool output is included.
 export fn Hub @session_index() -> str {
     mut entries = []str.new()
-    mut task_indexes = JsonObject.new()
+    ro task_indexes = @index_tasks
     for key in @restoring.keys() {
         match @restoring.get(key) {
             Some(entry) => {
-                mut item = entry.object() ?? JsonObject.new()
-                mut input = jchild(item, "input") ?? JsonObject.new()
-                if jtext(input, "task_number") == "" { add_indexed_task(input, task_indexes, key) }
-                jput(item, "input", JsonValue.object(input))
-                entries.push(JsonValue.object(item).to_str())
+                match entry.object() {
+                    Some(mut item) => {
+                        mut input = jchild(item, "input") ?? JsonObject.new()
+                        if jtext(input, "task_number") == "" { add_indexed_task(input, task_indexes, key) }
+                        jput(item, "input", JsonValue.object(input))
+                        entries.push(JsonValue.object(item).to_str())
+                    }
+                    None => ()
+                }
             }
             None => ()
         }
     }
-    for s in @sessions {
-        mut input = JsonObject.new()
-        if s.lines.len() > 0 {
-            ro first = jobject(s.lines[0]) ?? JsonObject.new()
-            if jtext(first, "kind") == "session_created" {
-                ro created = jchild(first, "input") ?? JsonObject.new()
-                for key in ["project", "parent", "parent_kind"] {
-                    match created.get(key) {
-                        Some(value) => jput(input, key, value)
-                        None => ()
-                    }
+    for s in @sessions { entries.push(session_index_entry(s, task_indexes, @index_states)) }
+    array_text(entries)
+}
+
+fn session_index_entry(s Dialog, task_indexes JsonObject, task_states JsonObject) -> str {
+    mut input = JsonObject.new()
+    if s.lines.len() > 0 {
+        ro first = jobject(s.lines[0]) ?? JsonObject.new()
+        if jtext(first, "kind") == "session_created" {
+            ro created = jchild(first, "input") ?? JsonObject.new()
+            for key in ["project", "parent", "parent_kind"] {
+                match created.get(key) {
+                    Some(value) => jput(input, key, value)
+                    None => ()
                 }
             }
         }
-        jput(input, "name", JsonValue.str(s.name))
-        jput(input, "agent", JsonValue.str(s.agent))
-        jput(input, "folder", JsonValue.str(s.folder))
-        jput(input, "project_id", JsonValue.str(s.project_id))
-        if s.has_rank { jput(input, "rank", JsonValue.int(s.rank)) }
-        add_list_status(input, s)
-        if s.rt.task_open && s.rt.number.byte_len() > 0 {
-            jput(input, "task_number", JsonValue.str(s.rt.number))
-            jput(input, "task_title", JsonValue.str(s.rt.title))
-            ro task_dir = s.rt.task_dir
-            ro task_state = if task_dir == "" { "" } else {
-                ro record = jobject(read_file("${task_artifact_dir(task_dir)}/state.json") ?? "") ?? JsonObject.new()
-                jtext(record, "status")
-            }
-            jput(input, "task_state", JsonValue.str(if task_state == "" { s.rt.tstate } else { task_state }))
-        } else {
-            add_indexed_task(input, task_indexes, s.id)
-        }
-        entries.push(event_line("summary-${s.id}", s.id, 0, "session_created", input, s.rt.active_at))
     }
-    array_text(entries)
+    jput(input, "name", JsonValue.str(s.name))
+    jput(input, "agent", JsonValue.str(s.agent))
+    jput(input, "folder", JsonValue.str(s.folder))
+    jput(input, "project_id", JsonValue.str(s.project_id))
+    if s.has_rank { jput(input, "rank", JsonValue.int(s.rank)) }
+    add_list_status(input, s)
+    if s.rt.task_open && s.rt.number.byte_len() > 0 {
+        jput(input, "task_number", JsonValue.str(s.rt.number))
+        jput(input, "task_title", JsonValue.str(s.rt.title))
+        ro task_state = if s.rt.task_dir == "" { "" } else { jtext(task_states, task_artifact_dir(s.rt.task_dir)) }
+        jput(input, "task_state", JsonValue.str(if task_state == "" { s.rt.tstate } else { task_state }))
+    } else {
+        add_indexed_task(input, task_indexes, s.id)
+    }
+    event_line("summary-${s.id}", s.id, 0, "session_created", input, s.rt.active_at)
 }
 
 fn add_list_status(mut input JsonObject, s Dialog) -> () {
@@ -774,7 +877,7 @@ export fn Hub mut @save_history_previews() Fs -> () {
             if jtext(@history_saved, s.id) != marker {
                 match session_file_made(@settings.data_dir, s.id, "history-preview.json") {
                     Some(path) => {
-                        if replace_file(path, "{\"entries\":${array_text(s.lines)},\"route\":${route}}") {
+                        if replace_file_parts(path, s.lines, ",", "{\"entries\":[", "],\"route\":${route}}") {
                             js(@history_saved, s.id, marker)
                         }
                     }
@@ -797,8 +900,15 @@ fn Hub mut @send_history(conn int, trace str, known JsonObject) Time -> () {
     ro matched = known_last.byte_len() > 0 && known_last == jtext(last, "id")
     ro same = if matched && known_count == count { "true" } else { "false" }
     ro from = if matched && jflag(known, "delta") { known_count } else { 0 }
-    ro entries = if same == "true" { "[]" } else { array_text(s.lines[from..count]) }
-    @send(conn, "{\"kind\":\"session_history\",\"trace\":${JsonValue.str(trace).to_str()},\"unchanged\":${same},\"from\":${from},\"entries\":${entries}}")
+    ro prefix = "{\"kind\":\"session_history\",\"trace\":${JsonValue.str(trace).to_str()},\"unchanged\":${same},\"from\":${from},\"entries\":["
+    if same == "true" || from == count {
+        @send(conn, "${prefix}]}")
+    } else {
+        // The writer owns this list of immutable entry strings while the hub can append events.
+        mut entries = []str.new(cap: count - from)
+        for i in from..count { entries.push(s.lines[i]) }
+        @out.push(Outgoing { conn, text: prefix, history: Some(entries) })
+    }
     @route_line(conn, trace, @route_state_text(at))
     @machine_line(conn, at, @machine_since(trace))
     for line in s.rt.reqs { @send(conn, line) }
@@ -993,6 +1103,18 @@ fn Hub mut @env_of(s Dialog) -> []EnvEntry {
 /// configuration stays the authoritative belt; this one is the voluntary second line.
 export const HUB_AGENT_ENV = "CANOPUS_AGENT_OF_HUB"
 
+/// Task 317: the turn deadline of the hub (seconds) is given to every agent it starts: the watchdog of the bridge
+/// to the agent fires a little earlier, so the hub gets a red turn instead of silence when the backend is dropped.
+export const AGENT_TURN_DEADLINE_ENV = "CANOPUS_TURN_DEADLINE_SECONDS"
+
+/// The environment of an agent with the turn deadline of the hub set (an entry of the project with the same name is replaced).
+export fn with_turn_deadline(env []EnvEntry, idle_term_ms int) -> []EnvEntry {
+    mut out = []EnvEntry.new()
+    for e in env { if e.key != AGENT_TURN_DEADLINE_ENV { out.push(e) } }
+    out.push(EnvEntry { key: AGENT_TURN_DEADLINE_ENV, value: "${idle_term_ms / 1000}" })
+    out
+}
+
 /// The environment of an agent of the hub with the marker set (an entry of the project with the same name is replaced).
 export fn with_hub_marker(env []EnvEntry) -> []EnvEntry {
     mut out = []EnvEntry.new()
@@ -1003,27 +1125,71 @@ export fn with_hub_marker(env []EnvEntry) -> []EnvEntry {
 
 // Task 192.9: the OpenCode that the hub starts gets the configuration of the owner without the plugin canopus (`agent_config.nv`): the variable XDG_CONFIG_HOME over the variables of the project.
 // Task 304: every agent (not only opencode) also carries the marker CANOPUS_AGENT_OF_HUB=1 (`with_hub_marker`).
+// Task 317: every agent also carries the turn deadline of the hub (`with_turn_deadline`).
 fn Hub mut @agent_env(agent str, base []EnvEntry) -> []EnvEntry {
     mut out = []EnvEntry.new()
     for e in base { out.push(e) }
+    ro marked = with_turn_deadline(with_hub_marker(out), @settings.idle_term_ms)
     match @settings.agent(agent) {
         Some(spec) => {
             ro word = "${spec.id} ${spec.program}".to_ascii_lower()
-            if !word.contains("opencode") { return with_hub_marker(out) }
+            if !word.contains("opencode") { return marked }
             // D454: boundary override inside non-test code, see module-conventions
             ro extra = with Fs = real_fs(), Os = real_os() { opencode_env(@settings.layout.cache) }
             if extra.len() == 0 {
                 @say_log("the agent ${agent} starts with the configuration of the owner as it is (no clean copy of it)")
-                return with_hub_marker(out)
+                return marked
             }
             mut merged = []EnvEntry.new()
             for e in out { if e.key != "XDG_CONFIG_HOME" { merged.push(e) } }
             for e in extra { merged.push(e) }
-            return with_hub_marker(merged)
+            with_turn_deadline(with_hub_marker(merged), @settings.idle_term_ms)
         }
-        None => return with_hub_marker(out)
+        None => marked
     }
 }
+
+fn Hub @roster_path() -> str => "${@settings.layout.state}/${CHILD_ROSTER_DIR}"
+
+fn Hub mut @roster_note(child int, agent str) Proc Detach Time -> () {
+    ro own = with Os = real_os() { pid() }
+    ro script = orphan_script()
+    ro roster = @roster_path()
+    // off the start path: the helper is bounded by the shared runner; the agent's own Tree.Group stays the
+    // first line of cleanup, the roster record is the second
+    detach { ro ignored = process_registry(script, "Register", roster, own, child) }
+}
+
+fn Hub mut @orphan_sweep() Proc Detach Time -> () {
+    match @orphan_rx.try_recv() {
+        Some(result) => {
+            @orphan_running = false
+            for line in registry_report(result) { @say_log(line) }
+        }
+        None => ()
+    }
+    ro now = now_millis()
+    if @orphan_running || now - @orphan_swept_at < ORPHAN_SWEEP_MS { return }
+    @orphan_swept_at = now
+    @orphan_running = true
+    ro own = with Os = real_os() { pid() }
+    ro script = orphan_script()
+    ro roster = @roster_path()
+    ro tx = @orphan_tx
+    detach {
+        ro result = process_registry(script, "Sweep", roster, own, 0)
+        ro told = tx.send(result)
+    }
+}
+
+// task 317: the hub watch lets the machine's own turn term fire first; it acts only after this extra silence.
+const WATCH_GRACE_MS = 30000
+
+// A CLI that advertised sign-in methods but is not ready by then needs the owner, not a longer wait.
+const AUTH_NOTICE_MS = 8000
+
+// A turn on an agent that advertises a sign-in and stays silent this long is closed with that hint.
+const AUTH_SILENCE_MS = 30000
 
 fn Hub @execution_problem(at int) Proc Detach Time -> str {
     ro shared = @sessions[at]
@@ -1079,13 +1245,17 @@ fn Hub mut @ensure_client(at int) Proc Detach Time -> str {
         s.clients[0].set_dispatch_family(s.agent)
         ro phase = s.clients[0].phase()
         ro same = preparation_same_launch(s.clients[0].config, config)
-        if same && (phase == "ready" || phase == "initializing" || phase == "opening") { return "" }
+        // task 317: a cancelled turn the engine already closed but the agent never answered must not block the
+        // next prompt for good, and must not let the old turn's late updates into the new one: start a fresh agent
+        ro unanswered_cancel = phase == "ready" && s.clients[0].cancelling() && s.engine.open_ids().len() == 0
+        if same && !unanswered_cancel && (phase == "ready" || phase == "initializing" || phase == "opening") { return "" }
         s.clients[0].close()
         s.clients = []AcpClient.new()
     }
     match open_client_full(config, @trace_path_of(s), TRACE_LIMIT, if preparation { no_ask() } else { @ask_for(s.agent, s.id) }, if preparation { []EnvEntry.new() } else { @agent_env(s.agent, @env_of(s)) }) {
             Ok(client) => {
                 s.clients.push(client)
+                @roster_note(s.clients[0].pid(), s.agent)
                 s.clients[0].set_dispatch_family(s.agent)
                 // the choices of the owner for this family go to every agent started for the session (task 192t)
                 if !preparation { s.clients[0].set_presets(presets_for(s.chosen, s.agent)) }
@@ -1158,9 +1328,12 @@ fn start_hub_mode(settings ServerSettings, table_text str, background bool) Proc
     ro trees_chan = Chan[TreeDone].new(64)
     ro notes_chan = Chan[str].new(64)
     ro restores = Chan[RestoreDone].new(64)
+    ro orphan_jobs = Chan[ShellRaw].new(1)
+    ro route_git = Chan[RouteGitResult].new(1)
+    ro index_metadata = Chan[SessionIndexMetadata].new(1)
     mut hub = Hub {
         preparation_fixtures: []PreparationFixture.new(),
-        handoffs: []ContextHandoff.new(), model_probes: []ModelProbe.new(), probe_results: JsonObject.new(), context_sizes: JsonObject.new(), settings, machine, work_mode, approval_policy, workdir, sessions: []Dialog.new(), restoring: JsonObject.new(), restore_jobs: []str.new(), restore_commands: []RestoreCommand.new(), legacy_open: []int.new(), restore_tx: restores.tx, restore_rx: restores.rx, conns: []int.new(), out: []Outgoing.new(), log: []str.new(), serial: 0, mcps: []McpServer.new(), mcp_pending: []McpPending.new(), mcp_serial: 0, ctl_letters: []CtlLetter.new(), ctl_waits: []CtlWait.new(), ctl_serial: 0, catalog: JsonObject.new(), catalog_dirty: false, history_saved: JsonObject.new(), catalog_saved_at: 0, choices: []PendingChoice.new(), reviews: []Review.new(), route_obs: 0, marks: []MachMark.new(), trees_tx: trees_chan.tx, trees_rx: trees_chan.rx, notes_tx: notes_chan.tx, notes_rx: notes_chan.rx, held: []HeldMsg.new(), reserved: []int.new()
+        handoffs: []ContextHandoff.new(), model_probes: []ModelProbe.new(), probe_results: JsonObject.new(), context_sizes: JsonObject.new(), settings, machine, work_mode, approval_policy, workdir, sessions: []Dialog.new(), restoring: JsonObject.new(), restore_jobs: []str.new(), pump_cursor: 0, restore_commands: []RestoreCommand.new(), legacy_open: []int.new(), restore_tx: restores.tx, restore_rx: restores.rx, orphan_swept_at: 0, orphan_running: false, orphan_tx: orphan_jobs.tx, orphan_rx: orphan_jobs.rx, index_tasks: JsonObject.new(), index_states: JsonObject.new(), index_signature: "", index_next: 0, index_pending: false, index_tx: index_metadata.tx, index_rx: index_metadata.rx, conns: []int.new(), out: []Outgoing.new(), log: []str.new(), serial: 0, mcps: []McpServer.new(), mcp_pending: []McpPending.new(), mcp_serial: 0, ctl_letters: []CtlLetter.new(), ctl_waits: []CtlWait.new(), ctl_serial: 0, catalog: JsonObject.new(), catalog_dirty: false, history_saved: JsonObject.new(), catalog_saved_at: 0, choices: []PendingChoice.new(), reviews: []Review.new(), route_obs: 0, route_git_pending: false, route_git_tx: route_git.tx, route_git_rx: route_git.rx, marks: []MachMark.new(), trees_tx: trees_chan.tx, trees_rx: trees_chan.rx, notes_tx: notes_chan.tx, notes_rx: notes_chan.rx, held: []HeldMsg.new(), reserved: []int.new()
     }
     if hub.wants_mcp() { ro started = hub.start_mcp() }
     ro pg = settings.store == "pg"
@@ -1201,6 +1374,10 @@ fn start_hub_mode(settings ServerSettings, table_text str, background bool) Proc
                 }
                 None => ()
             }
+        }
+        // A cache miss carries the ID but has no display metadata until the journal is restored.
+        for id in ids {
+            if hub.restoring.get(id).is_none() { jput(hub.restoring, id, JsonValue.null()) }
         }
         // New questions must not reuse ids of a session whose journal is still restoring.
         if hub.restoring.keys().len() > 0 {
@@ -1262,6 +1439,8 @@ export fn Hub mut @pump_restores() Proc Detach Time -> () {
     if @prioritize_agent_start() { return }
     match @restore_rx.try_recv() {
         Some(done) => {
+            ro metadata = @restoring.get(done.id) ?? JsonValue.null()
+            ro publish_index = metadata.object().is_none()
             mut remaining = []str.new()
             for id in @restore_jobs { if id != done.id { remaining.push(id) } }
             @restore_jobs = remaining
@@ -1275,7 +1454,13 @@ export fn Hub mut @pump_restores() Proc Detach Time -> () {
             ro installing = now_millis()
             @install_restore(done.id, done.prepared)
             ro at = @find(done.id)
-            if at >= 0 { @send_list_status(@sessions[at]) }
+            if at >= 0 {
+                if publish_index && @conns.len() > 0 {
+                    ro entry = session_index_entry(@sessions[at], @index_tasks, @index_states)
+                    @send(0, "{\"kind\":\"sessions_index\",\"entries\":[${entry}]}")
+                }
+                @send_list_status(@sessions[at])
+            }
             ro install_ms = now_millis() - installing
             if done.replay_ms + install_ms >= 500 {
                 @say_log("restore ${done.id}: journal ${done.replay_ms} ms, install ${install_ms} ms")
@@ -1312,9 +1497,17 @@ fn Hub mut @install_restore(id str, prepared Option[PreparedRestore]) Proc Detac
         None => @say_log("the session ${id} cannot be resumed: no usable snapshot")
         Some(restored) => {
             ro engine = restored.engine
-            mut s = Dialog { id, name: id, agent: "", engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, folder: "", project_id: "", has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
+            mut s = Dialog { id, name: id, agent: "", engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, agent_event_at: 0, client_updates: 0, folder: "", project_id: "", has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
             ro tail_start = if restored.events.len() > MACHINE_JOURNAL_LINES { restored.events.len() - MACHINE_JOURNAL_LINES } else { 0 }
             s.machine_tail = restored.events[tail_start..restored.events.len()]
+            // task 317: a turn open after the restart counts its silence from the last live sign in the journal;
+            // a turn without such a sign starts the count now
+            for e in s.machine_tail {
+                if e.kind == EventKind.Progress || e.kind == EventKind.Answered || (e.kind == EventKind.Input && e.name == "user_message") {
+                    s.agent_event_at = e.at
+                }
+            }
+            if s.engine.open_ids().len() > 0 && s.agent_event_at == 0 { s.agent_event_at = now_millis() }
             mut saw_created = false
             // the questions of the MCP tool the journal shows open (task 263): they wait for the owner again after the restart, marked
             // late — the call of the agent died with the process, so the answer reaches the agent as a letter
@@ -1481,7 +1674,7 @@ fn Hub mut @cs_make_session(cid str, name str, agent str, folder str, project_id
     ro root = @settings.data_dir
     mut world = PgWorld.open(@settings.pg, cid)
     ro engine = begin_session_engine(pg, root, world, @machine, cid)
-    mut s = Dialog { id: cid, name, agent, engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
+    mut s = Dialog { id: cid, name, agent, engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, agent_event_at: 0, client_updates: 0, folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
     accept_in(pg, root, s, Incoming.signal("session_created", meta_text_child(name, agent, folder, "", project_id, parent, pkind)))
     @add_session(s)
     ro at = @sessions.len() - 1
@@ -1531,7 +1724,7 @@ fn Hub mut @create(conn int, trace str, input JsonObject) Proc Detach Time -> ()
             ro root = @settings.data_dir
             mut world = PgWorld.open(@settings.pg, trace)
             ro engine = begin_session_engine(pg, root, world, @machine, trace)
-            mut s = Dialog { id: trace, name, agent, engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, folder: launch.folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
+            mut s = Dialog { id: trace, name, agent, engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, agent_event_at: 0, client_updates: 0, folder: launch.folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
             accept_in(pg, root, s, Incoming.signal("session_created", meta_text(name, agent, launch.folder, project, project_id)))
             @add_session(s)
             ro at = @sessions.len() - 1
@@ -2318,6 +2511,7 @@ fn Hub mut @switch_agent(trace str, agent str) Proc Detach Time -> () {
             if s.clients.len() > 0 { s.clients[0].close() }
             s.clients = []AcpClient.new()
             s.clients.push(client)
+            @roster_note(s.clients[0].pid(), agent)
             // this family has choices of its own (kept in the journal); those of the family left are not carried over
             s.clients[0].set_presets(presets_for(s.chosen, agent))
             s.agent = agent
@@ -2416,6 +2610,7 @@ fn Hub mut @start_context_handoff(trace str, source JsonObject) Proc Detach Time
         Err(reason) => @tell_error(0, trace, s.engine.step_number(), "", "Не удалось запустить ${target} для переноса")
         Ok(consume started) => {
             mut client = AcpClient { ...started }
+            @roster_note(client.pid(), target)
             client.stage_handoff()
             mut required = []AcpPreset.new()
             for key in ["model", "effort"] {
@@ -2439,7 +2634,10 @@ fn Hub mut @handoff_client(s Dialog, family str, receiving bool) Proc Detach Tim
     }
     ro temporary = acp_config_of(config.program, config.args, config.cwd, "")
     ro ask = if receiving { @ask_for(family, s.id) } else { no_ask() }
-    open_client_full(temporary, "", 0, ask, @agent_env(family, @env_of(s)))
+    match open_client_full(temporary, "", 0, ask, @agent_env(family, @env_of(s))) {
+        Ok(client) => { @roster_note(client.pid(), family); Ok(client) }
+        Err(reason) => Err(reason)
+    }
 }
 
 fn Hub mut @model_probe_result(listener ProbeListener, status str) Time -> () {
@@ -2483,6 +2681,7 @@ fn Hub mut @start_model_probe(conn int, trace str, input JsonObject) Proc Detach
         Err(reason) => @model_probe_result(listener, "unavailable")
         Ok(consume started) => {
             mut client = AcpClient { ...started }
+            @roster_note(client.pid(), family)
             client.stage_handoff()
             client.set_source([AcpPreset { setting: "model", value: model }])
             with Link = acp_link(client) {
@@ -3168,6 +3367,12 @@ fn Hub mut @watch_agent(at int) Time -> () {
         accept_in(@settings.store == "pg", @settings.data_dir, s, Incoming.signal("setting_dropped", dropped_text(s.agent, d.setting, d.value, d.used)))
         told = true
     }
+    // a genuine session/update the client accepted is the only sign that the backend is alive (task 317)
+    ro updates = s.clients[0].updates()
+    if updates != s.client_updates {
+        s.client_updates = updates
+        s.agent_event_at = now_millis()
+    }
     ro phase = s.clients[0].phase()
     if s.approval_pending.byte_len() > 0 {
         ro failed = phase == "failed"
@@ -3186,6 +3391,24 @@ fn Hub mut @watch_agent(at int) Time -> () {
         }
     }
     if s.announced {
+        // task 317: a turn that is open and silent past the deadline is closed by the hub itself.
+        // The deadline is the idle term the machine itself uses (idle_term_seconds, 900 s): one knob.
+        // The machine closes its request on its own term; this watch is the second tier — it needs only
+        // the hub's stamp of the last live sign, so the turn is closed with a visible error even when
+        // the bookkeeping of the engine leaves the request open past every renewal.
+        ro open = s.engine.open_ids()
+        ro quiet_for = now_millis() - s.agent_event_at
+        if @settings.idle_term_ms > 0 && open.len() > 0 && s.agent_event_at > 0 {
+            // the machine closes the turn on its own term first (a durable `no_answer_in_time`); this watch is the
+            // second tier and acts only when that term is clearly overdue, feeding the engine the same Expired event
+            if quiet_for > @settings.idle_term_ms + WATCH_GRACE_MS {
+                ro last = if s.machine_tail.len() > 0 { s.machine_tail[s.machine_tail.len() - 1].name } else { "" }
+                @say_log("turn deadline of ${s.id}: no agent event for ${quiet_for / 1000} s (last ${last}); the turn is closed by the hub watch")
+                feed_in(@settings.store == "pg", @settings.data_dir, s, Incoming.incoming(EventKind.Expired, "timeout", Some(open[0]), ""))
+                @drain(at)
+                return
+            }
+        }
         @sessions[at] = s
         if told { @drain(at) }
         return
@@ -3194,6 +3417,18 @@ fn Hub mut @watch_agent(at int) Time -> () {
     if !s.slow_told && phase != "ready" && phase != "failed" && now_millis() - s.started_at > 10000 {
         s.slow_told = true
         @say_log("the agent of ${s.id} is still starting (phase ${phase}): ${s.clients[0].stderr_tail()}")
+    }
+    // task 317: an agent that offers sign-in methods and does not become ready tells the owner what to do,
+    // instead of a silent turn; the session stays alive and the next message starts a new agent
+    if !s.announced && (phase == "initializing" || phase == "opening") && s.clients[0].auth_methods().byte_len() > 0 && now_millis() - s.started_at > AUTH_NOTICE_MS {
+        s.announced = true
+        ro methods = s.clients[0].auth_methods()
+        @say_log("the agent of ${s.id} needs a sign-in: ${methods}")
+        s.clients[0].close()
+        s.clients = []AcpClient.new()
+        @sessions[at] = s
+        @tell_error(0, s.id, s.engine.step_number(), if s.engine.open_ids().len() > 0 { s.turn } else { "" }, "агент ${s.agent} требует вход: ${methods}. Войдите в CLI и повторите ход; сессия жива")
+        return
     }
     // task 192.8: an agent that does not answer `initialize` in `agent_start_timeout_seconds` is told to the owner (a red line); the session stays alive, the next message starts a new agent
     if !s.announced && phase != "ready" && phase != "failed" && now_millis() - s.started_at > @settings.agent_start_ms {
@@ -3240,7 +3475,10 @@ fn Hub mut @watch_agent(at int) Time -> () {
             @approval_result(s.id, s.agent, true, options: s.clients[0].options())
         }
         @say_log("the agent of ${s.id} refused to start: ${why}")
-        @tell_error(0, s.id, s.engine.step_number(), if s.engine.open_ids().len() > 0 { s.turn } else { "" }, "the agent refused to start: ${why}")
+        // task 317: the same refusal, when the agent offered sign-in methods, tells the owner what to do next
+        ro sign_in = s.clients[0].auth_methods()
+        ro refused_text = if sign_in.byte_len() > 0 { "агент ${s.agent} требует вход: ${sign_in}. Войдите в CLI и повторите ход; сессия жива (${why})" } else { "the agent refused to start: ${why}" }
+        @tell_error(0, s.id, s.engine.step_number(), if s.engine.open_ids().len() > 0 { s.turn } else { "" }, refused_text)
     }
     @sessions[at] = s
     if model_arrived { @drain(at) }
@@ -3260,27 +3498,35 @@ fn Hub @prioritize_agent_start() Time -> bool {
 }
 
 /// The work of a moment: the agents are asked for what they have, the engines take it. Returns the number of steps made.
-export fn Hub mut @pump() Proc Detach Time -> int {
+export fn Hub mut @pump(agent_budget_ms int = 0) Proc Detach Time -> int {
     ro pumped_at = now_millis()
     @mcp_poll()
     @poll_context_handoffs()
     @poll_model_probes()
     mut made = 0
-    mut at = 0
-    while at < @sessions.len() {
+    ro count = @sessions.len()
+    mut at = if agent_budget_ms > 0 && @pump_cursor < count { @pump_cursor } else { 0 }
+    mut remaining = count
+    while remaining > 0 && @sessions.len() > 0 {
+        if at >= @sessions.len() { at = 0 }
         mut s = @sessions[at]
         if s.clients.len() > 0 && !@has_running_handoff(s.id) {
-            made += pump_in(@settings.store == "pg", @settings.data_dir, s)
+            made += pump_in(@settings.store == "pg", @settings.data_dir, s, agent_budget_ms > 0)
             @drain(at)
             @watch_agent(at)
         }
         at += 1
+        remaining -= 1
+        if agent_budget_ms > 0 && now_millis() - pumped_at >= agent_budget_ms { break }
     }
+    // Resume the agent sweep after serving pending WebSocket attachments.
+    @pump_cursor = at
     @catalog_save(false)
     @prompt_flush()
     @wip_poll()
     @route_pump()
     @machine_pump()
+    @orphan_sweep()
     if now_millis() - pumped_at > 5000 { @say_log("slow: the pump took ${now_millis() - pumped_at} ms") }
     made
 }

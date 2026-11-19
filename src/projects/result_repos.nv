@@ -3,7 +3,8 @@
 module canopus.projects
 
 import std.fs.{Fs, real_fs, Path, canonicalize, read_text, write_atomic, create_dir_all, try_exists, read_dir}
-import std.os.{Os, real_os, Command, Tree}
+import std.os.{Os, real_os, Command}
+import canopus.process.{command_run_timed}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 import std.text
 
@@ -20,18 +21,8 @@ fn rr_git(dir str, args []str) Proc -> Result[str, str] {
         command.arg(dir)
         for arg in args { command.arg(arg) }
         command.env("GIT_TERMINAL_PROMPT", "0")
-        command.tree(Tree.Group)
-        mut text = ""
-        mut ok = false
-        with Fail[TimeoutError] = |_e| { () } {
-            supervised(timeout: 10000.to_millis()) {
-                match command.output() {
-                    Ok(out) => { if out.status.code() == 0 { text = out.stdout.to_str_lossy().trim_ascii(); ok = true } }
-                    Err(e) => ()
-                }
-            }
-        }
-        if ok { Ok(text) } else { Err("git did not finish successfully") }
+        ro run = command_run_timed(command, 10000)
+        if run.finished && run.code == 0 { Ok(run.out.to_str_lossy().trim_ascii()) } else { Err("git did not finish successfully") }
     }
 }
 

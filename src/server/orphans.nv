@@ -1,0 +1,52 @@
+module canopus.server
+
+import canopus.config.{install_paths}
+import canopus.process.{ShellRaw, command_run_timed}
+import std.os.{Command, Os, real_os}
+import std.fs.{Fs, real_fs}
+
+export const ORPHAN_SWEEP_MS = 600000
+export const CHILD_ROSTER_DIR = "agent-children"
+
+fn orphan_script() -> str {
+    // D454: installed assets are resolved at the application's filesystem boundary.
+    ro installed = with Os = real_os(), Fs = real_fs() { install_paths() }
+    "${installed.root}/scripts/hub-processes.ps1"
+}
+
+fn process_registry(script str, action str, roster str, owner int, child int) Proc Time -> ShellRaw {
+    mut command = Command.new("powershell.exe")
+    for arg in ["-NoProfile", "-NonInteractive", "-File", script, "-Action", action, "-Roster", roster, "-HubPid", "${owner}"] { command.arg(arg) }
+    if action == "Register" { command.arg("-ChildPid"); command.arg("${child}") }
+    command_run_timed(command, SHELL_RUN_MS)
+}
+
+/// The register answer: the helper proves the child's identity and kinship with this hub before the record appears.
+fn registry_registered(result ShellRaw) -> bool {
+    if !result.finished || result.code != 0 || result.note != "" { return false }
+    ro body = jobject(result.out.to_str_lossy()) ?? JsonObject.new()
+    jflag(body, "ok")
+}
+
+/// The sweep answer as log lines: only a well-formed answer of the helper may report endings.
+fn registry_report(result ShellRaw) -> []str {
+    mut lines = []str.new()
+    ro body = jobject(result.out.to_str_lossy()) ?? JsonObject.new()
+    if !result.finished || !jflag(body, "ok") {
+        lines.push("orphan sweep failed; no unverified process was terminated")
+        return lines
+    }
+    for item in jlist(body, "ended") {
+        match item.int() {
+            Some(child) => lines.push("orphan sweep ended verified process ${child}")
+            None => ()
+        }
+    }
+    for item in jlist(body, "errors") {
+        match item.str() {
+            Some(reason) => lines.push("orphan sweep: ${reason}")
+            None => ()
+        }
+    }
+    lines
+}

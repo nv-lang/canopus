@@ -3,7 +3,7 @@
 module canopus.storage
 
 import alula.engine.{Journal, Store, JournalEntry, Snapshot, journal_event, param}
-import std.fs.{Fs, real_fs, Path, read_text, write_text, remove_dir_all, try_exists, create_dir_all}
+import std.fs.{Fs, real_fs, File, Path, read_text, write_text, remove_dir_all, try_exists, create_dir_all}
 import std.os.{Os, real_os, temp_dir, pid}
 
 // A clean data folder of one test, outside the repository: <temp>/canopus-storage-test-<pid>-<name>.
@@ -169,6 +169,43 @@ test "journal: a torn last line (the process died inside a write) is skipped, an
         assert(all.len() == 2)
         assert(all[0].event.value_of("text") == Some("a"))
         assert(all[1].event.value_of("text") == Some("after the tear"))
+    }
+}
+
+test "file replacement: history larger than 4100 KiB is written in order across batches" {
+    ro root = fresh_root("history-parts")
+    assert(open_data_dir(root))
+    ro path = Path.from_bytes("${root}/preview.json".bytes())
+    ro row = "x".repeat(4096)
+    mut rows = []str.new()
+    for _ in 0..1025 { rows.push(row) }
+    // Also exercise bypassing the batch with a single oversized event.
+    ro large = "y".repeat(70 * 1024)
+    rows.push(large)
+    with Fs = real_fs() {
+        assert(replace_file(path, "stale"))
+        assert(replace_file_parts(path, rows, ",", "[", "]"))
+        consume f = match File.open(path) {
+            Ok(consume file) => file
+            Err(_) => panic("preview missing")
+        }
+        mut actual []u8 = []u8.new()
+        actual.resize(4097, 0 as u8)
+        mut offset = 0
+        for i in 0..1025 {
+            assert(f.read_at(actual, offset).unwrap() == actual.len())
+            assert(actual[0] == (if i == 0 { 91 as u8 } else { 44 as u8 }))
+            assert(actual[1..4097].to_str_lossy() == row)
+            offset += actual.len()
+        }
+        actual.resize(large.byte_len() + 2, 0 as u8)
+        assert(f.read_at(actual, offset).unwrap() == actual.len())
+        assert(actual.to_str_lossy() == ",${large}]")
+        assert(f.read_at(actual, offset + actual.len()).unwrap() == 0)
+        assert(f.close().is_ok())
+        assert(replace_file_parts(path, []str.new(), ",", "[", "]"))
+        assert(read_text(path).unwrap() == "[]")
+        assert(remove_dir_all(Path.from_bytes(root.bytes())).is_ok())
     }
 }
 

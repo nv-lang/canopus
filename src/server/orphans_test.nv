@@ -1,0 +1,29 @@
+// orphans_test.nv - task 317: the hub reads the answers of the process registry helper strictly.
+module canopus.server
+
+import canopus.process.{ShellRaw}
+
+fn raw(text str, code int, finished bool) -> ShellRaw => { finished, code, out: text.bytes(), err: []u8.new(), note: "" }
+
+test "orphans: only a well-formed register answer counts as registered" {
+    assert(registry_registered(raw("{\"ok\":true}", 0, true)))
+    assert(!registry_registered(raw("{\"ok\":false,\"error\":\"child-parent-mismatch\"}", 1, true)))
+    assert(!registry_registered(raw("not json", 0, true)))
+    assert(!registry_registered(raw("{\"ok\":true}", 0, false)))
+    assert(!registry_registered({ finished: true, code: 0, out: "{\"ok\":true}".bytes(), err: []u8.new(), note: "the child wait failed" }))
+}
+
+test "orphans: the sweep answer names ended processes and keeps errors visible" {
+    ro ended = registry_report(raw("{\"ok\":true,\"ended\":[11,22],\"errors\":[]}", 0, true))
+    assert(ended.len() == 2 && ended[0].contains("11") && ended[1].contains("22"))
+    ro mixed = registry_report(raw("{\"ok\":true,\"ended\":[11],\"errors\":[\"entry-1:child-termination-timeout\"]}", 1, true))
+    assert(mixed.len() == 2)
+    assert(mixed[0].contains("11") && mixed[1].contains("child-termination-timeout"))
+}
+
+test "orphans: a failed or malformed sweep never claims that anything was ended" {
+    ro failed = registry_report(raw("{\"ok\":false,\"error\":\"helper-initialization-failed\"}", 1, true))
+    assert(failed.len() == 1 && failed[0].contains("no unverified process"))
+    ro corrupt = registry_report(raw("<html>", 0, true))
+    assert(corrupt.len() == 1 && corrupt[0].contains("no unverified process"))
+}

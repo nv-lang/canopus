@@ -80,7 +80,7 @@ fn kit_install_task_adapter() -> () {
     if installed.root == source { return }
     ro temporary = with Os = real_os() { temp_dir().display().replace("\\", "/") }
     if !kit_real_path(installed.root).starts_with("${kit_real_path(temporary)}/") { panic("test adapter destination is not temporary") }
-    for file in ["scripts/task-store.mjs", "opencode-plugin/shared-task-store.ts", "opencode-plugin/shared-task-config.ts", "opencode-plugin/shared-task-snapshot.ts", "opencode-plugin/task-numbers.ts"] {
+    for file in ["scripts/task-store.mjs", "scripts/hub-processes.ps1", "opencode-plugin/shared-task-store.ts", "opencode-plugin/shared-task-config.ts", "opencode-plugin/shared-task-snapshot.ts", "opencode-plugin/task-numbers.ts"] {
         ro text = with Fs = real_fs() {
             match read_text(Path.from_bytes("${source}/${file}".bytes())) {
                 Ok(body) => body
@@ -299,7 +299,7 @@ export fn renamed_table_text() -> str {
 
 fn Rig mut @collect() -> () {
     for o in @hub.take_output() {
-        @heard.push(Heard { conn: o.conn, text: o.text, to: if o.conn == 0 { @hub.attached() } else { [o.conn] } })
+        @heard.push(Heard { conn: o.conn, text: o.complete_text(), to: if o.conn == 0 { @hub.attached() } else { [o.conn] } })
     }
 }
 
@@ -1446,6 +1446,41 @@ export fn scenario_restart_idle(settings ServerSettings) Proc Detach Time Net Fs
     c.expect(kit_unique(lines) && kit_increasing(lines), "the ids are unique and the steps grow across the restart")
     again.shut()
     c.report()
+}
+
+/// Without an index cache, page attach is available before any journal has been restored.
+export fn scenario_cold_page_index(settings ServerSettings) Proc Detach Time Net Fs Os -> str {
+    mut c = kit_check()
+    mut rig = rig_open(settings)
+    rig.attach(1)
+    rig.page(1, "session_created", "s-cold-index", "{\"name\":\"Cold index\",\"agent\":\"opencode\"}")
+    c.expect(rig.hub.session_ids().contains("s-cold-index"), "the source session exists")
+    rig.shut()
+
+    match start_hub_for_pages(settings) {
+        Err(reason) => reason
+        Ok(mut again) => {
+            c.expect(again.session_ids().len() == 0, "cache miss does not replay a journal during startup")
+            again.attach_lazy(7)
+            mut ready = false
+            for event in again.take_output() {
+                if event.conn == 7 && event.text.contains("\"sessions_ready\"") && event.text.contains("\"s-cold-index\"") { ready = true }
+            }
+            c.expect(ready, "the attached page knows the pending session ID")
+            ro deadline = now_millis() + 5000
+            mut announced = false
+            while !announced && now_millis() < deadline {
+                again.pump_restores()
+                for event in again.take_output() {
+                    if event.conn == 0 && event.text.contains("\"sessions_index\"") && event.text.contains("Cold index") { announced = true }
+                }
+                if !announced { 10.to_millis().sleep() }
+            }
+            c.expect(announced, "the connected page receives the restored session metadata")
+            again.close()
+            c.report()
+        }
+    }
 }
 
 // The folder of a session back to the flat files of the older form (`<root>/<id>/journal` -> `<root>/<id>.journal`); the folder is removed.

@@ -1,4 +1,4 @@
-﻿{
+{
     "kind":  "own-tree-before",
     "scope":  "all readable files including hidden/untracked and task intake; .git treated as file hash only",
     "head":  "26429fa11424f4a5bb0b6a595dc0a95cea6e1601",

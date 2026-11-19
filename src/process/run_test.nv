@@ -1,0 +1,48 @@
+module canopus.process
+
+import std.os.{Command}
+import std.time.{Time}
+
+test "timed process: stdout stderr and exit code are preserved" {
+    mut command = Command.new("node")
+    command.arg("-e")
+    command.arg("process.stdout.write('out'); process.stderr.write('err'); process.exitCode=7")
+    ro result = command_run_timed(command, 5000)
+    assert(result.finished && result.code == 7 && result.note == "")
+    assert(result.out.to_str_lossy() == "out" && result.err.to_str_lossy() == "err")
+}
+
+test "timed process: concurrent pipe draining handles a full output buffer" {
+    mut command = Command.new("node")
+    command.arg("-e")
+    command.arg("process.stdout.write('o'.repeat(262144)); process.stderr.write('e'.repeat(262144))")
+    ro result = command_run_timed(command, 5000)
+    assert(result.finished && result.code == 0)
+    assert(result.out.len() == 262144 && result.err.len() == 262144)
+}
+
+test "timed process: the deadline ends the whole child tree" {
+    mut command = Command.new("node")
+    command.arg("-e")
+    command.arg("require('child_process').spawn(process.execPath,['-e','setTimeout(()=>{},30000)'],{stdio:'inherit'}); setTimeout(()=>{},30000)")
+    ro began = Time.now().unix_millis()
+    ro result = command_run_timed(command, 500)
+    assert(!result.finished && result.note.contains("did not finish"))
+    assert(Time.now().unix_millis() - began < 5000)
+}
+
+test "timed process: a pipe holding descendant cannot outlive its exited parent" {
+    mut command = Command.new("node")
+    command.arg("-e")
+    command.arg("const c=require('child_process').spawn(process.execPath,['-e','setTimeout(()=>{},30000)'],{stdio:'inherit'}); c.unref(); process.exit(0)")
+    ro began = Time.now().unix_millis()
+    ro result = command_run_timed(command, 1000)
+    assert(Time.now().unix_millis() - began < 5000)
+    assert(result.code == 0 || !result.finished)
+}
+
+test "timed process: launch failure is a visible error" {
+    mut command = Command.new("canopus-test-command-does-not-exist")
+    ro result = command_run_timed(command, 500)
+    assert(result.code == -1 && result.note.contains("cannot be started"))
+}

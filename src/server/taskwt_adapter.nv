@@ -305,7 +305,10 @@ export fn tk_head_time(tree str) Proc -> int {
 /// The last run of CI of main as a record of the tests (`has` false - no data).
 export fn tk_main_ci(main_copy str) Proc -> TestsRec {
     // D454: boundary override inside non-test code, see module-conventions
-    ro run = with Os = real_os(), Fs = real_fs() { ci_latest(main_copy) }
+    tests_rec_from_ci(with Os = real_os(), Fs = real_fs() { ci_latest(main_copy) })
+}
+
+fn tests_rec_from_ci(run CiRun) -> TestsRec {
     if !run.found { return tests_rec_none() }
     if run.conclusion == "success" { return TestsRec { has: true, commit: run.sha, at: run.at, result: "green", command: "CI" } }
     if run.conclusion.byte_len() > 0 { return TestsRec { has: true, commit: run.sha, at: run.at, result: "red", command: "CI" } }

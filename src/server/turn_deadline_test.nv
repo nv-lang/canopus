@@ -1,0 +1,23 @@
+// turn_deadline_test.nv - task 317: a turn whose agent goes silent is closed by the
+// idle term with a visible outcome, and the hub keeps serving pages after it. The
+// machine's own term (`no_answer_in_time`) and the hub watch in `watch_agent` share
+// the same knob (`idle_term_ms`); either way the page gets a refusal, not silence.
+module canopus.server
+
+test "turn deadline: a silent agent closes the turn by the idle term and the hub stays alive" {
+    mut rig = rig_open(kit_files("turn-deadline", 3000))
+    rig.attach(1)
+    rig.page(1, "session_created", "silent-turn", "{\"name\":\"silent turn\",\"agent\":\"opencode\"}")
+    assert(rig.until("\"kind\":\"session_created\"", 5000), "the session is shown")
+    rig.forget()
+    rig.page(1, "user_message", "silent-turn", "{\"text\":\"silent\"}")
+    // past the idle term the turn closes with a visible refusal, not with silence
+    ro closed = rig.until("\"reason\":\"Timeout\"", 15000)
+    assert(closed, "the silent turn is closed by the idle term")
+    // the hub is still serving: a new turn on the same session is taken
+    rig.forget()
+    rig.page(1, "user_message", "silent-turn", "{\"text\":\"ok\"}")
+    ro answered = rig.until("\"kind\":\"agent_done\"", 20000)
+    assert(answered, "the hub serves the next turn after a timed-out one")
+    rig.shut()
+}

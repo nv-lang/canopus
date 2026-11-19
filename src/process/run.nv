@@ -1,0 +1,68 @@
+module canopus.process
+
+import std.os.{Command, Stdio, Signal, Tree}
+
+export type ShellRaw { finished bool, code int, out []u8, err []u8, note str }
+
+export fn command_run_timed(mut command Command, timeout_ms int) Proc Time -> ShellRaw {
+    mut raw = ShellRaw { finished: false, code: -1, out: []u8.new(), err: []u8.new(), note: "the child did not finish in ${timeout_ms} ms and was ended" }
+    with Fail[TimeoutError] = |_e| { () } {
+        // The outer deadline also bounds pipe draining and cleanup after the leader exits.
+        supervised(timeout: (timeout_ms + 2000).to_millis()) {
+            command.tree(Tree.Group)
+            command.stdin(Stdio.Null)
+            command.stdout(Stdio.Piped)
+            command.stderr(Stdio.Piped)
+            consume child = match command.start() {
+                Ok(consume c) => c
+                Err(e) => { return ShellRaw { finished: true, code: -1, out: []u8.new(), err: []u8.new(), note: "the process cannot be started: ${e}" } }
+            }
+            consume so = child.take_stdout().unwrap()
+            consume se = child.take_stderr().unwrap()
+            ro (out_tx, out_rx) = Channel[[]u8].new(1)
+            ro (err_tx, err_rx) = Channel[[]u8].new(1)
+            spawn consume s = so {
+                mut all = []u8.new()
+                mut buf = []u8.new()
+                buf.resize(16384, 0 as u8)
+                mut reading = true
+                while reading {
+                    match s.read(buf) {
+                        Ok(0) => { reading = false }
+                        Ok(n) => { all.append(buf[..n]) }
+                        Err(e) => { reading = false }
+                    }
+                }
+                ro told = out_tx.send(all)
+            }
+            spawn consume e = se {
+                mut all = []u8.new()
+                mut buf = []u8.new()
+                buf.resize(4096, 0 as u8)
+                mut reading = true
+                while reading {
+                    match e.read(buf) {
+                        Ok(0) => { reading = false }
+                        Ok(n) => { all.append(buf[..n]) }
+                        Err(error) => { reading = false }
+                    }
+                }
+                ro told = err_tx.send(all)
+            }
+            match child.wait_timeout(timeout_ms.to_millis()) {
+                Ok(Some(status)) => {
+                    ro stdout_bytes = out_rx.recv() ?? []u8.new()
+                    ro stderr_bytes = err_rx.recv() ?? []u8.new()
+                    raw = { finished: true, code: status.code(), out: stdout_bytes, err: stderr_bytes, note: "" }
+                }
+                Ok(None) => { ro killed = child.kill(Signal.Terminate) }
+                Err(e) => {
+                    ro killed = child.kill(Signal.Terminate)
+                    raw = { finished: false, code: -1, out: []u8.new(), err: []u8.new(), note: "the child wait failed: ${e}" }
+                }
+            }
+            ro reaped = child.wait_timeout(1000.to_millis())
+        }
+    }
+    raw
+}

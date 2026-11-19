@@ -17,6 +17,7 @@ import std.encoding.json.{JsonValue, JsonObject}
 import std.fs.{Fs, read_text, write_text, remove_file, create_dir_all, try_exists, Path}
 import std.io.{stderr}
 import std.os.{Command, Child, Stdio, Signal, Tree, kill_pid}
+import canopus.process.{command_run_timed}
 import std.net.{real_net}
 
 /// How long the recognizer may take to come up (the model is loaded before it listens).
@@ -130,10 +131,8 @@ export fn stt_process_is_whisper(pid int) Proc -> bool {
     command.arg("/FO")
     command.arg("CSV")
     command.arg("/NH")
-    match command.output() {
-        Ok(out) => stt_tasklist_is_whisper(out.stdout.to_str_lossy(), pid)
-        Err(e) => false
-    }
+    ro run = command_run_timed(command, 10000)
+    run.finished && run.code == 0 && stt_tasklist_is_whisper(run.out.to_str_lossy(), pid)
 }
 
 /// The pid of a live `whisper-server` that the pid file names; 0 - none (a file that names something else or nothing is removed).

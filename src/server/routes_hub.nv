@@ -10,6 +10,9 @@ import canopus.config.{modes_dirs, PoolEntry, load_presets, preset_named, preset
 import alula.engine.{Incoming, EventKind, Link}
 import canopus.acp.{AcpClient, AcpConfig, AcpPreset, open_client_traced, acp_link}
 import std.fs.{Fs, real_fs}
+import std.concurrency.nvchan.{ChanTx}
+import std.io.{real_io}
+import std.os.{env, real_os}
 import std.prelude.effects.{real_random}
 import canopus.projects.{projects_get, result_repo_validate}
 import std.encoding.json.{Json, JsonValue, JsonObject}
@@ -120,7 +123,9 @@ fn Hub mut @task_details_get(conn int, trace str) Time -> () {
         }
     }
     if dir == "" && project != "" && folder != "" {
-        ro indexed = jchild(indexed_task_records("${folder}/doc/tasks"), trace) ?? JsonObject.new()
+        mut sessions = []str.new()
+        sessions.push(trace)
+        ro indexed = jchild(indexed_task_records("${folder}/doc/tasks", sessions), trace) ?? JsonObject.new()
         dir = jtext(indexed, "directory")
         number = task_number_text(jnumber(indexed, "n"))
     }
@@ -1270,26 +1275,85 @@ fn Hub mut @route_pump_reviews() Proc Detach Time -> () {
 // The place of the subtask in the list of the tasks that go on: the files it says it touches, from its progress file.
 fn Hub @route_touches(s Dialog, n int) -> []str => tk_touches(read_file("${task_artifact_dir(s.rt.task_dir)}/${s.rt.prog_file(n)}") ?? "")
 
+type RouteGitRequest { trace str, task_id str, tree str, previous int, tests_path str, main_copy str }
+type RouteGitResult { request RouteGitRequest, unmerged []u8, diff []u8, changes []u8, head []u8, committed []u8, main_tests Option[[]u8] }
+
+fn route_git_job(tx ChanTx[RouteGitResult], request RouteGitRequest) Proc Time -> () {
+    ro trace_ready = with Os = real_os() { env("CANOPUS_TRACE_SESSIONS_READY") ?? "" } == "1"
+    if trace_ready { with Io = real_io() { to_log("sessions_ready ${now_millis()} route git begin") } }
+    ro tree = request.tree
+    ro base = observe_base(tree)
+    ro unmerged = observe_git(tree, ["rev-list", "--count", "${base}..HEAD"]).bytes
+    ro diff = observe_git(tree, ["diff", "--numstat", "--no-renames", "${base}...HEAD"]).bytes
+    ro changes = observe_git(tree, ["status", "--porcelain"]).bytes
+    ro head = observe_git(tree, ["rev-parse", "HEAD"]).bytes
+    ro committed = observe_git(tree, ["log", "-1", "--format=%ct"]).bytes
+    if trace_ready { with Io = real_io() { to_log("sessions_ready ${now_millis()} route git end") } }
+    ro main_tests = if request.main_copy.byte_len() > 0 { Some(ci_latest_bytes(request.main_copy)) } else { None }
+    ro sent = tx.send(RouteGitResult { request, unmerged, diff, changes, head, committed, main_tests })
+}
+
+// One job at a time. The oldest sample goes next, even when a full round takes longer than the polling interval.
+fn Hub mut @route_git_start() Detach Time -> () {
+    if @route_git_pending { return }
+    ro now = now_millis()
+    mut oldest = now - UNMERGED_MS
+    mut at = -1
+    for i in 0..@sessions.len() {
+        ro s = @sessions[i]
+        if s.rt.task_open && s.rt.worktree.byte_len() > 0 && s.rt.unmerged_at < oldest {
+            oldest = s.rt.unmerged_at
+            at = i
+        }
+    }
+    if at < 0 { return }
+    ro s = @sessions[at]
+    ro main_copy = if now - s.rt.ci_at > 120000 { @route_main_copy(s) } else { "" }
+    ro request = RouteGitRequest { trace: s.id, task_id: s.rt.task_id, tree: s.rt.worktree, previous: oldest, tests_path: "${task_artifact_dir(s.rt.task_dir)}/tests-run.json", main_copy }
+    ro tx = @route_git_tx
+    @route_git_pending = true
+    detach { route_git_job(tx, request) }
+}
+
+fn Hub mut @route_git_collect() Time -> () {
+    ro result = match @route_git_rx.try_recv() { Some(value) => value, None => return }
+    @route_git_pending = false
+    ro request = result.request
+    ro at = @find(request.trace)
+    if at < 0 { return }
+    mut s = @sessions[at]
+    if !s.rt.task_open || s.rt.task_id != request.task_id || s.rt.worktree != request.tree || s.rt.unmerged_at != request.previous { return }
+    ro now = now_millis()
+    s.rt.unmerged = result.unmerged.to_str_lossy().trim_ascii().to_int() ?? 0
+    mut diff = []DiffRec.new()
+    for d in parse_diff_stat(result.diff.to_str_lossy()) { diff.push(DiffRec { path: d.path, added: d.added, removed: d.removed }) }
+    s.rt.diff = diff
+    s.rt.dirty = route_has_changes(result.changes.to_str_lossy().lines(), request.task_id)
+    s.rt.unmerged_at = now
+    ro main_tests = match result.main_tests {
+        Some(tests) => {
+            s.rt.ci_at = now
+            tests_rec_from_ci(parse_ci_run(tests.to_str_lossy()))
+        }
+        None => s.rt.extra.main_tests
+    }
+    ro committed = (result.committed.to_str_lossy().trim_ascii().to_int() ?? 0) * 1000
+    ro last = if s.rt.active_at > committed { s.rt.active_at } else { committed }
+    ro days = if last > 0 && now > last { (now - last) / 86400000 } else { 0 }
+    ro keep = @settings.route_keep_days
+    ro branch_tests = tests_rec_parse(read_file(request.tests_path) ?? "")
+    ro head = result.head.to_str_lossy().trim_ascii()
+    s.rt.extra = TaskExtra { branch_tests, head, main_tests, main_source: "ci", idle_days: days, stale: keep > 0 && days >= keep }
+    @sessions[at] = s
+    @route_broadcast(at, false)
+}
+
 fn Hub mut @route_observe(at int) Proc Detach Time -> () {
     mut s = @sessions[at]
     if !s.rt.task_open {
         // task 192.4: no task - the branch of the folder, or the state of the wip tree
         if @wip_observe(at) { @route_broadcast(at, false) }
         return
-    }
-    if s.rt.worktree.byte_len() > 0 && now_millis() - s.rt.unmerged_at > UNMERGED_MS {
-        s.rt.unmerged = tk_unmerged(s.rt.worktree)
-        s.rt.diff = tk_diff(s.rt.worktree)
-        // what the agent changed and did not commit is work too: the card to finish is offered for it
-        s.rt.dirty = @route_dirty(s)
-        s.rt.unmerged_at = now_millis()
-        // the last run of CI of main, asked of GitHub now and then (no `gh`, no network: no data)
-        if now_millis() - s.rt.ci_at > 120000 {
-            s.rt.ci_at = now_millis()
-            s.rt.extra = TaskExtra { branch_tests: s.rt.extra.branch_tests, head: s.rt.extra.head, main_tests: tk_main_ci(@route_main_copy(s)), main_source: "ci", idle_days: s.rt.extra.idle_days, stale: s.rt.extra.stale }
-        }
-        s.rt.extra = @route_extra(s)
-        @sessions[at] = s
     }
     // subtasks that are marked parallel and touch the same files as another one that goes on: the owner is asked (the page counts the seconds down), then the subtask gets a tree of its own
     if s.rt.worktree.byte_len() > 0 && s.rt.job.byte_len() == 0 {
@@ -1520,9 +1584,11 @@ fn Hub mut @route_resolve_again(at int, n int, files []str) Proc Detach Time -> 
 // ----- finishing and publishing -----
 
 // Are there changes in the tree of the task that are not committed? The files of the task itself (`doc/tasks/<task>/`) do not count: the hub writes them.
-fn Hub @route_dirty(s Dialog) Proc -> bool {
-    for line in tk_tree_changes(s.rt.worktree) {
-        if !line.contains("doc/tasks/${s.rt.task_id}/") { return true }
+fn Hub @route_dirty(s Dialog) Proc -> bool => route_has_changes(tk_tree_changes(s.rt.worktree), s.rt.task_id)
+
+fn route_has_changes(lines []str, task_id str) -> bool {
+    for line in lines {
+        if line.trim_ascii().byte_len() > 0 && !line.contains("doc/tasks/${task_id}/") { return true }
     }
     false
 }
@@ -1622,16 +1688,6 @@ fn Hub mut @route_tree_drop(trace str, force bool) Proc Detach Time -> () {
 }
 
 // What the disk and git say of the task of a session (the tests of the branch, the head, how long nobody touched it).
-fn Hub @route_extra(s Dialog) Proc -> TaskExtra {
-    ro head = tk_head(s.rt.worktree)
-    ro rec = tests_rec_parse(read_file("${task_artifact_dir(s.rt.task_dir)}/tests-run.json") ?? "")
-    ro committed = tk_head_time(s.rt.worktree)
-    ro last = if s.rt.active_at > committed { s.rt.active_at } else { committed }
-    ro days = if last > 0 { (now_millis() - last) / 86400000 } else { 0 }
-    ro keep = @settings.route_keep_days
-    TaskExtra { branch_tests: rec, head, main_tests: s.rt.extra.main_tests, main_source: "ci", idle_days: if days < 0 { 0 } else { days }, stale: keep > 0 && days >= keep }
-}
-
 fn Hub mut @route_diff(trace str) Proc Detach Time -> () {
     ro at = @find(trace)
     if at < 0 { return }
@@ -1843,6 +1899,7 @@ fn task_slug_of(id str) -> str {
 
 /// The modes of work at every pump: the steps, the reviews, the observer of the progress files (every 2 s).
 fn Hub mut @route_pump() Proc Detach Time -> () {
+    @route_git_collect()
     mut at = 0
     while at < @sessions.len() {
         ro s = @sessions[at]
@@ -1863,5 +1920,6 @@ fn Hub mut @route_pump() Proc Detach Time -> () {
             @cs_observe(k)
             k += 1
         }
+        @route_git_start()
     }
 }

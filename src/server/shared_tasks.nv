@@ -4,6 +4,11 @@ import std.os.{Command, Os, real_os}
 import std.fs.{Fs, real_fs}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 import canopus.config.{install_paths}
+
+// The call sits on the hub fiber (execution checks, route notes): a child that never
+// closes its pipes parked the whole hub for good (2026-11-17 live). Kill on timeout.
+const SHARED_TASK_MS = 15000
+
 export fn shared_task_call(action str, root str, input str, home str) Proc -> ShellOut {
     if home.byte_len() == 0 { return { ok: false, text: "Shared task instance root is missing" } }
     // D454: explicit application process/filesystem boundary.
@@ -19,11 +24,11 @@ export fn shared_task_call(action str, root str, input str, home str) Proc -> Sh
     command.arg(root)
     command.arg("--json")
     command.arg(input)
-    match command.output() {
-        Ok(out) => { ok: out.status.success(), text: if out.status.success() { out.stdout.to_str_lossy().trim_ascii() } else { out.stderr.to_str_lossy().trim_ascii() } }
-        Err(e) => { ok: false, text: "Shared task adapter could not be started" }
-    }
+    ro run = command_output_timed(command, SHARED_TASK_MS)
+    // finished=false means the child was ended by the timeout: run.out already says so.
+    run.out
 }
+
 // Explicit legacy/test ServerSettings have a flat data root, not an implicitly selected user instance.
 fn Hub @task_store_home() -> str => if @settings.layout.home.byte_len() > 0 { @settings.layout.home } else { @settings.data_dir }
 fn Hub @shared_task_reserve(root str, title str) Proc -> ShellOut {

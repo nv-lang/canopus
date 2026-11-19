@@ -106,19 +106,41 @@ export fn read_lines(path Path) Fs -> []str {
 /// one. A process that dies leaves the old file or the new one, never half of a file. A temporary file left by an earlier
 /// dead process is simply overwritten. True when the file is replaced.
 export fn replace_file(path Path, text str) Fs -> bool {
+    replace_file_parts(path, [text], "", "", "")
+}
+
+const FILE_WRITE_BATCH_BYTES = 64 * 1024
+
+/// Replace a file atomically, writing the parts with a separator between them.
+/// Batch small writes; a single large part goes straight to the file.
+export fn replace_file_parts(path Path, parts []str, separator str, prefix str, suffix str) Fs -> bool {
     ro tmp = Path.from_bytes("${path.display()}.tmp".bytes())
     match File.create(tmp) {
         Err(e) => false
         Ok(consume f) => {
-            mut ok = false
-            match write_all(f, text.bytes()) {
-                Ok(done) => { ok = true }
-                Err(e) => ()
+            mut ok = write_all(f, prefix.bytes()).is_ok()
+            mut batch []u8 = []u8.new()
+            ro gap = separator.bytes()
+            ro empty = []u8.new()
+            mut first = true
+            for part in parts {
+                if !ok { break }
+                ro bytes = part.bytes()
+                ro before = if first { empty } else { gap }
+                first = false
+                if batch.len() + before.len() + bytes.len() > FILE_WRITE_BATCH_BYTES {
+                    ok = write_all(f, batch).is_ok()
+                    batch.resize(0, 0 as u8)
+                }
+                if before.len() + bytes.len() > FILE_WRITE_BATCH_BYTES {
+                    ok = ok && write_all(f, before).is_ok() && write_all(f, bytes).is_ok()
+                } else {
+                    batch.append(before)
+                    batch.append(bytes)
+                }
             }
-            match f.sync_all() {
-                Ok(done) => ()
-                Err(e) => { ok = false }
-            }
+            ok = ok && write_all(f, batch).is_ok() && write_all(f, suffix.bytes()).is_ok()
+            ok = ok && f.sync_all().is_ok()
             match f.close() {
                 Ok(done) => ()
                 Err(e) => { ok = false }
