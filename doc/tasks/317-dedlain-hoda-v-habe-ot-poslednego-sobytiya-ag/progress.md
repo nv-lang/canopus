@@ -22,8 +22,9 @@
 сборочное дерево `canopus-ship`, локальная и remote-ветка `codex/accept-nova-tls`, локальная
 `old-317-pushed`. Резервные ветки `backup/main-before-317-deploy` и `backup/main-before-613e6491` оставлены.
 
-**Хвост задачи (не сделано, отметить при следующей сессии):** полный `nova test` по затронутым модулям
-(не только `canopus.server`) и `prove-red.sh` по всем стражам не перепрогонялись после последних коммитов;
+**Хвост задачи выполнен (2026-11-19):** `prove-red.sh` — доказано 18 из 18, зелёный; полный `nova test` по
+затронутым модулям (`src/process`, `src/acp`, `src/projects`, `src/server`, `src/server/front`, `--jobs 4`,
+`--timeout 900`) — PASS 6, FAIL 0, без TIMEOUT. Осталось не сделанным:
 проверка подсказки в UI для остальных семейств (kimi/codex/zai) не делалась — только qoder; `server_live/hub_test`
 остаётся с базлайновыми отказами `session_list_status` (не регресс 317).
 
