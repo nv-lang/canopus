@@ -256,6 +256,12 @@ command.output() command.start()
         stlib.expect(check(repo, "--commit", bad_commit), 1, "FAIL:")
 
     pr.probe("красная", "index/commit проверяют своё тело делегата, не рабочую копию", snapshots)
+
+    def empty_src():
+        repo = fresh({"README.md": ""})
+        stlib.expect(check(repo), 0, "судить нечего:")
+
+    pr.probe("мишень", "репозиторий без src — судить нечего", empty_src)
     return pr.done()
 
 
