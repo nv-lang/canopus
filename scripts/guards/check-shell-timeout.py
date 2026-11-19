@@ -350,9 +350,11 @@ def judge(source, args, rep):
                 rep.add(path, line, "no-deadline", "output() запрещён: используйте общий command_run_timed")
             elif t[i + 1] == "start" and not watched(code, path, i):
                 rep.add(path, line, "no-watch", "start() требует Tree.Group у команды и wait_timeout + kill у её ребёнка или проверенного делегата")
+    # a tree without src is not the target of this guard: nothing to judge, not a failure
+    if count == 0:
+        return guardlib.Outcome(nothing="нет ни одного .nv в src")
     return guardlib.Outcome(count=count)
 
 
 if __name__ == "__main__":
-    sys.exit(guardlib.run("check-shell-timeout", "файлов .nv в src", judge,
-                          lost="нет ни одного .nv в src"))
+    sys.exit(guardlib.run("check-shell-timeout", "файлов .nv в src", judge))
