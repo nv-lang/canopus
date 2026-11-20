@@ -28,6 +28,6 @@
 
 ## Доноры (пин 2026-11-20)
 
-`openai/codex` @ `4360c5f81` (клон `D:/Sources/readonly/codex`):
+`openai/codex` @ `4360c5f81` (клон клон только для чтения вне репозитория (`openai/codex`, shallow)):
 - И5, провайдер как запись: `codex-rs/model-provider-info/src/lib.rs` (`struct ModelProviderInfo`) — виды учёта (env/bearer/команда/OAuth) и контракт перебоя авторизации.
 - Не заведённая идея sandbox x approval: `codex-rs/protocol/src/config_types.rs` (стр. 104 `enum SandboxMode`) и `codex-rs/protocol/src/protocol.rs` (стр. 1206 `enum AskForApproval`) — два независимых регулятора на профиль.

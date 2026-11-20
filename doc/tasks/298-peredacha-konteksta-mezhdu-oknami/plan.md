@@ -41,6 +41,6 @@
 
 ## Доноры (пин 2026-11-20)
 
-`openai/codex` @ `4360c5f81` (клон `D:/Sources/readonly/codex`):
+`openai/codex` @ `4360c5f81` (клон клон только для чтения вне репозитория (`openai/codex`, shallow)):
 - И4, fork с происхождением: `codex-rs/rollout/src/lib.rs` (`forked_from_id`, `forked_from_ordinal_exclusive`) — брать происхождение переноса.
 - Деталь: сканер хвоста журнала — там же, чтение последних записей без чтения всего файла.

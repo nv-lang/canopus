@@ -111,7 +111,7 @@ Electron-носители.
 
 ## Пины доноров (2026-11-20)
 
-`openai/codex` — shallow-клон для чтения: `D:/Sources/readonly/codex`, ревизия `4360c5f8133632a5655fd28a5e33828c9b76056c`.
+`openai/codex` — shallow-клон для чтения: клон только для чтения вне репозитория (`openai/codex`, shallow), ревизия `4360c5f8133632a5655fd28a5e33828c9b76056c`.
 Пути в таблицах выше записаны по этой ревизии; часть каталогов переименована с момента разбора 2026-11-14:
 `execpolicy` -> `codex-rs/execpolicy-rules`, `hooks` -> `codex-rs/hooks`, `rollout` -> `codex-rs/rollout`,
 `model-provider-info` и `config` — на месте.
