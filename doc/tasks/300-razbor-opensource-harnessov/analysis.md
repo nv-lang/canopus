@@ -101,3 +101,27 @@ Electron-носители.
 ## Материалы проверки
 
 - Полные отчёты сессий-исследователей — в журнале окна; клон Codex оставлен в `%TEMP%\codex-readonly` для проверки деталей.
+
+## Заметка 2026-11-19: сессия ZCode про qoder и остановка задачи 309
+
+Источник — сессия ZCode `sess_334f1590-f2c8-4d6b-b14e-feeaeb5b933b` (974 сообщения, последняя активность 2026-11-17).
+
+- **Сравнение qoder в ней было и уже отражено здесь:** Qoder — закрытый продукт, open-source нет (организация «QoderAI» на GitHub — сторонний тёзка); в плане исключён. Ничего для форка/переноса из qoder по этой линии не планировалось.
+- **Где остановилась сессия:** на регистрации задачи 309 в живом приложении. Механический признак — `doc/tasks/309-…/task/state.json`; файла нет (в `task/` только `message.md`), карточки в UI нет; глобального списка задач у панели нет. Дальнейший шаг — за владельцем: штатно создать задачу в приложении с указанием существующей папки 309 (с подтверждением в форме) и так же зарегистрировать follow-up «хаб теряет обработчики эффектов»; при отказе приложения принять папку — принести текст отказа.
+
+## Пины доноров (2026-11-20)
+
+`openai/codex` — shallow-клон для чтения: `D:/Sources/readonly/codex`, ревизия `4360c5f8133632a5655fd28a5e33828c9b76056c`.
+Пути в таблицах выше записаны по этой ревизии; часть каталогов переименована с момента разбора 2026-11-14:
+`execpolicy` -> `codex-rs/execpolicy-rules`, `hooks` -> `codex-rs/hooks`, `rollout` -> `codex-rs/rollout`,
+`model-provider-info` и `config` — на месте.
+
+| Идея | Донор: файл:строки | Что смотреть |
+|---|---|---|
+| И1 исходы стражей | `codex-rs/execpolicy-rules/src/policy.rs` (enum Decision, `Decision::Prompt`, ок. 310), `rule.rs` | три исхода Allow/Prompt/Deny и как Prompt не блокирует |
+| И2 конфиг с провенансом | `codex-rs/config/src/config_layer_source.rs` (`enum ConfigLayerSource` стр. 9, `precedence()` стр. 80) | слой у каждого значения, конфликт — ошибка |
+| И1+И2 хуки | `codex-rs/hooks/src/types.rs` (`enum HookResult` стр. 15: Success/FailedContinue/FailedAbort) | три исхода и запрет верхнему слою переписывать включение нижнего |
+| И4 rollout-fork | `codex-rs/rollout/src/lib.rs` (`forked_from_id`, `forked_from_ordinal_exclusive`) | происхождение форка и чтение хвоста |
+| И5 провайдер как запись | `codex-rs/model-provider-info/src/lib.rs` (`struct ModelProviderInfo`) | вид учёта (env/bearer/команда/OAuth), контракт перебоя авторизации |
+| sandbox x approval (не заведено) | `codex-rs/protocol/src/config_types.rs` стр. 104 (`enum SandboxMode`), `codex-rs/protocol/src/protocol.rs` стр. 1206 (`enum AskForApproval`) | два независимых регулятора на профиль |
+| сканер хвоста (деталь И4) | `codex-rs/rollout/src/lib.rs` | чтение последних записей без чтения всего файла |

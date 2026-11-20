@@ -33,3 +33,9 @@
 ## Границы
 
 - Не меняет форму задания (`message.md`), не блокирует мердж молча, не трогает правила чужих веток (6а), не переносит код из разобранных репозиториев (только идеи и формы).
+
+## Доноры (пин 2026-11-20)
+
+`openai/codex` @ `4360c5f81` (клон `D:/Sources/readonly/codex`):
+- И1, исходы стражей: `codex-rs/execpolicy-rules/src/policy.rs` (enum Decision, `Decision::Prompt`), `rule.rs` — брать форму Allow/Prompt/Deny и правило «Prompt не блокирует, а спрашивает».
+- И2, слои: `codex-rs/config/src/config_layer_source.rs` (стр. 9 `enum ConfigLayerSource`, стр. 80 `precedence()`), `codex-rs/hooks/src/types.rs` (стр. 15 `enum HookResult`: Success/FailedContinue/FailedAbort) — брать провенанс и «верхний слой не переписывает нижний».
