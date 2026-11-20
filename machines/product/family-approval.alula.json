@@ -1,5 +1,5 @@
 {
-  "kind":"machine","alula_version":"0.31","machine":"FamilyApprovalPolicy","revision":1,"title":"Выбор родного режима семьи",
+  "kind":"machine","alula_version":"0.32","machine":"FamilyApprovalPolicy","revision":1,"title":"Выбор родного режима семьи",
   "parties":[{"name":"хаб","id":"hub","kind":"free_input","signals":[{"name":"offered"},{"name":"unknown"},{"name":"apply"},{"name":"close"}]}],
   "initial":"Unverified",
   "states":[
@@ -14,5 +14,5 @@
     ]},
     {"name":"Closed","kind":"end","reads":[]}
   ],
-  "ends":{"result":"text","rows":[{"state":"Closed","n":1,"when":{"op":"lit","value":true},"answer":{"kind":"answer","value":{"op":"lit","value":"closed"}}}]}
+  "ends":{"result":"str","rows":[{"state":"Closed","n":1,"when":{"op":"lit","value":true},"answer":{"kind":"answer","value":{"op":"lit","value":"closed"}}}]}
 }

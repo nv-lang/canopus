@@ -70,9 +70,9 @@ test "v213 tables have no empty keys" {
     }
 }
 
-test "v213 tables say 0.31" {
+test "v213 tables say 0.32" {
     for name in all_tables() {
-        assert(text_of_file(table_files(), name).contains("alula_version: 0.31\n"))
+        assert(text_of_file(table_files(), name).contains("alula_version: 0.32\n"))
     }
 }
 

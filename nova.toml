@@ -58,7 +58,11 @@ tls = { git = "https://github.com/nv-lang/nova-tls", version = "0.2" }
 # Version 0.31.0 (the tag v0.31.0, the lambda in the form of Nova, the owner's decision 2026-11-19) is Alula 0.31: a lambda is written `|x| expr`, a two-place one `|a, b| expr`, the former `x => expr` /
 # `(a, b) => expr` is an error; in a table cell the bars are escaped `\|x\|`, in a code block `|x|`; the branches of `выбор`, the bodies of functions, strings and comments are not touched, the tree node
 # `lambda` {params, body} stays; the package reads only the format 0.31, the tables of `machines/` are moved to it by its script `tools/migrate-alula-231.py` (task 319).
-alula = { git = "https://github.com/nv-lang/nova-alula", version = "0.31.0" }
+# Version 0.32.0 (the tag v0.32.0, AL-160, the owner's decision 2026-11-19) is Alula 0.32: the type words of the tree `machine/2` are the words of Nova, `str` and `f64` instead of `text` and `float`;
+# the nodes, the wire keys and the 13 tool signatures stay, the text of the files stays (its words are already `строка`/`str` and `вещественное`/`f64`); the seam 2.25 keeps `text`/`float`
+# (version-aware emission), the check against the registry normalizes `str` as `text` and `f64` as `float`; the package reads only the format 0.32, the tables of `machines/` are moved to it
+# by its script `tools/migrate-alula-232.py` (task 321).
+alula = { git = "https://github.com/nv-lang/nova-alula", version = "0.32.0" }
 
 [package]
 name = "canopus"
