@@ -610,9 +610,10 @@ fn Hub mut @ctx_watch(at int) Proc Detach Time -> () {
         fresh.push(s.lines[i])
         i += 1
     }
-    ro r = ctx_scan(fresh, s.rt.ctx_used, s.rt.ctx_size, @settings.context_drop_percent)
+    ro r = ctx_scan(fresh, s.rt.ctx_used, s.rt.ctx_size, @settings.context_drop_percent, s.rt.ctx_session)
     mut me = @sessions[at]
     me.rt.ctx_scan = s.lines.len()
+    me.rt.ctx_session = r.session
     me.rt.ctx_used = r.used
     me.rt.ctx_size = r.size
     if r.before > 0 { me.rt.told = false }
@@ -621,10 +622,13 @@ fn Hub mut @ctx_watch(at int) Proc Detach Time -> () {
     // window (compaction_update arrived together with the post-compaction usage_update) does not put the new value in `before`.
     mut agent_reported = me.rt.ctx_agent_compact
     mut used_so_far = s.rt.ctx_used
+    mut session = s.rt.ctx_session
     for line in fresh {
         ro kind = ctx_kind(line)
-        if kind == "agent_switched" || kind == "session_created" { used_so_far = 0; agent_reported = false }
+        if kind == "agent_switched" || kind == "session_created" { used_so_far = 0; agent_reported = false; session = "" }
         if kind == "usage_update" {
+            ro current = ctx_session(line)
+            if current != session { used_so_far = 0; agent_reported = false; session = current }
             ro u = ctx_num(line, "used")
             if u > 0 { used_so_far = u }
         }

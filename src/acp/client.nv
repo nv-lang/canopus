@@ -571,7 +571,15 @@ fn AcpClient mut @on_update(params JsonValue) -> () {
         Some(u) => u
         None => JsonValue.null()
     }
-    ro projected = project_update(update)
+    mut projected = project_update(update)
+    if projected.name == "usage_update" {
+        mut usage = match Json.parse(projected.input) {
+            Ok(v) => v.object() ?? JsonObject.new()
+            Err(e) => JsonObject.new()
+        }
+        put(usage, "sessionId", JsonValue.str(session))
+        projected = Projection { name: projected.name, input: JsonValue.object(usage).to_str() }
+    }
     if field_text(update, "sessionUpdate") == Some("available_commands_update") {
         // task 192.11: the commands the agent says it has, "со слов агента" for the view of the request
         mut seen = []str.new()

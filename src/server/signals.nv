@@ -60,7 +60,7 @@ export fn signals_from_agent() -> []CodeSignal => [
     cs("tool_call", "progress", "src/acp/project.nv: project_update", "JSON text", false),
     cs("canopus_marker", "progress", "src/acp/client.nv: AcpClient.push_answer_part (a marker cut out of the answer, src/acp/marker.nv)", "text (JSON text)", false),
     cs("tool_call_update", "progress", "src/acp/project.nv: project_update", "JSON text", false),
-    cs("usage_update", "progress", "src/acp/project.nv: project_update", "JSON text", false),
+    cs("usage_update", "progress", "src/acp/project.nv: project_update; src/acp/client.nv: on_update adds ACP identity", "used, size, sessionId, optional cost (JSON text)", false),
     cs("compaction_update", "progress", "src/acp/project.nv: project_update (task 305: the agent reports its own compaction; opencode v2 and those like it)", "status, compactionId (JSON text)", false),
     cs("plan", "progress", "src/acp/project.nv: project_update", "JSON text", false),
     cs("permission_request", "progress", "src/acp/project.nv: project_permission", "JSON text", false),

@@ -303,23 +303,23 @@ test "canopus_task: the kinds are new, extend, child and epic; the old subtask a
 fn ctx_line(kind str, used int, size int) -> str => "{\"kind\":\"${kind}\",\"trace\":\"s\",\"input\":{\"used\":${used},\"size\":${size}}}"
 
 test "context: a fall of used by more than the percent is a compaction; a smaller fall, a rise, a change of the agent and the off switch are not" {
-    ro drop = ctx_scan([ctx_line("usage_update", 100000, 200000), ctx_line("usage_update", 30000, 200000)], 0, 0, 40)
+    ro drop = ctx_scan([ctx_line("usage_update", 100000, 200000), ctx_line("usage_update", 30000, 200000)], 0, 0, 40, "")
     assert(drop.before == 100000 && drop.after == 30000 && drop.used == 30000 && drop.size == 200000)
     // the value of the earlier pass is remembered between two looks
-    ro second = ctx_scan([ctx_line("usage_update", 20000, 200000)], 100000, 200000, 40)
+    ro second = ctx_scan([ctx_line("usage_update", 20000, 200000)], 100000, 200000, 40, "")
     assert(second.before == 100000 && second.after == 20000)
-    ro mild = ctx_scan([ctx_line("usage_update", 100000, 200000), ctx_line("usage_update", 70000, 200000)], 0, 0, 40)
+    ro mild = ctx_scan([ctx_line("usage_update", 100000, 200000), ctx_line("usage_update", 70000, 200000)], 0, 0, 40, "")
     assert(mild.before == 0 && mild.used == 70000)
-    ro rise = ctx_scan([ctx_line("usage_update", 10000, 200000), ctx_line("usage_update", 90000, 200000)], 0, 0, 40)
+    ro rise = ctx_scan([ctx_line("usage_update", 10000, 200000), ctx_line("usage_update", 90000, 200000)], 0, 0, 40, "")
     assert(rise.before == 0)
-    ro switched = ctx_scan([ctx_line("usage_update", 100000, 200000), "{\"kind\":\"agent_switched\",\"input\":{}}", ctx_line("usage_update", 1000, 200000)], 0, 0, 40)
+    ro switched = ctx_scan([ctx_line("usage_update", 100000, 200000), "{\"kind\":\"agent_switched\",\"input\":{}}", ctx_line("usage_update", 1000, 200000)], 0, 0, 40, "")
     assert(switched.before == 0 && switched.used == 1000)
-    ro off = ctx_scan([ctx_line("usage_update", 100000, 200000), ctx_line("usage_update", 1000, 200000)], 0, 0, 0)
+    ro off = ctx_scan([ctx_line("usage_update", 100000, 200000), ctx_line("usage_update", 1000, 200000)], 0, 0, 0, "")
     assert(off.before == 0)
-    ro first = ctx_scan([ctx_line("usage_update", 1000, 200000)], 0, 0, 40)
+    ro first = ctx_scan([ctx_line("usage_update", 1000, 200000)], 0, 0, 40, "")
     assert(first.before == 0 && first.used == 1000)
-    assert(ctx_scan([], 5, 9, 40).used == 5)
-    ro missing = ctx_scan([ctx_line("usage_update", 0, 200000)], 80189, 200000, 40)
+    assert(ctx_scan([], 5, 9, 40, "").used == 5)
+    ro missing = ctx_scan([ctx_line("usage_update", 0, 200000)], 80189, 200000, 40, "")
     assert(missing.before == 0 && missing.used == 80189)
 }
 
@@ -472,4 +472,25 @@ test "settings of the task: the confidence that applies an addition at once is h
 test "canopus_task: the page gets the minutes of silence of the agent (task 192.14)" {
     ro o = cht_j(silent_view_extend("{}", 7)).object() ?? JsonObject.new()
     assert(((o.get("silent_minutes") ?? JsonValue.null()).int() ?? 0) == 7)
+}
+
+test "context: usage from different ACP sessions is not compaction" {
+    ro old = "{\"kind\":\"usage_update\",\"input\":{\"sessionId\":\"acp-old\",\"used\":100000,\"size\":200000}}"
+    ro fresh = "{\"kind\":\"usage_update\",\"input\":{\"sessionId\":\"acp-new\",\"used\":1000,\"size\":200000}}"
+    ro result = ctx_scan([old, fresh], 0, 0, 40, "")
+    assert(result.before == 0 && result.used == 1000)
+}
+
+test "context: ACP identity survives scans and genuine compaction still counts" {
+    ro old = "{\"kind\":\"usage_update\",\"input\":{\"sessionId\":\"acp-old\",\"used\":100000,\"size\":200000}}"
+    ro fresh = "{\"kind\":\"usage_update\",\"input\":{\"sessionId\":\"acp-new\",\"used\":1000,\"size\":200000}}"
+    ro first = ctx_scan([old], 0, 0, 40, "")
+    ro second = ctx_scan([fresh], first.used, first.size, 40, first.session)
+    assert(second.before == 0 && second.session == "acp-new" && second.used == 1000)
+    ro same = ctx_scan([fresh], 100000, 200000, 40, "acp-new")
+    assert(same.before == 100000 && same.after == 1000)
+    ro reset = ctx_scan(["{\"kind\":\"usage_update\",\"input\":{\"sessionId\":\"acp-new\",\"used\":0}}"], first.used, first.size, 40, first.session)
+    assert(reset.before == 0 && reset.used == 0 && reset.size == 0 && reset.session == "acp-new")
+    ro kept = ctx_scan([], second.used, second.size, 40, second.session)
+    assert(kept.session == "acp-new" && kept.used == 1000)
 }

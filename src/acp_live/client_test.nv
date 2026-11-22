@@ -413,6 +413,7 @@ test "agent: tools, plan, usage, thought, unknown" {
         assert(events[7].input.contains("hologram_chunk"))
         assert(events[2].input.contains("call_001"))
         assert(events[5].input.contains("53000"))
+        assert(events[5].input.contains("\"sessionId\":\"sess_fake_1\""))
         assert(text_of(events) == "Готово")
     }
     client.close()

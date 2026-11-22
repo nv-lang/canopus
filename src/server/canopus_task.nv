@@ -652,7 +652,7 @@ export fn hints_added(hints []HintRec, ms int, kind str, text str) -> []HintRec 
 }
 
 /// CtxScan: the result of `ctx_scan`: the last `used` and `size`, and `before` / `after` of the last compaction found (`before` 0 - none).
-export type CtxScan { used int, size int, before int, after int }
+export type CtxScan { used int, size int, before int, after int, session str }
 
 fn ctx_num(line str, key str) -> int {
     ro parsed = match Json.parse(line) {
@@ -671,17 +671,30 @@ fn ctx_kind(line str) -> str {
     (parsed.get("kind") ?? JsonValue.null()).str() ?? ""
 }
 
+// The ACP identity travels with usage; a missing identity is the legacy stream.
+fn ctx_session(line str) -> str {
+    ro parsed = match Json.parse(line) {
+        Ok(v) => v.object() ?? JsonObject.new()
+        Err(e) => JsonObject.new()
+    }
+    ro input = (parsed.get("input") ?? JsonValue.null()).object() ?? JsonObject.new()
+    (input.get("sessionId") ?? JsonValue.null()).str() ?? ""
+}
+
 /// Look through the new lines of the journal of a session: every `usage_update {used, size}` is compared with the one before it (`prev_used`, 0 - none yet); a fall by more than `drop_percent`
-/// percent is a compaction of the context of the agent. A change of the agent (`agent_switched`) or the start of the session forgets the old value, so it is not a compaction. `drop_percent` 0 - off.
-export fn ctx_scan(lines []str, prev_used int, prev_size int, drop_percent int) -> CtxScan {
+/// percent is a compaction of the context of the agent. A change of the agent (`agent_switched`) or the start of the session forgets the old value, so it is not a compaction. `drop_percent` 0 - off. ACP sessionId changes reset the usage and size baseline.
+export fn ctx_scan(lines []str, prev_used int, prev_size int, drop_percent int, prev_session str) -> CtxScan {
+    mut session = prev_session
     mut prev = prev_used
     mut size = prev_size
     mut before = 0
     mut after = 0
     for line in lines {
         ro kind = ctx_kind(line)
-        if kind == "agent_switched" || kind == "session_created" { prev = 0 }
+        if kind == "agent_switched" || kind == "session_created" { prev = 0; size = 0; session = "" }
         if kind == "usage_update" {
+            ro current = ctx_session(line)
+            if current != session { prev = 0; size = 0; session = current }
             ro used = ctx_num(line, "used")
             ro sz = ctx_num(line, "size")
             if sz > 0 { size = sz }
@@ -693,7 +706,7 @@ export fn ctx_scan(lines []str, prev_used int, prev_size int, drop_percent int) 
             prev = used
         }
     }
-    CtxScan { used: prev, size, before, after }
+    CtxScan { used: prev, size, before, after, session }
 }
 
 /// Has one of the lines a compaction reported by the agent itself (task 305): the kind `compaction_update` with the status

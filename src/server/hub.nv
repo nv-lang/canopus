@@ -1620,9 +1620,18 @@ fn Hub mut @install_restore(id str, prepared Option[PreparedRestore]) Proc Detac
                 // Restore the context baseline without emitting new compaction signals.
                 if e.kind == EventKind.Input && (e.name == "session_created" || e.name == "agent_switched") {
                     s.rt.ctx_used = 0
+                    s.rt.ctx_size = 0
+                    s.rt.ctx_session = ""
                 }
                 if e.kind == EventKind.Progress && e.name == "usage_update" {
                     ro usage = jobject(e.input) ?? JsonObject.new()
+                    ro session = jtext(usage, "sessionId")
+                    if session != s.rt.ctx_session {
+                        s.rt.ctx_used = 0
+                        s.rt.ctx_size = 0
+                        s.rt.ctx_session = session
+                        s.rt.ctx_agent_compact = false
+                    }
                     ro used = jnumber(usage, "used")
                     ro size = jnumber(usage, "size")
                     if used > 0 { s.rt.ctx_used = used }
