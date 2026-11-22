@@ -1,4 +1,4 @@
-// ext_live_test.nv - the addition to an open task applied at once (task 192.7) over a hub with the fake ACP agent in a repository: the scenario `scenario_route_auto_extend` of canopus.server/ext_kit.nv.
+// ext_live_test.nv - owner-confirmed additions (313), with a fake ACP agent in a repository.
 module canopus.server_ext_live
 
 import canopus.server.{kit_routes_children, scenario_route_auto_extend, scenario_route_scope}
@@ -8,7 +8,7 @@ fn ext_clean(report str) -> () {
     assert(report == "")
 }
 
-test "files: an addition to an open task with a high confidence is applied at once and taken back by the button; a lower confidence, a task that is not there and a new task are cards" {
+test "files: every addition including high confidence waits for owner approval; refusal leaves the assignment unchanged" {
     ext_clean(scenario_route_auto_extend(kit_routes_children("route-ext")))
 }
 

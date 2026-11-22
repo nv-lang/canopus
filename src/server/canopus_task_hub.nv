@@ -120,7 +120,7 @@ fn Hub @ct_fix_kind(at int, p0 Proposal) -> Proposal {
     p
 }
 
-// ----- the addition applied at once (task 192.7; the owner, 2026-10-27: always on, there is no setting) -----
+// ----- related tasks and historical extension undo -----
 
 // Is the task `found` near this session: the task of the session itself, its child, its epic, a sibling under the same epic (the owner, 2026-10-29: the tasks of OTHER sessions of the project are not touched,
 // not listed and not offered; the list the agent is given and the choices of the card are the same set).
@@ -138,52 +138,6 @@ fn Hub @ct_related(at int, found int) -> bool {
 
 // The note to the agent after the owner answered a card: the text of the layer `decision_<what>` or the built-in one.
 fn Hub @decision(what str, n int, title str, shown str) -> str => decision_note_t(@prompt(decision_name_of(what), decision_text_of(what)), n, title, shown)
-
-// The index of the open task K that takes the addition at once, -1 - the addition goes to a card (K is merged, closed, done, not near this session, or the confidence is lower than the threshold).
-fn Hub @ct_auto_target(at int, p Proposal) -> int {
-    if !@settings.route_children || !auto_extend_ok_at(p, @settings.auto_extend_confidence) { return -1 }
-    ro found = @cs_find_number(p.extends)
-    if found < 0 { return -1 }
-    ro c = @sessions[found]
-    if c.rt.merged_c || c.rt.tstate == "done" || c.rt.task_dir.byte_len() == 0 { return -1 }
-    if !@ct_related(at, found) { return -1 }
-    found
-}
-
-// The addition is applied: the text goes to message.md of K with the date, the agent of K gets a service turn, the journal and the feed of the session `at` tell it. false - not applied (a card goes).
-fn Hub mut @ct_auto_extend(at int, p Proposal) Proc Detach Time -> bool {
-    if !@work_allowed(at, "execute") { return false }
-    ro found = @ct_auto_target(at, p)
-    if found < 0 { return false }
-    ro c = @sessions[found]
-    ro file = "${c.rt.task_dir}/${c.rt.msg_file(c.rt.last_sub())}"
-    ro added = canopus_addition_text(p.summary, p.source, now_millis())
-    if !append_file(file, added) {
-        @say_log("the addition to ${file} cannot be written: a card goes")
-        return false
-    }
-    if c.rt.tstate != "active" { @rt_state(found, "active", "") }
-    ro me = @sessions[at]
-    mut id = 1
-    for x in me.rt.exts { if x.id >= id { id = x.id + 1 } }
-    mut o = JsonObject.new()
-    ji(o, "id", id)
-    ji(o, "task", cs_number_int(c.rt.number))
-    js(o, "title", c.rt.title)
-    js(o, "text", ext_brief(p))
-    ji(o, "at", now_millis())
-    js(o, "file", file)
-    js(o, "added", added)
-    @rt_journal(at, "task_extended", JsonValue.object(o).to_str())
-    @say_log("canopus_task of ${me.id}: the addition to the task ${c.rt.number} is applied at once")
-    if found != at {
-        @rt_note(found, "▸ задача дополнена владельцем")
-        if !@ct_has_steps(c) { @ct_kick(found, c.rt.last_sub(), ext_applied_note_t(@prompt("ext_applied", EXT_APPLIED_TEXT), c.rt.number, ext_brief(p), c.rt.task_shown)) }
-    }
-    @route_broadcast(found, true)
-    @route_broadcast(at, true)
-    true
-}
 
 /// The button "Отменить" of the grey line: the added section goes out of message.md (a commit takes it back when it was committed already), the agent of the task is told, the journal gets `task_extend_undone`.
 fn Hub mut @ct_ext_undo(trace str, id int) Proc Detach Time -> () {
@@ -244,10 +198,8 @@ fn Hub mut @ct_offer(at int, p0 Proposal) Proc Detach Time -> str {
     mut p = proposal_copy(p0)
     ro s = @sessions[at]
     p = @ct_fix_kind(at, p)
-    // an addition to an open task with a high confidence is applied at once, no card (in every mode)
     p.source = s.rt.last_msg
-    ro own = p.extends > 0 && @cs_find_number(p.extends) == at
-    if @ct_auto_extend(at, p) { return if own { @prompt("auto_extend_own", AUTO_EXTEND_OWN_TEXT) } else { @prompt("auto_extend", AUTO_EXTEND_TEXT) } }
+    // Task 313: every extension waits for the owner on the same card path.
     if was_refused(s.rt.dismissed, p.title) { return REFUSED_TEXT }
     if has_proposal(s.rt.props, p.title) { return SHOWN_TEXT }
     mut me = @sessions[at]
@@ -707,11 +659,7 @@ fn Hub mut @ct_list_offer(at int, items []Proposal) Proc Detach Time -> int {
         if has_proposal(@sessions[at].rt.props, p.title) { continue }
         p = @ct_fix_kind(at, p)
         p.source = cut_text(joined(@sessions[at].rt.recent, "\n\n---\n\n"), 3000)
-        // an addition to an open task with a high confidence is applied at once, no row
-        if @ct_auto_extend(at, p) {
-            added += 1
-            continue
-        }
+        // Confidence never authorizes a write or delivery before the owner answers.
         mut cur = @sessions[at]
         cur.rt.prop_serial += 1
         p.id = cur.rt.prop_serial

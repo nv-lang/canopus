@@ -1,4 +1,4 @@
-// ext_kit.nv - task 192.7: the scenario of the addition to an open task that is applied at once (the owner, 2026-10-27: always on, no setting) over a hub with the fake ACP agent in a repository.
+// ext_kit.nv - owner-confirmed additions (task 313), with a fake ACP agent in a repository.
 // The helpers are in `child_kit.nv`, `routes_kit.nv`, `canopus_task_kit.nv`.
 module canopus.server
 
@@ -39,8 +39,7 @@ fn ek_say(mut rig Rig, session str, turn str, item JsonValue) Proc Detach Time -
     done
 }
 
-/// The addition to an open task: with a high confidence it goes at once (message.md of the task with the date, a service turn to the agent of the task, a grey line with "Отменить", the events
-/// `task_extended` / `task_extend_undone`), the button takes it back; a lower confidence, a task that is not there and a new task are cards; the hub creates nothing by itself.
+/// Every addition waits for the owner: approval writes the requirement, refusal leaves the assignment unchanged.
 export fn scenario_route_auto_extend(settings ServerSettings) Proc Detach Time Net Fs Os -> str {
     mut c = kit_check()
     mut rig = rig_open(settings)
@@ -56,45 +55,30 @@ export fn scenario_route_auto_extend(settings ServerSettings) Proc Detach Time N
     ro file = "${ck_dir(rig, p1)}/message.md"
     c.expect(!rk_text(file).contains("## Дополнение"), "message.md has no addition yet")
 
-    // 1. a high confidence: applied at once, no card
-    c.expect(ek_say(rig, "s-e1", "t2", ek_item("extend", "Ещё одно требование", 1, "high")), "the agent says: an addition to the task 1")
-    c.expect(rk_card_id(ck_state(rig, 1, "s-e1"), "Ещё одно требование") == 0, "no card was shown")
-    ro text = rk_text(file)
-    c.expect(text.contains("## Дополнение") && text.contains("сделать: Ещё одно требование"), "the text is appended to message.md with the date: ${cut_text(text, 200)}")
-    c.expect(ek_exts(rig, "s-e1").len() == 1 && !ek_undone(rig, "s-e1", 0), "the page gets the addition for the grey line")
-    c.expect(ck_idle(rig, p1, 60000), "the agent of the task finishes the service turn")
-    // Verify actual delivery independently of the page's published hint list.
-    mut delivered = false
-    for line in rig.all_lines_for(1) {
-        if line_field(line, "trace") == p1 && line_field(line, "kind") == "agent_chunk" && line_input(line, "text").contains("Новое требование владельца") { delivered = true }
-    }
-    c.expect(delivered, "the actual agent received the extension note")
-    c.expect(ek_hints(rig, p1).contains("Новое требование владельца"), "the agent of the task was told: ${cut_text(ek_hints(rig, p1), 200)}")
-    c.expect(rk_array(ck_state(rig, 1, "s-e1"), "proposals").len() == 0, "and no card is left")
-
-    // 2. the button "Отменить": the section goes out of message.md, the agent is told
-    rig.page(1, "route_ext_undo", "s-e1", "{\"id\":1}")
-    rig.run(800)
-    c.expect(!rk_text(file).contains("## Дополнение") && !rk_text(file).contains("Ещё одно требование"), "the undo takes the section out of message.md: ${cut_text(rk_text(file), 200)}")
-    c.expect(ek_undone(rig, "s-e1", 0), "the line says the addition is taken back")
-    c.expect(ck_idle(rig, p1, 60000), "the agent of the task finishes the next service turn")
-    c.expect(ek_hints(rig, p1).contains("Требование отозвано"), "the agent of the task was told that the requirement is withdrawn")
+    // A high confidence is a proposal, never permission to write or wake the worker.
     ro before = rk_text(file)
-    rig.page(1, "route_ext_undo", "s-e1", "{\"id\":1}")
-    rig.run(300)
-    c.expect(rk_text(file) == before, "a second press changes nothing")
+    ro hints = ek_hints(rig, p1)
+    c.expect(ek_say(rig, "s-e1", "t2", ek_item("extend", "Ещё одно требование", 1, "high")), "the agent proposes an addition")
+    c.expect(rk_card_state(ck_state(rig, 1, "s-e1"), "Ещё одно требование") == "open", "high confidence still shows a card")
+    c.expect(rk_text(file) == before, "no text is written before approval")
+    c.expect(ek_exts(rig, "s-e1").len() == 0, "no automatic extension record")
+    c.expect(ek_hints(rig, p1) == hints, "the worker receives no new requirement before approval")
 
-    // 2a. the addition already committed: the undo is a new commit that takes it back
-    c.expect(ek_say(rig, "s-e1", "t3", ek_item("extend", "Закоммиченное требование", 1, "high")), "a second addition")
-    c.expect(rk_text(file).contains("сделать: Закоммиченное требование"), "it is in message.md")
-    ro tree = ck_tree(rig, 1, p1)
-    c.expect(rig.hub.shared_task_snapshot(rig.hub.find(p1), false).ok, "the shared document is committed as a branch snapshot")
-    rig.page(1, "route_ext_undo", "s-e1", "{\"id\":2}")
+    // Explicit owner approval applies the proposed text through the existing card path.
+    ck_apply(rig, "s-e1", [["Ещё одно требование", "work", "extend", "1"]])
     rig.run(1500)
-    c.expect(!rk_text(file).contains("Закоммиченное требование"), "the section is out of the file")
-    c.expect(git_run(tree, ["status", "--porcelain"]).text == "", "and the file is committed without it: nothing is left to commit")
-    c.expect(git_run(tree, ["log", "-1", "--format=%s"]).text.contains("Take back the addition"), "by a commit that takes it back: ${git_run(tree, ["log", "-1", "--format=%s"]).text}")
-    c.expect(ck_idle(rig, p1, 60000), "the agent of the task is free again")
+    c.expect(rk_text(file).contains("Ещё одно требование"), "owner approval appends the requirement")
+    c.expect(ck_idle(rig, p1, 60000), "the worker finishes the approved service turn")
+    c.expect(ek_hints(rig, p1) != hints, "owner approval delivers a service note to the worker")
+    c.expect(rk_card_id(ck_state(rig, 1, "s-e1"), "Ещё одно требование") == 0, "approved card is removed")
+
+    // A refusal leaves the assignment and the worker unchanged.
+    ro approved = rk_text(file)
+    ro approved_hints = ek_hints(rig, p1)
+    c.expect(ek_say(rig, "s-e1", "t3", ek_item("extend", "Отклонённое требование", 1, "high")), "another high proposal")
+    ck_apply(rig, "s-e1", [["Отклонённое требование", "forget", "extend", "1"]])
+    rig.run(500)
+    c.expect(rk_text(file) == approved && ek_hints(rig, p1) == approved_hints, "refusal neither writes nor delivers a requirement")
 
     // 3. a lower confidence: a card
     c.expect(ek_say(rig, "s-e1", "t4", ek_item("extend", "Средняя уверенность", 1, "medium")), "a medium confidence")
@@ -112,13 +96,17 @@ export fn scenario_route_auto_extend(settings ServerSettings) Proc Detach Time N
     c.expect(ek_say(rig, "s-e1", "t7", ek_item("new", "Новая работа автоматом", 0, "high")), "a new task with a high confidence")
     c.expect(rk_card_state(ck_state(rig, 1, "s-e1"), "Новая работа автоматом") == "open", "it is a card")
     c.expect(ck_find(rig, 1, "Новая работа автоматом") == "", "no session was made by itself")
-    c.expect(ek_exts(rig, "s-e1").len() == 2, "only the two additions are in the list")
+    c.expect(ek_exts(rig, "s-e1").len() == 0, "no automatic additions are in the list")
 
-    // 6. the list of the agent: a high extend goes at once, a new one is a row
+    // The list of the agent: both additions and new tasks wait for approval.
     c.expect(ck_list(rig, "s-e1", "t8", [ek_item("extend", "Из списка дополнение", 1, "high"), ek_item("new", "Из списка новая", 0, "high")], "Из списка новая"), "the list is shown")
-    c.expect(rk_text(file).contains("сделать: Из списка дополнение"), "the extend of the list is applied at once")
-    c.expect(rk_card_id(ck_state(rig, 1, "s-e1"), "Из списка дополнение") == 0, "and has no row")
+    c.expect(!rk_text(file).contains("Из списка дополнение"), "a listed high extension waits for approval")
+    c.expect(rk_card_state(ck_state(rig, 1, "s-e1"), "Из списка дополнение") == "open", "the extension has an approval row")
     c.expect(rk_card_state(ck_state(rig, 1, "s-e1"), "Из списка новая") == "open", "the new work of the list is a row")
+    c.expect(ek_say(rig, p1, "own-high", ek_item("extend", "Дополнение своей сессии", 1, "high")), "the worker proposes an addition to its own assignment")
+    c.expect(!rk_text(file).contains("Дополнение своей сессии"), "own-session proposal does not change the assignment")
+    c.expect(rk_card_state(ck_state(rig, 1, p1), "Дополнение своей сессии") == "open", "own-session addition waits on a card too")
+
     rig.shut()
     c.report()
 }
@@ -154,9 +142,10 @@ export fn scenario_route_scope(settings ServerSettings) Proc Detach Time Net Fs 
     c.expect(!rk_text(file).contains("Чужое дополнение"), "the forced addition is refused")
     c.expect(ck_find(rig, 1, "Чужое дополнение") == "", "and no session is made")
 
-    // the first talk: its own task is near, a high addition goes at once
+    // The first talk: even its own related task needs approval.
     c.expect(ek_say(rig, "s-a", "t3", ek_item("extend", "Своё дополнение", 1, "high")), "the first talk adds to its own task")
-    c.expect(rk_text(file).contains("сделать: Своё дополнение"), "applied at once: ${cut_text(rk_text(file), 200)}")
+    c.expect(!rk_text(file).contains("Своё дополнение"), "even a related task requires approval")
+    c.expect(rk_card_state(ck_state(rig, 1, "s-a"), "Своё дополнение") == "open", "own extension has a card")
     rig.shut()
     c.report()
 }

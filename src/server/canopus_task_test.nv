@@ -361,10 +361,10 @@ test "ctx agent compaction: a completed compaction_update line is seen" {
     assert(ctx_agent_compacted(["{\"kind\":\"usage_update\",\"input\":{\"used\":1}}", "{\"kind\":\"compaction_update\",\"input\":{\"status\":\"completed\",\"compactionId\":\"c1\"}}"]) == true)
 }
 
-test "auto extend: only an extension with the high confidence and a number is applied at once; the section is taken out by its exact text" {
+test "auto extend: every extension requires owner confirmation; the section is taken out by its exact text" {
     ro high = proposal_new("extend", "T", "s", 3, []str.new(), "high")
-    assert(auto_extend_ok(high))
-    assert(auto_extend_ok(proposal_new("extend", "T", "s", 3, []str.new(), " High ")))
+    assert(!auto_extend_ok(high))
+    assert(!auto_extend_ok(proposal_new("extend", "T", "s", 3, []str.new(), " High ")))
     assert(!auto_extend_ok(proposal_new("extend", "T", "s", 3, []str.new(), "medium")))
     assert(!auto_extend_ok(proposal_new("extend", "T", "s", 3, []str.new(), "")))
     assert(!auto_extend_ok(proposal_new("extend", "T", "s", 0, []str.new(), "high")))
@@ -389,7 +389,8 @@ test "auto extend: only an extension with the high confidence and a number is ap
     assert(list.len() == 1)
     ro first = list[0].object() ?? JsonObject.new()
     assert(((first.get("task") ?? JsonValue.null()).int() ?? 0) == 3 && ((first.get("undone") ?? JsonValue.null()).bool() ?? false))
-    assert(canopus_task_tool_json().to_str().contains("AT ONCE") && canopus_task_list_tool_json().to_str().contains("applied by the hub at once"))
+    // task 313: no auto-apply any more — the phrases of at-once application are gone from the tool descriptions
+    assert(!canopus_task_tool_json().to_str().contains("AT ONCE") && !canopus_task_list_tool_json().to_str().contains("applied by the hub at once"))
     assert(ext_applied_note("003", "кратко", "doc/tasks/003-x/task").contains("Новое требование владельца"))
     assert(ext_withdrawn_note("003", "кратко", "doc/tasks/003-x/task").contains("Требование отозвано"))
 }
@@ -460,11 +461,11 @@ test "prompts: the description of a tool is replaced, the rest of the tool stays
     assert(changed.object().unwrap().contains("inputSchema"))
 }
 
-test "settings of the task: the confidence that applies an addition at once is high by default, medium widens it, off closes it" {
+test "settings of the task: legacy confidence settings never authorize an addition" {
     ro high = proposal_new("extend", "T", "s", 3, []str.new(), "high")
     ro medium = proposal_new("extend", "T", "s", 3, []str.new(), "medium")
-    assert(auto_extend_ok_at(high, "high") && !auto_extend_ok_at(medium, "high"))
-    assert(auto_extend_ok_at(high, "medium") && auto_extend_ok_at(medium, "medium"))
+    assert(!auto_extend_ok_at(high, "high") && !auto_extend_ok_at(medium, "high"))
+    assert(!auto_extend_ok_at(high, "medium") && !auto_extend_ok_at(medium, "medium"))
     assert(!auto_extend_ok_at(high, "off") && !auto_extend_ok_at(medium, "off"))
     assert(!auto_extend_ok_at(proposal_new("new", "T", "s", 0, []str.new(), "high"), "medium"))
 }
@@ -493,4 +494,11 @@ test "context: ACP identity survives scans and genuine compaction still counts" 
     assert(reset.before == 0 && reset.used == 0 && reset.size == 0 && reset.session == "acp-new")
     ro kept = ctx_scan([], second.used, second.size, 40, second.session)
     assert(kept.session == "acp-new" && kept.used == 1000)
+}
+
+test "extension instructions always require explicit owner confirmation (313)" {
+    assert(tool_description(canopus_task_tool_json()).contains("explicit owner confirmation"))
+    assert(tool_description(canopus_task_list_tool_json()).contains("explicit owner confirmation"))
+    assert(TASKS_HINT_TEXT.contains("явного подтверждения владельца"))
+    assert(RECOGNIZE_TEXT.contains("после явного подтверждения владельца"))
 }

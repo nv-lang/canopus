@@ -267,7 +267,7 @@ export fn parse_server_settings(text str) -> Result[ServerSettings, str] {
     ro agent_start_seconds = st_number(o, "agent_start_timeout_seconds", 60)?
     ro agent_silent_minutes = st_number(o, "agent_silent_minutes", 5)?
     ro preset = st_text(o, "preset", "default")?
-    ro auto_extend_confidence = st_text(o, "auto_extend_confidence", "high")?
+    ro auto_extend_confidence = st_text(o, "auto_extend_confidence", "off")?
     if auto_extend_confidence != "high" && auto_extend_confidence != "medium" && auto_extend_confidence != "off" { return Err("auto_extend_confidence must be high, medium or off") }
     ro task_scope = st_text(o, "task_scope", "session")?
     if task_scope != "session" { return Err("task_scope must be session (the tasks of the session and its relatives; other values are not supported)") }
