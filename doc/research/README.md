@@ -35,6 +35,7 @@
 ## Содержание
 
 - [Итоговый синтез по целям для Канопуса](2026-11-22-goals-synthesis.md) — целевая модель, алгоритмы, промпты
+- [DeepSeek Harness — цели](2026-11-22-deepseek-harness-goals.md) (`deepseek-ai/deepseek-harness`, ревизия `2e39e704`)
 - [Kimi Code — цели](2026-11-21-kimi-code-goals.md) (пакет `@moonshot-ai/kimi-code` 2.1.1)
 - [Codex — цели](2026-11-21-codex-goals.md) (`openai/codex`, ревизия `4360c5f8`)
 - [ZCode — цели](2026-11-21-zcode-goals.md) (`zai-org/ZCode`, ревизия `fec97590`)
