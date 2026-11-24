@@ -242,7 +242,7 @@ function apply(session, event) {
   switch (event.kind) {
     case 'session_model': {
       if (event.step <= session.modelStep) return session;
-      return { ...session, model: str(input.model), options: optionsOf(input), optionsAgent: session.agent, optionsTime: event.time, optionsPending: false, modelStep: event.step };
+      return { ...session, model: str(input.model), options: optionsOf(input), optionsAgent: input.adapter === 'canopus-preparation' ? input.adapter : str(input.agent) || session.agent, optionsTime: event.time, optionsPending: false, modelStep: event.step };
     }
     case 'route_state': {
       if (event.step <= session.routeStep) return session;
@@ -324,7 +324,7 @@ function apply(session, event) {
     case 'images_skipped': {
       const key = `sk:${event.id}`;
       if (session.messages.some((m) => m.key === key)) return session;
-      return { ...session, messages: [...session.messages, { role: 'skipped', key, agent: session.agent, count: count(input.count) }] };
+      return { ...session, messages: [...session.messages, { role: 'skipped', key, agent: str(input.agent) || session.agent, count: count(input.count) }] };
     }
     case 'user_message': {
       const userTurn = str(input.turn, event.id);

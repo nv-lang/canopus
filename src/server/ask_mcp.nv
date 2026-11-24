@@ -282,6 +282,11 @@ export fn mcp_handle_with(body str, tools str, descs []str) -> McpOut {
         if mtext_of(params, "name") == "canopus_config" && tools != "ask" {
             return mout("reply", mcp_text_reply(id, "canopus_config is not available yet: the structure of the configs is being discussed with the owner (2026-10-28). Do not read or write the settings files yourself; ask the owner.", true))
         }
+        // task 307: a task tool the owner's settings do not offer this session is named with its reason,
+        // not as "unknown tool" - the agent was demanding a tool that is deliberately off
+        if mtext_of(params, "name") == CANOPUS_TASK_TOOL || mtext_of(params, "name") == CANOPUS_TASK_LIST_TOOL {
+            return mout("reply", mcp_text_reply(id, "${mtext_of(params, "name")} is not offered in this session: the owner's setting route_tool / route_auto_propose keeps it off. Do not ask for the tool and do not treat its absence as an error: write the proposal to the owner as plain text and wait for the owner's word.", true))
+        }
         if mtext_of(params, "name") != ASK_TOOL || tools == "task" || tools == "list" {
             return mout("reply", mcp_text_reply(id, "unknown tool: ${mtext_of(params, "name")}", true))
         }

@@ -440,6 +440,7 @@ test('a queued family switch shows the chosen model before the next message', ()
   handoffStatus.set('s', { ...choice, phase: 'preparing' });
   view.render(model, ui, { state: 'connected' });
   assert.equal(thread.querySelector('.item-handoff').textContent, 'Передаём историю чата агенту Qoder Sonus…');
+  assert.ok(thread.querySelector('.item-handoff .work-pulsar'));
 
   handoffStatus.set('s', { ...choice, phase: 'preparing', compacting: true });
   view.render(model, ui, { state: 'connected' });

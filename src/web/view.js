@@ -2113,7 +2113,7 @@ export function createView(doc, refs, deps) {
       case 'handoff':
         node.dataset.phase = item.phase;
         node.setAttribute('role', 'status');
-        node.textContent = item.text;
+        node.replaceChildren(...(item.phase === 'preparing' ? [h(doc, 'span', { class: 'work-pulsar', 'aria-hidden': 'true' }, h(doc, 'i'), h(doc, 'i'), h(doc, 'i'), h(doc, 'b'))] : []), h(doc, 'span', { text: item.text }));
         break;
       case 'skipped':
         node.replaceChildren(h(doc, 'span', { text: t('chat.images_skipped', { agent: agentLabel(item.agent) }) }));

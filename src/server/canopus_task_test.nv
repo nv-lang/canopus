@@ -109,6 +109,8 @@ test "canopus_task: a call of canopus_task is a task message with the checked ar
     assert(out.questions.contains("Кнопка выхода"))
     ro refused = mcp_handle_for(call, "list")
     assert(refused.kind == "reply")
+    assert(!refused.text.contains("unknown tool"))
+    assert(refused.text.contains("route_auto_propose"))
     assert(ct_get(ct_get(ctj(refused.text), "result"), "isError").bool() == Some(true))
     ro bad = mcp_handle_for("{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"tools/call\",\"params\":{\"name\":\"canopus_task\",\"arguments\":{}}}", "all")
     assert(bad.kind == "reply")

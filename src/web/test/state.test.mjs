@@ -369,7 +369,8 @@ test('images_skipped: строка в ленте «агент не приним�
   const m = run([created(), ev('user_message', { turn: 't1', text: 'вот' }, { step: 1 }), skipped, skipped]);
   const rows = timeline(m.sessions.s1).filter((x) => x.type === 'skipped');
   assert.equal(rows.length, 1);
-  assert.deepEqual({ agent: rows[0].agent, count: rows[0].count }, { agent: 'opencode', count: 2 });
+  // task 307: the line names the agent that refused the images, not the session's agent
+  assert.deepEqual({ agent: rows[0].agent, count: rows[0].count }, { agent: 'fake-agent', count: 2 });
 });
 
 test('setting_dropped: строка «значение больше не доступно», один раз на событие', () => {

@@ -10,6 +10,17 @@ const modes = [{ id: 'build', name: 'Build' }, { id: 'plan', name: 'Plan' }];
 const session = { id: 's', agent: 'opencode', optionsAgent: 'opencode', options: { modes, mode: 'plan', models: [], efforts: [] }, approvals: { opencode: 'plan', codex: 'read-only' } };
 const model = { catalog: { codex: { options: { modes: [{ id: 'read-only', name: 'Read only' }], mode: 'read-only' } } } };
 
+test('подготовка не становится каталогом выбранной семьи и сохраняет имя отказавшего адаптера', () => {
+  let m = reduce(initialModel(), { id: 'create307', trace: 's', step: 0, time: 1, kind: 'session_created', input: { name: 'S', agent: 'codex' } });
+  m = reduce(m, { id: 'options307', trace: 's', step: 1, time: 2, kind: 'session_model', input: { agent: 'canopus-preparation', mode: 'preparation', modes: [{ id: 'preparation', name: 'Подготовка' }] } });
+  assert.equal(m.sessions.s.optionsAgent, 'canopus-preparation');
+  const result = approvalView(model, { ...m.sessions.s, approvals: { codex: 'read-only' } }, []);
+  assert.equal(result.groups[0].unavailable, '');
+  assert.equal(result.groups[0].actual, '');
+  m = reduce(m, { id: 'images307', trace: 's', step: 2, time: 3, kind: 'images_skipped', input: { agent: 'canopus-preparation', count: 1 } });
+  assert.equal(m.sessions.s.messages.at(-1).agent, 'canopus-preparation');
+});
+
 test('режимы — точные id: перестановка не меняет выбор и не переводит Plan в минимум прав', () => {
   assert.equal(approvalView(model, session, []).label, 'План');
   assert.equal(approvalView(model, { ...session, options: { ...session.options, modes: [...modes].reverse() } }, []).label, 'План');
