@@ -607,3 +607,18 @@ test "routes: only a successful current turn advances the route" {
     assert(!route_turn_succeeded([start, done, start, chunk]))
     assert(!route_turn_succeeded([start, done, Incoming.signal("cancel_request", "")]))
 }
+
+// Task 305: the button «Готово и влить» never fails silently; the owner is told the reason.
+test "305: «Готово и влить» on a subtask that is not there tells the owner the reason" {
+    mut rig = rig_open(kit_chat_files("done-reason", 30000))
+    rig.attach(1)
+    rig.page(1, "session_created", "s-305", "{\"name\":\"Причина\",\"agent\":\"opencode\"}")
+    ro shown = rig.until("\"kind\":\"session_created\"", 5000)
+    assert(shown, "the session is shown")
+    rig.page(1, "route_subtask_done", "s-305", "{\"n\":9}")
+    ro told = rig.until("«Готово и влить» не выполнено: подзадачи 9 в этой сессии нет", 5000)
+    if !told { panic("305: the page is not told the reason; lines: ${rig.lines_for(1).len()}") }
+    ro line = first_of(rig.lines_for(1), "error", 0)
+    assert(line.contains("слита, закрыта или относится к другой сессии"), "the reason says what to check: ${line}")
+    rig.shut()
+}

@@ -1496,7 +1496,15 @@ fn Hub mut @route_subtask_done(trace str, n int) Proc Detach Time -> () {
             branch = sub.branch
         }
     }
-    if !found || s.rt.job.byte_len() > 0 || s.rt.running { return }
+    // task 305: the button never fails silently - the owner is told why nothing happened
+    if !found {
+        @tell_error(0, trace, s.engine.step_number(), "", "«Готово и влить» не выполнено: подзадачи ${n} в этой сессии нет. Она уже слита, закрыта или относится к другой сессии.")
+        return
+    }
+    if s.rt.job.byte_len() > 0 || s.rt.running {
+        @tell_error(0, trace, s.engine.step_number(), "", "«Готово и влить» пока не выполнено: агент этой сессии ещё работает. Дождитесь конца хода и нажмите снова.")
+        return
+    }
     if tree.byte_len() == 0 {
         mut o = JsonObject.new()
         ji(o, "n", n)
