@@ -35,9 +35,14 @@
 ## Содержание
 
 - [Итоговый синтез по целям для Канопуса](2026-11-22-goals-synthesis.md) — целевая модель, алгоритмы, промпты
+- [bb — цели](2026-11-26-bb-goals.md) (`get-bb/bb`, тег `desktop-v0.50.1`, ревизия `a08e1165`) — **главный донор проекта**
+- [bb — архитектура](2026-11-26-bb-architecture.md) (тот же пин) — хаб+демоны, provider bridge, плагины без привилегий
+- [bb — сообщения, очередь, tasks](2026-11-26-bb-messages-tasks.md) (тот же пин) — dispatch checkpoint, steer, дурабельная очередь, авто-механизмы
+- [bb — общение между тредами](2026-11-26-bb-threads.md) (тот же пин) — вложенные треды, parentNotifications, manager/worker, side-chat
+- [bb — протоколы](2026-11-26-bb-protocols.md) (тот же пин) — семь протоколов, contract-пакеты, версионирование
 - [DeepSeek Harness — цели](2026-11-22-deepseek-harness-goals.md) (`deepseek-ai/deepseek-harness`, ревизия `2e39e704`)
-- [Kimi Code — цели](2026-11-21-kimi-code-goals.md) (пакет `@moonshot-ai/kimi-code` 2.1.1)
-- [Codex — цели](2026-11-21-codex-goals.md) (`openai/codex`, ревизия `4360c5f8`)
+- [Kimi Code — цели](2026-11-21-kimi-code-goals.md) (пакет `@moonshot-ai/kimi-code` 2.1.1; + раздел про TodoList: без доп. запросов к модели)
+- [Codex — цели](2026-11-21-codex-goals.md) (`openai/codex`, ревизия `4360c5f8`; + раздел про follow-up подсказки: без доп. запросов, съём с `475e13ab`, сверен с пином)
 - [ZCode — цели](2026-11-21-zcode-goals.md) (`zai-org/ZCode`, ревизия `fec97590`)
 - [Claude Code — цели](2026-11-21-claude-code-goals.md) (`@anthropic-ai/claude-code` 2.1.287, собранный бинарь)
 - [Qoder — цели](2026-11-21-qoder-goals.md) (десктоп 0.5.6, `app.asar`)

@@ -124,3 +124,51 @@
   только по строкам `//#region ../../packages/...`. Отдельные ветки (UI очереди, режим разрешений старта)
   разобраны поверхностно. **[I]**
 - Версия зафиксирована по `package.json` установленного пакета (2.1.1); более новые версии могут отличаться. **[V]**
+
+## 7. TodoList: без дополнительных запросов к модели (дополнение 2026-11-26)
+
+> **Оговорка: TodoList — другой механизм, не цель.** У него нет критерия завершения, бюджетов, статусов и
+> автопродолжения; цель — «рантайм гоняет модель до критерия», todo — «модель сама организует себя, рантайм
+> только подсвечивает». Раздел лежит в этом файле по принципу «файл = донор», а не потому, что это часть
+> механизма целей.
+
+Повод: владелец спросил, делает ли Kimi Code дополнительные запросы к модели для автоматического планирования
+todo. Ответ: **нет** — todo-лист целиком инструмент основной модели, плюс механические напоминания без LLM.
+Ссылки — на бандл `dist/main.mjs` того же пакета 2.1.1 и исходные пути из его `//#region`.
+
+- **Инструмент `TodoList`** — описание `todo-list.md?raw` (`dist/main.mjs:275468`, исходник
+  `packages/agent-core-v2/src/features/todo/tools/todo-list/todo-list.md`). Ключевое дословно: «Use this tool to
+  maintain a structured TODO list… **Use it proactively and often**», «mark exactly one item as `in_progress`»,
+  «Immediately after finishing a tracked task, mark it `done`; do not batch completions», «Never mark a task
+  `done` if tests are failing, implementation is partial». Схема (`dist/main.mjs:275461`): `{ todos?: [{ title,
+  status: pending|in_progress|done }] }`; вызов без `todos` — чтение, `todos: []` — очистка, вызов полностью
+  заменяет список. **[V]**
+- **При вызове** (`dist/main.mjs:275488`): значение пишется в `AgentTodoService`, тот диспатчит durable-событие
+  сессии `ToolsUpdateStore { key: "todo", value }` (`todoService.ts`, `dist/main.mjs:264851`) — список
+  персистируется в журнале сессии, не отдельным файлом. В вывод инструмента дописывается напоминание
+  (`todo-list-write-reminder.md`, `dist/main.mjs:275481`): «Ensure that you continue to use the todo list… keep
+  exactly one task in_progress». **[V]**
+- **Отдельных LLM-запросов для планирования нет**: ни предзапроса, ни авто-генерации todo из задачи, ни скрытого
+  planner-вызова вокруг TodoList. Список создаётся, только когда основная модель сама вызывает инструмент; стимул
+  — описание инструмента и напоминания. В основном системном промпте упоминаний TodoList нет. **[V]**
+- **Механическое напоминание вместо запроса** (`todoListReminder.ts`, `dist/main.mjs:264712`): если TodoList
+  активен, использовался хотя бы раз и с последней записи прошло ≥10 ходов ассистента (и ≥10 ходов с прошлого
+  напоминания; константы `TODO_LIST_REMINDER_TURNS_SINCE_WRITE = 10`,
+  `TODO_LIST_REMINDER_TURNS_BETWEEN_REMINDERS = 10`, `dist/main.mjs:264768`), в контекст впрыскивается сообщение
+  `origin.kind: "injection"`, `variant: "todo_list_reminder"` — дословно: «The TodoList tool has not been updated
+  recently… This is a gentle reminder; ignore it if not applicable. Make sure that you NEVER mention this
+  reminder to the user» — с текущим списком. Только для main-агента (`dist/main.mjs:264811`), чисто шаблонная
+  логика. **[V]**
+- **Plan mode отдельно**: инструменты `EnterPlanMode`/`ExitPlanMode` (`dist/main.mjs:205141`) и read-only
+  субагент-профиль `plan` (`dist/main.mjs:205119`) — opt-in по инициативе модели или флага сессии, не
+  автоматический предзапрос; в plan mode todo не ведётся («in plan mode, write the plan to the plan file rather
+  than tracking it here»). **[V]**
+- **Персистентность и отображение**: состояние восстанавливается при возобновлении сессии (`dist/main.mjs:264830`);
+  при компакции `postProcessSummary` (`dist/main.mjs:265594`) дописывает к сводке секцию `## TODO List` с текущим
+  списком — todo переживает компакцию. TUI рисует панель (`dist/main.mjs:480089`, авто-очистка когда все `done` —
+  `:478055`); в ACP display-блок TodoList транслируется в `plan` session update (`dist/main.mjs:310356`) — из
+  него оркестраторы (bb) рисуют карточку «N/M complete». TodoList — в списке инструментов, авто-одобряемых без
+  подтверждения (`DEFAULT_APPROVE_TOOLS`, `dist/main.mjs:273256`). **[V]**
+
+**Вывод для Канопуса [I]:** «автоматичность» todo — дисциплина описания инструмента + шаблонный nudge раз в ~10
+ходов + durable-событие + выживание через компакцию. Ноль дополнительных обращений к модели; повторить дёшево.
