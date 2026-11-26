@@ -180,6 +180,57 @@ open-native` (`packages/mobile-bridge/src/handshake.ts:15-42`). Дальше в�
   (`docs/provider-plugin-api.md:396-406`). **[V]**
 - **ChangedMessage** (раздел 1) — «транспортный» формат: не событие домена, а подсказка инвалидировать кэш. **[V]**
 
+## 9. Enrollment и жизненный цикл хоста (дополнение 2026-11-27)
+
+Сверка — повторным клоном на том же пине `a08e116`.
+
+- **Пользовательский путь**: Settings → Machines → Add a machine или CLI `bb machine create --provider manual`
+  → сервер генерирует однострочник
+  `curl -sSL --fail-with-body -H 'X-BB-Enrollment: <credential>' '<serverUrl>/install.sh' | sh`
+  (Windows: `irm -Headers @{ 'X-BB-Enrollment' = '…' } '<serverUrl>/install.ps1' | iex`; Node ≥ 22.19, Git for
+  Windows) — `apps/server/src/assets/install-machine.sh:10-14`,
+  `apps/server/src/services/machines/manual-enrollment-command.ts:6-24`. Команда работает через bb connect,
+  Tailscale и любой достижимый адрес. **[V]**
+- **Enroll-key**: генерирует сервер (`issueHostEnrollKey`, `apps/server/src/services/machine-auth.ts:365-396`) —
+  **одноразовый** (`remaining: 1`, `:377-383`) с **TTL 15 минут** (`ENROLL_KEY_TTL_SECONDS = 60 * 15`, `:16`);
+  перевыпуск гасит прежние ключи хоста (`:372`). Сервер отдаёт `/install.sh`, впечатывая bootstrap JSON прямо в
+  скрипт (`manual-enrollment-command.ts:60-66`); просроченная/использованная команда возвращает скрипт-ошибку
+  «This enrollment command has already been used, replaced, or expired» (`apps/server/src/server.ts:596-606`).
+  Управлять хостами может только человек: «Machine credentials cannot manage hosts»
+  (`apps/server/src/routes/hosts.ts:89-97`); внутренний `POST /hosts/enroll-key` — только с loopback
+  (`apps/server/src/internal/hosts.ts:28,54-73`). **[V]**
+- **Инсталлер на машине** (`install-machine.sh`): проверка Node ≥ 22.19 (`:397-407`); data-dir
+  `~/.bb-machines/<server-host>` (на каждый сервер свой); скачивание host-пакета **с самого сервера**
+  `GET /install/bb-app.tgz` со **сверкой SHA-256** из заголовка `x-bb-artifact-sha256` (совпал с установленным —
+  skip; conditional fetch по `If-None-Match`, `:719-776,808`; fallback — npm registry `:840-847`); установка в
+  `~/.bb-machines/<server>/npm` без sudo (`:821`); сервис — launchd (macOS) / systemd user unit (Linux)
+  (`:168-227`), старт с `--auto-update`; Windows — автозапуск при входе пользователя
+  (`docs/multiple-devices.md:156-158`). **[V]**
+- **Первое подключение**: `POST /hosts/enroll` — демон предъявляет одноразовый enroll-key, сервер гасит его и
+  выпускает **постоянный host key** (`machine-auth.ts:359-364`; маршрут `internal/hosts.ts:82-104`) →
+  `POST /session/open` → WS `/internal/ws` (`Bearer <hostKey>`, субпротокол `bb-host-daemon.v1`, seq/ack-кадры
+  с resume — раздел 2). Строка в `hosts` создана при генерации команды (phase `creating → active`,
+  `packages/db/src/schema.ts:104-152`); UI узнаёт через change-уведомление `host-connected`
+  (`packages/domain/src/change-kinds.ts:56-63`). **[V]**
+- **Отзыв**: `DELETE` хоста гасит оба ключа — enrol и daemon (`revokeHostAuthKeys`, `machine-auth.ts:407-413`);
+  connect-credential отзывается с дашборда getbb.app (при недоступности connect — явное предупреждение в лог,
+  `routes/hosts.ts:130-137`); удаление — фазы `removing → destroyed` с ретраями (`removeRetryAt`,
+  `teardownAttempt/teardownStatus`, `schema.ts:133-141`); серверную машину удалить нельзя
+  (`assertNotServerMachine`, `routes/hosts.ts:99-107`); локальный деинсталл —
+  `install.sh --uninstall --host-id <id>` (`install-machine.sh:8`). **[V]**
+
+### Что перенести в Канопус (enrollment)
+
+1. **Одноразовый короткоживущий enroll-key с обменом на постоянный ключ** (15 мин, `remaining: 1`, перевыпуск
+   гасит прежние) — компрометация команды установки не даёт повторного входа. **[I]**
+2. **Bootstrap, впечатанный в скрипт установки** — владельцу нечего копировать руками, просроченная команда
+   честно отвечает ошибкой. **[I]**
+3. **Артефакт демона с SHA-256 с самого сервера** (+ skip при совпадении digest) — машина исполняет ровно тот
+   код, что выдал сервер, без доверия к registry. **[I]**
+4. **Исходящий WS от демона** (входящих портов на машине не нужно) + seq/ack-resume — NAT-friendly и
+   восстановление после обрыва; у нас уже записано в разделе «Что перенести» (п. 3), здесь подтверждено на
+   enrollment-пути. **[I]**
+
 ## Сводная таблица
 
 | Протокол | Транспорт | Кодирование | Кто инициирует | Версия |
