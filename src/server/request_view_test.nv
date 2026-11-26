@@ -2,6 +2,7 @@
 module canopus.server
 
 import canopus.acp.{AcpImage}
+import std.fs.{Path}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 
 fn rv_fixed_text(n int) -> str {

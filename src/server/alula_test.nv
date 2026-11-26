@@ -3,6 +3,7 @@
 module canopus.server
 
 import std.text
+import std.fs.{Path}
 import alula.engine.{Engine, MemoryWorld, Incoming, EventKind, Journal, Store, Link, StepEnvironment, start_engine, resume_engine, memory_journal, memory_store, memory_link, memory_time, decode_snapshot}
 import canopus.chat.{user_says, agent_chunk, agent_done}
 import alula.machine_run.{AlulaMachine, AlulaState}

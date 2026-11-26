@@ -1792,7 +1792,10 @@ fn short_name(name str) -> str {
         count += 1
         if count <= 80 { parts.push("${c}") }
     }
-    parts.join("")
+    // The module helper, not the slice method: `[]str @join` is declared in std.text and is seen by codegen
+    // only when the test unit imports its module; a unit that imports std.fs resolved the name to `Path @join`
+    // and was refused (E_RECV_METHOD_MISMATCH, four test units on every toolchain since 2001-full).
+    joined(parts, "")
 }
 
 fn images_text(metas []ImageMeta) -> str {
