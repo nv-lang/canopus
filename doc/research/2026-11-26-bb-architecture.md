@@ -163,6 +163,17 @@ title/commit/voice). **[V]**
   `~/.bb/plugins/environment-git-worktree/host-data/worktrees/<thread-id>/`, `.worktreeinclude` (gitignore-синтаксис
   для копирования локальных файлов), `.bb-env-setup.sh` / `.bb-env-teardown.sh` (15-мин таймаут, bash на всех
   платформах), безопасное удаление веток только если ничего не потеряется (`docs/worktrees.md`). **[V]**
+- **Выбор машины при создании треда** (дополнение 2026-11-27; сверка выполнена повторным клоном на том же пине
+  `a08e116`): CLI — `bb thread spawn --machine <id-or-name>` («Execution machine ID or unambiguous name»),
+  `--host` — алиас; для провайдеров машин — `--new-machine <provider-id>` + `--machine-inputs <json>`
+  (`apps/cli/src/commands/thread/spawn.ts:355-367`). `--machine` несовместим с явным `--environment` — «it
+  already selects its machine» (`packages/templates/src/templates/bb-guide-threads.md:100-104`). UI — выбор
+  хоста внутри environment-пикера композера (`apps/app/src/components/pickers/EnvironmentPicker.tsx:45-96`).
+  Серверный резолв — `resolveCreateThreadEnvironment` (`apps/server/src/services/threads/thread-default-policy.ts:364`)
+  → placement (`thread-environment-placement.ts:461`, `machine: { type: "existing", hostId }`); команда треда
+  уходит на `environment.hostId` (`dispatch-attempt.ts:201-208`, `thread-send.ts:796-809`). Ребёнок живого
+  родителя в том же проекте получает worktree на хосте родительского environment —
+  `hostId: parentEnvironment.hostId` (`thread-default-policy.ts:420-443`). **[V]**
 
 ## 7. Уникальное и интересное
 
