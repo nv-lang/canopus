@@ -21,6 +21,7 @@
 | Философия Канопуса (черновик для обсуждения) | [philosophy.md](philosophy.md) |
 | Где что лежит (настройки и данные пульта) | [doc/README.md](../README.md), [ADR-0016](decisions/ADR-0016-config-layout.md) |
 | Конфигурация приложения и плагина | [configuration.md](configuration.md) |
+| Каталог задачи: состав, форматы и хранение | [task-folder.md](task-folder.md) |
 | Создание, пауза и отмена задач | [task-lifecycle.md](task-lifecycle.md) |
 | Никаких молчаливых ожиданий: сроки, сторожа, сироты | [no-silent-waits.md](no-silent-waits.md) |
 | Карта стражей (событие → страж → блокирует/наблюдает) | [guards.md](guards.md) |
