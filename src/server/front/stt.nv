@@ -207,10 +207,11 @@ export fn stt_text_json(text str) -> str {
     JsonValue.object(o).to_str()
 }
 
-/// `{"error":"..."}` - the refusal of the front.
-export fn stt_error_json(reason str) -> str {
+/// `{"error":"...","code":"..."}` — the refusal of the front: `error` is the reason for the owner, `code` is the machine code of the closed set (task 326, see the API README).
+export fn api_error_json(code str, reason str) -> str {
     mut o = JsonObject.new()
     ro set = o.insert("error", JsonValue.str(reason))
+    ro c = o.insert("code", JsonValue.str(code))
     JsonValue.object(o).to_str()
 }
 

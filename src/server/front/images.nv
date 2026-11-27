@@ -44,33 +44,34 @@ export fn img_mime_of(content_type str) -> str {
 
 fn img_json(o JsonObject) -> []u8 => JsonValue.object(o).to_str().bytes()
 
-fn img_failure(status int, reason str) -> ImageReply {
+fn img_failure(status int, code str, reason str) -> ImageReply {
     mut o = JsonObject.new()
     ro set = o.insert("error", JsonValue.str(reason))
+    ro c = o.insert("code", JsonValue.str(code))
     ImageReply { status, mime: "application/json; charset=utf-8", body: img_json(o) }
 }
 
 /// Is an upload fit to keep? A reply with a status of 415 / 400 / 413 and the reason when it is not; a reply with the status 0 when it is.
 export fn img_refusal(mime str, bytes []u8, limit int) -> ImageReply {
-    if image_ext(mime).byte_len() == 0 { return img_failure(415, "the type ${mime} is not taken: png, jpeg, webp or gif") }
-    if bytes.len() == 0 { return img_failure(400, "the body is empty: send the picture") }
-    if bytes.len() > limit { return img_failure(413, "the picture is over ${limit} bytes") }
-    if !img_magic_ok(mime, bytes) { return img_failure(400, "the bytes are not ${mime}") }
+    if image_ext(mime).byte_len() == 0 { return img_failure(415, "unsupported_media", "the type ${mime} is not taken: png, jpeg, webp or gif") }
+    if bytes.len() == 0 { return img_failure(400, "invalid_body", "the body is empty: send the picture") }
+    if bytes.len() > limit { return img_failure(413, "too_large", "the picture is over ${limit} bytes") }
+    if !img_magic_ok(mime, bytes) { return img_failure(400, "unsupported_media", "the bytes are not ${mime}") }
     ImageReply { status: 0, mime: "", body: []u8.new() }
 }
 
 fn img_put_in(root str, session str, mime str, bytes []u8) Fs -> ImageReply {
     ro saved = save_image(root, session, mime, bytes)
-    if saved.reason.byte_len() > 0 { return img_failure(500, saved.reason) }
+    if saved.reason.byte_len() > 0 { return img_failure(500, "internal", saved.reason) }
     mut o = JsonObject.new()
     ro n_set = o.insert("n", JsonValue.int(saved.n))
     ro bytes_set = o.insert("bytes", JsonValue.int(bytes.len()))
     ImageReply { status: 200, mime: "application/json; charset=utf-8", body: img_json(o) }
 }
 
-/// An upload: check it (`img_refusal`), keep it as the next number of the session. The answer is `{"n": 3, "bytes": 1234}` or `{"error": "..."}`.
+/// An upload: check it (`img_refusal`), keep it as the next number of the session. The answer is `{"n": 3, "bytes": 1234}` or `{"error": "...", "code": "..."}`.
 export fn img_put(root str, session str, content_type str, bytes []u8, limit int) -> ImageReply {
-    if !valid_session_name(session) { return img_failure(400, "the session id is not a safe name") }
+    if !valid_session_name(session) { return img_failure(400, "invalid_parameter", "the session id is not a safe name") }
     ro mime = img_mime_of(content_type)
     ro refused = img_refusal(mime, bytes, limit)
     if refused.status != 0 { return refused }
@@ -80,9 +81,9 @@ export fn img_put(root str, session str, content_type str, bytes []u8, limit int
 
 fn img_get_in(root str, session str, n int) Fs -> ImageReply {
     match find_image(root, session, n) {
-        None => img_failure(404, "no such picture")
+        None => img_failure(404, "not_found", "no such picture")
         Some(file) => match read_image(file) {
-            None => img_failure(404, "no such picture")
+            None => img_failure(404, "not_found", "no such picture")
             Some(bytes) => ImageReply { status: 200, mime: file.mime, body: bytes }
         }
     }
@@ -91,9 +92,9 @@ fn img_get_in(root str, session str, n int) Fs -> ImageReply {
 /// A picture for the page. `number` is the text of the address: digits only, or it is not ours (400); an unknown picture is 404.
 /// Nothing is joined from the text of the address except a checked session name and a checked number, so no address leaves the images folder.
 export fn img_get(root str, session str, number str) -> ImageReply {
-    if !valid_session_name(session) { return img_failure(400, "the session id is not a safe name") }
+    if !valid_session_name(session) { return img_failure(400, "invalid_parameter", "the session id is not a safe name") }
     match image_number(number) {
-        None => img_failure(400, "the number of a picture is digits")
+        None => img_failure(400, "invalid_parameter", "the number of a picture is digits")
         // D454: boundary override inside non-test code, see module-conventions (Fs would leak to the polaris Handler route closure)
         Some(n) => with Fs = real_fs() { img_get_in(root, session, n) }
     }

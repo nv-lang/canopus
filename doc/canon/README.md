@@ -24,6 +24,7 @@
 | Никаких молчаливых ожиданий: сроки, сторожа, сироты | [no-silent-waits.md](no-silent-waits.md) |
 | Карта стражей (событие → страж → блокирует/наблюдает) | [guards.md](guards.md) |
 | Правила использования языка Nova | [nova-conventions.md](nova-conventions.md) |
+| Отклонения HTTP/WebSocket API от конвенции (§19) | [api-deviations.md](api-deviations.md) |
 | Документация частей | README корня и частей (`opencode-plugin/README.md` и т.д.) |
 
 Не Канон: задачи и всё в их папках — спецификации, планы, проверки, журналы ([doc/tasks/](../tasks/README.md)),

@@ -12,9 +12,10 @@ const TRACE_MAX_LINES = 200
 const TRACE_MAX_BYTES = 262144
 const TRACE_LINE_BYTES = 16384
 
-fn trace_failure(reason str) -> str {
+fn trace_failure(code str, reason str) -> str {
     mut o = JsonObject.new()
     ro set = o.insert("error", JsonValue.str(reason))
+    ro c = o.insert("code", JsonValue.str(code))
     JsonValue.object(o).to_str()
 }
 
@@ -66,11 +67,11 @@ export fn trace_slice_of(text str, from_in int, to_in int) -> str {
     JsonValue.object(o).to_str()
 }
 
-/// The answer for a session and a range: the JSON text, `{"error": ...}` for a bad name or a missing file.
+/// The answer for a session and a range: the JSON text, `{"error": ..., "code": ...}` for a bad name or a missing file.
 export fn trace_slice(root str, session str, from int, to int) -> str {
     ro path = match session_file(root, session, "acp.jsonl") {
         Some(p) => p
-        None => return trace_failure("the session id is not a safe name")
+        None => return trace_failure("invalid_parameter", "the session id is not a safe name")
     }
     // D454: boundary override inside non-test code, see module-conventions (Fs would leak to the polaris Handler route closure)
     ro text = with Fs = real_fs() {
@@ -81,16 +82,16 @@ export fn trace_slice(root str, session str, from int, to int) -> str {
     }
     match text {
         Some(t) => trace_slice_of(t, from, to)
-        None => trace_failure("no raw exchange for this session (acp_trace is off or nothing was said yet)")
+        None => trace_failure("not_found", "no raw exchange for this session (acp_trace is off or nothing was said yet)")
     }
 }
 
 /// Recover only the mail body from a legacy service prompt, leaving unrelated ACP data private.
 export fn trace_mail(root str, session str, at int, bytes int) -> str {
-    if at <= 0 || bytes <= 0 || bytes > 65536 { return trace_failure("invalid mail reference") }
+    if at <= 0 || bytes <= 0 || bytes > 65536 { return trace_failure("invalid_parameter", "invalid mail reference") }
     ro path = match session_file(root, session, "acp.jsonl") {
         Some(p) => p
-        None => return trace_failure("invalid session")
+        None => return trace_failure("invalid_parameter", "invalid session")
     }
     ro text = with Fs = real_fs() { match read_text(path) { Ok(t) => t, Err(e) => "" } }
     ro mark = "[canopus] Письмо от "
@@ -130,7 +131,7 @@ export fn trace_mail(root str, session str, at int, bytes int) -> str {
             }
         }
     }
-    if best.byte_len() == 0 { return trace_failure("full mail unavailable") }
+    if best.byte_len() == 0 { return trace_failure("not_found", "full mail unavailable") }
     mut answer = JsonObject.new()
     ro put = answer.insert("text", JsonValue.str(secret_redact(best)))
     JsonValue.object(answer).to_str()

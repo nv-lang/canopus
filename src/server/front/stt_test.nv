@@ -141,7 +141,7 @@ test "stt: the text of the answer is trimmed; no text is an error" {
 
 test "stt: the JSON of the front" {
     assert(stt_text_json("привет \"мир\"") == "{\"text\":\"привет \\\"мир\\\"\"}")
-    assert(stt_error_json("busy") == "{\"error\":\"busy\"}")
+    assert(api_error_json("upstream_unavailable", "busy") == "{\"error\":\"busy\",\"code\":\"upstream_unavailable\"}")
     assert(stt_status_json(true) == "{\"available\":true,\"provider\":\"local\",\"model\":\"small\"}")
     assert(stt_status_json(false) == "{\"available\":false,\"provider\":\"local\",\"model\":\"small\"}")
 }

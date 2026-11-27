@@ -8,7 +8,7 @@
 //   GET    /api/fs/list?path=     the folders of a path (only folders); no path: the roots and the recent folders
 //   GET    /api/fs/git?path=      {"is_repo", "branch"}
 // Every route answers a foreign `Origin` with 403, as `/api/stt` does. The projects are in `<data_dir>/projects.json` (src/projects/store.nv);
-// the front writes the file, the hub reads it when a session of a project is made. An error is `{"error":"<reason>"}`.
+// the front writes the file, the hub reads it when a session of a project is made. An error is `{"error":"<reason>","code":"<machine code>"}` (task 326).
 module canopus.server.front
 
 import canopus.projects.{Project, StoreFail, Listing, GitState, projects_load, projects_get, projects_create, projects_replace, projects_reorder, projects_delete, projects_list_json, project_json, recent_folders, normalize_folder_path, list_folders, list_roots, git_state, last_dir_load, last_dir_save, last_dir_of_body, existing_ancestor}
@@ -20,7 +20,7 @@ import canopus.projects.{result_repo_inspect, result_repo_register, result_repo_
 
 fn result_repos_route(data_dir str, port int) -> fn(ServerRequest) -> ServerResponse {
     fn(req ServerRequest) -> ServerResponse {
-        if !origin_allowed(req, port) { return api_error(403, "origin not allowed") }
+        if !origin_allowed(req, port) { return api_error(403, "forbidden_origin", "origin not allowed") }
         mut rows = []JsonValue.new()
         for r in result_repos_list(data_dir) { rows.push(JsonValue.object(result_repo_json(r))) }
         mut o = JsonObject.new()
@@ -31,29 +31,36 @@ fn result_repos_route(data_dir str, port int) -> fn(ServerRequest) -> ServerResp
 
 fn result_repo_inspect_route(port int) -> fn(ServerRequest) -> ServerResponse {
     fn(req ServerRequest) -> ServerResponse {
-        if !origin_allowed(req, port) { return api_error(403, "origin not allowed") }
+        if !origin_allowed(req, port) { return api_error(403, "forbidden_origin", "origin not allowed") }
         match result_repo_inspect(req.query_param("path") ?? "") {
             Ok(r) => json_reply(200, JsonValue.object(result_repo_json(r)).to_str())
-            Err(e) => api_error(400, e)
+            Err(e) => api_error(400, "invalid_parameter", e)
         }
     }
 }
 
 fn result_repo_post_route(data_dir str, port int) -> fn(ServerRequest) -> ServerResponse {
     fn(req ServerRequest) -> ServerResponse {
-        if !origin_allowed(req, port) { return api_error(403, "origin not allowed") }
+        if !origin_allowed(req, port) { return api_error(403, "forbidden_origin", "origin not allowed") }
         // Owner, 2026-10-30: ordinary UI confirmation in the existing local trust model; not isolation from arbitrary shell/HTTP.
-        ro body = match api_body(req) { Ok(o) => o, Err(e) => return api_error(400, e) }
+        ro body = match api_body(req) { Ok(o) => o, Err(e) => return api_error(400, "invalid_body", e) }
         match result_repo_register(data_dir, body) {
             Ok(r) => json_reply(201, JsonValue.object(result_repo_json(r)).to_str())
-            Err(e) => api_error(400, e)
+            Err(e) => api_error(400, "invalid_body", e)
         }
     }
 }
 
-fn api_error(status int, reason str) -> ServerResponse => json_reply(status, stt_error_json(reason))
+fn api_error(status int, code str, reason str) -> ServerResponse => json_reply(status, api_error_json(code, reason))
 
-fn api_fail(f StoreFail) -> ServerResponse => api_error(f.status, f.message)
+// The machine code of a refusal of the store: 400 - a wrong body, 404 - no such project, anything else - the file itself (task 326).
+fn store_fail_code(status int) -> str {
+    if status == 400 { return "invalid_body" }
+    if status == 404 { return "not_found" }
+    "internal"
+}
+
+fn api_fail(f StoreFail) -> ServerResponse => api_error(f.status, store_fail_code(f.status), f.message)
 
 // The body of a request as a JSON object; the reason (a text for the owner) when it is not one.
 fn api_body(req ServerRequest) -> Result[JsonObject, str] {
@@ -83,7 +90,7 @@ fn remember_dir(state_dir str, body JsonObject) -> () {
 
 fn projects_list_route(data_dir str, port int) -> fn(ServerRequest) -> ServerResponse {
     fn(req ServerRequest) -> ServerResponse {
-        if !origin_allowed(req, port) { return api_error(403, "origin not allowed") }
+        if !origin_allowed(req, port) { return api_error(403, "forbidden_origin", "origin not allowed") }
         match projects_load(data_dir) {
             Ok(list) => json_reply(200, projects_list_json(list))
             Err(f) => api_fail(f)
@@ -93,7 +100,7 @@ fn projects_list_route(data_dir str, port int) -> fn(ServerRequest) -> ServerRes
 
 fn projects_get_route(data_dir str, port int) -> fn(ServerRequest) -> ServerResponse {
     fn(req ServerRequest) -> ServerResponse {
-        if !origin_allowed(req, port) { return api_error(403, "origin not allowed") }
+        if !origin_allowed(req, port) { return api_error(403, "forbidden_origin", "origin not allowed") }
         match projects_get(data_dir, req.param("id") ?? "") {
             Ok(p) => json_reply(200, project_json(p).to_str())
             Err(f) => api_fail(f)
@@ -103,9 +110,9 @@ fn projects_get_route(data_dir str, port int) -> fn(ServerRequest) -> ServerResp
 
 fn projects_post_route(data_dir str, state_dir str, port int) -> fn(ServerRequest) -> ServerResponse {
     fn(req ServerRequest) -> ServerResponse {
-        if !origin_allowed(req, port) { return api_error(403, "origin not allowed") }
+        if !origin_allowed(req, port) { return api_error(403, "forbidden_origin", "origin not allowed") }
         match api_body(req) {
-            Err(reason) => api_error(400, reason)
+            Err(reason) => api_error(400, "invalid_body", reason)
             Ok(body) => match projects_create(data_dir, body) {
                 Ok(id) => {
                     remember_dir(state_dir, body)
@@ -121,9 +128,9 @@ fn projects_post_route(data_dir str, state_dir str, port int) -> fn(ServerReques
 
 fn projects_put_route(data_dir str, state_dir str, port int) -> fn(ServerRequest) -> ServerResponse {
     fn(req ServerRequest) -> ServerResponse {
-        if !origin_allowed(req, port) { return api_error(403, "origin not allowed") }
+        if !origin_allowed(req, port) { return api_error(403, "forbidden_origin", "origin not allowed") }
         match api_body(req) {
-            Err(reason) => api_error(400, reason)
+            Err(reason) => api_error(400, "invalid_body", reason)
             Ok(body) => match projects_replace(data_dir, req.param("id") ?? "", body) {
                 Ok(done) => {
                     remember_dir(state_dir, body)
@@ -137,9 +144,9 @@ fn projects_put_route(data_dir str, state_dir str, port int) -> fn(ServerRequest
 
 fn projects_order_route(data_dir str, port int) -> fn(ServerRequest) -> ServerResponse {
     fn(req ServerRequest) -> ServerResponse {
-        if !origin_allowed(req, port) { return api_error(403, "origin not allowed") }
+        if !origin_allowed(req, port) { return api_error(403, "forbidden_origin", "origin not allowed") }
         match api_body(req) {
-            Err(reason) => api_error(400, reason)
+            Err(reason) => api_error(400, "invalid_body", reason)
             Ok(body) => {
                 mut ids = []str.new()
                 match body.get("ids") {
@@ -159,7 +166,7 @@ fn projects_order_route(data_dir str, port int) -> fn(ServerRequest) -> ServerRe
 
 fn projects_delete_route(data_dir str, port int) -> fn(ServerRequest) -> ServerResponse {
     fn(req ServerRequest) -> ServerResponse {
-        if !origin_allowed(req, port) { return api_error(403, "origin not allowed") }
+        if !origin_allowed(req, port) { return api_error(403, "forbidden_origin", "origin not allowed") }
         match projects_delete(data_dir, req.param("id") ?? "") {
             Ok(done) => json_reply(200, "{\"ok\":true}")
             Err(f) => api_fail(f)
@@ -218,7 +225,7 @@ fn fs_roots_json(recent []str) -> str {
 
 fn fs_list_route(data_dir str, state_dir str, port int) -> fn(ServerRequest) -> ServerResponse {
     fn(req ServerRequest) -> ServerResponse {
-        if !origin_allowed(req, port) { return api_error(403, "origin not allowed") }
+        if !origin_allowed(req, port) { return api_error(403, "forbidden_origin", "origin not allowed") }
         if (req.query_param("roots") ?? "") == "1" { return json_reply(200, fs_roots_json(recent_of(data_dir))) }
         ro asked = (req.query_param("path") ?? "").trim_ascii()
         if asked.byte_len() == 0 {
@@ -233,10 +240,10 @@ fn fs_list_route(data_dir str, state_dir str, port int) -> fn(ServerRequest) -> 
             return json_reply(200, fs_roots_json(recent_of(data_dir)))
         }
         match normalize_folder_path(asked) {
-            Err(reason) => api_error(400, reason)
+            Err(reason) => api_error(400, "invalid_parameter", reason)
             Ok(path) => match list_folders(path) {
                 Ok(listing) => json_reply(200, fs_list_json(listing, recent_of(data_dir), ""))
-                Err(reason) => api_error(404, reason)
+                Err(reason) => api_error(404, "not_found", reason)
             }
         }
     }
@@ -244,7 +251,7 @@ fn fs_list_route(data_dir str, state_dir str, port int) -> fn(ServerRequest) -> 
 
 fn fs_git_route(port int) -> fn(ServerRequest) -> ServerResponse {
     fn(req ServerRequest) -> ServerResponse {
-        if !origin_allowed(req, port) { return api_error(403, "origin not allowed") }
+        if !origin_allowed(req, port) { return api_error(403, "forbidden_origin", "origin not allowed") }
         ro state = git_state(req.query_param("path") ?? "")
         mut o = JsonObject.new()
         api_put(o, "is_repo", JsonValue.bool(state.is_repo))

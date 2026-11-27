@@ -1,0 +1,78 @@
+// front_routes_test.nv - the HTTP contract of the routes of the panel (task 326): an unknown query parameter is a 400
+// with the machine code `invalid_parameter` (never a silent ignore), and every JSON refusal carries a machine `code`.
+module canopus.server.front
+
+import canopus.server.{HubCommand}
+import polaris.{Router, serve_once}
+import std.concurrency.nvchan.{Chan}
+import std.text
+
+// The router of the panel over an empty root: no agent, no recognizer, the flat layout of the root.
+fn test_router(root str) -> Router {
+    ro hub = Chan[HubCommand].new(4)
+    ro reg = Chan[Reg].new(4)
+    ro stt_asks = Chan[SttAsk].new(1)
+    ro stt_mgr = Chan[SttMgrAsk].new(1)
+    ro layout = fs_defaults().layout
+    match build_router(root, 59999, hub.tx, reg.tx, []AgentChoice.new(), "http://127.0.0.1:9", "ru", "small", stt_asks.tx, stt_mgr.tx, root, 1024, layout, "default", []str.new(), None, root) {
+        Ok(router) => router
+        Err(e) => panic("the router of the test did not build: ${e}")
+    }
+}
+
+fn http_get(router Router, target str, origin str) -> str {
+    ro origin_line = if origin.byte_len() > 0 { "Origin: ${origin}\r\n" } else { "" }
+    ro wire = serve_once(router, "GET ${target} HTTP/1.1\r\nHost: 127.0.0.1:59999\r\n${origin_line}\r\n".bytes())
+    match wire.to_str() {
+        Ok(text) => text
+        Err(e) => panic("the answer is not a text")
+    }
+}
+
+fn http_post(router Router, target str, body str) -> str {
+    ro wire = serve_once(router, "POST ${target} HTTP/1.1\r\nHost: 127.0.0.1:59999\r\nContent-Length: ${body.byte_len()}\r\n\r\n${body}".bytes())
+    match wire.to_str() {
+        Ok(text) => text
+        Err(e) => panic("the answer is not a text")
+    }
+}
+
+test "routes: an unknown query parameter is 400 invalid_parameter, not a silent ignore" {
+    ro router = test_router("no_such_root_326")
+    ro resp = http_get(router, "/api/agents?bogus=1", "")
+    assert(resp.starts_with("HTTP/1.1 400"))
+    assert(resp.contains("\"code\":\"invalid_parameter\""))
+    assert(resp.contains("bogus"))
+}
+
+test "routes: the websocket refuses an unknown query parameter the same way" {
+    ro router = test_router("no_such_root_326")
+    ro resp = http_get(router, "/ws?history=lazy&bogus=1", "")
+    assert(resp.starts_with("HTTP/1.1 400"))
+    assert(resp.contains("\"code\":\"invalid_parameter\""))
+}
+
+test "routes: the query parameters the page sends stay allowed" {
+    ro router = test_router("no_such_root_326")
+    assert(http_get(router, "/api/agents", "").starts_with("HTTP/1.1 200"))
+    assert(http_get(router, "/api/fs/git?path=C:/", "").starts_with("HTTP/1.1 200"))
+    assert(http_get(router, "/api/fs/list?roots=1", "").starts_with("HTTP/1.1 200"))
+    assert(http_get(router, "/api/session-trace/x?from=1&to=2", "").starts_with("HTTP/1.1 200"))
+    assert(http_get(router, "/api/session-trace/x?mail_at=5&mail_bytes=10", "").starts_with("HTTP/1.1 200"))
+    assert(http_get(router, "/api/result-repositories/inspect?path=no_such_root_326", "").starts_with("HTTP/1.1 400"))
+}
+
+test "routes: a JSON refusal carries the machine code of its kind" {
+    ro router = test_router("no_such_root_326")
+    // a foreign Origin: 403 forbidden_origin
+    ro foreign = http_get(router, "/api/projects", "http://evil.example")
+    assert(foreign.starts_with("HTTP/1.1 403"))
+    assert(foreign.contains("\"code\":\"forbidden_origin\""))
+    // a body that is not JSON: 400 invalid_body
+    ro bad_body = http_post(router, "/api/projects", "not json")
+    assert(bad_body.starts_with("HTTP/1.1 400"))
+    assert(bad_body.contains("\"code\":\"invalid_body\""))
+    // no raw exchange for the session: the answer of the trace carries not_found
+    ro missing = http_get(router, "/api/session-trace/x?from=1", "")
+    assert(missing.contains("\"code\":\"not_found\""))
+}
