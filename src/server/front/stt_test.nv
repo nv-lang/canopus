@@ -1,7 +1,7 @@
 // stt_test.nv - the voice to the text (task 192f): the address, the request to the recognizer, its answer, the JSON of the front.
 module canopus.server.front
 
-import std.text
+import std.fs.{Path}
 import std.encoding.json.{Json}
 
 fn wav_bytes(extra int) -> []u8 {
