@@ -2036,7 +2036,7 @@ export function createView(doc, refs, deps) {
   }
 
   // задача 323: просмотр диффа — патч запрашивается у хаба по кнопке; кеш по сессии и пути переживает перерисовку
-  const diffPatches = new Map(); // `${trace}${path}` -> { state: 'loading'|'ok'|'error', patch, truncated, error }
+  const diffPatches = new Map(); // `${trace}${item.key}:${path}` -> { state: 'loading'|'ok'|'error', patch, truncated, error }
 
   function diffPanelNodes(viewKey) {
     const cached = diffPatches.get(viewKey);

@@ -5,7 +5,7 @@
 module canopus.server.front
 
 import canopus.server.{tree_diff_patch, TreeDiff}
-import canopus.storage.{session_file, file_replay_journal}
+import canopus.storage.{session_file, file_replay_journal, secret_redact}
 import alula.engine.{Journal, JournalEntry}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 import std.fs.{Fs, real_fs, try_exists}
@@ -79,12 +79,13 @@ export fn diff_worktree_scan(names []str, inputs []str) -> str {
     wip
 }
 
-/// The JSON of the answer for a computed patch (pure, tested without git).
+/// The JSON of the answer for a computed patch (pure, tested without git). The patch goes through `secret_redact`
+/// (tokens, keys, user names of paths), as every text that leaves the hub (the same rule as trace_api.nv).
 export fn diff_reply_of(path str, d TreeDiff) -> DiffReply {
     if !d.ok { return diff_error(500, d.err) }
     mut o = JsonObject.new()
     ro p1 = o.insert("path", JsonValue.str(path))
-    ro p2 = o.insert("patch", JsonValue.str(d.patch))
+    ro p2 = o.insert("patch", JsonValue.str(secret_redact(d.patch)))
     ro p3 = o.insert("truncated", JsonValue.bool(d.truncated))
     DiffReply { status: 200, body: JsonValue.object(o).to_str() }
 }

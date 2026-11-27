@@ -38,6 +38,10 @@ test "diff api: the answer carries the patch and the cut flag, a refusal of git 
     assert(good.body.contains("\"path\":\"src/a.js\"") && good.body.contains("+new") && good.body.contains("\"truncated\":true"))
     ro bad = diff_reply_of("", TreeDiff { ok: false, patch: "", truncated: false, err: "fatal: not a git repository" })
     assert(bad.status == 500 && bad.body.contains("not a git repository"))
+    // the patch leaves the hub through secret_redact, as every text of the trace api does
+    ro word = "tok123"
+    ro redacted = diff_reply_of("a", TreeDiff { ok: true, patch: "+Authorization: Bearer ${word}\n", truncated: false, err: "" })
+    assert(!redacted.body.contains(word) && redacted.body.contains("<token>"))
 }
 
 test "diff api: an unknown session and an unsafe name are a 404, not a crash" {
