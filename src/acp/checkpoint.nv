@@ -1,0 +1,213 @@
+// A daemon frame and its projected inbox events are one durable record.
+module canopus.acp
+
+import canopus.storage.{append_line, replace_file}
+import std.collections.index_map.{IndexMap}
+import std.encoding.json.{JsonObject, JsonValue}
+import std.fs.{Fs, Path, real_fs}
+
+export type DaemonResume { ticket DaemonTicket, after int }
+
+const CHECKPOINT_COMPACT_EVERY = 128
+
+fn checkpoint_line(state JsonValue, next int, events []JsonValue) -> str {
+    ro o IndexMap[str, JsonValue] = { t: JsonValue.str("daemon"), state, next: JsonValue.int(next), events: JsonValue.array(events) }
+    JsonValue.object(o).to_str()
+}
+
+fn cursor_before_pending(processed int, pending []AcpInboxItem, taken []AcpInboxItem) -> int {
+    mut after = processed
+    for items in [pending, taken] {
+        for item in items {
+            if item.wire > 0 && item.wire <= after { after = item.wire - 1 }
+        }
+    }
+    after
+}
+
+/// The checkpoint contains no daemon key or captured outbound RPC frames.
+export fn daemon_resume(inbox str) Fs -> Result[Option[DaemonResume], str] {
+    if inbox.byte_len() == 0 { return Ok(None) }
+    ro recovered = recover_inbox(inbox)
+    ro state = recovered.checkpoint
+    if state.object().is_none() { return Ok(None) }
+    ro session = field_text(state, "daemon_session") ?? ""
+    ro instance = field_text(state, "instance") ?? ""
+    ro pid = field_int(state, "pid") ?? -1
+    ro processed = field_int(state, "wire") ?? -1
+    if session == "" || instance == "" || pid <= 0 || processed < 0 {
+        return Err("invalid ACP daemon checkpoint")
+    }
+    ro after = cursor_before_pending(processed, recovered.items, []AcpInboxItem.new())
+    Ok(Some(DaemonResume { ticket: DaemonTicket { session, instance, pid }, after }))
+}
+
+fn AcpClient mut @save_checkpoint(start int) -> () {
+    ro ticket = @link.ticket ?? return
+    if @config.inbox_path.byte_len() == 0 { return }
+    @checkpoint_writes += 1
+    ro compact = @checkpoint_writes >= CHECKPOINT_COMPACT_EVERY
+    mut events = []JsonValue.new()
+    if compact {
+        for item in @taken { events.push(event_record(item)) }
+    }
+    ro from = if compact { 0 } else { start }
+    for item in @ready[from..@ready.len()] { events.push(event_record(item)) }
+    ro line = checkpoint_line(@checkpoint(ticket), @next_seq, events)
+    // D454: the durable transport uses the same real inbox as Link.ack.
+    with Fs = real_fs() {
+        ro path = Path.from_bytes(@config.inbox_path.bytes())
+        ro written = if compact { replace_file(path, "${line}\n") } else { append_line(path, line) }
+        if !written { panic("the daemon checkpoint cannot be written") }
+    }
+    if compact { @checkpoint_writes = 0 }
+}
+
+fn AcpClient @checkpoint(ticket DaemonTicket) -> JsonValue {
+    mut o = JsonObject.new()
+    put(o, "daemon_session", JsonValue.str(ticket.session))
+    put(o, "instance", JsonValue.str(ticket.instance))
+    put(o, "pid", JsonValue.int(ticket.pid))
+    put(o, "wire", JsonValue.int(@processed_wire))
+    put(o, "phase", JsonValue.str(@phase))
+    put(o, "session", JsonValue.str(@session))
+    put(o, "agent", JsonValue.str(@agent))
+    put(o, "model_name", JsonValue.str(@model_name))
+    put(o, "mode_now", JsonValue.str(@mode_now))
+    put(o, "model_now", JsonValue.str(@model_now))
+    put(o, "active", JsonValue.str(@active))
+    put(o, "auth_methods", JsonValue.str(@auth_methods))
+    put(o, "last_error", JsonValue.str(@last_error))
+    put(o, "handoff_context", JsonValue.str(@handoff_context))
+    put(o, "dispatch_family", JsonValue.str(@dispatch_family))
+    put(o, "dispatch_role", JsonValue.str(@dispatch_role))
+    put(o, "required_mode", JsonValue.str(@required_mode))
+    put(o, "next_rpc", JsonValue.int(@next_rpc))
+    put(o, "init_rpc", JsonValue.int(@init_rpc))
+    put(o, "new_rpc", JsonValue.int(@new_rpc))
+    put(o, "prompt_rpc", JsonValue.int(@prompt_rpc))
+    put(o, "updates", JsonValue.int(@updates))
+    put(o, "exit_code", JsonValue.int(@exit_code))
+    put(o, "cancelling", JsonValue.bool(@cancelling))
+    put(o, "mcp_http", JsonValue.bool(@mcp_http))
+    put(o, "hint_due", JsonValue.bool(@hint_due))
+    put(o, "images_ok", JsonValue.bool(@images_ok))
+    put(o, "handoff_only", JsonValue.bool(@handoff_only))
+    put(o, "hold_prompt", JsonValue.bool(@hold_prompt))
+    put(o, "strict_source", JsonValue.bool(@strict_source))
+    put(o, "modes", @modes)
+    put(o, "models", @models)
+    put(o, "choices_cfg", @choices_cfg)
+
+    put(o, "marker_tail", JsonValue.str(@marker.tail))
+    put(o, "marker_fence", JsonValue.bool(@marker.fence))
+    mut permissions = []JsonValue.new()
+    for pending in @permissions {
+        mut options = []JsonValue.new()
+        for option in pending.options {
+            ro value IndexMap[str, JsonValue] = { id: JsonValue.str(option.id), kind: JsonValue.str(option.kind) }
+            options.push(JsonValue.object(value))
+        }
+        ro value IndexMap[str, JsonValue] = { key: JsonValue.str(pending.key), id: pending.id, options: JsonValue.array(options) }
+        permissions.push(JsonValue.object(value))
+    }
+    put(o, "permissions", JsonValue.array(permissions))
+    mut asks = []JsonValue.new()
+    for ask in @asks {
+        ro value IndexMap[str, JsonValue] = { key: JsonValue.str(ask.key), id: ask.id, params: ask.params }
+        asks.push(JsonValue.object(value))
+    }
+    put(o, "asks", JsonValue.array(asks))
+    mut sets = []JsonValue.new()
+    for pick in @sets {
+        ro value IndexMap[str, JsonValue] = { rpc: JsonValue.int(pick.rpc), setting: JsonValue.str(pick.setting), value: JsonValue.str(pick.value), owner: JsonValue.bool(pick.owner) }
+        sets.push(JsonValue.object(value))
+    }
+    put(o, "sets", JsonValue.array(sets))
+    mut presets = []JsonValue.new()
+    for pick in @presets {
+        ro value IndexMap[str, JsonValue] = { setting: JsonValue.str(pick.setting), value: JsonValue.str(pick.value) }
+        presets.push(JsonValue.object(value))
+    }
+    put(o, "presets", JsonValue.array(presets))
+    mut queue = []JsonValue.new()
+    for pending in @queue {
+        mut images = []JsonValue.new()
+        for image in pending.images {
+            ro value IndexMap[str, JsonValue] = { path: JsonValue.str(image.path), mime: JsonValue.str(image.mime), name: JsonValue.str(image.name) }
+            images.push(JsonValue.object(value))
+        }
+        ro value IndexMap[str, JsonValue] = { request: JsonValue.str(pending.request), text: JsonValue.str(pending.text), pre: JsonValue.str(pending.pre), images: JsonValue.array(images) }
+        queue.push(JsonValue.object(value))
+    }
+    put(o, "queue", JsonValue.array(queue))
+    mut commands = []JsonValue.new()
+    for command in @commands { commands.push(JsonValue.str(command)) }
+    put(o, "commands", JsonValue.array(commands))
+    JsonValue.object(o)
+}
+
+fn checkpoint_array(state JsonValue, key str) -> []JsonValue =>
+    (field(state, key) ?? JsonValue.null()).array() ?? []JsonValue.new()
+
+fn checkpoint_flag(state JsonValue, key str) -> bool =>
+    (field(state, key) ?? JsonValue.null()).bool() ?? false
+
+fn AcpClient mut @restore_checkpoint(state JsonValue) -> () {
+    @processed_wire = field_int(state, "wire") ?? 0
+    @phase = field_text(state, "phase") ?? ""
+    @session = field_text(state, "session") ?? ""
+    @agent = field_text(state, "agent") ?? ""
+    @model_name = field_text(state, "model_name") ?? ""
+    @mode_now = field_text(state, "mode_now") ?? ""
+    @model_now = field_text(state, "model_now") ?? ""
+    @active = field_text(state, "active") ?? ""
+    @auth_methods = field_text(state, "auth_methods") ?? ""
+    @last_error = field_text(state, "last_error") ?? ""
+    @handoff_context = field_text(state, "handoff_context") ?? ""
+    @dispatch_family = field_text(state, "dispatch_family") ?? ""
+    @dispatch_role = field_text(state, "dispatch_role") ?? ""
+    @required_mode = field_text(state, "required_mode") ?? ""
+    @next_rpc = field_int(state, "next_rpc") ?? -1
+    @init_rpc = field_int(state, "init_rpc") ?? -1
+    @new_rpc = field_int(state, "new_rpc") ?? -1
+    @prompt_rpc = field_int(state, "prompt_rpc") ?? -1
+    @updates = field_int(state, "updates") ?? -1
+    @exit_code = field_int(state, "exit_code") ?? -1
+    @cancelling = checkpoint_flag(state, "cancelling")
+    @mcp_http = checkpoint_flag(state, "mcp_http")
+    @hint_due = checkpoint_flag(state, "hint_due")
+    @images_ok = checkpoint_flag(state, "images_ok")
+    @handoff_only = checkpoint_flag(state, "handoff_only")
+    @hold_prompt = checkpoint_flag(state, "hold_prompt")
+    @strict_source = checkpoint_flag(state, "strict_source")
+    @modes = field(state, "modes") ?? JsonValue.null()
+    @models = field(state, "models") ?? JsonValue.null()
+    @choices_cfg = field(state, "choices_cfg") ?? JsonValue.null()
+
+    @marker = MarkerState { tail: field_text(state, "marker_tail") ?? "", fence: checkpoint_flag(state, "marker_fence") }
+    for item in checkpoint_array(state, "permissions") {
+        mut options = []AcpOption.new()
+        for option in checkpoint_array(item, "options") {
+            options.push(AcpOption { id: field_text(option, "id") ?? "", kind: field_text(option, "kind") ?? "" })
+        }
+        @permissions.push(AcpPending { key: field_text(item, "key") ?? "", id: field(item, "id") ?? JsonValue.null(), options })
+    }
+    for item in checkpoint_array(state, "asks") {
+        @asks.push(AcpAsk { key: field_text(item, "key") ?? "", id: field(item, "id") ?? JsonValue.null(), params: field(item, "params") ?? JsonValue.null() })
+    }
+    for item in checkpoint_array(state, "sets") {
+        @sets.push(AcpSet { rpc: field_int(item, "rpc") ?? -1, setting: field_text(item, "setting") ?? "", value: field_text(item, "value") ?? "", owner: checkpoint_flag(item, "owner") })
+    }
+    for item in checkpoint_array(state, "presets") {
+        @presets.push(AcpPreset { setting: field_text(item, "setting") ?? "", value: field_text(item, "value") ?? "" })
+    }
+    for item in checkpoint_array(state, "queue") {
+        mut images = []AcpImage.new()
+        for image in checkpoint_array(item, "images") {
+            images.push(AcpImage { path: field_text(image, "path") ?? "", mime: field_text(image, "mime") ?? "", name: field_text(image, "name") ?? "" })
+        }
+        @queue.push(AcpQueued { request: field_text(item, "request") ?? "", text: field_text(item, "text") ?? "", pre: field_text(item, "pre") ?? "", images })
+    }
+    for item in checkpoint_array(state, "commands") { @commands.push(item.str() ?? "") }
+}

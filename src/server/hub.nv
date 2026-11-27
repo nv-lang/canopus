@@ -20,8 +20,8 @@ module canopus.server
 import alula.engine.{Engine, Incoming, EventKind, Journal, Store, Link, PartyRequest, FailCode, start_engine, resume_engine, decode_snapshot}
 import canopus.product_machines.{find_machines_dir, load_product_machines}
 import alula.machine_run.{AlulaMachine, AlulaState}
-import canopus.acp.{AcpConfig, AcpClient, AcpImage, AcpPreset, AcpQueued, AskSetup, no_ask, open_client_full, acp_link, page_event, refused_event, acp_context_overflow, TRACE_LIMIT}
-import canopus.daemon.{daemon_endpoint, connect_daemon}
+import canopus.acp.{AcpConfig, AcpClient, AcpImage, AcpPreset, AcpQueued, AskSetup, no_ask, open_client_full, daemon_resume, acp_link, page_event, refused_event, acp_context_overflow, TRACE_LIMIT}
+import canopus.daemon.{daemon_endpoint, connect_daemon, resume_daemon}
 import canopus.agent_config.{opencode_env}
 import canopus.process.{ShellRaw}
 import canopus.config.{pick_prompt, ConfigLayout, load_presets, preset_named, preset_family, DEFAULT_PRESET, presets_reply}
@@ -1260,9 +1260,36 @@ fn Hub mut @agent_env(agent str, base []EnvEntry) -> []EnvEntry {
 
 fn Hub @roster_path() -> str => "${@settings.layout.state}/${CHILD_ROSTER_DIR}"
 
-fn Hub @open_agent(config AcpConfig, trace str, trace_limit int, ask AskSetup, env []EnvEntry) Proc Detach Time -> Result[AcpClient, str] {
+fn Hub @has_daemon_config() -> bool {
+    // D454: the daemon descriptor belongs to the real instance state.
+    with Fs = real_fs() { try_exists(Path.from_bytes("${@settings.layout.state}/daemon.json".bytes())) ?? true }
+}
+
+fn Hub @has_daemon_checkpoint(id str) -> bool {
+    ro inbox = "${@settings.data_dir}/${id}/inbox"
+    // D454: inspect the same session inbox the ACP client recovers on startup.
+    match with Fs = real_fs() { daemon_resume(inbox) } {
+        Ok(saved) => saved.is_some()
+        Err(reason) => true
+    }
+}
+
+fn Hub @open_agent(config AcpConfig, trace str, trace_limit int, ask AskSetup, env []EnvEntry, recovering bool = false) Proc Detach Time -> Result[AcpClient, str] {
     // D454: the production ACP transport runs outside the simulated hub's filesystem and network handlers.
     ro local = with Fs = real_fs() { daemon_endpoint(@settings.layout.state) }?
+    if recovering {
+        ro saved = with Fs = real_fs() { daemon_resume(config.inbox_path) }?
+        match saved {
+            Some(resume) => {
+                ro endpoint = local.ok_or("local daemon configuration is missing for the open turn")?
+                ro link = with Net = real_net(), Random = real_random() {
+                    resume_daemon(endpoint, resume.ticket, resume.after)
+                }
+                return open_client_full(config, trace, trace_limit, ask, env, transport: Some(link), resumed: true)
+            }
+            None => if local.is_some() { return Err("the open turn has no local daemon checkpoint") }
+        }
+    }
     match local {
         None => open_client_full(config, trace, trace_limit, ask, env)
         Some(endpoint) => {
@@ -1340,7 +1367,7 @@ fn Hub @execution_problem(at int) Proc Detach Time -> str {
 }
 
 // Make sure the session has a live agent: start one if there is none or the old one is gone.
-fn Hub mut @ensure_client(at int) Proc Detach Time -> str {
+fn Hub mut @ensure_client(at int, recovering bool = false) Proc Detach Time -> str {
     ro problem = @execution_problem(at)
     if problem.byte_len() > 0 { return problem }
     mut s = @sessions[at]
@@ -1367,7 +1394,13 @@ fn Hub mut @ensure_client(at int) Proc Detach Time -> str {
         @sessions[at] = s
         return "Выбранная отдельная рабочая папка ещё не подтверждена: ACP не запускается в основной папке"
     }
-    ro config = configs[0]
+    mut config = configs[0]
+    if preparation && config.inbox_path == "" && (@has_daemon_config() || recovering && @has_daemon_checkpoint(s.id)) {
+        match session_file_made(@settings.data_dir, s.id, "inbox") {
+            Some(p) => { config.inbox_path = p.display() }
+            None => return "cannot open the managed agent inbox"
+        }
+    }
     if s.clients.len() > 0 {
         s.clients[0].set_dispatch_family(s.agent)
         ro phase = s.clients[0].phase()
@@ -1379,21 +1412,22 @@ fn Hub mut @ensure_client(at int) Proc Detach Time -> str {
         s.clients[0].close()
         s.clients = []AcpClient.new()
     }
-    match @open_agent(config, @trace_path_of(s), TRACE_LIMIT, if preparation { no_ask() } else { @ask_for(s.agent, s.id) }, if preparation { []EnvEntry.new() } else { @agent_env(s.agent, @env_of(s)) }) {
+    match @open_agent(config, @trace_path_of(s), TRACE_LIMIT, if preparation { no_ask() } else { @ask_for(s.agent, s.id) }, if preparation { []EnvEntry.new() } else { @agent_env(s.agent, @env_of(s)) }, recovering: recovering) {
             Ok(client) => {
                 s.clients.push(client)
                 if !s.clients[0].managed() { @roster_note(s.clients[0].pid(), s.agent) }
                 s.clients[0].set_dispatch_family(s.agent)
                 // the choices of the owner for this family go to every agent started for the session (task 192t)
-                if !preparation { s.clients[0].set_presets(presets_for(s.chosen, s.agent)) }
-                else if @has_registered_preparation(s.agent) {
+                ro resumed = recovering && s.clients[0].managed()
+                if !preparation && !resumed { s.clients[0].set_presets(presets_for(s.chosen, s.agent)) }
+                else if !resumed && @has_registered_preparation(s.agent) {
                     match s.dispatch.source {
                         Some(source) => s.clients[0].set_source(preparation_source_settings(source))
                         None => ()
                     }
                 }
-                s.announced = false
-                s.model_announced = false
+                s.announced = resumed && s.clients[0].phase() == "ready"
+                s.model_announced = s.announced
                 s.slow_told = false
                 s.started_at = now_millis()
                 // Record the actual launch cwd; restricted Preparation uses the session directory, not a project fallback.
@@ -1804,8 +1838,20 @@ fn Hub mut @install_restore(id str, prepared Option[PreparedRestore]) Proc Detac
                 if !recovery_read.contains("recovery-${r.key}") { @mcp_recovery_letter(id, r.key, r.text) }
             }
             if engine.open_ids().len() > 0 {
-                ro reason = @ensure_client(@sessions.len() - 1)
-                if reason.byte_len() > 0 { @say_log("the agent of ${id} cannot be started: ${reason}") }
+                ro at = @sessions.len() - 1
+                ro reason = @ensure_client(at, recovering: true)
+                if reason.byte_len() > 0 {
+                    @say_log("the agent of ${id} cannot be restored: ${reason}")
+                    mut failed = @sessions[at]
+                    if @has_daemon_config() || @has_daemon_checkpoint(id) {
+                        ro pg = @settings.store == "pg"
+                        ro root = @settings.data_dir
+                        for request in engine.open_ids() { accept_in(pg, root, failed, refused_event(request, FailCode.ConnectionLost)) }
+                        @sessions[at] = failed
+                        @tell_error(0, id, failed.engine.step_number(), failed.turn, reason)
+                        @drain(at)
+                    }
+                }
             }
         }
     }
@@ -3733,7 +3779,9 @@ export fn Hub mut @close() Time -> () {
         mut mine = s
         with Fs = real_fs() { discard_turn_diff(mine.turn_diff) }
         if mine.clients.len() > 0 {
-            mine.clients[0].close()
+            if mine.clients[0].managed() && mine.clients[0].config.inbox_path != "" && mine.engine.open_ids().len() > 0 {
+                mine.clients[0].leave()
+            } else { mine.clients[0].close() }
             mine.clients = []AcpClient.new()
         }
     }

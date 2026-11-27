@@ -1,7 +1,7 @@
 // The hub-side transport. Keep socket I/O in a fiber so the ACP pump can stay nonblocking.
 module canopus.daemon
 
-import canopus.acp.{AgentLink, Inbound}
+import canopus.acp.{AgentLink, DaemonTicket, Inbound}
 import canopus.projects.{EnvEntry}
 import std.concurrency.nvchan.{Chan, ChanRx, ChanTx}
 import std.encoding.base64.{Base64}
@@ -136,13 +136,36 @@ fn deliver(reply JsonObject, mut cursor RelayCursor, inbox ChanTx[Inbound]) -> R
     Ok(())
 }
 
-fn relay(agent RelayAgent, incoming ChanTx[Inbound], outgoing ChanRx[str], killing ChanRx[int]) Net Time -> Result[(), str] {
-    mut cursor = RelayCursor { after: 0, stderr: "", eof: false, exited: false }
+fn poll_agent(agent RelayAgent, after int, lease_until int) Net Time -> Result[JsonObject, str] {
+    mut body = request_for(agent, "poll")
+    put(body, "after", JsonValue.int(after))
+    while true {
+        match daemon_reply(agent, body) {
+            Ok(reply) => return Ok(reply)
+            Err(reason) => {
+                if !reason.starts_with("local daemon busy:") || now_ms() >= lease_until { return Err(reason) }
+                100.to_millis().sleep()
+            }
+        }
+    }
+    Err("local daemon did not answer")
+}
+
+fn relay(agent RelayAgent, after int, incoming ChanTx[Inbound], outgoing ChanRx[str], killing ChanRx[int]) Net Time -> Result[(), str] {
+    mut cursor = RelayCursor { after, stderr: "", eof: false, exited: false }
+    ro attached = poll_agent(agent, after, now_ms() + LEASE_MS + 1000)?
+    deliver(attached, cursor, incoming)?
     mut stop_at = 0
     while !(cursor.eof && cursor.exited) {
-        if stop_at == 0 && killing.try_recv().is_some() {
-            ro stopped = daemon_reply(agent, request_for(agent, "stop"))?
-            stop_at = now_ms() + 1500
+        match killing.try_recv() {
+            Some(signal) => {
+                if signal == 2 { return Ok(()) }
+                if stop_at == 0 {
+                    ro stopped = daemon_reply(agent, request_for(agent, "stop"))?
+                    stop_at = now_ms() + 1500
+                }
+            }
+            None => ()
         }
         if stop_at > 0 && now_ms() >= stop_at { return Err("local daemon did not confirm agent exit") }
         if stop_at == 0 && !cursor.eof {
@@ -154,9 +177,7 @@ fn relay(agent RelayAgent, incoming ChanTx[Inbound], outgoing ChanRx[str], killi
                 None => ()
             }
         }
-        mut body = request_for(agent, "poll")
-        put(body, "after", JsonValue.int(cursor.after))
-        ro reply = daemon_reply(agent, body)?
+        ro reply = poll_agent(agent, cursor.after, 0)?
         ro before = cursor.after
         deliver(reply, cursor, incoming)?
         if before == cursor.after { 100.to_millis().sleep() }
@@ -164,8 +185,8 @@ fn relay(agent RelayAgent, incoming ChanTx[Inbound], outgoing ChanRx[str], killi
     Ok(())
 }
 
-fn keep_relay(agent RelayAgent, incoming ChanTx[Inbound], outgoing ChanRx[str], killing ChanRx[int]) Net Time -> () {
-    match relay(agent, incoming, outgoing, killing) {
+fn keep_relay(agent RelayAgent, after int, incoming ChanTx[Inbound], outgoing ChanRx[str], killing ChanRx[int]) Net Time -> () {
+    match relay(agent, after, incoming, outgoing, killing) {
         Ok(done) => ()
         Err(reason) => {
             ro stopped = daemon_reply(agent, request_for(agent, "stop"))
@@ -194,14 +215,21 @@ export fn connect_daemon(endpoint DaemonEndpoint, program str, args []str, dir s
     put(body, "env", JsonValue.array(variables))
     ro started = daemon_reply(agent, body)?
     agent.instance = text(started, "instance")
-    ro pid = number(started, "pid") ?? -1
-    ro running = agent
+    Ok(relay_link(agent, number(started, "pid") ?? -1, 0))
+}
+
+export fn resume_daemon(endpoint DaemonEndpoint, ticket DaemonTicket, after int) Net Time Detach Random -> AgentLink {
+    ro agent = RelayAgent { endpoint, session: ticket.session, owner: Hex.encode(Random.bytes(24)), instance: ticket.instance }
+    relay_link(agent, ticket.pid, after)
+}
+
+fn relay_link(agent RelayAgent, pid int, after int) Net Time Detach -> AgentLink {
     ro incoming = Chan[Inbound].new(64)
     ro outgoing = Chan[str].new(64)
     ro killing = Chan[int].new(1)
     ro incoming_tx = incoming.tx
     ro outgoing_rx = outgoing.rx
     ro killing_rx = killing.rx
-    detach { keep_relay(running, incoming_tx, outgoing_rx, killing_rx) }
-    Ok(AgentLink { out: outgoing.tx, inb: incoming.rx, kill: killing.tx, pid, managed: true })
+    detach { keep_relay(agent, after, incoming_tx, outgoing_rx, killing_rx) }
+    AgentLink { out: outgoing.tx, inb: incoming.rx, kill: killing.tx, pid, managed: true, ticket: Some(DaemonTicket { session: agent.session, instance: agent.instance, pid }) }
 }
