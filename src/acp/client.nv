@@ -344,9 +344,13 @@ export fn open_client_env(config AcpConfig, trace_path str, trace_limit int, env
     open_client_full(config, trace_path, trace_limit, no_ask(), env)
 
 /// The whole of it: the trace, the means to ask the owner and the environment of the process.
-export fn open_client_full(config AcpConfig, trace_path str, trace_limit int, ask AskSetup, env []EnvEntry) Proc Detach Time -> Result[AcpClient, str] {
+export fn open_client_full(config AcpConfig, trace_path str, trace_limit int, ask AskSetup, env []EnvEntry, transport Option[AgentLink] = None) Proc Detach Time -> Result[AcpClient, str] {
     ro began = Time.now().unix_millis()
-    match connect_env(config.program, config.args, config.cwd, env) {
+    ro connection = match transport {
+        Some(link) => Ok(link)
+        None => connect_env(config.program, config.args, config.cwd, env)
+    }
+    match connection {
         Err(reason) => Err(reason)
         Ok(link) => {
             ro connected = Time.now().unix_millis()
@@ -390,6 +394,9 @@ fn AcpClient mut @next_id() -> int {
 fn AcpClient mut @say(line str) -> () {
     @trace.record("out", line)
     ro queued = @link.out.try_send(line)
+    if !queued && @link.managed && @phase != "closed" && @phase != "dead" {
+        @transport_failed("daemon input queue is full or closed")
+    }
 }
 
 // ----- events: the source key, the file, the queues -----
@@ -440,6 +447,13 @@ fn AcpClient mut @process_ended() -> () {
         @interrupt_result = Some("соединение с агентом закрыто до подтверждения отмены")
     }
     @refuse_everything(FailCode.ConnectionLost)
+}
+
+fn AcpClient mut @transport_failed(reason str) -> () {
+    @last_error = reason
+    @note(reason)
+    @process_ended()
+    @link.stop()
 }
 
 fn AcpClient mut @fail_handshake(why str) -> () {
@@ -989,6 +1003,10 @@ fn AcpClient mut @take(item Inbound) -> () {
         @on_line(item.text)
     } else if item.kind == "stderr" {
         @stderr = tail_of("${@stderr}${item.text}\n")
+    } else if item.kind == "stderr_tail" {
+        @stderr = item.text
+    } else if item.kind == "error" {
+        @transport_failed(item.text)
     } else if item.kind == "exit" {
         @exit_code = item.code
     } else if item.kind == "eof" {
@@ -1441,6 +1459,9 @@ export fn AcpClient @phase() -> str => @phase
 
 /// The process id of the agent (-1 - the keeper did not name it): the hub writes it down (task 317).
 export fn AcpClient @pid() -> int => @link.pid
+
+/// The daemon owns managed processes independently of this hub.
+export fn AcpClient @managed() -> bool => @link.managed
 
 /// How many genuine session/update messages of this session the client accepted (the hub's turn deadline, task 317).
 export fn AcpClient @updates() -> int => @updates

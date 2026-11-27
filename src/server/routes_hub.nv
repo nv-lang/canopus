@@ -8,13 +8,13 @@ module canopus.server
 
 import canopus.config.{modes_dirs, PoolEntry, load_presets, preset_named, preset_pick_weight, pick_source_json, resolve_pool_pinned}
 import alula.engine.{Incoming, EventKind, Link}
-import canopus.acp.{AcpClient, AcpConfig, AcpPreset, open_client_traced, acp_link}
+import canopus.acp.{AcpClient, AcpConfig, AcpPreset, no_ask, acp_link}
 import std.fs.{Fs, real_fs}
 import std.concurrency.nvchan.{ChanTx}
 import std.io.{real_io}
 import std.os.{env, real_os}
 import std.prelude.effects.{real_random}
-import canopus.projects.{projects_get, result_repo_validate}
+import canopus.projects.{EnvEntry, projects_get, result_repo_validate}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 
 const REVIEW_LIMIT_MS = 1200000
@@ -1117,7 +1117,7 @@ fn Hub mut @route_start_review(at int, index int, step RouteStep) Proc Detach Ti
             return
         }
     }
-    match open_client_traced(config, "", 0) {
+    match @open_agent(config, "", 0, no_ask(), []EnvEntry.new()) {
         Err(reason) => {
             @tell_error(0, s.id, s.engine.step_number(), "", "проверяющий ${family} не запущен: ${reason}")
             @route_stop(at)
@@ -1876,7 +1876,7 @@ fn Hub mut @route_tests_run(trace str) Proc Detach Time -> () {
     match @settings.agent(s.agent) {
         None => @tell_error(0, trace, s.engine.step_number(), "", "агент сессии не найден: ${s.agent}")
         Some(spec) => {
-            match open_client_traced(acp_config_of(spec.program, spec.args, s.rt.worktree, ""), "", 0) {
+            match @open_agent(acp_config_of(spec.program, spec.args, s.rt.worktree, ""), "", 0, no_ask(), []EnvEntry.new()) {
                 Err(reason) => @tell_error(0, trace, s.engine.step_number(), "", "прогон тестов не начат: ${reason}")
                 Ok(client) => {
                     mut clients = []AcpClient.new()

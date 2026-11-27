@@ -1,6 +1,6 @@
 module canopus.server
 
-import canopus.acp.{AcpConfig, AcpPreset, open_client_full, no_ask}
+import canopus.acp.{AcpConfig, AcpPreset, no_ask}
 import canopus.projects.{EnvEntry}
 import alula.engine.{Incoming}
 import std.time.{Time}
@@ -160,7 +160,7 @@ export fn preparation_kimi_launch(program str, native_args []str, model str, var
 fn Hub mut @preparation_handoff(s Dialog, source JsonObject) Proc Detach Time -> Result[ContextHandoff, str] {
     ro family = jtext(source, "family")
     ro config = @restricted_handoff_config(s, family, source)?
-    mut client = open_client_full(config, "", 0, no_ask(), []EnvEntry.new())?
+    mut client = @open_agent(config, "", 0, no_ask(), []EnvEntry.new())?
     client.set_dispatch_family(family)
     client.set_dispatch_role(s.dispatch.role)
     client.set_source(preparation_source_settings(source))

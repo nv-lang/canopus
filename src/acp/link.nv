@@ -32,14 +32,14 @@ import std.os.{Os, real_os, vars, has_env, Command, Child, ChildStdin, ChildStdo
 ///  - kind "stderr": a line of the stderr;
 ///  - kind "eof": the stdout is closed (the process is over, or closed it);
 ///  - kind "exit": the process ended with `code` (-1: its end could not be waited for).
-export type Inbound { kind str, text str, code int }
+export type Inbound { kind str, text str, code int, seq int }
 
 /// AgentLink: the three channels of a started process. `out` takes the lines to write (without a line break) - the writer adds
 /// it; a closed `out` closes the stdin; `inb` brings what the fibers tell; a number sent to `kill` kills the process tree.
 /// `pid` is the process id of the child (-1 - the keeper did not name it), so that the hub can write down what it started (task 317).
-export type AgentLink { out ChanTx[str], inb ChanRx[Inbound], kill ChanTx[int], pid int }
+export type AgentLink { out ChanTx[str], inb ChanRx[Inbound], kill ChanTx[int], pid int, managed bool }
 
-fn inbound_of(kind str, text str, code int) -> Inbound => { kind, text, code }
+fn inbound_of(kind str, text str, code int) -> Inbound => { kind, text, code, seq: 0 }
 
 fn stdin_of(o Option[ChildStdin]) -> ChildStdin {
     match o {
@@ -314,7 +314,7 @@ export fn connect_env(program str, args []str, dir str, env []EnvEntry, wire boo
         Some(reason) => {
             if !reason.starts_with("ok:") { return Err(if reason.byte_len() > 0 { reason } else { "the keeper of ${program} ended before the process was started" }) }
             ro pid = match reason[3..reason.byte_len()].to_int() { Ok(n) => n, Err(e) => -1 }
-            Ok(AgentLink { out: outbound.tx, inb: inbound.rx, kill: killing.tx, pid })
+            Ok(AgentLink { out: outbound.tx, inb: inbound.rx, kill: killing.tx, pid, managed: false })
         }
         None => Err("the keeper of ${program} ended before the process was started")
     }
