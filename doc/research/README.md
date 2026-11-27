@@ -42,6 +42,7 @@
 - [bb — протоколы](2026-11-26-bb-protocols.md) (тот же пин) — семь протоколов, contract-пакеты, версионирование
 - [Конкуренты bb — честный разбор по коду](2026-11-26-competitors.md) (opencode `82d8fc5`, vibe-kanban `3f095f0`, crystal `1e18e0b`, cline `cbc7d14`) — матрица, выводы, антипаттерны
 - [Самопроверка Канопуса по антипаттернам](2026-11-26-canopus-antipatterns.md) (main `2614bdae`) — 4 антипаттерна конкурентов против нашего кода, недобор до эталона bb
+- [Спайк: steer через ACP](2026-11-27-steer-acp-spike.md) — второй `session/prompt` в активном ходу: спека, наш код, живые пробы Kimi/Codex/ZCode, вывод про cancel+resume
 - [DeepSeek Harness — цели](2026-11-22-deepseek-harness-goals.md) (`deepseek-ai/deepseek-harness`, ревизия `2e39e704`)
 - [Kimi Code — цели](2026-11-21-kimi-code-goals.md) (пакет `@moonshot-ai/kimi-code` 2.1.1; + раздел про TodoList: без доп. запросов к модели)
 - [Codex — цели](2026-11-21-codex-goals.md) (`openai/codex`, ревизия `4360c5f8`; + раздел про follow-up подсказки: без доп. запросов, съём с `475e13ab`, сверен с пином)
