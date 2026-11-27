@@ -589,12 +589,17 @@ fn Hub mut @drain(at int) Time -> () {
 
 // A synthetic `error` event for one page (or all): it belongs to no step of the engine and is not kept.
 fn Hub mut @tell_error(conn int, trace str, step int, turn str, message str) Time -> () {
+    if message == "preparation_profile_missing" {
+        @tell_coded_error(conn, trace, step, turn, message, "Выбранный агент не поддерживает Подготовку задачи.")
+    } else {
+        @tell_coded_error(conn, trace, step, turn, "", message)
+    }
+}
+
+fn Hub mut @tell_coded_error(conn int, trace str, step int, turn str, code str, message str) Time -> () {
     @serial += 1
     mut input = error_input(turn, message)
-    if message == "preparation_profile_missing" {
-        input = error_input(turn, "Выбранный агент не поддерживает Подготовку задачи.")
-        js(input, "code", message)
-    }
+    if code != "" { js(input, "code", code) }
     @send(conn, event_line("srv-${@serial}", trace, step, "error", input, now_millis()))
 }
 
@@ -1726,14 +1731,14 @@ fn Hub mut @create(conn int, trace str, input JsonObject) Proc Detach Time -> ()
     ro project_id = jtext(input, "project_id")
     if !valid_session_name(trace) {
         @send(conn, event_line("srv-new", trace, 0, "session_created", created_input(name, agent, @workdir), now_millis()))
-        @tell_error(conn, trace, 1, "", "the session name is not valid: letters, digits, dot, dash and underscore")
+        @tell_coded_error(conn, trace, 1, "", "invalid_parameter", "the session name is not valid: letters, digits, dot, dash and underscore")
         return
     }
     if @find(trace) >= 0 { return }
     match @settings.agent(agent) {
         None => {
             @send(conn, event_line("srv-new", trace, 0, "session_created", created_input(name, agent, @workdir), now_millis()))
-            @tell_error(conn, trace, 1, "", "unknown agent: ${agent}")
+            @tell_coded_error(conn, trace, 1, "", "invalid_parameter", "unknown agent: ${agent}")
         }
         Some(spec) => {
             // the project of the control panel (task 192m): its folder is the folder of the agent, its variables reach the process of the agent
@@ -2976,14 +2981,14 @@ fn Hub mut @set_source(trace str, input JsonObject) Proc Detach Time -> () {
     if at < 0 { return }
     mut s = @sessions[at]
     if !@takes_message_at(at) {
-        @tell_error(0, trace, s.engine.step_number(), "", "Нельзя менять источник во время хода")
+        @tell_coded_error(0, trace, s.engine.step_number(), "", "conflict", "Нельзя менять источник во время хода")
         return
     }
     match parse_agent_source(input, @source_pools(s)) {
-        Err(e) => { @tell_error(0, trace, s.engine.step_number(), "", e); return }
+        Err(e) => { @tell_coded_error(0, trace, s.engine.step_number(), "", "invalid_parameter", e); return }
         Ok(p) => {
             if p.pool.byte_len() == 0 && @settings.agent(p.family).is_none() {
-                @tell_error(0, trace, s.engine.step_number(), "", "Неизвестная семья: ${p.family}")
+                @tell_coded_error(0, trace, s.engine.step_number(), "", "invalid_parameter", "Неизвестная семья: ${p.family}")
                 return
             }
         }
@@ -3268,7 +3273,8 @@ export fn Hub mut @handle(conn int, text str) Proc Detach Time -> () {
                         match jchild(line, "input") {
                             Some(data) => {
                                 mut error_data = error_input(jtext(data, "turn"), jtext(data, "message"))
-                                if jtext(data, "code") == "preparation_profile_missing" { js(error_data, "code", "preparation_profile_missing") }
+                                ro code = jtext(data, "code")
+                                if code != "" { js(error_data, "code", code) }
                                 jput(error_data, "client_id", JsonValue.str(client_id))
                                 outgoing.text = event_line(jtext(line, "id"), trace, jint(line, "step"), "error", error_data, jint(line, "time"))
                             }

@@ -1,0 +1,602 @@
+// ask.nv - the client of `canopus ask` (task 328): a thin client of the hub over the same WebSocket `/ws`
+// that the page of the panel uses. No process logic of its own (ADR-0018): the hub runs the turn (the machine,
+// the journal, the deadlines); the client only connects, sends the message and streams the answer.
+//
+// The flow: connect (an own timeout: a hub that is not up is an error, not a hang) -> the WebSocket handshake
+// (`/ws?history=lazy`: no full history dump, the client needs only `sessions_ready` and the live events) ->
+// the session is chosen (`--session`) or made (`session_created`) -> the source (`--model`, `session_source`)
+// -> `user_message` -> the events of the session are printed as they come (`agent_chunk`) until `agent_done`
+// (exit 0) or a refusal (a nonzero exit with the reason).
+module canopus.ask
+
+import polaris.ws.{Frame, OpCode, frame_len_hint, ws_accept_key}
+import std.concurrency.nvchan.{Chan, ChanTx, ChanPair}
+import std.encoding.base64.{Base64}
+import std.encoding.hex.{Hex}
+import std.encoding.json.{Json, JsonValue, JsonObject}
+import std.net.{TcpStream}
+import std.prelude.effects.{real_random}
+import std.time.{Time}
+
+// The exit codes of `canopus ask`.
+export const ASK_OK = 0
+// the hub cannot be reached (not up, the handshake failed, no answer in time)
+export const ASK_CONNECT = 3
+// the hub refused before the turn (no such session, an unknown agent, a rejected source or message)
+export const ASK_REFUSED = 4
+// the turn failed (`agent_refused`, an `error` event, the connection died mid-turn)
+export const ASK_FAILED = 5
+
+const HANDSHAKE_TIMEOUT_MS = 10000
+const READY_TIMEOUT_MS = 30000
+
+export type AskArgs { agent str, model str, session str, text str }
+
+export type AskOutcome { code int, reason str }
+
+/// Where the answer goes: `emit` - the text of the agent (stdout), `note` - a line for the owner (stderr).
+/// The functions are effect-free; the caller puts its IO behind a boundary (`with Io = real_io()`).
+export type AskSink { emit fn(str) -> (), note fn(str) -> () }
+
+/// `canopus ask --agent <id> [--model <m>] [--session <id>] "text"`: the words after `ask`. An unknown flag
+/// is an error. An explicit agent for an existing session must match its configured family.
+export fn parse_ask_args(words []str) -> Result[AskArgs, str] {
+    mut agent = ""
+    mut model = ""
+    mut session = ""
+    mut parts = []str.new()
+    mut i = 0
+    while i < words.len() {
+        ro w = words[i]
+        if w == "--agent" || w == "--model" || w == "--session" {
+            if i + 1 >= words.len() || words[i + 1].byte_len() == 0 || words[i + 1].starts_with("-") { return Err("the flag ${w} needs a value") }
+            if w == "--agent" {
+                if agent != "" { return Err("duplicate flag: ${w}") }
+                agent = words[i + 1]
+            }
+            if w == "--model" {
+                if model != "" { return Err("duplicate flag: ${w}") }
+                model = words[i + 1]
+            }
+            if w == "--session" {
+                if session != "" { return Err("duplicate flag: ${w}") }
+                session = words[i + 1]
+            }
+            i += 2
+        } else if w.byte_len() > 1 && w.starts_with("-") {
+            return Err("unknown flag: ${w}")
+        } else {
+            parts.push(w)
+            i += 1
+        }
+    }
+    ro joined = parts.join(" ")
+    if joined.byte_len() == 0 { return Err("the text of the message is empty") }
+    if session.byte_len() == 0 && agent.byte_len() == 0 { return Err("--agent <id> is required for a new session") }
+    Ok(AskArgs { agent, model, session, text: joined })
+}
+
+// ----- the events of the hub, as the client reads them -----
+
+export type AskEvent enum
+    // an event of another session or one the client does not need
+    | AskIgnore
+    // the transport marker after the attach: the ids of the sessions of the hub
+    | AskReady([]str)
+    // the session asked for by `session_created` exists now (the event from the journal, not the `srv-` echo of a refusal)
+    | AskCreated(str)
+    | AskSource(str, str)
+    | AskDelivery(bool, str)
+    | AskChunk(str, str)
+    | AskDone(str)
+    | AskRefused(str, str)
+    | AskFailed(str)
+    | AskNote(str, str)
+
+fn jstr(o JsonObject, key str) -> str {
+    match o.get(key) {
+        Some(v) => v.str() ?? ""
+        None => ""
+    }
+}
+
+fn classify_one(o JsonObject, session str, client_id str) -> AskEvent {
+    ro kind = jstr(o, "kind")
+    if kind == "sessions_ready" {
+        mut ids = []str.new()
+        match o.get("sessions") {
+            Some(v) => match v.array() {
+                Some(items) => for it in items { ids.push(it.str() ?? "") }
+                None => ()
+            }
+            None => ()
+        }
+        return AskReady(ids)
+    }
+    if jstr(o, "trace") != session { return AskIgnore }
+    ro input = match o.get("input") {
+        Some(v) => v.object() ?? JsonObject.new()
+        None => JsonObject.new()
+    }
+    ro turn = jstr(input, "turn")
+    if kind == "session_created" {
+        if jstr(o, "id").starts_with("srv-") { return AskIgnore }
+        return AskCreated(jstr(input, "agent"))
+    }
+    if kind == "session_source" { return AskSource(jstr(input, "family"), jstr(input, "model")) }
+    if kind == "agent_chunk" { return AskChunk(turn, jstr(input, "text")) }
+    if kind == "agent_done" { return AskDone(turn) }
+    if kind == "agent_refused" { return AskRefused(turn, jstr(input, "reason")) }
+    if kind == "cancel" { return AskRefused(turn, "StoppedByHuman") }
+    if kind == "error" {
+        ro owner = jstr(input, "client_id")
+        if client_id != "" && owner != client_id { return AskIgnore }
+        ro code = jstr(input, "code")
+        ro message = jstr(input, "message")
+        return AskFailed(if code == "" { message } else { "${code}: ${message}" })
+    }
+    if kind == "message_delivery" && client_id != "" && jstr(input, "client_id") == client_id {
+        return AskDelivery((input.get("accepted") ?? JsonValue.null()).bool() ?? false, turn)
+    }
+    if kind == "permission_request" || kind == "question_request" {
+        return AskNote(turn, "the agent asks the owner (${kind}); answer in the hub panel")
+    }
+    AskIgnore
+}
+
+/// One frame of the hub (a JSON event or an array of them) as the events that concern this ask.
+export fn classify_frame(line str, session str, client_id str) -> []AskEvent {
+    mut out = []AskEvent.new()
+    ro parsed = match Json.parse(line) {
+        Ok(v) => v
+        Err(e) => return out
+    }
+    match parsed.array() {
+        Some(items) => for it in items {
+            match it.object() {
+                Some(o) => out.push(classify_one(o, session, client_id))
+                None => ()
+            }
+        }
+        None => match parsed.object() {
+            Some(o) => out.push(classify_one(o, session, client_id))
+            None => ()
+        }
+    }
+    out
+}
+
+// ----- the messages of the page protocol the client sends -----
+
+/// The id of a new session of the client: a safe file name, as the hub requires.
+export fn ask_session_id() -> str {
+    ro bytes = with Random = real_random() { Random.bytes(6) }
+    "ask-${Hex.encode(bytes)}"
+}
+
+fn ask_client_id() -> str {
+    ro bytes = with Random = real_random() { Random.bytes(6) }
+    "askc-${Hex.encode(bytes)}"
+}
+
+fn envelope(kind str, trace str, input JsonObject) -> str {
+    mut o = JsonObject.new()
+    ro k = o.insert("kind", JsonValue.str(kind))
+    ro t = o.insert("trace", JsonValue.str(trace))
+    ro i = o.insert("input", JsonValue.object(input))
+    JsonValue.object(o).to_str()
+}
+
+export fn session_created_msg(trace str, agent str, name str) -> str {
+    mut input = JsonObject.new()
+    ro n = input.insert("name", JsonValue.str(name))
+    ro a = input.insert("agent", JsonValue.str(agent))
+    envelope("session_created", trace, input)
+}
+
+export fn source_msg(trace str, agent str, model str) -> str {
+    mut input = JsonObject.new()
+    ro f = input.insert("family", JsonValue.str(agent))
+    ro m = input.insert("model", JsonValue.str(model))
+    envelope("session_source", trace, input)
+}
+
+export fn user_message_msg(trace str, client_id str, text str) -> str {
+    mut input = JsonObject.new()
+    ro t = input.insert("text", JsonValue.str(text))
+    mut o = JsonObject.new()
+    ro i = o.insert("id", JsonValue.str(client_id))
+    ro k = o.insert("kind", JsonValue.str("user_message"))
+    ro tr = o.insert("trace", JsonValue.str(trace))
+    ro in_ = o.insert("input", JsonValue.object(input))
+    JsonValue.object(o).to_str()
+}
+
+// ----- the WebSocket of the client -----
+
+/// The upgrade request of the client (no `Origin`: the hub accepts a client that is not a browser).
+export fn ws_request(port int, path str, key str) -> str =>
+    "GET ${path} HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: ${key}\r\nSec-WebSocket-Version: 13\r\n\r\n"
+
+/// The answer of the hub to the upgrade: the status 101 and the `Sec-WebSocket-Accept` of our key (RFC 6455).
+export fn ws_accepted(head str, key str) -> bool {
+    ro first_end = head.find("\r\n") ?? head.byte_len()
+    if !head[0..first_end].starts_with("HTTP/1.1 101 ") { return false }
+    ro want = match ws_accept_key(key) {
+        Ok(v) => v
+        Err(e) => return false
+    }
+    for line in head.split("\r\n") {
+        if line.to_ascii_lower().starts_with("sec-websocket-accept:") {
+            ro colon = line.find(":") ?? 0
+            return line[colon + 1..].trim_ascii() == want
+        }
+    }
+    false
+}
+
+/// The open socket: the writer and the channel of the bytes the reader fiber takes from the socket
+/// (an empty chunk is the end: the socket is closed or broken).
+export type AskWire consume {
+    consume wr TcpStream
+    inbox ChanPair[[]u8]
+    buf []u8
+    message []u8
+    is_text bool
+}
+
+export type WsRecv enum
+    | WsText(str)
+    | WsQuiet
+    | WsGone
+
+/// The scope-exit of the wire closes the socket (the last owner: the reader fiber holds the other half).
+export fn AskWire consume @cleanup(_outcome ScopeOutcome) Net -> () {
+    ro shutdown = @wr.shutdown()
+    @inbox.tx.close()
+    @wr.close()
+}
+
+fn wire_reader(consume rd TcpStream, tx ChanTx[[]u8]) Net -> () {
+    mut chunk []u8 = []u8.new()
+    chunk.resize(65536, 0 as u8)
+    mut running = true
+    while running {
+        match rd.read(chunk) {
+            Ok(0) => { running = false }
+            Ok(n) => {
+                mut piece = []u8.new()
+                piece.append(chunk[..n])
+                if !tx.send(piece) { running = false }
+            }
+            Err(e) => { running = false }
+        }
+    }
+    rd.close()
+    ro ended = tx.send([]u8.new())
+    tx.close()
+}
+
+fn connect_timed(port int) Net Time -> Result[TcpStream, str] {
+    supervised(timeout: HANDSHAKE_TIMEOUT_MS.to_millis(), on_timeout: |_e| Err("timeout: connecting to the hub on 127.0.0.1:${port}")) {
+        match TcpStream.connect("127.0.0.1:${port}") {
+            Ok(consume stream) => Ok(stream)
+            Err(e) => Err("cannot connect to the hub on 127.0.0.1:${port}: ${e}")
+        }
+    }
+}
+
+fn random_key() -> str {
+    ro bytes = with Random = real_random() { Random.bytes(16) }
+    Base64.encode(bytes)
+}
+
+/// Connect and upgrade to a WebSocket of the hub (`path` is `/ws?history=lazy` for ask, `/ws` for a full page).
+export fn ws_open(port int, path str) Net Time Detach -> Result[AskWire, str] {
+    consume stream = match connect_timed(port) {
+        Ok(consume s) => s
+        Err(reason) => return Err(reason)
+    }
+    consume wr = stream.share()
+    ro inbox = Chan[[]u8].new(256)
+    detach consume stream { wire_reader(stream, inbox.tx) }
+    consume wire = AskWire { wr, inbox, buf: []u8.new(), message: []u8.new(), is_text: false }
+    match upgrade(wire, port, path) {
+        Ok(done) => Ok(wire)
+        Err(reason) => Err(reason)
+    }
+}
+
+fn upgrade(mut wire AskWire, port int, path str) Net Time -> Result[(), str] {
+    ro key = random_key()
+    match wire.wr.write_all(ws_request(port, path, key).bytes()) {
+        Ok(sent) => ()
+        Err(e) => return Err("the hub does not take the handshake")
+    }
+    mut buf []u8 = []u8.new()
+    ro started = Time.now().unix_millis()
+    mut head_end = -1
+    while head_end < 0 {
+        if Time.now().unix_millis() - started >= HANDSHAKE_TIMEOUT_MS {
+            return Err("timeout: the hub did not answer the handshake in ${HANDSHAKE_TIMEOUT_MS} ms")
+        }
+        match wire.inbox.rx.try_recv() {
+            Some(chunk) => {
+                if chunk.len() == 0 { return Err("the hub closed the connection before the handshake") }
+                buf.append(chunk)
+                if buf.len() > 65536 { return Err("the handshake answer of the hub is too large") }
+            }
+            None => 3.to_millis().sleep()
+        }
+        head_end = buf_head_end(buf)
+    }
+    ro head = match buf[..head_end].to_str() {
+        Ok(text) => text
+        Err(e) => return Err("the handshake answer of the hub is not a text")
+    }
+    wire.buf = buf[head_end + 4..buf.len()]
+    if !ws_accepted(head, key) {
+        ro first = head[0..(head.find("\r\n") ?? head.byte_len())]
+        ro body = match wire.buf.to_str() { Ok(value) => value, Err(e) => "" }
+        match Json.parse(body) {
+            Ok(value) => {
+                ro error = value.object() ?? JsonObject.new()
+                ro code = jstr(error, "code")
+                ro message = jstr(error, "error")
+                if code != "" { return Err("${code}: ${message}") }
+            }
+            Err(e) => ()
+        }
+        return Err("the hub refused the websocket handshake: ${first}")
+    }
+    Ok(())
+}
+
+// The end of the headers in the raw bytes (the body after them may hold a cut UTF-8 character, so no text here).
+fn buf_head_end(buf []u8) -> int {
+    if buf.len() < 4 { return -1 }
+    mut i = 0
+    while i + 3 < buf.len() {
+        if buf[i] == 13 as u8 && buf[i + 1] == 10 as u8 && buf[i + 2] == 13 as u8 && buf[i + 3] == 10 as u8 { return i }
+        i += 1
+    }
+    -1
+}
+
+export fn ws_send_text(mut wire AskWire, text str) Net -> bool {
+    match wire.wr.write_all(Frame.new(true, OpCode.Text, text.bytes()).encode(true)) {
+        Ok(sent) => true
+        Err(e) => false
+    }
+}
+
+/// One text message of the hub within `timeout_ms` (fragments are glued; a ping is answered; `WsGone` - the hub closed or the socket broke).
+export fn ws_recv(mut wire AskWire, timeout_ms int) Net Time -> WsRecv {
+    ro started = Time.now().unix_millis()
+    while true {
+        if frame_len_hint(wire.buf).is_some() {
+            // more bytes are needed
+            match wire.inbox.rx.try_recv() {
+                Some(chunk) => {
+                    if chunk.len() == 0 { return WsGone }
+                    wire.buf.append(chunk)
+                    if wire.buf.len() > 16777216 { return WsGone }
+                }
+                None => {
+                    if Time.now().unix_millis() - started > timeout_ms { return WsQuiet }
+                    3.to_millis().sleep()
+                }
+            }
+        } else {
+            match Frame.decode(wire.buf) {
+                Err(e) => return WsGone
+                Ok((frame, used)) => {
+                    ro rest []u8 = wire.buf[used..wire.buf.len()]
+                    wire.buf = rest
+                    match frame.opcode() {
+                        OpCode.Ping => {
+                            ro pong = wire.wr.write_all(Frame.new(true, OpCode.Pong, frame.payload()).encode(true))
+                        }
+                        OpCode.Pong => ()
+                        OpCode.Close => return WsGone
+                        OpCode.Text => {
+                            if frame.fin() {
+                                return match frame.payload().to_str() {
+                                    Ok(text) => WsText(text)
+                                    Err(e) => WsGone
+                                }
+                            }
+                            wire.message = frame.payload()
+                            wire.is_text = true
+                        }
+                        OpCode.Binary => {
+                            wire.message = []u8.new()
+                            wire.is_text = false
+                        }
+                        OpCode.Continuation => {
+                            wire.message.append(frame.payload())
+                            if wire.message.len() > 16777216 { return WsGone }
+                            if frame.fin() {
+                                if wire.is_text {
+                                    ro complete = wire.message
+                                    wire.message = []u8.new()
+                                    wire.is_text = false
+                                    return match complete.to_str() {
+                                        Ok(text) => WsText(text)
+                                        Err(e) => WsGone
+                                    }
+                                }
+                                wire.message = []u8.new()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    WsGone
+}
+
+// ----- the run of an ask -----
+
+fn session_agent(line str, session str) -> str {
+    ro root = match Json.parse(line) {
+        Ok(v) => v.object() ?? JsonObject.new()
+        Err(e) => return ""
+    }
+    if jstr(root, "kind") != "sessions_index" { return "" }
+    ro entries = (root.get("entries") ?? JsonValue.null()).array() ?? []JsonValue.new()
+    for entry in entries {
+        ro item = entry.object() ?? JsonObject.new()
+        if jstr(item, "trace") == session {
+            ro input = (item.get("input") ?? JsonValue.null()).object() ?? JsonObject.new()
+            return jstr(input, "agent")
+        }
+    }
+    ""
+}
+
+fn transport_failure(code int, reason str) -> AskOutcome => { code, reason }
+
+fn setup_session(mut wire AskWire, args AskArgs, session str) Net Time -> Result[str, AskOutcome] {
+    mut agent = args.agent
+    if args.session == "" {
+        if !ws_send_text(wire, session_created_msg(session, agent, session)) {
+            return Err(transport_failure(ASK_CONNECT, "cannot send the session creation request"))
+        }
+    }
+    ro started = Time.now().unix_millis()
+    while Time.now().unix_millis() - started < READY_TIMEOUT_MS {
+        ro left = READY_TIMEOUT_MS - (Time.now().unix_millis() - started)
+        match ws_recv(wire, left) {
+            WsGone => return Err(transport_failure(ASK_CONNECT, "the hub closed the connection"))
+            WsQuiet => break
+            WsText(line) => {
+                if args.session != "" {
+                    ro family = session_agent(line, session)
+                    if family != "" {
+                        if args.agent != "" && args.agent != family {
+                            return Err(transport_failure(ASK_REFUSED, "invalid_parameter: session ${session} uses agent ${family}"))
+                        }
+                        agent = family
+                    }
+                }
+                for event in classify_frame(line, session, "") {
+                    match event {
+                        AskReady(ids) => if args.session != "" {
+                            if !ids.contains(session) { return Err(transport_failure(ASK_REFUSED, "not_found: no session ${session}")) }
+                            return Ok(agent)
+                        }
+                        AskCreated(family) => if args.session == "" { return Ok(family) }
+                        AskFailed(reason) => return Err(transport_failure(ASK_REFUSED, reason))
+                        _ => ()
+                    }
+                }
+            }
+        }
+    }
+    Err(transport_failure(ASK_CONNECT, "timeout: the hub did not confirm the session"))
+}
+
+fn select_model(mut wire AskWire, session str, family str, model str) Net Time -> Result[(), AskOutcome] {
+    if family == "" { return Err(transport_failure(ASK_REFUSED, "invalid_parameter: the session has no known agent")) }
+    if !ws_send_text(wire, source_msg(session, family, model)) {
+        return Err(transport_failure(ASK_CONNECT, "cannot send the model selection"))
+    }
+    ro started = Time.now().unix_millis()
+    while Time.now().unix_millis() - started < READY_TIMEOUT_MS {
+        ro left = READY_TIMEOUT_MS - (Time.now().unix_millis() - started)
+        match ws_recv(wire, left) {
+            WsGone => return Err(transport_failure(ASK_CONNECT, "the hub closed the connection"))
+            WsQuiet => break
+            WsText(line) => for event in classify_frame(line, session, "") {
+                match event {
+                    AskSource(chosen_family, chosen_model) => if chosen_family == family && chosen_model == model { return Ok(()) }
+                    AskFailed(reason) => return Err(transport_failure(ASK_REFUSED, reason))
+                    _ => ()
+                }
+            }
+        }
+    }
+    Err(transport_failure(ASK_CONNECT, "timeout: the hub did not confirm the model selection"))
+}
+
+/// One ask against the loopback hub. The delivery receipt binds the stream to this client's turn.
+export fn ask_run(port int, args AskArgs, sink AskSink) Net Time Detach -> AskOutcome {
+    consume wire = match ws_open(port, "/ws?history=lazy") {
+        Ok(consume w) => w
+        Err(reason) => return transport_failure(ASK_CONNECT, reason)
+    }
+    ro session = if args.session == "" { ask_session_id() } else { args.session }
+    ro family = match setup_session(wire, args, session) {
+        Ok(agent) => agent
+        Err(outcome) => return outcome
+    }
+    if args.session == "" { (sink.note)("session ${session}") }
+    if args.model != "" {
+        match select_model(wire, session, family, args.model) {
+            Ok(done) => ()
+            Err(outcome) => return outcome
+        }
+    }
+    ro client_id = ask_client_id()
+    if !ws_send_text(wire, user_message_msg(session, client_id, args.text)) {
+        return transport_failure(ASK_CONNECT, "cannot send the message")
+    }
+    mut turn = ""
+    mut pending = false
+    mut buffered = []AskEvent.new()
+    ro started = Time.now().unix_millis()
+    while true {
+        mut wait = 3600000
+        if turn == "" {
+            wait = READY_TIMEOUT_MS - (Time.now().unix_millis() - started)
+            if wait <= 0 { return transport_failure(ASK_FAILED, "timeout: no message delivery receipt") }
+        }
+        match ws_recv(wire, wait) {
+            WsGone => return transport_failure(ASK_FAILED, "the hub closed the connection before the turn ended")
+            WsQuiet => if turn == "" {
+                return transport_failure(ASK_FAILED, "timeout: no message delivery receipt")
+            }
+            WsText(line) => for event in classify_frame(line, session, client_id) {
+                match event {
+                    AskFailed(reason) => return transport_failure(ASK_REFUSED, reason)
+                    AskDelivery(accepted, receipt_turn) => {
+                        if accepted {
+                            turn = receipt_turn
+                            for queued in buffered {
+                                match emit_turn(queued, turn, sink) { Some(outcome) => return outcome, None => () }
+                            }
+                            buffered = []AskEvent.new()
+                        } else if pending {
+                            return transport_failure(ASK_REFUSED, "conflict: the hub did not accept the message")
+                        } else {
+                            // The first receipt records the delivery intent before the hub tries the send.
+                            pending = true
+                        }
+                    }
+                    AskIgnore => ()
+                    _ => {
+                        if turn != "" {
+                            match emit_turn(event, turn, sink) { Some(outcome) => return outcome, None => () }
+                        } else if pending {
+                            buffered.push(event)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    transport_failure(ASK_FAILED, "the turn did not finish")
+}
+
+fn emit_turn(event AskEvent, turn str, sink AskSink) -> Option[AskOutcome] {
+    match event {
+        AskChunk(id, text) => if id == turn { (sink.emit)(text) }
+        AskNote(id, note) => if id == turn { (sink.note)(note) }
+        AskDone(id) => if id == turn { return Some(transport_failure(ASK_OK, "")) }
+        AskRefused(id, reason) => if id == turn { return Some(transport_failure(ASK_FAILED, reason)) }
+        _ => ()
+    }
+    None
+}

@@ -1,0 +1,129 @@
+// ask_test.nv - the pure parts of the ask client (task 328): the flags, the events of the hub, the messages
+// of the page protocol, the handshake. The sockets are in src/server/front/ask_ws_test.nv.
+module canopus.ask
+
+import std.encoding.json.{Json, JsonValue, JsonObject}
+
+fn words_of(line str) -> []str {
+    mut out = []str.new()
+    for w in line.split_ascii_whitespace() { out.push(w) }
+    out
+}
+
+fn args_ok(line str) -> AskArgs {
+    match parse_ask_args(words_of(line)) {
+        Ok(a) => a
+        Err(reason) => panic("the flags are refused: ${reason}")
+    }
+}
+
+test "ask: the flags of the command line" {
+    ro ok = args_ok("--agent opencode hello world")
+    assert(ok.agent == "opencode")
+    assert(ok.model == "")
+    assert(ok.session == "")
+    assert(ok.text == "hello world")
+    ro full = args_ok("--agent codex --model gpt-5 hi")
+    assert(full.model == "gpt-5")
+    ro cont = args_ok("--session s-1 --model m again")
+    assert(cont.session == "s-1")
+    assert(cont.agent == "")
+}
+
+test "ask: an unknown flag is an error, not a silent ignore" {
+    match parse_ask_args(words_of("--agent opencode --bogus hi")) {
+        Ok(a) => panic("an unknown flag was taken")
+        Err(reason) => assert(reason.contains("--bogus"))
+    }
+    match parse_ask_args(words_of("--agent")) {
+        Ok(a) => panic("a flag without a value was taken")
+        Err(reason) => assert(reason.contains("--agent"))
+    }
+}
+
+test "ask: the text and the agent for a new session are required" {
+    match parse_ask_args(words_of("--agent opencode")) {
+        Ok(a) => panic("an empty text was taken")
+        Err(reason) => assert(reason.contains("text"))
+    }
+    match parse_ask_args(words_of("hello")) {
+        Ok(a) => panic("no agent was taken")
+        Err(reason) => assert(reason.contains("--agent"))
+    }
+    assert(args_ok("--agent opencode --session s-1 hi").agent == "opencode")
+}
+
+test "ask: the frames of the hub are classified" {
+    // the marker of the attach
+    ro ready = classify_frame("{\"kind\":\"sessions_ready\",\"sessions\":[\"a\",\"b\"]}", "s-1", "")
+    assert(ready.len() == 1)
+    match ready[0] {
+        AskReady(ids) => assert(ids.len() == 2 && ids[0] == "a")
+        _ => panic("not AskReady")
+    }
+    // an array of events; the events of another session are ignored
+    ro mixed = classify_frame("[{\"trace\":\"other\",\"kind\":\"agent_chunk\",\"input\":{\"text\":\"no\"}},{\"trace\":\"s-1\",\"kind\":\"agent_chunk\",\"input\":{\"turn\":\"input-3\",\"text\":\"he\"}},{\"trace\":\"s-1\",\"kind\":\"agent_chunk\",\"input\":{\"text\":\"llo\"}},{\"trace\":\"s-1\",\"kind\":\"agent_done\",\"input\":{\"turn\":\"input-3\"}}]", "s-1", "")
+    assert(mixed.len() == 4)
+    match mixed[0] { AskIgnore => (), _ => panic("a foreign session is not ignored") }
+    match mixed[1] { AskChunk(turn, t) => assert(t == "he"), _ => panic("not a chunk") }
+    match mixed[3] { AskDone(turn) => (), _ => panic("not done") }
+    // a refusal and an error
+    ro refused = classify_frame("{\"trace\":\"s-1\",\"kind\":\"agent_refused\",\"input\":{\"turn\":\"t\",\"reason\":\"Timeout\"}}", "s-1", "")
+    match refused[0] { AskRefused(turn, r) => assert(r == "Timeout"), _ => panic("not refused") }
+    ro failed = classify_frame("{\"trace\":\"s-1\",\"kind\":\"error\",\"input\":{\"turn\":\"\",\"code\":\"invalid_parameter\",\"message\":\"unknown agent: x\"}}", "s-1", "")
+    match failed[0] { AskFailed(m) => assert(m == "invalid_parameter: unknown agent: x"), _ => panic("not failed") }
+    // the confirmation of a created session is the journal event, not the `srv-` echo of a refusal
+    ro echo = classify_frame("{\"id\":\"srv-new\",\"trace\":\"s-1\",\"kind\":\"session_created\",\"input\":{}}", "s-1", "")
+    match echo[0] { AskIgnore => (), _ => panic("the srv- echo is not a confirmation") }
+    ro made = classify_frame("{\"id\":\"s-1/input-2\",\"trace\":\"s-1\",\"kind\":\"session_created\",\"input\":{}}", "s-1", "")
+    match made[0] { AskCreated(agent) => (), _ => panic("not created") }
+    // the receipt of a message the hub did not take
+    ro receipt = classify_frame("{\"trace\":\"s-1\",\"kind\":\"message_delivery\",\"input\":{\"client_id\":\"askc-1\",\"accepted\":false,\"turn\":\"\"}}", "s-1", "askc-1")
+    match receipt[0] { AskDelivery(accepted, turn) => assert(!accepted && turn == ""), _ => panic("a rejected send is not a failure") }
+    ro receipt_other = classify_frame("{\"trace\":\"s-1\",\"kind\":\"message_delivery\",\"input\":{\"client_id\":\"askc-2\",\"accepted\":false,\"turn\":\"\"}}", "s-1", "askc-1")
+    match receipt_other[0] { AskIgnore => (), _ => panic("a foreign receipt is not ours") }
+    // a question of the agent is a note, the client waits on
+    ro asked = classify_frame("{\"trace\":\"s-1\",\"kind\":\"question_request\",\"input\":{\"request\":\"1\"}}", "s-1", "")
+    match asked[0] { AskNote(turn, n) => assert(n.contains("question_request")), _ => panic("not a note") }
+    // not JSON at all: nothing
+    assert(classify_frame("not json", "s-1", "").len() == 0)
+}
+
+test "ask: the messages of the page protocol" {
+    ro created = session_created_msg("ask-1", "opencode", "probe")
+    ro co = match Json.parse(created) { Ok(v) => v.object().unwrap(), Err(e) => panic("not json") }
+    assert(co.get("kind").unwrap().str().unwrap() == "session_created")
+    assert(co.get("trace").unwrap().str().unwrap() == "ask-1")
+    ro ci = co.get("input").unwrap().object().unwrap()
+    assert(ci.get("agent").unwrap().str().unwrap() == "opencode")
+    ro source = source_msg("ask-1", "opencode", "m-1")
+    ro so = match Json.parse(source) { Ok(v) => v.object().unwrap(), Err(e) => panic("not json") }
+    assert(so.get("kind").unwrap().str().unwrap() == "session_source")
+    ro si = so.get("input").unwrap().object().unwrap()
+    assert(si.get("family").unwrap().str().unwrap() == "opencode")
+    assert(si.get("model").unwrap().str().unwrap() == "m-1")
+    ro message = user_message_msg("ask-1", "askc-1", "hello \"quoted\" world")
+    ro mo = match Json.parse(message) { Ok(v) => v.object().unwrap(), Err(e) => panic("not json") }
+    assert(mo.get("id").unwrap().str().unwrap() == "askc-1")
+    assert(mo.get("kind").unwrap().str().unwrap() == "user_message")
+    ro mi = mo.get("input").unwrap().object().unwrap()
+    assert(mi.get("text").unwrap().str().unwrap() == "hello \"quoted\" world")
+    // the id of a session is a safe name
+    ro id = ask_session_id()
+    assert(id.starts_with("ask-"))
+    assert(id.byte_len() == 16)
+}
+
+test "ask: the handshake of the websocket (the example of RFC 6455)" {
+    ro key = "dGhlIHNhbXBsZSBub25jZQ=="
+    ro good = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n"
+    assert(ws_accepted(good, key))
+    ro bad_key = "HTTP/1.1 101 Switching Protocols\r\nSec-WebSocket-Accept: wrong\r\n"
+    assert(!ws_accepted(bad_key, key))
+    ro refused = "HTTP/1.1 403 Forbidden\r\n\r\n"
+    assert(!ws_accepted(refused, key))
+    ro request = ws_request(8099, "/ws?history=lazy", key)
+    assert(request.starts_with("GET /ws?history=lazy HTTP/1.1\r\n"))
+    assert(request.contains("Sec-WebSocket-Key: ${key}\r\n"))
+    assert(!request.contains("Origin"))
+}

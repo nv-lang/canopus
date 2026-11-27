@@ -1,6 +1,7 @@
 // canopus.nv - the entry point of the canopus binary (task 099): the session server, its front. It serves the page
 // of src/web/ and the WebSocket /ws on 127.0.0.1, with an in-process session hub.
 //   canopus [serve] [--config <file>]
+//   canopus ask --agent <id> [--model <m>] [--session <id>] "text"
 //   canopus config list [--show-origin] | get <key> [--show-origin] | set <key> <value> [--project]
 //   canopus doctor
 //   canopus migrate [--from <data_dir>] [--dry-run]
@@ -14,10 +15,11 @@ import canopus.server.front.{run_front_with_metadata, front_settings_selected, F
 import canopus.model_metadata.{MetadataInput, MetadataHook, static_hook, default_opencode_program}
 import canopus.config.{split_cli_args, canopus_home, layout_in, find_project_dir, work_dir_now, config_list, config_get, config_set, doctor, command_layers, effective_entries, plan_migration, plan_text, run_migration, ConfigLayout, ConfigSelection, claim_instance, retired_env_problem, select_config, layout_for_config, CliArgs}
 import std.os.{args, exit_process, env}
-import std.io.{stderr}
+import std.io.{stderr, stdout, real_io}
 import std.time.{Time}
+import canopus.ask.{AskSink, parse_ask_args, ask_run}
 
-const USAGE = "canopus 0.1.0 - usage:\n  canopus [serve] [--config <file>]\n  canopus config list [--show-origin]\n  canopus config get <key> [--show-origin]\n  canopus config set <key> <value> [--project]\n  canopus doctor\n  canopus migrate [--from <data_dir>] [--dry-run]\n(default config: ~/.canopus/config.json; its parent owns secrets.json and instance data)"
+const USAGE = "canopus 0.1.0 - usage:\n  canopus [serve] [--config <file>]\n  canopus ask --agent <id> [--model <m>] [--session <id>] \"text\"\n  canopus config list [--show-origin]\n  canopus config get <key> [--show-origin]\n  canopus config set <key> <value> [--project]\n  canopus doctor\n  canopus migrate [--from <data_dir>] [--dry-run]\n(default config: ~/.canopus/config.json; its parent owns secrets.json and instance data)"
 
 
 fn fail(text str) Os Io -> () {
@@ -97,6 +99,61 @@ fn cmd_serve(cli CliArgs) Proc Net Time Detach Io Os Fs -> () {
                 Err(reason) => fail(reason)
             }
         }
+    }
+}
+
+// The sink of the ask client: the answer of the agent to stdout as it comes, the notes to stderr. The
+// functions of the sink are effect-free; the IO is behind the boundary (as the routes of the front do).
+fn ask_sink() -> AskSink {
+    AskSink {
+        emit: fn(t str) -> () {
+            // D454: boundary override inside non-test code, see module-conventions (the sink of the page protocol is effect-free)
+            with Io = real_io() {
+                mut out = stdout()
+                ro written = out.write(t.bytes())
+                ro flushed = out.flush()
+            }
+        },
+        note: fn(t str) -> () {
+            // D454: boundary override inside non-test code, see module-conventions (the sink of the page protocol is effect-free)
+            with Io = real_io() {
+                mut err = stderr()
+                ro written = err.write("canopus ask: ${t}\n".bytes())
+            }
+        }
+    }
+}
+
+// `canopus ask --agent <id> [--model <m>] [--session <id>] "text"` (task 328): a thin client of the hub
+// over the WebSocket of the page; the port and the agents come from the same config the hub runs with.
+fn cmd_ask(cli CliArgs) Os Fs Proc Net Time Detach Io -> () {
+    mut words = []str.new()
+    mut i = 2
+    while i < cli.rest.len() {
+        words.push(cli.rest[i])
+        i += 1
+    }
+    ro ask_args = match parse_ask_args(words) {
+        Ok(a) => a
+        Err(reason) => return fail("ask: ${reason}")
+    }
+    ro selected = if cli.config.byte_len() > 0 {
+        match select_config(cli.config, work_dir_now(), "") {
+            Ok(s) => s
+            Err(reason) => return fail(reason)
+        }
+    } else {
+        ConfigSelection { file: "", root: canopus_home(cli.home) }
+    }
+    ro settings = match front_settings_selected("", selected.root, cli.sets, selected.file) {
+        Ok(s) => s
+        Err(reason) => return fail(reason)
+    }
+    ro outcome = ask_run(settings.port, ask_args, ask_sink())
+    if outcome.code != 0 {
+        mut err = stderr()
+        ro written = err.write("canopus ask: ${outcome.reason}\n".bytes())
+        exit_process(outcome.code)
     }
 }
 
@@ -199,6 +256,8 @@ fn main() Os Fs Proc Net Time Detach Io -> () {
         println(USAGE)
     } else if verb == "serve" {
         cmd_serve(cli)
+    } else if verb == "ask" {
+        cmd_ask(cli)
     } else if verb == "config" {
         cmd_config(cli)
     } else if verb == "doctor" {
