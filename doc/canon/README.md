@@ -18,6 +18,7 @@
 | Отличия и дополнения к методике | [process.md](process.md) |
 | Правила репозитория и машины | [AGENTS.md](../../AGENTS.md) — в корне, потому что агенты читают его оттуда при старте |
 | Решения (ADR) | [decisions/](decisions/README.md) |
+| Философия Канопуса (черновик для обсуждения) | [philosophy.md](philosophy.md) |
 | Где что лежит (настройки и данные пульта) | [doc/README.md](../README.md), [ADR-0016](decisions/ADR-0016-config-layout.md) |
 | Конфигурация приложения и плагина | [configuration.md](configuration.md) |
 | Создание, пауза и отмена задач | [task-lifecycle.md](task-lifecycle.md) |
@@ -34,6 +35,12 @@
 
 Выбор версии и переход активных задач — [process.md](process.md), «Версия и переход»;
 основание — [ADR-0012](decisions/ADR-0012-canon-methodology-version.md).
+
+## Как пишем
+
+Документы Канопуса, включая Канон, пишутся и редактируются по конвенции технического письма
+[unitcraft/engineering-conventions — technical-writing.md](https://github.com/unitcraft/engineering-conventions/blob/main/technical-writing.md)
+(редакция 1.2; владелец, 2026-11-28: «подтверждаю»). Философия проекта — [philosophy.md](philosophy.md).
 
 ## Как называем
 
