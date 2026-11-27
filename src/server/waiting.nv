@@ -1,0 +1,27 @@
+// waiting.nv - task 322: the closed dictionary of the reasons a waiting session shows in the list of the page
+// (the waitingOn dictionary of bb, in Russian, as the page speaks). Every waiting state of the list has a non-empty
+// line; an empty line for a waiting state is a defect (the red test of waiting_test.nv).
+module canopus.server
+
+/// The closed list of the codes of the waiting reasons.
+export fn waiting_codes() -> []str => ["question", "permission", "busy", "silent"]
+
+/// The code of the reason a session waits, "" - it does not wait. An open question of the agent and an open request
+/// for permission are stronger than a running turn; a running turn with no events of the agent for the term of
+/// silence is `silent`, otherwise `busy`.
+export fn waiting_code(list_status str, question str, permission str, silent bool) -> str {
+    if question != "" { return "question" }
+    if permission != "" { return "permission" }
+    if list_status == "running" { return if silent { "silent" } else { "busy" } }
+    ""
+}
+
+/// The line of the reason for the page; `since` is the local "HH:MM" of the last event of the agent (used by
+/// `silent` only). "" - the code is not of the dictionary.
+export fn waiting_text(code str, since str) -> str {
+    if code == "question" { return "ждёт ответа владельца" }
+    if code == "permission" { return "ждёт разрешения" }
+    if code == "busy" { return "занята другим ходом" }
+    if code == "silent" { return "провайдер молчит с ${since}" }
+    ""
+}

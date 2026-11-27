@@ -635,6 +635,7 @@ export function reduce(model, event) {
       routeStep: -1,
       indexStatus: str(event.input.list_status),
       indexWaitKey: str(event.input.list_wait_key),
+      waitingReason: str(event.input.waiting_reason),
       indexTaskNumber: str(event.input.task_number),
       indexTaskTitle: str(event.input.task_title),
       indexTaskState: str(event.input.task_state),
@@ -698,7 +699,7 @@ export function reduce(model, event) {
   let changed = apply(session, event);
   if (session.indexStatus && ['user_message', 'agent_chunk', 'agent_done', 'agent_refused', 'cancel', 'error',
     'permission_request', 'permission_decision', 'question_request', 'question_resolved'].includes(event.kind)) {
-    changed = { ...changed, indexStatus: '', indexWaitKey: '' };
+    changed = { ...changed, indexStatus: '', indexWaitKey: '', waitingReason: '' };
   }
   const waiting = changed.pendingQuestion || changed.pending;
   const pausedAt = changed.turnPausedAt;

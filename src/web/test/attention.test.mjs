@@ -155,3 +155,16 @@ test('хаб присылает минуты молчания (agent_silent_minu
   assert.equal(parseCanopusTask({ silent_minutes: 0 }).silentMinutes, 0);
   assert.equal(parseCanopusTask({}).silentMinutes, -1);
 });
+
+test('причина ожидания от хаба (waiting_reason, задача 322): страница хранит её, показывает в строке списка и сбрасывает с событием', () => {
+  // session_created несёт причину в модель
+  let m = reduce(initialModel(), ev('s1', 'session_created', { name: 'Задача', agent: 'codex', waiting_reason: 'ждёт ответа владельца' }, 1000));
+  assert.equal(m.sessions.s1.waitingReason, 'ждёт ответа владельца');
+  // событие хода сбрасывает причину вместе со статусом индекса
+  m = { ...m, sessions: { ...m.sessions, s1: { ...m.sessions.s1, indexStatus: 'waiting' } } };
+  const next = reduce(m, ev('s1', 'agent_chunk', { turn: 't1', text: 'работаю' }, 2000));
+  assert.equal(next.sessions.s1.waitingReason, '');
+  // строка списка показывает причину хаба вместо общего «ждёт вас»; app.js прокидывает поле из session_list_status
+  assert.match(view, /s\.waitingReason \|\| t\('attn\.waiting'\)/);
+  assert.match(app, /waitingReason: event\.input\.waiting_reason \|\| ''/);
+});

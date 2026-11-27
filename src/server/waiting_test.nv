@@ -1,0 +1,30 @@
+// waiting_test.nv - the closed dictionary of the waiting reasons (task 322): every waiting state has a non-empty
+// line (the red rule: no waiting state with an empty reason), the codes are chosen by their precedence.
+module canopus.server
+
+test "waiting: every waiting state of the dictionary has a non-empty line" {
+    for code in waiting_codes() {
+        assert(waiting_text(code, "12:34").byte_len() > 0)
+    }
+}
+
+test "waiting: a code outside the dictionary has no line" {
+    assert(waiting_text("", "12:34") == "")
+    assert(waiting_text("stopping", "12:34") == "")
+}
+
+test "waiting: the code of the reason by the state of the session" {
+    assert(waiting_code("running", "r1", "", false) == "question")
+    assert(waiting_code("running", "", "p1", false) == "permission")
+    assert(waiting_code("running", "", "", false) == "busy")
+    assert(waiting_code("running", "", "", true) == "silent")
+    assert(waiting_code("idle", "", "", false) == "")
+    assert(waiting_code("idle", "", "", true) == "")
+    assert(waiting_code("error", "", "", false) == "")
+    // an open question is stronger than an open permission and than the silence
+    assert(waiting_code("running", "r1", "p1", true) == "question")
+}
+
+test "waiting: the line of the silence names the time of the last event" {
+    assert(waiting_text("silent", "09:05") == "провайдер молчит с 09:05")
+}

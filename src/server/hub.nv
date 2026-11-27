@@ -842,9 +842,24 @@ fn add_list_status(mut input JsonObject, s Dialog) -> () {
     js(input, "list_wait_key", key)
 }
 
+// The line of the reason a session waits, for the page (task 322, the dictionary of waiting.nv); "" - it does not wait.
+fn Hub @waiting_reason(s Dialog) Time -> str {
+    ro silent = s.agent_event_at > 0 && now_millis() - s.agent_event_at >= @settings.agent_silent_minutes * 60000
+    ro code = waiting_code(s.list_status, s.list_question, s.list_permission, silent)
+    if code == "" { return "" }
+    mut since = ""
+    if code == "silent" {
+        ro offset = Time.local_offset_sec() as int
+        ro stamp = civil_stamp(s.agent_event_at + offset * 1000)
+        since = if stamp.byte_len() >= 16 { stamp[11..16] } else { stamp }
+    }
+    waiting_text(code, since)
+}
+
 fn Hub mut @send_list_status(s Dialog) Time -> () {
     mut input = JsonObject.new()
     add_list_status(input, s)
+    js(input, "waiting_reason", @waiting_reason(s))
     @send(0, event_line("list-status-${s.id}", s.id, 0, "session_list_status", input, now_millis()))
 }
 

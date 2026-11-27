@@ -401,6 +401,15 @@ export fn Rig @request_lines_for(conn int) -> []str {
     out
 }
 
+/// The lines `session_list_status` one page has been told (the state of the row of the list with the reason of the wait, task 322): not a part of the story of the session either.
+export fn Rig @list_status_lines_for(conn int) -> []str {
+    mut out = []str.new()
+    for line in @lines_in_mode(conn, 0) {
+        if line_field(line, "kind") == "session_list_status" { out.push(line) }
+    }
+    out
+}
+
 /// The same with the lines `route_state` (the mode of work, task 192q).
 export fn Rig @all_lines_for(conn int) -> []str => @lines_in_mode(conn, 0)
 
@@ -684,6 +693,44 @@ export fn scenario_question(settings ServerSettings) Proc Detach Time Net Fs Os 
     c.expect(rig.hub.takes_message("s-ask"), "the session is open after the cancel")
     rig.run(300)
     c.expect(kit_with(rig.lines_for(1), "\"kind\":\"question_resolved\"") == 3, "each question is settled once")
+    rig.shut()
+    c.report()
+}
+
+/// Every waiting state of the session names its reason in `session_list_status` (task 322, the dictionary of waiting.nv):
+/// a running turn, an open question and an open request for permission carry a non-empty `waiting_reason`; the idle
+/// session carries none. The red rule: no waiting state with an empty reason.
+export fn scenario_waiting_reason(settings ServerSettings) Proc Detach Time Net Fs Os -> str {
+    mut c = kit_check()
+    mut rig = rig_open(settings)
+    rig.attach(1)
+    rig.page(1, "session_created", "s-wait", "{\"name\":\"Ожидание\",\"agent\":\"opencode\"}")
+    rig.page(1, "user_message", "s-wait", "{\"turn\":\"t1\",\"text\":\"ask go\"}")
+    c.expect(rig.until("\"kind\":\"question_request\"", 15000), "the question is shown")
+    ro asked = first_of(rig.lines_for(1), "question_request", 0)
+    ro request = line_input(asked, "request")
+    mut statuses = rig.list_status_lines_for(1)
+    c.expect(kit_with(statuses, "\"waiting_reason\":\"занята другим ходом\"") >= 1, "the running turn names its reason")
+    c.expect(kit_with(statuses, "\"waiting_reason\":\"ждёт ответа владельца\"") >= 1, "the question names its reason")
+    mut empty_waits = 0
+    for line in statuses {
+        ro st = line_input(line, "list_status")
+        if (st == "waiting" || st == "running") && line_input(line, "waiting_reason") == "" { empty_waits += 1 }
+    }
+    c.expect(empty_waits == 0, "no waiting state with an empty reason")
+    rig.page(1, "question_answer", "s-wait", "{\"request\":\"${request}\",\"skipped\":true}")
+    c.expect(rig.until(KIT_DONE, 15000), "the turn ends after the answer")
+    statuses = rig.list_status_lines_for(1)
+    ro last = statuses[statuses.len() - 1]
+    c.expect(line_input(last, "list_status") == "idle" && line_input(last, "waiting_reason") == "", "the idle session has no reason")
+    // a request for permission names its reason too
+    rig.page(1, "user_message", "s-wait", "{\"turn\":\"t2\",\"text\":\"permission go\"}")
+    c.expect(rig.until("\"kind\":\"permission_request\"", 15000), "the request for permission is shown")
+    ro asked2 = first_of(rig.lines_for(1), "permission_request", 0)
+    ro request2 = line_input(asked2, "request")
+    c.expect(kit_with(rig.list_status_lines_for(1), "\"waiting_reason\":\"ждёт разрешения\"") >= 1, "the permission names its reason")
+    rig.page(1, "permission_decision", "s-wait", "{\"request\":\"${request2}\",\"decision\":\"deny\"}")
+    c.expect(rig.until(KIT_DONE, 15000), "the second turn ends")
     rig.shut()
     c.report()
 }
