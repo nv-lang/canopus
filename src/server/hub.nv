@@ -35,7 +35,7 @@ import std.encoding.hex.{Hex}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 import std.fs.{Fs, real_fs}
 import std.prelude.effects.{real_random}
-import std.os.{Os, real_os, cwd, args, pid}
+import std.os.{Os, real_os, real_proc, cwd, args, pid}
 import std.fs.{Fs, real_fs, Path, read_text, try_exists, create_dir_all}
 
 /// Outgoing: a text for the page `conn`; conn 0 - for every page that is attached.
@@ -49,6 +49,8 @@ export fn Outgoing @complete_text() -> str {
     }
 }
 
+type TurnDiff { tree str, scratch Path, before str }
+
 // ORACLE-WORKAROUND(29): the record is `Dialog`, not `Session` (the driver has a `Session`); name it `Session` when item 29 is fixed
 type Dialog {
     id str,
@@ -58,6 +60,7 @@ type Dialog {
     world PgWorld,
     clients []AcpClient,
     turn str,
+    turn_diff Option[TurnDiff],
     lines []str,
     list_status str,
     list_question str,
@@ -399,6 +402,35 @@ fn feed_with_client(pg bool, root str, mut s Dialog, mut client AcpClient, event
     }
 }
 
+// Capture before feed sends the prompt. The client's cwd also identifies handoff and service turns.
+fn feed_turn(pg bool, root str, mut s Dialog, mut client AcpClient, message Incoming) Time -> () {
+    with Fs = real_fs() { discard_turn_diff(s.turn_diff) }
+    ro tree = client.config.cwd
+    s.turn_diff = if s.project_id != "" && s.rt.use_tree && (tree == s.rt.worktree || tree == s.rt.wip_tree) {
+        with Proc = real_proc(), Os = real_os(), Fs = real_fs() { begin_turn_diff(tree) }
+    } else { None }
+    feed_with_client(pg, root, s, client, message)
+}
+
+fn finish_turn_diff(pg bool, root str, mut s Dialog) Time -> () {
+    ro snapshot = s.turn_diff
+    s.turn_diff = None
+    match snapshot {
+        Some(before) => {
+            ro stats = with Proc = real_proc(), Fs = real_fs() { turn_diff_stats(before) }
+            for stat in stats {
+                mut input = JsonObject.new()
+                js(input, "path", stat.path)
+                ji(input, "added", stat.added)
+                ji(input, "removed", stat.removed)
+                js(input, "turn", s.turn)
+                accept_in(pg, root, s, Incoming.signal("file_diff", JsonValue.object(input).to_str()))
+            }
+        }
+        None => ()
+    }
+}
+
 fn pump_in(pg bool, root str, mut s Dialog, bounded bool) Time -> int {
     ro link = acp_link(s.clients[0], bounded: bounded)
     if pg {
@@ -563,24 +595,35 @@ fn Hub mut @drain(at int) Time -> () {
     ro prior_status = s.list_status
     ro prior_question = s.list_question
     ro prior_permission = s.list_permission
-    for e in s.engine.take_events() {
-        if s.machine_tail.len() == MACHINE_JOURNAL_LINES { s.machine_tail.remove(0) }
-        s.machine_tail.push(e)
-        // task 317: the message that opened the turn is the zero point; the agent's own ACP updates renew the count
-        if e.kind == EventKind.Input && e.name == "user_message" { s.agent_event_at = e.at }
-        if e.name == "usage_update" && s.clients.len() > 0 {
-            ro size = jnumber(jobject(e.input) ?? JsonObject.new(), "size")
-            ro model = jtext(jobject(s.clients[0].options()) ?? JsonObject.new(), "model_id")
-            if size > 0 && model != "" { ji(@context_sizes, handoff_model_key(s.agent, model), size) }
-        }
-        if e.name == "agent_model" && @work_allowed(at, "execute") { @catalog_note(s.agent, e.input) }
-        match line_of(s, e) {
-            Some(line) => {
-                s.lines.push(line)
-                @send(0, line)
+    mut events = s.engine.take_events()
+    while events.len() > 0 {
+        for e in events {
+            ro was_running = s.list_status == "running"
+            // A diff can contain more files than the tail can hold. Keep the closing event for the route.
+            if e.name != "file_diff" {
+                if s.machine_tail.len() == MACHINE_JOURNAL_LINES { s.machine_tail.remove(0) }
+                s.machine_tail.push(e)
             }
-            None => ()
+            // task 317: the message that opened the turn is the zero point; the agent's own ACP updates renew the count
+            if e.kind == EventKind.Input && e.name == "user_message" { s.agent_event_at = e.at }
+            if e.name == "usage_update" && s.clients.len() > 0 {
+                ro size = jnumber(jobject(e.input) ?? JsonObject.new(), "size")
+                ro model = jtext(jobject(s.clients[0].options()) ?? JsonObject.new(), "model_id")
+                if size > 0 && model != "" { ji(@context_sizes, handoff_model_key(s.agent, model), size) }
+            }
+            if e.name == "agent_model" && @work_allowed(at, "execute") { @catalog_note(s.agent, e.input) }
+            match line_of(s, e) {
+                Some(line) => {
+                    s.lines.push(line)
+                    @send(0, line)
+                }
+                None => ()
+            }
+            if was_running && s.list_status != "running" && s.engine.open_ids().len() == 0 {
+                finish_turn_diff(@settings.store == "pg", @settings.data_dir, s)
+            }
         }
+        events = s.engine.take_events()
     }
     if s.list_status != prior_status || s.list_question != prior_question || s.list_permission != prior_permission {
         @send_list_status(s)
@@ -1522,9 +1565,16 @@ fn Hub mut @install_restore(id str, prepared Option[PreparedRestore]) Proc Detac
         None => @say_log("the session ${id} cannot be resumed: no usable snapshot")
         Some(restored) => {
             ro engine = restored.engine
-            mut s = Dialog { id, name: id, agent: "", engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, agent_event_at: 0, client_updates: 0, auth_told: "", folder: "", project_id: "", has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
-            ro tail_start = if restored.events.len() > MACHINE_JOURNAL_LINES { restored.events.len() - MACHINE_JOURNAL_LINES } else { 0 }
-            s.machine_tail = restored.events[tail_start..restored.events.len()]
+            mut s = Dialog { id, name: id, agent: "", engine, world, clients: []AcpClient.new(), turn: "", turn_diff: None, lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, agent_event_at: 0, client_updates: 0, auth_told: "", folder: "", project_id: "", has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
+            mut tail_start = restored.events.len()
+            mut tail_count = 0
+            while tail_start > 0 && tail_count < MACHINE_JOURNAL_LINES {
+                tail_start -= 1
+                if restored.events[tail_start].name != "file_diff" { tail_count += 1 }
+            }
+            for e in restored.events[tail_start..restored.events.len()] {
+                if e.name != "file_diff" { s.machine_tail.push(e) }
+            }
             // task 317: a turn open after the restart counts its silence from the last live sign in the journal;
             // a turn without such a sign starts the count now
             for e in s.machine_tail {
@@ -1708,7 +1758,7 @@ fn Hub mut @cs_make_session(cid str, name str, agent str, folder str, project_id
     ro root = @settings.data_dir
     mut world = PgWorld.open(@settings.pg, cid)
     ro engine = begin_session_engine(pg, root, world, @machine, cid)
-    mut s = Dialog { id: cid, name, agent, engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, agent_event_at: 0, client_updates: 0, auth_told: "", folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
+    mut s = Dialog { id: cid, name, agent, engine, world, clients: []AcpClient.new(), turn: "", turn_diff: None, lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, agent_event_at: 0, client_updates: 0, auth_told: "", folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
     accept_in(pg, root, s, Incoming.signal("session_created", meta_text_child(name, agent, folder, "", project_id, parent, pkind)))
     @add_session(s)
     ro at = @sessions.len() - 1
@@ -1758,7 +1808,7 @@ fn Hub mut @create(conn int, trace str, input JsonObject) Proc Detach Time -> ()
             ro root = @settings.data_dir
             mut world = PgWorld.open(@settings.pg, trace)
             ro engine = begin_session_engine(pg, root, world, @machine, trace)
-            mut s = Dialog { id: trace, name, agent, engine, world, clients: []AcpClient.new(), turn: "", lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, agent_event_at: 0, client_updates: 0, auth_told: "", folder: launch.folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
+            mut s = Dialog { id: trace, name, agent, engine, world, clients: []AcpClient.new(), turn: "", turn_diff: None, lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, agent_event_at: 0, client_updates: 0, auth_told: "", folder: launch.folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
             accept_in(pg, root, s, Incoming.signal("session_created", meta_text(name, agent, launch.folder, project, project_id)))
             @add_session(s)
             ro at = @sessions.len() - 1
@@ -1969,7 +2019,7 @@ fn Hub mut @say_with_source(trace str, text str, items []JsonValue, source Optio
         Some(mut job) => {
             job.client.set_prelude(prelude)
             job.client.attach_images(prepared.files)
-            feed_with_client(@settings.store == "pg", @settings.data_dir, s, job.client, message)
+            feed_turn(@settings.store == "pg", @settings.data_dir, s, job.client, message)
             job.prompt = job.client.held_handoff_prompt()
             if job.prompt.is_some() { @handoffs.push(job) }
             else { job.client.close() }
@@ -1977,7 +2027,7 @@ fn Hub mut @say_with_source(trace str, text str, items []JsonValue, source Optio
         None => {
             if prelude.byte_len() > 0 { s.clients[0].set_prelude(prelude) }
             s.clients[0].attach_images(prepared.files)
-            feed_in(@settings.store == "pg", @settings.data_dir, s, message)
+            feed_turn(@settings.store == "pg", @settings.data_dir, s, s.clients[0], message)
             s.clients[0].attach_images([]AcpImage.new())
         }
     }
@@ -2469,6 +2519,8 @@ fn Hub mut @delete(conn int, trace str, branch str) Proc Detach Time -> () {
     @mcp_withdraw(trace)
     @cancel(trace)
     mut s = @sessions[at]
+    with Fs = real_fs() { discard_turn_diff(s.turn_diff) }
+    s.turn_diff = None
     if s.clients.len() > 0 {
         s.clients[0].close()
         s.clients = []AcpClient.new()
@@ -3600,6 +3652,7 @@ export fn Hub mut @close() Time -> () {
     @catalog_save(true)
     for s in @sessions {
         mut mine = s
+        with Fs = real_fs() { discard_turn_diff(mine.turn_diff) }
         if mine.clients.len() > 0 {
             mine.clients[0].close()
             mine.clients = []AcpClient.new()

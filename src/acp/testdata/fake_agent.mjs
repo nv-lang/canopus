@@ -135,6 +135,18 @@ async function prompt(id, params) {
     chunk("fixture: history and question in one prompt");
     return respond(id, { stopReason: "end_turn" });
   }
+  if (args.includes("--file-diff-fixture")) {
+    if (word === "edit-two") {
+      fs.writeFileSync("one.txt", "first change\n");
+      fs.writeFileSync("two.txt", "second change\nextra\n");
+      execFileSync("git", ["add", "--", "one.txt"]);
+    } else if (word === "edit-again") {
+      fs.appendFileSync("one.txt", "next turn\n");
+    } else if (word === "create-file") {
+      fs.writeFileSync("new file.txt", "one\ntwo");
+    }
+    return respond(id, { stopReason: "end_turn" });
+  }
   // the modes of work (task 192q): the hub asks to resolve conflicts (the files are resolved here, in the folder of the process) and to run the tests
   if (text.includes("Разреши конфликты")) {
     const files = execFileSync("git", ["diff", "--name-only", "--diff-filter=U"], { encoding: "utf8" }).split("\n").filter(Boolean);

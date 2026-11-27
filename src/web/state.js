@@ -548,7 +548,7 @@ function apply(session, event) {
       const path = str(input.path);
       if (!path) return session;
       const entry = { path, added: count(input.added), removed: count(input.removed), step: event.step, turn };
-      const i = session.diffs.findIndex((x) => x.path === path);
+      const i = session.diffs.findIndex((x) => x.path === path && x.turn === turn);
       if (i < 0) return { ...session, diffs: [...session.diffs, entry] };
       if (event.step < session.diffs[i].step) return session;
       return { ...session, diffs: session.diffs.map((x, j) => (j === i ? entry : x)) };

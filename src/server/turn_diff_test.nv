@@ -1,0 +1,49 @@
+module canopus.server
+
+import std.encoding.hex.{Hex}
+import std.fs.{Fs, Path, real_fs, create_dir, read, remove_dir_all, try_exists, write_text}
+import std.os.{Os, Proc, real_os, real_proc, temp_dir}
+import std.prelude.effects.{real_random}
+
+fn turn_test_git(dir str, args []str) Proc Time -> str {
+    mut command = turn_diff_command(dir)
+    turn_diff_git(command, args).unwrap().trim_ascii()
+}
+
+test "turn diff compares dirty boundaries without changing the real index" {
+    with Proc = real_proc(), Os = real_os(), Fs = real_fs() {
+        ro bytes = with Random = real_random() { Random.bytes(8) }
+        ro dir = temp_dir().join("canopus-turn-diff-test-${Hex.encode(bytes)}")
+        assert(create_dir(dir).is_ok())
+        ro tree = dir.display()
+        turn_test_git(tree, ["init", "-b", "main"])
+        assert(write_text(dir.join("a.txt"), "one\ntwo\n").is_ok())
+        assert(write_text(dir.join("b.txt"), "old\n").is_ok())
+        turn_test_git(tree, ["add", "--", "a.txt", "b.txt"])
+        turn_test_git(tree, ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "-c", "commit.gpgsign=false", "commit", "-m", "Initial files"])
+        assert(write_text(dir.join("a.txt"), "one\ntwo\npreexisting\n").is_ok())
+        assert(write_text(dir.join("old untracked.txt"), "preexisting\n").is_ok())
+
+        ro snapshot = begin_turn_diff(tree).unwrap()
+        assert(write_text(dir.join("a.txt"), "one\ntwo\npreexisting\nextra\n").is_ok())
+        assert(write_text(dir.join("b.txt"), "replacement\n").is_ok())
+        turn_test_git(tree, ["add", "--", "b.txt"])
+        turn_test_git(tree, ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "-c", "commit.gpgsign=false", "commit", "-m", "Turn commit"])
+        assert(write_text(dir.join("новый файл.txt"), "first\nsecond").is_ok())
+        ro index = Path.from_bytes(turn_diff_path(tree, "index").unwrap().bytes())
+        ro original = read(index).unwrap()
+        ro stats = turn_diff_stats(snapshot)
+
+        assert(stats.len() == 3)
+        assert(stats[0].path == "a.txt" && stats[0].added == 1 && stats[0].removed == 0)
+        assert(stats[1].path == "b.txt" && stats[1].added == 1 && stats[1].removed == 1)
+        assert(stats[2].path == "новый файл.txt" && stats[2].added == 2 && stats[2].removed == 0)
+        ro unchanged = read(index).unwrap()
+        assert(unchanged.len() == original.len())
+        for i in 0..original.len() { assert(unchanged[i] == original[i]) }
+        assert(!try_exists(snapshot.scratch).unwrap())
+        assert(turn_diff_stats(begin_turn_diff(tree).unwrap()).len() == 0)
+        assert(begin_turn_diff("").is_none())
+        assert(remove_dir_all(dir).is_ok())
+    }
+}

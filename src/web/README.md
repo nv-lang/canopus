@@ -144,7 +144,7 @@ PNG, JPEG, WebP, GIF, до 10 МБ каждая, до 6 на сообщение 
 | `tool_call` | `{ id, title, kind, status, turn?, detail? }` | вызов инструмента; `kind` — `read`/`edit`/`delete`/`move`/`search`/`execute`/`think`/`fetch`/`other` (неизвестный — `other`), `status` — `pending`/`in_progress`/`completed`/`failed` (неизвестный — `pending`); без `id` пропускается; повтор `id` игнорируется |
 | `tool_call_update` | `{ id, status?, detail? }` | меняет состояние и подробности; чужой `id`, мусорное состояние и событие старше последнего обновления (по `step`) пропускаются |
 | `output_file` | `{ path, kind }` | файл-результат; `kind` — `create`/`edit`/`delete` (неизвестный — `edit`); список без повторов по пути, «создан, затем правлен» остаётся «создан» |
-| `file_diff` | `{ path, added, removed, turn? }` | строка карточки «Изменено файлов»: добавлено и убрано строк (не числа — ноль); повтор пути заменяет запись |
+| `file_diff` | `{ path, added, removed, turn? }` | строка карточки «Изменено файлов»: добавлено и убрано строк (не числа — ноль); повтор пути внутри того же хода заменяет запись |
 | `background_task` | `{ id, title, status, started, turn? }` | фоновая команда; `status` — `running`/`completed`/`failed`/`stopped` (неизвестный — `running`); `started` — миллисекунды эпохи (нет — время события); повтор `id` игнорируется |
 | `background_task_update` | `{ id, status }` | новое состояние; чужой `id` и мусорное состояние пропускаются |
 

@@ -189,6 +189,17 @@ test('file_diff: счётчики добавленного и убранного
   assert.deepEqual(st.diffTotals([]), { files: 0, added: 0, removed: 0 });
 });
 
+test('file_diff: повтор пути в новом ходе сохраняет оба хода', () => {
+  const m = run([
+    ...base(),
+    ev('file_diff', { path: 'a.js', turn: 't1', added: 3, removed: 1 }, { step: 2 }),
+    ev('file_diff', { path: 'a.js', turn: 't2', added: 1, removed: 0 }, { step: 3 }),
+    ev('file_diff', { path: 'a.js', turn: 't1', added: 4, removed: 2 }, { step: 4 }),
+  ]);
+  assert.deepEqual(m.sessions.s1.diffs.map(({ turn, added, removed }) => [turn, added, removed]),
+    [['t1', 4, 2], ['t2', 1, 0]]);
+});
+
 test('background_task и background_task_update: запуск, завершение, повтор id', () => {
   const m = run([
     ...base(),

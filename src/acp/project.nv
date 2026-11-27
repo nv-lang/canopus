@@ -655,9 +655,9 @@ fn refusal_input(reason str, turn str) -> Option[PageInput] {
 fn page_input_of(e Incoming, turn str) -> Option[PageInput] {
     match e.kind {
         EventKind.Input => {
-            if e.name == "message_delivery" {
+            if e.name == "message_delivery" || e.name == "file_diff" {
                 ro value = object_input(e)?
-                return page_input("message_delivery", value)
+                return page_input(e.name, value)
             }
             if e.name == "agent_model" {
                 ro value = object_input(e)?

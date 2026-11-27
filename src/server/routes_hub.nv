@@ -857,7 +857,7 @@ fn Hub mut @route_agent_turn(at int, label str, prelude str, source Option[JsonO
                 }
                 job.client.set_prelude(prelude)
                 @req_service(at, label, prelude)
-                feed_with_client(@settings.store == "pg", @settings.data_dir, s, job.client, Incoming.signal("user_message", label))
+                feed_turn(@settings.store == "pg", @settings.data_dir, s, job.client, Incoming.signal("user_message", label))
                 job.prompt = job.client.held_handoff_prompt()
                 if job.prompt.is_none() {
                     job.client.close()
@@ -886,7 +886,7 @@ fn Hub mut @route_agent_turn(at int, label str, prelude str, source Option[JsonO
     }
     s.clients[0].set_prelude(prelude)
     @req_service(at, label, prelude)
-    feed_in(@settings.store == "pg", @settings.data_dir, s, Incoming.signal("user_message", label))
+    feed_turn(@settings.store == "pg", @settings.data_dir, s, s.clients[0], Incoming.signal("user_message", label))
     s.rt.awaiting = true
     @sessions[at] = s
     @drain(at)

@@ -1,0 +1,116 @@
+// The working-tree contents at the two boundaries of a turn, including staged and untracked files.
+// Both the index and any new Git objects live in a private scratch directory.
+module canopus.server
+
+import canopus.process.{command_run_timed}
+import std.encoding.hex.{Hex}
+import std.fs.{Fs, Path, Permissions, copy_file, create_dir, create_dir_all, remove_dir_all, set_permissions, try_exists, write_text}
+import std.os.{Command, Os, Proc, temp_dir}
+import std.prelude.effects.{real_random}
+import std.time.{Time}
+
+fn turn_diff_command(tree str) -> Command {
+    mut command = Command.new("git")
+    command.arg("-C")
+    command.arg(tree)
+    command.env("GIT_TERMINAL_PROMPT", "0")
+    command
+}
+
+fn turn_diff_git(mut command Command, args []str) Proc Time -> Option[str] {
+    for arg in args { command.arg(arg) }
+    ro run = command_run_timed(command, 3000)
+    if !run.finished || run.code != 0 || run.note.byte_len() > 0 { return None }
+    Some(run.out.to_str_lossy())
+}
+
+fn turn_diff_path(tree str, name str) Proc Time -> Option[str] {
+    mut command = turn_diff_command(tree)
+    ro path = turn_diff_git(command, ["rev-parse", "--path-format=absolute", "--git-path", name])?
+    Some(path.trim_ascii())
+}
+
+fn turn_diff_index(tree str, scratch Path, index str) -> Command {
+    mut command = turn_diff_command(tree)
+    command.env("GIT_INDEX_FILE", scratch.join(index).display())
+    command.env("GIT_OBJECT_DIRECTORY", scratch.join("objects").display())
+    command.arg("-c")
+    command.arg("core.splitIndex=false")
+    command.arg("-c")
+    command.arg("core.fsmonitor=false")
+    command.arg("-c")
+    command.arg("core.hooksPath=${scratch.display()}")
+    command
+}
+
+fn turn_diff_snapshot(tree str, scratch Path, index str) Proc Fs Time -> Option[str] {
+    // Copy the real index to preserve its tracked paths (including staged files matched by .gitignore).
+    ro real = Path.from_bytes(turn_diff_path(tree, "index")?.bytes())
+    match try_exists(real) {
+        Ok(true) => { if copy_file(real, scratch.join(index)).is_err() { return None } }
+        Ok(false) => ()
+        Err(e) => return None
+    }
+    mut add = turn_diff_index(tree, scratch, index)
+    ro staged = turn_diff_git(add, ["add", "-A", "--", "."])?
+    mut write = turn_diff_index(tree, scratch, index)
+    ro snapshot = turn_diff_git(write, ["write-tree"])?
+    Some(snapshot.trim_ascii())
+}
+
+fn drop_turn_diff(scratch Path) Fs -> () {
+    ro removed = remove_dir_all(scratch)
+}
+
+fn discard_turn_diff(snapshot Option[TurnDiff]) Fs -> () {
+    match snapshot {
+        Some(saved) => drop_turn_diff(saved.scratch)
+        None => ()
+    }
+}
+
+fn begin_turn_diff(tree str) Proc Os Fs Time -> Option[TurnDiff] {
+    if tree == "" { return None }
+    ro objects = turn_diff_path(tree, "objects")?
+    ro bytes = with Random = real_random() { Random.bytes(16) }
+    ro scratch = temp_dir().join("canopus-turn-diff-${Hex.encode(bytes)}")
+    if create_dir(scratch).is_err() { return None }
+    ro info = scratch.join("objects").join("info")
+    if set_permissions(scratch, Permissions.from_mode(448)).is_err() ||
+       create_dir_all(info).is_err() ||
+       write_text(info.join("alternates"), "${objects}\n").is_err() {
+        drop_turn_diff(scratch)
+        return None
+    }
+    match turn_diff_snapshot(tree, scratch, "start") {
+        Some(before) => Some(TurnDiff { tree, scratch, before })
+        None => { drop_turn_diff(scratch); None }
+    }
+}
+
+fn turn_diff_stats(snapshot TurnDiff) Proc Fs Time -> []DiffStat {
+    ro after = turn_diff_snapshot(snapshot.tree, snapshot.scratch, "end")
+    ro stats = match after {
+        Some(tree) => if tree == snapshot.before { "" } else {
+            mut diff = turn_diff_index(snapshot.tree, snapshot.scratch, "end")
+            turn_diff_git(diff,
+                ["diff", "--numstat", "-z", "--no-renames", "--no-ext-diff", "--no-textconv", snapshot.before, tree, "--"]) ?? ""
+        }
+        None => ""
+    }
+    drop_turn_diff(snapshot.scratch)
+
+    mut out = []DiffStat.new()
+    ro nul = [0 as u8].to_str_lossy()
+    for row in stats.split(nul) {
+        ro first = row.find("\t") ?? -1
+        if first < 0 { continue }
+        ro rest = row[first + 1..]
+        ro second = rest.find("\t") ?? -1
+        if second < 0 { continue }
+        ro added = row[..first].to_int() ?? 0
+        ro removed = rest[..second].to_int() ?? 0
+        out.push(DiffStat { path: rest[second + 1..], added, removed })
+    }
+    out
+}
