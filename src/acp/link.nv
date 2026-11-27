@@ -153,10 +153,11 @@ fn read_stderr(consume rx ChildStderr, inb ChanTx[Inbound]) Proc -> () {
 }
 
 // The marks the writer leaves for the watcher: 1 - a write begins, 2 - it ended.
-fn write_loop(consume tx ChildStdin, source ChanRx[str], marks ChanTx[int], wire bool) Proc -> () {
+fn write_loop(consume tx ChildStdin, source ChanRx[str], marks ChanTx[int], wire bool) Proc Time -> () {
     mut writing = true
     while writing {
-        match source.recv() {
+        // A cancelled writer must not leave a Condvar waiter for ChanTx.close to wake.
+        match source.try_recv() {
             Some(line) => {
                 ro began = marks.try_send(1)
                 ro bytes = if wire { Base64.decode(line).unwrap() } else { "${line}\n".bytes() }
@@ -166,7 +167,10 @@ fn write_loop(consume tx ChildStdin, source ChanRx[str], marks ChanTx[int], wire
                 }
                 ro ended = marks.try_send(2)
             }
-            None => { writing = false }
+            None => {
+                if source.is_closed() { writing = false }
+                else { 10.to_millis().sleep() }
+            }
         }
     }
     tx.close()
@@ -174,7 +178,7 @@ fn write_loop(consume tx ChildStdin, source ChanRx[str], marks ChanTx[int], wire
 
 // The writer runs in a scope of its own that can be cancelled: a write to a pipe that is parked on a completion that never
 // comes is ended by `stop.cancel()` (the watcher does it when a write has lasted too long, and when the process is gone).
-fn write_stdin(consume tx ChildStdin, source ChanRx[str], marks ChanTx[int], stop CancelToken, wire bool) Proc -> () {
+fn write_stdin(consume tx ChildStdin, source ChanRx[str], marks ChanTx[int], stop CancelToken, wire bool) Proc Time -> () {
     ro outcome = supervised(cancel: stop) {
         spawn consume tx { write_loop(tx, source, marks, wire) }
         0
