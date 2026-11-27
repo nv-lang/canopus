@@ -22,6 +22,7 @@ module canopus.acp
 
 import canopus.projects.{EnvEntry}
 import std.concurrency.nvchan.{Chan, ChanTx, ChanRx}
+import std.encoding.base64.{Base64}
 import std.fs.{Path}
 import std.io.{write_all}
 import std.os.{Os, real_os, vars, has_env, Command, Child, ChildStdin, ChildStdout, ChildStderr, Stdio, Signal, Tree}
@@ -87,6 +88,43 @@ fn read_stdout(consume rx ChildStdout, inb ChanTx[Inbound]) Proc -> () {
     rx.close()
 }
 
+// The daemon forwards bytes, including the original line ending. Limit incomplete lines as well as replay storage.
+export const ACP_WIRE_LINE_LIMIT = 8 * 1024 * 1024
+
+fn read_wire_stdout(consume rx ChildStdout, inb ChanTx[Inbound], kill ChanTx[int]) Proc -> () {
+    mut buf = []u8.new()
+    buf.resize(8192, 0 as u8)
+    mut line = []u8.new()
+    mut reading = true
+    while reading {
+        match rx.read(buf) {
+            Ok(0) => { reading = false }
+            Ok(n) => {
+                for byte in buf[..n] {
+                    line.push(byte)
+                    if line.len() > ACP_WIRE_LINE_LIMIT {
+                        ro failed = inb.send(inbound_of("error", "ACP frame exceeds the wire limit", 0))
+                        ro asked = kill.try_send(1)
+                        line = []u8.new()
+                        reading = false
+                        break
+                    }
+                    if byte == (10 as u8) {
+                        ro sent = inb.send(inbound_of("line", Base64.encode(line), 0))
+                        line = []u8.new()
+                    }
+                }
+            }
+            Err(e) => { reading = false }
+        }
+    }
+    if line.len() > 0 {
+        ro sent = inb.send(inbound_of("line", Base64.encode(line), 0))
+    }
+    ro told = inb.send(inbound_of("eof", "", 0))
+    rx.close()
+}
+
 fn read_stderr(consume rx ChildStderr, inb ChanTx[Inbound]) Proc -> () {
     mut buf []u8 = []u8.new()
     buf.resize(4096, 0 as u8)
@@ -114,13 +152,14 @@ fn read_stderr(consume rx ChildStderr, inb ChanTx[Inbound]) Proc -> () {
 }
 
 // The marks the writer leaves for the watcher: 1 - a write begins, 2 - it ended.
-fn write_loop(consume tx ChildStdin, source ChanRx[str], marks ChanTx[int]) Proc -> () {
+fn write_loop(consume tx ChildStdin, source ChanRx[str], marks ChanTx[int], wire bool) Proc -> () {
     mut writing = true
     while writing {
         match source.recv() {
             Some(line) => {
                 ro began = marks.try_send(1)
-                match write_all(tx, "${line}\n".bytes()) {
+                ro bytes = if wire { Base64.decode(line).unwrap() } else { "${line}\n".bytes() }
+                match write_all(tx, bytes) {
                     Ok(done) => ()
                     Err(e) => { writing = false }
                 }
@@ -134,9 +173,9 @@ fn write_loop(consume tx ChildStdin, source ChanRx[str], marks ChanTx[int]) Proc
 
 // The writer runs in a scope of its own that can be cancelled: a write to a pipe that is parked on a completion that never
 // comes is ended by `stop.cancel()` (the watcher does it when a write has lasted too long, and when the process is gone).
-fn write_stdin(consume tx ChildStdin, source ChanRx[str], marks ChanTx[int], stop CancelToken) Proc -> () {
+fn write_stdin(consume tx ChildStdin, source ChanRx[str], marks ChanTx[int], stop CancelToken, wire bool) Proc -> () {
     ro outcome = supervised(cancel: stop) {
-        spawn consume tx { write_loop(tx, source, marks) }
+        spawn consume tx { write_loop(tx, source, marks, wire) }
         0
     }
 }
@@ -194,7 +233,7 @@ fn watch_child(consume child Child, kill ChanRx[int], inb ChanTx[Inbound], out C
 
 // The body of the keeper fiber: start the process, tell the starter how it went ("" - well, else the reason), then keep the
 // fibers around it in one scope until all of them are over.
-fn keep_link(program str, args []str, dir str, env []EnvEntry, inbound ChanTx[Inbound], outbound ChanRx[str], outbound_end ChanTx[str], killing ChanRx[int], started ChanTx[str]) Proc Time -> () {
+fn keep_link(program str, args []str, dir str, env []EnvEntry, inbound ChanTx[Inbound], outbound ChanRx[str], outbound_end ChanTx[str], killing ChanRx[int], kill_wire ChanTx[int], started ChanTx[str], wire bool) Proc Time -> () {
     mut command = Command.new(program)
     // ORACLE-WORKAROUND(16): the setters change the command in place and return it; the result is dropped, because assigning it back (`command = command.arg(a)`) does not compile (a pointer assigned to a value); chain the setters when item 16 is fixed
     for a in args { command.arg(a) }
@@ -220,9 +259,12 @@ fn keep_link(program str, args []str, dir str, env []EnvEntry, inbound ChanTx[In
             // task 317: the starter needs the pid of the child to write down what the hub started ("ok:<pid>" - it went well)
             ro told = started.send("ok:${child.pid()}")
             supervised {
-                spawn consume stdout_pipe { read_stdout(stdout_pipe, inbound) }
+                spawn consume stdout_pipe {
+                    if wire { read_wire_stdout(stdout_pipe, inbound, kill_wire) }
+                    else { read_stdout(stdout_pipe, inbound) }
+                }
                 spawn consume stderr_pipe { read_stderr(stderr_pipe, inbound) }
-                spawn consume stdin_pipe { write_stdin(stdin_pipe, outbound, marks.tx, stop) }
+                spawn consume stdin_pipe { write_stdin(stdin_pipe, outbound, marks.tx, stop, wire) }
                 watch_child(child, killing, inbound, outbound_end, marks.rx, stop)
             }
         }
@@ -259,13 +301,15 @@ fn merged_env(extra []EnvEntry) -> []EnvEntry {
 
 /// The same with environment variables for the process (task 192m): the environment of this process and over it `env`, a name that
 /// comes in both is the one of `env`. The values reach the process only through its environment block: not the command line, not a file.
-export fn connect_env(program str, args []str, dir str, env []EnvEntry) Proc Detach Time -> Result[AgentLink, str] {
-    ro inbound = Chan[Inbound].new(2048)
-    ro outbound = Chan[str].new(2048)
+export fn connect_env(program str, args []str, dir str, env []EnvEntry, wire bool = false) Proc Detach Time -> Result[AgentLink, str] {
+    // Wire messages may each be several MiB. Leave the replay buffer in the daemon as the main queue.
+    ro capacity = if wire { 4 } else { 2048 }
+    ro inbound = Chan[Inbound].new(capacity)
+    ro outbound = Chan[str].new(capacity)
     ro killing = Chan[int].new(4)
     ro started = Chan[str].new(1)
     ro block = merged_env(env)
-    detach { keep_link(program, args, dir, block, inbound.tx, outbound.rx, outbound.tx, killing.rx, started.tx) }
+    detach { keep_link(program, args, dir, block, inbound.tx, outbound.rx, outbound.tx, killing.rx, killing.tx, started.tx, wire) }
     match started.rx.recv() {
         Some(reason) => {
             if !reason.starts_with("ok:") { return Err(if reason.byte_len() > 0 { reason } else { "the keeper of ${program} ended before the process was started" }) }

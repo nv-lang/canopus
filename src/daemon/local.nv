@@ -1,0 +1,300 @@
+// The local daemon owns the process links. Socket workers submit one authenticated request each;
+// the daemon drains and numbers agent frames even when there is no socket connected.
+module canopus.daemon
+
+import canopus.acp.{AgentLink, Inbound, connect_env, ACP_WIRE_LINE_LIMIT}
+import canopus.projects.{EnvEntry}
+import std.concurrency.nvchan.{Chan, ChanRx, ChanTx}
+import std.encoding.base64.{Base64}
+import std.encoding.hex.{Hex}
+import std.encoding.json.{Json, JsonObject, JsonValue}
+import std.io.{stdout, write_all}
+import std.net.{Net, TcpListener, TcpStream}
+
+const VERSION = 1
+const WIRE_LIMIT = 12 * 1024 * 1024
+const REPLAY_BYTES = 16 * 1024 * 1024
+const REPLAY_FRAMES = 4096
+const POLL_BYTES = 256 * 1024
+const LEASE_MS = 3000
+const SOCKET_MS = 5000
+const RETAIN_MS = 30 * 60 * 1000
+const STOPPED_RETAIN_MS = 10000
+const MAX_AGENTS = 32
+
+type DaemonRequest { body JsonObject, reply ChanTx[str] }
+type DaemonFrame { value JsonValue, size int }
+type DaemonAgent {
+    session str,
+    instance str,
+    link AgentLink,
+    owner str,
+    touched int,
+    stopping bool,
+    exited bool,
+    eof bool,
+    stderr str,
+    head int,
+    bytes int,
+    frames []DaemonFrame
+}
+
+fn put(mut o JsonObject, key str, value JsonValue) -> () { ro replaced = o.insert(key, value) }
+fn text(o JsonObject, key str) -> str => (o.get(key) ?? JsonValue.null()).str() ?? ""
+fn number(o JsonObject, key str) -> Option[int] => (o.get(key) ?? JsonValue.null()).int()
+fn now_ms() Time -> int => Time.now().unix_millis()
+
+fn error(code str, message str) -> str {
+    mut o = JsonObject.new()
+    put(o, "error", JsonValue.str(code))
+    put(o, "message", JsonValue.str(message))
+    JsonValue.object(o).to_str()
+}
+
+fn ok(agent DaemonAgent, frames []JsonValue) -> str {
+    mut o = JsonObject.new()
+    put(o, "version", JsonValue.int(VERSION))
+    put(o, "instance", JsonValue.str(agent.instance))
+    put(o, "pid", JsonValue.int(agent.link.pid))
+    put(o, "head", JsonValue.int(agent.head))
+    put(o, "frames", JsonValue.array(frames))
+    put(o, "stderr", JsonValue.str(agent.stderr))
+    JsonValue.object(o).to_str()
+}
+
+fn DaemonAgent mut @record(item Inbound) -> () {
+    if item.kind == "exit" { @exited = true }
+    if item.kind == "eof" { @eof = true }
+    // Keep diagnostics off the replay budget: stderr can be noisy enough to evict active ACP work.
+    if item.kind == "stderr" {
+        ro bytes = "${@stderr}${item.text}\n".bytes()
+        @stderr = if bytes.len() > 4000 { item.text } else { bytes.to_str() ?? "" }
+        if @stderr.byte_len() > 4000 { @stderr = "[long stderr line omitted]" }
+        return
+    }
+    @head += 1
+    mut o = JsonObject.new()
+    put(o, "seq", JsonValue.int(@head))
+    put(o, "kind", JsonValue.str(item.kind))
+    put(o, "data", JsonValue.str(item.text))
+    put(o, "code", JsonValue.int(item.code))
+    ro size = item.text.byte_len() + 96
+    @frames.push(DaemonFrame { value: JsonValue.object(o), size })
+    @bytes += size
+    while @bytes > REPLAY_BYTES || @frames.len() > REPLAY_FRAMES {
+        ro dropped = @frames.remove(0)
+        @bytes -= dropped.size
+    }
+}
+
+fn DaemonAgent @replay(after int) -> str {
+    ro first = @head - @frames.len()
+    if after < first { return error("cursor_expired", "replay starts after ${first}") }
+    if after > @head { return error("cursor_ahead", "replay ends at ${@head}") }
+    mut frames = []JsonValue.new()
+    mut bytes = 0
+    for frame in @frames[after - first..@frames.len()] {
+        if frames.len() > 0 && bytes + frame.size > POLL_BYTES { break }
+        frames.push(frame.value)
+        bytes += frame.size
+    }
+    ok(@, frames)
+}
+
+fn DaemonAgent mut @command(body JsonObject, owner str, verb str, now int) -> str {
+    if text(body, "instance") != @instance { return error("wrong_instance", "agent instance changed") }
+    if @owner != owner && now - @touched < LEASE_MS { return error("busy", "another hub is attached") }
+    if verb == "poll" {
+        ro after = number(body, "after") ?? -1
+        if after < 0 { return error("invalid_cursor", "after must be a nonnegative integer") }
+        if after < @head - @frames.len() || after > @head { return @replay(after) }
+        @owner = owner
+        @touched = now
+        return @replay(after)
+    }
+    if @owner != owner { return error("not_attached", "poll before issuing a command") }
+    @touched = now
+    if verb == "stop" {
+        @stopping = true
+        @link.stop()
+        return ok(@, []JsonValue.new())
+    }
+    if verb != "send" { return error("unknown_command", "unknown daemon command") }
+    if @stopping || @exited || @eof { return error("agent_closed", "agent is not accepting input") }
+    ro data = text(body, "data")
+    ro bytes = match Base64.decode(data) {
+        Ok(v) => v
+        Err(e) => return error("invalid_frame", "data must be base64 ACP")
+    }
+    if bytes.len() == 0 || bytes.len() > ACP_WIRE_LINE_LIMIT || bytes[bytes.len() - 1] != (10 as u8) {
+        return error("invalid_frame", "expected one complete ACP line")
+    }
+    for byte in bytes[..bytes.len() - 1] {
+        if byte == (10 as u8) { return error("invalid_frame", "expected one complete ACP line") }
+    }
+    if !@link.out.try_send(data) { return error("input_unavailable", "agent input queue is full or closed") }
+    ok(@, []JsonValue.new())
+}
+
+fn launch(body JsonObject, session str, owner str, now int) Proc Detach Random Time -> Result[DaemonAgent, str] {
+    ro program = text(body, "program")
+    if program.byte_len() == 0 { return Err("program is required") }
+    mut args = []str.new()
+    for item in (body.get("args") ?? JsonValue.null()).array() ?? []JsonValue.new() {
+        match item.str() {
+            Some(arg) => args.push(arg)
+            None => return Err("args must contain strings")
+        }
+    }
+    mut env = []EnvEntry.new()
+    for item in (body.get("env") ?? JsonValue.null()).array() ?? []JsonValue.new() {
+        ro pair = item.object() ?? JsonObject.new()
+        ro key = text(pair, "key")
+        if key.byte_len() == 0 { return Err("invalid environment key") }
+        env.push(EnvEntry { key, value: text(pair, "value") })
+    }
+    match connect_env(program, args, text(body, "cwd"), env, wire: true) {
+        Ok(link) => Ok(DaemonAgent { session, instance: Hex.encode(Random.bytes(24)), link, owner, touched: now, stopping: false, exited: false, eof: false, stderr: "", head: 0, bytes: 0, frames: []DaemonFrame.new() })
+        Err(reason) => Err(reason)
+    }
+}
+
+fn dispatch(mut agents []DaemonAgent, body JsonObject, now int) Proc Detach Random Time -> str {
+    ro verb = text(body, "op")
+    ro session = text(body, "session")
+    ro owner = text(body, "owner")
+    if session.byte_len() == 0 || session.byte_len() > 256 || owner.byte_len() == 0 || owner.byte_len() > 256 {
+        return error("invalid_identity", "session and owner are required")
+    }
+    mut at = 0
+    while at < agents.len() {
+        if agents[at].session == session {
+            mut agent = agents[at]
+            if verb == "start" {
+                if agent.owner != owner { return error("session_exists", "attach to the existing agent instance") }
+                return ok(agent, []JsonValue.new())
+            }
+            ro result = agent.command(body, owner, verb, now)
+            agents[at] = agent
+            return result
+        }
+        at += 1
+    }
+    if verb != "start" { return error("no_agent", "daemon has no such agent") }
+    if agents.len() >= MAX_AGENTS { return error("agent_limit", "daemon agent limit reached") }
+    match launch(body, session, owner, now) {
+        Ok(agent) => {
+            agents.push(agent)
+            ok(agent, []JsonValue.new())
+        }
+        Err(reason) => error("spawn_failed", reason)
+    }
+}
+
+fn drive(inbox ChanRx[DaemonRequest]) Proc Detach Random Time -> () {
+    mut agents = []DaemonAgent.new()
+    while true {
+        ro now = now_ms()
+        mut drained = false
+        mut at = agents.len()
+        while at > 0 {
+            at -= 1
+            mut agent = agents[at]
+            mut remaining = 64
+            while remaining > 0 {
+                remaining -= 1
+                match agent.link.inb.try_recv() {
+                    Some(item) => { agent.record(item); drained = true }
+                    None => { break }
+                }
+            }
+            ro retain = if agent.stopping { STOPPED_RETAIN_MS } else { RETAIN_MS }
+            if now - agent.touched > retain {
+                if !agent.stopping { agent.link.stop(); agent.stopping = true }
+                if agent.exited && agent.eof { ro removed = agents.remove(at); continue }
+            }
+            agents[at] = agent
+        }
+        match inbox.try_recv() {
+            Some(request) => {
+                ro result = dispatch(agents, request.body, now)
+                ro told = request.reply.try_send(result)
+            }
+            None => { (if drained { 1 } else { 5 }).to_millis().sleep() }
+        }
+    }
+}
+
+fn read_request(mut conn TcpStream) Net -> Option[JsonObject] {
+    mut buffer = []u8.new()
+    buffer.resize(8192, 0 as u8)
+    mut line = []u8.new()
+    while line.len() < WIRE_LIMIT {
+        match conn.read(buffer) {
+            Ok(n) => {
+                if n == 0 { return None }
+                for byte in buffer[..n] {
+                    if line.len() >= WIRE_LIMIT { return None }
+                    if byte == (10 as u8) {
+                        ro text = match line.to_str() { Ok(value) => value, Err(e) => return None }
+                        match Json.parse(text) {
+                            Ok(value) => return value.object()
+                            Err(e) => return None
+                        }
+                    }
+                    line.push(byte)
+                }
+            }
+            Err(e) => return None
+        }
+    }
+    None
+}
+
+fn accept_request(mut conn TcpStream, token str, inbox ChanTx[DaemonRequest]) Net Time -> str {
+    ro body = read_request(conn) ?? return error("invalid_request", "expected one JSON object")
+    if text(body, "key") != token { return error("unauthorized", "wrong daemon key") }
+    if (number(body, "version") ?? -1) != VERSION { return error("wrong_version", "unsupported daemon protocol version") }
+    ro reply = Chan[str].new(1)
+    if !inbox.try_send(DaemonRequest { body, reply: reply.tx }) { return error("overloaded", "daemon request queue is full") }
+    reply.rx.recv() ?? error("unavailable", "daemon did not answer")
+}
+
+fn serve_connection(consume conn TcpStream, token str, inbox ChanTx[DaemonRequest], slots ChanTx[int]) Net Time -> () {
+    supervised(timeout: SOCKET_MS.to_millis()) {
+        ro result = accept_request(conn, token, inbox)
+        ro written = conn.write_all("${result}\n".bytes())
+    }
+    conn.close()
+    ro released = slots.try_send(1)
+}
+
+export fn run_local_daemon(port int, token str) Io Net Time Proc Detach Random -> Result[(), str] {
+    consume listener = match TcpListener.bind("127.0.0.1:${port}") {
+        Ok(consume bound) => bound
+        Err(e) => return Err("cannot bind the loopback daemon: ${e}")
+    }
+    ro inbox = Chan[DaemonRequest].new(32)
+    ro slots = Chan[int].new(32)
+    ro inbox_rx = inbox.rx
+    ro request_tx = inbox.tx
+    ro slot_tx = slots.tx
+    for i in 0..32 { ro reserved = slots.tx.try_send(1) }
+    detach { drive(inbox_rx) }
+    mut output = stdout()
+    ro announced = write_all(output, "canopus daemon listening on 127.0.0.1:${listener.local_port()}\n".bytes())
+    mut failure = ""
+    while failure.byte_len() == 0 {
+        match listener.accept() {
+            Ok(consume conn) => {
+                match slots.rx.try_recv() {
+                    Some(slot) => { detach consume conn { serve_connection(conn, token, request_tx, slot_tx) } }
+                    None => { conn.close() }
+                }
+            }
+            Err(e) => { failure = "daemon listener failed: ${e}" }
+        }
+    }
+    listener.close()
+    Err(failure)
+}
