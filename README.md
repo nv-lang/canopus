@@ -2,7 +2,9 @@
 
 [![CI](https://github.com/nv-lang/canopus/actions/workflows/guards.yml/badge.svg)](https://github.com/nv-lang/canopus/actions/workflows/guards.yml)
 
-**Your AI development team, coordinated.**
+**Hand it to Canopus. Canopus sees it through.**
+
+Canopus keeps the task moving when agents change and brings you in only when it needs your decision to finish.
 
 Canopus coordinates coding agents, project tasks, owner decisions, reviews and delivery.
 It provides a local application with a browser interface and an OpenCode plugin.
