@@ -624,6 +624,15 @@ pre code { font: inherit; }
 .minus { color: var(--danger); }
 .diff-foot { display: flex; align-items: center; justify-content: space-between; min-height: var(--hit); border-top: 1px solid var(--border); }
 .diff-foot .link-btn { margin-left: -8px; }
+.diff-foot-btns { display: inline-flex; align-items: center; gap: 12px; }
+.diff-row.open { flex-wrap: wrap; padding-bottom: 6px; }
+.diff-view-btn { flex: none; }
+.diff-patch { flex-basis: 100%; max-height: 320px; overflow: auto; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; font: 12px var(--font-mono); white-space: pre; }
+.diff-line.add { color: var(--ok); }
+.diff-line.del { color: var(--danger); }
+.diff-line.hunk { color: var(--fg-muted); }
+.diff-line.meta { color: var(--fg-muted); font-weight: 600; }
+.diff-patch-status { margin: 4px 0 0; font-size: 13px; }
 
 .item-actions { display: flex; align-items: center; gap: 5px; margin: -6px 0 0 -10px; color: var(--fg-muted); font-size: 13px; }
 .item-note { font-size: 15px; color: var(--fg-muted); }

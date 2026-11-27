@@ -1,0 +1,114 @@
+// diff_api.nv - `GET /api/session-diff/<session>?path=<file>` (task 323): the git patch of the changes of the tree of
+// the session, for the button "Показать дифф" of the feed. The tree is recovered from the journal of the session; a
+// session without a tree of its own (projectless, or no task yet) gets an honest 404, and the page hides the button.
+// The patch is cut at 200 KiB with `truncated` in the answer.
+module canopus.server.front
+
+import canopus.server.{tree_diff_patch, TreeDiff}
+import canopus.storage.{session_file, file_replay_journal}
+import alula.engine.{Journal, JournalEntry}
+import std.encoding.json.{Json, JsonValue, JsonObject}
+import std.fs.{Fs, real_fs, try_exists}
+import std.os.{Os, Proc, real_os, real_proc}
+
+// The patch is cut at this many bytes; the page says so when `truncated` comes back true.
+const DIFF_MAX_BYTES = 204800
+
+/// DiffReply: the answer of the route: the HTTP status and the JSON body.
+export type DiffReply { status int, body str }
+
+fn diff_error(status int, reason str) -> DiffReply {
+    mut o = JsonObject.new()
+    ro put = o.insert("error", JsonValue.str(reason))
+    DiffReply { status, body: JsonValue.object(o).to_str() }
+}
+
+fn diff_jtext(o JsonObject, key str) -> str => (o.get(key) ?? JsonValue.null()).str() ?? ""
+
+// The tree of the session from its journal: only the signals that carry the place of work are read (`route_set` with
+// the key `worktree`, `route_task` with the ops `open`/`attach_tree`/`wip`/`new`/`park`/`child_merged`); the meaning of
+// the ops is the one of `RouteSession.apply` (src/server/routes.nv) - that state machine stays the source of truth, a
+// full replay is not repeated here because pulling it into the front crate trips a codegen bug of Oracle 0.1.4
+// (E_RECV_METHOD_MISMATCH on an unrelated `.join`). The tree of the open task wins, else the wip tree of the work
+// before the task; "" - the session works in the project folder itself or has no project (nothing to diff).
+export fn diff_worktree_of(journal []JournalEntry) -> str {
+    mut names = []str.new()
+    mut inputs = []str.new()
+    for e in journal {
+        if e.event.code != "event_accepted" { continue }
+        names.push(e.event.value_of("name") ?? "")
+        inputs.push(e.event.value_of("input") ?? "")
+    }
+    diff_worktree_scan(names, inputs)
+}
+
+/// The pure core of `diff_worktree_of` over the accepted signals as (name, input) pairs, in the order of the journal.
+export fn diff_worktree_scan(names []str, inputs []str) -> str {
+    mut use_tree = true
+    mut worktree = ""
+    mut wip = ""
+    mut i = 0
+    while i < names.len() {
+        ro name = names[i]
+        ro input = inputs[i]
+        i += 1
+        if name != "route_set" && name != "route_task" { continue }
+        ro o = match Json.parse(input) {
+            Ok(v) => v.object() ?? JsonObject.new()
+            Err(err) => JsonObject.new()
+        }
+        if name == "route_set" {
+            match o.get("worktree") {
+                Some(v) => { use_tree = v.bool() ?? (diff_jtext(o, "worktree") != "false") }
+                None => ()
+            }
+            continue
+        }
+        ro op = diff_jtext(o, "op")
+        if op == "open" || op == "attach_tree" {
+            worktree = diff_jtext(o, "worktree")
+            if wip == worktree { wip = "" }
+        } else if op == "wip" {
+            wip = diff_jtext(o, "worktree")
+        } else if op == "new" || op == "park" || op == "child_merged" {
+            worktree = ""
+        }
+    }
+    if !use_tree { return "" }
+    if worktree.byte_len() > 0 { return worktree }
+    wip
+}
+
+/// The JSON of the answer for a computed patch (pure, tested without git).
+export fn diff_reply_of(path str, d TreeDiff) -> DiffReply {
+    if !d.ok { return diff_error(500, d.err) }
+    mut o = JsonObject.new()
+    ro p1 = o.insert("path", JsonValue.str(path))
+    ro p2 = o.insert("patch", JsonValue.str(d.patch))
+    ro p3 = o.insert("truncated", JsonValue.bool(d.truncated))
+    DiffReply { status: 200, body: JsonValue.object(o).to_str() }
+}
+
+/// The answer for a session and a file ("" - all files of the tree): 404 for an unknown session and for a session
+/// without a tree of its own, 500 with the reason of git when git refused.
+export fn session_diff(root str, session str, path str) Proc Os Fs -> DiffReply {
+    ro journal_path = match session_file(root, session, "journal") {
+        Some(p) => p
+        None => return diff_error(404, "no such session")
+    }
+    ro there = with Fs = real_fs() {
+        match try_exists(journal_path) {
+            Ok(b) => b
+            Err(e) => false
+        }
+    }
+    if !there { return diff_error(404, "no such session") }
+    ro entries = with Journal = file_replay_journal(root, session) { Journal.read_all() }
+    ro tree = diff_worktree_of(entries)
+    if tree.byte_len() == 0 { return diff_error(404, "the session has no tree of its own") }
+    diff_reply_of(path, tree_diff_patch(tree, path, DIFF_MAX_BYTES))
+}
+
+/// The same answer with the real effects given (the polaris Handler is effect-free, D454).
+export fn session_diff_now(root str, session str, path str) -> DiffReply =>
+    with Proc = real_proc(), Os = real_os(), Fs = real_fs() { session_diff(root, session, path) }

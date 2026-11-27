@@ -92,6 +92,7 @@ const AGO_KEY = { now: 'ago.now', min: 'ago.min', hour: 'ago.hour', day: 'ago.da
 export function createView(doc, refs, deps) {
   const {
     agents, now, handlers, imageSrc = (image) => image.src, projectsApi, presets = () => null, modelMetadata = () => null,
+    fetchDiff = (id, path) => doc.defaultView.fetch(`/api/session-diff/${encodeURIComponent(id)}${path ? `?path=${encodeURIComponent(path)}` : ''}`, { cache: 'no-store' }).then((r) => r.json()),
   } = deps;
   let { registryFailed = false, registryPending = false } = deps;
   const win = doc.defaultView;
@@ -2034,19 +2035,74 @@ export function createView(doc, refs, deps) {
     animate();
   }
 
+  // задача 323: просмотр диффа — патч запрашивается у хаба по кнопке; кеш по сессии и пути переживает перерисовку
+  const diffPatches = new Map(); // `${trace}${path}` -> { state: 'loading'|'ok'|'error', patch, truncated, error }
+
+  function diffPanelNodes(viewKey) {
+    const cached = diffPatches.get(viewKey);
+    if (!cached || cached.state === 'loading') return [h(doc, 'p', { class: 'muted diff-patch-status', role: 'status', text: t('diffs.loading') })];
+    if (cached.state === 'error') return [h(doc, 'p', { class: 'muted diff-patch-status', role: 'status', text: cached.error })];
+    if (cached.patch.length === 0) return [h(doc, 'p', { class: 'muted diff-patch-status', role: 'status', text: t('diffs.empty') })];
+    const lines = cached.patch.replace(/\n$/, '').split('\n').map((line) => {
+      const cls = line.startsWith('+++') || line.startsWith('---') || line.startsWith('diff --git') || line.startsWith('index ') ? 'meta'
+        : line.startsWith('+') ? 'add'
+          : line.startsWith('-') ? 'del'
+            : line.startsWith('@@') ? 'hunk' : 'ctx';
+      return h(doc, 'div', { class: `diff-line ${cls}`, text: line });
+    });
+    const nodes = [h(doc, 'div', { class: 'diff-patch' }, ...lines)];
+    if (cached.truncated) nodes.push(h(doc, 'p', { class: 'muted diff-patch-status', text: t('diffs.truncated') }));
+    return nodes;
+  }
+
+  function toggleDiffPanel(entry, item, path, viewKey) {
+    if (open.has(viewKey)) {
+      open.delete(viewKey);
+    } else {
+      open.add(viewKey);
+      const cached = diffPatches.get(viewKey);
+      if (!cached || cached.state === 'error') {
+        diffPatches.set(viewKey, { state: 'loading' });
+        fetchDiff(currentTrace, path).then((body) => {
+          diffPatches.set(viewKey, typeof body?.patch === 'string'
+            ? { state: 'ok', patch: body.patch, truncated: body.truncated === true }
+            : { state: 'error', error: typeof body?.error === 'string' && body.error.length > 0 ? t('diffs.error_why', { why: body.error }) : t('diffs.error') });
+        }, () => diffPatches.set(viewKey, { state: 'error', error: t('diffs.error') })).finally(() => {
+          if (open.has(viewKey)) { entry.sig = null; fillDiffs(entry, item); }
+        });
+      }
+    }
+    entry.sig = null;
+    fillDiffs(entry, item);
+  }
+
+  function diffViewButton(entry, item, path, viewKey) {
+    const isOpen = open.has(viewKey);
+    const button = h(doc, 'button', { type: 'button', class: 'link-btn diff-view-btn', text: isOpen ? t('diffs.hide_diff') : t('diffs.show_diff'), 'aria-expanded': String(isOpen) });
+    button.addEventListener('click', () => toggleDiffPanel(entry, item, path, viewKey));
+    return button;
+  }
+
   function fillDiffs(entry, item) {
     const key = `more:${item.key}`;
     const all = open.has(key);
+    // у сессии без дерева (projectless, use_tree false) диффа нет — кнопки прячутся; остальные отказы хаба честно показываются
+    const rs = current.session?.routeState;
+    const hasTree = !rs || rs.useTree !== false;
     const rows = all ? item.rows : item.rows.slice(0, FOLD_DIFFS);
     const list = h(doc, 'ul', { class: 'diff-list' }, ...rows.map((d) => {
       const fp = fileParts(d.path);
-      return h(doc, 'li', { class: 'diff-row' },
+      const viewKey = `${currentTrace}${item.key}:${d.path}`;
+      const isOpen = open.has(viewKey);
+      return h(doc, 'li', { class: isOpen ? 'diff-row open' : 'diff-row' },
         icon(doc, 'i-file'),
         h(doc, 'span', { class: 'file-name', text: fp.name }),
         fp.dir ? h(doc, 'span', { class: 'file-dir', text: fp.dir }) : h(doc, 'span', { class: 'file-dir' }),
         h(doc, 'span', { class: 'counts' },
           h(doc, 'span', { class: 'plus', text: `+${d.added}` }),
-          h(doc, 'span', { class: 'minus', text: `−${d.removed}` })));
+          h(doc, 'span', { class: 'minus', text: `−${d.removed}` })),
+        hasTree ? diffViewButton(entry, item, d.path, viewKey) : false,
+        ...(isOpen ? diffPanelNodes(viewKey) : []));
     }));
     const more = item.rows.length > FOLD_DIFFS
       ? h(doc, 'button', { type: 'button', class: 'link-btn', text: all ? t('diffs.hide') : t('diffs.show_all', { n: item.rows.length }) })
@@ -2056,13 +2112,18 @@ export function createView(doc, refs, deps) {
       entry.sig = null;
       fillDiffs(entry, item);
     });
-    entry.node.replaceChildren(
+    const allKey = `${currentTrace}${item.key}:`;
+    const allOpen = open.has(allKey);
+    entry.node.replaceChildren(...[
       h(doc, 'div', { class: 'card-title', text: t('diffs.title', { n: item.totals.files }) }),
       list,
-      h(doc, 'div', { class: 'diff-foot' }, more, h(doc, 'span', { class: 'counts' },
-        h(doc, 'span', { class: 'plus', text: `+${item.totals.added}` }),
-        h(doc, 'span', { class: 'minus', text: `−${item.totals.removed}` }))),
-    );
+      ...(allOpen ? diffPanelNodes(allKey) : []),
+      h(doc, 'div', { class: 'diff-foot' },
+        h(doc, 'span', { class: 'diff-foot-btns' }, more, hasTree ? diffViewButton(entry, item, '', allKey) : false),
+        h(doc, 'span', { class: 'counts' },
+          h(doc, 'span', { class: 'plus', text: `+${item.totals.added}` }),
+          h(doc, 'span', { class: 'minus', text: `−${item.totals.removed}` }))),
+    ].filter(Boolean));
   }
 
   function fillItem(entry, item) {

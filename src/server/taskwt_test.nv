@@ -466,6 +466,28 @@ test "taskwt state: the count of unmerged commits, the stat of the diff, a clean
     tt_rm(w.root)
 }
 
+test "taskwt diff patch (323): the patch of a file and of the tree, the uncommitted change, the cut, a refusal" {
+    ro w = tt_world("diffpatch")
+    ro tree = tt_task(w, "323", "demo")
+    assert(tree_diff_patch(tree.path, "", 204800).patch.byte_len() == 0)
+    tt_commit(tree.path, "a.txt", "alpha\nbeta\ngamma\ndelta\nepsilon\n", "two lines more")
+    tt_commit(tree.path, "b.txt", "one\ntwo\n", "a second file")
+    // an uncommitted change of a tracked file is part of the patch too (the diff is against the merge base, not HEAD)
+    tt_write("${tree.path}/a.txt", "alpha\nbeta\ngamma\ndelta\nepsilon\nzeta\n")
+    ro one = tree_diff_patch(tree.path, "a.txt", 204800)
+    assert(one.ok && !one.truncated && one.err.byte_len() == 0)
+    assert(one.patch.contains("+delta") && one.patch.contains("+zeta") && one.patch.contains("a.txt") && !one.patch.contains("b.txt"))
+    ro all = tree_diff_patch(tree.path, "", 204800)
+    assert(all.ok && all.patch.contains("+delta") && all.patch.contains("b.txt"))
+    ro none = tree_diff_patch(tree.path, "no-such-file.txt", 204800)
+    assert(none.ok && none.patch.byte_len() == 0)
+    ro cut = tree_diff_patch(tree.path, "", 60)
+    assert(cut.ok && cut.truncated && cut.patch.byte_len() <= 60)
+    ro gone = tree_diff_patch("${w.root}/nowhere", "", 204800)
+    assert(!gone.ok && gone.err.byte_len() > 0)
+    tt_rm(w.root)
+}
+
 test "taskwt: a git call that does not finish in time comes back as a failure" {
     ro w = tt_world("timeout")
     ro t0 = Time.now().unix_millis()

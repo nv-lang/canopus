@@ -700,6 +700,31 @@ export fn diff_stat(task_tree_path str) Proc Os Fs -> []DiffStat {
     parse_diff_stat(r.out)
 }
 
+/// Task 323: the patch of what the session changed - the branch against the merge base with the base ref plus the
+/// uncommitted changes of the tree (`git diff <merge-base> -- <path>`; `path` "" - all files). The patch is cut at
+/// `max` bytes on a line boundary and `truncated` says it was cut; `ok` false - git refused (`err`, without secrets).
+export type TreeDiff { ok bool, patch str, truncated bool, err str }
+
+export fn tree_diff_patch(tree_path str, path str, max int) Proc Os Fs -> TreeDiff {
+    ro dir = tw_norm(tree_path)
+    ro base = tw_base_ref(dir)
+    ro mb = tw_git(dir, ["merge-base", base, "HEAD"])
+    ro from = if mb.code == 0 && mb.out.trim_ascii().byte_len() > 0 { mb.out.trim_ascii() } else { "HEAD" }
+    mut args = ["diff", "--no-renames", from, "--"]
+    if path.byte_len() > 0 { args.push(path) }
+    ro r = tw_git(dir, args)
+    if r.code != 0 { return TreeDiff { ok: false, patch: "", truncated: false, err: tw_why(r) } }
+    if r.out.byte_len() <= max { return TreeDiff { ok: true, patch: r.out, truncated: false, err: "" } }
+    mut out = ""
+    mut used = 0
+    for line in r.out.lines() {
+        if used + line.byte_len() + 1 > max { break }
+        out = "${out}${line}\n"
+        used += line.byte_len() + 1
+    }
+    TreeDiff { ok: true, patch: out, truncated: true, err: "" }
+}
+
 fn parse_diff_stat(text str) -> []DiffStat {
     mut out = []DiffStat.new()
     for line in tw_lines(text) {

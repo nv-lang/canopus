@@ -152,6 +152,13 @@ export const S = Object.freeze({
   'diffs.title': 'Изменено файлов: {n}',
   'diffs.show_all': 'Показать все ({n})',
   'diffs.hide': 'Свернуть',
+  'diffs.show_diff': 'Показать дифф',
+  'diffs.hide_diff': 'Скрыть дифф',
+  'diffs.loading': 'Загружаем дифф…',
+  'diffs.empty': 'Нет изменений для показа',
+  'diffs.error': 'Не удалось получить дифф',
+  'diffs.error_why': 'Не удалось получить дифф: {why}',
+  'diffs.truncated': 'Дифф обрезан по размеру',
 
   // ---- поле ввода
   'msg.copy': 'Скопировать',

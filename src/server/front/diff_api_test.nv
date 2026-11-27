@@ -1,0 +1,48 @@
+// diff_api_test.nv - the git patch of the tree of a session for the button "Показать дифф" (task 323): the tree is
+// recovered from the journal of the session, a session without a tree gets an honest 404, the answer carries the cut
+// flag. The journal itself is not built here (importing `alula.engine` into a test of this module trips a codegen bug
+// of Oracle 0.1.4, E_RECV_METHOD_MISMATCH on an unrelated `.join`): the pure core `diff_worktree_scan` is tested over
+// (name, input) pairs.
+module canopus.server.front
+
+import canopus.server.{TreeDiff}
+import std.os.{Os, Proc, real_os, real_proc}
+import std.fs.{Fs, real_fs}
+
+test "diff api: the tree of the session comes from the journal of its route" {
+    ro opened = diff_worktree_scan(
+        ["route_set", "route_task"],
+        ["{\"worktree\":true}", "{\"op\":\"open\",\"id\":\"323-demo\",\"worktree\":\"/w/r-323-demo\",\"branch\":\"task/323-demo\"}"])
+    assert(opened == "/w/r-323-demo")
+    // a task that was made without a tree gets one later; the tree of the task wins over the wip tree
+    ro attached = diff_worktree_scan(
+        ["route_task", "route_task"],
+        ["{\"op\":\"wip\",\"worktree\":\"/w/r-wip\"}", "{\"op\":\"attach_tree\",\"worktree\":\"/w/r-323-demo\"}"])
+    assert(attached == "/w/r-323-demo")
+    // the wip tree of the work before the task is the place when there is no task
+    assert(diff_worktree_scan(["route_task"], ["{\"op\":\"wip\",\"worktree\":\"/w/r-wip\"}"]) == "/w/r-wip")
+    // a projectless session works in no tree of its own
+    assert(diff_worktree_scan(["route_set"], ["{\"worktree\":false}"]).byte_len() == 0)
+    // no route signals at all: nothing to diff; other events change nothing
+    assert(diff_worktree_scan([], []).byte_len() == 0)
+    assert(diff_worktree_scan(["user_message"], ["{\"text\":\"привет\"}"]).byte_len() == 0)
+    // the tree is forgotten when the task is parked or merged into the parent
+    assert(diff_worktree_scan(
+        ["route_task", "route_task"],
+        ["{\"op\":\"open\",\"worktree\":\"/w/r-323-demo\"}", "{\"op\":\"child_merged\"}"]).byte_len() == 0)
+}
+
+test "diff api: the answer carries the patch and the cut flag, a refusal of git is a 500" {
+    ro good = diff_reply_of("src/a.js", TreeDiff { ok: true, patch: "+new\n", truncated: true, err: "" })
+    assert(good.status == 200)
+    assert(good.body.contains("\"path\":\"src/a.js\"") && good.body.contains("+new") && good.body.contains("\"truncated\":true"))
+    ro bad = diff_reply_of("", TreeDiff { ok: false, patch: "", truncated: false, err: "fatal: not a git repository" })
+    assert(bad.status == 500 && bad.body.contains("not a git repository"))
+}
+
+test "diff api: an unknown session and an unsafe name are a 404, not a crash" {
+    ro missing = with Proc = real_proc(), Os = real_os(), Fs = real_fs() { session_diff("no_such_root", "s-1", "") }
+    assert(missing.status == 404 && missing.body.contains("error"))
+    ro bad_name = with Proc = real_proc(), Os = real_os(), Fs = real_fs() { session_diff("no_such_root", "../x", "") }
+    assert(bad_name.status == 404)
+}

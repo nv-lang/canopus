@@ -425,6 +425,16 @@ fn history_preview_route(data_dir str, port int) -> fn(ServerRequest) -> ServerR
     }
 }
 
+// Task 323: the git patch of the changes of the tree of the session ("Показать дифф" of the feed).
+fn session_diff_route(data_dir str, port int) -> fn(ServerRequest) -> ServerResponse {
+    fn(req ServerRequest) -> ServerResponse {
+        if !origin_allowed(req, port) { return json_reply(403, "{\"error\":\"origin not allowed\"}") }
+        // D454: boundary override inside non-test code, see module-conventions (polaris Handler is effect-free)
+        ro reply = session_diff_now(data_dir, req.param("id") ?? "", req.query_param("path") ?? "")
+        json_reply(reply.status, reply.body)
+    }
+}
+
 fn session_index_route(cache_dir str, port int) -> fn(ServerRequest) -> ServerResponse {
     fn(req ServerRequest) -> ServerResponse {
         if !origin_allowed(req, port) { return json_reply(403, "{\"error\":\"origin not allowed\"}") }
@@ -715,6 +725,7 @@ fn build_router(web_dir str, port int, hub_tx ChanTx[HubCommand], reg_tx ChanTx[
     ro r4t = router.get("/api/session-trace/{id}", trace_route(data_dir, port))?
     ro sessions = router.get("/api/sessions-index", session_index_route(layout.cache, port))?
     ro history = router.get("/api/session-history/{id}", history_preview_route(data_dir, port))?
+    ro r4diff = router.get("/api/session-diff/{id}", session_diff_route(data_dir, port))?
     ro r5 = router.get("/{*path}", files_route(web_dir))?
     Ok(router)
 }
