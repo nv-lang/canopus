@@ -48,6 +48,30 @@ import {
   mergeLabel, diffTotals, finishPrompt, readyPrompt, overlapPrompt, commitsText, filesText, branchTestsText, mainTestsText, testsRunnable, stalePrompt, whereText, wipStalePrompt,
 } from './routes.js';
 
+// Shared by the timeline renderer and DOM fixture tests.
+export function mailCard(doc, item, { onSelect, content }) {
+  const sender = item.senderId ? h(doc, 'a', { class: 'agent-mail-sender',
+    href: `#s=${encodeURIComponent(item.senderId)}`, text: `${item.sender} (${item.senderId})` })
+    : h(doc, 'span', { class: 'agent-mail-sender', text: t('mail.from', { sender: item.sender }) });
+  if (item.senderId) sender.addEventListener('click', event => {
+    if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button > 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    onSelect?.(item.senderId);
+  });
+  const kind = item.qid ? t('mail.question', { id: item.qid })
+    : item.replyTo ? t('mail.reply', { id: item.replyTo }) : t('mail.heading');
+  const body = h(doc, 'details', { class: 'agent-mail' },
+    h(doc, 'summary', {}, h(doc, 'span', { class: 'agent-mail-icon', 'aria-hidden': 'true', text: '✉' }),
+      h(doc, 'span', { class: 'agent-mail-label', text: kind }), sender,
+      item.urgent ? h(doc, 'span', { class: 'agent-mail-urgent', text: t('mail.urgent') }) : false,
+      h(doc, 'span', { class: 'agent-mail-expand', 'aria-hidden': 'true' },
+        h(doc, 'span', { class: 'mail-show', text: t('mail.show') }),
+        h(doc, 'span', { class: 'mail-hide', text: t('mail.hide') }))), content);
+  body.open = !item.fullBytes && item.text.length <= 600 && item.text.split('\n').length <= 8;
+  return body;
+}
+
 const NEAR_BOTTOM_PX = 40;
 const FOLD_DIFFS = 3;
 const FOLD_OUTPUTS = 4;
@@ -281,6 +305,7 @@ export function createView(doc, refs, deps) {
     const active = s.id === ui.selected;
     const pinned = pins.has(s.id);
     const unread = Boolean(ui.unread && ui.unread[s.id] === true);
+    const mailCount = ui.unviewedMail?.[s.id]?.length || 0;
     const taskInfo = sidebarTask(s);
     const stateLabel = t(STATE_KEYS[s.state]);
     const attn = attention(s, { now: now(), silentMin: ui.silentMin ?? SILENT_DEFAULT_MIN, unread, acked: (ui.acked || {})[s.id] || '' });
@@ -308,6 +333,7 @@ export function createView(doc, refs, deps) {
     unread ? h(doc, 'span', { class: 'unread', role: 'img', 'aria-label': t('session.unread'), title: t('session.unread') }) : false,
     taskInfo ? h(doc, 'span', { class: 'task-no', text: taskInfo.number, title: taskInfo.title ? t('route.task_no_title', { number: taskInfo.number, title: taskInfo.title }) : t('route.task_head_bare', { number: taskInfo.number }) }) : false,
     name,
+    mailCount ? h(doc, 'span', { class: 'mail-count', text: mailCount, title: t('mail.unviewed', { n: mailCount }), 'aria-label': t('mail.unviewed', { n: mailCount }) }) : false,
     attnText ? h(doc, 'span', { class: 'attn-label', 'data-attn': attn.state, title: attn.state === 'question-timeout' ? t('ask.timeout') : attnText, text: attnText }) : false,
     h(doc, 'span', { class: 'sr', text: stateLabel }),
     merge ? h(doc, 'span', { class: 'session-merge', 'data-kind': merge.kind, text: merge.text }) : false);
@@ -578,7 +604,7 @@ export function createView(doc, refs, deps) {
       const order = new Map((sectionRows.get(section) || []).map((id, index) => [id, index]));
       return rows.sort((a, b) => (order.get(a.session.id) ?? Infinity) - (order.get(b.session.id) ?? Infinity));
     };
-    const rowSig = (r) => [r.depth, r.kids, r.collapsed, r.session.parent, r.session.id, r.session.name, r.session.state, r.session.updatedAt, r.session.rank, r.session.projectId, (sidebarTask(r.session) || {}).number, ui.unread ? ui.unread[r.session.id] : undefined, Boolean(r.session.pendingQuestion), r.session.waitingReason, r.session.routeState?.task?.state, r.session.indexTaskState, r.session.taskDetails?.status, (mergeLabel(r.session.routeState?.task) || {}).text, (() => { const a = attention(r.session, { now: now(), silentMin: ui.silentMin ?? SILENT_DEFAULT_MIN, unread: Boolean(ui.unread && ui.unread[r.session.id] === true), acked: (ui.acked || {})[r.session.id] || '' }); return `${a.state}:${a.blink}:${a.minutes}`; })()];
+    const rowSig = (r) => [r.depth, r.kids, r.collapsed, r.session.parent, r.session.id, r.session.name, r.session.state, r.session.updatedAt, ui.unviewedMail?.[r.session.id]?.length || 0, r.session.rank, r.session.projectId, (sidebarTask(r.session) || {}).number, ui.unread ? ui.unread[r.session.id] : undefined, Boolean(r.session.pendingQuestion), r.session.waitingReason, r.session.routeState?.task?.state, r.session.indexTaskState, r.session.taskDetails?.status, (mergeLabel(r.session.routeState?.task) || {}).text, (() => { const a = attention(r.session, { now: now(), silentMin: ui.silentMin ?? SILENT_DEFAULT_MIN, unread: Boolean(ui.unread && ui.unread[r.session.id] === true), acked: (ui.acked || {})[r.session.id] || '' }); return `${a.state}:${a.blink}:${a.minutes}`; })()];
     const sig = JSON.stringify([loading?.sessions.phase, ui.selected, activeProject, query, groupMenu, [...placedRows].map(([id, rows]) => [id, rows.map(rowSig)]), [...expandedGroups], sideKit.sig(), groups.pinned.map(rowSig), groups.projects.map((p) => [p.project, p.id, p.rows.map(rowSig)])]);
     const shown = groups.pinned.length + groups.projects.length + placedRows.size;
     listEmpty.hidden = Boolean(loading && (loading.projects.phase !== 'ready' || loading.sessions.phase !== 'ready')) || all.length > 0 || (projectsList !== null && projectsList.length > 0);
@@ -2265,18 +2291,8 @@ export function createView(doc, refs, deps) {
         const trace = currentTrace;
         const matches = Object.values(current.model?.sessions || {}).filter(session => session.name === item.sender);
         const senderId = item.senderId || (matches.length === 1 ? matches[0].id : '');
-        const sender = senderId ? h(doc, 'button', { type: 'button', class: 'link-btn', text: senderId, title: t('mail.copy_session') }) : false;
-        if (sender) sender.addEventListener('click', event => {
-          event.preventDefault();
-          const loc = win.location;
-          handlers.onCopy(`${loc.origin}${loc.pathname}#s=${encodeURIComponent(senderId)}`);
-        });
         const content = h(doc, 'div', { class: 'agent-mail-body' }, ...proseNodes(item.text));
-        const body = h(doc, 'details', { class: 'agent-mail' },
-          h(doc, 'summary', {},
-            h(doc, 'span', { class: 'agent-mail-icon', 'aria-hidden': 'true', text: '✉' }),
-            h(doc, 'span', { class: 'agent-mail-label', text: t('mail.heading') }),
-            h(doc, 'span', { class: 'agent-mail-sender', text: t('mail.from', { sender: item.sender }) }), sender), content);
+        const body = mailCard(doc, { ...item, senderId }, { onSelect: handlers.onSelect, content });
         if (item.fullBytes) {
           const status = h(doc, 'p', { class: 'muted', role: 'status', hidden: true });
           const load = h(doc, 'button', { type: 'button', class: 'link-btn', text: t('mail.load_full') });

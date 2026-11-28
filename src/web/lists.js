@@ -250,6 +250,19 @@ function canopusCallNote(chunk) {
   return { name: match[1], args: failed ? match[2].slice(0, -8).trimEnd() : match[2], failed };
 }
 
+// Parse only the hub's complete service prefix. Quoted owner text stays intact.
+export function agentMail(text) {
+  const mail = /^\[canopus\] Письмо от ([^\r\n]+?): ([\s\S]*)$/u.exec(text || '');
+  if (!mail) return null;
+  const qid = / \[вопрос (q\d+)\]/u.exec(mail[1])?.[1] || '';
+  const replyTo = / \[ответ на (q\d+)\]/u.exec(mail[1])?.[1] || '';
+  const sender = mail[1].replace(/(?: \[(?:вопрос|ответ на) q\d+\])+$/u, '');
+  const identified = /^(.+) \(([a-zA-Z0-9_-]+)\)$/u.exec(sender);
+  const truncated = /(?:^|\n)\s*…\s*\(обрезано, всего (\d+) байт\)\s*$/u;
+  return { sender: identified?.[1] || sender, senderId: identified?.[2] || '', qid, replyTo,
+    text: mail[2].replace(truncated, '').trimEnd(), fullBytes: Number(truncated.exec(mail[2])?.[1]) || 0 };
+}
+
 export function timeline(session) {
   const items = [];
   const rows = workRows(session);
@@ -276,13 +289,21 @@ export function timeline(session) {
           if (prior >= 0) items.splice(prior, 1);
         }
       }
-      const mail = /^\[canopus\] Письмо от ([^\r\n]+?): ([\s\S]*)$/u.exec(m.text);
+      const mail = agentMail(m.text);
       if (mail) {
-        const truncated = /(?:^|\n)\s*…\s*\(обрезано, всего (\d+) байт\)\s*$/u;
-        const sender = mail[1].replace(/ +\[(?:вопрос|ответ на) [^\]]+\]$/u, '');
-        const identified = /^(.+) \(([a-zA-Z0-9_-]+)\)$/u.exec(sender);
-        items.push({ type: 'agent-mail', key: m.key, sender: identified?.[1] || sender, senderId: identified?.[2] || '', text: mail[2].replace(truncated, '').trimEnd(),
-          fullBytes: Number(truncated.exec(mail[2])?.[1]) || 0, turn: m.turn, at: m.at ?? 0 });
+        // turn_request is transient; archived journals still use the display line.
+        // Request turn ordinals are independent of journal turn IDs. Accept only
+        // an unambiguous identity with the same sender, body and question tag.
+        const candidates = (session.requests || []).flatMap(r => r.parts || [])
+          .filter(p => p.kind === 'owner_message' || p.kind === 'hub_note')
+          .map(p => agentMail(/(?:^|\n\n)(\[canopus\] Письмо от [\s\S]*)$/u.exec(p.text)?.[1]))
+          .filter(p => p && p.sender === mail.sender && (!mail.qid || mail.qid === p.qid)
+            && (p.text === mail.text || p.text.startsWith(`${mail.text}\n(Это вопрос:`)));
+        const identities = new Set(candidates.map(p => `${p.senderId}:${p.qid}:${p.replyTo}`));
+        const full = identities.size === 1 ? candidates[0] : null;
+        items.push({ type: 'agent-mail', key: m.key, ...mail,
+          senderId: mail.senderId || full?.senderId || '', qid: mail.qid || full?.qid || '', replyTo: mail.replyTo || full?.replyTo || '',
+          urgent: m.urgent === true, turn: m.turn, at: m.at ?? 0 });
         continue;
       }
       items.push({ type: 'user', key: m.key, text: reply ? t('ask.reply_in_feed', { answer: reply.join(' · ') }) : m.text, ...(answeredQuestion ? { answeredQuestion, choices: reply } : {}), turn: m.turn, images: m.images ?? [], at: m.at ?? 0 });

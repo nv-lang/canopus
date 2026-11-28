@@ -1674,3 +1674,8 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .card .composer-status .env-row[hidden] { display: none; }
 .card .composer-status :is(button, p) { grid-column: 3; justify-self: start; text-align: start; white-space: normal; }
 .card .env-row { grid-template-columns: 18px 88px minmax(0, 1fr); }
+
+.agent-mail-expand { margin-inline-start: auto; color: var(--fg-muted); font-size: 0.85em; }
+.agent-mail:not([open]) .mail-hide, .agent-mail[open] .mail-show { display: none; }
+.agent-mail-urgent { color: var(--danger); font-weight: 700; }
+.mail-count { border-radius: 10px; padding: 1px 6px; background: var(--accent); color: var(--surface); font-size: 0.8em; }

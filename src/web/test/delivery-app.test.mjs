@@ -679,3 +679,28 @@ test('332: provider pause shows its cause and blocks the automatic page queue un
   assert.equal(page.sent.length, 2);
   assert.equal(page.sent[1].input.text, 'Письмо из очереди');
 });
+
+test('333: delivered letters count once outside the open dialog and reset on opening', async () => {
+  const a = await app();
+  a.event('session_created', { name: 'Получатель', agent: 'agent' }, { trace: 'other', step: 0 });
+  const letter = { turn: 'mail-1', text: '[canopus] Письмо от Исполнитель: Готово' };
+  a.event('user_message', letter, { trace: 'other', id: 'letter-1' });
+  a.event('user_message', letter, { trace: 'other', id: 'letter-1' });
+  assert.equal(a.getUI().unviewedMail.other.length, 1);
+  a.event('user_message', { ...letter, turn: 'mail-2' }, { trace: 'other', id: 'letter-2' });
+  assert.equal(a.getUI().unviewedMail.other.length, 2);
+  a.handlers.onSelect('other');
+  assert.equal(a.getUI().unviewedMail.other.length, 0);
+  a.event('user_message', { ...letter, turn: 'mail-3' }, { trace: 'other', id: 'letter-3' });
+  assert.equal(a.getUI().unviewedMail.other.length, 0);
+});
+
+test('333: unviewed delivered letters survive browser reload; owner messages do not count', async () => {
+  const a = await app();
+  a.event('session_created', { name: 'Получатель', agent: 'agent' }, { trace: 'other', step: 0 });
+  a.event('user_message', { turn: 'owner', text: 'Слова владельца' }, { trace: 'other', id: 'owner' });
+  assert.equal(a.getUI().unviewedMail.other?.length || 0, 0);
+  a.event('user_message', { turn: 'mail', text: '[canopus] Письмо от Работник: Готово' }, { trace: 'other', id: 'mail' });
+  const reloaded = await app(a.storage);
+  assert.equal(reloaded.getUI().unviewedMail.other.length, 1);
+});

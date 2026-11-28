@@ -7,7 +7,7 @@
 
 import {
   initialModel, reduce, makeEvent, nextStep, normalizeTheme, nextTheme, THEME_KEY, beginSwitch, undoSwitch,
-  addDraft, dropDrafts, patchDraft, nameFromText,
+  addDraft, dropDrafts, patchDraft, nameFromText, agentMail,
 } from './state.js';
 import { waitingKeys, waitKey, SILENT_DEFAULT_MIN } from './attention.js';
 import { createNotifier } from './notify.js';
@@ -96,6 +96,18 @@ function readUnread() {
 function saveUnread(value) {
   try { globalThis.localStorage.setItem(UNREAD_KEY, JSON.stringify(value)); } catch { /* закрытое хранилище: пометки живут до перезагрузки */ }
 }
+// UI viewing state for delivered letters; separate from the agent's mailbox.
+const UNVIEWED_MAIL_KEY = 'canopus.unviewed-mail';
+function readUnviewedMail() {
+  try {
+    const value = JSON.parse(globalThis.localStorage.getItem(UNVIEWED_MAIL_KEY) || '{}');
+    return Object.fromEntries(Object.entries(value).filter(([, ids]) => Array.isArray(ids))
+      .map(([id, ids]) => [id, [...new Set(ids.filter(key => typeof key === 'string'))]]));
+  } catch { return {}; }
+}
+function saveUnviewedMail() {
+  try { globalThis.localStorage.setItem(UNVIEWED_MAIL_KEY, JSON.stringify(ui.unviewedMail)); } catch { /* view state still works in memory */ }
+}
 // ссылка на сессию (#s=<id>): после загрузки журнала страница её открывает
 const LAST_SESSION_KEY = 'canopus.last-session';
 function readLastSession() {
@@ -109,7 +121,7 @@ const ui = {
   historyPending: new Set(),
   historyPreview: new Set(),
   restoreQueued: new Map(),
-  selected: null, projects: null, pane: 'list', flash: '', flashTone: 'error', awaiting: linked ? decodeURIComponent(linked[1]) : null, theme: readTheme(), pins: readPins(), unread: readUnread(), acked: {}, silentMin: SILENT_DEFAULT_MIN, notify: { bell: notifier.bellOn(), sound: notifier.soundOn(), denied: false },
+  selected: null, projects: null, pane: 'list', flash: '', flashTone: 'error', awaiting: linked ? decodeURIComponent(linked[1]) : null, theme: readTheme(), pins: readPins(), unread: readUnread(), unviewedMail: readUnviewedMail(), acked: {}, silentMin: SILENT_DEFAULT_MIN, notify: { bell: notifier.bellOn(), sound: notifier.soundOn(), denied: false },
 };
 // A failed first create has no server row to select. Reopen its saved local copy on reload;
 // an explicit session link always takes precedence. This never resends anything.
@@ -263,6 +275,10 @@ function draw() {
   // открытая и видимая сессия, которая ждёт, считается замеченной: подсветка в списке гаснет
   const viewing = typeof document.hasFocus === 'function' ? document.hasFocus() && !document.hidden : !document.hidden;
   const opened = ui.selected ? model.sessions[ui.selected] : undefined;
+  if (opened && ui.pane === 'chat' && ui.unviewedMail[opened.id]?.length) {
+    ui.unviewedMail = { ...ui.unviewedMail, [opened.id]: [] };
+    saveUnviewedMail();
+  }
   if (viewing && opened && !opened.draft) {
     const key = waitKey(opened);
     if (key !== '' && ui.acked[opened.id] !== key) ui.acked = { ...ui.acked, [opened.id]: key };
@@ -574,6 +590,8 @@ const handlers = {
     ui.awaiting = null;
     ui.selected = trace;
     ui.pane = 'chat';
+    ui.unviewedMail = { ...ui.unviewedMail, [trace]: [] };
+    saveUnviewedMail();
     if (ui.unread[trace]) { ui.unread = { ...ui.unread, [trace]: false }; saveUnread(ui.unread); }
     requestHistory(trace);
     render();
@@ -990,6 +1008,8 @@ async function start() {
           const queued = ui.restoreQueued.get(event.trace);
           if (queued) delivery.failed(queued.id, t('delivery.restore_target_changed'));
           ui.restoreQueued.delete(event.trace);
+          delete ui.unviewedMail[event.trace];
+          saveUnviewedMail();
           ui.interruptPending.delete(event.trace);
         }
         if (event.kind === 'message_delivery') delivery.receipt(event.input);
@@ -1023,7 +1043,15 @@ async function start() {
           }
           return;
         }
+        const priorMessages = model.sessions[event.trace]?.messages || [];
         const next = reduce(model, event);
+        if (event.kind === 'user_message' && agentMail(event.input?.text)) {
+          const delivered = next.sessions[event.trace]?.messages.findLast(m => m.role === 'user');
+          if (delivered && !priorMessages.some(old => old.key === delivered.key) && !(ui.selected === event.trace && ui.pane === 'chat')) {
+            ui.unviewedMail = { ...ui.unviewedMail, [event.trace]: [...new Set([...(ui.unviewedMail[event.trace] || []), delivered.key])] };
+            saveUnviewedMail();
+          }
+        }
         const changed = next !== model;
         model = next;
         const reset = ui.routeResets.get(event.trace);

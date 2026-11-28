@@ -476,7 +476,11 @@ function apply(session, event) {
     case 'turn_interrupt_queued': {
       const text = event.kind === 'turn_resume' ? t('chat.urgent_resume')
         : t('chat.urgent_queued', { reason: str(input.reason) });
-      return { ...session, messages: [...session.messages, { role: 'service_note', key: `service:${event.id}`, text }] };
+      const latestUser = session.messages.findLast(m => m.role === 'user');
+      const messages = event.kind === 'turn_resume' && latestUser?.turn === str(input.turn)
+        && latestUser.text.startsWith('[canopus] Письмо от ')
+        ? session.messages.map(m => m === latestUser ? { ...m, urgent: true } : m) : session.messages;
+      return { ...session, messages: [...messages, { role: 'service_note', key: `service:${event.id}`, text }] };
     }
 
     case 'cancel': {
