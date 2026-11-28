@@ -29,9 +29,10 @@ function refreshDaemons() {
   if (!inventoryRequest) {
     inventoryRequest = daemonRequest((...args) => fetch(...args)).then((data) => {
       if (Array.isArray(data?.daemons)) {
-        const ids = data.daemons.filter((id) => typeof id === 'string');
-        if (ids.length !== ui.daemonIds.length || ids.some((id, index) => id !== ui.daemonIds[index])) {
-          ui.daemonIds = ids;
+        const byId = new Map((Array.isArray(data.machines) ? data.machines : []).map((machine) => [machine?.id, machine]));
+        const machines = data.daemons.filter((id) => typeof id === 'string').map((id) => byId.get(id) || { id, status: 'checking' });
+        if (JSON.stringify(machines) !== JSON.stringify(ui.daemonMachines)) {
+          ui.daemonMachines = machines;
           render();
         }
       }
@@ -140,7 +141,7 @@ const ui = {
   historyPending: new Set(),
   historyPreview: new Set(),
   restoreQueued: new Map(),
-  selected: null, projects: null, daemonIds: [], pane: 'list', flash: '', flashTone: 'error', awaiting: linked ? decodeURIComponent(linked[1]) : null, theme: readTheme(), pins: readPins(), unread: readUnread(), unviewedMail: readUnviewedMail(), acked: {}, silentMin: SILENT_DEFAULT_MIN, notify: { bell: notifier.bellOn(), sound: notifier.soundOn(), denied: false },
+  selected: null, projects: null, daemonMachines: [], pane: 'list', flash: '', flashTone: 'error', awaiting: linked ? decodeURIComponent(linked[1]) : null, theme: readTheme(), pins: readPins(), unread: readUnread(), unviewedMail: readUnviewedMail(), acked: {}, silentMin: SILENT_DEFAULT_MIN, notify: { bell: notifier.bellOn(), sound: notifier.soundOn(), denied: false },
 };
 // A failed first create has no server row to select. Reopen its saved local copy on reload;
 // an explicit session link always takes precedence. This never resends anything.
@@ -343,7 +344,7 @@ function send(kind, trace, step, input) {
 function savedSession(trace) {
   const s = model.sessions[trace];
   return s ? { id: trace, agent: s.agent, projectId: s.projectId, project: s.project, folder: s.folder, branch: s.branch,
-    daemonId: s.daemonId || (s.draft ? ui.daemonIds[0] : '') || '',
+    daemonId: s.daemonId,
     route: normalizeRoute(s.route), worktree: s.worktree === true, sourceBranch: s.sourceBranch || '', source: s.source || null, preset: s.preset || '', approvals: s.approvals || {}, createdAt: s.createdAt } : null;
 }
 function sendMessage(trace, text, images = [], reserved = null, urgent = false, asText = false) {
@@ -642,7 +643,10 @@ const handlers = {
   onBack() { ui.pane = 'list'; render(); },
   // «+» у проекта: пустой чат новой сессии; на сервер она уходит с первым сообщением (задача 192)
   onNewToggle(open, projectId = '') {
-    if (open && picked.mode === 'ws') refreshDaemons().catch(() => {});
+    if (open && picked.mode === 'ws') {
+      refreshDaemons().catch(() => {});
+      loadProjects();
+    }
     if (!open) {
       model = dropDrafts(model);
       if (ui.selected && !model.sessions[ui.selected]) ui.selected = null;
@@ -654,7 +658,7 @@ const handlers = {
     const agent = (agentList.find((a) => !a.disabled) || { id: '' }).id;
     const id = newId();
     model = addDraft(dropDrafts(model), {
-      id, agent, daemonId: ui.daemonIds[0], projectId: project ? project.id : '', project: project ? project.name : '', folder: folder ? folder.path : '', branch: folder && folder.branch ? folder.branch : '', worktree: Boolean(project) && readWorktreePref(), now: Date.now(),
+      id, agent, projectId: project ? project.id : '', project: project ? project.name : '', folder: folder ? folder.path : '', branch: folder && folder.branch ? folder.branch : '', worktree: Boolean(project) && readWorktreePref(), now: Date.now(),
     });
     ui.awaiting = null;
     ui.selected = id;
@@ -761,8 +765,7 @@ const handlers = {
       input.workspace_explicit = true; // new UI always states the chosen place, unlike old journal defaults
       if (draft.projectId && draft.sourceBranch) input.source_branch = draft.sourceBranch;
       if (draft.preset) input.preset = draft.preset;
-      const daemonId = draft.daemonId || ui.daemonIds[0];
-      if (daemonId) input.daemon_id = daemonId;
+      if (draft.daemonId) input.daemon_id = draft.daemonId;
       if (draft.approvals) input.approvals = draft.approvals;
       if (draft.projectId) {
         input.project = draft.project;
@@ -973,12 +976,20 @@ async function start() {
     });
     daemonSettings.open();
   }
-  if (picked.mode === 'ws') refreshDaemons().catch(() => {});
+  if (picked.mode === 'ws') {
+    refreshDaemons().catch(() => {});
+    setInterval(() => {
+      const session = model.sessions[ui.selected];
+      if (!document.hidden && (session?.draft || session?.routeState?.canopus?.proposals?.length)) {
+        refreshDaemons().catch(() => {});
+      }
+    }, 3000);
+  }
   view = createView(document, {
     app: document.getElementById('app'), side: document.getElementById('side'),
     main: document.getElementById('main'), rail: document.getElementById('rail'),
     status: document.getElementById('status'), overlay: document.getElementById('overlay'),
-  }, { agents, now: ctx.now, handlers, registryFailed, registryPending: picked.mode === 'ws', imageSrc: mock ? mock.mockImageSrc : undefined, projectsApi, presets: () => presetInfo, daemonIds: () => ui.daemonIds, openDaemonSettings: picked.mode === 'ws' ? openDaemonSettings : undefined, modelMetadata: () => modelMetadata });
+  }, { agents, now: ctx.now, handlers, registryFailed, registryPending: picked.mode === 'ws', imageSrc: mock ? mock.mockImageSrc : undefined, projectsApi, presets: () => presetInfo, daemonMachines: () => ui.daemonMachines, openDaemonSettings: picked.mode === 'ws' ? openDaemonSettings : undefined, modelMetadata: () => modelMetadata });
   let metadataRequest = null;
   function refreshModelMetadata() {
     if (picked.mode !== 'ws' || !agentList.length || metadataRequest) return;

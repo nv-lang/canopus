@@ -9,6 +9,7 @@
 //   * значки — один спрайт, встроенный в index.html (<use href="#i-имя">), цвет берут из темы; ширина полоски и кольца контекста
 //     ставится свойством --fill / --ring через CSSOM, а не атрибутом style (его запрещает CSP).
 
+import { daemonAddress, daemonContact, daemonStatus } from './daemon-settings.js';
 import { commandName, isHubCommand } from './commands.js';
 import { t } from './strings.js';
 import { approvalView } from './family-approvals.js';
@@ -116,7 +117,7 @@ const AGO_KEY = { now: 'ago.now', min: 'ago.min', hour: 'ago.hour', day: 'ago.da
  */
 export function createView(doc, refs, deps) {
   const {
-    agents, now, handlers, imageSrc = (image) => image.src, projectsApi, presets = () => null, daemonIds = () => [], openDaemonSettings, modelMetadata = () => null,
+    agents, now, handlers, imageSrc = (image) => image.src, projectsApi, presets = () => null, daemonMachines = () => [], openDaemonSettings, modelMetadata = () => null,
     fetchDiff = (id, path) => doc.defaultView.fetch(`/api/session-diff/${encodeURIComponent(id)}${path ? `?path=${encodeURIComponent(path)}` : ''}`, { cache: 'no-store' }).then((r) => r.json()),
   } = deps;
   let { registryFailed = false, registryPending = false } = deps;
@@ -774,7 +775,7 @@ export function createView(doc, refs, deps) {
   const permissionWrap = h(doc, 'div', { class: 'permission-wrap', hidden: true });
   const askCard = h(doc, 'div', { class: 'ask', role: 'dialog', hidden: true });
   const askWrap = h(doc, 'div', { class: 'ask-wrap', hidden: true }, askCard);
-  const canopusUi = createCanopusTaskUi(doc, handlers, { agents: () => Object.keys((current.model && current.model.catalog) || {}).sort() });
+  const canopusUi = createCanopusTaskUi(doc, handlers, { agents: () => Object.keys((current.model && current.model.catalog) || {}).sort(), daemonMachines });
   const log = h(doc, 'div', { class: 'log', role: 'log', 'aria-live': 'off' }, thread, historyLoading, permissionWrap, canopusUi.el, askWrap);
   const emptyChat = h(doc, 'p', { class: 'empty', text: t('chat.empty') });
 
@@ -1073,10 +1074,11 @@ export function createView(doc, refs, deps) {
   }
   resultRepoButton.addEventListener('click', () => toggleMenu('result'));
   const presetSelect = h(doc, 'select', { class: 'status-btn preset-chip', hidden: true, title: t('preset.label'), 'aria-label': t('preset.label') });
-  const daemonSelect = h(doc, 'select', { class: 'status-btn preset-chip', 'aria-label': t('chat.draft_daemon') });
-  const daemonRow = h(doc, 'label', { class: 'env-row', hidden: true }, icon(doc, 'i-monitor'),
-    h(doc, 'span', { class: 'muted', text: t('chat.draft_daemon') }), daemonSelect);
-  daemonSelect.addEventListener('change', () => { if (currentTrace) handlers.onDraftDaemon(currentTrace, daemonSelect.value); });
+  const daemonName = h(doc, 'span', { class: 'daemon-picker-name' });
+  const daemonButton = h(doc, 'button', { type: 'button', class: 'status-btn daemon-picker', hidden: true,
+    'aria-haspopup': 'menu', 'aria-expanded': 'false' }, h(doc, 'span', { class: 'daemon-dot', 'aria-hidden': 'true' }), daemonName);
+  const daemonWarning = h(doc, 'small', { class: 'daemon-picker-warning', hidden: true, role: 'status' });
+  daemonButton.addEventListener('click', () => toggleMenu('daemon'));
   presetSelect.addEventListener('change', () => {
     if (!currentTrace) return;
     if (presetSelect.dataset.draft === 'true') handlers.onDraftPreset(currentTrace, presetSelect.value); else handlers.onSessionPreset(currentTrace, presetSelect.value);
@@ -1091,17 +1093,17 @@ export function createView(doc, refs, deps) {
   // Композиция нижней панели по макету 268 (task/design/new-chat.png): режим, семья, модель и усилие —
   // пилюли одной строкой ВНУТРИ карточки композера, а не отдельной строкой под ней.
   const boxBar = h(doc, 'div', { class: 'box-bar', 'data-empty': 'true' },
-    plusButton, routeButton, taskRouteLabel, h(doc, 'span', { class: 'grow' }), modeButton, modeError, statusGroup, modelButton,
+    plusButton, routeButton, taskRouteLabel, h(doc, 'span', { class: 'grow' }), modeButton, modeError, daemonButton, statusGroup, modelButton,
     h(doc, 'div', { class: 'box-row' }, urgentLabel, micWrap, cancelButton, sendButton));
-  box.append(boxBar);
+  box.append(boxBar, daemonWarning);
   const status = h(doc, 'div', { class: 'composer-status', 'data-empty': 'true' }, h(doc, 'div', { class: 'env-row' }, icon(doc, 'i-folder'), h(doc, 'span', { class: 'muted', text: t('rail.workspace_setup') }), worktreeButton, whereNote),
     h(doc, 'div', { class: 'env-row env-result' }, icon(doc, 'i-branch'), h(doc, 'span', { class: 'muted', text: t('rail.result_repo') }), resultRepoButton), presetSelect);
-  status.append(daemonRow);
 
   // Меню выбора режима, модели и усилия (задача 192): показывает только то, что агент отдал по ACP.
   // Задача 265: сюда же меню репозитория результата ('result').
   const MENU_MODELS = 4;
-  let menuKind = null; // null | 'agent' | 'route' | 'result' | 'mode' | 'model' | 'more' | 'effort'
+  let menuKind = null;
+  let selectedDaemon = '';
   let options = null;
   let currentAgent = '';
   let currentSession = null;
@@ -1173,6 +1175,7 @@ export function createView(doc, refs, deps) {
     familyButton.setAttribute('aria-expanded', 'false');
     routeButton.setAttribute('aria-expanded', 'false');
     resultRepoButton.setAttribute('aria-expanded', 'false');
+    daemonButton.setAttribute('aria-expanded', 'false');
   }
 
   function choose(setting, value) {
@@ -1211,20 +1214,44 @@ export function createView(doc, refs, deps) {
     menu.style.left = `${Math.max(minLeft, Math.min(desiredLeft, right - width))}px`;
   }
 
-  function menuRow({ name, description, family, checked, number, arrow, tip, disabled = false, onPick }) {
+  function menuRow({ name, description, family, checked, number, arrow, tip, machine, disabled = false, onPick }) {
     const row = h(doc, 'button', { type: 'button', class: 'menu-item', role: 'menuitem', 'aria-checked': checked ? 'true' : 'false', 'aria-disabled': disabled ? 'true' : undefined, disabled: disabled || undefined, title: tip || false },
       h(doc, 'span', { class: 'menu-check' }, checked ? icon(doc, 'i-check') : false),
       family ? h(doc, 'span', { class: 'menu-family', text: family }) : false,
-      h(doc, 'span', { class: 'menu-label' }, h(doc, 'span', { text: name }), description ? h(doc, 'small', { text: description }) : false),
+      h(doc, 'span', { class: 'menu-label' }, h(doc, 'span', {}, machine ? h(doc, 'span', { class: 'daemon-dot', 'aria-hidden': 'true' }) : false, name), description ? h(doc, 'small', { text: description }) : false),
       arrow ? h(doc, 'span', { class: 'menu-end' }, icon(doc, 'i-chevron-right')) : h(doc, 'span', { class: 'menu-end menu-num', text: number ? String(number) : '' }));
+    if (machine) {
+      row.setAttribute('role', 'menuitemradio');
+      row.dataset.daemonId = machine.id;
+      row.dataset.status = machine.status;
+    }
     if (!disabled) row.addEventListener('click', onPick);
     return row;
   }
 
+  const daemonMenuSignature = () => JSON.stringify([selectedDaemon, daemonMachines()]);
   function renderMenu() {
+    const focusedDaemon = doc.activeElement?.dataset?.daemonId;
     menuList.replaceChildren();
     menu.dataset.kind = menuKind || '';
     familyFilter.hidden = menuKind !== 'agent';
+    if (menuKind === 'daemon') {
+      menuSearch.hidden = true;
+      menu.dataset.side = 'left';
+      const rows = daemonMachines().map(machine => menuRow({
+        name: machine.id, machine, checked: machine.id === selectedDaemon,
+        description: [daemonAddress(machine), daemonStatus(machine.status), daemonContact(machine.last_contact)].filter(Boolean).join(' · '),
+        onPick: () => {
+          closeMenu();
+          handlers.onDraftDaemon(currentTrace, machine.id);
+          daemonButton.focus();
+        },
+      }));
+      menuList.append(...rows);
+      menu.hidden = false;
+      rows.find(row => row.dataset.daemonId === focusedDaemon)?.focus();
+      return;
+    }
     if (menuKind === 'agent') {
       menuSearch.hidden = false;
       menuSearch.placeholder = 'Поиск модели или пула';
@@ -1438,16 +1465,18 @@ export function createView(doc, refs, deps) {
   function openMenu(kind) {
     if (kind === 'agent' && agents.length === 0 && !Object.values((presets() || {}).presets || {}).some((p) => p && p.pools)) return;
     if (kind === 'result' && resultRepoButton.disabled) return;
+    if (kind === 'daemon' && (daemonButton.hidden || daemonMachines().length === 0)) return;
     if (kind === 'mode' && !current.session) return;
     if ((kind === 'model' || kind === 'more') && !hasOpts('models')) return;
     if (kind === 'effort' && !canChooseEffort) return;
     menuKind = kind;
-    menuTrigger = { agent: familyButton, route: routeButton, result: resultRepoButton, mode: modeButton, model: modelButton, more: modelButton, effort: effortButton }[kind] || null;
+    menuTrigger = { agent: familyButton, daemon: daemonButton, route: routeButton, result: resultRepoButton, mode: modeButton, model: modelButton, more: modelButton, effort: effortButton }[kind] || null;
     if (kind === 'agent' || kind === 'effort') agentAnchor.append(menu); else if (kind === 'result') status.append(menu); else boxBar.append(menu);
     menuQuery = '';
     menuSearch.value = '';
-    menuSig = kind === 'effort' ? effortMenuSignature() : kind === 'route' ? currentRoute : kind === 'result' ? JSON.stringify(resultRepoShown) : JSON.stringify(options);
+    menuSig = kind === 'daemon' ? daemonMenuSignature() : kind === 'effort' ? effortMenuSignature() : kind === 'route' ? currentRoute : kind === 'result' ? JSON.stringify(resultRepoShown) : JSON.stringify(options);
     familyButton.setAttribute('aria-expanded', kind === 'agent' ? 'true' : 'false');
+    daemonButton.setAttribute('aria-expanded', kind === 'daemon' ? 'true' : 'false');
     routeButton.setAttribute('aria-expanded', kind === 'route' ? 'true' : 'false');
     resultRepoButton.setAttribute('aria-expanded', kind === 'result' ? 'true' : 'false');
     modeButton.setAttribute('aria-expanded', kind === 'mode' ? 'true' : 'false');
@@ -2747,20 +2776,18 @@ export function createView(doc, refs, deps) {
       presetSelect.value = chosen;
       presetSelect.dataset.draft = String(Boolean(session.draft));
     }
-    const machines = daemonIds();
-    const missing = session.daemonId && !machines.includes(session.daemonId) ? session.daemonId : '';
-    daemonRow.hidden = !session.draft || (machines.length === 0 && !missing);
-    if (!daemonRow.hidden) {
-      const signature = JSON.stringify([missing, machines]);
-      if (daemonSelect.dataset.sig !== signature) {
-        daemonSelect.replaceChildren(
-          ...(missing ? [h(doc, 'option', { value: missing, disabled: true, text: t('daemon.unavailable', { id: missing }) })] : []),
-          ...machines.map((id) => h(doc, 'option', { value: id, text: id })),
-        );
-        daemonSelect.dataset.sig = signature;
-      }
-      daemonSelect.value = session.daemonId || machines[0];
-    }
+    const machines = daemonMachines();
+    const project = ui.projects?.find((p) => p.id === session.projectId);
+    selectedDaemon = session.daemonId || project?.defaultDaemon || machines[0]?.id || '';
+    const machine = machines.find((entry) => entry.id === selectedDaemon);
+    const missing = selectedDaemon && !machine;
+    daemonButton.hidden = !session.draft || !selectedDaemon;
+    daemonName.textContent = selectedDaemon;
+    daemonButton.dataset.status = machine?.status || 'offline';
+    daemonButton.title = missing ? t('daemon.unavailable', { id: selectedDaemon }) : daemonStatus(machine?.status);
+    daemonButton.setAttribute('aria-label', `${t('chat.draft_daemon')} · ${selectedDaemon} · ${daemonButton.title}`);
+    daemonWarning.hidden = daemonButton.hidden || (!missing && machine?.status !== 'offline');
+    daemonWarning.textContent = missing ? daemonButton.title : t('daemon.offline_warning');
     // Задача 265: текущий агент виден при любом числе доступных. Выбора нет (0/1 агент) — чип приглушён,
     // а подсказка называет фактическую причину, а не прячет чип.
     // session_source confirms the current pin. agent_selected may describe an earlier turn.
@@ -2826,7 +2853,7 @@ export function createView(doc, refs, deps) {
     whereNote.hidden = !worktreeButton.hidden;
     whereNote.textContent = whereNote.hidden ? '' : whereText(session);
     whereNote.title = whereNote.textContent;
-    status.dataset.empty = String(worktreeButton.hidden && !whereNote.textContent && resultRepoButton.hidden && presetSelect.hidden && daemonRow.hidden);
+    status.dataset.empty = String(worktreeButton.hidden && !whereNote.textContent && resultRepoButton.hidden && presetSelect.hidden);
     boxBar.dataset.empty = 'false';
     if (menuKind === 'agent') renderMenu();
     else if (menuKind === 'effort') {
@@ -2838,6 +2865,13 @@ export function createView(doc, refs, deps) {
     else if (menuKind === 'route') {
       if (menuSig !== currentRoute) renderMenu();
       menuSig = currentRoute;
+    } else if (menuKind === 'daemon') {
+      if (daemonButton.hidden || machines.length === 0) closeMenu();
+      else {
+        const sig = daemonMenuSignature();
+        if (sig !== menuSig) renderMenu();
+        menuSig = sig;
+      }
     } else if (menuKind === 'result') {
       if (resultRepoButton.disabled || resultRepoButton.hidden) closeMenu();
       else {

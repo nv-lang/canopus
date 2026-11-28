@@ -426,7 +426,7 @@ fn Hub mut @ct_do(at int, p Proposal, action str) Proc Detach Time -> () {
 
 /// The signal of the page `route_prop {id, action}`: a button of a card.
 /// `run` is the mode of execution chosen on the card (interactive | fast | full, "" - as proposed), `kids` the children left ticked ("" - all, "-" - none, "0,2" - these).
-fn Hub mut @ct_answer(trace str, id int, action str, agent str, mode str, target int, run str, kids str) Proc Detach Time -> () {
+fn Hub mut @ct_answer(trace str, id int, action str, agent str, mode str, target int, run str, kids str, daemon_id Option[str] = None) Proc Detach Time -> () {
     ro at = @find(trace)
     if at < 0 { return }
     ro k = proposal_at(@sessions[at].rt.props, id)
@@ -434,6 +434,7 @@ fn Hub mut @ct_answer(trace str, id int, action str, agent str, mode str, target
     mut p = proposal_copy(@sessions[at].rt.props[k])
     // the family for the child session chosen on the card (an unknown one is ignored)
     if agent.byte_len() > 0 && @agent_ids().contains(agent) { p.agent = agent }
+    p.daemon_id = daemon_id ?? p.daemon_id
     // the mode of execution chosen on the card (task 192.13) and the children of an epic left ticked
     if run_mode_ok(run) { p.mode = run }
     if p.kids.byte_len() > 0 { p = children_picked(p, kids) }
@@ -747,7 +748,7 @@ fn Hub mut @ct_apply(trace str, items []JsonValue) Proc Detach Time -> () {
         ro k = proposal_at(@sessions[at].rt.props, id)
         if k < 0 { continue }
         if word == "work" {
-            @ct_answer(trace, id, "start", jtext(o, "agent"), jtext(o, "mode"), jint(o, "target"), jtext(o, "run"), jtext(o, "children"))
+            @ct_answer(trace, id, "start", jtext(o, "agent"), jtext(o, "mode"), jint(o, "target"), jtext(o, "run"), jtext(o, "children"), daemon_id: (o.get("daemon_id") ?? JsonValue.null()).str())
         } else if word == "forget" {
             @ct_answer(trace, id, "forget", "", "", 0, "", "")
         } else {

@@ -27,7 +27,7 @@ import canopus.process.{ShellRaw}
 import canopus.config.{pick_prompt, ConfigLayout, load_presets, preset_named, preset_family, DEFAULT_PRESET, presets_reply}
 import canopus.config.{PoolEntry, ModelPool, parse_agent_source, preset_pick_weight, pick_source_json, pool_level_ok, resolve_pool_pinned}
 import canopus.config.{load_roles, role_of}
-import canopus.projects.{EnvEntry, projects_get, parse_dotenv, normalize_folder_path, project_has_folder, valid_project_id}
+import canopus.projects.{EnvEntry, projects_get, parse_dotenv, normalize_folder_path, project_has_folder, project_default_daemon, valid_project_id}
 import canopus.storage.{remove_session_dir, open_data_dir, file_journal, file_replay_journal, replay_history, file_store, list_sessions, valid_session_name, session_file_made, migrate_flat_sessions, image_ext, decode_image, save_image, find_image, replace_file, replace_file_parts}
 import canopus.pgstore.{PgWorld, pg_journal, pg_store}
 import canopus.pgdb.{pg_list}
@@ -1884,12 +1884,39 @@ fn Hub mut @install_restore(id str, prepared Option[PreparedRestore]) Proc Detac
     }
 }
 
+fn session_daemon_choice(ids []str, wanted str, parent Option[str], project_default str) -> str {
+    if wanted != "" { return wanted }
+    ro preferred = parent ?? project_default
+    if preferred != "" { return preferred }
+    if ids.len() > 0 { return ids[0] }
+    ""
+}
+
+fn Hub @new_session_daemon(project_id str, wanted str, parent Option[str]) -> Result[str, str] {
+    ro inherited = parent ?? ""
+    if wanted == "" && inherited != "" { return Ok(inherited) }
+    // D454: the daemon inventory belongs to the real instance state.
+    ro ids = with Fs = real_fs() { daemon_ids(@settings.layout.state) }?
+    mut preferred = ""
+    if wanted == "" && parent.is_none() && project_id != "" {
+        ro project = match projects_get(@settings.layout.data, project_id) {
+            Ok(value) => value
+            Err(f) => return Err(f.message)
+        }
+        preferred = project_default_daemon(project, @settings.layout.home)?
+    }
+    ro id = session_daemon_choice(ids, wanted, parent, preferred)
+    if id != "" && !ids.contains(id) {
+        with Fs = real_fs() { daemon_revocation(@settings.layout.state, id) }?
+        return Err("unknown daemon: ${id}")
+    }
+    Ok(id)
+}
+
 // Task 192.3: a child session of `parent` is made by the hub itself (the same record, the journal, the page is told); its agent is started later, when the child has work.
-fn Hub mut @cs_make_session(cid str, name str, agent str, folder str, project_id str, parent str, pkind str, route str) Proc Detach Time -> int {
+fn Hub mut @cs_make_session(cid str, name str, agent str, folder str, project_id str, parent str, pkind str, route str, daemon_id str) Proc Detach Time -> int {
     ro pg = @settings.store == "pg"
     ro root = @settings.data_dir
-    ro parent_at = @find(parent)
-    ro daemon_id = if parent_at >= 0 { @sessions[parent_at].daemon_id } else { "" }
     mut world = PgWorld.open(@settings.pg, cid)
     ro engine = begin_session_engine(pg, root, world, @machine, cid)
     mut s = Dialog { id: cid, name, agent, daemon_id, daemon_moves: 0, engine, world, clients: []AcpClient.new(), turn: "", turn_diff: None, lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, agent_event_at: 0, client_updates: 0, auth_told: "", folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
@@ -1938,22 +1965,17 @@ fn Hub mut @create(conn int, trace str, input JsonObject) Proc Detach Time -> ()
             ro tree = project_id.byte_len() > 0 && launch.folder.byte_len() > 0 && tk_is_repo(launch.folder) && (match input.get("worktree") { Some(v) => jflag(input, "worktree"), None => true })
             ro workspace_error = workspace_problem(project_id, launch.folder, source, tree)
             if workspace_error.byte_len() > 0 { @tell_error(conn, trace, 1, "", workspace_error); return }
-            // D454: the daemon inventory belongs to the real instance state.
-            ro ids = match with Fs = real_fs() { daemon_ids(@settings.layout.state) } {
-                Ok(choices) => choices
-                Err(reason) => { @tell_error(conn, trace, 1, "", reason); return }
-            }
-            ro wanted = jtext(input, "daemon_id")
-            if wanted != "" && !ids.contains(wanted) {
-                ro reason = match with Fs = real_fs() { daemon_revocation(@settings.layout.state, wanted) } {
-                    Ok(allowed) => "unknown daemon: ${wanted}"
-                    Err(reason) => reason
+            ro daemon_id = match @new_session_daemon(project_id, jtext(input, "daemon_id"), None) {
+                Ok(id) => id
+                Err(reason) => {
+                    if reason.starts_with("daemon revoked:") {
+                        @tell_coded_error(conn, trace, 1, "", "daemon_revoked", reason)
+                    } else if reason.starts_with("unknown daemon:") {
+                        @tell_coded_error(conn, trace, 1, "", "invalid_parameter", reason)
+                    } else { @tell_error(conn, trace, 1, "", reason) }
+                    return
                 }
-                ro code = if reason.starts_with("daemon revoked:") { "daemon_revoked" } else { "invalid_parameter" }
-                @tell_coded_error(conn, trace, 1, "", code, reason)
-                return
             }
-            ro daemon_id = if wanted == "" && ids.len() > 0 { ids[0] } else { wanted }
             ro pg = @settings.store == "pg"
             ro root = @settings.data_dir
             mut world = PgWorld.open(@settings.pg, trace)
@@ -3631,7 +3653,7 @@ export fn Hub mut @handle(conn int, text str) Proc Detach Time -> () {
     } else if kind == "route_diff" {
         @route_diff(trace)
     } else if kind == "route_prop" {
-        @ct_answer(trace, jint(input, "id"), jtext(input, "action"), jtext(input, "agent"), jtext(input, "mode"), jint(input, "target"), jtext(input, "run"), jtext(input, "children"))
+        @ct_answer(trace, jint(input, "id"), jtext(input, "action"), jtext(input, "agent"), jtext(input, "mode"), jint(input, "target"), jtext(input, "run"), jtext(input, "children"), daemon_id: (input.get("daemon_id") ?? JsonValue.null()).str())
     } else if kind == "route_children_merge" {
         @cs_chain_signal(trace)
     } else if kind == "route_ext_undo" {

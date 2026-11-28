@@ -96,6 +96,8 @@ export const S = Object.freeze({
   'daemon.last_contact': 'Последний контакт · {last}',
   'daemon.status_online': 'На связи',
   'daemon.status_offline': 'Недоступна',
+  'daemon.offline_warning': 'Машина не на связи. Запуск может завершиться ошибкой.',
+  'daemon.inherit': 'Как у родительской сессии',
   'daemon.status_checking': 'Проверяем связь',
   'daemon.status_pending': 'Ждёт подключения',
   'daemon.status_expired': 'Ключ истёк',

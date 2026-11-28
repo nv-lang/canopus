@@ -135,6 +135,7 @@ export function makeProject(raw) {
     name: typeof r.name === 'string' ? r.name : '',
     folders: Array.isArray(r.folders) ? r.folders.map(makeFolder).filter((f) => f.path !== '') : [],
     env: typeof r.env === 'string' ? r.env : '',
+    ...(typeof r.default_daemon === 'string' && r.default_daemon ? { defaultDaemon: r.default_daemon } : {}),
     worktreesDir: typeof r.worktrees_dir === 'string' ? r.worktrees_dir.trim() : '',
     envKeys: keys,
   };

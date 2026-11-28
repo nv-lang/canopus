@@ -76,7 +76,7 @@ export const EMPTY_CREW = Object.freeze(parseCanopusTask({}));
 /** Сигналы страницы серверу: { kind, input }; шаг события и id добавляет app.js. */
 export const canopusSignal = Object.freeze({
   // opts: { mode: 'new' | 'child' | 'epic' | 'extend', target: номер задачи, agent: семья агента сессии новой задачи, run: режим выполнения, children: части эпика ('' — все, '-' — никакие, '0,2') }
-  prop: (id, action, opts = {}) => ({ kind: 'route_prop', input: { id, action: String(action), ...(opts.mode ? { mode: opts.mode, target: opts.target || 0 } : {}), ...(opts.agent ? { agent: opts.agent } : {}), ...(opts.run ? { run: opts.run } : {}), ...(opts.children ? { children: opts.children } : {}) } }),
+  prop: (id, action, opts = {}) => ({ kind: 'route_prop', input: { id, action: String(action), ...(opts.mode ? { mode: opts.mode, target: opts.target || 0 } : {}), ...(opts.agent ? { agent: opts.agent } : {}), ...(typeof opts.daemonId === 'string' ? { daemon_id: opts.daemonId } : {}), ...(opts.run ? { run: opts.run } : {}), ...(opts.children ? { children: opts.children } : {}) } }),
   recognize: () => ({ kind: 'route_recognize', input: {} }),
   // «Отменить» у серой строки «Дополнено в задачу K»: убрать раздел из message.md и отозвать требование у агента задачи
   extUndo: (id) => ({ kind: 'route_ext_undo', input: { id } }),
@@ -202,12 +202,14 @@ export function applyLabel(counts) {
 }
 
 /** Что уходит серверу по кнопке «Применить»: по строке на каждую; «В работу» — со способом и семьёй агента. */
-export function applyPlan(rows, choices, ways, agents, canopus, runs = new Map()) {
+export function applyPlan(rows, choices, ways, agents, canopus, runs = new Map(), daemons = new Map()) {
   return rows.map((p) => {
     const action = choices.get(p.id) || DEFAULT_CHOICE;
     if (action !== 'work') return { id: p.id, action };
     const { mode, target } = parseWay(ways.get(p.id) || defaultWay(p, canopus));
-    return { id: p.id, action, mode, target, agent: agents.get(p.id) || '', run: runs.get(p.id) || DEFAULT_RUN };
+    const daemonId = mode === 'child' ? daemons.get(p.id) : undefined;
+    return { id: p.id, action, mode, target, agent: agents.get(p.id) || '', run: runs.get(p.id) || DEFAULT_RUN,
+      ...(typeof daemonId === 'string' ? { daemon_id: daemonId } : {}) };
   });
 }
 

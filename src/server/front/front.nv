@@ -773,7 +773,7 @@ fn build_router(web_dir str, port int, admin ChanTx[DaemonAdminRequest], hub_tx 
     ro r4d = router.get("/api/session-image/{id}/{n}", strict_query([]str.new(), image_get_route(data_dir)))?
     // the projects of the control panel and the choice of a folder (task 192m)
     mut all_projects = MethodRouter.new()
-    all_projects.get(strict_query([]str.new(), projects_list_route(layout.data, port)))
+    all_projects.get(strict_query([]str.new(), projects_list_route(layout.data, layout.home, port)))
     all_projects.post(strict_query([]str.new(), projects_post_route(layout.data, layout.state, port)))
     ro r4m = router.route("/api/projects", all_projects)?
     mut result_repos = MethodRouter.new()

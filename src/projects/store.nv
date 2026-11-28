@@ -12,6 +12,8 @@ import std.encoding.json.{Json, JsonValue, JsonObject}
 import std.fs.{Fs, real_fs, Path, read_text, write_atomic, try_exists, create_dir_all}
 import std.prelude.effects.{real_random}
 import std.text
+import std.os.{real_os}
+import canopus.config.{find_project_dir, read_layer}
 
 /// Folder: a folder of a project; `branch` "" - none; `worktree` - the sessions work in a work tree of their own.
 export type Folder { path str, branch str, worktree bool }
@@ -227,10 +229,27 @@ export fn project_summary_json(p Project) -> JsonValue {
     JsonValue.object(o)
 }
 
+/// The first registered folder locates the project config, regardless of the session's working folder.
+export fn project_default_daemon(p Project, instance str) -> Result[str, str] {
+    if p.folders.len() == 0 { return Ok("") }
+    ro dir = with Fs = real_fs(), Os = real_os() { find_project_dir(p.folders[0].path, instance) }
+    if dir == "" { return Ok("") }
+    ro layer = (with Fs = real_fs() { read_layer("project", "${dir}/config.json") })?
+    match layer {
+        Some(l) => (l.obj.get("default_daemon") ?? JsonValue.str("")).str().ok_or("default_daemon must be a string")
+        None => Ok("")
+    }
+}
+
 /// `{"projects":[...]}` - the answer of the list.
-export fn projects_list_json(list []Project) -> str {
+export fn projects_list_json(list []Project, instance str = "") -> str {
     mut rows = []JsonValue.new()
-    for p in list { rows.push(project_summary_json(p)) }
+    for p in list {
+        mut row = project_summary_json(p).object() ?? JsonObject.new()
+        ro daemon = project_default_daemon(p, instance) ?? ""
+        if daemon != "" { jput(row, "default_daemon", JsonValue.str(daemon)) }
+        rows.push(JsonValue.object(row))
+    }
     mut o = JsonObject.new()
     jput(o, "projects", JsonValue.array(rows))
     JsonValue.object(o).to_str()

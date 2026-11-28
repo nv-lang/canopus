@@ -55,6 +55,7 @@ fn spec_of(key str) -> Option[KeySpec] {
     for k in known_keys() {
         if k.key == key { return Some(k) }
     }
+    if key == "default_daemon" { return Some(ks(key, "s", "\"\"")) }
     if key == "voice" { return Some(ks(key, "v", "false")) }
     if key == "database_url" { return Some(ks(key, "s", "\"\"")) }
     // Infrastructure clients share secrets.json but do not add application defaults.
@@ -159,6 +160,10 @@ export fn validate_layer(l Layer) -> []str {
     mut here = []Entry.new()
     leaves("", l.obj, here, l.origin, l.file)
     for e in here {
+        if e.key == "default_daemon" && l.origin != "project" {
+            problems.push("${l.file}:${key_line(l.text, e.key)}: default_daemon belongs in the project config")
+            continue
+        }
         match spec_of(e.key) {
             None => problems.push("${l.file}:${key_line(l.text, e.key)}: unknown key ${e.key}")
             Some(s) => {
@@ -268,6 +273,7 @@ export fn typed_value(key str, text str) -> Result[JsonValue, str] {
 /// `config set <key> <value> [--project]`: put the value into the file of the scope (the other keys of the file stay). Returns the line to print.
 export fn config_set(layout ConfigLayout, scope str, work str, key str, text str) Fs -> Result[str, str] {
     if is_secret_key(key) { return Err("${key} is a secret: put it in secrets.json beside the selected config file") }
+    if key == "default_daemon" && scope != "project" { return Err("default_daemon belongs in the project config") }
     ro value = typed_value(key, text)?
     ro file = set_target(layout, scope, work)?
 

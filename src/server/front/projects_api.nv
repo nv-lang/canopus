@@ -1,5 +1,5 @@
 // projects_api.nv - the routes of the projects of the control panel (task 192m):
-//   GET    /api/projects          the list: id, name, folders, env_keys (the NAMES of the variables, never the values)
+//   GET    /api/projects          the list: id, name, folders, optional default_daemon, env_keys (names only)
 //   GET    /api/projects/<id>     the whole project with the text of `env`
 //   POST   /api/projects          {name, folders, env} -> 201 {"id"}
 //   PUT    /api/projects/<id>     the same body replaces all the fields -> 200
@@ -88,11 +88,11 @@ fn remember_dir(state_dir str, body JsonObject) -> () {
     if dir.byte_len() > 0 { last_dir_save(state_dir, dir) }
 }
 
-fn projects_list_route(data_dir str, port int) -> fn(ServerRequest) -> ServerResponse {
+fn projects_list_route(data_dir str, instance str, port int) -> fn(ServerRequest) -> ServerResponse {
     fn(req ServerRequest) -> ServerResponse {
         if !origin_allowed(req, port) { return api_error(403, "forbidden_origin", "origin not allowed") }
         match projects_load(data_dir) {
-            Ok(list) => json_reply(200, projects_list_json(list))
+            Ok(list) => json_reply(200, projects_list_json(list, instance: instance))
             Err(f) => api_fail(f)
         }
     }

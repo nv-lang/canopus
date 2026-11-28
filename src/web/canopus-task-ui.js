@@ -4,6 +4,7 @@
 
 import { t } from './strings.js';
 import { h } from './dom.js';
+import { daemonAddress, daemonStatus } from './daemon-settings.js';
 import {
   EMPTY_CREW, CHOICES, DEFAULT_CHOICE, singleCard, activeText, tableRows, problemRows, rowText, rowActions, problemText, wordHint, recognizeShown, kindText, defaultWay, wayOptions, parseWay,
   applyCounts, applyLabel, applyPlan, DEFAULT_RUN, runOptions, proposesText, wayHint, childrenPicked,
@@ -19,6 +20,8 @@ const actionLabel = (a, session) => session.route === 'planning' && ['start', 'e
  */
 export function createCanopusTaskUi(doc, handlers, deps = {}) {
   const agentList = typeof deps.agents === 'function' ? deps.agents : () => [];
+  const daemonMachines = deps.daemonMachines || (() => []);
+  const daemons = new Map();
   const ways = new Map(); // «сессия:карточка» -> выбранный способ «способ:номер» (переживает перерисовку)
   const agents = new Map(); // «сессия:карточка» -> семья агента для сессии задачи ('' — как у этой)
   const expandedFiles = new Set();
@@ -58,6 +61,27 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
     return { key, way: ways.get(key) || defaultWay(p, canopus), agent: agents.get(key) || '' };
   }
 
+  function childMachine(key, way) {
+    const machines = daemonMachines();
+    if (parseWay(way).mode !== 'child' || !machines.length) return false;
+    const selected = daemons.get(key) || '';
+    const picker = h(doc, 'select', { class: 'canopus-daemon', 'aria-label': t('chat.draft_daemon') },
+      h(doc, 'option', { value: '', text: t('daemon.inherit') }),
+      ...machines.map(machine => h(doc, 'option', { value: machine.id,
+        text: [machine.id, daemonAddress(machine), daemonStatus(machine.status)].filter(Boolean).join(' · ') })));
+    const warning = h(doc, 'small', { class: 'canopus-field-hint muted', role: 'status', text: t('daemon.offline_warning') });
+    function updateWarning() {
+      warning.hidden = machines.find(machine => machine.id === picker.value)?.status !== 'offline';
+    }
+    if (selected && !machines.some(machine => machine.id === selected)) {
+      picker.append(h(doc, 'option', { value: selected, disabled: true, text: t('daemon.unavailable', { id: selected }) }));
+    }
+    picker.value = selected;
+    updateWarning();
+    picker.addEventListener('change', () => { daemons.set(key, picker.value); updateWarning(); });
+    return field(t('chat.draft_daemon'), picker, warning);
+  }
+
   function wayControls(session, canopus, p) {
     if (p.state !== 'open') return false;
     const { key, way, agent } = chosen(session, canopus, p);
@@ -78,7 +102,7 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
       ...runOptions().map((o) => h(doc, 'option', { value: o.value, text: o.label, selected: o.value === run })));
     runSelect.value = run;
     runSelect.addEventListener('change', () => { runs.set(key, runSelect.value); });
-    return h(doc, 'span', { class: 'canopus-way-row' }, select, session.route === 'planning' ? false : runSelect, family);
+    return h(doc, 'div', { class: 'canopus-way-row' }, select, session.route === 'planning' ? false : runSelect, family, childMachine(key, way));
   }
 
   function press(session, canopus, p, action) {
@@ -88,6 +112,7 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
     if (work) {
       const key = `${session.id}:${p.id}`;
       const opts = { mode, target, agent, run: runs.get(key) || DEFAULT_RUN };
+      if (mode === 'child') opts.daemonId = daemons.get(key);
       if (mode === 'epic' && p.children.length > 0) opts.children = childrenPicked(p.children.length, kidsOff.get(key) || new Set());
       submit(session, canopus, [p.id], () => handlers.onCanopusProp(session.id, p.id, action, opts));
     } else submit(session, canopus, [p.id], () => handlers.onCanopusProp(session.id, p.id, action));
@@ -122,7 +147,8 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
     const counts = applyCounts(rows, local);
     const apply = button(session.route === 'planning' ? 'Применить без запуска исполнения' : applyLabel(counts), 'primary canopus-apply', () => {
       const selectedRuns = new Map(rows.map((p) => [p.id, runs.get(`${session.id}:${p.id}`)]));
-      submit(session, canopus, rows.filter((p) => choiceOf(p) !== 'discuss' || p.choice !== 'discuss').map((p) => p.id), () => handlers.onCanopusApply(session.id, applyPlan(rows, local, ways_for(session), agents_for(session), canopus, selectedRuns)));
+      const selectedDaemons = new Map(rows.map((p) => [p.id, daemons.get(`${session.id}:${p.id}`)]));
+      submit(session, canopus, rows.filter((p) => choiceOf(p) !== 'discuss' || p.choice !== 'discuss').map((p) => p.id), () => handlers.onCanopusApply(session.id, applyPlan(rows, local, ways_for(session), agents_for(session), canopus, selectedRuns, selectedDaemons)));
     });
     const list = rows.length > 0 ? h(doc, 'ol', { class: 'canopus-proposals' }, ...body) : false;
     const problemList = problems.length === 0 ? false : h(doc, 'ul', { class: 'canopus-rows' }, ...problems.map((p) => h(doc, 'li', { class: 'canopus-row', 'data-state': p.state },
@@ -205,6 +231,7 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
       controls = h(doc, 'div', { class: 'canopus-controls' },
         field(t('canopustask.how_label'), waySelect, wayHintEl),
         who,
+        childMachine(key, way),
         field(t('canopustask.run_label'), runSelect, runHint),
         kids);
     }
@@ -240,7 +267,7 @@ export function createCanopusTaskUi(doc, handlers, deps = {}) {
       pending.delete(session.id);
       operation = undefined;
     }
-    const next = JSON.stringify([operation?.waiting, session && session.id, session && session.route, show, canopus, [...ways], [...agents], [...choices], [...runs], [...kidsOff].map(([k, v]) => [k, [...v]]), agentList()]);
+    const next = JSON.stringify([operation?.waiting, session && session.id, session && session.route, show, canopus, [...ways], [...agents], [...choices], [...runs], [...kidsOff].map(([k, v]) => [k, [...v]]), agentList(), show ? daemonMachines().map(({ id, host, port, status }) => [id, host, port, status]) : []]);
     if (next === sig) return;
     sig = next;
     if (!show) { el.hidden = true; el.replaceChildren(); return }

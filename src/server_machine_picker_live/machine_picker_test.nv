@@ -1,0 +1,15 @@
+module canopus.server_machine_picker_live
+
+import canopus.server.{scenario_machine_picker_create, scenario_machine_picker_children}
+
+test "338: project default, first daemon and explicit choice at session creation" {
+    ro result = scenario_machine_picker_create()
+    if result != "" { panic(result) }
+    assert(result == "")
+}
+
+test "338: child sessions inherit the parent daemon and accept an explicit override" {
+    ro result = scenario_machine_picker_children()
+    if result != "" { panic(result) }
+    assert(result == "")
+}

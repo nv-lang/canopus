@@ -60,6 +60,7 @@
   --tip-bg: #1f1f1f;
   --tip-fg: #ffffff;
   --ok: #17656a;
+  --daemon-online: #2da44e;
   --warn: #8f5600;
   --warn-soft: #fbf0d9;
   --danger: #a42528;
@@ -1727,3 +1728,19 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .command-name { font-family: var(--font-mono); font-weight: 600; }
 .command-source { color: var(--fg-muted); font-size: .8em; margin-inline-start: auto; }
 .command-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.daemon-picker { min-width: 0; max-width: 10rem; }
+.daemon-picker-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.daemon-dot {
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  flex: none;
+  margin-inline-end: 0.4rem;
+  border-radius: 50%;
+  background: var(--fg-muted);
+}
+[data-status="online"] .daemon-dot { background: var(--daemon-online); }
+.daemon-picker-warning { display: block; margin: 0 0.75rem 0.5rem; color: var(--warn); }
+.canopus-daemon { max-width: 100%; }
+.daemon-picker-warning[hidden] { display: none; }

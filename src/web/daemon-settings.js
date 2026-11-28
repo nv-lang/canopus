@@ -10,6 +10,18 @@ const STATUS_LABEL = {
   revoked: 'daemon.status_revoked',
 };
 
+export function daemonStatus(status) {
+  return t(STATUS_LABEL[status] || STATUS_LABEL.checking);
+}
+
+export function daemonAddress(machine) {
+  return machine.host && machine.port ? `${machine.host}:${machine.port}` : '';
+}
+
+export function daemonContact(lastContact) {
+  return t('daemon.last_contact', { last: lastContact ? new Date(lastContact).toLocaleString('ru-RU') : '—' });
+}
+
 export async function daemonRequest(fetcher, action = '', input) {
   const options = input === undefined ? { cache: 'no-store' } : {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
@@ -84,14 +96,13 @@ export function createDaemonSettings(doc, { refresh, mutate }) {
     signature = next;
     list.replaceChildren(...machines.map((machine) => {
       const { id, host, port, cwd, status, last_contact: lastContact } = machine;
-      const statusText = t(STATUS_LABEL[status] || STATUS_LABEL.checking);
-      const last = lastContact ? new Date(lastContact).toLocaleString('ru-RU') : '—';
+      const statusText = daemonStatus(status);
       const row = h(doc, 'li', { class: 'daemon-machine' },
         h(doc, 'div', {},
           h(doc, 'strong', { text: id }),
           h(doc, 'span', { class: 'muted', text: ` · ${host}:${port}` }),
           h(doc, 'div', { text: statusText }),
-          h(doc, 'div', { class: 'muted', text: t('daemon.last_contact', { last }) }),
+          h(doc, 'div', { class: 'muted', text: daemonContact(lastContact) }),
           machine.revocation === 'pending' ? h(doc, 'div', { class: 'muted', text: t('daemon.revoke_pending') })
             : machine.revocation === 'unconfirmed' ? h(doc, 'div', { class: 'muted', text: t('daemon.revoke_unconfirmed') }) : null,
         ),

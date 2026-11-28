@@ -268,6 +268,11 @@ fn Hub mut @cs_spawn(at int, p Proposal, how str, queued bool) Proc Detach Time 
     if pat < 0 && cur.rt.wip_tree.byte_len() > 0 && cur.rt.kind != "child" && (!cur.rt.task_open || cur.rt.task_id == "draft") && p.kids.byte_len() == 0 {
         if @wip_take(at, p, how, queued) { return }
     }
+    ro parent_daemon = if pat >= 0 { Some(@sessions[pat].daemon_id) } else { None }
+    ro daemon_id = match @new_session_daemon(cur.project_id, p.daemon_id, parent_daemon) {
+        Ok(id) => id
+        Err(reason) => { @tell_error(0, cur.id, cur.engine.step_number(), "", "задача не создана: ${reason}"); return }
+    }
     // any open task becomes an epic with its first child: the mark and the table of the children
     if pat >= 0 { @cs_make_epic(pat) }
     ro par = if pat >= 0 { @sessions[pat] } else { cur }
@@ -314,7 +319,7 @@ fn Hub mut @cs_spawn(at int, p Proposal, how str, queued bool) Proc Detach Time 
             sib_no = p.with_n
         }
     }
-    ro cat = @cs_make_session(cid, p.title, agent, cur.folder, cur.project_id, if pat >= 0 { par.id } else { "" }, ptype, route)
+    ro cat = @cs_make_session(cid, p.title, agent, cur.folder, cur.project_id, if pat >= 0 { par.id } else { "" }, ptype, route, daemon_id)
     mut binding = JsonObject.new()
     js(binding, "repo", source.rt.result_repo)
     js(binding, "repo_label", source.rt.result_label)

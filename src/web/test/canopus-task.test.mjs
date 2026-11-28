@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { parseCanopusTask, EMPTY_CREW, canopusSignal, listedItems, singleCard, activeText, rowText, rowActions, problemText, wordHint, recognizeShown, applyCounts, applyLabel, applyPlan, tableRows, problemRows } from '../canopus-task.js';
 import { parseRouteState } from '../routes.js';
 import { createCanopusTaskUi } from '../canopus-task-ui.js';
-import { createFakeDocument } from './fake-dom.mjs';
+import { createFakeDocument, event } from './fake-dom.mjs';
 
 const prop = (extra = {}) => ({ id: 1, kind: 'new', title: 'Кнопка выхода', summary: 'сделать кнопку', extends: 0, extends_title: '', touches: ['src/web/view.js'], state: 'open', with_n: 0, with_files: [], unknown: false, listed: true, choice: '', note: '', ...extra });
 const wire = (extra = {}) => ({ proposals: [prop(), prop({ id: 2, kind: 'extend', extends: 3, title: 'Тест' }), prop({ id: 3, listed: false, title: 'Одиночная' })], active: 2, max_active: 3, confirm_word: 'задача', over_word: 'сверх', candidates: 1, ...extra });
@@ -298,4 +298,20 @@ test('варианты способа берутся только из targets �
   const { el } = mountSingle({ kind: 'new', mode: '', children: [] });
   const labels = el.querySelectorAll('.canopus-way')[0].querySelectorAll('option').map((o) => o.textContent);
   assert.equal(labels.filter((l) => /· /.test(l)).length, 2, 'только задача 5 (дочерняя к и дополнить)');
+});
+
+test('338: на карточке дочерней задачи можно переопределить машину родителя', () => {
+  const { el, log } = mountSingle({ kind: 'child', epic: 5, children: [] }, {
+    daemonMachines: () => [{ id: 'another', host: '192.0.2.1', port: 39329, status: 'offline' }],
+  });
+  const picker = el.querySelector('.canopus-daemon');
+  assert.equal(picker.value, '');
+  assert.match(picker.textContent, /родительской сессии/);
+  picker.value = 'another';
+  picker.dispatchEvent(event('change'));
+  assert.match(picker.parentNode.parentNode.textContent, /Недоступна/);
+  assert.equal(picker.parentNode.parentNode.querySelector('[role="status"]').hidden, false);
+  el.querySelectorAll('button').find(button => button.textContent === 'В работу').click();
+  const [, , id, action, opts] = log.at(-1);
+  assert.equal(canopusSignal.prop(id, action, opts).input.daemon_id, 'another');
 });

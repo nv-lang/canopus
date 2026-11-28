@@ -1,0 +1,58 @@
+module canopus.server
+
+/// Routes session creation through the same events as the web composer.
+export fn scenario_machine_picker_create() Proc Detach Time Net Fs Os -> str {
+    mut c = kit_check()
+    ro settings = kit_files("machine-picker-create", 0)
+    if !write_file("${settings.layout.state}/daemon.json", "{\"daemons\":[{\"id\":\"first\",\"port\":1},{\"id\":\"project-host\",\"port\":2}]}") { return "cannot write test inventory" }
+    if !write_file("${settings.workdir}/.canopus/config.json", "{\"default_daemon\":\"project-host\"}") { return "cannot write project config" }
+    mut rig = rig_open(settings)
+    rig.attach(1)
+    rk_project_page(rig, 1, "project-choice", "{\"name\":\"Project choice\",\"agent\":\"opencode\"}")
+    rk_project_page(rig, 1, "explicit-choice", "{\"name\":\"Explicit choice\",\"agent\":\"opencode\",\"daemon_id\":\"first\"}")
+    rig.page(1, "session_created", "first-choice", "{\"name\":\"First choice\",\"agent\":\"opencode\"}")
+
+    ro lines = rig.all_lines_for(1)
+    c.expect(placement_in(lines, "project-choice") == "project-host", "project default was not selected")
+    c.expect(placement_in(lines, "explicit-choice") == "first", "explicit selection did not override the project default")
+    c.expect(placement_in(lines, "first-choice") == "first", "first daemon was not selected without a project")
+    c.report()
+}
+
+fn placement_in(lines []str, trace str) -> str {
+    for line in lines {
+        if line_field(line, "kind") == "session_created" && line_field(line, "trace") == trace {
+            return line_input(line, "daemon_id")
+        }
+    }
+    ""
+}
+
+/// Routes child creation through the work button on the task card.
+export fn scenario_machine_picker_children() Proc Detach Time Net Fs Os -> str {
+    mut c = kit_check()
+    ro settings = kit_routes_children("machine-picker-child")
+    if !write_file("${settings.layout.state}/daemon.json", "{\"daemons\":[{\"id\":\"first\",\"port\":1},{\"id\":\"parent-host\",\"port\":2},{\"id\":\"override\",\"port\":3}]}") { return "cannot write test inventory" }
+    mut rig = rig_open(settings)
+    rig.attach(1)
+    rk_project_page(rig, 1, "parent", "{\"name\":\"Parent\",\"agent\":\"opencode\",\"daemon_id\":\"parent-host\",\"worktree\":false}")
+    ro parent = rig.hub.find("parent")
+    if parent < 0 { return "parent session was not created" }
+    mut session = rig.hub.sessions[parent]
+    session.rt.task_open = true
+    session.rt.number = "42"
+    rig.hub.sessions[parent] = session
+
+    for title in ["Inherited child", "Explicit child"] {
+        ro offer = rig.hub.ct_offer(parent, proposal_new("new", title, title, 0, ["${title}.txt"], "high"))
+        ro id = rig.hub.sessions[parent].rt.prop_serial
+        ro override = if title == "Explicit child" { ",\"daemon_id\":\"override\"" } else { "" }
+        rig.page(1, "route_prop", "parent", "{\"id\":${id},\"action\":\"start\",\"mode\":\"child\",\"target\":42${override}}")
+        ro trace = ck_find(rig, 1, title)
+        c.expect(trace.starts_with("parent-c"), "child session was not created for ${title}")
+        c.expect(ck_parent(rig, 1, trace) == "parent", "child session has the wrong parent")
+        ro expected = if title == "Explicit child" { "override" } else { "parent-host" }
+        c.expect(placement_in(rig.all_lines_for(1), trace) == expected, "expected machine ${expected} for ${title}")
+    }
+    c.report()
+}

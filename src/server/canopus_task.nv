@@ -48,6 +48,7 @@ export type Proposal {
     choice str,
     note str,
     agent str,
+    daemon_id str,
     parent int,
     epic int
 }
@@ -55,14 +56,14 @@ export type Proposal {
 /// A proposal that is just made: open, no choices.
 export fn proposal_new(kind str, title str, summary str, extends int, touches []str, confidence str) -> Proposal => {
     mode: "", reason: "", kids: "", id: 0, kind, title, summary, extends, touches, confidence, source: "", images: []str.new(), image_names: []str.new(),
-    state: "open", how: "", over: false, with_n: 0, with_files: []str.new(), unknown: false, listed: false, choice: "", note: "", agent: "", parent: 0, epic: 0
+    state: "open", how: "", over: false, with_n: 0, with_files: []str.new(), unknown: false, listed: false, choice: "", note: "", agent: "", daemon_id: "", parent: 0, epic: 0
 }
 
 /// A copy of a proposal (the lists are shared, they are only read).
 export fn proposal_copy(p Proposal) -> Proposal => {
     mode: p.mode, reason: p.reason, kids: p.kids, id: p.id, kind: p.kind, title: p.title, summary: p.summary, extends: p.extends, touches: p.touches, confidence: p.confidence, source: p.source,
     images: p.images, image_names: p.image_names, state: p.state, how: p.how, over: p.over, with_n: p.with_n, with_files: p.with_files, unknown: p.unknown,
-    listed: p.listed, choice: p.choice, note: p.note, agent: p.agent, parent: p.parent, epic: p.epic
+    listed: p.listed, choice: p.choice, note: p.note, agent: p.agent, daemon_id: p.daemon_id, parent: p.parent, epic: p.epic
 }
 
 /// The proposal as an item of a list of the agent.
