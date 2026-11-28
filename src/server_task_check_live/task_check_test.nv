@@ -1,0 +1,26 @@
+module canopus.server_task_check_live
+
+// ORACLE-WORKAROUND(32): keep fs before text for direct test entry code generation.
+import std.fs.{Path}
+import std.text
+import std.os.{env}
+import canopus.server.{scenario_task_check_state, scenario_task_check_green, scenario_task_check_restart, scenario_task_check_continuations}
+
+test "335: replayed criterion receipts count once, pause survives, changes and explicit resume reset the count" {
+    scenario_task_check_state()
+}
+
+test "335 live: owner wait and manual pause inhibit the runner, green keeps the task open" {
+    if (env("CANOPUS_TEST_TASK_CHECK_LIVE") ?? "") != "1" { return }
+    scenario_task_check_green()
+}
+
+test "335 live: replay between attempts preserves the count and no failure dispatches twice" {
+    if (env("CANOPUS_TEST_TASK_CHECK_LIVE") ?? "") != "1" { return }
+    scenario_task_check_restart()
+}
+
+test "335 live: queued wake and provider recovery each own the turn they continue" {
+    if (env("CANOPUS_TEST_TASK_CHECK_LIVE") ?? "") != "1" { return }
+    scenario_task_check_continuations()
+}

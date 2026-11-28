@@ -61,6 +61,7 @@ fn Hub mut @provider_recover(at int) Proc Detach Time -> () {
     ro used = s.dispatch.provider_attempts
     ro limit = @settings.provider_resume_attempts
     ro reason = if failure == "provider_content_filtered" { waiting_text(failure, "") }
+        else if s.rt.check.paused { "Пауза владельца" }
         else if s.rt.continue_reason != "" { s.rt.continue_reason }
         else if used >= limit { "Пауза: исчерпан лимит автопродолжений (${used}/${limit})." }
         else if s.rt.reviewing || (s.rt.job != "" && s.rt.job != "step") { "Пауза: требуется проверить исход служебной операции." }

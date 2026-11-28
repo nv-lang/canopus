@@ -100,10 +100,21 @@ def main():
             assert stlib.has_line(proc, ": %s:" % rule), proc.out
         return fn
 
+    def criterion_kit():
+        registry = 'assets = ["guards/fixture.py"]\n'
+        repo = fresh({**machines(), "scripts/checks.toml": registry})
+        assets = {"scripts/checks.toml": registry, "scripts/task-check.py": "# fixture\n",
+                  "scripts/task-check.Dockerfile": "FROM scratch\n", "scripts/guards/fixture.py": "# fixture\n"}
+        stlib.expect(check(repo, "--kit", kit(kit_files(assets))), 0, "ок: осмотрено")
+        without_asset = kit_files(assets, drop=["scripts/guards/fixture.py"])
+        result = check(repo, "--kit", kit(without_asset))
+        assert result.returncode == 1 and stlib.has_line(result, "kit-program"), result.out
+
     pr.probe("законное", "согласованные машины дерева, tests/ не судятся",
              lambda: stlib.expect(check(fresh(machines())), 0, "ок: осмотрено 8"))
     pr.probe("законное", "комплект: программы и машины диалога",
              lambda: stlib.expect(check(fresh(machines()), "--kit", kit(kit_files())), 0, "ок: осмотрено"))
+    pr.probe("красная", "комплект проверки требует файлы из реестра", criterion_kit)
     pr.probe("красная", "в комплекте отсутствует ограниченный адаптер Подготовки",
              red_kit(kit_files(drop=["preparation-agent.mjs"]), "kit-program"))
     pr.probe("красная", "дерево чужой версии языка", red_tree(machines(tree_version="0.26"), "alula-version"))

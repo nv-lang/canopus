@@ -211,7 +211,8 @@ fn Hub mut @mcp_recovery_letter(session str, key str, text str) -> () {
 // The signals of the journal that carry the mode of work (task 192q, `routes_hub.nv`).
 fn is_route_signal(name str) -> bool {
     name == "route_set" || name == "route_task" || name == "route_step" || name == "route_note" ||
-        name == "route_review" || name == "context_compacted" || name == "task_extended" || name == "task_extend_undone" || name == "task_continuation"
+        name == "route_review" || name == "context_compacted" || name == "task_extended" || name == "task_extend_undone" || name == "task_continuation" ||
+        name == "check_passed" || name == "check_failed" || name == "task_check_control"
 }
 
 /// Hub: the sessions, the pages, the output not yet taken, the log.
@@ -311,6 +312,9 @@ export type Hub {
     choices []PendingChoice,
     reviews []Review,
     route_obs int,
+    check_pending bool,
+    check_tx ChanTx[TaskCheckResult],
+    check_rx ChanRx[TaskCheckResult],
     route_git_pending bool,
     route_git_tx ChanTx[RouteGitResult],
     route_git_rx ChanRx[RouteGitResult],
@@ -1494,11 +1498,12 @@ fn start_hub_mode(settings ServerSettings, table_text str, background bool) Proc
     ro notes_chan = Chan[str].new(64)
     ro restores = Chan[RestoreDone].new(64)
     ro orphan_jobs = Chan[ShellRaw].new(1)
+    ro checks = Chan[TaskCheckResult].new(1)
     ro route_git = Chan[RouteGitResult].new(1)
     ro index_metadata = Chan[SessionIndexMetadata].new(1)
     mut hub = Hub {
         preparation_fixtures: []PreparationFixture.new(),
-        handoffs: []ContextHandoff.new(), interrupts: []TurnInterrupt.new(), model_probes: []ModelProbe.new(), probe_results: JsonObject.new(), context_sizes: JsonObject.new(), settings, machine, work_mode, approval_policy, workdir, sessions: []Dialog.new(), restoring: JsonObject.new(), restore_jobs: []str.new(), pump_cursor: 0, restore_commands: []RestoreCommand.new(), legacy_open: []int.new(), restore_tx: restores.tx, restore_rx: restores.rx, orphan_swept_at: 0, orphan_running: false, orphan_tx: orphan_jobs.tx, orphan_rx: orphan_jobs.rx, index_tasks: JsonObject.new(), index_states: JsonObject.new(), index_signature: "", index_next: 0, index_pending: false, index_tx: index_metadata.tx, index_rx: index_metadata.rx, conns: []int.new(), out: []Outgoing.new(), log: []str.new(), serial: 0, mcps: []McpServer.new(), mcp_pending: []McpPending.new(), mcp_serial: 0, ctl_letters: []CtlLetter.new(), ctl_waits: []CtlWait.new(), ctl_serial: 0, catalog: JsonObject.new(), catalog_dirty: false, history_saved: JsonObject.new(), catalog_saved_at: 0, choices: []PendingChoice.new(), reviews: []Review.new(), route_obs: 0, route_git_pending: false, route_git_tx: route_git.tx, route_git_rx: route_git.rx, marks: []MachMark.new(), trees_tx: trees_chan.tx, trees_rx: trees_chan.rx, notes_tx: notes_chan.tx, notes_rx: notes_chan.rx, held: []HeldMsg.new(), reserved: []int.new()
+        handoffs: []ContextHandoff.new(), interrupts: []TurnInterrupt.new(), model_probes: []ModelProbe.new(), probe_results: JsonObject.new(), context_sizes: JsonObject.new(), settings, machine, work_mode, approval_policy, workdir, sessions: []Dialog.new(), restoring: JsonObject.new(), restore_jobs: []str.new(), pump_cursor: 0, restore_commands: []RestoreCommand.new(), legacy_open: []int.new(), restore_tx: restores.tx, restore_rx: restores.rx, orphan_swept_at: 0, orphan_running: false, orphan_tx: orphan_jobs.tx, orphan_rx: orphan_jobs.rx, index_tasks: JsonObject.new(), index_states: JsonObject.new(), index_signature: "", index_next: 0, index_pending: false, index_tx: index_metadata.tx, index_rx: index_metadata.rx, conns: []int.new(), out: []Outgoing.new(), log: []str.new(), serial: 0, mcps: []McpServer.new(), mcp_pending: []McpPending.new(), mcp_serial: 0, ctl_letters: []CtlLetter.new(), ctl_waits: []CtlWait.new(), ctl_serial: 0, catalog: JsonObject.new(), catalog_dirty: false, history_saved: JsonObject.new(), catalog_saved_at: 0, choices: []PendingChoice.new(), reviews: []Review.new(), route_obs: 0, check_pending: false, check_tx: checks.tx, check_rx: checks.rx, route_git_pending: false, route_git_tx: route_git.tx, route_git_rx: route_git.rx, marks: []MachMark.new(), trees_tx: trees_chan.tx, trees_rx: trees_chan.rx, notes_tx: notes_chan.tx, notes_rx: notes_chan.rx, held: []HeldMsg.new(), reserved: []int.new()
     }
     if settings.agents.len() > 0 { ro started = hub.start_mcp() }
     ro pg = settings.store == "pg"

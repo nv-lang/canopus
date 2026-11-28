@@ -502,21 +502,38 @@ fn Hub mut @task_continue(at int) Proc Detach Time -> () {
     ro s = @sessions[at]
     if s.turn.byte_len() == 0 || s.rt.continue_turn == s.turn || !@work_allowed(at, "execute") { return }
     if s.rt.kicks.len() > 0 || s.rt.queued_c || s.rt.waits_sib.byte_len() > 0 { return }
-    mut waiting = s.list_question.byte_len() > 0 || s.list_permission.byte_len() > 0
-    for w in @ctl_waits { if w.session == s.id { waiting = true } }
-    for question in @ctl_letters {
-        if question.from == s.id && question.qid.byte_len() > 0 {
-            mut answered = false
-            for reply in @ctl_letters { if reply.reply_to == question.qid && reply.to == s.id { answered = true } }
-            if !answered { waiting = true }
-        }
-    }
-    ro action = task_continue_action(s.rt, route_turn_succeeded(s.machine_tail), waiting, s.rt.continue_count)
+    if @task_continue_wake(s.id) || @interrupt_pending(s.id) { return }
+    ro waiting = @task_continue_waiting(at)
+    ro succeeded = route_turn_succeeded(s.machine_tail)
+    if succeeded && @task_check_step(at, waiting, false) { return }
+    ro action = task_continue_action(s.rt, succeeded, waiting != "", s.rt.continue_count)
     if action == "wait" { return }
     // Persist before enqueue: replay must not duplicate a reminder after restart.
     @task_continue_record(at, s.turn, s.rt.continue_count + 1, "")
     @rt_note(at, "▸ Задача ${s.rt.number} не завершена: агенту отправлено напоминание продолжить.")
     @ct_kick(at, s.rt.focus, "Задача ${s.rt.number} ещё активна. Продолжи порученную работу до проверенного результата: объяснение не завершает задачу (случай 311). Коммит, пуш, слияние и живая система требуют решения владельца. Если необходимо решение или есть внешняя блокировка, запиши canopus_step_note {stop: \"decision\" | \"external\", reason: \"точная причина и необходимый следующий шаг\"}; для готового результата укажи требуемое решение о приёмке. Явную паузу владельца соблюдай.")
+}
+
+fn Hub @task_continue_wake(session str) -> bool {
+    for letter in @ctl_letters {
+        if letter.to == session && letter.wake && !letter.taken { return true }
+    }
+    false
+}
+
+fn Hub @task_continue_waiting(at int) -> str {
+    ro s = @sessions[at]
+    if s.list_question != "" || s.list_permission != "" { return "Ожидается решение владельца." }
+    for p in @mcp_pending { if p.session == s.id { return "Ожидается ответ владельца." } }
+    for w in @ctl_waits { if w.session == s.id { return "Ожидается ответ или событие." } }
+    for question in @ctl_letters {
+        if question.from == s.id && question.qid.byte_len() > 0 {
+            mut answered = false
+            for reply in @ctl_letters { if reply.reply_to == question.qid && reply.to == s.id { answered = true } }
+            if !answered { return "Ожидается ответ на открытый вопрос." }
+        }
+    }
+    ""
 }
 
 // A waiting subtask starts when the one it waits for is done and the limit allows; one start for each look.

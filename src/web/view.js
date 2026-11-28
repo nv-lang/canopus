@@ -1597,6 +1597,7 @@ export function createView(doc, refs, deps) {
   const numberOf = (task) => task.number || task.id;
   function renderTaskCards(session) {
     const task = session.routeState && session.routeState.task;
+    const criterion = session.routeState?.criterion;
     const finish = finishPrompt(task);
     const ready = readyPrompt(task);
     const overlap = overlapPrompt(task);
@@ -1615,7 +1616,7 @@ export function createView(doc, refs, deps) {
     // у дочерней задачи эпика с веткой кнопка закрытия — «Влить в ветку эпика K», подпись называет ветку; иначе «Слить в main» (push в origin/main)
     const epicNo = kids.child ? kids.child.parentNo : '';
     const epicBranch = kids.child ? kids.child.parentBranch : '';
-    const sig = JSON.stringify([session.id, task && [task.id, task.number, task.branch, task.state, task.unmergedCommits, task.diff, task.tests, task.testsRunning, task.stale, task.idleDays], finish, ready, overlap, showDiff, deadline, stale, held, toParent, epicNo, epicBranch, wipStalePrompt(session.routeState) && !staleKept.has(`${session.id}:wip`) && session.routeState.where]);
+    const sig = JSON.stringify([session.id, criterion, session.state, task && [task.id, task.number, task.branch, task.state, task.unmergedCommits, task.diff, task.tests, task.testsRunning, task.stale, task.idleDays], finish, ready, overlap, showDiff, deadline, stale, held, toParent, epicNo, epicBranch, wipStalePrompt(session.routeState) && !staleKept.has(`${session.id}:wip`) && session.routeState.where]);
     if (sig === cardsSig) return;
     cardsSig = sig;
     const cards = [];
@@ -1624,6 +1625,15 @@ export function createView(doc, refs, deps) {
       b.addEventListener('click', run);
       return b;
     };
+    if (criterion) {
+      cards.push(h(doc, 'section', { class: 'route-card', 'data-card': 'criterion' },
+        h(doc, 'strong', { class: 'route-card-title', text: t('route.criterion_title') }),
+        criterion.reason ? h(doc, 'span', { class: 'route-card-text', text: criterion.reason }) : false,
+        h(doc, 'div', { class: 'route-actions' },
+          criterion.stopped
+            ? (isBusy(session.state) ? false : button(t('route.criterion_resume'), '', () => handlers.onRouteRun(session.id)))
+            : button(t('route.criterion_pause'), '', () => handlers.onRouteStop(session.id)))));
+    }
     // тесты не блокируют слияние, но видны: у ветки задачи и у main, с кнопкой «Прогнать тесты»
     const testsBlock = () => {
       const when = now();

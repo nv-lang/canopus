@@ -1,0 +1,173 @@
+module canopus.server
+
+import std.fs.{Fs, real_fs}
+import alula.engine.{Journal}
+import canopus.config.{install_paths}
+import canopus.storage.{file_journal, replay_history}
+import std.encoding.json.{JsonObject}
+import std.os.{Command, Os, real_os, temp_dir}
+
+fn check_event(turn str, version str, status str, generation int = 0) -> str =>
+    "{\"task\":\"335-fixture\",\"turn\":\"${turn}\",\"criterion\":\"${version}\",\"status\":\"${status}\",\"generation\":${generation},\"reason\":\"Результат проверки\"}"
+
+export fn scenario_task_check_state() -> () {
+    mut rt = route_session_new()
+    rt.task_id = "335-fixture"
+    rt.task_open = true
+    ro first = check_event("turn-1", "version-1", "failed")
+    ro second = check_event("turn-2", "version-1", "failed")
+    rt.apply("check_failed", first)
+    rt.apply("check_failed", second)
+    rt.apply("check_failed", first)
+    assert(rt.check.failures == 2 && rt.check.turn == "turn-2")
+    assert(rt.check.stop("", "") == "")
+    assert(rt.check.stop("Нужен ответ владельца", "") != "")
+    assert(rt.check.stop("", "HOLD") != "")
+    rt.apply("check_failed", check_event("turn-3", "version-1", "failed"))
+    assert(rt.check.failures == 3 && rt.check.stop("", "") != "")
+    rt.apply("check_failed", check_event("stale", "unconfirmed-version", "stale"))
+    assert(rt.check.failures == 3 && rt.check.version == "version-1")
+    rt.apply("check_failed", check_event("turn-4", "version-2", "failed"))
+    assert(rt.check.failures == 1 && rt.check.version == "version-2")
+    rt.apply("task_check_control", "{\"action\":\"pause\"}")
+    rt.apply("task_continuation", "{\"turn\":\"\",\"count\":0,\"reason\":\"\"}")
+    rt.normalize()
+    assert(rt.check.paused && rt.check.stop("", "") != "")
+    rt.apply("task_check_control", "{\"action\":\"resume\"}")
+    rt.apply("check_failed", second)
+    assert(!rt.check.paused && rt.check.failures == 0)
+    rt.apply("check_passed", check_event("turn-4", "version-2", "passed", generation: 2))
+    assert(rt.check.status == "passed" && rt.check.stop("", "") != "")
+    assert(rt.task_open && !rt.task_closed)
+}
+
+fn install_check_fixture() Proc -> () {
+    ro installed = with Os = real_os() { with Fs = real_fs() { install_paths() } }
+    ro root = kit_repo_root().display()
+    if installed.root == root { return }
+    ro temporary = with Os = real_os() { temp_dir().display().replace("\\", "/") }
+    assert(kit_real_path(installed.root).starts_with("${kit_real_path(temporary)}/"))
+    mut command = Command.new("python3")
+    command.arg("-I")
+    command.arg("${root}/scripts/task-check.py")
+    command.arg("--policy-paths")
+    ro paths = command_output_timed(command, 5000).out
+    assert(paths.ok)
+    mut assets = ["task-check.py", "checks.toml"]
+    for item in paths.text.split("\n") { assets.push(item) }
+    for asset in assets {
+        assert(write_file("${installed.root}/scripts/${asset}", ""))
+        assert(io_copy_file("${root}/scripts/${asset}", "${installed.root}/scripts/${asset}"))
+    }
+}
+
+fn check_fixture(mut rig Rig, trace str, expected int) Proc Detach Time -> () {
+    rk_project_page(rig, 1, trace, "{\"name\":\"Проверка критерия\",\"agent\":\"opencode\"}")
+    ro made = rig.hub.route_make_task(trace, "interactive", "Проверка критерия", true)
+    assert(made.ok && made.worktree != "")
+    mut open = JsonObject.new()
+    js(open, "id", made.id)
+    js(open, "number", made.number)
+    js(open, "dir", made.dir)
+    js(open, "shown", made.shown)
+    js(open, "title", "Проверка критерия")
+    js(open, "worktree", made.worktree)
+    js(open, "branch", made.branch)
+    js(open, "base", made.base)
+    js(open, "repo_dir", made.repo_dir)
+    rig.hub.rt_task_op(0, "open", open)
+    assert(write_file("${made.dir}/input/message.md", "```check\ncheck: text-hygiene\nexpect: exit ${expected}\n```\n"))
+}
+
+fn check_receipts(settings ServerSettings, trace str, kind str) -> int {
+    ro entries = with Journal = file_journal(settings.data_dir, trace) { Journal.read_all() }
+    if entries.len() == 0 { return 0 }
+    mut count = 0
+    for event in replay_history(entries, entries[0].trace, 2147483647) {
+        if event.name == kind { count += 1 }
+    }
+    count
+}
+
+export fn scenario_task_check_green() Proc Detach Time Net Fs Os -> () {
+    install_check_fixture()
+    ro settings = kit_routes_git("task-check-green")
+    mut rig = rig_open(settings)
+    rig.attach(1)
+    ro trace = "s-check-green"
+    check_fixture(rig, trace, 0)
+    rig.hub.ctl_letter(trace, "Исполнитель", "owner", "Нужно решение", false, "q335", "")
+    rig.page(1, "user_message", trace, "{\"text\":\"Проверь критерий\"}")
+    assert(rig.until("Ожидается ответ на открытый вопрос.", 15000))
+    assert(check_receipts(settings, trace, "check_passed") == 0)
+    rig.hub.ctl_letter("owner", "Владелец", trace, "Ответ", false, "", "q335")
+    rig.page(1, "route_stop", trace, "{}")
+    rig.page(1, "user_message", trace, "{\"text\":\"Сообщение во время паузы\"}")
+    assert(rig.until(KIT_DONE, 15000))
+    rig.run(300)
+    assert(rig.hub.sessions[0].rt.check.paused)
+    assert(check_receipts(settings, trace, "check_passed") == 0)
+    rig.page(1, "route_run", trace, "{}")
+    assert(rig.until("Машинный критерий выполнен", 15000))
+    rig.run(400)
+    assert(check_receipts(settings, trace, "check_passed") == 1)
+    assert(kit_with(rig.lines_for(1), "\"kind\":\"user_message\"") == 2)
+    assert(rig.hub.sessions[0].rt.task_open && !rig.hub.sessions[0].rt.task_closed)
+    // The owner can accept from the existing task gate without another agent turn.
+    rig.page(1, "route_task_close", trace, "{}")
+    rig.run(200)
+    assert(rig.hub.sessions[0].rt.task_closed)
+    assert(check_receipts(settings, trace, "user_message") == 2)
+    rig.shut()
+}
+
+export fn scenario_task_check_restart() Proc Detach Time Net Fs Os -> () {
+    install_check_fixture()
+    ro settings = kit_routes_git("task-check-red")
+    mut rig = rig_open(settings)
+    rig.attach(1)
+    ro trace = "s-check-red"
+    check_fixture(rig, trace, 1)
+    rig.page(1, "user_message", trace, "{\"text\":\"Машинная проверка должна упасть\"}")
+    assert(rig.until(KIT_DONE, 15000))
+    ro deadline = now_millis() + 15000
+    while rig.hub.sessions[0].rt.check.failures == 0 && now_millis() < deadline {
+        // Stop between the result and the dispatch claim.
+        rig.hub.task_check_collect()
+        10.to_millis().sleep()
+    }
+    assert(rig.hub.sessions[0].rt.check.failures == 1)
+    assert(check_receipts(settings, trace, "check_failed") == 1)
+    rig.shut()
+    mut resumed = rig_open(settings)
+    resumed.attach(2)
+    assert(resumed.until("Пауза: три неуспеха критерия.", 25000))
+    resumed.run(500)
+    ro rt = resumed.hub.sessions[0].rt
+    assert(rt.check.failures == 3 && rt.continue_reason != "" && !rt.task_closed)
+    assert(check_receipts(settings, trace, "check_failed") == 3)
+    // The owner turn and exactly two service turns, even across restart.
+    assert(check_receipts(settings, trace, "user_message") == 3)
+    resumed.shut()
+}
+
+export fn scenario_task_check_continuations() Proc Detach Time Net Fs Os -> () {
+    install_check_fixture()
+    for input in ["Проверка пробуждения", "provider-query"] {
+        ro settings = kit_routes_git(if input == "provider-query" { "task-check-332" } else { "task-check-310" })
+        mut rig = rig_open(settings)
+        rig.attach(1)
+        ro trace = "s-check-continuations"
+        check_fixture(rig, trace, 0)
+        rig.page(1, "user_message", trace, "{\"text\":\"${input}\"}")
+        if input != "provider-query" {
+            rig.hub.ctl_letter("", "Хаб", trace, "Запланированное пробуждение", true, "", "")
+        }
+        assert(rig.until("Машинный критерий выполнен", 20000))
+        rig.run(400)
+        assert(check_receipts(settings, trace, "user_message") == 2)
+        assert(check_receipts(settings, trace, "check_passed") == 1)
+        assert(check_receipts(settings, trace, "check_failed") == 0)
+        rig.shut()
+    }
+}

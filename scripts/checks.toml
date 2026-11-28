@@ -1,0 +1,40 @@
+# The installation supplies this registry. Task cards only select the ID.
+version = 1
+assets = [
+  "oracle-workarounds.py",
+  "guards/lib/guardlib.py",
+  "guards/lib/machine_paths.py",
+  "guards/check-md-links.py",
+  "guards/check-no-legacy-name.py",
+  "guards/check-no-status-table.py",
+  "guards/check-open-questions.py",
+  "guards/check-oracle-workarounds.py",
+  "guards/check-release-kit.py",
+  "guards/check-shell-timeout.py",
+  "guards/check-task-docs.py",
+  "guards/check-tech-writing.py",
+  "guards/check-tests-have-checks.py",
+  "guards/check-text-hygiene.py",
+  "guards/check-wiring.py",
+]
+
+[checks.guards-green]
+version = 1
+commands = [
+  ["python3", "/policy/scripts/guards/check-md-links.py"],
+  ["python3", "/policy/scripts/guards/check-no-legacy-name.py"],
+  ["python3", "/policy/scripts/guards/check-no-status-table.py"],
+  ["python3", "/policy/scripts/guards/check-open-questions.py"],
+  ["python3", "/policy/scripts/guards/check-oracle-workarounds.py"],
+  ["python3", "/policy/scripts/guards/check-release-kit.py"],
+  ["python3", "/policy/scripts/guards/check-shell-timeout.py"],
+  ["python3", "/policy/scripts/guards/check-task-docs.py"],
+  ["python3", "/policy/scripts/guards/check-tech-writing.py", "--all-docs"],
+  ["python3", "/policy/scripts/guards/check-tests-have-checks.py"],
+  ["python3", "/policy/scripts/guards/check-text-hygiene.py"],
+  ["python3", "/policy/scripts/guards/check-wiring.py"],
+]
+
+[checks.text-hygiene]
+version = 1
+commands = [["python3", "/policy/scripts/guards/check-text-hygiene.py"]]

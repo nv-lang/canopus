@@ -167,7 +167,16 @@ fn Hub @route_state_text(at int) -> str {
     ro suggest = task_too_big(s.rt.subs.len(), s.rt.messages, @settings.route_task_limit, @settings.route_task_messages)
     mut required = []bool.new()
     for step in doc.steps { required.push(step.required) }
-    @ct_view(at, route_view_text(s.rt, @route_titles(doc), progress, suggest, now_millis(), s.rt.extra, required: required))
+    ro base = route_view_text(s.rt, @route_titles(doc), progress, suggest, now_millis(), s.rt.extra, required: required)
+    if s.rt.tstate != "active" || s.rt.check.status == "absent" || !task_check_declared(s.rt, task_check_card(s.rt)) { return @ct_view(at, base) }
+    mut view = jobject(base) ?? JsonObject.new()
+    mut criterion = JsonObject.new()
+    ro reason = if s.rt.check.paused { "Пауза владельца" }
+        else if s.rt.continue_reason != "" { s.rt.continue_reason } else { s.rt.check.reason }
+    js(criterion, "reason", reason)
+    jput(criterion, "stopped", JsonValue.bool(s.rt.check.paused || s.rt.continue_reason != ""))
+    jput(view, "criterion", JsonValue.object(criterion))
+    @ct_view(at, JsonValue.object(view).to_str())
 }
 
 fn Hub mut @route_line(conn int, id str, input str) Time -> () {
@@ -691,6 +700,10 @@ fn Hub mut @route_run(trace str, source Option[JsonObject]) Proc Detach Time -> 
     if at < 0 { return }
     ro s = @sessions[at]
     ro doc = @route_doc(s.rt.route)
+    if s.rt.route == "interactive" && task_check_declared(s.rt, task_check_card(s.rt)) {
+        if @takes_message_at(at) { @task_check_control(at, "resume") }
+        return
+    }
     if s.rt.route == "interactive" || doc.steps.len() == 0 {
         @tell_error(0, trace, s.engine.step_number(), "", "в этом режиме нет шагов: выберите «Быстрая задача» или «Полный путь»")
         return
@@ -703,6 +716,7 @@ fn Hub mut @route_run(trace str, source Option[JsonObject]) Proc Detach Time -> 
     if s.dispatch.provider_attempts > 0 || s.dispatch.provider_pause != "" {
         @provider_record(at, "reset", "", "", 0, "")
     }
+    if task_check_declared(s.rt, task_check_card(s.rt)) { @task_check_control(at, "resume") }
     // all steps done before: a new pass
     mut all_done = true
     mut i = 0
@@ -751,7 +765,12 @@ fn Hub mut @route_stop(at int) Proc Detach Time -> () {
 fn Hub mut @route_stop_signal(trace str) Proc Detach Time -> () {
     ro at = @find(trace)
     if at >= 0 {
-        @task_continue_record(at, @sessions[at].turn, @sessions[at].rt.continue_count, "Пауза владельца")
+        ro s = @sessions[at]
+        if task_check_declared(s.rt, task_check_card(s.rt)) {
+            @task_check_control(at, "pause")
+            @rt_note(at, "Пауза владельца")
+        }
+        @task_continue_record(at, s.turn, s.rt.continue_count, "Пауза владельца")
         @route_stop(at)
     }
 }
@@ -964,11 +983,20 @@ fn Hub mut @route_run_finished(at int) Proc Detach Time -> () {
         @route_broadcast(at, false)
         return
     }
+    ro requires_check = s.rt.check.status != "absent" && task_check_declared(s.rt, task_check_card(s.rt))
+    if requires_check && (s.rt.check.turn != s.turn || s.rt.check.status != "passed") {
+        ro reason = if s.rt.check.reason == "" { "Закрытие ожидает успешную проверку критерия." } else { s.rt.check.reason }
+        @rt_note(at, reason)
+        @route_broadcast(at, false)
+        return
+    }
     if s.rt.worktree.byte_len() > 0 {
         mut me = @sessions[at]
         me.rt.unmerged = tk_unmerged(me.rt.worktree)
         @sessions[at] = me
         @rt_state(at, "ready", "")
+    } else if requires_check {
+        @rt_note(at, "Закрытие ожидает рабочее дерево.")
     } else {
         mut o = JsonObject.new()
         @rt_task_op(at, "close", o)
@@ -1014,9 +1042,11 @@ fn Hub mut @route_tick(at int) Proc Detach Time -> () {
     mut s = @sessions[at]
     if s.rt.awaiting {
         if !@takes_message_at(at) { return }
+        ro succeeded = route_turn_succeeded(s.machine_tail)
+        if succeeded && @task_check_step(at, @task_continue_waiting(at), true) { return }
         s.rt.awaiting = false
         @sessions[at] = s
-        if route_turn_succeeded(s.machine_tail) {
+        if succeeded {
             @route_turn_done(at)
         } else {
             @route_stop(at)
@@ -1912,6 +1942,7 @@ fn task_slug_of(id str) -> str {
 /// The modes of work at every pump: the steps, the reviews, the observer of the progress files (every 2 s).
 fn Hub mut @route_pump() Proc Detach Time -> () {
     @route_git_collect()
+    @task_check_collect()
     mut at = 0
     while at < @sessions.len() {
         ro s = @sessions[at]

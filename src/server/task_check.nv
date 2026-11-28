@@ -1,0 +1,203 @@
+// Task 335: the receipt in the session journal is the authority for retries.
+module canopus.server
+
+import canopus.config.{install_paths}
+import canopus.process.{ShellRaw, command_run_timed}
+import std.concurrency.nvchan.{ChanTx}
+import std.fs.{Fs, Path, real_fs, symlink_metadata}
+import std.os.{Command, Os, real_os}
+import std.encoding.json.{JsonObject, JsonValue}
+
+const CHECK_FAILURE_LIMIT = 3
+
+type TaskCheckState {
+    turn str,
+    version str,
+    failures int,
+    status str,
+    reason str,
+    paused bool,
+    generation int,
+    seen JsonObject
+}
+
+fn task_check_new() -> TaskCheckState => { turn: "", version: "", failures: 0, status: "", reason: "", paused: false, generation: 0, seen: JsonObject.new() }
+
+fn TaskCheckState mut @result(event JsonObject) -> () {
+    ro turn = jtext(event, "turn")
+    if turn == "" || jint(event, "generation") != @generation || @seen.get(turn).is_some() { return }
+    jput(@seen, turn, JsonValue.bool(true))
+    ro version = jtext(event, "criterion")
+    @status = jtext(event, "status")
+    if version != "" && version != @version && @status != "stale" {
+        @version = version
+        @failures = 0
+    }
+    @turn = turn
+    @reason = jtext(event, "reason")
+    if @status == "failed" { @failures += 1 }
+}
+
+fn TaskCheckState @stop(waiting str, obstruction str) -> str {
+    if @paused { return "Пауза владельца" }
+    if waiting != "" { return waiting }
+    if obstruction != "" { return obstruction }
+    if @status == "failed" && @failures < CHECK_FAILURE_LIMIT { return "" }
+    @reason
+}
+
+type TaskCheckRequest { session str, task str, turn str, card str, tree str, generation int, stopped_version str }
+type TaskCheckResult { request TaskCheckRequest, raw ShellRaw }
+
+fn task_check_job(tx ChanTx[TaskCheckResult], request TaskCheckRequest, script str) Proc Time -> () {
+    mut command = Command.new("python3")
+    command.arg("-I")
+    command.arg(script)
+    command.arg(request.card)
+    command.arg(request.tree)
+    command.arg(request.stopped_version)
+    ro raw = command_run_timed(command, 95000)
+    ro sent = tx.send(TaskCheckResult { request, raw })
+}
+
+fn criterion_candidate(text str) -> bool {
+    for raw in text.split("\n") {
+        mut line = raw.trim_ascii()
+        ro fence = if line.starts_with("```") { "`" } else if line.starts_with("~~~") { "~" } else { "" }
+        if fence == "" { continue }
+        while line.starts_with(fence) { line = line[1..] }
+        line = line.trim_ascii()
+        if line == "check" || line.starts_with("check ") || line.starts_with("check\t") { return true }
+    }
+    false
+}
+
+fn task_check_card(rt RouteSession) -> str {
+    if !rt.task_open || rt.task_closed || rt.task_dir == "" { return "" }
+    for name in ["input/message.md", "task/message.md", "message.md", rt.msg_file(1)] {
+        ro path = "${rt.task_dir}/${name}"
+        if path_there(path) { return path }
+    }
+    ""
+}
+
+fn task_check_declared(rt RouteSession, card str) -> bool {
+    if rt.check.version != "" { return true }
+    if card == "" { return false }
+    // D454: reject special files and oversized cards without reading them on the hub fiber.
+    ro readable = with Fs = real_fs() {
+        match symlink_metadata(Path.from_bytes(card.bytes())) {
+            Ok(meta) => meta.is_file() && meta.len() <= 1048576
+            Err(e) => false
+        }
+    }
+    !readable || criterion_candidate(read_file(card) ?? "")
+}
+
+fn Hub mut @task_check_control(at int, action str) Proc Detach Time -> () {
+    mut record = JsonObject.new()
+    js(record, "action", action)
+    @rt_journal(at, "task_check_control", JsonValue.object(record).to_str())
+    @route_broadcast(at, false)
+}
+
+fn Hub mut @task_check_collect() Proc Detach Time -> () {
+    ro done = match @check_rx.try_recv() { Some(value) => value, None => return }
+    @check_pending = false
+    ro request = done.request
+    ro at = @find(request.session)
+    if at < 0 { return }
+    ro s = @sessions[at]
+    if !s.rt.task_open || s.rt.task_closed || s.rt.task_id != request.task ||
+        s.rt.check.turn == request.turn || s.rt.check.generation != request.generation { return }
+    mut report = JsonObject.new()
+    if done.raw.finished && done.raw.code == 0 {
+        report = jobject(done.raw.out.to_str_lossy()) ?? JsonObject.new()
+    }
+    if jtext(report, "status") == "" {
+        js(report, "status", "error")
+        js(report, "reason", "Раннер критерия недоступен или завершился с ошибкой.")
+    }
+    if jtext(report, "status") == "absent" && s.rt.check.version != "" {
+        js(report, "status", "error")
+        js(report, "reason", "Утверждённый блок check исчез из карточки задачи.")
+    }
+    if s.turn != request.turn || s.rt.worktree != request.tree || task_check_card(s.rt) != request.card {
+        js(report, "status", "stale")
+        js(report, "reason", "Ход, карточка или рабочее дерево задачи сменились во время проверки.")
+    }
+    js(report, "task", request.task)
+    js(report, "turn", request.turn)
+    ji(report, "generation", request.generation)
+    ro status = jtext(report, "status")
+    ro version = jtext(report, "criterion")
+    ro next = if status != "stale" && version != "" && version != s.rt.check.version { 0 } else { s.rt.check.failures }
+    ji(report, "failures", next + (if status == "failed" { 1 } else { 0 }))
+    if status == "failed" && next + 1 >= CHECK_FAILURE_LIMIT {
+        js(report, "reason", "Пауза: три неуспеха критерия. ${jtext(report, "reason")}")
+    }
+    if status == "absent" {
+        // An example inside a Markdown fence is not a declared check.
+        mut updated = @sessions[at]
+        updated.rt.check.turn = request.turn
+        updated.rt.check.status = "absent"
+        @sessions[at] = updated
+        return
+    }
+    @rt_journal(at, if status == "passed" { "check_passed" } else { "check_failed" }, JsonValue.object(report).to_str())
+    @route_broadcast(at, false)
+}
+
+// Returns true when the ordinary route/continuation must wait. The check
+// itself never closes a task, including fast routes with no result worktree.
+fn Hub mut @task_check_step(at int, waiting str, route_progress bool) Proc Detach Time -> bool {
+    ro s = @sessions[at]
+    if !s.rt.task_open || s.rt.task_closed || s.rt.tstate != "active" || s.turn == "" { return false }
+    if s.rt.check.turn == s.turn && s.rt.check.status == "absent" { return false }
+    ro card = task_check_card(s.rt)
+    if !task_check_declared(s.rt, card) && s.rt.check.turn != s.turn { return false }
+    if s.rt.check.paused || s.rt.continue_reason != "" {
+        if route_progress { @route_stop(at) }
+        return true
+    }
+    if s.rt.continue_turn == s.turn { return true }
+    if waiting != "" {
+        @task_continue_record(at, s.turn, s.rt.continue_count, waiting)
+        @rt_note(at, waiting)
+        if route_progress { @route_stop(at) }
+        return true
+    }
+    if s.rt.check.turn == s.turn {
+        ro problem = @execution_problem(at)
+        ro reason = s.rt.check.stop("", problem)
+        if route_progress && problem == "" && (s.rt.check.status == "passed" || reason == "") { return false }
+        if reason != "" {
+            @task_continue_record(at, s.turn, s.rt.continue_count, reason)
+            @rt_note(at, reason)
+            if route_progress { @route_stop(at) }
+        } else {
+            @task_continue_record(at, s.turn, s.rt.continue_count + 1, "")
+            @rt_note(at, s.rt.check.reason)
+            @ct_kick(at, s.rt.focus, "${s.rt.check.reason} Продолжи задачу ${s.rt.number} в своём дереве. Соблюдай исходные разрешения и ворота процесса.")
+        }
+        return true
+    }
+    if @check_pending { return true }
+    ro execution = @execution_problem(at)
+    if execution != "" {
+        @task_continue_record(at, s.turn, s.rt.continue_count, execution)
+        @rt_note(at, execution)
+        if route_progress { @route_stop(at) }
+        return true
+    }
+    // D454: installation-owned script. Never resolve executable policy in the task tree.
+    ro installed = with Os = real_os() { with Fs = real_fs() { install_paths() } }
+    ro script = "${installed.root}/scripts/task-check.py"
+    ro request = TaskCheckRequest { session: s.id, task: s.rt.task_id, turn: s.turn, card, tree: s.rt.worktree,
+        generation: s.rt.check.generation,
+        stopped_version: if s.rt.check.failures >= CHECK_FAILURE_LIMIT { s.rt.check.version } else { "" } }
+    ro tx = @check_tx
+    @check_pending = true
+    detach { task_check_job(tx, request, script) }
+    true
+}

@@ -52,6 +52,18 @@ cp "$root/scripts/start-live.ps1" "$kit/start.ps1" || exit 1
 for asset in scripts/native-acp-catalog.mjs scripts/zai-acp.mjs scripts/acp-silence.mjs scripts/hub-processes.ps1 scripts/zcode-acp/package.json scripts/zcode-acp/package-lock.json scripts/task-store.mjs opencode-plugin/shared-task-store.ts opencode-plugin/shared-task-config.ts opencode-plugin/shared-task-snapshot.ts opencode-plugin/task-numbers.ts; do
   cp "$root/$asset" "$kit/$asset" || { echo "FAIL: shared task adapter not copied: $asset"; exit 1; }
 done
+if [ -f "$root/scripts/checks.toml" ]; then
+  for asset in checks.toml task-check.py task-check.Dockerfile; do
+    cp "$root/scripts/$asset" "$kit/scripts/" || exit 1
+  done
+  policy=$("$PYTHON" -I "$root/scripts/task-check.py" --policy-paths) || exit 1
+  while IFS= read -r asset; do
+    mkdir -p "$(dirname "$kit/scripts/$asset")" || exit 1
+    cp "$root/scripts/$asset" "$kit/scripts/$asset" || exit 1
+  done <<EOF
+$policy
+EOF
+fi
 for name in dialog.alula.json dialog.alula.md work-mode.alula.json work-mode.alula.md family-approval.alula.json family-approval.alula.md journal.md; do
   cp "$root/machines/product/$name" "$kit/machines/product/" || { echo "FAIL: machines/product/$name не скопирован"; exit 1; }
 done

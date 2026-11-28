@@ -390,6 +390,7 @@ export type DiffRec { path str, added int, removed int }
 
 /// RouteSession: the mode of a session and its task. Rebuilt from the journal (`apply`); `running`, `current`, `awaiting`, `reviewing` live only in the process.
 export type RouteSession {
+    check TaskCheckState,
     continue_turn str,
     continue_count int,
     continue_reason str,
@@ -505,7 +506,7 @@ export type RouteSession {
 }
 
 export fn route_session_new() -> RouteSession => {
-    continue_turn: "", continue_count: 0, continue_reason: "",
+    check: task_check_new(), continue_turn: "", continue_count: 0, continue_reason: "",
     run_source: None, route: "interactive", told: false, states: []str.new(), running: false, current: -1, awaiting: false, reviewing: false,
     task_open: false, task_closed: false, by_crew: false, task_id: "", number: "", task_dir: "", task_shown: "", branch: "", worktree: "", title: "",
     messages: 0, subs: []SubRec.new(), merged_into: 0, force: "", last_state: "", last_check: 0, cwd_now: "", base: "", tstate: "active", tnote: "", unmerged: 0, unmerged_at: 0,
@@ -617,6 +618,7 @@ export fn RouteSession mut @normalize() -> () {
 }
 
 fn RouteSession mut @reset_task() -> () {
+    @check = task_check_new()
     @continue_turn = ""
     @continue_count = 0
     @continue_reason = ""
@@ -678,6 +680,28 @@ fn RouteSession mut @change_sub(n int, f str, value str, flag bool) -> () {
 /// Apply a signal of the journal (`route_set`, `route_task`, `route_step`); any other name changes nothing.
 export fn RouteSession mut @apply(name str, text str) -> () {
     ro o = rj_object(text)
+    if name == "check_passed" || name == "check_failed" {
+        if jtext(o, "task") == @task_id { @check.result(o) }
+        return
+    }
+    if name == "task_check_control" {
+        if jtext(o, "action") == "pause" {
+            @check.paused = true
+            @check.generation += 1
+        }
+        if jtext(o, "action") == "resume" {
+            @check.paused = false
+            @check.generation += 1
+            @check.turn = ""
+            @check.seen = JsonObject.new()
+            @check.failures = 0
+            @check.reason = ""
+            @check.status = ""
+            @continue_turn = ""
+            @continue_reason = ""
+        }
+        return
+    }
     if name == "task_continuation" {
         @continue_turn = jtext(o, "turn")
         @continue_count = rj_int(o, "count")

@@ -11,8 +11,9 @@
     «- Файл:»/«- Хеш:» таблицы) равен definitions_hash файла библиотеки (SHA-256 нормализованного
     текста, 12 букв); подключённая библиотека есть. С --kit <папка> — то же на папке комплекта и
     его состав: canopus.exe, machines/product/ с dialog.alula.json,
-    dialog.alula.md, journal.md и подключёнными библиотеками; лишнего нет (tests/, чата,
-    других файлов).
+    dialog.alula.md, journal.md и подключёнными библиотеками. Для деревьев с реестром
+    scripts/checks.toml комплект включает реестр, раннер, Dockerfile и указанные в реестре
+    файлы политики. Остальные файлы должны входить в явный список комплекта.
 Не проверяет: что программы комплекта собраны из этого дерева, смысл машин (это alula test и тесты
     src/product_machines).
 Правило: задача 248 (машины продукта читаются с диска, релизный комплект); AGENTS.md п.14.
@@ -34,6 +35,7 @@ import guardlib  # noqa: E402
 
 PREFIX = "machines/product/"
 KIT_PROGRAMS = ("kimi-preparation.mjs", "kimi-preparation.md", "preparation-research.mjs", "start.ps1", "scripts/native-acp-catalog.mjs", "scripts/zai-acp.mjs", "scripts/acp-silence.mjs", "scripts/hub-processes.ps1", "scripts/zcode-acp/package.json", "scripts/zcode-acp/package-lock.json", "canopus.exe", "preparation-agent.mjs", 'scripts/task-store.mjs', 'opencode-plugin/shared-task-store.ts', 'opencode-plugin/shared-task-config.ts', 'opencode-plugin/shared-task-snapshot.ts', 'opencode-plugin/task-numbers.ts')
+KIT_CHECKS = ("scripts/checks.toml", "scripts/task-check.py", "scripts/task-check.Dockerfile")
 KIT_ROUTES = tuple("docs/routes/%s.md" % name for name in ("fast", "full", "interactive", "planning"))
 KIT_MACHINES = ("dialog.alula.json", "dialog.alula.md", "work-mode.alula.json", "work-mode.alula.md", "family-approval.alula.json", "family-approval.alula.md", "journal.md")
 LOCK_VERSION = re.compile(r'name\s*=\s*"alula"[^\[]*?\bversion\s*=\s*"(\d+)\.(\d+)', re.S)
@@ -131,6 +133,22 @@ def judge_tree(source, args, rep):
     return guardlib.Outcome(count=len(files))
 
 
+def criterion_files(root):
+    registry = os.path.join(root, KIT_CHECKS[0])
+    if not os.path.isfile(registry):
+        return ()
+    import tomllib
+
+    with open(registry, "rb") as stream:
+        assets = tomllib.load(stream)["assets"]
+    if not isinstance(assets, list) or any(
+        not isinstance(asset, str) or any(part in ("", ".", "..") for part in asset.split("/"))
+        or "\\" in asset or ":" in asset or "\n" in asset for asset in assets
+    ):
+        raise ValueError("invalid asset list")
+    return (*KIT_CHECKS, *("scripts/" + asset for asset in assets))
+
+
 def judge_kit(kit, root, rep):
     lock = os.path.join(root, "nova.lock.toml")
     version = None
@@ -157,7 +175,12 @@ def judge_kit(kit, root, rep):
         if path.startswith(PREFIX):
             with open(os.path.join(kit, path), encoding="utf-8", errors="replace", newline="") as f:
                 files[path[len(PREFIX):]] = f.read()
-    for program in KIT_PROGRAMS:
+    try:
+        programs = KIT_PROGRAMS + criterion_files(root)
+    except (KeyError, OSError, TypeError, ValueError) as exc:
+        rep.add(KIT_CHECKS[0], None, "kit-policy", "не удалось прочитать список файлов политики (%s)" % type(exc).__name__)
+        return len(listed)
+    for program in programs:
         full = os.path.join(kit, program)
         if not os.path.isfile(full) or os.path.getsize(full) == 0:
             rep.add("%s/%s" % (kit, program), None, "kit-program", "программы нет в комплекте")
@@ -184,10 +207,10 @@ def judge_kit(kit, root, rep):
                 needed.add(lib)
     for path in listed:
         inside = path[len(PREFIX):] if path.startswith(PREFIX) else None
-        if path in KIT_PROGRAMS or path in KIT_ROUTES or (inside is not None and inside in needed):
+        if path in programs or path in KIT_ROUTES or (inside is not None and inside in needed):
             continue
         rep.add("%s/%s" % (kit, path), None, "kit-extra",
-                "лишний файл в комплекте: в нём только программы и machines/product без tests/ и чата")
+                "лишний файл в комплекте: файл не входит в состав релиза")
     judge_machines(files, version, rep, lambda name: "%s/%s%s" % (kit, PREFIX, name))
     return len(listed)
 
