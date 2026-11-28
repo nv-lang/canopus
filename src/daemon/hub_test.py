@@ -42,10 +42,11 @@ def fake_agent():
             with Path("agent-prompts").open("a") as transcript:
                 transcript.write(json.dumps({"pid": os.getpid(), "rpc": request["id"], "prompt": prompt}) + "\n")
             chunk("daemon-echo")
-            if "urgent correction" not in prompt and ("interrupt-probe" in prompt or "interrupt-refusal-probe" in prompt):
+            if any(part.get("text", "").endswith(("interrupt-probe", "interrupt-refusal-probe"))
+                   for part in request["params"]["prompt"]):
                 interrupted = request["id"], "interrupt-refusal-probe" in prompt
                 continue
-            if "restart-probe" in prompt:
+            if any(part.get("text", "").endswith("restart-probe") for part in request["params"]["prompt"]):
                 wait_for(lambda: Path("continue-turn").exists())
                 chunk("after-restart")
             if "remote-break-probe" in prompt:
@@ -189,7 +190,7 @@ def interrupt_turn(lines, page, session_dir, original, refused):
 
 
 @contextmanager
-def daemon_endpoint(canopus, root, key_file, remote, agent_dir):
+def daemon_endpoint(canopus, root, key_file, remote, agent_dir, daemon_id="local"):
     if remote:
         host, port, source, daemon_id = remote
         keys = key_file.parent / "daemon-keys"
@@ -204,7 +205,7 @@ def daemon_endpoint(canopus, root, key_file, remote, agent_dir):
         return
     key_file.write_text(secrets.token_hex(32))
     with subprocess.Popen(
-        [canopus, "daemon", "--port", "0", "--key-file", key_file],
+        [canopus, "daemon", "--id", daemon_id, "--port", "0", "--key-file", key_file],
         stdout=subprocess.PIPE, cwd=root,
     ) as daemon:
         try:
@@ -394,11 +395,135 @@ def smoke(canopus, hub_binary, root, restart=False, late_ack=False, graceful=Fal
                 remove_fixture(lines, page, agent_pid)
 
 
+def migration(canopus, hub_binary, root):
+    repo = Path(__file__).resolve().parents[2]
+    (root / "machines").symlink_to(repo / "machines", target_is_directory=True)
+    (root / "target").mkdir()
+    hub_path = root / "target/canopus-hub"
+    hub_path.symlink_to(hub_binary)
+    keys = root / "state/daemon-keys"
+    keys.mkdir(parents=True, mode=0o700)
+    config = root / "config.json"
+    config.write_text(json.dumps({"agents": [{
+        "id": "fixture", "label": "Fixture", "program": sys.executable,
+        "args": [str(Path(__file__).resolve()), "--agent"], "ask": "off",
+    }]}))
+    local_dir, target_dir = root / "local", root / "selectel"
+    local_dir.mkdir()
+    target_dir.mkdir()
+    local_key, target_key, unreachable_key = (keys / f"{name}.key" for name in ("local", "selectel", "unreachable"))
+    for key in (local_key, target_key, unreachable_key):
+        key.touch(mode=0o600)
+    unreachable_key.write_text(secrets.token_hex(32))
+
+    def read_event(lines, kind):
+        wire, _ = lines.until(lambda line: f'"kind":"{kind}"' in line)
+        return page_event(wire)
+
+    def prompts(directory):
+        return [json.loads(line) for line in (directory / "agent-prompts").read_text().splitlines()]
+
+    with daemon_endpoint(canopus, root, local_key, None, local_dir) as (local, local_pid), \
+            daemon_endpoint(canopus, root, target_key, None, target_dir, daemon_id="selectel") as (target, target_pid), \
+            socket.socket() as unavailable:
+        unavailable.bind(("127.0.0.1", 0))
+        daemon_config = root / "state/daemon.json"
+        endpoints = [
+            dict(local, id="local", host="127.0.0.1", cwd=str(local_dir)),
+            dict(target, id="selectel", host="127.0.0.1", cwd=str(target_dir)),
+            dict(id="unreachable", host="127.0.0.1", port=unavailable.getsockname()[1], cwd=str(target_dir)),
+        ]
+        daemon_config.write_text(json.dumps({"daemons": endpoints}))
+        with running_hub(hub_path, config, root) as (hub, lines, page):
+            page("session_created", name="Migration fixture", agent="fixture", daemon_id="local")
+            assert read_event(lines, "session_created")["input"]["daemon_id"] == "local"
+            page("user_message", text="Confirmed result on local")
+            read_event(lines, "agent_done")
+            page("user_message", text="interrupt-probe")
+            read_event(lines, "agent_chunk")
+            page("user_message", text="/move selectel")
+            error = read_event(lines, "error")
+            assert "cancel" in error["input"]["message"], error
+            assert not (target_dir / "agent-prompts").exists()
+            page("cancel")
+            read_event(lines, "cancel")
+
+            source_agent = prompts(local_dir)[0]["pid"]
+            page("user_message", text="/move unreachable")
+            error = read_event(lines, "error")
+            assert "unreachable" in error["input"]["message"], error
+            assert Path(f"/proc/{source_agent}").exists()
+
+            daemon_config.write_text(json.dumps({"daemons": [endpoints[0], dict(endpoints[1], cwd="")]}))
+            page("user_message", text="/move selectel")
+            error = read_event(lines, "error")
+            assert "cwd" in error["input"]["message"], error
+            assert not (target_dir / "agent-prompts").exists()
+            daemon_config.write_text(json.dumps({"daemons": endpoints}))
+
+            page("user_message", text="/move selectel")
+            moved = read_event(lines, "session_migrated")["input"]
+            assert (moved["from_daemon"], moved["to_daemon"]) == ("local", "selectel") and moved["reason"]
+            wait_for(lambda: not Path(f"/proc/{source_agent}").exists())
+            handoff, = prompts(target_dir)
+            for text in ("Confirmed result on local", "daemon-echo"):
+                assert text in handoff["prompt"], handoff
+            assert int((target_dir / "agent-parent").read_text()) == target_pid
+            page("user_message", text="Continue on selectel")
+            read_event(lines, "agent_done")
+            assert prompts(target_dir)[-1]["pid"] == handoff["pid"]
+
+            (target_dir / "turn-complete").unlink()
+            page("user_message", text="restart-probe")
+            read_event(lines, "agent_chunk")
+            hub.kill()
+            hub.wait(timeout=5)
+            (target_dir / "continue-turn").touch()
+            wait_for(lambda: (target_dir / "turn-complete").exists())
+
+        with running_hub(hub_path, config, root) as (_, lines, page):
+            history = []
+
+            def resumed(line):
+                if "\t" not in line:
+                    return False
+                batch = page_event(line)
+                history.extend(batch if isinstance(batch, list) else [batch])
+                turn = next((e["input"]["turn"] for e in history
+                             if e["kind"] == "agent_chunk" and e["input"]["text"] == "after-restart"), "")
+                return turn and any(e["kind"] == "agent_done" and e["input"]["turn"] == turn for e in history)
+
+            lines.until(resumed)
+            assert any(e["kind"] == "session_migrated" and e["input"]["to_daemon"] == "selectel" for e in history)
+            assert any(e["kind"] == "user_message" and e["input"]["text"] == "Confirmed result on local" for e in history)
+            assert len(prompts(target_dir)) == 3, prompts(target_dir)
+            page("user_message", text="/move local")
+            returned = read_event(lines, "session_migrated")["input"]
+            assert (returned["from_daemon"], returned["to_daemon"]) == ("selectel", "local")
+            wait_for(lambda: not Path(f"/proc/{handoff['pid']}").exists())
+            local_handoff = prompts(local_dir)[-1]
+            assert "Continue on selectel" in local_handoff["prompt"], local_handoff
+            assert int((local_dir / "agent-parent").read_text()) == local_pid
+            page("user_message", text="Continue on local")
+            read_event(lines, "agent_done")
+            assert prompts(local_dir)[-1]["pid"] == local_handoff["pid"]
+
+        with running_hub(hub_path, config, root) as (_, lines, page):
+            lines.until(lambda line: '"kind":"sessions_ready"' in line)
+            page("user_message", text="Continue after idle restart")
+            read_event(lines, "agent_done")
+            latest = prompts(local_dir)[-1]
+            assert latest["pid"] != local_handoff["pid"]
+            for text in ("Confirmed result on local", "Continue on selectel", "Continue after idle restart"):
+                assert text in latest["prompt"], latest
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("canopus", nargs="?", type=Path)
     parser.add_argument("hub", nargs="?", type=Path)
     parser.add_argument("--agent", action="store_true")
+    parser.add_argument("--migration", action="store_true")
     parser.add_argument("--restart", action="store_true")
     parser.add_argument("--late-ack", action="store_true")
     parser.add_argument("--graceful", action="store_true")
@@ -431,6 +556,10 @@ if __name__ == "__main__":
             parser.error("remote options require --remote-host")
         interrupt = {"accepted": "interrupt-probe", "refused": "interrupt-refusal-probe"}.get(options.interrupt)
         with tempfile.TemporaryDirectory(prefix="canopus-daemon-hub-") as temporary:
+            if options.migration:
+                migration(options.canopus.resolve(), options.hub.resolve(), Path(temporary))
+                print("session migration over two daemons: passed")
+                sys.exit(0)
             smoke(
                 options.canopus.resolve(), options.hub.resolve(), Path(temporary),
                 restart=options.restart or options.late_ack or options.graceful,

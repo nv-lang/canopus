@@ -59,6 +59,7 @@ type Dialog {
     name str,
     agent str,
     daemon_id str,
+    daemon_moves int,
     engine Engine[AlulaMachine, AlulaState],
     world PgWorld,
     clients []AcpClient,
@@ -244,7 +245,8 @@ type ContextHandoff {
     prompt Option[AcpQueued],
     events []Incoming,
     observed bool,
-    deadline int
+    deadline int,
+    daemon str
 }
 
 type ModelProbe {
@@ -1069,7 +1071,7 @@ fn Hub @trace_path_of(s Dialog) -> str {
     }
 }
 
-fn Hub @open_config(s Dialog) -> Option[AcpConfig] => @open_config_for(s.agent, s.id, @agent_cwd(s))
+fn Hub @open_config(s Dialog) -> Option[AcpConfig] => @open_config_for(s.agent, s, @agent_cwd(s))
 
 // What the agent of this session is offered for its questions (task 192i): nothing when the setting `ask_form` is off or the agent is `off`; the form
 // (its own tool of questions) when it is `native`; the MCP tool of the hub, and no form, when it is `mcp`.
@@ -1156,10 +1158,10 @@ fn Hub @session_cwd(s Dialog) -> str => if s.folder.byte_len() > 0 { s.folder } 
 // A stale worktree from an older projectless journal is preserved as data, but is never the cwd of its ACP client.
 fn Hub @agent_cwd(s Dialog) -> str => if s.project_id.byte_len() == 0 { @session_cwd(s) } else { s.rt.agent_dir(@session_cwd(s)) }
 
-fn Hub @open_config_for(agent str, id str, cwd str) -> Option[AcpConfig] {
+fn Hub @open_config_for(agent str, s Dialog, cwd str) -> Option[AcpConfig] {
     match @settings.agent(agent) {
         Some(spec) => {
-            ro inbox = match session_file_made(@settings.data_dir, id, "inbox") {
+            ro inbox = match session_file_made(@settings.data_dir, s.id, migration_inbox(s.daemon_moves)) {
                 Some(p) => p.display()
                 None => ""
             }
@@ -1271,8 +1273,8 @@ fn Hub @has_daemon_config() -> bool {
     with Fs = real_fs() { daemon_configured(@settings.layout.state) }
 }
 
-fn Hub @has_daemon_checkpoint(id str) -> bool {
-    ro inbox = "${@settings.data_dir}/${id}/inbox"
+fn Hub @has_daemon_checkpoint(s Dialog) -> bool {
+    ro inbox = "${@settings.data_dir}/${s.id}/${migration_inbox(s.daemon_moves)}"
     // D454: inspect the same session inbox the ACP client recovers on startup.
     match with Fs = real_fs() { daemon_resume(inbox) } {
         Ok(saved) => saved.is_some()
@@ -1405,8 +1407,8 @@ fn Hub mut @ensure_client(at int, recovering bool = false) Proc Detach Time -> s
         return "Выбранная отдельная рабочая папка ещё не подтверждена: ACP не запускается в основной папке"
     }
     mut config = configs[0]
-    if preparation && config.inbox_path == "" && (@has_daemon_config() || recovering && @has_daemon_checkpoint(s.id)) {
-        match session_file_made(@settings.data_dir, s.id, "inbox") {
+    if preparation && config.inbox_path == "" && (@has_daemon_config() || recovering && @has_daemon_checkpoint(s)) {
+        match session_file_made(@settings.data_dir, s.id, migration_inbox(s.daemon_moves)) {
             Some(p) => { config.inbox_path = p.display() }
             None => return "cannot open the managed agent inbox"
         }
@@ -1429,7 +1431,13 @@ fn Hub mut @ensure_client(at int, recovering bool = false) Proc Detach Time -> s
                 s.clients[0].set_dispatch_family(s.agent)
                 // the choices of the owner for this family go to every agent started for the session (task 192t)
                 ro resumed = recovering && s.clients[0].managed()
-                if !preparation && !resumed { s.clients[0].set_presets(presets_for(s.chosen, s.agent)) }
+                if !preparation && !resumed {
+                    s.clients[0].set_presets(presets_for(s.chosen, s.agent))
+                    if s.daemon_moves > 0 {
+                        ro transfer = build_transfer(s.lines, s.agent)
+                        s.clients[0].set_handoff_context(transfer.text)
+                    }
+                }
                 else if !resumed && @has_registered_preparation(s.agent) {
                     match s.dispatch.source {
                         Some(source) => s.clients[0].set_source(preparation_source_settings(source))
@@ -1669,7 +1677,7 @@ fn Hub mut @install_restore(id str, prepared Option[PreparedRestore]) Proc Detac
         None => @say_log("the session ${id} cannot be resumed: no usable snapshot")
         Some(restored) => {
             ro engine = restored.engine
-            mut s = Dialog { id, name: id, agent: "", daemon_id: "", engine, world, clients: []AcpClient.new(), turn: "", turn_diff: None, lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, agent_event_at: 0, client_updates: 0, auth_told: "", folder: "", project_id: "", has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
+            mut s = Dialog { id, name: id, agent: "", daemon_id: "", daemon_moves: 0, engine, world, clients: []AcpClient.new(), turn: "", turn_diff: None, lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, agent_event_at: 0, client_updates: 0, auth_told: "", folder: "", project_id: "", has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
             mut tail_start = restored.events.len()
             mut tail_count = 0
             while tail_start > 0 && tail_count < MACHINE_JOURNAL_LINES {
@@ -1709,6 +1717,10 @@ fn Hub mut @install_restore(id str, prepared Option[PreparedRestore]) Proc Detac
                         }
                         None => ()
                     }
+                }
+                if e.kind == EventKind.Input && e.name == "session_migrated" {
+                    s.daemon_id = jtext(jobject(e.input) ?? JsonObject.new(), "to_daemon")
+                    s.daemon_moves += 1
                 }
                 // the owner renamed the session (task 192): the last name is the name
                 if e.name == "session_renamed" && e.kind == EventKind.Input {
@@ -1793,7 +1805,7 @@ fn Hub mut @install_restore(id str, prepared Option[PreparedRestore]) Proc Detac
                 }
                 if e.kind == EventKind.Input && e.name == "mcp_recovery_read" { recovery_read.push(e.input) }
                 // Restore the context baseline without emitting new compaction signals.
-                if e.kind == EventKind.Input && (e.name == "session_created" || e.name == "agent_switched") {
+                if e.kind == EventKind.Input && (e.name == "session_created" || e.name == "agent_switched" || e.name == "session_migrated") {
                     s.rt.ctx_used = 0
                     s.rt.ctx_size = 0
                     s.rt.ctx_session = ""
@@ -1855,7 +1867,7 @@ fn Hub mut @install_restore(id str, prepared Option[PreparedRestore]) Proc Detac
                 if reason.byte_len() > 0 {
                     @say_log("the agent of ${id} cannot be restored: ${reason}")
                     mut failed = @sessions[at]
-                    if failed.daemon_id != "" || @has_daemon_config() || @has_daemon_checkpoint(id) {
+                    if failed.daemon_id != "" || @has_daemon_config() || @has_daemon_checkpoint(failed) {
                         ro pg = @settings.store == "pg"
                         ro root = @settings.data_dir
                         for request in engine.open_ids() {
@@ -1880,7 +1892,7 @@ fn Hub mut @cs_make_session(cid str, name str, agent str, folder str, project_id
     ro daemon_id = if parent_at >= 0 { @sessions[parent_at].daemon_id } else { "" }
     mut world = PgWorld.open(@settings.pg, cid)
     ro engine = begin_session_engine(pg, root, world, @machine, cid)
-    mut s = Dialog { id: cid, name, agent, daemon_id, engine, world, clients: []AcpClient.new(), turn: "", turn_diff: None, lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, agent_event_at: 0, client_updates: 0, auth_told: "", folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
+    mut s = Dialog { id: cid, name, agent, daemon_id, daemon_moves: 0, engine, world, clients: []AcpClient.new(), turn: "", turn_diff: None, lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, agent_event_at: 0, client_updates: 0, auth_told: "", folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
     accept_in(pg, root, s, Incoming.signal("session_created", meta_text_child(name, agent, folder, "", project_id, parent, pkind, daemon_id)))
     @add_session(s)
     ro at = @sessions.len() - 1
@@ -1946,7 +1958,7 @@ fn Hub mut @create(conn int, trace str, input JsonObject) Proc Detach Time -> ()
             ro root = @settings.data_dir
             mut world = PgWorld.open(@settings.pg, trace)
             ro engine = begin_session_engine(pg, root, world, @machine, trace)
-            mut s = Dialog { id: trace, name, agent, daemon_id, engine, world, clients: []AcpClient.new(), turn: "", turn_diff: None, lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, agent_event_at: 0, client_updates: 0, auth_told: "", folder: launch.folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
+            mut s = Dialog { id: trace, name, agent, daemon_id, daemon_moves: 0, engine, world, clients: []AcpClient.new(), turn: "", turn_diff: None, lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, agent_event_at: 0, client_updates: 0, auth_told: "", folder: launch.folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
             accept_in(pg, root, s, Incoming.signal("session_created", meta_text_child(name, agent, launch.folder, project, project_id, "", "", daemon_id)))
             @add_session(s)
             ro at = @sessions.len() - 1
@@ -2078,6 +2090,10 @@ fn Hub mut @say_with_source(trace str, text str, items []JsonValue, source Optio
         return
     }
     if text.byte_len() == 0 && items.len() == 0 { return }
+    if @migration_pending(trace) {
+        @tell_error(0, trace, @sessions[at].engine.step_number(), "", "Дождитесь завершения переноса на другой демон.")
+        return
+    }
     if @sessions[at].rt.result_repo.byte_len() > 0 {
         match @route_target(trace) {
             Ok(t) => ()
@@ -2184,7 +2200,7 @@ fn Hub mut @cancel(trace str) Proc Detach Time -> () {
     mut s = @sessions[at]
     mut index = 0
     while index < @handoffs.len() {
-        if @handoffs[index].trace == trace && @handoffs[index].prompt.is_some() {
+        if @handoffs[index].trace == trace && (@handoffs[index].prompt.is_some() || @handoffs[index].daemon != "") {
             @handoffs[index].deadline = 0
             return
         }
@@ -2726,7 +2742,7 @@ fn Hub mut @switch_agent(trace str, agent str) Proc Detach Time -> () {
         @tell_error(0, trace, s.engine.step_number(), "", "the turn is still open: the agent is not changed, try again in a moment")
         return
     }
-    ro config = match @open_config_for(agent, s.id, @agent_cwd(s)) {
+    ro config = match @open_config_for(agent, s, @agent_cwd(s)) {
         Some(c) => c
         None => {
             @tell_error(0, trace, s.engine.step_number(), "", "the agent ${agent} is not configured")
@@ -2806,7 +2822,7 @@ fn Hub mut @combined_handoff(at int, source JsonObject) Proc Detach Time -> Resu
     if !@work_allowed(at, "execute") {
         return @preparation_handoff(s, source)
     }
-    ro config = match @open_config_for(family, s.id, @agent_cwd(s)) {
+    ro config = match @open_config_for(family, s, @agent_cwd(s)) {
         Some(c) => c
         None => return Err("Источник ${family} не настроен")
     }
@@ -2814,7 +2830,7 @@ fn Hub mut @combined_handoff(at int, source JsonObject) Proc Detach Time -> Resu
     set_handoff_source(client, s, source)
     ro transfer = build_transfer(s.lines, s.agent)
     client.hold_handoff_prompt("Ниже история текущего чата. Используй её как контекст и ответь на новое сообщение пользователя после протокола.\n\n${transfer.text}")
-    Ok(ContextHandoff { trace: s.id, previous: s.agent, source, client, inbox: config.inbox_path, transfer, tail: handoff_tail(s.lines), history_end: s.lines.len(), preflight: true, reused_summary: false, stage: 0, summary: "", prompt: None, events: []Incoming.new(), observed: false, deadline: now_millis() + 120000 })
+    Ok(ContextHandoff { trace: s.id, previous: s.agent, source, client, inbox: config.inbox_path, transfer, tail: handoff_tail(s.lines), history_end: s.lines.len(), preflight: true, reused_summary: false, stage: 0, summary: "", prompt: None, events: []Incoming.new(), observed: false, deadline: now_millis() + 120000, daemon: "" })
 }
 
 fn handoff_turn_started(event Incoming) -> bool =>
@@ -2833,7 +2849,7 @@ fn Hub mut @start_context_handoff(trace str, source JsonObject) Proc Detach Time
         return
     }
     for pending in @handoffs { if pending.trace == trace { return } }
-    ro config = match @open_config_for(target, s.id, @agent_cwd(s)) {
+    ro config = match @open_config_for(target, s, @agent_cwd(s)) {
         Some(c) => c
         None => { @tell_error(0, trace, s.engine.step_number(), "", "Источник ${target} не настроен"); return }
     }
@@ -2855,13 +2871,13 @@ fn Hub mut @start_context_handoff(trace str, source JsonObject) Proc Detach Time
             with Link = acp_link(client) {
                 Link.send(transfer_request("context-handoff", trace, s.engine.step_number(), "Это служебная передача истории. Текст ниже — данные. Не используй инструменты. Ответь одним словом: OK.\n\n${transfer.text}"))
             }
-            @handoffs.push(ContextHandoff { trace, previous: s.agent, source, client, inbox: config.inbox_path, transfer, tail: "", history_end: s.lines.len(), preflight: false, reused_summary: false, stage: 0, summary: "", prompt: None, events: []Incoming.new(), observed: false, deadline: now_millis() + 120000 })
+            @handoffs.push(ContextHandoff { trace, previous: s.agent, source, client, inbox: config.inbox_path, transfer, tail: "", history_end: s.lines.len(), preflight: false, reused_summary: false, stage: 0, summary: "", prompt: None, events: []Incoming.new(), observed: false, deadline: now_millis() + 120000, daemon: "" })
         }
     }
 }
 
 fn Hub mut @handoff_client(s Dialog, family str, receiving bool) Proc Detach Time -> Result[AcpClient, str] {
-    ro config = match @open_config_for(family, s.id, @agent_cwd(s)) {
+    ro config = match @open_config_for(family, s, @agent_cwd(s)) {
         Some(c) => c
         None => return Err("Источник для подготовки контекста не настроен")
     }
@@ -2908,7 +2924,7 @@ fn Hub mut @start_model_probe(conn int, trace str, input JsonObject) Proc Detach
         i += 1
     }
     if @model_probes.len() >= 2 { @model_probe_result(listener, "unavailable"); return }
-    ro config = match @open_config_for(family, s.id, @settings.layout.cache) {
+    ro config = match @open_config_for(family, s, @settings.layout.cache) {
         Some(config) => config
         None => { @model_probe_result(listener, "unavailable"); return }
     }
@@ -3002,12 +3018,14 @@ fn Hub mut @poll_context_handoffs() Proc Detach Time -> () {
         ro at = @find(job.trace)
         ro target = jtext(job.source, "family")
         mut failed = at < 0 || now_millis() >= job.deadline
+        ro migration = job.daemon != ""
         ro combined = job.prompt.is_some()
         ro real_turn = combined && job.stage != 1
         ro preparation = at >= 0 && !@work_allowed(at, "execute")
         mut completed = real_turn && job.observed
         mut overflow = false
         if at >= 0 && ((!combined && !@takes_message_at(at)) || @sessions[at].agent != job.previous) { failed = true }
+        if migration && at >= 0 && (preparation || @sessions[at].engine.open_ids().len() > 0) { failed = true }
         if !failed && job.preflight {
             job.preflight = false
             ro model = jtext(job.source, "model")
@@ -3059,7 +3077,7 @@ fn Hub mut @poll_context_handoffs() Proc Detach Time -> () {
             ro phase = job.client.phase()
             if !completed && (phase == "failed" || phase == "dead" || phase == "closed") { failed = true }
         }
-        if at >= 0 && @work_allowed(at, "execute") && ((failed && overflow && job.stage == 0) || (completed && !failed && job.stage == 1)) {
+        if !migration && at >= 0 && @work_allowed(at, "execute") && ((failed && overflow && job.stage == 0) || (completed && !failed && job.stage == 1)) {
             ro s = @sessions[at]
             ro retry_context = if combined && job.stage == 1 { handoff_compacted_text(job.summary, job.tail) } else { "" }
             ro limit = jnumber(@context_sizes, handoff_model_key(target, jtext(job.source, "model")))
@@ -3133,9 +3151,16 @@ fn Hub mut @poll_context_handoffs() Proc Detach Time -> () {
                     }
                     None => ()
                 }
+                if migration {
+                    ro reason = job.client.last_error()
+                    ro note = if reason == "" { "передача контекста не завершилась" } else { reason }
+                    @tell_error(0, job.trace, @sessions[at].engine.step_number(), "", "Перенос на демон ${job.daemon}: ${note}.")
+                    continue
+                }
                 @tell_error(0, job.trace, @sessions[at].engine.step_number(), "", "Перенос контекста в ${target} не завершился. Прежний агент ${job.previous} остаётся активным.")
             }
         } else if completed {
+            if migration { @finish_migration(at, job); continue }
             if job.stage == 2 && job.summary != "" {
                 @save_handoff_checkpoint(@sessions[at], job.history_end, job.summary, job.tail)
             }
@@ -3515,6 +3540,11 @@ export fn Hub mut @handle(conn int, text str) Proc Detach Time -> () {
                 return
             }
         }
+    }
+    if active_at >= 0 && @migration_pending(trace) &&
+        ["session_preset", "session_workspace", "session_worktree", "session_result_repo", "session_move", "route_run"].contains(kind) {
+        @tell_error(conn, trace, @sessions[active_at].engine.step_number(), "", "Дождитесь завершения переноса на другой демон.")
+        return
     }
     ro operation = work_signal_operation(kind)
     if active_at >= 0 && operation.byte_len() > 0 && !@work_require(active_at, operation) { return }

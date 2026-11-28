@@ -374,6 +374,7 @@ input, select, textarea {
 .session-name-text { display: inline-block; }
 .session-name.is-scrolling { text-overflow: clip; }
 .session-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.session-daemon { max-width: 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--fg-muted); }
 
 .corner {
   flex: none;

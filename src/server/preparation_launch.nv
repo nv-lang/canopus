@@ -166,7 +166,7 @@ fn Hub mut @preparation_handoff(s Dialog, source JsonObject) Proc Detach Time ->
     client.set_source(preparation_source_settings(source))
     ro transfer = build_transfer(s.lines, s.agent)
     client.hold_handoff_prompt("История текущего чата приведена как контекст. Ответь на новое сообщение после истории.\n\n${transfer.text}")
-    Ok(ContextHandoff { trace: s.id, previous: s.agent, source, client, inbox: "", transfer, tail: handoff_tail(s.lines), history_end: s.lines.len(), preflight: true, reused_summary: false, stage: 0, summary: "", prompt: None, events: []Incoming.new(), observed: false, deadline: now_millis() + 120000 })
+    Ok(ContextHandoff { trace: s.id, previous: s.agent, source, client, inbox: "", transfer, tail: handoff_tail(s.lines), history_end: s.lines.len(), preflight: true, reused_summary: false, stage: 0, summary: "", prompt: None, events: []Incoming.new(), observed: false, deadline: now_millis() + 120000, daemon: "" })
 }
 fn Hub @restricted_handoff_config(s Dialog, family str, source JsonObject) -> Result[AcpConfig, str] {
     if !valid_session_name(s.id) { return Err("Подготовка: недопустимая сессия") }

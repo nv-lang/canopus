@@ -34,3 +34,26 @@ test('sidebar loader keeps its phase across state updates and restarts for a new
   }
 });
 
+test('the session list and conversation update after a daemon migration', () => {
+  const doc = createFakeDocument();
+  const refs = Object.fromEntries(['app', 'side', 'main', 'rail', 'status', 'overlay'].map(key => {
+    const el = doc.createElement('div');
+    doc.body.append(el);
+    return [key, el];
+  }));
+  const view = createView(doc, refs, { agents: [], now: () => 1000, handlers: { queued: () => 0, queuedItems: () => [] } });
+  const model = reduce(initialModel(), { id: 'create', trace: 's', step: 0, time: 1, kind: 'session_created',
+    input: { name: 'Migration', daemon_id: 'local' } });
+  const ui = { selected: 's', projects: [], pins: {}, theme: 'system' };
+  const draw = current => view.render(current, ui, { state: 'connected' });
+  draw(model);
+  assert.equal(refs.side.querySelector('.session-daemon').textContent, 'local');
+  const moved = { id: 'move', trace: 's', step: 0, time: 1, kind: 'session_migrated',
+    input: { from_daemon: 'local', to_daemon: 'selectel', reason: 'manual' } };
+  const updated = reduce(model, moved);
+  draw(updated);
+  assert.equal(refs.side.querySelector('.session-daemon').textContent, 'selectel');
+  assert.ok(refs.main.textContent.includes('Сессия перенесена с local на selectel.'));
+  assert.equal(reduce(updated, moved), updated);
+});
+

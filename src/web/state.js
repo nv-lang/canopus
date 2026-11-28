@@ -33,7 +33,7 @@ export const KINDS = Object.freeze([
   // задача 192.12: набор «роль → семья, модель, усилие», выбранный для сессии
   'session_preset',
   // задача 192: место сессии в списке проекта (и проект, если её перенесли) и удаление сессии (его шлёт сервер, в журнале его нет)
-  'session_placed', 'session_deleted',
+  'session_placed', 'session_deleted', 'session_migrated',
   // задача 192t: выбранное владельцем значение больше недоступно у агента — строка в ленте
   'setting_dropped',
   'setting_chosen',
@@ -478,6 +478,14 @@ function apply(session, event) {
         pending: pending || null,
         state: closes ? (pending ? 'permission' : 'answering') : session.state,
       };
+    }
+
+    case 'session_migrated': {
+      const daemonId = str(input.to_daemon);
+      if (!daemonId) return session;
+      const text = t('chat.session_migrated', { from: str(input.from_daemon), to: daemonId });
+      return { ...session, daemonId, usage: null,
+        messages: [...session.messages, { role: 'service_note', key: `service:${event.id}`, text }] };
     }
 
     case 'provider_recovery': {

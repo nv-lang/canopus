@@ -124,7 +124,7 @@ try {
   console.log('PASS MCP → journal → composer preview → Tab → Enter');
 
   const commands = await wait('command catalog', () => events.find(e => e.kind === 'composer_commands')?.commands);
-  assert.deepEqual(commands.map(({ name, source }) => [name, source]), [['task', 'canopus'], ['work', 'user']]);
+  assert.deepEqual(commands.map(({ name, source }) => [name, source]), [['task', 'canopus'], ['move', 'canopus'], ['work', 'user']]);
   const commandOffset = events.length;
   const localReceipt = id => pick('message_delivery', commandOffset).find(e => e.input.client_id === id && e.input.command && e.input.accepted);
   send('user_message', { text: '/task' }, 'task-command');

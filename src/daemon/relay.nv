@@ -28,7 +28,7 @@ fn daemon_target(id str, config JsonObject, key_path str) -> Result[DaemonTarget
     Ok(DaemonTarget { id, address, cwd, key_path })
 }
 
-fn valid_daemon_id(id str) -> bool {
+export fn valid_daemon_id(id str) -> bool {
     if id.byte_len() == 0 || id.byte_len() > 64 { return false }
     for byte in id.bytes() {
         ro code = byte as int

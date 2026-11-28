@@ -81,6 +81,8 @@ export const S = Object.freeze({
   'chat.draft_folder': 'Папка',
   'chat.draft_daemon': 'Машина',
   'daemon.title': 'Машины',
+  'daemon.session_host': 'Демон: {id}',
+  'chat.session_migrated': 'Сессия перенесена с {from} на {to}.',
   'daemon.close': 'Закрыть',
   'delivery.reason_daemon_revoked': 'Доступ машины отозван.',
   'daemon.add': 'Добавить машину',

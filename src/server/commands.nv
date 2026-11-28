@@ -2,6 +2,7 @@
 module canopus.server
 
 import canopus.config.{ConfigLayout}
+import canopus.daemon.{valid_daemon_id}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 import std.fs.{Fs, Path, read_text, real_fs}
 
@@ -18,7 +19,7 @@ fn page_command_name(name str) -> bool {
 
 fn page_commands(layout ConfigLayout) Fs -> []PageCommand {
     ro task = PageCommand { name: "task", description: "Задачи проекта", arguments: "[номер]", source: "canopus" }
-    mut commands = [task]
+    mut commands = [task, PageCommand { name: "move", description: "Перенести сессию на другой демон", arguments: "<демон>", source: "canopus" }]
     if layout.config == "" { return commands }
     ro text = match read_text(Path.from_bytes("${layout.config}/commands.json".bytes())) {
         Ok(s) => s
@@ -28,7 +29,7 @@ fn page_commands(layout ConfigLayout) Fs -> []PageCommand {
         Ok(v) => v.array() ?? []JsonValue.new()
         Err(e) => return commands
     }
-    mut used = ["task"]
+    mut used = ["task", "move"]
     for item in data {
         ro name = mtext_of(item, "name")
         if !page_command_name(name) || used.contains(name) || mtext_of(item, "target") != task.name { continue }
@@ -56,7 +57,7 @@ fn Hub mut @send_page_commands(conn int) -> () {
     @send(conn, JsonValue.object(event).to_str())
 }
 
-fn Hub @run_page_command(at int, text str) -> CtlRes {
+fn Hub mut @run_page_command(at int, text str) Proc Detach Time -> CtlRes {
     ro body = text[1..]
     mut end = 0
     for byte in body.bytes() {
@@ -65,6 +66,10 @@ fn Hub @run_page_command(at int, text str) -> CtlRes {
     }
     ro name = body[..end]
     ro args = body[end..].trim_ascii()
+    if name == "move" {
+        if !valid_daemon_id(args) { return ctl_err("Укажите идентификатор демона: /move <демон>.") }
+        return @start_migration(at, args)
+    }
     ro commands = with Fs = real_fs() { page_commands(@settings.layout) }
     for command in commands {
         if command.name != name { continue }

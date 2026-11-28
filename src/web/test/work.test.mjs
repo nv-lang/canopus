@@ -56,6 +56,7 @@ test('виды событий ленты и состояния сессии', ()
     'route_state',
     'session_created',
     'session_deleted',
+    'session_migrated',
     'session_model',
     'session_placed',
     'session_preset',
