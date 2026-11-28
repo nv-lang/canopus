@@ -63,6 +63,7 @@ function nextPhrase() {
 // сокращённый computed 'font' в части браузеров бывает пустым
 function measure(text, sample) {
   if (measurer === null) {
+    if (!hostDoc.body) return 0;
     measurer = hostDoc.createElement('span');
     measurer.style.cssText = 'position:absolute;visibility:hidden;white-space:pre;left:-9999px;top:0';
     hostDoc.body.appendChild(measurer);
@@ -136,6 +137,6 @@ export function workPhraseNode(doc) {
   for (const ch of current) node.appendChild(h(doc, 'span', { class: 'ch', text: ch }));
   // Замер ширины — только после вставки узла в документ: отсоединённый узел отвечает
   // шрифтом по умолчанию, ширина выходит неверной и текст обрезается.
-  requestAnimationFrame(() => { if (node.isConnected) setWidth(node, current); });
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => { if (node.isConnected) setWidth(node, current); });
   return node;
 }
