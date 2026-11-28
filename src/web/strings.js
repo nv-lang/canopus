@@ -141,7 +141,6 @@ export const S = Object.freeze({
   'chat.input_label': 'Сообщение агенту',
   'chat.send': 'Отправить',
   'chat.cancel': 'Отмена хода',
-  'chat.running': 'Агент работает',
   'chat.cancelled': 'Ход отменён',
   'chat.refused': 'Агент отказался: {reason}',
   'chat.refused_plain': 'Агент отказался.',
