@@ -14,7 +14,7 @@ const hasRank = (s) => Number.isFinite(s.rank);
  * сортировки по времени создания; сессии без места стоят над всеми, новые выше.
  */
 import { t } from './strings.js';
-import { needsOwnerReason } from './attention.js';
+import { needsOwnerReason, attention } from './attention.js';
 
 export const byOrder = (a, b) => {
   if (hasRank(a) && hasRank(b)) return (a.rank - b.rank) || byCreation(a, b);
@@ -71,6 +71,27 @@ export function effectivePins(sessions, overrides = {}) {
   return out;
 }
 
+/** Статус списка: причина из холодного индекса важнее отсутствующего локального хода. */
+export function sessionGlyph(session, ctx = {}) {
+  const reason = session.waitingReason || '';
+  const a = attention(session, ctx).state;
+  if (a === 'error' || /сбой транспорта|провайдер отклонил/u.test(reason)) return 'error';
+  if (session.pendingQuestion || reason === 'ждёт ответа владельца') return 'question';
+  if (session.state === 'permission' || reason === 'ждёт разрешения') return 'permission';
+  if (a === 'waiting') return 'question';
+  if (a === 'question-timeout' || a === 'silent' || reason.startsWith('провайдер молчит')) return 'silent';
+  if (a === 'running' || reason === 'занята другим ходом') return 'running';
+  return 'done';
+}
+
+const glyphPriority = { done: 0, running: 1, silent: 2, permission: 3, question: 4, error: 5 };
+
+/** Свёрнутая ветка сохраняет самый требующий внимания статус всех скрытых потомков. */
+export function branchGlyph(session, descendants = [], ctx = {}) {
+  return [session, ...descendants].map(s => sessionGlyph(s, ctx))
+    .reduce((worst, status) => glyphPriority[status] > glyphPriority[worst] ? status : worst, 'done');
+}
+
 /**
  * Дерево сессий группы: потомки под родителем, сирота и участник цикла — на верхнем уровне. У строки `kids` — сколько у неё прямых дочерних;
  * родитель из `collapsed` (множество id) свёрнут: его потомков в списке нет (`collapsed: true` у строки).
@@ -102,7 +123,8 @@ function buildTree(list, collapsed = new Set()) {
     seen.add(s.id);
     const mine = kids.get(s.id) ?? [];
     const folded = mine.length > 0 && collapsed.has(s.id);
-    rows.push({ session: s, depth, kids: mine.length, collapsed: folded });
+    rows.push({ session: s, depth, kids: mine.length, collapsed: folded,
+      ...(folded ? { hidden: descendantsOf(list, s.id) } : {}) });
     if (!folded) for (const k of mine) walk(k, depth + 1);
     else hide(s.id);
   };

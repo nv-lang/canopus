@@ -1679,3 +1679,12 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .agent-mail:not([open]) .mail-hide, .agent-mail[open] .mail-show { display: none; }
 .agent-mail-urgent { color: var(--danger); font-weight: 700; }
 .mail-count { border-radius: 10px; padding: 1px 6px; background: var(--accent); color: var(--surface); font-size: 0.8em; }
+
+/* 334: форма глифа различает состояния и без цвета. */
+.session-glyph.dot[data-glyph] { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 0; background: transparent; font-size: 13px; font-weight: 600; color: var(--fg-muted); animation: none; }
+.session-glyph.dot[data-glyph]::before, .session-glyph.dot[data-glyph]::after { content: none; }
+.session-glyph.dot[data-glyph="running"] { color: var(--accent); }
+.session-glyph.dot[data-glyph="question"], .session-glyph.dot[data-glyph="permission"], .session-glyph.dot[data-glyph="silent"] { color: var(--warn); }
+.session-glyph.dot[data-glyph="error"] { color: var(--danger); }
+.session-child-count { flex: none; color: var(--fg-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.session[data-depth="1"], .session[data-depth="2"] { border-inline-start: 1px solid var(--border); margin-inline-start: 9px; }

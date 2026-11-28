@@ -18,7 +18,7 @@ import { createToast } from './toast.js';
 import { h, icon } from './dom.js';
 import { samePath } from './projects.js';
 import { createProjectsUi } from './projects-ui.js';
-import { isAskTool, displayQuestions, expiredReplyPrefix, moveInOrder, byOrder } from './lists.js';
+import { isAskTool, displayQuestions, expiredReplyPrefix, moveInOrder, byOrder, branchGlyph } from './lists.js';
 import { createSideKit } from './session-row.js';
 import { LANGS, createVoiceSettings, langFor, pageLang } from './stt.js';
 import { isBusy, keyAction } from './queue.js';
@@ -301,7 +301,7 @@ export function createView(doc, refs, deps) {
       ? { number: s.indexTaskNumber, title: s.indexTaskTitle } : null);
   }
 
-  function sessionRow({ session: s, depth, kids = 0, collapsed = false }, ui, pins, gctx) {
+  function sessionRow({ session: s, depth, kids = 0, collapsed = false, hidden = [] }, ui, pins, gctx) {
     const active = s.id === ui.selected;
     const pinned = pins.has(s.id);
     const unread = Boolean(ui.unread && ui.unread[s.id] === true);
@@ -314,7 +314,10 @@ export function createView(doc, refs, deps) {
     const taskState = task?.number ? currentTaskDetails(s)?.status || (task.number === s.indexTaskNumber ? s.indexTaskState : '') || task.state
       : s.routeStep < 0 ? s.indexTaskState : '';
     const merge = taskState === 'done' ? { kind: 'done', text: t('task.details_done') } : mergeLabel(task);
-    const dot = h(doc, 'span', { class: 'dot', 'data-state': s.state, 'data-attn': attn.state, 'aria-hidden': 'true' });
+    const glyph = branchGlyph(s, hidden, { now: now(), silentMin: ui.silentMin ?? SILENT_DEFAULT_MIN });
+    const glyphText = { running: '◌', question: '?', permission: '◇', silent: '◷', error: '!', done: '✓' };
+    const glyphLabel = { running: t('state.answering'), question: t('ask.need'), permission: t('state.permission'), silent: t('attn.silent', { n: attn.minutes }), error: t('attn.error'), done: t('state.idle') };
+    const dot = h(doc, 'span', { class: 'dot session-glyph', 'data-state': s.state, 'data-attn': attn.state, 'data-glyph': glyph, role: 'img', 'aria-label': glyphLabel[glyph], title: glyphLabel[glyph], text: glyphText[glyph] });
     if (s.state === 'answering') dot.style.setProperty('--work-delay', `${-Math.max(0, now() - workAnimationStarts.get(s.id))}ms`);
     const nameText = h(doc, 'span', { class: 'session-name-text', text: s.name });
     const name = h(doc, 'span', { class: 'session-name' }, nameText);
@@ -334,6 +337,7 @@ export function createView(doc, refs, deps) {
     taskInfo ? h(doc, 'span', { class: 'task-no', text: taskInfo.number, title: taskInfo.title ? t('route.task_no_title', { number: taskInfo.number, title: taskInfo.title }) : t('route.task_head_bare', { number: taskInfo.number }) }) : false,
     name,
     mailCount ? h(doc, 'span', { class: 'mail-count', text: mailCount, title: t('mail.unviewed', { n: mailCount }), 'aria-label': t('mail.unviewed', { n: mailCount }) }) : false,
+    kids > 0 ? h(doc, 'span', { class: 'session-child-count', text: String(kids), title: t('sessions.unfold', { n: kids }) }) : false,
     attnText ? h(doc, 'span', { class: 'attn-label', 'data-attn': attn.state, title: attn.state === 'question-timeout' ? t('ask.timeout') : attnText, text: attnText }) : false,
     h(doc, 'span', { class: 'sr', text: stateLabel }),
     merge ? h(doc, 'span', { class: 'session-merge', 'data-kind': merge.kind, text: merge.text }) : false);
@@ -351,6 +355,7 @@ export function createView(doc, refs, deps) {
       fold.addEventListener('click', (e) => {
         e.stopPropagation();
         if (foldedParents.has(s.id)) foldedParents.delete(s.id); else foldedParents.add(s.id);
+        saveSidebar();
         listSig = '';
         if (current.ui) renderList(current.model, current.ui);
       });
@@ -394,6 +399,9 @@ export function createView(doc, refs, deps) {
   const defaultSections = ['pinned', 'recent', 'projects'];
   let sidebarLayout;
   try { sidebarLayout = JSON.parse(win?.localStorage?.getItem(sidebarKey) || '{}'); } catch { sidebarLayout = {}; }
+  for (const id of Array.isArray(sidebarLayout?.parents) ? sidebarLayout.parents : []) {
+    if (typeof id === 'string') foldedParents.add(id);
+  }
   const customSections = Array.isArray(sidebarLayout?.custom)
     ? sidebarLayout.custom.filter(section => typeof section?.id === 'string' && section.id.startsWith('custom:') && typeof section.title === 'string')
     : [];
@@ -414,13 +422,13 @@ export function createView(doc, refs, deps) {
   ])];
 
   function saveSidebar() {
-    try { win?.localStorage?.setItem(sidebarKey, JSON.stringify({ order: sectionOrder, collapsed: [...collapsedGroups], custom: customSections, projects: [...projectSections], sessions: [...sessionSections], sessionOrder: [...sectionRows] })); }
+    try { win?.localStorage?.setItem(sidebarKey, JSON.stringify({ order: sectionOrder, parents: [...foldedParents], collapsed: [...collapsedGroups], custom: customSections, projects: [...projectSections], sessions: [...sessionSections], sessionOrder: [...sectionRows] })); }
     catch { /* storage unavailable */ }
   }
 
   function collapseControl(button, body, id) {
     const apply = () => {
-      body.hidden = collapsedGroups.has(id);
+      body.hidden = !query.trim() && collapsedGroups.has(id);
       button.setAttribute('aria-expanded', String(!body.hidden));
     };
     apply();
@@ -518,8 +526,8 @@ export function createView(doc, refs, deps) {
         return list;
       })();
     const active = Boolean(group) && activeProject !== null && group.id === activeProject;
-    const section = h(doc, 'section', { class: 'group', 'data-active': active ? 'true' : false, 'data-project': isProject ? 'true' : false }, head, body);
-    collapseControl(toggle, body, sectionId || `project:${group.id}`);
+    const section = h(doc, 'section', { class: 'group', 'aria-label': sectionId === 'recent' ? t('sessions.recent') : title, 'data-active': active ? 'true' : false, 'data-project': isProject ? 'true' : false }, head, body);
+    collapseControl(toggle, body, sectionId || `project:${group.id || title}`);
     if (isProject) sideKit.projectDnd({ section, head, projectId: group.id, isPlaced: session => sessionSections.has(session) || pins.has(session), moveSession: (session, project) => {
       sessionSections.delete(session);
       if (pins.has(session)) handlers.onPin(session, false);
@@ -580,6 +588,8 @@ export function createView(doc, refs, deps) {
       loadingBox.replaceChildren(...nodes);
       loadingBox.hidden = nodes.length === 0;
     }
+    projectGroups.hidden = !query.trim() && collapsedGroups.has('projects');
+    projectsToggle.setAttribute('aria-expanded', String(!projectGroups.hidden));
     projectsList = ui.projects ?? null;
     const all = sessionList(model).filter((x) => !x.draft);
     const working = new Set(all.filter(s => s.state === 'answering').map(s => s.id));
@@ -590,7 +600,7 @@ export function createView(doc, refs, deps) {
     const pins = effectivePins(all, ui.pins);
     const matches = filterSessions(all, query);
     const filtered = matches.filter(s => !sessionSections.has(s.id));
-    const groups = groupSessions(filtered, { pinned: pins, projects: projectsList, includeEmpty: query.trim() === '', collapsed: foldedParents });
+    const groups = groupSessions(filtered, { pinned: pins, projects: projectsList, includeEmpty: query.trim() === '', collapsed: query.trim() ? new Set() : foldedParents });
     const placedRows = new Map();
     for (const session of matches.sort(byOrder)) {
       const section = sessionSections.get(session.id);
@@ -604,7 +614,7 @@ export function createView(doc, refs, deps) {
       const order = new Map((sectionRows.get(section) || []).map((id, index) => [id, index]));
       return rows.sort((a, b) => (order.get(a.session.id) ?? Infinity) - (order.get(b.session.id) ?? Infinity));
     };
-    const rowSig = (r) => [r.depth, r.kids, r.collapsed, r.session.parent, r.session.id, r.session.name, r.session.state, r.session.updatedAt, ui.unviewedMail?.[r.session.id]?.length || 0, r.session.rank, r.session.projectId, (sidebarTask(r.session) || {}).number, ui.unread ? ui.unread[r.session.id] : undefined, Boolean(r.session.pendingQuestion), r.session.waitingReason, r.session.routeState?.task?.state, r.session.indexTaskState, r.session.taskDetails?.status, (mergeLabel(r.session.routeState?.task) || {}).text, (() => { const a = attention(r.session, { now: now(), silentMin: ui.silentMin ?? SILENT_DEFAULT_MIN, unread: Boolean(ui.unread && ui.unread[r.session.id] === true), acked: (ui.acked || {})[r.session.id] || '' }); return `${a.state}:${a.blink}:${a.minutes}`; })()];
+    const rowSig = (r) => [branchGlyph(r.session, r.hidden, { now: now(), silentMin: ui.silentMin ?? SILENT_DEFAULT_MIN }), r.depth, r.kids, r.collapsed, r.session.parent, r.session.id, r.session.name, r.session.state, r.session.updatedAt, ui.unviewedMail?.[r.session.id]?.length || 0, r.session.rank, r.session.projectId, (sidebarTask(r.session) || {}).number, ui.unread ? ui.unread[r.session.id] : undefined, Boolean(r.session.pendingQuestion), r.session.waitingReason, r.session.routeState?.task?.state, r.session.indexTaskState, r.session.taskDetails?.status, (mergeLabel(r.session.routeState?.task) || {}).text, (() => { const a = attention(r.session, { now: now(), silentMin: ui.silentMin ?? SILENT_DEFAULT_MIN, unread: Boolean(ui.unread && ui.unread[r.session.id] === true), acked: (ui.acked || {})[r.session.id] || '' }); return `${a.state}:${a.blink}:${a.minutes}`; })()];
     const sig = JSON.stringify([loading?.sessions.phase, ui.selected, activeProject, query, groupMenu, [...placedRows].map(([id, rows]) => [id, rows.map(rowSig)]), [...expandedGroups], sideKit.sig(), groups.pinned.map(rowSig), groups.projects.map((p) => [p.project, p.id, p.rows.map(rowSig)])]);
     const shown = groups.pinned.length + groups.projects.length + placedRows.size;
     listEmpty.hidden = Boolean(loading && (loading.projects.phase !== 'ready' || loading.sessions.phase !== 'ready')) || all.length > 0 || (projectsList !== null && projectsList.length > 0);
@@ -617,7 +627,7 @@ export function createView(doc, refs, deps) {
     sideKit.rebuild(() => {
       const sections = { projects: projectsSection };
       sections.pinned = groupNode(t('sessions.pinned'), rowsIn('pinned', groups.pinned), ui, pins, null, 'pinned');
-      if (recent || placedRows.has('recent')) sections.recent = groupNode(t('sessions.recent'), rowsIn('recent', recent?.rows), ui, pins, { id: '', free: true }, 'recent');
+      if (recent || placedRows.has('recent')) sections.recent = groupNode(t('sessions.no_project'), rowsIn('recent', recent?.rows), ui, pins, { id: '', free: true }, 'recent');
       const projectNodes = (id) => named.filter(p => (projectSections.get(p.id) || 'projects') === id)
         .map(p => groupNode(p.project, p.rows, ui, pins, { id: p.id }));
       projectGroups.replaceChildren(...projectNodes('projects'));
