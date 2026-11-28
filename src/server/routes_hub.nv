@@ -700,6 +700,9 @@ fn Hub mut @route_run(trace str, source Option[JsonObject]) Proc Detach Time -> 
         @tell_error(0, trace, s.engine.step_number(), "", "сначала подтвердите создание задачи")
         return
     }
+    if s.dispatch.provider_attempts > 0 || s.dispatch.provider_pause != "" {
+        @provider_record(at, "reset", "", "", 0, "")
+    }
     // all steps done before: a new pass
     mut all_done = true
     mut i = 0

@@ -657,3 +657,25 @@ test('324: причина очереди и возобновление видн�
     'Новый ход начат с учётом срочной поправки.',
   ]);
 });
+
+test('332: provider pause shows its cause and blocks the automatic page queue until a manual turn', async () => {
+  const page = await app();
+  page.event('user_message', { turn: 'failed', text: 'Задание' });
+  page.handlers.onQueue('s', 'Письмо из очереди');
+  page.event('turn_interrupt_pending', { pending: true });
+  page.event('agent_refused', { turn: 'failed', reason: 'provider_transport_lost' });
+  const cause = 'Пауза: исчерпан лимит автопродолжений (3/3).';
+  page.event('provider_recovery', { action: 'pause', code: 'provider_transport_lost', failed_turn: 'failed', attempt: 3, limit: 3, text: cause });
+  page.event('turn_interrupt_pending', { pending: false });
+  assert.equal(page.sent.length, 0);
+  assert.equal(page.getModel().sessions.s.waitingReason, cause);
+  assert.equal(page.getModel().sessions.s.messages.at(-1).text, cause);
+
+  page.handlers.onSend('s', 'Решение владельца');
+  page.event('provider_recovery', { action: 'reset', attempt: 0 });
+  assert.equal(page.sent.length, 1);
+  page.event('user_message', { turn: 'manual', text: 'Решение владельца' });
+  page.event('agent_done', { turn: 'manual' });
+  assert.equal(page.sent.length, 2);
+  assert.equal(page.sent[1].input.text, 'Письмо из очереди');
+});

@@ -1,0 +1,102 @@
+module canopus.server
+
+import alula.engine.{Journal}
+import canopus.storage.{file_journal}
+import std.encoding.json.{JsonObject}
+import std.os.{kill_pid, Signal}
+
+export fn scenario_provider_recovery(base ServerSettings, command str) Proc Detach Time Net Fs Os -> str {
+    mut c = kit_check()
+    ro repeat = command == "provider-repeat"
+    ro filtered = command == "provider-filter"
+    ro paused = repeat || filtered
+    ro settings = ServerSettings { ...base, routes_dir: "${kit_repo_root().display()}/doc/routes" }
+    mut rig = rig_open(settings)
+    ro trace = "s-provider"
+    rig.attach(1)
+    if rig.hub.route_doc("fast").steps.len() < 2 {
+        rig.shut()
+        return "the workflow fixture did not load its route"
+    }
+    rig.page(1, "session_created", trace, "{\"name\":\"Проверка транспорта\",\"agent\":\"opencode\",\"route\":\"fast\"}")
+    ro allocated = rig.hub.route_make_task(trace, "fast", "Проверка транспорта", false)
+    if !allocated.ok {
+        rig.shut()
+        return "could not reserve the isolated shared task"
+    }
+    mut task = JsonObject.new()
+    js(task, "id", allocated.id)
+    js(task, "number", allocated.number)
+    js(task, "dir", allocated.dir)
+    js(task, "shown", allocated.shown)
+    js(task, "title", "Проверка транспорта")
+    rig.hub.rt_task_op(0, "open", task)
+    rig.hub.rt_state(0, "active", "")
+    rig.hub.rt_step(0, 1, "done")
+    rig.page(1, "user_message", trace, "{\"text\":\"${command}\"}")
+    if command == "provider-standby" {
+        if !rig.until("provider failure pending", 5000) {
+            ro details = first_of(rig.lines_for(1), "error", 0)
+            rig.shut()
+            return "the test turn never opened: ${details}"
+        }
+        rig.hub.rt_step(0, 2, "running")
+        mut active = rig.hub.sessions[0]
+        active.rt.job = "step"
+        active.rt.current = 1
+        active.rt.awaiting = true
+        ro pid = active.clients[0].pid()
+        c.expect(kill_pid(pid, Signal.Kill, false).is_ok(), "kill the process of the fixture")
+    }
+
+    ro code = if filtered { "provider_content_filtered" } else { "provider_transport_lost" }
+    c.expect(rig.until("\"reason\":\"${code}\"", 7000), "the old turn failed with ${code}")
+    if paused {
+        c.expect(rig.until("\"action\":\"pause\"", 7000), "the hub journals the pause")
+    } else {
+        c.expect(rig.until(KIT_DONE, 8000), "the replacement finishes")
+    }
+    rig.run(150)
+    ro expected = if repeat { 3 } else if filtered { 0 } else { 1 }
+    ro lines = rig.lines_for(1)
+    c.expect(kit_with(lines, "\"kind\":\"user_message\"") == expected + 1, "no duplicated initial or replacement turns")
+    c.expect(kit_with(lines, "\"action\":\"resume\"") == expected, "one durable claim per attempt")
+    c.expect(kit_with(lines, "${command}") >= 1, "the original request remains visible")
+    ro current = rig.hub.sessions[0]
+    c.expect(current.rt.step_state(1) == "done", "the confirmed step stays done")
+    if command == "provider-standby" { c.expect(current.rt.step_state(2) == "done", "the interrupted workflow step reaches its result") }
+    c.expect((current.dispatch.provider_pause != "") == paused, "pause state matches the outcome")
+    if paused {
+        c.expect(kit_with(lines, KIT_DONE) == 0, "paused requests have no fabricated answer")
+        c.expect(kit_with(rig.list_status_lines_for(1), current.dispatch.provider_pause) > 0, "pause reason is visible in the session list")
+    } else {
+        c.expect(answer_of(lines, current.turn) == "fixture: recovered from checkpoint", "the replacement gets the handoff context")
+        c.expect(kit_with(lines, KIT_DONE) == 1, "only the successful replacement completes")
+    }
+    ro journal = with Journal = file_journal(settings.data_dir, trace) { Journal.read_all() }
+    mut completed = 0
+    mut resumed_step = 0
+    mut stale = false
+    for entry in journal {
+        if entry.event.code != "event_accepted" { continue }
+        for param in entry.event.params {
+            if param.name == "input" && param.value == "{\"n\":1,\"state\":\"done\"}" { completed += 1 }
+            if param.name == "input" && param.value == "{\"n\":2,\"state\":\"done\"}" { resumed_step += 1 }
+            if param.name == "input" && param.value.contains("stale: a duplicate reply") { stale = true }
+        }
+    }
+    c.expect(completed == 1, "the journal has exactly one confirmation for the previous step")
+    if command == "provider-standby" { c.expect(resumed_step == 1, "the recovered step is confirmed once") }
+    if command == "provider-query" { c.expect(stale, "late output cannot complete the replacement") }
+    if paused && repeat {
+        // Replay a settled pause. The same failed turn cannot claim another retry.
+        rig.shut()
+        mut again = rig_open(settings)
+        again.attach(2)
+        again.run(300)
+        c.expect(kit_with(again.lines_for(2), "\"action\":\"resume\"") == expected, "restart preserves retry dedup")
+        c.expect(again.hub.sessions[0].dispatch.provider_attempts == expected, "restart preserves the consumed budget")
+        again.shut()
+    } else { rig.shut() }
+    c.report()
+}

@@ -533,3 +533,12 @@ test "update: compaction_update is the compaction the agent reports itself" {
     assert(str_at(j(failed.input), "status") == "failed")
     assert(str_at(j(project_update(j("{\"sessionUpdate\":\"compaction_update\"}")).input), "status") == "")
 }
+
+test "332: provider refusals distinguish terminal transport loss and content policy" {
+    assert(provider_failure_kind("Query closed before response was received") == "provider_transport_lost")
+    assert(provider_failure_kind("transport: Reconnecting 7/7, request timed out") == "provider_transport_lost")
+    assert(provider_failure_kind("Reconnecting 4/5, idle timeout waiting for SSE") == "")
+    assert(provider_failure_kind("request timed out") == "")
+    assert(provider_failure_kind("This content was flagged for possible cybersecurity risk") == "provider_content_filtered")
+    assert(provider_failure_kind("content_filter") == "provider_content_filtered")
+}

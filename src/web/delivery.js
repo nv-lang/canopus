@@ -16,6 +16,8 @@ export function safeError(value) {
   // Only a bounded, known diagnostic vocabulary is allowed out of provider errors.
   // Unknown details are deliberately withheld rather than relying on a token blacklist.
   const rules = [
+    [/^provider_transport_lost$/, t('delivery.reason_provider_transport')],
+    [/^provider_content_filtered$/, t('delivery.reason_provider_filter')],
     [/^(NoResult|no_result)$/i, t('delivery.reason_result')],
     [/^(Denied|ModelRefused|model_refused|Refused)$/i, t('delivery.reason_refused')],
     [/^(CeilingReached|ceiling_reached)$/i, t('delivery.reason_context_limit')],

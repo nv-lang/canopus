@@ -139,6 +139,7 @@ fn Hub mut @ctl_take(j int) Proc Detach Time -> () {
 // A letter that wakes the agent goes to it as a service turn when the agent is free (with the letters that were sent without waking it).
 fn Hub mut @ctl_deliver(at int, selected int = 0, context str = "") Proc Detach Time -> () {
     ro s = @sessions[at]
+    if s.dispatch.provider_pause != "" { return }
     if s.rt.running || s.rt.awaiting || s.rt.reviewing || s.rt.job.byte_len() > 0 { return }
     if !@takes_message_at(at) { return }
     if @cs_state(at) == "waits" { return }

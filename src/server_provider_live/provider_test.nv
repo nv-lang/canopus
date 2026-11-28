@@ -1,0 +1,29 @@
+module canopus.server_provider_live
+
+import canopus.server.{kit_chat_files, scenario_provider_recovery, parse_server_settings}
+import std.fs.{Path}
+
+test "332: killed ACP agent is replaced and the task resumes once" {
+    ro report = scenario_provider_recovery(kit_chat_files("provider-kill", 30000), "provider-standby")
+    if report != "" { panic(report) }
+}
+
+test "332: terminal query closed and exhausted reconnect recover in a fresh turn" {
+    for command in ["provider-query", "provider-reconnect"] {
+        ro report = scenario_provider_recovery(kit_chat_files(command, 30000), command)
+        if report != "" { panic(report) }
+    }
+}
+
+test "332: readiness deadline, retry budget and terminal content filter have visible outcomes" {
+    for command in ["provider-silent", "provider-repeat", "provider-filter"] {
+        ro report = scenario_provider_recovery(kit_chat_files(command, 900), command)
+        if report != "" { panic(report) }
+    }
+}
+
+test "332: the provider retry budget defaults to three and can be disabled" {
+    assert(parse_server_settings("{}").unwrap().provider_resume_attempts == 3)
+    assert(parse_server_settings("{\"provider_resume_attempts\":0}").unwrap().provider_resume_attempts == 0)
+    assert(parse_server_settings("{\"provider_resume_attempts\":-1}").is_err())
+}

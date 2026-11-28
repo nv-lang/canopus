@@ -25,7 +25,7 @@ import { safeError } from './delivery.js';
 
 export const KINDS = Object.freeze([
   'session_created', 'user_message', 'agent_actual', 'agent_chunk', 'agent_done', 'agent_refused',
-  'permission_request', 'permission_decision', 'cancel', 'error', 'turn_resume', 'turn_interrupt_queued',
+  'permission_request', 'permission_decision', 'cancel', 'error', 'turn_resume', 'turn_interrupt_queued', 'provider_recovery',
   // задача 094: рабочие события хода (соответствуют ACP session/update)
   'usage_update', 'tool_call', 'tool_call_update', 'output_file', 'file_diff',
   'background_task', 'background_task_update',
@@ -339,6 +339,8 @@ function apply(session, event) {
         pendingActual,
         pendingImages: [],
         state: 'answering',
+        waitingReason: '',
+        providerPaused: false,
         pending: null,
         turnStartedAt: event.time,
         turnPausedAt: null,
@@ -393,6 +395,7 @@ function apply(session, event) {
       return {
         ...session,
         state: 'refused',
+        waitingReason: ['provider_transport_lost', 'provider_content_filtered'].includes(input.reason) ? safeError(input.reason) : '',
         selectionPending: false,
         pending: null,
         pendingQuestion: null,
@@ -460,6 +463,13 @@ function apply(session, event) {
         pending: pending || null,
         state: closes ? (pending ? 'permission' : 'answering') : session.state,
       };
+    }
+
+    case 'provider_recovery': {
+      if (input.action === 'reset') return session;
+      const text = str(input.text);
+      return { ...session, providerPaused: input.action === 'pause', waitingReason: text,
+        messages: [...session.messages, { role: 'service_note', key: `service:${event.id}`, text }] };
     }
 
     case 'turn_resume':
@@ -707,7 +717,7 @@ export function reduce(model, event) {
   let changed = apply(session, event);
   if (session.indexStatus && ['user_message', 'agent_chunk', 'agent_done', 'agent_refused', 'cancel', 'error',
     'permission_request', 'permission_decision', 'question_request', 'question_resolved'].includes(event.kind)) {
-    changed = { ...changed, indexStatus: '', indexWaitKey: '', waitingReason: '' };
+    changed = { ...changed, indexStatus: '', indexWaitKey: '', waitingReason: event.kind === 'agent_refused' ? changed.waitingReason : '' };
   }
   const waiting = changed.pendingQuestion || changed.pending;
   const pausedAt = changed.turnPausedAt;

@@ -417,6 +417,16 @@ the end `ЗАКРЫТО` (the signal `закрыть_сессию`, which the hu
 the process of the agent (start, stop, the pump of its events); how an update of ACP becomes a signal (`project_update`) and how a stop reason becomes an outcome (`stop_event`); the term as a timer of the engine (the event
 `срок`); the store (files or PostgreSQL), the journal, the snapshot; the lines of the page (`page_event`), the `turn` of the page, the synthetic `error` events of the page (they are not kept).
 
+### Provider transport recovery
+
+For an active task, the hub records a terminal provider transport error or unexpected ACP EOF as
+`provider_transport_lost`. The idle deadline also triggers recovery unless a question or permission is pending.
+The hub claims an attempt in the session journal before opening a fresh turn with handoff context. Set
+`provider_resume_attempts` to limit consecutive attempts (default 3, 0 disables automatic continuation).
+The feed shows each attempt and the reason for a pause. Explicit content policy refusals have their own
+`provider_content_filtered` code and pause the task. An interrupted attempt with an uncertain dispatch
+is left for the owner to verify after a hub restart.
+
 ### The signals the code gives to the table
 
 The list as data is `signals.nv` (`signals_given_by_code`, `signals_from_agent`); `signals_test.nv` keeps it equal to the table and to the sources.

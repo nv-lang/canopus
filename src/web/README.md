@@ -139,6 +139,7 @@ PNG, JPEG, WebP, GIF, до 10 МБ каждая, до 6 на сообщение 
 | `question_answer` | `{ request, skipped, answers?: [{ index, selected: [label], other }] }` | ответ владельца (`index` — номер вопроса с нуля) или пропуск (`skipped: true`); страница отправляет его событием, сервер возвращает его в потоке — тогда форма закрывается и в ленте остаётся строка «Ответ: вопрос → выбор» |
 | `question_resolved` | `{ request }` | снимает форму без строки в ленте (ответ пришёл из другого места, ход отменён) |
 | `cancel` | `{ turn }` | «Ход отменён», закрывает текущий ход |
+| `provider_recovery` | `{ action, code, failed_turn, attempt, limit, text }` | попытка продолжения после сбоя транспорта или причина паузы |
 | `turn_resume` | `{ turn, previous_turn }` | хаб открыл новый ход с учётом срочной поправки |
 | `turn_interrupt_queued` | `{ turn, reason }` | хаб поставил поправку в очередь и объяснил причину |
 | `error` | `{ turn, message }` | ошибка, «Ошибка» |

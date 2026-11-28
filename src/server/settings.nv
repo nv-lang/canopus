@@ -25,6 +25,7 @@ export type ServerSettings {
     pg PgConfig,
     agents []AgentSpec,
     idle_term_ms int,
+    provider_resume_attempts int,
     workdir str,
     web_dir str,
     machines_dir str,
@@ -218,6 +219,8 @@ export fn parse_server_settings(text str) -> Result[ServerSettings, str] {
     }
     ro idle_seconds = st_number(o, "idle_term_seconds", 900)?
     if idle_seconds < 1 { return Err("idle_term_seconds must be 1 or more") }
+    ro provider_resume_attempts = st_number(o, "provider_resume_attempts", 3)?
+    if provider_resume_attempts < 0 { return Err("provider_resume_attempts must be nonnegative") }
     ro workdir = st_text(o, "workdir", "")?
     ro web_dir = st_text(o, "web_dir", "src/web")?
     ro machines_dir = st_text(o, "machines_dir", "")?
@@ -284,7 +287,7 @@ export fn parse_server_settings(text str) -> Result[ServerSettings, str] {
         }
         None => ()
     }
-    Ok(ServerSettings { port, data_dir, store, pg, agents, idle_term_ms: idle_seconds * 1000, workdir, web_dir, machines_dir, hub_program, hub_args, acp_trace, ask_form, ask_timeout_ms: ask_seconds * 1000, stt_url, stt_language, max_image_bytes, routes_dir, route_reviewer_order, route_task_limit, route_task_messages, route_fix_attempts, route_worktree_ask, route_overlap_seconds, route_keep_days, context_drop_percent, route_confirm_word, route_over_limit_word, route_max_active, route_tool, route_auto_propose, route_children, route_wip, wip_timeout_ms: wip_timeout_seconds * 1000, agent_start_ms: agent_start_seconds * 1000, agent_silent_minutes, layout: legacy_layout(data_dir), preset, auto_extend_confidence, task_scope })
+    Ok(ServerSettings { port, data_dir, store, pg, agents, idle_term_ms: idle_seconds * 1000, provider_resume_attempts, workdir, web_dir, machines_dir, hub_program, hub_args, acp_trace, ask_form, ask_timeout_ms: ask_seconds * 1000, stt_url, stt_language, max_image_bytes, routes_dir, route_reviewer_order, route_task_limit, route_task_messages, route_fix_attempts, route_worktree_ask, route_overlap_seconds, route_keep_days, context_drop_percent, route_confirm_word, route_over_limit_word, route_max_active, route_tool, route_auto_propose, route_children, route_wip, wip_timeout_ms: wip_timeout_seconds * 1000, agent_start_ms: agent_start_seconds * 1000, agent_silent_minutes, layout: legacy_layout(data_dir), preset, auto_extend_confidence, task_scope })
 }
 
 fn st_env(key str) Os -> Option[str] {
@@ -372,7 +375,7 @@ export fn server_settings_selected(file str, home str, sets []str, config_file s
     ro layout = if data_set { layout_with_data_dir(home, parsed.data_dir, project) } else if home.byte_len() > 0 { at } else { legacy_layout(parsed.data_dir) }
     ro installed = install_paths()
     ro base = ServerSettings {
-        port: parsed.port, data_dir: layout.sessions, store: parsed.store, pg: parsed.pg, agents: parsed.agents, idle_term_ms: parsed.idle_term_ms, workdir: parsed.workdir, web_dir: installed.web, machines_dir: installed.machines,
+        port: parsed.port, data_dir: layout.sessions, store: parsed.store, pg: parsed.pg, agents: parsed.agents, idle_term_ms: parsed.idle_term_ms, provider_resume_attempts: parsed.provider_resume_attempts, workdir: parsed.workdir, web_dir: installed.web, machines_dir: installed.machines,
         hub_program: installed.hub, hub_args: parsed.hub_args, acp_trace: parsed.acp_trace, ask_form: parsed.ask_form, ask_timeout_ms: parsed.ask_timeout_ms, stt_url: parsed.stt_url,
         stt_language: parsed.stt_language, max_image_bytes: parsed.max_image_bytes, routes_dir: if routes_set { parsed.routes_dir } else { "" }, route_reviewer_order: parsed.route_reviewer_order,
         route_task_limit: parsed.route_task_limit, route_task_messages: parsed.route_task_messages, route_fix_attempts: parsed.route_fix_attempts, route_worktree_ask: parsed.route_worktree_ask,
@@ -400,6 +403,7 @@ export fn server_settings_selected(file str, home str, sets []str, config_file s
         pg,
         agents,
         idle_term_ms,
+        provider_resume_attempts: base.provider_resume_attempts,
         workdir: base.workdir,
         web_dir: base.web_dir,
         machines_dir: base.machines_dir,

@@ -1,0 +1,98 @@
+// Task 332: a transport failure closes the old request and may authorize one new turn.
+module canopus.server
+
+import alula.engine.{Incoming, EventKind}
+import std.encoding.json.{JsonValue, JsonObject}
+
+const PROVIDER_RESUME_LABEL = "Продолжение после сбоя транспорта провайдера"
+
+fn provider_task_open(s Dialog) -> bool => s.rt.task_open && !s.rt.task_closed && s.rt.tstate == "active"
+
+fn provider_failure_of(s Dialog, e Incoming) -> str {
+    if e.kind == EventKind.Refused && (e.name == "provider_transport_lost" || e.name == "provider_content_filtered") {
+        return e.name
+    }
+    // The engine owns the 317 deadline. Question and permission timeouts still belong to their forms.
+    if e.kind == EventKind.Expired && provider_task_open(s) && s.list_question == "" && s.list_permission == "" {
+        return "provider_transport_lost"
+    }
+    ""
+}
+
+fn provider_waiting_reason(s Dialog) -> str {
+    if s.dispatch.provider_pause != "" { return s.dispatch.provider_pause }
+    waiting_text(s.dispatch.provider_failure, "")
+}
+
+fn Hub mut @provider_record(at int, action str, failure str, turn str, attempt int, text str) Time -> () {
+    mut s = @sessions[at]
+    mut data = JsonObject.new()
+    js(data, "action", action)
+    js(data, "code", failure)
+    js(data, "failed_turn", turn)
+    ji(data, "attempt", attempt)
+    ji(data, "limit", @settings.provider_resume_attempts)
+    js(data, "text", text)
+    accept_in(@settings.store == "pg", @settings.data_dir, s, Incoming.signal("provider_recovery", JsonValue.object(data).to_str()))
+    @drain(at)
+    @send_list_status(s)
+}
+
+fn Hub mut @provider_pause(at int, code str, turn str, attempts int, reason str) Proc Detach Time -> () {
+    @route_stop(at)
+    @provider_record(at, "pause", code, turn, attempts, reason)
+    @route_broadcast(at, false)
+}
+
+fn Hub mut @provider_recover(at int) Proc Detach Time -> () {
+    mut s = @sessions[at]
+    ro failure = s.dispatch.provider_failure
+    ro failed_turn = s.turn
+    if failure == "" || failed_turn == "" || !@takes_message_at(at) || @interrupt_pending(s.id) { return }
+    if !provider_task_open(s) || !@work_allowed(at, "execute") { return }
+    if s.dispatch.provider_turn == failed_turn {
+        if s.dispatch.provider_pause == "" {
+            // An intent can outlive a hub crash. The previous dispatch now has an uncertain outcome.
+            @provider_pause(at, failure, failed_turn, s.dispatch.provider_attempts, "Пауза: проверьте исход последней попытки продолжения.")
+            @send_interrupt_pending(0, at, false)
+        }
+        return
+    }
+    ro used = s.dispatch.provider_attempts
+    ro limit = @settings.provider_resume_attempts
+    ro reason = if failure == "provider_content_filtered" { waiting_text(failure, "") }
+        else if s.rt.continue_reason != "" { s.rt.continue_reason }
+        else if used >= limit { "Пауза: исчерпан лимит автопродолжений (${used}/${limit})." }
+        else if s.rt.reviewing || (s.rt.job != "" && s.rt.job != "step") { "Пауза: требуется проверить исход служебной операции." }
+        else { "" }
+    @mcp_withdraw(s.id)
+    if reason != "" {
+        @provider_pause(at, failure, failed_turn, used, reason)
+        @send_interrupt_pending(0, at, false)
+        return
+    }
+
+    // Persist the claim before dispatch. A new process cannot supply events for the old request.
+    @provider_record(at, "resume", failure, failed_turn, used + 1, "Транспорт провайдера оборвался. Продолжение ${used + 1}/${limit}.")
+    if s.clients.len() > 0 {
+        s.clients[0].close()
+        s.clients = []AcpClient.new()
+    }
+    ro transcript = "[Контекст прерванного хода]\n\n${handoff_tail(s.lines, service_label: PROVIDER_RESUME_LABEL)}"
+    ro steps = @route_doc(s.rt.route).steps
+    mut confirmed = []str.new()
+    mut index = 0
+    while index < steps.len() {
+        if s.rt.step_state(index + 1) == "done" { confirmed.push("${index + 1}. ${steps[index].title}") }
+        index += 1
+    }
+    ro checkpoint = if confirmed.len() > 0 { "\nПодтверждённые шаги: ${joined(confirmed, "; ")}." } else { "" }
+    ro step = if s.rt.job == "step" && s.rt.current >= 0 && s.rt.current < steps.len() {
+        ro n = s.rt.last_sub()
+        "\nТекущий шаг: ${route_fill(steps[s.rt.current].prompt, s.rt.pn(n), s.rt.task_shown)}"
+    } else { "" }
+    ro prelude = "${@route_message_prelude(at)}\n\nТранспорт провайдера оборвался. Продолжи задачу с последнего подтверждённого шага. Сначала проверь фактическое состояние и результаты прерванного хода. Уже выполненные действия повторно не запускай. Соблюдай исходные разрешения и границы.${checkpoint}${step}"
+    ro refused = @route_agent_turn(at, PROVIDER_RESUME_LABEL, prelude, context: transcript)
+    if refused != "" { @provider_pause(at, failure, failed_turn, used + 1, "Пауза: агент недоступен для автопродолжения.") }
+    @send_interrupt_pending(0, at, false)
+}

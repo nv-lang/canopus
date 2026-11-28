@@ -490,7 +490,7 @@ function drain() {
   const justSent = drainRestoreQueue();
   queue.prune(model.sessions);
   for (const trace of queue.traces()) {
-    if (justSent.has(trace) || ui.restoreQueued.has(trace) || ui.historyPending.has(trace) || ui.interruptPending.has(trace)) continue;
+    if (justSent.has(trace) || ui.restoreQueued.has(trace) || ui.historyPending.has(trace) || ui.interruptPending.has(trace) || model.sessions[trace]?.providerPaused) continue;
     const phase = ui.handoffStatus.get(trace)?.phase;
     if (phase === 'preparing' || phase === 'deferred' || (phase === 'selected' && model.sessions[trace]?.pendingQuestion)) continue;
     const item = queue.take(trace, model.sessions[trace]);

@@ -48,6 +48,7 @@ test('виды событий ленты и состояния сессии', ()
     'output_file',
     'permission_decision',
     'permission_request',
+    'provider_recovery',
     'question_answer',
     'question_request',
     'question_resolved',

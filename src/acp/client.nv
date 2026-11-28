@@ -580,7 +580,13 @@ fn AcpClient mut @on_failure(id JsonValue, code int, message str) -> () {
         @active = ""
         @prompt_rpc = -1
         @last_error = "session/prompt failed: ${why}"
-        @refuse(request, if acp_context_overflow(why) { FailCode.CeilingReached } else { FailCode.NoResult })
+        ro provider = provider_failure_kind(message)
+        if provider != "" {
+            @interrupted_rpcs.push(key)
+            @cancelling = true
+            @push(provider_refusal(request, provider))
+        }
+        else { @refuse(request, if acp_context_overflow(why) { FailCode.CeilingReached } else { FailCode.NoResult }) }
         return
     }
     if @fail_set(key, why) { return }
@@ -1191,7 +1197,21 @@ fn AcpClient mut @acknowledge(source str) -> () {
 // wire messages persisted to the inbox and the events the engine commits in that pass.
 const ACP_PUMP_QUANTUM = 4
 
-export fn acp_link(mut client AcpClient, bounded bool = false) -> Effect[Link] {
+fn project_task_transport(mut event Option[Incoming], enabled bool) -> Option[Incoming] {
+    if enabled {
+        match event {
+            Some(item) => {
+                if item.kind == EventKind.Refused && item.name == "agent_refused" && item.input == FailCode.ConnectionLost.name() {
+                    return Some(Incoming { ...item, name: "provider_transport_lost" })
+                }
+            }
+            None => ()
+        }
+    }
+    event
+}
+
+export fn acp_link(mut client AcpClient, bounded bool = false, provider_task bool = false) -> Effect[Link] {
     ro quantum = ACP_PUMP_QUANTUM
     mut remaining = ACP_PUMP_QUANTUM
     effect Link {
@@ -1199,11 +1219,11 @@ export fn acp_link(mut client AcpClient, bounded bool = false) -> Effect[Link] {
             client.enqueue(request, !bounded)
         }
         receive() -> Option[Incoming] {
-            if !bounded { return client.next_event(true) }
+            if !bounded { return project_task_transport(client.next_event(true), provider_task) }
             if remaining == 0 { return None }
             if remaining == quantum { client.poll(max_items: quantum) }
             remaining -= 1
-            client.next_event(false)
+            project_task_transport(client.next_event(false), provider_task)
         }
         cancel(request_id) -> () {
             client.cancel_request(request_id)

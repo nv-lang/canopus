@@ -4,7 +4,7 @@
 module canopus.server
 
 /// The closed list of the codes of the waiting reasons.
-export fn waiting_codes() -> []str => ["question", "permission", "busy", "silent"]
+export fn waiting_codes() -> []str => ["question", "permission", "busy", "silent", "provider_transport_lost", "provider_content_filtered"]
 
 /// The code of the reason a session waits, "" - it does not wait. An open question of the agent and an open request
 /// for permission are stronger than a running turn; a running turn with no events of the agent for the term of
@@ -22,6 +22,8 @@ export fn waiting_text(code str, since str) -> str {
     if code == "question" { return "ждёт ответа владельца" }
     if code == "permission" { return "ждёт разрешения" }
     if code == "busy" { return "занята другим ходом" }
+    if code == "provider_transport_lost" { return "сбой транспорта провайдера" }
+    if code == "provider_content_filtered" { return "Пауза: провайдер отклонил запрос по политике контента." }
     if code == "silent" { return "провайдер молчит с ${since}" }
     ""
 }

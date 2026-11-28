@@ -122,13 +122,13 @@ export fn build_transfer(lines []str, from_agent str) -> Transfer {
     Transfer { text: parts.join("\n\n"), shown: total, total, cut: false }
 }
 
-fn handoff_tail(lines []str) -> str {
+fn handoff_tail(lines []str, service_label str = "") -> str {
     ro entries = t_entries(lines)
     mut at = entries.len()
     mut turns = 0
     while at > 0 {
         at -= 1
-        if entries[at].role == "user" {
+        if entries[at].role == "user" && (service_label == "" || entries[at].text != service_label) {
             turns += 1
             if turns == 2 { break }
         }

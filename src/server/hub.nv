@@ -92,16 +92,35 @@ type DispatchHistory {
     selected Option[JsonObject],
     role str,
     weight str,
-    has_messages bool
+    has_messages bool,
+    provider_failure str,
+    provider_turn str,
+    provider_attempts int,
+    provider_pause str
 }
 
 fn dispatch_history_new() -> DispatchHistory {
-    DispatchHistory { receipts: JsonObject.new(), source: None, pinned: None, selected: None, role: "dev", weight: "", has_messages: false }
+    DispatchHistory { receipts: JsonObject.new(), source: None, pinned: None, selected: None, role: "dev", weight: "", has_messages: false, provider_failure: "", provider_turn: "", provider_attempts: 0, provider_pause: "" }
 }
 
 fn DispatchHistory mut @accept(e Incoming) -> () {
+    if e.kind == EventKind.Answered && e.name == "agent_done" {
+        @provider_attempts = 0
+        @provider_turn = ""
+        @provider_failure = ""
+        @provider_pause = ""
+    }
     if e.kind != EventKind.Input { return }
+    if e.name == "provider_recovery" {
+        ro data = jobject(e.input) ?? JsonObject.new()
+        @provider_turn = jtext(data, "failed_turn")
+        @provider_attempts = jint(data, "attempt")
+        ro action = jtext(data, "action")
+        @provider_pause = if action == "pause" { jtext(data, "text") } else { "" }
+        if action == "reset" { @provider_failure = "" }
+    }
     if e.name == "user_message" {
+        @provider_failure = ""
         @has_messages = true
     } else if e.name == "message_delivery" {
         match jobject(e.input) {
@@ -442,7 +461,7 @@ fn finish_turn_diff(pg bool, root str, mut s Dialog) Time -> () {
 }
 
 fn pump_in(pg bool, root str, mut s Dialog, bounded bool) Time -> int {
-    ro link = acp_link(s.clients[0], bounded: bounded)
+    ro link = acp_link(s.clients[0], bounded: bounded, provider_task: provider_task_open(s))
     if pg {
         with Journal = pg_journal(s.world), Store = pg_store(s.world), Link = link {
             s.engine.pump()
@@ -474,7 +493,11 @@ fn history_of(pg bool, root str, mut world PgWorld, id str, engine Engine[AlulaM
 fn line_of(mut s Dialog, e Incoming) -> Option[str] {
     s.dispatch.accept(e)
     if e.kind == EventKind.Input && e.name == "user_message" { s.turn = e.id }
-    ro shown = Incoming { id: "${s.id}/${e.id}", trace: s.id, step: e.step, kind: e.kind, name: e.name, request: e.request, input: e.input, at: e.at }
+    ro failure = provider_failure_of(s, e)
+    if failure != "" { s.dispatch.provider_failure = failure }
+    ro shown = Incoming { id: "${s.id}/${e.id}", trace: s.id, step: e.step,
+        kind: if failure != "" { EventKind.Refused } else { e.kind },
+        name: if failure != "" { failure } else { e.name }, request: e.request, input: e.input, at: e.at }
     ro projected = page_event(shown, s.turn)
     if e.name == "tool_call" && projected.is_some() {
         match jobject(e.input) {
@@ -622,8 +645,11 @@ fn Hub mut @drain(at int) Time -> () {
                 if size > 0 && model != "" { ji(@context_sizes, handoff_model_key(s.agent, model), size) }
             }
             if e.name == "agent_model" && @work_allowed(at, "execute") { @catalog_note(s.agent, e.input) }
+            ro recovery_expected = provider_task_open(s) && provider_failure_of(s, e) != "" &&
+                @work_allowed(at, "execute") && !@interrupt_pending(s.id)
             match line_of(s, e) {
                 Some(line) => {
+                    if recovery_expected { @send_interrupt_pending(0, at, true) }
                     s.lines.push(line)
                     @send(0, line)
                 }
@@ -883,6 +909,8 @@ fn session_index_entry(s Dialog, task_indexes JsonObject, task_states JsonObject
     jput(input, "project_id", JsonValue.str(s.project_id))
     if s.has_rank { jput(input, "rank", JsonValue.int(s.rank)) }
     add_list_status(input, s)
+    ro provider_reason = provider_waiting_reason(s)
+    if provider_reason != "" { js(input, "waiting_reason", provider_reason) }
     if s.rt.task_open && s.rt.number.byte_len() > 0 {
         jput(input, "task_number", JsonValue.str(s.rt.number))
         jput(input, "task_title", JsonValue.str(s.rt.title))
@@ -902,6 +930,8 @@ fn add_list_status(mut input JsonObject, s Dialog) -> () {
 
 // The line of the reason a session waits, for the page (task 322, the dictionary of waiting.nv); "" - it does not wait.
 fn Hub @waiting_reason(s Dialog) Time -> str {
+    ro provider_reason = provider_waiting_reason(s)
+    if provider_reason != "" { return provider_reason }
     ro silent = s.agent_event_at > 0 && now_millis() - s.agent_event_at >= @settings.agent_silent_minutes * 60000
     ro code = waiting_code(s.list_status, s.list_question, s.list_permission, silent)
     if code == "" { return "" }
@@ -2018,6 +2048,9 @@ fn Hub mut @say_with_source(trace str, text str, items []JsonValue, source Optio
         // the journal keeps the records of the pictures, right before the message they belong to; the files go to the client for the prompt
         accept_in(@settings.store == "pg", @settings.data_dir, s, Incoming.signal("message_images", images_text(prepared.metas)))
         @route_save_images(at, prepared.files)
+    }
+    if s.dispatch.provider_attempts > 0 || s.dispatch.provider_pause != "" {
+        @provider_record(at, "reset", "", "", 0, "")
     }
     @ct_remember(at, text, prepared.files)
     ro reminder = @route_reminder_of(at)
@@ -3639,6 +3672,7 @@ export fn Hub mut @pump(agent_budget_ms int = 0) Proc Detach Time -> int {
             @watch_agent(at)
         }
         @interrupt_pump(at)
+        @provider_recover(at)
         at += 1
         remaining -= 1
         if agent_budget_ms > 0 && now_millis() - pumped_at >= agent_budget_ms { break }

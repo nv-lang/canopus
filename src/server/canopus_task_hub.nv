@@ -613,6 +613,7 @@ fn Hub mut @ctx_watch(at int) Proc Detach Time -> () {
 /// At every pump of the modes: the queue starts, the marker of an agent without tools is read, the note of the decision goes to the agent as a service turn when the agent is free.
 fn Hub mut @ct_pump(at int) Proc Detach Time -> () {
     @ctx_watch(at)
+    if @sessions[at].dispatch.provider_pause != "" { return }
     @ct_queue(at)
     ro s = @sessions[at]
     if s.rt.running || s.rt.awaiting || s.rt.reviewing || s.rt.job.byte_len() > 0 { return }

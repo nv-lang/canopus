@@ -284,7 +284,7 @@ export function createView(doc, refs, deps) {
     const taskInfo = sidebarTask(s);
     const stateLabel = t(STATE_KEYS[s.state]);
     const attn = attention(s, { now: now(), silentMin: ui.silentMin ?? SILENT_DEFAULT_MIN, unread, acked: (ui.acked || {})[s.id] || '' });
-    const attnText = attn.state === 'waiting' ? (s.waitingReason || t('attn.waiting')) : attn.state === 'silent' ? t('attn.silent', { n: attn.minutes }) : attn.state === 'error' ? t('attn.error') : attn.state === 'question-timeout' ? t('attn.timeout_short') : '';
+    const attnText = attn.state === 'waiting' ? (s.waitingReason || t('attn.waiting')) : attn.state === 'silent' ? t('attn.silent', { n: attn.minutes }) : attn.state === 'error' ? (s.waitingReason || t('attn.error')) : attn.state === 'question-timeout' ? t('attn.timeout_short') : '';
     const task = s.routeState?.task;
     const taskState = task?.number ? currentTaskDetails(s)?.status || (task.number === s.indexTaskNumber ? s.indexTaskState : '') || task.state
       : s.routeStep < 0 ? s.indexTaskState : '';

@@ -115,6 +115,16 @@ async function prompt(id, params) {
   if (interruptPrompt) {
     return write({ jsonrpc: "2.0", id, error: { code: -32600, message: "fixture: overlapping prompts" } });
   }
+  if (plain.startsWith("[Контекст прерванного хода]")) {
+    if (plain.includes("provider-repeat")) {
+      return write({ jsonrpc: "2.0", id, error: { code: -32000, message: "Query closed before response was received" } });
+    }
+    if ([ "provider failure pending", "provider-query", "provider-reconnect" ].some(marker => plain.includes(marker))
+        && plain.includes("Подтверждённые шаги: 1.") && plain.includes("Уже выполненные действия повторно не запускай")) {
+      chunk("fixture: recovered from checkpoint");
+    }
+    return respond(id, { stopReason: "end_turn" });
+  }
   if (plain.startsWith("[Контекст прерванного хода.")) {
     const [history, correction] = plain.split("[Новое сообщение пользователя]");
     if (interruptedReply !== null) {
@@ -128,7 +138,8 @@ async function prompt(id, params) {
     }
     return respond(id, { stopReason: "end_turn" });
   }
-  const word = plain.split(" ")[0];
+  const providerCommand = /(?:^|\n)(provider-[a-z]+)$/.exec(plain)?.[1];
+  const word = providerCommand || plain.split(" ")[0];
   if (args.includes("--handoff-overflow") && (plain.startsWith("Это служебная передача истории.") || plain.startsWith("Ниже история текущего чата."))) {
     return write({ jsonrpc: "2.0", id, error: { code: -32000, message: "context_window_exceeded" } });
   }
@@ -358,6 +369,19 @@ async function prompt(id, params) {
       chunk("fs: " + (a.error ? a.error.code : "ok") + " terminal: " + (b.error ? b.error.code : "ok"));
       return respond(id, { stopReason: "end_turn" });
     }
+    case "provider-standby":
+    case "provider-silent":
+      chunk("provider failure pending");
+      return;
+    case "provider-query":
+    case "provider-repeat":
+      write({ jsonrpc: "2.0", id, error: { code: -32000, message: "Turn error: Query closed before response was received" } });
+      respond(id, { stopReason: "end_turn" }); // late reply to the already failed request
+      return;
+    case "provider-reconnect":
+      return write({ jsonrpc: "2.0", id, error: { code: -32000, message: "Reconnecting 5/5, idle timeout waiting for SSE" } });
+    case "provider-filter":
+      return write({ jsonrpc: "2.0", id, error: { code: -32000, message: "This content was flagged for possible cybersecurity risk. Daybreak access." } });
     case "interrupt-original":
     case "interrupt-refused":
     case "interrupt-timeout":

@@ -573,6 +573,39 @@ export fn progress_event(request str, p Projection) -> Incoming {
 export fn refused_event(request str, code FailCode) -> Incoming =>
     Incoming.incoming(EventKind.Refused, "agent_refused", Some(request), code.name())
 
+export fn provider_failure_kind(message str) -> str {
+    ro text = message.to_ascii_lower()
+    if text.contains("this content was flagged for possible cybersecurity risk") || text.contains("content_filter") || text.contains("content policy violation") {
+        return "provider_content_filtered"
+    }
+    if text.contains("query closed before response was received") || text.contains("reconnect exhausted") ||
+        text.contains("reconnect attempts exhausted") || text.contains("reconnection attempts exhausted") {
+        return "provider_transport_lost"
+    }
+    if text.contains("request timed out") || text.contains("idle timeout waiting for sse") {
+        mut first = true
+        for suffix in text.split("reconnecting ") {
+            if first {
+                first = false
+                continue
+            }
+            ro part = suffix[..(suffix.find(",") ?? suffix.byte_len())]
+            ro ratio = part[..(part.find(" ") ?? part.byte_len())]
+            ro slash = ratio.find("/") ?? -1
+            if slash > 0 {
+                ro attempt = ratio[..slash]
+                if attempt == ratio[slash + 1..] && attempt.to_int().is_ok() && attempt != "0" { return "provider_transport_lost" }
+            }
+        }
+    }
+    ""
+}
+
+export fn provider_refusal(request str, kind str) -> Incoming {
+    ro failure = if kind == "provider_content_filtered" { FailCode.ModelRefused } else { FailCode.ConnectionLost }
+    Incoming.incoming(EventKind.Refused, kind, Some(request), failure.name())
+}
+
 /// The end of a turn by the stop reason of `session/prompt`: `end_turn` is the answer, the others are refusals with the
 /// codes of the table; a reason the table does not know is `NoResult`.
 export fn stop_event(request str, stop_reason str) -> Incoming {
@@ -581,6 +614,7 @@ export fn stop_event(request str, stop_reason str) -> Incoming {
     }
     if stop_reason == "max_tokens" { return refused_event(request, FailCode.MaxTokens) }
     if stop_reason == "max_turn_requests" { return refused_event(request, FailCode.MaxTurnRequests) }
+    if stop_reason == "content_filter" { return provider_refusal(request, "provider_content_filtered") }
     if stop_reason == "refusal" { return refused_event(request, FailCode.ModelRefused) }
     if stop_reason == "cancelled" { return refused_event(request, FailCode.StoppedByHuman) }
     refused_event(request, FailCode.NoResult)
@@ -710,7 +744,7 @@ fn page_input_of(e Incoming, turn str) -> Option[PageInput] {
                 put(o, "text", JsonValue.str(text_field(value, "text") ?? ""))
                 return page_input("agent_chunk", JsonValue.object(o))
             }
-            if e.name == "turn_resume" || e.name == "turn_interrupt_queued" {
+            if e.name == "turn_resume" || e.name == "turn_interrupt_queued" || e.name == "provider_recovery" {
                 return with_turn(e.name, object_input(e)?, turn)
             }
             if e.name == "cancel" || e.name == "cancel_request" { return turn_only("cancel", turn) }
@@ -786,6 +820,7 @@ fn page_input_of(e Incoming, turn str) -> Option[PageInput] {
             None
         }
         EventKind.Refused => {
+            if e.name == "provider_transport_lost" || e.name == "provider_content_filtered" { return refusal_input(e.name, turn) }
             if e.name == "agent_refused" { return refusal_input(e.input, turn) }
             None
         }
