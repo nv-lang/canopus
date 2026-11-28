@@ -131,7 +131,8 @@ function tick() {
 export function workPhraseNode(doc) {
   if (hostDoc === null) {
     hostDoc = doc;
-    setInterval(tick, PERIOD_MS);
+    const timer = setInterval(tick, PERIOD_MS);
+    if (typeof timer.unref === 'function') timer.unref();
   }
   const node = h(doc, 'span', { class: 'work-phrase' });
   for (const ch of current) node.appendChild(h(doc, 'span', { class: 'ch', text: ch }));
