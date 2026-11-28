@@ -12,6 +12,7 @@
 import { daemonAddress, daemonContact, daemonStatus } from './daemon-settings.js';
 import { commandName, isHubCommand } from './commands.js';
 import { t } from './strings.js';
+import { workPhraseNode } from './work-phrase.js';
 import { approvalView } from './family-approvals.js';
 import { BARS, barHeights, createMeter, recordingView } from './meter.js';
 import { createDictation, speechCtor, createMicPress, micTitleKey, clockText } from './voice.js';
@@ -2550,7 +2551,7 @@ export function createView(doc, refs, deps) {
       }
       default: {
         const pulsar = h(doc, 'span', { class: 'work-pulsar', 'aria-hidden': 'true' }, h(doc, 'i'), h(doc, 'i'), h(doc, 'i'), h(doc, 'b'));
-        node.replaceChildren(pulsar, h(doc, 'span', { text: t('chat.running') }),
+        node.replaceChildren(pulsar, workPhraseNode(doc),
           ...(item.since > 0 ? [h(doc, 'span', { class: 'elapsed', 'data-since': item.since, text: durationText(now() - item.since) })] : []),
           h(doc, 'span', { class: 'silent-note', hidden: true, 'data-last': item.last || 0 },
             h(doc, 'span', { class: 'silent-text' }),
