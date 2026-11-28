@@ -129,15 +129,17 @@ function tick() {
 
 /** Идущая фраза settles в новый узел без анимации; тик докрутит при следующей смене. */
 export function workPhraseNode(doc) {
-  if (hostDoc === null) {
-    hostDoc = doc;
-    const timer = setInterval(tick, PERIOD_MS);
-    if (typeof timer.unref === 'function') timer.unref();
+  try {
+    if (hostDoc === null) {
+      hostDoc = doc;
+      const timer = setInterval(tick, PERIOD_MS);
+      if (typeof timer.unref === 'function') timer.unref();
+    }
+    const node = h(doc, 'span', { class: 'work-phrase' });
+    for (const ch of current) node.appendChild(h(doc, 'span', { class: 'ch', text: ch }));
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => { if (node.isConnected) setWidth(node, current); });
+    return node;
+  } catch {
+    return h(doc, 'span', { class: 'work-phrase', text: current });
   }
-  const node = h(doc, 'span', { class: 'work-phrase' });
-  for (const ch of current) node.appendChild(h(doc, 'span', { class: 'ch', text: ch }));
-  // Замер ширины — только после вставки узла в документ: отсоединённый узел отвечает
-  // шрифтом по умолчанию, ширина выходит неверной и текст обрезается.
-  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => { if (node.isConnected) setWidth(node, current); });
-  return node;
 }
