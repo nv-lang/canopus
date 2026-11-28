@@ -3,6 +3,7 @@
 module canopus.server.front
 
 import canopus.server.{HubCommand}
+import canopus.daemon.{DaemonAdminRequest}
 import polaris.{Router, serve_once}
 import std.concurrency.nvchan.{Chan}
 import std.text
@@ -10,11 +11,12 @@ import std.text
 // The router of the panel over an empty root: no agent, no recognizer, the flat layout of the root.
 fn test_router(root str) -> Router {
     ro hub = Chan[HubCommand].new(4)
+    ro admin = Chan[DaemonAdminRequest].new(1)
     ro reg = Chan[Reg].new(4)
     ro stt_asks = Chan[SttAsk].new(1)
     ro stt_mgr = Chan[SttMgrAsk].new(1)
     ro layout = fs_defaults().layout
-    match build_router(root, 59999, hub.tx, reg.tx, []AgentChoice.new(), "http://127.0.0.1:9", "ru", "small", stt_asks.tx, stt_mgr.tx, root, 1024, layout, "default", []str.new(), None, root) {
+    match build_router(root, 59999, admin.tx, hub.tx, reg.tx, []AgentChoice.new(), "http://127.0.0.1:9", "ru", "small", stt_asks.tx, stt_mgr.tx, root, 1024, layout, "default", []str.new(), None, root) {
         Ok(router) => router
         Err(e) => panic("the router of the test did not build: ${e}")
     }

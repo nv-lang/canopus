@@ -449,40 +449,40 @@ fn AcpClient mut @note(text str) -> () {
     @push(Incoming.signal("acp_note", text))
 }
 
-fn AcpClient mut @refuse(request str, code FailCode) -> () {
-    @push(refused_event(request, code))
+fn AcpClient mut @refuse(request str, code FailCode, revoked bool = false) -> () {
+    @push(if revoked { daemon_revoked_event(request) } else { refused_event(request, code) })
 }
 
 // ----- the end of the process, the failure of the handshake -----
 
-fn AcpClient mut @refuse_everything(code FailCode) -> () {
+fn AcpClient mut @refuse_everything(code FailCode, revoked bool = false) -> () {
     // the questions that wait for the owner end with the turn: the page is told, the process is not (it is gone or going)
     @resolve_asks(false)
     if @active.byte_len() > 0 {
-        @refuse(@active, code)
+        @refuse(@active, code, revoked: revoked)
         @active = ""
         @prompt_rpc = -1
     }
     ro waiting = @queue
     @queue = []AcpQueued.new()
-    for q in waiting { @refuse(q.request, code) }
+    for q in waiting { @refuse(q.request, code, revoked: revoked) }
     @permissions = []AcpPending.new()
 }
 
-fn AcpClient mut @process_ended() -> () {
+fn AcpClient mut @process_ended(revoked bool = false) -> () {
     if @phase == "dead" || @phase == "failed" || @phase == "closed" { return }
     @phase = "dead"
     if @interrupt_rpc >= 0 {
         @interrupt_rpc = -1
         @interrupt_result = Some("соединение с агентом закрыто до подтверждения отмены")
     }
-    @refuse_everything(FailCode.ConnectionLost)
+    @refuse_everything(FailCode.ConnectionLost, revoked: revoked)
 }
 
-fn AcpClient mut @transport_failed(reason str) -> () {
+fn AcpClient mut @transport_failed(reason str, revoked bool = false) -> () {
     @last_error = reason
     @note(reason)
-    @process_ended()
+    @process_ended(revoked: revoked)
     @link.stop()
 }
 
@@ -1054,6 +1054,8 @@ fn AcpClient mut @apply_inbound(item Inbound) -> () {
         @stderr = tail_of("${@stderr}${item.text}\n")
     } else if item.kind == "stderr_tail" {
         @stderr = item.text
+    } else if item.kind == "daemon_revoked" {
+        @transport_failed(item.text, revoked: true)
     } else if item.kind == "error" {
         @transport_failed(item.text)
     } else if item.kind == "exit" {

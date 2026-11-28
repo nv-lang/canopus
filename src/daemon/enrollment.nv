@@ -1,0 +1,435 @@
+// Enrollment records own their credentials and lifecycle in a single atomic update per ID.
+module canopus.daemon
+
+import std.concurrency.nvchan.{Chan, ChanRx, ChanTx}
+import std.crypto.sha256.{Sha256}
+import std.encoding.hex.{Hex}
+import std.encoding.json.{Json, JsonObject, JsonValue}
+import std.fs.{Fs, Path, File, OpenOptions, create_dir_all, read_dir, read_text, remove_file, rename, try_exists}
+import std.net.{Net, SocketAddr, TcpListener, TcpStream}
+
+const ENROLL_TTL_MS = 15 * 60 * 1000
+const PROBE_INTERVAL_MS = 3000
+
+fn key_digest(prefix str, key str) -> str => Sha256.hash_str("${prefix}:${key}".bytes())
+fn revoke_key(key str) -> str => key_digest("canopus-daemon-revoke", key)
+
+fn valid_key(key str) -> bool => key.byte_len() >= 32 && key.byte_len() <= 256
+
+fn write_private(path Path, content str) Fs Random -> Result[(), str] {
+    ro parent = path.parent().ok_or("key file requires a parent directory")?
+    ro suffix = Hex.encode(Random.bytes(8))
+    ro temporary = parent.join(".canopus-key-${suffix}")
+    consume file = match OpenOptions.new().write(true).create_new(true).mode(384).open(temporary) {
+        Ok(consume opened) => opened
+        Err(e) => return Err("cannot create private daemon state")
+    }
+    ro data = content.bytes()
+    ro written = file.write(data)
+    ro complete = written == Ok(data.len()) && file.sync_all().is_ok()
+    ro closed = file.close()
+    if complete && closed.is_ok() && rename(temporary, path).is_ok() {
+        match File.open(parent) {
+            Ok(consume dir) => { ro synced = dir.sync_all(); ro done = dir.close() }
+            Err(e) => ()
+        }
+        return Ok(())
+    }
+    ro removed = remove_file(temporary)
+    Err("cannot save private daemon state")
+}
+
+fn enrollment_dir(state_dir str) -> Path => Path.from_bytes("${state_dir}/daemon-enrollment".bytes())
+
+fn enrollment_path(state_dir str, id str) -> Path => enrollment_dir(state_dir).join("${id}.json")
+
+fn enrollment_read(state_dir str, id str) Fs -> Result[Option[JsonObject], str] {
+    if state_dir == "" || !valid_daemon_id(id) { return Ok(None) }
+    ro path = enrollment_path(state_dir, id)
+    match try_exists(path) {
+        Ok(false) => return Ok(None)
+        Ok(true) => ()
+        Err(e) => return Err("cannot inspect daemon enrollment")
+    }
+    ro source = match read_text(path) {
+        Ok(value) => value
+        Err(e) => return Err("cannot read daemon enrollment")
+    }
+    ro row = match Json.parse(source) {
+        Ok(value) => value.object().ok_or("invalid daemon enrollment")?
+        Err(e) => return Err("invalid daemon enrollment")
+    }
+    Ok(Some(row))
+}
+
+fn enrollment_save(state_dir str, id str, row JsonObject) Fs Random -> Result[(), str] {
+    if create_dir_all(enrollment_dir(state_dir)).is_err() { return Err("cannot create daemon enrollment directory") }
+    write_private(enrollment_path(state_dir, id), "${JsonValue.object(row).to_str()}\n")
+}
+
+fn enrollment_ids(state_dir str) Fs -> Result[[]str, str] {
+    if state_dir == "" { return Ok([]str.new()) }
+    ro dir = enrollment_dir(state_dir)
+    match try_exists(dir) {
+        Ok(false) => return Ok([]str.new())
+        Ok(true) => ()
+        Err(e) => return Err("cannot inspect daemon enrollment directory")
+    }
+    ro entries = match read_dir(dir) {
+        Ok(values) => values
+        Err(e) => return Err("cannot list daemon enrollments")
+    }
+    mut ids = []str.new()
+    for entry in entries {
+        ro name = entry.name.to_str() ?? ""
+        if !name.ends_with(".json") { continue }
+        ro id = name[..name.byte_len() - 5]
+        if !valid_daemon_id(id) { continue }
+        mut at = ids.len()
+        ids.push(id)
+        while at > 0 && id < ids[at - 1] {
+            ids[at] = ids[at - 1]
+            at -= 1
+        }
+        ids[at] = id
+    }
+    Ok(ids)
+}
+
+fn is_revoked(state_dir str, id str) Fs -> Result[bool, str] {
+    match enrollment_read(state_dir, id)? {
+        Some(row) => Ok(text(row, "phase") == "revoked")
+        None => Ok(false)
+    }
+}
+
+export fn daemon_configured(state_dir str) Fs -> bool {
+    if state_dir == "" { return false }
+    if try_exists(Path.from_bytes("${state_dir}/daemon.json".bytes())) ?? true { return true }
+    match daemon_ids(state_dir) {
+        Ok(ids) => ids.len() > 0
+        Err(reason) => true
+    }
+}
+
+export type DaemonAdminRequest { op str, input JsonObject, reply ChanTx[DaemonAdminReply] }
+export type DaemonAdminReply { status int, body str }
+
+fn admin_ok(body JsonObject) -> DaemonAdminReply => { status: 200, body: JsonValue.object(body).to_str() }
+
+fn admin_error(status int, code str, reason str) -> DaemonAdminReply {
+    mut body = JsonObject.new()
+    put(body, "code", JsonValue.str(code))
+    put(body, "error", JsonValue.str(reason))
+    DaemonAdminReply { status, body: JsonValue.object(body).to_str() }
+}
+
+fn storage_error(reason str) -> DaemonAdminReply => admin_error(500, "daemon_storage", reason)
+
+fn issue_enrollment(state_dir str, enroll_port int, id str, input JsonObject, old Option[JsonObject], static_targets []DaemonTarget) Fs Time Random -> DaemonAdminReply {
+    for target in static_targets {
+        if target.id == id { return admin_error(409, "daemon_exists", "daemon ID is configured with a static key") }
+    }
+    match old {
+        Some(row) => if text(row, "phase") != "pending" {
+            return admin_error(409, "daemon_exists", "daemon ID already enrolled or revoked")
+        }
+        None => ()
+    }
+    if text(input, "host") == "" { return admin_error(400, "invalid_parameter", "daemon host is required") }
+    ro target = match daemon_target(id, input, "") {
+        Ok(value) => value
+        Err(reason) => return admin_error(400, "invalid_parameter", reason)
+    }
+    ro key = Hex.encode(Random.bytes(32))
+    ro expires_at = now_ms() + ENROLL_TTL_MS
+    mut row = JsonObject.new()
+    put(row, "host", JsonValue.str(target.address.ip()))
+    put(row, "port", JsonValue.int(target.address.port()))
+    put(row, "cwd", JsonValue.str(target.cwd))
+    put(row, "phase", JsonValue.str("pending"))
+    put(row, "expires_at", JsonValue.int(expires_at))
+    put(row, "enroll_digest", JsonValue.str(key_digest("canopus-daemon-enroll", key)))
+    match enrollment_save(state_dir, id, row) {
+        Err(reason) => storage_error(reason)
+        Ok(done) => {
+            mut result = JsonObject.new()
+            put(result, "id", JsonValue.str(id))
+            put(result, "enroll_key", JsonValue.str(key))
+            put(result, "enroll_port", JsonValue.int(enroll_port))
+            put(result, "expires_at", JsonValue.int(expires_at))
+            admin_ok(result)
+        }
+    }
+}
+
+fn redeem_enrollment(state_dir str, id str, key str, old Option[JsonObject]) Fs Time Random -> DaemonAdminReply {
+    ro invalid = admin_error(403, "invalid_enroll_key", "enrollment key is invalid, replaced or already used")
+    mut row = old ?? return invalid
+    if text(row, "phase") == "revoked" { return admin_error(403, "daemon_revoked", "daemon ${id} was revoked") }
+    if text(row, "phase") != "pending" || key.byte_len() != 64 || text(row, "enroll_digest") != key_digest("canopus-daemon-enroll", key) {
+        return invalid
+    }
+    if now_ms() >= (number(row, "expires_at") ?? 0) {
+        return admin_error(403, "expired_enroll_key", "enrollment key expired")
+    }
+    ro permanent = Hex.encode(Random.bytes(32))
+    put(row, "enroll_digest", JsonValue.null())
+    put(row, "phase", JsonValue.str("active"))
+    put(row, "key", JsonValue.str(permanent))
+    match enrollment_save(state_dir, id, row) {
+        Err(reason) => storage_error(reason)
+        Ok(done) => {
+            mut result = JsonObject.new()
+            put(result, "key", JsonValue.str(permanent))
+            admin_ok(result)
+        }
+    }
+}
+
+fn revoke_enrollment(state_dir str, id str, old Option[JsonObject], static_targets []DaemonTarget) Fs Random -> DaemonAdminReply {
+    mut row = old ?? JsonObject.new()
+    ro phase = text(row, "phase")
+    if phase == "revoked" { return admin_ok(JsonObject.new()) }
+    ro key = text(row, "key")
+    if phase == "" {
+        mut found = false
+        for target in static_targets {
+            if target.id != id { continue }
+            put(row, "host", JsonValue.str(target.address.ip()))
+            put(row, "port", JsonValue.int(target.address.port()))
+            match read_daemon_key(target, state_dir) {
+                Ok(endpoint) => put(row, "revoke_key", JsonValue.str(revoke_key(endpoint.key)))
+                Err(reason) => put(row, "revocation", JsonValue.str("unconfirmed"))
+            }
+            found = true
+        }
+        if !found { return admin_error(404, "unknown_daemon", "unknown daemon: ${id}") }
+    }
+    if valid_key(key) { put(row, "revoke_key", JsonValue.str(revoke_key(key))) }
+    put(row, "phase", JsonValue.str("revoked"))
+    put(row, "key", JsonValue.null())
+    put(row, "enroll_digest", JsonValue.null())
+    match enrollment_save(state_dir, id, row) {
+        Ok(done) => admin_ok(JsonObject.new())
+        Err(reason) => storage_error(reason)
+    }
+}
+
+type DaemonProbe { id str, revoke str, result str, at int }
+
+fn probe_daemon(id str, address SocketAddr, key str, retiring bool) Net Time -> DaemonProbe {
+    mut request = JsonObject.new()
+    put(request, "version", JsonValue.int(VERSION))
+    put(request, "daemon_id", JsonValue.str(id))
+    put(request, "op", JsonValue.str(if retiring { "revoke" } else { "ping" }))
+    put(request, "key", JsonValue.str(key))
+    ro result = supervised(timeout: 1000.to_millis(), on_timeout: |_e| "offline") {
+        match exchange_once(address, request) {
+            Ok(reply) => {
+                ro code = text(reply, "error")
+                if retiring {
+                    if code == "revoked" { "revoked" }
+                    else if code == "unauthorized" || code == "wrong_daemon" { "unconfirmed" }
+                    else { "offline" }
+                } else if number(reply, "version") == Some(VERSION) || code == "invalid_identity" {
+                    // Legacy daemons check the credentials before looking for an agent session.
+                    "online"
+                } else { "offline" }
+            }
+            Err(reason) => "offline"
+        }
+    }
+    DaemonProbe { id, revoke: if retiring { key } else { "" }, result, at: now_ms() }
+}
+
+fn probe_inventory(state_dir str, results ChanTx[DaemonProbe]) Fs Net Time Detach -> () {
+    for target in daemon_targets(state_dir) ?? []DaemonTarget.new() {
+        match read_daemon_key(target, state_dir) {
+            Ok(endpoint) => { detach {
+                ro sent = results.send(probe_daemon(endpoint.id, endpoint.address, endpoint.key, false))
+            } }
+            Err(reason) => {
+                ro sent = results.try_send(DaemonProbe { id: target.id, revoke: "", result: "offline", at: now_ms() })
+            }
+        }
+    }
+    for id in enrollment_ids(state_dir) ?? []str.new() {
+        ro row = match enrollment_read(state_dir, id) { Ok(Some(value)) => value, _ => { continue } }
+        ro key = text(row, "revoke_key")
+        if text(row, "phase") != "revoked" || key == "" { continue }
+        match daemon_target(id, row, "") {
+            Ok(target) => { detach {
+                ro sent = results.send(probe_daemon(id, target.address, key, true))
+            } }
+            Err(reason) => ()
+        }
+    }
+}
+
+fn record_probe(state_dir str, probe DaemonProbe, mut health JsonObject) Fs Random -> () {
+    if probe.revoke != "" {
+        if probe.result == "offline" { return }
+        mut row = (enrollment_read(state_dir, probe.id) ?? None) ?? return
+        if text(row, "revoke_key") != probe.revoke { return }
+        put(row, "revoke_key", JsonValue.null())
+        put(row, "revocation", JsonValue.str(probe.result))
+        ro updated = enrollment_save(state_dir, probe.id, row)
+        return
+    }
+    mut status = (health.get(probe.id) ?? JsonValue.null()).object() ?? JsonObject.new()
+    if probe.at < (number(status, "checked_at") ?? 0) { return }
+    put(status, "checked_at", JsonValue.int(probe.at))
+    put(status, "status", JsonValue.str(probe.result))
+    if probe.result == "online" { put(status, "last_contact", JsonValue.int(probe.at)) }
+    put(health, probe.id, JsonValue.object(status))
+}
+
+fn machine_row(target DaemonTarget, status str, last Option[int]) -> JsonObject {
+    mut row = JsonObject.new()
+    put(row, "id", JsonValue.str(target.id))
+    put(row, "host", JsonValue.str(target.address.ip()))
+    put(row, "port", JsonValue.int(target.address.port()))
+    put(row, "cwd", JsonValue.str(target.cwd))
+    put(row, "status", JsonValue.str(status))
+    put(row, "last_contact", match last { Some(at) => JsonValue.int(at), None => JsonValue.null() })
+    row
+}
+
+fn inventory(state_dir str, health JsonObject) Fs Time -> Result[JsonObject, str] {
+    mut ids = []JsonValue.new()
+    mut machines = []JsonValue.new()
+    for target in daemon_targets(state_dir)? {
+        ids.push(JsonValue.str(target.id))
+        ro probe = (health.get(target.id) ?? JsonValue.null()).object() ?? JsonObject.new()
+        ro status = text(probe, "status")
+        machines.push(JsonValue.object(machine_row(target, if status == "" { "checking" } else { status }, number(probe, "last_contact"))))
+    }
+    for id in enrollment_ids(state_dir)? {
+        ro row = match enrollment_read(state_dir, id)? { Some(value) => value, None => { continue } }
+        ro phase = text(row, "phase")
+        if phase == "active" { continue }
+        ro target = daemon_target(id, row, "")?
+        ro status = if phase == "pending" && now_ms() >= (number(row, "expires_at") ?? 0) { "expired" } else { phase }
+        ro probe = (health.get(id) ?? JsonValue.null()).object() ?? JsonObject.new()
+        mut machine = machine_row(target, status, number(probe, "last_contact"))
+        if text(row, "revoke_key") != "" { put(machine, "revocation", JsonValue.str("pending")) }
+        else if text(row, "revocation") == "unconfirmed" { put(machine, "revocation", JsonValue.str("unconfirmed")) }
+        machines.push(JsonValue.object(machine))
+    }
+    mut result = JsonObject.new()
+    put(result, "daemons", JsonValue.array(ids))
+    put(result, "machines", JsonValue.array(machines))
+    Ok(result)
+}
+
+fn admin_request(state_dir str, enroll_port int, op str, input JsonObject, health JsonObject) Fs Time Random -> DaemonAdminReply {
+    if op == "list" {
+        return match inventory(state_dir, health) {
+            Ok(body) => admin_ok(body)
+            Err(reason) => storage_error(reason)
+        }
+    }
+    ro id = text(input, "id")
+    if !valid_daemon_id(id) { return admin_error(400, "invalid_parameter", "invalid daemon ID") }
+    ro row = match enrollment_read(state_dir, id) {
+        Ok(value) => value
+        Err(reason) => return storage_error(reason)
+    }
+    if op == "enroll" { return redeem_enrollment(state_dir, id, text(input, "enroll_key"), row) }
+    ro targets = match static_daemon_targets(state_dir) {
+        Ok(values) => values
+        Err(reason) => return storage_error(reason)
+    }
+    if op == "issue" { return issue_enrollment(state_dir, enroll_port, id, input, row, targets) }
+    revoke_enrollment(state_dir, id, row, targets)
+}
+
+/// Serialize token redemption and revocation. Network probes run independently of registry writes.
+export fn run_daemon_admin(state_dir str, enroll_port int, requests ChanRx[DaemonAdminRequest]) Fs Net Time Random Detach -> () {
+    ro probes = Chan[DaemonProbe].new(256)
+    mut health = JsonObject.new()
+    mut next_probe = 0
+    while true {
+        match requests.try_recv() {
+            Some(request) => {
+                ro answer = admin_request(state_dir, enroll_port, request.op, request.input, health)
+                if answer.status == 200 && request.op != "list" { next_probe = 0 }
+                ro sent = request.reply.try_send(answer)
+            }
+            None => ()
+        }
+        match probes.rx.try_recv() {
+            Some(probe) => record_probe(state_dir, probe, health)
+            None => ()
+        }
+        ro now = now_ms()
+        if now >= next_probe {
+            next_probe = now + PROBE_INTERVAL_MS
+            probe_inventory(state_dir, probes.tx)
+        }
+        5.to_millis().sleep()
+    }
+}
+
+const ENROLL_WIRE_LIMIT = 4096
+
+fn enroll_connection(consume conn TcpStream, admin ChanTx[DaemonAdminRequest], available ChanTx[int]) Net Time -> () {
+    supervised(timeout: SOCKET_MS.to_millis()) {
+        ro body = match read_daemon_message(conn, limit: ENROLL_WIRE_LIMIT) {
+            Some(input) => {
+                if text(input, "op") != "enroll" || number(input, "version") != Some(VERSION) {
+                    error("invalid_request", "expected a versioned enrollment request")
+                } else {
+                    ro reply = Chan[DaemonAdminReply].new(1)
+                    if admin.try_send(DaemonAdminRequest { op: "enroll", input, reply: reply.tx }) {
+                        match reply.rx.recv() {
+                            Some(answer) => answer.body
+                            None => error("unavailable", "hub did not answer enrollment")
+                        }
+                    } else { error("unavailable", "hub enrollment is busy") }
+                }
+            }
+            None => error("invalid_request", "expected one JSON enrollment request")
+        }
+        ro sent = conn.write_all("${body}\n".bytes())
+    }
+    conn.close()
+    ro released = available.try_send(1)
+}
+
+/// The bootstrap socket accepts only the exchange, even when reached through an SSH forward.
+export fn serve_enrollment(consume listener TcpListener, admin ChanTx[DaemonAdminRequest]) Net Time Detach -> () {
+    ro slots = Chan[int].new(16)
+    ro available = slots.tx
+    for i in 0..16 { ro reserved = available.try_send(1) }
+    mut listening = true
+    while listening {
+        match listener.accept() {
+            Ok(consume conn) => match slots.rx.try_recv() {
+                Some(slot) => { detach consume conn { enroll_connection(conn, admin, available) } }
+                None => { conn.close() }
+            }
+            Err(e) => { listening = false }
+        }
+    }
+    listener.close()
+}
+
+export fn request_daemon_key(hub_port int, id str, enroll_key str) Net Time -> Result[str, str] {
+    if hub_port < 1 || hub_port > 65535 || !valid_daemon_id(id) { return Err("invalid enrollment hub port or daemon ID") }
+    ro address = daemon_address("127.0.0.1", hub_port)?
+    mut request = JsonObject.new()
+    put(request, "id", JsonValue.str(id))
+    put(request, "op", JsonValue.str("enroll"))
+    put(request, "version", JsonValue.int(VERSION))
+    put(request, "enroll_key", JsonValue.str(enroll_key))
+    ro reply = supervised(timeout: SOCKET_MS.to_millis(), on_timeout: |_e| Err("daemon enrollment timed out")) {
+        exchange_once(address, request, limit: ENROLL_WIRE_LIMIT)
+    }?
+    ro key = text(reply, "key")
+    if valid_key(key) { return Ok(key) }
+    ro reason = text(reply, "error")
+    if reason != "" && text(reply, "code") != "" { return Err(reason) }
+    Err("invalid permanent daemon key reply")
+}

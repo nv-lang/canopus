@@ -17,6 +17,7 @@ export function safeError(value) {
   // Unknown details are deliberately withheld rather than relying on a token blacklist.
   const rules = [
     [/^provider_transport_lost$/, t('delivery.reason_provider_transport')],
+    [/^(daemon_revoked$|daemon revoked:)/, t('delivery.reason_daemon_revoked')],
     [/^provider_content_filtered$/, t('delivery.reason_provider_filter')],
     [/^(NoResult|no_result)$/i, t('delivery.reason_result')],
     [/^(Denied|ModelRefused|model_refused|Refused)$/i, t('delivery.reason_refused')],

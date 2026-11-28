@@ -7,11 +7,11 @@ import std.concurrency.nvchan.{Chan, ChanRx, ChanTx}
 import std.encoding.base64.{Base64}
 import std.encoding.hex.{Hex}
 import std.encoding.json.{Json, JsonObject, JsonValue}
-import std.fs.{Fs, Path, read_text, try_exists}
+import std.fs.{Fs, Path, read_text, try_exists, real_fs}
 import std.net.{Net, SocketAddr, TcpStream}
 
 type DaemonTarget { id str, address SocketAddr, cwd str, key_path str }
-export type DaemonEndpoint { id str, address SocketAddr, key str, cwd str }
+export type DaemonEndpoint { id str, address SocketAddr, key str, cwd str, state_dir str }
 
 const RECONNECT_MS = 60000
 
@@ -30,9 +30,11 @@ fn daemon_target(id str, config JsonObject, key_path str) -> Result[DaemonTarget
 
 fn valid_daemon_id(id str) -> bool {
     if id.byte_len() == 0 || id.byte_len() > 64 { return false }
-    ro allowed = "abcdefghijklmnopqrstuvwxyz0123456789-_".bytes()
     for byte in id.bytes() {
-        if !allowed.contains(byte) { return false }
+        ro code = byte as int
+        ro letter = code >= 97 && code <= 122
+        ro digit = code >= 48 && code <= 57
+        if !letter && !digit && code != 45 && code != 95 { return false }
     }
     true
 }
@@ -51,7 +53,7 @@ fn parse_daemons(entries []JsonValue, state_dir str) -> Result[[]DaemonTarget, s
     Ok(targets)
 }
 
-fn daemon_targets(state_dir str) Fs -> Result[[]DaemonTarget, str] {
+fn static_daemon_targets(state_dir str) Fs -> Result[[]DaemonTarget, str] {
     if state_dir.byte_len() == 0 { return Ok([]DaemonTarget.new()) }
     ro endpoint_path = Path.from_bytes("${state_dir}/daemon.json".bytes())
     ro configured = match try_exists(endpoint_path) {
@@ -76,28 +78,54 @@ fn daemon_targets(state_dir str) Fs -> Result[[]DaemonTarget, str] {
     }
 }
 
+fn daemon_targets(state_dir str) Fs -> Result[[]DaemonTarget, str] {
+    mut targets = []DaemonTarget.new()
+    mut static_ids = []str.new()
+    for target in static_daemon_targets(state_dir)? {
+        static_ids.push(target.id)
+        if !is_revoked(state_dir, target.id)? { targets.push(target) }
+    }
+    for id in enrollment_ids(state_dir)? {
+        ro row = match enrollment_read(state_dir, id)? { Some(value) => value, None => { continue } }
+        if text(row, "phase") != "active" { continue }
+        if static_ids.contains(id) { return Err("duplicate daemon ID: ${id}") }
+        targets.push(daemon_target(id, row, "")?)
+    }
+    Ok(targets)
+}
+
 export fn daemon_ids(state_dir str) Fs -> Result[[]str, str] {
     mut ids = []str.new()
     for target in daemon_targets(state_dir)? { ids.push(target.id) }
     Ok(ids)
 }
 
+export fn daemon_revocation(state_dir str, id str) Fs -> Result[(), str] {
+    if is_revoked(state_dir, id)? { return Err("daemon revoked: daemon ${id} was revoked") }
+    Ok(())
+}
+
 /// With no pinned ID the first entry is the default. Only the selected daemon's key is read.
 export fn daemon_endpoint(state_dir str, pinned str) Fs -> Result[Option[DaemonEndpoint], str] {
+    daemon_revocation(state_dir, pinned)?
     for target in daemon_targets(state_dir)? {
-        if pinned == "" || pinned == target.id { return Ok(Some(read_daemon_key(target)?)) }
+        if pinned == "" || pinned == target.id { return Ok(Some(read_daemon_key(target, state_dir)?)) }
     }
     Ok(None)
 }
 
-fn read_daemon_key(target DaemonTarget) Fs -> Result[DaemonEndpoint, str] {
-    ro key_source = match read_text(Path.from_bytes(target.key_path.bytes())) {
-        Ok(content) => content
-        Err(e) => return Err("cannot read daemon key")
+fn read_daemon_key(target DaemonTarget, state_dir str) Fs -> Result[DaemonEndpoint, str] {
+    ro key = if target.key_path == "" {
+        ro row = enrollment_read(state_dir, target.id)?.ok_or("cannot read enrolled daemon key")?
+        text(row, "key")
+    } else {
+        match read_text(Path.from_bytes(target.key_path.bytes())) {
+            Ok(content) => content.trim()
+            Err(e) => return Err("cannot read daemon key")
+        }
     }
-    ro key = key_source.trim()
-    if key.byte_len() < 32 || key.byte_len() > 256 { return Err("invalid daemon key") }
-    Ok(DaemonEndpoint { id: target.id, address: target.address, key, cwd: target.cwd })
+    if !valid_key(key) { return Err("invalid daemon key") }
+    Ok(DaemonEndpoint { id: target.id, address: target.address, key, cwd: target.cwd, state_dir })
 }
 
 fn request_for(agent RelayAgent, op str) -> JsonObject {
@@ -112,14 +140,14 @@ fn request_for(agent RelayAgent, op str) -> JsonObject {
     body
 }
 
-fn exchange_once(endpoint DaemonEndpoint, body JsonObject) Net -> Result[JsonObject, str] {
-    consume sock = match TcpStream.connect(endpoint.address) {
+fn exchange_once(address SocketAddr, body JsonObject, limit int = WIRE_LIMIT) Net -> Result[JsonObject, str] {
+    consume sock = match TcpStream.connect(address) {
         Ok(consume connected) => connected
         Err(e) => return Err("cannot connect to the daemon")
     }
     ro wire = "${JsonValue.object(body).to_str()}\n"
     ro reply = match sock.write_all(wire.bytes()) {
-        Ok(done) => match read_request(sock) {
+        Ok(done) => match read_daemon_message(sock, limit: limit) {
             Some(response) => Ok(response)
             None => Err("daemon closed the connection without a response")
         }
@@ -130,9 +158,13 @@ fn exchange_once(endpoint DaemonEndpoint, body JsonObject) Net -> Result[JsonObj
 }
 
 fn exchange(endpoint DaemonEndpoint, body JsonObject) Net Time -> Result[JsonObject, str] {
-    supervised(timeout: SOCKET_MS.to_millis(), on_timeout: |_e| Err("daemon request timed out")) {
-        exchange_once(endpoint, body)
+    with Fs = real_fs() { daemon_revocation(endpoint.state_dir, endpoint.id) }?
+    // A revocation written while this socket waits takes effect before its reply is delivered.
+    ro reply = supervised(timeout: SOCKET_MS.to_millis(), on_timeout: |_e| Err("daemon request timed out")) {
+        exchange_once(endpoint.address, body)
     }
+    with Fs = real_fs() { daemon_revocation(endpoint.state_dir, endpoint.id) }?
+    reply
 }
 
 fn daemon_reply(agent RelayAgent, body JsonObject) Net Time -> Result[JsonObject, str] {
@@ -207,6 +239,7 @@ fn poll_agent(agent RelayAgent, after int, lease_until int) Net Time -> Result[J
                 if text(reply, "error") != "busy" || now_ms() >= lease_until { return checked_reply(agent, reply) }
             }
             Err(reason) => {
+                with Fs = real_fs() { daemon_revocation(agent.endpoint.state_dir, agent.endpoint.id) }?
                 // Poll is read-only with respect to ACP and can safely use the same cursor again.
                 if now_ms() >= network_until { return Err(reason) }
             }
@@ -255,7 +288,8 @@ fn keep_relay(agent RelayAgent, after int, incoming ChanTx[Inbound], outgoing Ch
         Ok(done) => ()
         Err(reason) => {
             ro stopped = daemon_reply(agent, request_for(agent, "stop"))
-            ro told = incoming.send(Inbound { kind: "error", text: reason, code: -1, seq: 0 })
+            ro kind = if reason.starts_with("daemon revoked:") { "daemon_revoked" } else { "error" }
+            ro told = incoming.send(Inbound { kind, text: reason, code: -1, seq: 0 })
             ro exit = incoming.try_send(Inbound { kind: "exit", text: "", code: -1, seq: 0 })
             ro eof = incoming.try_send(Inbound { kind: "eof", text: "", code: 0, seq: 0 })
         }

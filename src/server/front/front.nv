@@ -10,7 +10,7 @@ module canopus.server.front
 
 import canopus.server.{HubCommand, Outgoing, ServerSettings, run_hub_loop}
 import canopus.config.{ConfigLayout, presets_reply, work_dir_now}
-import canopus.daemon.{daemon_ids}
+import canopus.daemon.{DaemonAdminRequest, DaemonAdminReply, run_daemon_admin, serve_enrollment}
 import canopus.model_metadata.{MetadataHook, model_metadata_reply, read_metadata_snapshot}
 import http.{HeaderMap}
 import polaris.{Router, MethodRouter, ServerRequest, ServerResponse, StreamBody, WebSocketUpgrade, StatusCode, HttpError}
@@ -24,7 +24,8 @@ import std.concurrency.nvchan.{Chan, ChanTx, ChanRx}
 import std.fs.{DirFs, File, Path, Fs, real_fs, read_text}
 import canopus.storage.{session_file}
 import std.io.{stderr}
-import std.net.{TcpStream, real_net}
+import std.net.{TcpListener, TcpStream, real_net}
+import std.prelude.effects.{real_random}
 import std.os.{env, exit_process, real_os}
 
 // What the router tells a writer: 1 - a text, 2 - a pong, 3 - close.
@@ -340,19 +341,40 @@ fn agents_route(agents []AgentChoice) -> fn(ServerRequest) -> ServerResponse {
     }
 }
 
-fn daemons_route(state_dir str, port int) -> fn(ServerRequest) -> ServerResponse {
+fn daemon_admin_route(admin ChanTx[DaemonAdminRequest], port int, op str) -> fn(ServerRequest) -> ServerResponse {
     fn(req ServerRequest) -> ServerResponse {
         if !origin_allowed(req, port) { return json_reply(403, json_error_origin) }
-        // D454: the Polaris handler reads the real instance state.
-        match with Fs = real_fs() { daemon_ids(state_dir) } {
-            Ok(ids) => {
-                mut values = []JsonValue.new()
-                for id in ids { values.push(JsonValue.str(id)) }
-                mut result = JsonObject.new()
-                ro inserted = result.insert("daemons", JsonValue.array(values))
-                json_reply(200, JsonValue.object(result).to_str())
+        ro host = req.header("Host") ?? ""
+        if host != "127.0.0.1:${port}" && host != "localhost:${port}" && !(port == 80 && (host == "127.0.0.1" || host == "localhost")) {
+            return json_reply(403, api_error_json("forbidden_host", "use the loopback hub address"))
+        }
+        ro input = if op == "list" {
+            JsonObject.new()
+        } else {
+            ro raw = req.body_bytes()
+            if (req.header("Content-Type") ?? "") != "application/json" || raw.len() > 4096 {
+                return json_reply(400, api_error_json("invalid_body", "expected a JSON body up to 4 KiB"))
             }
-            Err(reason) => json_reply(500, "{\"error\":\"cannot read daemon inventory\"}")
+            ro source = match raw.to_str() {
+                Ok(value) => value
+                Err(e) => return json_reply(400, api_error_json("invalid_body", "expected UTF-8 JSON"))
+            }
+            match Json.parse(source) {
+                Ok(value) => match value.object() {
+                    Some(object) => object
+                    None => return json_reply(400, api_error_json("invalid_body", "expected a JSON object"))
+                }
+                Err(e) => return json_reply(400, api_error_json("invalid_body", "expected a JSON object"))
+            }
+        }
+        ro reply = Chan[DaemonAdminReply].new(1)
+        if !admin.try_send(DaemonAdminRequest { op, input, reply: reply.tx }) {
+            return json_reply(503, api_error_json("daemon_admin_busy", "daemon management is busy"))
+        }
+        ro answer = supervised(timeout: 3000.to_millis()) { reply.rx.recv() }
+        match answer {
+            Some(result) => json_reply(result.status, result.body)
+            None => json_reply(503, api_error_json("daemon_admin_unavailable", "daemon management did not reply"))
         }
     }
 }
@@ -736,13 +758,15 @@ fn image_get_route(data_dir str) -> fn(ServerRequest) -> ServerResponse {
     }
 }
 
-fn build_router(web_dir str, port int, hub_tx ChanTx[HubCommand], reg_tx ChanTx[Reg], agents []AgentChoice, stt_url str, stt_language str, stt_model str, stt_asks ChanTx[SttAsk], stt_mgr ChanTx[SttMgrAsk], data_dir str, image_limit int, layout ConfigLayout, preset str, reviewer_order []str, metadata_source Option[MetadataHook], metadata_directory str) -> Result[Router, HttpError] {
+fn build_router(web_dir str, port int, admin ChanTx[DaemonAdminRequest], hub_tx ChanTx[HubCommand], reg_tx ChanTx[Reg], agents []AgentChoice, stt_url str, stt_language str, stt_model str, stt_asks ChanTx[SttAsk], stt_mgr ChanTx[SttMgrAsk], data_dir str, image_limit int, layout ConfigLayout, preset str, reviewer_order []str, metadata_source Option[MetadataHook], metadata_directory str) -> Result[Router, HttpError] {
     mut router = Router.new()
     ro r1 = router.get("/", files_route(web_dir))?
     ro r2 = router.get("/health", fn(req ServerRequest) -> ServerResponse => ServerResponse.text(StatusCode.OK, "ok"))?
     ro r3 = router.get("/ws", strict_query(["history"], ws_route(hub_tx, reg_tx, port)))?
     ro r4 = router.get("/api/agents", strict_query([]str.new(), agents_route(agents)))?
-    ro daemons = router.get("/api/daemons", strict_query([]str.new(), daemons_route(layout.state, port)))?
+    ro daemons = router.get("/api/daemons", strict_query([]str.new(), daemon_admin_route(admin, port, "list")))?
+    ro daemon_issue = router.post("/api/daemons/issue", strict_query([]str.new(), daemon_admin_route(admin, port, "issue")))?
+    ro daemon_revoke = router.post("/api/daemons/revoke", strict_query([]str.new(), daemon_admin_route(admin, port, "revoke")))?
     ro r4a = router.post("/api/stt", strict_query(["lang"], stt_route(stt_url, stt_language, port)))?
     ro r4b = router.get("/api/stt/status", strict_query([]str.new(), stt_status_route(stt_mgr, stt_asks, stt_model)))?
     ro r4c = router.post("/api/session-image/{id}", strict_query([]str.new(), image_put_route(data_dir, image_limit, port)))?
@@ -792,7 +816,20 @@ export fn run_front_with_metadata(settings FrontSettings, hub_settings ServerSet
     ro stt_mgr = Chan[SttMgrAsk].new(16)
     ro stt_cfg = SttConfig { managed: settings.stt_managed, dir: settings.stt_dir, model: settings.stt_model, language: settings.stt_language, url: settings.stt_url, pid_file: "${settings.layout.state}/stt.pid" }
     detach { stt_manage(stt_cfg, stt_mgr.rx) }
-    match build_router(settings.web_dir, settings.port, commands.tx, registrations.tx, settings.agents, settings.stt_url, settings.stt_language, settings.stt_model, stt_asks.tx, stt_mgr.tx, settings.data_dir, settings.max_image_bytes, settings.layout, settings.preset, settings.reviewer_order, meta_source, work_dir_now()) {
+    ro daemon_admin = Chan[DaemonAdminRequest].new(32)
+    // SSH forwards only this ephemeral loopback listener, which cannot administer the hub.
+    consume enrollment = match TcpListener.bind("127.0.0.1:0") {
+        Ok(consume listener) => listener
+        Err(e) => { log_line("cannot bind the enrollment listener: ${e}"); exit_process(2); return }
+    }
+    ro enroll_port = enrollment.local_port()
+    detach consume enrollment {
+        serve_enrollment(enrollment, daemon_admin.tx)
+    }
+    detach {
+        with Random = real_random() { run_daemon_admin(settings.layout.state, enroll_port, daemon_admin.rx) }
+    }
+    match build_router(settings.web_dir, settings.port, daemon_admin.tx, commands.tx, registrations.tx, settings.agents, settings.stt_url, settings.stt_language, settings.stt_model, stt_asks.tx, stt_mgr.tx, settings.data_dir, settings.max_image_bytes, settings.layout, settings.preset, settings.reviewer_order, meta_source, work_dir_now()) {
         Err(e) => {
             log_line("the routes cannot be set: ${e}")
             exit_process(2)

@@ -13,6 +13,7 @@ import * as attachments from '../attachments.js';
 import * as routes from '../routes.js';
 import * as crew from '../canopus-task.js';
 import * as delivery from '../delivery.js';
+import { daemonRequest } from '../daemon-settings.js';
 import { chooseMode, parseAgentRegistry } from '../transport.js';
 
 const memory = () => {
@@ -30,7 +31,7 @@ async function app(storage = memory(), sendResult = true, hash = '#s=s', session
   const renderedDelivery = [];
   const context = {
     ...state, ...attention, ...strings, ...queue, ...attachments, ...routes, ...crew, ...delivery, ...loading,
-    chooseMode, parseAgentRegistry,
+    chooseMode, parseAgentRegistry, daemonRequest,
     console, URL, URLSearchParams, AbortSignal, Date, Math, Promise,
     crypto: { randomUUID: () => `client-${sent.length}-${Math.random()}` },
     localStorage: storage, sessionStorage: memory(),

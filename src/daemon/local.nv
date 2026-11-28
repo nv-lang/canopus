@@ -8,6 +8,7 @@ import std.concurrency.nvchan.{Chan, ChanRx, ChanTx}
 import std.encoding.base64.{Base64}
 import std.encoding.hex.{Hex}
 import std.encoding.json.{Json, JsonObject, JsonValue}
+import std.fs.{Fs, Path, read_text, try_exists}
 import std.io.{stdout, write_all}
 import std.net.{Net, SocketAddr, TcpListener, TcpStream, to_socket_addr}
 
@@ -21,6 +22,7 @@ const SOCKET_MS = 5000
 const RETAIN_MS = 30 * 60 * 1000
 const STOPPED_RETAIN_MS = 10000
 const MAX_AGENTS = 32
+const REVOKED_DAEMON_KEY = "revoked"
 
 type DaemonRequest { body JsonObject, reply ChanTx[str] }
 type DaemonFrame { value JsonValue, size int }
@@ -191,7 +193,34 @@ fn dispatch(mut agents []DaemonAgent, body JsonObject, now int) Proc Detach Rand
     }
 }
 
-fn drive(inbox ChanRx[DaemonRequest]) Proc Detach Random Time -> () {
+type DaemonAccess { token str, daemon_id str, key_file Path }
+
+fn authenticate(mut agents []DaemonAgent, body JsonObject, now int, mut access DaemonAccess) Fs Proc Detach Random Time -> str {
+    ro daemon_id = access.daemon_id
+    if access.token == REVOKED_DAEMON_KEY { return error("revoked", "daemon ${daemon_id} was revoked") }
+    ro verb = text(body, "op")
+    ro key = text(body, "key")
+    if key != (if verb == "revoke" { revoke_key(access.token) } else { access.token }) {
+        return error("unauthorized", "wrong daemon key")
+    }
+    if (number(body, "version") ?? -1) != VERSION { return error("wrong_version", "unsupported daemon protocol version") }
+    ro requested = (body.get("daemon_id") ?? JsonValue.str(LEGACY_DAEMON_ID)).str() ?? ""
+    if requested != daemon_id { return error("wrong_daemon", "daemon ID does not match") }
+    if verb == "ping" { return "{\"version\":1}" }
+    if verb == "revoke" {
+        match write_private(access.key_file, "${REVOKED_DAEMON_KEY}\n") {
+            Err(reason) => return error("revocation_failed", reason)
+            Ok(done) => ()
+        }
+        access.token = REVOKED_DAEMON_KEY
+        for agent in agents { agent.link.stop() }
+        return error("revoked", "daemon ${daemon_id} was revoked")
+    }
+    dispatch(agents, body, now)
+}
+
+fn drive(inbox ChanRx[DaemonRequest], initial_key str, daemon_id str, key_file Path) Fs Proc Detach Random Time -> () {
+    mut access = DaemonAccess { token: initial_key, daemon_id, key_file }
     mut agents = []DaemonAgent.new()
     while true {
         ro now = now_ms()
@@ -217,7 +246,7 @@ fn drive(inbox ChanRx[DaemonRequest]) Proc Detach Random Time -> () {
         }
         match inbox.try_recv() {
             Some(request) => {
-                ro result = dispatch(agents, request.body, now)
+                ro result = authenticate(agents, request.body, now, access)
                 ro told = request.reply.try_send(result)
             }
             None => { (if drained { 1 } else { 5 }).to_millis().sleep() }
@@ -225,16 +254,16 @@ fn drive(inbox ChanRx[DaemonRequest]) Proc Detach Random Time -> () {
     }
 }
 
-fn read_request(mut conn TcpStream) Net -> Option[JsonObject] {
+fn read_daemon_message(mut conn TcpStream, limit int = WIRE_LIMIT) Net -> Option[JsonObject] {
     mut buffer = []u8.new()
     buffer.resize(8192, 0 as u8)
     mut line = []u8.new()
-    while line.len() < WIRE_LIMIT {
+    while line.len() < limit {
         match conn.read(buffer) {
             Ok(n) => {
                 if n == 0 { return None }
                 for byte in buffer[..n] {
-                    if line.len() >= WIRE_LIMIT { return None }
+                    if line.len() >= limit { return None }
                     if byte == (10 as u8) {
                         ro text = match line.to_str() { Ok(value) => value, Err(e) => return None }
                         match Json.parse(text) {
@@ -251,20 +280,16 @@ fn read_request(mut conn TcpStream) Net -> Option[JsonObject] {
     None
 }
 
-fn accept_request(mut conn TcpStream, token str, daemon_id str, inbox ChanTx[DaemonRequest]) Net Time -> str {
-    ro body = read_request(conn) ?? return error("invalid_request", "expected one JSON object")
-    if text(body, "key") != token { return error("unauthorized", "wrong daemon key") }
-    if (number(body, "version") ?? -1) != VERSION { return error("wrong_version", "unsupported daemon protocol version") }
-    ro requested = (body.get("daemon_id") ?? JsonValue.str(LEGACY_DAEMON_ID)).str() ?? ""
-    if requested != daemon_id { return error("wrong_daemon", "daemon ID does not match") }
+fn accept_request(mut conn TcpStream, inbox ChanTx[DaemonRequest]) Net -> str {
+    ro body = read_daemon_message(conn) ?? return error("invalid_request", "expected one JSON object")
     ro reply = Chan[str].new(1)
     if !inbox.try_send(DaemonRequest { body, reply: reply.tx }) { return error("overloaded", "daemon request queue is full") }
     reply.rx.recv() ?? error("unavailable", "daemon did not answer")
 }
 
-fn serve_connection(consume conn TcpStream, token str, daemon_id str, inbox ChanTx[DaemonRequest], slots ChanTx[int]) Net Time -> () {
+fn serve_connection(consume conn TcpStream, inbox ChanTx[DaemonRequest], slots ChanTx[int]) Net Time -> () {
     supervised(timeout: SOCKET_MS.to_millis()) {
-        ro result = accept_request(conn, token, daemon_id, inbox)
+        ro result = accept_request(conn, inbox)
         ro written = conn.write_all("${result}\n".bytes())
     }
     conn.close()
@@ -280,12 +305,40 @@ fn daemon_address(host str, port int) -> Result[SocketAddr, str] {
     Ok(addr)
 }
 
-export fn run_local_daemon(host str, port int, token str, daemon_id str) Io Net Time Proc Detach Random -> Result[(), str] {
+fn local_daemon_key(key_file Path, daemon_id str, hub_port int, bootstrap_file str) Fs Net Time Random -> Result[str, str] {
+    ro found_key = match try_exists(key_file) {
+        Ok(found) => found
+        Err(e) => return Err("cannot inspect daemon key file")
+    }
+    if found_key {
+        ro token = match read_text(key_file) {
+            Ok(source) => source.trim()
+            Err(e) => return Err("cannot read daemon key file")
+        }
+        if token != REVOKED_DAEMON_KEY && !valid_key(token) { return Err("daemon key must contain 32 to 256 bytes") }
+        return Ok(token)
+    }
+    if bootstrap_file == "" { return Err("cannot read daemon key file") }
+    ro bootstrap = match read_text(Path.from_bytes(bootstrap_file.bytes())) {
+        Ok(source) => source.trim()
+        Err(e) => return Err("cannot read enroll key file")
+    }
+    if bootstrap.byte_len() != 64 { return Err("invalid enroll key") }
+    ro token = request_daemon_key(hub_port, daemon_id, bootstrap)?
+    write_private(key_file, "${token}\n")?
+    Ok(token)
+}
+
+export fn run_local_daemon(host str, port int, key_file Path, daemon_id str, hub_port int, bootstrap_file str) Io Fs Net Time Proc Detach Random -> Result[(), str] {
     if !valid_daemon_id(daemon_id) { return Err("invalid daemon ID") }
     ro addr = daemon_address(host, port)?
     consume listener = match TcpListener.bind(addr) {
         Ok(consume bound) => bound
         Err(e) => return Err("cannot bind the daemon: ${e}")
+    }
+    ro token = match local_daemon_key(key_file, daemon_id, hub_port, bootstrap_file) {
+        Ok(key) => key
+        Err(reason) => { listener.close(); return Err(reason) }
     }
     ro inbox = Chan[DaemonRequest].new(32)
     ro slots = Chan[int].new(32)
@@ -293,7 +346,7 @@ export fn run_local_daemon(host str, port int, token str, daemon_id str) Io Net 
     ro request_tx = inbox.tx
     ro slot_tx = slots.tx
     for i in 0..32 { ro reserved = slots.tx.try_send(1) }
-    detach { drive(inbox_rx) }
+    detach { drive(inbox_rx, token, daemon_id, key_file) }
     mut output = stdout()
     ro announced = write_all(output, "canopus daemon listening on ${addr.ip()}:${listener.local_port()}\n".bytes())
     mut failure = ""
@@ -301,7 +354,7 @@ export fn run_local_daemon(host str, port int, token str, daemon_id str) Io Net 
         match listener.accept() {
             Ok(consume conn) => {
                 match slots.rx.try_recv() {
-                    Some(slot) => { detach consume conn { serve_connection(conn, token, daemon_id, request_tx, slot_tx) } }
+                    Some(slot) => { detach consume conn { serve_connection(conn, request_tx, slot_tx) } }
                     None => { conn.close() }
                 }
             }

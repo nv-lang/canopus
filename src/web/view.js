@@ -115,7 +115,7 @@ const AGO_KEY = { now: 'ago.now', min: 'ago.min', hour: 'ago.hour', day: 'ago.da
  */
 export function createView(doc, refs, deps) {
   const {
-    agents, now, handlers, imageSrc = (image) => image.src, projectsApi, presets = () => null, daemonIds = () => [], modelMetadata = () => null,
+    agents, now, handlers, imageSrc = (image) => image.src, projectsApi, presets = () => null, daemonIds = () => [], openDaemonSettings, modelMetadata = () => null,
     fetchDiff = (id, path) => doc.defaultView.fetch(`/api/session-diff/${encodeURIComponent(id)}${path ? `?path=${encodeURIComponent(path)}` : ''}`, { cache: 'no-store' }).then((r) => r.json()),
   } = deps;
   let { registryFailed = false, registryPending = false } = deps;
@@ -248,10 +248,14 @@ export function createView(doc, refs, deps) {
   let loadingSig = '';
   const notFound = h(doc, 'p', { class: 'empty', text: t('sessions.not_found'), hidden: true });
 
+  const daemonSettingsButton = openDaemonSettings && h(doc, 'button', {
+    type: 'button', class: 'icon-btn', title: t('daemon.title'), 'aria-label': t('daemon.title'), 'aria-haspopup': 'dialog',
+  }, icon(doc, 'i-monitor'));
+  daemonSettingsButton?.addEventListener('click', openDaemonSettings);
   const newChat = h(doc, 'button', { type: 'button', class: 'sidebar-new' }, icon(doc, 'i-plus'), t('sessions.new_chat'));
   newChat.addEventListener('click', () => handlers.onNewToggle(true));
   refs.side.replaceChildren(
-    h(doc, 'div', { class: 'side-head' }, newChat, h(doc, 'span', { class: 'side-head-tools' }, bellButton, soundButton, themeButton)),
+    h(doc, 'div', { class: 'side-head' }, newChat, h(doc, 'span', { class: 'side-head-tools' }, bellButton, soundButton, themeButton, daemonSettingsButton)),
     h(doc, 'div', { class: 'side-tools' },
       h(doc, 'label', { class: 'search' }, icon(doc, 'i-search'), search)),
     agentNotice, retryAgents, loadingBox, groupsBox, listEmpty, notFound,
@@ -2616,11 +2620,15 @@ export function createView(doc, refs, deps) {
       presetSelect.dataset.draft = String(Boolean(session.draft));
     }
     const machines = daemonIds();
-    daemonRow.hidden = !session.draft || machines.length === 0;
+    const missing = session.daemonId && !machines.includes(session.daemonId) ? session.daemonId : '';
+    daemonRow.hidden = !session.draft || (machines.length === 0 && !missing);
     if (!daemonRow.hidden) {
-      const signature = machines.join('|');
+      const signature = JSON.stringify([missing, machines]);
       if (daemonSelect.dataset.sig !== signature) {
-        daemonSelect.replaceChildren(...machines.map((id) => h(doc, 'option', { value: id, text: id })));
+        daemonSelect.replaceChildren(
+          ...(missing ? [h(doc, 'option', { value: missing, disabled: true, text: t('daemon.unavailable', { id: missing }) })] : []),
+          ...machines.map((id) => h(doc, 'option', { value: id, text: id })),
+        );
         daemonSelect.dataset.sig = signature;
       }
       daemonSelect.value = session.daemonId || machines[0];

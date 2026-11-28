@@ -20,8 +20,8 @@ module canopus.server
 import alula.engine.{Engine, Incoming, EventKind, Journal, Store, Link, PartyRequest, FailCode, start_engine, resume_engine, decode_snapshot}
 import canopus.product_machines.{find_machines_dir, load_product_machines}
 import alula.machine_run.{AlulaMachine, AlulaState}
-import canopus.acp.{AcpConfig, AcpClient, AcpImage, AcpPreset, AcpQueued, AskSetup, no_ask, open_client_full, daemon_resume, acp_link, page_event, refused_event, acp_context_overflow, TRACE_LIMIT}
-import canopus.daemon.{daemon_endpoint, daemon_ids, connect_daemon, resume_daemon}
+import canopus.acp.{AcpConfig, AcpClient, AcpImage, AcpPreset, AcpQueued, AskSetup, no_ask, open_client_full, daemon_resume, acp_link, page_event, refused_event, daemon_revoked_event, acp_context_overflow, TRACE_LIMIT}
+import canopus.daemon.{daemon_endpoint, daemon_ids, daemon_configured, daemon_revocation, connect_daemon, resume_daemon}
 import canopus.agent_config.{opencode_env}
 import canopus.process.{ShellRaw}
 import canopus.config.{pick_prompt, ConfigLayout, load_presets, preset_named, preset_family, DEFAULT_PRESET, presets_reply}
@@ -1263,7 +1263,7 @@ fn Hub @roster_path() -> str => "${@settings.layout.state}/${CHILD_ROSTER_DIR}"
 
 fn Hub @has_daemon_config() -> bool {
     // D454: the daemon descriptor belongs to the real instance state.
-    with Fs = real_fs() { try_exists(Path.from_bytes("${@settings.layout.state}/daemon.json".bytes())) ?? true }
+    with Fs = real_fs() { daemon_configured(@settings.layout.state) }
 }
 
 fn Hub @has_daemon_checkpoint(id str) -> bool {
@@ -1849,10 +1849,13 @@ fn Hub mut @install_restore(id str, prepared Option[PreparedRestore]) Proc Detac
                 if reason.byte_len() > 0 {
                     @say_log("the agent of ${id} cannot be restored: ${reason}")
                     mut failed = @sessions[at]
-                    if @has_daemon_config() || @has_daemon_checkpoint(id) {
+                    if failed.daemon_id != "" || @has_daemon_config() || @has_daemon_checkpoint(id) {
                         ro pg = @settings.store == "pg"
                         ro root = @settings.data_dir
-                        for request in engine.open_ids() { accept_in(pg, root, failed, refused_event(request, FailCode.ConnectionLost)) }
+                        for request in engine.open_ids() {
+                            ro refusal = if reason.starts_with("daemon revoked:") { daemon_revoked_event(request) } else { refused_event(request, FailCode.ConnectionLost) }
+                            accept_in(pg, root, failed, refusal)
+                        }
                         @sessions[at] = failed
                         @tell_error(0, id, failed.engine.step_number(), failed.turn, reason)
                         @drain(at)
@@ -1924,7 +1927,12 @@ fn Hub mut @create(conn int, trace str, input JsonObject) Proc Detach Time -> ()
             }
             ro wanted = jtext(input, "daemon_id")
             if wanted != "" && !ids.contains(wanted) {
-                @tell_coded_error(conn, trace, 1, "", "invalid_parameter", "unknown daemon: ${wanted}")
+                ro reason = match with Fs = real_fs() { daemon_revocation(@settings.layout.state, wanted) } {
+                    Ok(allowed) => "unknown daemon: ${wanted}"
+                    Err(reason) => reason
+                }
+                ro code = if reason.starts_with("daemon revoked:") { "daemon_revoked" } else { "invalid_parameter" }
+                @tell_coded_error(conn, trace, 1, "", code, reason)
                 return
             }
             ro daemon_id = if wanted == "" && ids.len() > 0 { ids[0] } else { wanted }

@@ -1688,3 +1688,10 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .session-glyph.dot[data-glyph="error"] { color: var(--danger); }
 .session-child-count { flex: none; color: var(--fg-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 .session[data-depth="1"], .session[data-depth="2"] { border-inline-start: 1px solid var(--border); margin-inline-start: 9px; }
+
+.daemon-settings { color: var(--fg); }
+.daemon-settings::backdrop { background: var(--scrim); }
+.daemon-list { display: grid; gap: 8px; padding: 0; margin: 0 0 16px; list-style: none; }
+.daemon-machine { display: flex; align-items: start; flex-wrap: wrap; gap: 8px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius); }
+.daemon-machine > div { flex: 1; overflow-wrap: anywhere; }
+.daemon-credential { margin: 12px 0; }

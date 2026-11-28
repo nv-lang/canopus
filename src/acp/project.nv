@@ -573,6 +573,9 @@ export fn progress_event(request str, p Projection) -> Incoming {
 export fn refused_event(request str, code FailCode) -> Incoming =>
     Incoming.incoming(EventKind.Refused, "agent_refused", Some(request), code.name())
 
+export fn daemon_revoked_event(request str) -> Incoming =>
+    Incoming.incoming(EventKind.Refused, "daemon_revoked", Some(request), FailCode.NoResult.name())
+
 export fn provider_failure_kind(message str) -> str {
     ro text = message.to_ascii_lower()
     if text.contains("this content was flagged for possible cybersecurity risk") || text.contains("content_filter") || text.contains("content policy violation") {
@@ -820,7 +823,7 @@ fn page_input_of(e Incoming, turn str) -> Option[PageInput] {
             None
         }
         EventKind.Refused => {
-            if e.name == "provider_transport_lost" || e.name == "provider_content_filtered" { return refusal_input(e.name, turn) }
+            if e.name == "provider_transport_lost" || e.name == "provider_content_filtered" || e.name == "daemon_revoked" { return refusal_input(e.name, turn) }
             if e.name == "agent_refused" { return refusal_input(e.input, turn) }
             None
         }

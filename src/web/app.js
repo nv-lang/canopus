@@ -16,11 +16,29 @@ import { createView } from './view.js';
 import { createQueue, isBusy } from './queue.js';
 import { uploadImages, messageInput } from './attachments.js';
 import { chooseMode, createTransport, parseAgentRegistry, loadModelMetadata } from './transport.js';
+import { createDaemonSettings, daemonRequest } from './daemon-settings.js';
 import { createProjectsApi } from './projects-api.js';
 import { routeSignal, normalizeRoute, parseRouteState } from './routes.js';
 import { canopusSignal } from './canopus-task.js';
 import { createLoading } from './loading.js';
 import { createDelivery, retryOffline, safeError } from './delivery.js';
+
+let inventoryRequest;
+function refreshDaemons() {
+  if (!inventoryRequest) {
+    inventoryRequest = daemonRequest((...args) => fetch(...args)).then((data) => {
+      if (Array.isArray(data?.daemons)) {
+        const ids = data.daemons.filter((id) => typeof id === 'string');
+        if (ids.length !== ui.daemonIds.length || ids.some((id, index) => id !== ui.daemonIds[index])) {
+          ui.daemonIds = ids;
+          render();
+        }
+      }
+      return data;
+    }).finally(() => { inventoryRequest = null; });
+  }
+  return inventoryRequest;
+}
 
 const FLASH_MS = 4000;
 const TICK_MS = 1000;
@@ -619,6 +637,7 @@ const handlers = {
   onBack() { ui.pane = 'list'; render(); },
   // «+» у проекта: пустой чат новой сессии; на сервер она уходит с первым сообщением (задача 192)
   onNewToggle(open, projectId = '') {
+    if (open && picked.mode === 'ws') refreshDaemons().catch(() => {});
     if (!open) {
       model = dropDrafts(model);
       if (ui.selected && !model.sessions[ui.selected]) ui.selected = null;
@@ -935,17 +954,25 @@ async function start() {
   fetch('/api/presets', { cache: 'no-store' }).then(async (response) => {
     if (response.ok) { presetInfo = await response.json(); render(); }
   }).catch(() => { /* выбор набора просто не показывается */ });
-  fetch('/api/daemons', { cache: 'no-store' }).then(async (response) => {
-    if (!response.ok) return;
-    const data = await response.json();
-    if (Array.isArray(data?.daemons)) ui.daemonIds = data.daemons.filter((id) => typeof id === 'string');
-    render();
-  }).catch(() => {});
+  let daemonSettings;
+  function openDaemonSettings() {
+    daemonSettings ||= createDaemonSettings(document, {
+      refresh: refreshDaemons,
+      async mutate(action, input) {
+        const result = await daemonRequest((...args) => fetch(...args), action, input);
+        await inventoryRequest?.catch(() => {});
+        refreshDaemons().then((data) => daemonSettings.render(data.machines || [])).catch(() => {});
+        return result;
+      },
+    });
+    daemonSettings.open();
+  }
+  if (picked.mode === 'ws') refreshDaemons().catch(() => {});
   view = createView(document, {
     app: document.getElementById('app'), side: document.getElementById('side'),
     main: document.getElementById('main'), rail: document.getElementById('rail'),
     status: document.getElementById('status'), overlay: document.getElementById('overlay'),
-  }, { agents, now: ctx.now, handlers, registryFailed, registryPending: picked.mode === 'ws', imageSrc: mock ? mock.mockImageSrc : undefined, projectsApi, presets: () => presetInfo, daemonIds: () => ui.daemonIds, modelMetadata: () => modelMetadata });
+  }, { agents, now: ctx.now, handlers, registryFailed, registryPending: picked.mode === 'ws', imageSrc: mock ? mock.mockImageSrc : undefined, projectsApi, presets: () => presetInfo, daemonIds: () => ui.daemonIds, openDaemonSettings: picked.mode === 'ws' ? openDaemonSettings : undefined, modelMetadata: () => modelMetadata });
   let metadataRequest = null;
   function refreshModelMetadata() {
     if (picked.mode !== 'ws' || !agentList.length || metadataRequest) return;
