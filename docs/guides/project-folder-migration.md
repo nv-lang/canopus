@@ -11,7 +11,7 @@
 Интегратор составляет приватную опись проектов.
 Для каждой записи интегратор указывает абсолютный `root`.
 Если проект использует явный или унаследованный `tasks_dir`, интегратор указывает его в записи.
-Интегратор хранит опись вне публичного репозитория.
+Интегратор хранит опись и отчёты вне публичного репозитория.
 
 Пример файла описи:
 
@@ -29,7 +29,7 @@
 Интегратор запускает команду из каталога, который не будет перенесён:
 
 ```sh
-python scripts/migrate-project-folders.py --projects projects.json --report migration-report.json
+python C:/work/canopus/scripts/migrate-project-folders.py --projects projects.json --report migration-report.json
 ```
 
 Механизм перечисляет переносы и изменяемые файлы с SHA-256.
@@ -49,10 +49,10 @@ python scripts/migrate-project-folders.py --projects projects.json --report migr
 Интегратор освобождает каталоги, которые предстоит перенести.
 
 ```sh
-python scripts/migrate-project-folders.py --projects projects.json --report migration-report.json --apply --backup migration-backup
+python C:/work/canopus/scripts/migrate-project-folders.py --projects projects.json --report migration-report.json --apply --backup migration-backup
 ```
 
-Механизм требует новый каталог резервной копии вне переносимых каталогов.
+Механизм требует новый каталог резервной копии вне репозиториев переносимых проектов.
 Механизм сохраняет исходные байты изменяемых файлов и манифест.
 Механизм проверяет контрольные суммы до первого переноса.
 Механизм проверяет итоговые контрольные суммы после записи.

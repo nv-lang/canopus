@@ -15,8 +15,9 @@ try {
   const config = path.join(tmp, 'home/plugin/config.json')
   fs.mkdirSync(path.dirname(config), {recursive: true})
   fs.writeFileSync(config, '{}')
-  const repo = path.join(tmp, 'repo')
-  fs.mkdirSync(repo)
+  const created = path.join(tmp, 'repo')
+  fs.mkdirSync(created)
+  const repo = fs.realpathSync.native(created)
   const choose = () => sharedTaskContext(config, repo).root
   check('a new project uses docs/tasks', () => assert.equal(choose(), path.join(repo, 'docs/tasks')))
   fs.mkdirSync(path.join(repo, 'doc/tasks'), {recursive: true})
