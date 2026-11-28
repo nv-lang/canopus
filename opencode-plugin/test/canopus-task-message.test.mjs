@@ -108,6 +108,20 @@ cell("T65-1: criteria and result are in their sections", sectionBody(msg1, "Кр
 cell("T65-1: no links and no boundaries — «нет: …» naming the field, the section is not dropped", /^нет: .*links/.test(sectionBody(msg1, "Связи")) && /^нет: .*boundaries/.test(sectionBody(msg1, "Границы")), msg1)
 cell("T65-1: the plugin's own check finds no fault in its text", folders.messageFaults(msg1).length === 0, JSON.stringify(folders.messageFaults(msg1)))
 
+const core = await import("../core.ts")
+const { reviewLetter } = await import("../review.ts")
+const canon = readFileSync(new URL("../../docs/canon/README.md", import.meta.url), "utf8")
+const convention = canon.match(/https:\/\/github\.com\/unitcraft\/engineering-conventions\/blob\/[a-f0-9]{40}\/technical-writing\.md/)?.[0]
+const author = t1 ? core.formatTaskLetter(t1) : ""
+const reviewers = t1 ? [
+  reviewLetter(t1, core.loadConfig(proj)),
+  core.sessionLetter(t1, { code: "С6", k: 1, launch: 2, place: "task" }),
+] : []
+cell("330: the task brief and executor letter refer to the Canon revision", !!convention && [msg1, author].every((text) => text.includes(convention)), author)
+cell("330: the review letter and С6 ask the reviewer to compare obligation with the source",
+  !!convention && reviewers.length === 2 && reviewers.every((text) => text.includes(convention + "#6-чек-лист-ревью") && text.includes("степень обязательности")),
+  reviewers.join("\n"))
+
 // already numbered goal stays as it is; links and boundaries given go word for word; open questions — after «Границы»
 const t2text = folders.templateMessage({ title: "Т", goal: "1. раз\n2. два", criteria: "к", owner_words: words, result: "р", links: "Пересекается (файлы): README.md", boundaries: "- не трогать 064", open_questions: "В-01 кому?", author_role: "proj.integrator", project: "proj" }, new Date(2026, 9, 17, 10, 0))
 cell("T65-2: a goal already in numbered points is kept", sectionBody(t2text, "Что нужно") === "1. раз\n2. два", t2text)

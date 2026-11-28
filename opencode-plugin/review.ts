@@ -10,6 +10,7 @@ import path from "node:path"
 import { type Card, type CanopusConfig, PLUGIN_SENDER, ROLES, allCards, cardFile, extraBlock, mayWakeCard, postLetter, readJson, safeKey, saveCard } from "./core.ts"
 import { type SideItem, type Task, saveTask, isOpen, listTasks, loadTask, taskFile, taskNo, waitingCleanup } from "./tasks.ts"
 import { roundRules } from "./plans.ts"
+import { TECH_WRITING_REVIEW } from "./task-folders.ts"
 
 const git = (cwd: string, args: string[], timeout = 15_000) => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", windowsHide: true, timeout, stdio: ["ignore", "pipe", "ignore"] })
 const gitOk = (cwd: string, args: string[], timeout?: number) => {
@@ -371,6 +372,7 @@ export function reviewLetter(t: Task, cfg: CanopusConfig): string {
     t.worktree ? `WORKTREE ИСПОЛНИТЕЛЯ: ${t.worktree}, ветка ${t.branch}; целевая ветка ${cfg.targetBranch}.` : t.branch ? `ВЕТКА: ${t.branch}; целевая ${cfg.targetBranch}.` : `Целевая ветка ${cfg.targetBranch}.`,
     t.landing ? `РЕПОЗИТОРИЙ РЕЗУЛЬТАТА (привязка, задача 257): ${t.landing.dir} (${t.landing.remote}/${t.landing.branch}) — весь контур (precheck, merge, accept) идёт по нему, а не по репозиторию постановки; вливание и push — в нём. Основание: ${t.landing.word}` : "",
     t.report ? `ОТЧЁТ ИСПОЛНИТЕЛЯ:\n${t.report.slice(0, 3000)}` : "",
+    TECH_WRITING_REVIEW,
     `ШАГИ ПРИЁМКИ:\n${steps}`,
     `ПОРЯДОК:`,
     `  1) canopus_task {action: "review", n: ${t.n}} — начал приёмку (исполнитель узнает без пробуждения);`,
@@ -409,6 +411,7 @@ export function planReviewLetter(t: Task, cfg: CanopusConfig): string {
     `ФАЙЛ ПЛАНА: ${p.file}${t.worktree ? ` в worktree ${t.worktree}, ветка ${t.branch}` : ` в ${t.directory}`}.`,
     t.report ? `ОТЧЁТ АВТОРА:\n${t.report.slice(0, 2000)}` : "",
     past.length ? `ПРОШЛЫЕ РАУНДЫ (проверь и их градации: косметическое, оказавшееся содержательным, — замечание этого раунда):\n${past.join("\n")}` : "",
+    TECH_WRITING_REVIEW,
     `ЧТО ПРОВЕРИТЬ — по каждому шагу check:\n${cfg.planAcceptance.map((a) => `  ${a.id}: ${a.text}`).join("\n")}`,
     roundRules(f.grades),
     "ПОРЯДОК:",

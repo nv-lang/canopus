@@ -42,6 +42,17 @@ jobs:
           done
       - name: Guards by mask
         run: sh scripts/guards/run-all.sh --ci
+      - name: Technical writing in changed documents
+        if: ${{ !github.event.deleted }}
+        env:
+          BEFORE: ${{ github.event.before }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          base=${PR_BASE:-$BEFORE}
+          case "$base" in
+            ''|0000000000000000000000000000000000000000) base=$(git merge-base origin/main HEAD) || exit 1 ;;
+          esac
+          python scripts/guards/check-tech-writing.py --ci --base "$base"
       - name: Secrets guard on the tree
         run: python scripts/guards/guard-secrets.py --tree
       - name: Wiring meta-check

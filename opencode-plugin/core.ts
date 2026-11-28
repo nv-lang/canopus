@@ -33,7 +33,7 @@ import { DEFAULT_FORM, PLAN_ACCEPTANCE, PLAN_MERGE_ACCEPTANCE, type PlanForm, al
 import { type Task, type TaskPlan, type TaskSession, WORKING_STATUSES, EXECUTOR_CODE, taskRef, taskNo, sessionOf, sessionRef, sesLabel, methodSession, moveToLegacy, listLegacy, slugify, acceptedAt, ago, byPriority, rounds, createTask, fillName, isOpen, listTasks, loadTask, plannedSessionId, saveTask, statusRu, taskEvent, taskLetterId, taskFile } from "./tasks.ts"
 import { countedOpen, waitingCleanup } from "./tasks.ts"
 import { baseRef, branchExists, commitFiles, ensureBranch, findFolder, folderName, pad3, usedNumbers } from "./task-numbers.ts"
-import { firstLogLine, folderInfo, messageRefusal, nextLaunch, readFolderFile, readTaskMessage, refreshRouteStale, routeLogLine, smallMessage, taskLog, templateMessage, titleOfMessage } from "./task-folders.ts"
+import { firstLogLine, folderInfo, messageRefusal, nextLaunch, readFolderFile, readTaskMessage, refreshRouteStale, routeLogLine, smallMessage, taskLog, templateMessage, TECH_WRITING_AUTHOR, TECH_WRITING_REVIEW, titleOfMessage } from "./task-folders.ts"
 import { STALE_WARNING, SMALL_NORM_MIN, applyRouteChange, contourMarkText, exactMessageHash, hasRouteInput, legacyTaskLetterFaults, planRoute, routeLogText, routeSettingsOf, routeView, ROUTE_RU, wordDateOf, type RouteSettings } from "./route.ts"
 import { acceptanceFromFile } from "./acceptance-file.ts"
 import { acceptWarning, acceptedTip, beginPrecheck, finishPrecheck, gateMerge, landedFresh, landingLine, markPrecheckStale, neighbourHints, originTip, precheckLines, runGit, unlockMerge } from "./precheck.ts"
@@ -2734,8 +2734,6 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
   const findTask = (me: Card | undefined, n: any): Task | undefined => (me && Number.isInteger(Number(n)) ? loadTask(projOf(me), Number(n)) : undefined)
   // ПАПКИ ЗАДАЧ И СЕССИИ (задача 058). Код сессии — как в журнале хода: 1–8 букв или цифр (С1, С4, С3п, исп).
   const SESSION_CODE_RE = /^[A-Za-zА-Яа-яЁё0-9]{1,8}$/
-  // проверяющие сессии методики (С2, С4, С6 и их варианты) по умолчанию работают в своём дереве от ветки задачи (вопрос В-04)
-  const REVIEW_CODE_RE = /^[СC][246]/
   /** Новая сессия задачи: запись в sessions (код, порядковый номер кода, номер запуска, место), прежняя сессия — передана или уже сдана. */
   const startSession = (t: Task, code: string, goal: string, placeArg: string | undefined, cfg: CanopusConfig, by: string): TaskSession => {
     const sessions = t.sessions ?? (t.sessions = [])
@@ -4283,6 +4281,9 @@ ${lockStillYours(stillHeld.n)}` : "") }
   return [canopusList, canopusRole, canopusSend, canopusQuestion, canopusWait, canopusWatch, canopusTimer, canopusSpawn, canopusTask, canopusConfig, canopusInbox, canopusDoctor, canopusBranchNote, canopusStepNote, canopusHelp]
 }
 
+// Проверяющие сессии методики (С2, С4, С6 и их варианты) по умолчанию работают в своём дереве.
+const REVIEW_CODE_RE = /^[СC][246]/
+
 /** Шаги приёмки задачи: у задачи-плана — перепроверка плана (план 004), у остальных — приёмка проекта. */
 export const acceptanceOf = (t: Task, cfg: CanopusConfig) => (t.plan ? (t.plan.approval && t.plan.approval.decision !== "no" ? cfg.planMergeAcceptance : cfg.planAcceptance) : cfg.acceptance)
 
@@ -4297,6 +4298,7 @@ export function planTaskLetter(t: Task): string {
   return [
     `ЗАДАЧА-ПЛАН ${taskNo(t)} «${t.title}» от ${t.author_role} (сессия ${t.author}), приоритет ${t.priority}. Составь план ${p.n}${p.parent ? ` — подплан плана ${p.parent}` : ""}. Код не пиши: результат — только файл плана.`,
     refinementBlock(t),
+    TECH_WRITING_AUTHOR,
     `ИСХОДНАЯ ЗАДАЧА (перепроверка сверит план с ней${t.refinement ? "; действует уточнение выше" : ""}):\n${p.source}`,
     t.boundaries ? `ГРАНИЦЫ (не делаем): ${t.boundaries}` : "",
     t.open_questions ? `ОТКРЫТЫЕ ВОПРОСЫ: ${t.open_questions}` : "",
@@ -4351,6 +4353,7 @@ export function formatTaskLetter(t: Task): string {
     t.refinement ? `ЦЕЛЬ (исходная; действует уточнение выше): ${t.goal}` : `ЦЕЛЬ: ${s?.goal && s.goal !== t.goal ? `${s.goal}\nЦЕЛЬ ЗАДАЧИ: ${t.goal}` : t.goal}`,
     t.criteria ? `КРИТЕРИИ ПРИЁМКИ: ${t.criteria}` : "",
     t.route === "small" ? smallHandoff(t) : "",
+    TECH_WRITING_AUTHOR,
     t.boundaries ? `ГРАНИЦЫ (не делаем): ${t.boundaries}` : "",
     t.open_questions ? `ОТКРЫТЫЕ ВОПРОСЫ: ${t.open_questions}` : "",
     extraBlock(t),
@@ -4378,6 +4381,7 @@ export function sessionLetter(t: Task, s: TaskSession): string {
     `ПАПКА ЗАДАЧИ: ${path.dirname(taskFile(t.project,t.n))}/ — единые задание input/message.md и журнал log.md; версионный путь в ветке: ${t.folder}/.`,
     refinementBlock(t),
     `ЦЕЛЬ СЕССИИ: ${s.goal ?? t.goal}`,
+    REVIEW_CODE_RE.test(s.code) || s.code === "прм" ? TECH_WRITING_REVIEW : TECH_WRITING_AUTHOR,
     tree,
     t.handoff ? `СДЕЛАНО ПРЕЖНЕЙ СЕССИЕЙ (сессия передана тебе):\n${t.handoff}` : "",
     `Строку запуска «${s.code} 0/0 […] запуск №${s.launch}» в progress.log и запись «пуск» в log.md уже записал плагин; первая твоя строка — старт (progress_line kind start).`,

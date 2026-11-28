@@ -40,7 +40,7 @@
 ## Как пишем
 
 Документы Канопуса, включая Канон, пишутся и редактируются по конвенции технического письма
-[unitcraft/engineering-conventions — technical-writing.md](https://github.com/unitcraft/engineering-conventions/blob/main/technical-writing.md)
+[unitcraft/engineering-conventions — technical-writing.md](https://github.com/unitcraft/engineering-conventions/blob/6797a4a0c0c94dfcdccc975894efb26abfe70540/technical-writing.md)
 (редакция 1.2; владелец, 2026-11-28: «подтверждаю»). Философия проекта — [philosophy.md](philosophy.md).
 
 ## Как называем

@@ -46,6 +46,9 @@ const OWNER_SECTION = MESSAGE_SECTIONS[0]
 const DATE_RE = /(?<![0-9])[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])(?![0-9])/
 const BARE_NONE_RE = /^[ \t]*(?:[-*][ \t]+)?нет:[ \t.,;:—–-]*$/
 export const OWNER_EXAMPLE = "- «сделай X» (владелец, 2026-10-17, чат оркестратора)"
+const TECH_WRITING_URL = "https://github.com/unitcraft/engineering-conventions/blob/6797a4a0c0c94dfcdccc975894efb26abfe70540/technical-writing.md"
+export const TECH_WRITING_AUTHOR = `Если меняешь документы Канопуса, применяй [конвенцию технического письма, ред. 1.2](${TECH_WRITING_URL}).`
+export const TECH_WRITING_REVIEW = `Если правка меняет документы Канопуса, проверь их по [§ 6 конвенции технического письма, ред. 1.2](${TECH_WRITING_URL}#6-чек-лист-ревью). Сверь с источником исполнителя, условие, результат, исключения, числовые границы и степень обязательности. Укажи расхождения в отчёте.`
 const TEMPLATE_REF = "образец задания — Канон canopus, docs/canon/process.md, «Задание input/message.md»"
 
 /** Цель — пунктами «Что нужно»: уже нумерованная остаётся как есть; иначе пункт — абзац или строка «- …» (строка перед списком — тоже пункт). */
@@ -91,6 +94,7 @@ export function templateMessage(t: MessageFields, now: Date = new Date(), opts: 
     `Заказчик: ${t.author_role}; задание собрано плагином из полей ${opts.via ?? "canopus_spawn"}.`,
     `Репозиторий: ${t.project ? `проект ${t.project}` : "проект задачи"}${opts.target ? `, ветка ${opts.target}` : ""}. Дата задания: ${ymdhm(now).slice(0, 10)}.`,
     `Источник: слова владельца с датой — раздел «${OWNER_SECTION}».`,
+    TECH_WRITING_AUTHOR,
     ...part(OWNER_SECTION, t.owner_words, "owner_words", "слов владельца"),
     ...part("Что нужно", numberedPoints(t.goal ?? ""), "goal", "цели"),
     ...part("Критерии приёмки", opts.numberCriteria && t.criteria?.trim() ? numberedPoints(t.criteria) : t.criteria, "criteria", "критериев приёмки"),
