@@ -617,3 +617,43 @@ test('310: a manual retry uploads only the unfinished part of a multi-image draf
   assert.deepEqual(Array.from(page.sent[0].input.images, image => image.n), [1, 3]);
   assert.equal(page.sent[0].id, pending.id);
 });
+
+test('324: срочная поправка уходит с пометкой, обычная очередь ждёт нового хода', async () => {
+  const page = await app();
+  page.event('user_message', { turn: 'old-turn', text: 'Начни работу' });
+  page.handlers.onQueue('s', 'Обычное сообщение');
+  assert.equal(page.sent.length, 0);
+
+  assert.equal(page.handlers.onSend('s', 'Срочная поправка', [], true), true);
+  const [correction] = page.sent;
+  assert.equal(correction.kind, 'user_message');
+  assert.equal(correction.input.urgent, true);
+  assert.equal(page.handlers.deliveryItems('s')[0].urgent, true);
+
+  page.event('turn_interrupt_pending', { pending: true });
+  page.event('cancel', { turn: 'old-turn' });
+  assert.equal(page.sent.length, 1);
+  page.event('user_message', { turn: 'new-turn', text: 'Срочная поправка' });
+  page.event('turn_resume', { previous_turn: 'old-turn', turn: 'new-turn' });
+  page.event('turn_interrupt_pending', { pending: false });
+  assert.equal(page.sent.length, 1);
+  page.event('agent_done', { turn: 'new-turn' });
+  assert.equal(page.sent.length, 2);
+  assert.equal(page.sent[1].input.text, 'Обычное сообщение');
+  assert.equal(page.sent[1].input.urgent, undefined);
+});
+
+test('324: причина очереди и возобновление видны в ленте отдельно', async () => {
+  const page = await app();
+  page.event('user_message', { turn: 'old-turn', text: 'Начни работу' });
+  page.event('turn_interrupt_queued', { turn: 'old-turn', reason: 'агент отказал в отмене' });
+  assert.equal(page.getModel().sessions.s.state, 'answering');
+  page.event('cancel', { turn: 'old-turn' });
+  page.event('user_message', { turn: 'new-turn', text: 'Срочная поправка' });
+  page.event('turn_resume', { previous_turn: 'old-turn', turn: 'new-turn' });
+  const notes = page.getModel().sessions.s.messages.filter(m => m.role === 'service_note');
+  assert.deepEqual(notes.map(m => m.text), [
+    'Поправка в очереди. Причина — агент отказал в отмене.',
+    'Новый ход начат с учётом срочной поправки.',
+  ]);
+});

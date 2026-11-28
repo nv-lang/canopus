@@ -20,11 +20,12 @@ import { normalizeQuestions, summarize } from './question.js';
 import { INTERACTIVE_STATE, parseRouteState, subtaskNotes } from './routes.js';
 import { parseMachineState } from './machines.js';
 import { parseTurnRequest, addRequest } from './request.js';
+import { t } from './strings.js';
 import { safeError } from './delivery.js';
 
 export const KINDS = Object.freeze([
   'session_created', 'user_message', 'agent_actual', 'agent_chunk', 'agent_done', 'agent_refused',
-  'permission_request', 'permission_decision', 'cancel', 'error',
+  'permission_request', 'permission_decision', 'cancel', 'error', 'turn_resume', 'turn_interrupt_queued',
   // задача 094: рабочие события хода (соответствуют ACP session/update)
   'usage_update', 'tool_call', 'tool_call_update', 'output_file', 'file_diff',
   'background_task', 'background_task_update',
@@ -459,6 +460,13 @@ function apply(session, event) {
         pending: pending || null,
         state: closes ? (pending ? 'permission' : 'answering') : session.state,
       };
+    }
+
+    case 'turn_resume':
+    case 'turn_interrupt_queued': {
+      const text = event.kind === 'turn_resume' ? t('chat.urgent_resume')
+        : t('chat.urgent_queued', { reason: str(input.reason) });
+      return { ...session, messages: [...session.messages, { role: 'service_note', key: `service:${event.id}`, text }] };
     }
 
     case 'cancel': {

@@ -92,7 +92,7 @@ test('карточка: «+», поле, затем панель записи (�
   const box = viewSrc.match(/const box = h\(doc, 'div', \{ class: 'box' \}, attach\.row, input,\s*([^;]*)\);/);
   assert.ok(box, 'карточка найдена');
   assert.equal(box[1], 'recPanel');
-  assert.match(viewSrc, /class: 'box-row' \}, micWrap, cancelButton, sendButton\)/);
+  assert.match(viewSrc, /class: 'box-row' \}, urgentLabel, micWrap, cancelButton, sendButton\)/);
   assert.match(viewSrc, /const recPanel = h\(doc, 'div', \{ class: 'rec-panel' \}, micTimer, wave\);/);
   assert.match(viewSrc, /const micWrap = h\(doc, 'div', \{ class: 'mic-wrap' \}, micButton, micMore, voiceMenu\);/);
   assert.ok(!/enterButton|enter-btn/.test(viewSrc + cssSrc), 'кнопки «↵» в записи нет');

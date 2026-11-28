@@ -1,0 +1,70 @@
+// Acceptance scenarios for an urgent page message and a canopus_send letter on the real dialog table.
+module canopus.server
+
+import alula.engine.{Journal}
+import canopus.storage.{file_journal}
+
+export fn scenario_interrupt(settings ServerSettings, original str, letter bool) Proc Detach Time Net Fs Os -> str {
+    mut c = kit_check()
+    mut rig = rig_open(settings)
+    ro trace = "s-interrupt"
+    rig.attach(1)
+    rig.page(1, "session_created", trace, "{\"name\":\"Поправка\",\"agent\":\"opencode\"}")
+    if letter { rig.page(1, "session_created", "s-sender", "{\"name\":\"Отправитель\",\"agent\":\"opencode\"}") }
+    rig.page(1, "user_message", trace, "{\"text\":\"${original}\"}")
+    c.expect(rig.until("original partial", 5000), "the original turn is active")
+    ro old_turn = rig.hub.sessions[0].turn
+    if letter {
+        ro sent = ctl_ask(rig, "s-sender", "canopus_send", "{\"to\":\"${trace}\",\"text\":\"urgent correction\",\"urgent\":true}")
+        c.expect(sent.contains("Отправлено"), "the MCP tool accepts the urgent letter: ${sent}")
+    } else {
+        ro input = "{\"text\":\"urgent correction\",\"urgent\":true}"
+        rig.page_id(1, "user_message", trace, input, "urgent-324")
+        rig.page_id(1, "user_message", trace, input, "urgent-324")
+    }
+    ro succeeds = original == "interrupt-original"
+    ro expected = if succeeds { "fixture: correction with context (cancel notifications: 1)" }
+        else if original == "interrupt-refused" { "агент отказал в отмене (код ACP -32600)" }
+        else { "агент не подтвердил отмену за 2 с" }
+    if !letter { c.expect(rig.until(expected, 6500), "the expected cancellation outcome is visible") }
+    if !succeeds {
+        c.expect(rig.until(KIT_DONE, 5000), "the original turn finishes")
+        c.expect(rig.until(KIT_DONE, 5000), "the queued correction eventually finishes")
+    }
+    rig.run(150)
+    mut lines = []str.new()
+    for line in rig.lines_for(1) {
+        if line_field(line, "trace") == trace { lines.push(line) }
+    }
+    c.expect(kit_with(lines, "\"kind\":\"user_message\"") == 2, "exactly two prompts in the same dialog")
+    ro next_turn = rig.hub.sessions[0].turn
+    c.expect(old_turn != next_turn, "the correction takes a fresh turn")
+    c.expect(kit_with(lines, "fixture late abandoned chunk") == 0, "no late text leaks to the replacement")
+    c.expect(kit_with(lines, "\"kind\":\"agent_refused\"") == 0, "no stale refusal closes the replacement")
+    if succeeds {
+        c.expect(answer_of(lines, next_turn) == expected, "the same ACP session sees the partial reply, initial message and correction")
+        ro cancelled = first_of(lines, "cancel", 0)
+        ro resumed = first_of(lines, "turn_resume", 0)
+        c.expect(line_input(cancelled, "turn") == old_turn && line_input(resumed, "previous_turn") == old_turn
+            && line_input(resumed, "turn") == next_turn, "cancel and resume are separate and correlated")
+        c.expect(kit_with(lines, KIT_DONE) == 1, "only the replacement gets a terminal answer")
+        ro journal = with Journal = file_journal(settings.data_dir, trace) { Journal.read_all() }
+        mut discarded = false
+        mut stale = false
+        for entry in journal {
+            if entry.event.code == "reply_discarded" { discarded = true }
+            for param in entry.event.params {
+                if param.value.contains("stale: a duplicate reply") { stale = true }
+            }
+        }
+        c.expect(discarded && stale, "late terminal events are journalled and never enter the new turn")
+    } else {
+        c.expect(kit_with(lines, "\"kind\":\"cancel\"") == 0 && kit_with(lines, "\"kind\":\"turn_resume\"") == 0, "the refusal never synthesizes cancellation or a resume")
+        c.expect(kit_with(lines, "\"kind\":\"turn_interrupt_queued\"") == 1, "the queue explains its reason")
+        c.expect(answer_of(lines, old_turn).contains("original finished normally"), "the original turn stays open and completes")
+        c.expect(answer_of(lines, next_turn) == "Echo: urgent correction", "the queued message goes out after the original turn")
+        c.expect(kit_with(lines, KIT_DONE) == 2, "both ordinary turns finish")
+    }
+    rig.shut()
+    c.report()
+}

@@ -6,6 +6,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createQueue, isBusy, keyAction } from '../queue.js';
 import { S, t } from '../strings.js';
+import { initialModel, reduce } from '../state.js';
+import { createView } from '../view.js';
+import { createFakeDocument, key as domKey } from './fake-dom.mjs';
 
 const web = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const key = (extra = {}) => ({ key: 'Enter', ctrlKey: false, metaKey: false, shiftKey: false, isComposing: false, ...extra });
@@ -97,7 +100,7 @@ test('подсказка в поле ввода: «Enter — отправить,
 test('Enter при занятом агенте ставит сообщение в очередь страницы вместе с картинками; кнопка «↵» при занятом агенте включена; ошибки «нельзя в очередь» нет', () => {
   const view = fs.readFileSync(path.join(web, 'view.js'), 'utf8');
   const app = fs.readFileSync(path.join(web, 'app.js'), 'utf8');
-  assert.match(view, /if \(current\.session && !current\.ui\?\.historyPending\?\.has\(trace\) && isBusy\(current\.session\.state\)\) \{\s*if \(handlers\.onQueue\(trace, text, images\)\)/);
+  assert.match(view, /if \(!urgent && current\.session[^\n]+\{\s*if \(handlers\.onQueue\(trace, text, images\)\)/);
   assert.match(view, /sendButton\.disabled = !can \|\| recordingNow \|\| unavailable;/);
   assert.ok(!/err_queue/.test(view + S['composer.hint'] + JSON.stringify(Object.keys(S))));
   assert.match(app, /queue\.push\(trace, \{ text, images \}\);/);
@@ -118,4 +121,46 @@ test('очередь с вложениями выдаётся по одному 
   assert.deepEqual(q.take('s', session('idle', 2)), a);
   assert.deepEqual(q.take('s', session('idle', 4)), b);
   assert.equal(q.take('s', session('idle', 6)), undefined);
+});
+
+test('324: чекбокс отправляет срочную поправку при открытом ходе и сбрасывается после отправки', () => {
+  const doc = createFakeDocument();
+  const refs = {};
+  for (const name of ['app', 'side', 'main', 'rail', 'status', 'overlay']) {
+    refs[name] = doc.createElement('div');
+    doc.body.append(refs[name]);
+  }
+  const queued = [];
+  const sent = [];
+  const view = createView(doc, refs, { agents: [{ id: 'opencode' }], now: () => 0, handlers: {
+    queued: () => queued.length, queuedItems: () => [],
+    onQueue: (...args) => Boolean(queued.push(args)),
+    onSend: (...args) => Boolean(sent.push(args)),
+  } });
+  const ui = { selected: 's', projects: [], pins: {}, theme: 'system' };
+  const status = { state: 'connected' };
+  const created = reduce(initialModel(), { id: 'created', trace: 's', step: 0, time: 0, kind: 'session_created', input: { name: 'test', agent: 'opencode' } });
+  view.render(created, ui, status);
+  const label = refs.main.querySelector('.composer-urgent');
+  const checkbox = label.querySelector('input');
+  const input = refs.main.querySelector('#composer-input');
+  const send = refs.main.querySelector('.send-btn');
+  assert.equal(label.hidden, true);
+
+  const busy = reduce(created, { id: 'message', trace: 's', step: 1, time: 1, kind: 'user_message', input: { turn: 'old', text: 'Работай' } });
+  view.render(busy, ui, status);
+  assert.equal(label.hidden, false);
+  assert.equal(send.hidden, true);
+  input.value = 'Обычное сообщение';
+  input.dispatchEvent(domKey('Enter'));
+  assert.deepEqual(queued, [['s', 'Обычное сообщение', []]]);
+  assert.equal(sent.length, 0);
+
+  input.value = 'Срочная поправка';
+  checkbox.click();
+  assert.equal(send.hidden, false);
+  send.click();
+  assert.deepEqual(sent, [['s', 'Срочная поправка', [], true]]);
+  assert.equal(checkbox.checked, false);
+  assert.equal(send.hidden, true);
 });

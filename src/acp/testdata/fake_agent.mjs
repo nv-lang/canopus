@@ -71,6 +71,8 @@ const SESSION = "sess_fake_1";
 let clientCaps = null;
 let cancels = 0;
 let cancelWaiter = null;
+let interruptPrompt = null;
+let interruptedReply = null;
 let nextAgentId = 100;
 const pendingAgentCalls = new Map(); // id -> resolve
 
@@ -110,6 +112,22 @@ async function prompt(id, params) {
   // the notes of the hub ("[canopus] ..." paragraphs) come before the words of the owner: the command word is the first word after them
   let plain = text;
   while (plain.startsWith("[canopus]") && plain.includes("\n\n")) plain = plain.slice(plain.indexOf("\n\n") + 2);
+  if (interruptPrompt) {
+    return write({ jsonrpc: "2.0", id, error: { code: -32600, message: "fixture: overlapping prompts" } });
+  }
+  if (plain.startsWith("[Контекст прерванного хода.")) {
+    const [history, correction] = plain.split("[Новое сообщение пользователя]");
+    if (interruptedReply !== null) {
+      respond(interruptedReply, { stopReason: "end_turn" });
+      interruptedReply = null;
+    }
+    if (history.includes("interrupt-original") && history.includes("original partial") && correction?.includes("urgent correction")) {
+      chunk(`fixture: correction with context (cancel notifications: ${cancels})`);
+    } else {
+      chunk("fixture: invalid context");
+    }
+    return respond(id, { stopReason: "end_turn" });
+  }
   const word = plain.split(" ")[0];
   if (args.includes("--handoff-overflow") && (plain.startsWith("Это служебная передача истории.") || plain.startsWith("Ниже история текущего чата."))) {
     return write({ jsonrpc: "2.0", id, error: { code: -32000, message: "context_window_exceeded" } });
@@ -340,6 +358,12 @@ async function prompt(id, params) {
       chunk("fs: " + (a.error ? a.error.code : "ok") + " terminal: " + (b.error ? b.error.code : "ok"));
       return respond(id, { stopReason: "end_turn" });
     }
+    case "interrupt-original":
+    case "interrupt-refused":
+    case "interrupt-timeout":
+      interruptPrompt = { id, kind: word };
+      chunk("original partial");
+      return;
     case "slow": {
       chunk("started");
       await new Promise((resolve) => { cancelWaiter = resolve; setTimeout(resolve, 15000); });
@@ -455,7 +479,24 @@ function handle(line) {
   }
   if (msg.method === "session/cancel") {
     cancels++;
-    if (cancelWaiter) cancelWaiter();
+    if (interruptPrompt) {
+      const { id, kind } = interruptPrompt;
+      if (kind === "interrupt-original") {
+        interruptPrompt = null;
+        interruptedReply = id;
+        respond(id, { stopReason: "cancelled" });
+        chunk("fixture late abandoned chunk");
+      } else {
+        if (kind === "interrupt-refused") {
+          write({ jsonrpc: "2.0", id: null, error: { code: -32600, message: "cancel denied" } });
+        }
+        setTimeout(() => {
+          interruptPrompt = null;
+          chunk("original finished normally");
+          respond(id, { stopReason: "end_turn" });
+        }, kind === "interrupt-refused" ? 400 : 2250);
+      }
+    } else if (cancelWaiter) cancelWaiter();
     return;
   }
   switch (msg.method) {

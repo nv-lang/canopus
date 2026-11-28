@@ -60,7 +60,7 @@ export function createDelivery(storage) {
     sessions() { return records.filter(r => r.session).map(r => r.session); },
     add(event, session = null, state = 'sending') {
       if (records.some(r => r.id === event.id)) return false;
-      return save([...records, { id: event.id, trace: event.trace, text: event.input.text || '', images: event.input.images || [], at: event.time, state, clientTurn: event.input.turn, turn: '', reason: '', session, handoff: Boolean(event.input.handoff) }]);
+      return save([...records, { id: event.id, trace: event.trace, text: event.input.text || '', images: event.input.images || [], at: event.time, state, clientTurn: event.input.turn, turn: '', reason: '', session, handoff: Boolean(event.input.handoff), ...(event.input.urgent ? { urgent: true } : {}) }]);
     },
     uploading(id) { update(id, { state: 'uploading' }); },
     uploadComplete(id) {

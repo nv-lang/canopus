@@ -105,6 +105,7 @@ let savedSessionId = readLastSession();
 
 const linked = /^#s=(.+)$/.exec(globalThis.location ? globalThis.location.hash : '');
 const ui = {
+  interruptPending: new Set(),
   historyPending: new Set(),
   historyPreview: new Set(),
   restoreQueued: new Map(),
@@ -309,14 +310,16 @@ function savedSession(trace) {
   return s ? { id: trace, agent: s.agent, projectId: s.projectId, project: s.project, folder: s.folder, branch: s.branch,
     route: normalizeRoute(s.route), worktree: s.worktree === true, sourceBranch: s.sourceBranch || '', source: s.source || null, preset: s.preset || '', approvals: s.approvals || {}, createdAt: s.createdAt } : null;
 }
-function sendMessage(trace, text, images = [], reserved = null) {
+function sendMessage(trace, text, images = [], reserved = null, urgent = false) {
   if (reserved) return attemptMessage({ ...reserved, trace, text, images });
-  const event = makeEvent('user_message', trace, nextStep(model, trace), messageInput(newId(), text, images), ctx);
+  const input = messageInput(newId(), text, images);
+  if (urgent) input.urgent = true;
+  const event = makeEvent('user_message', trace, nextStep(model, trace), input, ctx);
   if (!delivery.add(event, savedSession(trace))) {
     flash(t('delivery.storage'));
     return false;
   }
-  return attemptMessage({ id: event.id, trace, text, images, clientTurn: event.input.turn });
+  return attemptMessage({ id: event.id, trace, text, images, clientTurn: event.input.turn, urgent });
 }
 
 function attemptMessage(item, attempt = 0) {
@@ -328,7 +331,9 @@ function attemptMessage(item, attempt = 0) {
   }
   function transmit(uploaded) {
     if (!delivery.items(trace).some(r => r.id === id && r.state === 'sending')) return true;
-    const event = makeEvent('user_message', trace, nextStep(model, trace), messageInput(item.clientTurn || newId(), item.text, uploaded), ctx);
+    const input = messageInput(item.clientTurn || newId(), item.text, uploaded);
+    if (item.urgent) input.urgent = true;
+    const event = makeEvent('user_message', trace, nextStep(model, trace), input, ctx);
     event.id = id;
     try {
       if (!transport.send(event)) return offline();
@@ -357,7 +362,7 @@ function attemptMessage(item, attempt = 0) {
 
 function canRetryMessage(trace) {
   const session = model.sessions[trace];
-  return session && !session.draft && !ui.historyPending.has(trace) && !isBusy(session.state)
+  return session && !session.draft && !ui.historyPending.has(trace) && !ui.interruptPending.has(trace) && !isBusy(session.state)
     && !session.pendingQuestion && !['preparing', 'selected', 'deferred', 'applying'].includes(ui.handoffStatus.get(trace)?.phase);
 }
 
@@ -456,7 +461,7 @@ function applyDeferredSource(trace) {
   if (choice?.phase !== 'deferred') return true;
   const session = model.sessions[trace];
   if (!session) { ui.handoffStatus.delete(trace); return false; }
-  if (isBusy(session.state) || session.pendingQuestion || ui.historyPending.has(trace)) return false;
+  if (isBusy(session.state) || session.pendingQuestion || ui.historyPending.has(trace) || ui.interruptPending.has(trace)) return false;
   if (needsContextHandoff(session, choice.source)) {
     ui.handoffStatus.set(trace, { ...choice, phase: 'selected', previous: session.agent });
     return true;
@@ -485,7 +490,7 @@ function drain() {
   const justSent = drainRestoreQueue();
   queue.prune(model.sessions);
   for (const trace of queue.traces()) {
-    if (justSent.has(trace) || ui.restoreQueued.has(trace) || ui.historyPending.has(trace)) continue;
+    if (justSent.has(trace) || ui.restoreQueued.has(trace) || ui.historyPending.has(trace) || ui.interruptPending.has(trace)) continue;
     const phase = ui.handoffStatus.get(trace)?.phase;
     if (phase === 'preparing' || phase === 'deferred' || (phase === 'selected' && model.sessions[trace]?.pendingQuestion)) continue;
     const item = queue.take(trace, model.sessions[trace]);
@@ -674,7 +679,7 @@ const handlers = {
     clip.writeText(text).then(() => flash(t('chat.copied'), 'info'), () => flash(t('chat.copy_failed')));
   },
   // Без картинок — как раньше, сразу. С картинками — сначала они на сервер по очереди, потом сообщение с их номерами.
-  onSend(trace, text, images = []) {
+  onSend(trace, text, images = [], urgent = false) {
     const draft = model.sessions[trace];
     if (ui.historyPending.has(trace)) return sendAfterRestore(trace, text, images);
     if (ui.restoreQueued.has(trace) || !applyDeferredSource(trace)) return false;
@@ -727,7 +732,7 @@ const handlers = {
       ui.awaiting = trace;
       watchCreated(trace);
     }
-    return sendMessage(trace, text, images, reserved);
+    return sendMessage(trace, text, images, reserved, urgent);
   },
   onCancel(trace) {
     const session = model.sessions[trace];
@@ -974,11 +979,18 @@ async function start() {
         }
         const handoffFailed = handoff?.phase === 'preparing' && event.kind === 'error'
           && (event.input?.client_id === handoff.clientId || (!event.input?.turn && !event.input?.client_id));
+        if (event.kind === 'turn_interrupt_pending') {
+          if (event.input?.pending) ui.interruptPending.add(event.trace);
+          else { ui.interruptPending.delete(event.trace); drain(); }
+          render();
+          return;
+        }
         if (event.kind === 'route_state') waitingRoute.delete(event.trace);
         if (event.kind === 'session_deleted') {
           const queued = ui.restoreQueued.get(event.trace);
           if (queued) delivery.failed(queued.id, t('delivery.restore_target_changed'));
           ui.restoreQueued.delete(event.trace);
+          ui.interruptPending.delete(event.trace);
         }
         if (event.kind === 'message_delivery') delivery.receipt(event.input);
         if (event.kind === 'error' && event.input) delivery.error(event);
@@ -1052,6 +1064,7 @@ async function start() {
     onStatus(next) {
       status = next;
       if (next.state === 'retry') {
+        ui.interruptPending.clear();
         delivery.disconnected();
         for (const [trace, handoff] of ui.handoffStatus) {
           if (handoff.phase === 'applying') ui.handoffStatus.delete(trace);

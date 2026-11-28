@@ -1,0 +1,137 @@
+// Task 324: wait for ACP confirmation before closing the dialog request. Both transitions belong to DialogSession.
+module canopus.server
+
+import alula.engine.{Incoming}
+import std.encoding.json.{JsonValue, JsonObject}
+
+const INTERRUPT_CONFIRM_MS = 2000
+
+fn Hub mut @interrupt_event(at int, name str, reason str, previous str = "") Time -> () {
+    mut input = JsonObject.new()
+    if reason != "" { js(input, "reason", reason) }
+    if previous != "" { js(input, "previous_turn", previous) }
+    mut s = @sessions[at]
+    accept_in(@settings.store == "pg", @settings.data_dir, s, Incoming.signal(name, JsonValue.object(input).to_str()))
+    @drain(at)
+}
+
+fn Hub @interrupt_pending(trace str) -> bool {
+    for job in @interrupts {
+        if job.trace == trace { return true }
+    }
+    false
+}
+
+// The page's ordinary FIFO must not dispatch in the gap between a terminal event and its replacement.
+fn Hub mut @send_interrupt_pending(conn int, at int, pending bool) -> () {
+    ro s = @sessions[at]
+    mut input = JsonObject.new()
+    jput(input, "pending", JsonValue.bool(pending))
+    @serial += 1
+    @send(conn, event_line("srv-${@serial}", s.id, s.engine.step_number(), "turn_interrupt_pending", input, 0))
+}
+
+fn Hub mut @interrupt_attach(conn int) -> () {
+    mut at = 0
+    while at < @sessions.len() {
+        if @interrupt_pending(@sessions[at].id) { @send_interrupt_pending(conn, at, true) }
+        at += 1
+    }
+}
+
+fn Hub mut @interrupt_drop(trace str) -> () {
+    mut keep = []TurnInterrupt.new()
+    for job in @interrupts {
+        if job.trace != trace { keep.push(job) }
+    }
+    @interrupts = keep
+}
+
+fn Hub mut @start_interrupt(at int, owner Option[JsonObject], client_id str, letter int) Time -> () {
+    mut s = @sessions[at]
+    ro open = s.engine.open_ids()
+    if open.len() == 0 {
+        if owner.is_some() { @tell_error(0, s.id, s.engine.step_number(), "", "нет открытого хода для поправки") }
+        return
+    }
+    ro handoff = match owner {
+        Some(input) => jchild(input, "handoff").is_some()
+        None => false
+    }
+    mut job = TurnInterrupt { trace: s.id, owner, client_id, letter, request: "", deadline: 0 }
+    ro queued = @interrupt_pending(s.id)
+    ro reason = if queued { "в этой сессии уже есть срочная поправка" }
+        else if s.rt.running || s.rt.reviewing || s.rt.job != "" { "в сессии идёт служебная операция" }
+        else if letter > 0 && @cs_state(at) == "waits" { "доставка письма ждёт решения по задаче" }
+        else if !@machine.accepts_signal(s.engine.state(), "cancel_request") { "текущее состояние диалога не принимает отмену" }
+        else if handoff || @has_running_handoff(s.id) { "в сессии переносится контекст" }
+        else if s.clients.len() == 0 || !s.clients[0].try_interrupt(open[0]) { "открытый ход ещё недоступен для отмены по ACP" }
+        else { "" }
+    if reason == "" {
+        job.request = open[0]
+        job.deadline = now_millis() + INTERRUPT_CONFIRM_MS
+    } else {
+        @interrupt_event(at, "turn_interrupt_queued", reason)
+    }
+    // A deferred letter already belongs to the ordinary inbox queue.
+    if job.request != "" || owner.is_some() {
+        @interrupts.push(job)
+        if !queued { @send_interrupt_pending(0, at, true) }
+    }
+}
+
+fn Hub @letter_interrupting(letter int) -> bool {
+    for job in @interrupts {
+        if job.letter == letter && job.request != "" { return true }
+    }
+    false
+}
+
+fn Hub mut @interrupt_pump(at int) Proc Detach Time -> () {
+    mut s = @sessions[at]
+    mut index = 0
+    while index < @interrupts.len() && @interrupts[index].trace != s.id { index += 1 }
+    if index == @interrupts.len() { return }
+    mut job = @interrupts[index]
+    mut context = ""
+    ro previous = s.turn
+    if job.request != "" {
+        ro open = s.engine.open_ids()
+        mut outcome = if s.clients.len() > 0 { s.clients[0].interrupt_result() } else { None }
+        if outcome.is_none() {
+            if !open.contains(job.request) { outcome = Some("исходный ход уже завершился") }
+            else if now_millis() >= job.deadline { outcome = Some("агент не подтвердил отмену за 2 с") }
+            else { return }
+        }
+        mut reason = outcome.unwrap()
+        if reason == "" && open.contains(job.request) {
+            context = "[Контекст прерванного хода. Продолжи с учётом поправки ниже.]\n\n${handoff_tail(s.lines)}"
+            @cancel(s.id)
+            // A service letter owns no workflow step. Let its replacement take the same slot.
+            s.rt.awaiting = false
+        } else if reason == "" {
+            reason = "исходный ход уже завершился"
+        }
+        if s.clients.len() > 0 { s.clients[0].finish_interrupt(job.request) }
+        if reason != "" { @interrupt_event(at, "turn_interrupt_queued", reason) }
+        job.request = ""
+        @interrupts[index] = job
+        if job.letter > 0 && context == "" {
+            @interrupts.remove(index)
+            @ctl_deliver(at)
+            if !@interrupt_pending(s.id) { @send_interrupt_pending(0, at, false) }
+            return
+        }
+    }
+    if !@takes_message_at(at) || s.rt.running || s.rt.reviewing || s.rt.job != "" { return }
+    @interrupts.remove(index)
+    match job.owner {
+        Some(input) => @page_message(0, s.id, job.client_id, input, queued: true, context: context)
+        None => @ctl_deliver(at, selected: job.letter, context: context)
+    }
+    if context != "" {
+        if s.turn != previous { @interrupt_event(at, "turn_resume", "", previous: previous) }
+        else if job.letter > 0 { @interrupt_event(at, "turn_interrupt_queued", "письмо ждёт доступного хода") }
+    }
+    if !@interrupt_pending(s.id) { @send_interrupt_pending(0, at, false) }
+}

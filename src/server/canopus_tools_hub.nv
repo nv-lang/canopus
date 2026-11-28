@@ -137,7 +137,7 @@ fn Hub mut @ctl_take(j int) Proc Detach Time -> () {
 }
 
 // A letter that wakes the agent goes to it as a service turn when the agent is free (with the letters that were sent without waking it).
-fn Hub mut @ctl_deliver(at int) Proc Detach Time -> () {
+fn Hub mut @ctl_deliver(at int, selected int = 0, context str = "") Proc Detach Time -> () {
     ro s = @sessions[at]
     if s.rt.running || s.rt.awaiting || s.rt.reviewing || s.rt.job.byte_len() > 0 { return }
     if !@takes_message_at(at) { return }
@@ -146,20 +146,20 @@ fn Hub mut @ctl_deliver(at int) Proc Detach Time -> () {
     mut j = 0
     while j < @ctl_letters.len() {
         ro l = @ctl_letters[j]
-        if first < 0 && l.to == s.id && l.wake && !l.taken { first = j }
+        if first < 0 && l.to == s.id && l.wake && !l.taken && (if selected == 0 { !@letter_interrupting(l.id) } else { selected == l.id }) { first = j }
         j += 1
     }
     if first < 0 { return }
     ro lead = @ctl_letters[first]
     mut texts = []str.new()
     texts.push(ctl_turn_text(lead))
-    @ctl_take(first)
+    mut take = [first]
     j = 0
     while j < @ctl_letters.len() {
         ro l = @ctl_letters[j]
         if l.to == s.id && !l.taken && !l.wake {
             texts.push(ctl_turn_text(l))
-            @ctl_take(j)
+            take.push(j)
         }
         j += 1
     }
@@ -169,7 +169,13 @@ fn Hub mut @ctl_deliver(at int) Proc Detach Time -> () {
     @hint_add(at, "письмо canopus_send", text)
     ro who = if lead.from.byte_len() == 0 { "хаб" } else { lead.from_name }
     ro asked = if lead.qid.byte_len() > 0 { " [вопрос ${lead.qid}]" } else { "" }
-    ro reason = @route_agent_turn(at, "[canopus] Письмо от ${who}${asked}: ${lead.text}", full)
+    if selected == 0 {
+        for index in take { @ctl_take(index) }
+    }
+    ro reason = @route_agent_turn(at, "[canopus] Письмо от ${who}${asked}: ${lead.text}", full, context: context)
+    if selected > 0 && reason == "" {
+        for index in take { @ctl_take(index) }
+    }
     if reason.byte_len() > 0 {
         @tell_error(0, s.id, s.engine.step_number(), "", "письмо canopus_send не передано агенту: ${reason}")
     }
@@ -192,7 +198,7 @@ fn Hub mut @ctl_wait_got(at int, w CtlWait) Proc Detach Time -> Option[str] {
         mut j = 0
         while j < @ctl_letters.len() {
             ro l = @ctl_letters[j]
-            if l.to == s.id && !l.taken {
+            if l.to == s.id && !l.taken && !@letter_interrupting(l.id) {
                 lines.push(ctl_letter_line(l))
                 @ctl_take(j)
             }
@@ -205,7 +211,7 @@ fn Hub mut @ctl_wait_got(at int, w CtlWait) Proc Detach Time -> Option[str] {
         mut j = 0
         while j < @ctl_letters.len() {
             ro l = @ctl_letters[j]
-            if l.reply_to == w.tgt && l.to == s.id && !l.taken {
+            if l.reply_to == w.tgt && l.to == s.id && !l.taken && !@letter_interrupting(l.id) {
                 @ctl_take(j)
                 return Some("Ответ на ${w.tgt} ${ctl_letter_line(l)}")
             }
@@ -396,6 +402,10 @@ fn Hub mut @ctl_send(at int, a JsonObject) Proc Detach Time -> CtlRes {
     mut named = []str.new()
     for i in targets {
         @ctl_letter(me.id, me.name, @sessions[i].id, text, wake, qid, reply_to)
+        if wake && jflag(a, "urgent") && !@takes_message_at(i) {
+            ro owner Option[JsonObject] = None
+            @start_interrupt(i, owner, "", @ctl_serial)
+        }
         named.push(@ctl_label(i))
     }
     ro qid_tail = if qid.byte_len() > 0 { " Вопрос ${qid}: ответ жди canopus_wait {target: \"${qid}\"} в этом же ходе." } else { "" }
@@ -411,7 +421,7 @@ fn Hub mut @ctl_inbox(at int, a JsonObject) Proc Detach Time -> CtlRes {
     mut j = 0
     while j < @ctl_letters.len() {
         ro l = @ctl_letters[j]
-        if l.to == s.id {
+        if l.to == s.id && !@letter_interrupting(l.id) {
             if !l.taken {
                 fresh.push(ctl_letter_line(l))
                 @ctl_take(j)

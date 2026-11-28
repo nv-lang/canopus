@@ -27,7 +27,7 @@ const base = () => [
   ev('user_message', { turn: 't1', text: 'сделай' }, { step: 1 }),
 ];
 
-test('виды событий: девять прежних, шесть рабочих, картинки, вопросы и каталог семьи', () => {
+test('виды событий ленты и состояния сессии', () => {
   assert.deepEqual([...st.KINDS].sort(), [
     'agent_actual',
     'agent_catalog',
@@ -64,7 +64,9 @@ test('виды событий: девять прежних, шесть рабо�
     'task_details',
     'tool_call',
     'tool_call_update',
+    'turn_interrupt_queued',
     'turn_request',
+    'turn_resume',
     'turn_usage',
     'usage_update',
     'user_message',

@@ -1,0 +1,23 @@
+module canopus.server_interrupt_live
+
+import canopus.server.{kit_chat_files, kit_files_mcp, scenario_interrupt}
+
+test "324: urgent page message cancels, resumes and discards late replies" {
+    ro report = scenario_interrupt(kit_chat_files("interrupt-ok", 30000), "interrupt-original", false)
+    if report != "" { panic(report) }
+}
+
+test "324: rejected cancellation queues the page message with a reason" {
+    ro report = scenario_interrupt(kit_chat_files("interrupt-refusal", 30000), "interrupt-refused", false)
+    if report != "" { panic(report) }
+}
+
+test "324: cancellation without acknowledgement falls back to the queue" {
+    ro report = scenario_interrupt(kit_chat_files("interrupt-timeout", 30000), "interrupt-timeout", false)
+    if report != "" { panic(report) }
+}
+
+test "324: urgent canopus_send letter resumes the same dialogue" {
+    ro report = scenario_interrupt(kit_files_mcp("interrupt-letter", 30000, 30000), "interrupt-original", true)
+    if report != "" { panic(report) }
+}

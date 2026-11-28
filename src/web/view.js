@@ -762,6 +762,9 @@ export function createView(doc, refs, deps) {
   voiceHint.addEventListener('click', () => voiceToast.hide());
   const cancelButton = h(doc, 'button', { type: 'button', class: 'cancel-btn', hidden: true, 'data-tip': t('chat.cancel'), 'aria-label': t('chat.cancel') }, icon(doc, 'i-stop'), h(doc, 'span', { class: 'sr-only', text: t('chat.cancel') }));
   const sendButton = h(doc, 'button', { type: 'button', class: 'send-btn', 'data-tip': t('composer.hint'), disabled: true }, icon(doc, 'i-return'), h(doc, 'span', { class: 'sr-only', text: t('chat.send') }));
+  const urgentInput = h(doc, 'input', { type: 'checkbox' });
+  const urgentLabel = h(doc, 'label', { class: 'composer-urgent', title: t('composer.urgent_hint'), hidden: true },
+    urgentInput, t('composer.urgent'));
   // счётчик очереди — над полем, position absolute: его появление не меняет высоту
   const queueButton = h(doc, 'button', { type: 'button', class: 'queue-count', hidden: true, title: t('composer.queued_hint') });
   // картинки сообщения: полоска превью — первой строкой карточки (задача 192)
@@ -1039,7 +1042,7 @@ export function createView(doc, refs, deps) {
   // пилюли одной строкой ВНУТРИ карточки композера, а не отдельной строкой под ней.
   const boxBar = h(doc, 'div', { class: 'box-bar', 'data-empty': 'true' },
     plusButton, routeButton, taskRouteLabel, h(doc, 'span', { class: 'grow' }), modeButton, modeError, statusGroup, modelButton,
-    h(doc, 'div', { class: 'box-row' }, micWrap, cancelButton, sendButton));
+    h(doc, 'div', { class: 'box-row' }, urgentLabel, micWrap, cancelButton, sendButton));
   box.append(boxBar);
   const status = h(doc, 'div', { class: 'composer-status', 'data-empty': 'true' }, h(doc, 'div', { class: 'env-row' }, icon(doc, 'i-folder'), h(doc, 'span', { class: 'muted', text: t('rail.workspace_setup') }), worktreeButton, whereNote),
     h(doc, 'div', { class: 'env-row env-result' }, icon(doc, 'i-branch'), h(doc, 'span', { class: 'muted', text: t('rail.result_repo') }), resultRepoButton), presetSelect);
@@ -1724,11 +1727,12 @@ export function createView(doc, refs, deps) {
     const images = attach.items();
     if (!currentTrace || uploading || (text.length === 0 && images.length === 0)) return;
     // пока вопрос агента ждёт ответа, обычное сообщение не уходит: форма просит ответить или пропустить
-    if (current.session && current.session.pendingQuestion) { nudgeAsk(); return; }
+    const urgent = !urgentLabel.hidden && urgentInput.checked;
+    if (current.session?.pendingQuestion && !urgent) { nudgeAsk(); return; }
     const trace = currentTrace;
     historyState = NO_HISTORY; // после отправки история с пустого поля: новое сообщение в её конце, ↑ показывает его первым
     // агент занят ходом: сообщение (и его картинки) встаёт в очередь страницы и уходит, когда ход закончится
-    if (current.session && !current.ui?.historyPending?.has(trace) && isBusy(current.session.state)) {
+    if (!urgent && current.session && !current.ui?.historyPending?.has(trace) && (isBusy(current.session.state) || current.ui?.interruptPending?.has(trace))) {
       if (handlers.onQueue(trace, text, images)) {
         input.value = '';
         attach.clear();
@@ -1738,9 +1742,11 @@ export function createView(doc, refs, deps) {
       }
       return;
     }
-    const result = images.length ? handlers.onSend(trace, text, images) : handlers.onSend(trace, text);
+    const result = urgent ? handlers.onSend(trace, text, images, true)
+      : images.length ? handlers.onSend(trace, text, images) : handlers.onSend(trace, text);
     if (typeof result?.then !== 'function') {
       if (result) {
+        urgentInput.checked = false;
         input.value = '';
         fitInput();
         drafts.delete(trace);
@@ -1753,6 +1759,7 @@ export function createView(doc, refs, deps) {
       uploading = false;
       if (ok) {
         if (currentTrace === trace) {
+          urgentInput.checked = false;
           input.value = afterSendText(originalText, input.value);
           if (input.value) drafts.set(trace, input.value); else drafts.delete(trace);
           const remaining = attach.take().filter(item => !images.some(sent => sent.id === item.id));
@@ -1773,6 +1780,7 @@ export function createView(doc, refs, deps) {
     const restoring = current.ui?.historyPending?.has(currentTrace);
     const unavailable = current.ui?.restoreQueued?.has(currentTrace) || (restoring
       && (!current.ui.historyPreview?.has(currentTrace) || attach.items().length > 0));
+    sendButton.hidden = current.session && isBusy(current.session.state) && (urgentLabel.hidden || !urgentInput.checked);
     sendButton.disabled = !can || recordingNow || unavailable;
   }
   // Авторазмер: высота по содержимому, не выше 5 строк (дальше — внутренняя прокрутка, см. max-height в app.css).
@@ -1782,6 +1790,7 @@ export function createView(doc, refs, deps) {
     if (input.scrollHeight > 0) input.style.height = `${input.scrollHeight}px`; // 0 — чат скрыт: оставить auto
   }
   sendButton.addEventListener('click', () => submit());
+  urgentInput.addEventListener('change', syncSend);
   input.addEventListener('keydown', (e) => {
     // в записи Enter останавливает её и вставляет текст, а не отправляет сообщение
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && dictation.active()) { e.preventDefault(); dictation.stop(); return; }
@@ -2474,6 +2483,7 @@ export function createView(doc, refs, deps) {
         attachDrafts.set(currentTrace, attach.take());
       }
       currentTrace = session.id;
+      urgentInput.checked = false;
       setHot('');
       followTail = true;
       unseen = false;
@@ -2513,7 +2523,9 @@ export function createView(doc, refs, deps) {
     queueButton.hidden = queued === 0;
     if (queued > 0) queueButton.textContent = t('composer.queued', { n: queued });
     cancelButton.hidden = !busy;
-    sendButton.hidden = busy;
+    urgentLabel.hidden = !busy || awaitingHistory || Boolean(session.draft)
+      || ['preparing', 'selected', 'deferred', 'applying'].includes(handoff?.phase);
+    if (urgentLabel.hidden) urgentInput.checked = false;
     syncSend();
     options = shown.options;
     currentAgent = shown.agent;

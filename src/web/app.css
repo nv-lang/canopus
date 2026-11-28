@@ -689,6 +689,8 @@ pre code { font: inherit; }
   overflow-y: auto;
 }
 .box-row { display: flex; align-items: center; gap: 6px; }
+.composer-urgent:not([hidden]) { display: inline-flex; align-items: center; gap: .25rem; white-space: nowrap; }
+.composer-urgent input { width: auto; padding: 0; }
 /* Нижняя панель карточки композера (макет 268, new-chat.png): режим слева, семья·модель·усилие справа,
    пилюли с шевроном; строка целиком скрывается, когда в ней ничего нет. */
 .box-bar { flex-basis: 100%; display: flex; align-items: center; gap: 5px; padding: 6px 2px 2px; border-top: 1px solid var(--border); }

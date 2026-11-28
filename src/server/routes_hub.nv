@@ -838,7 +838,7 @@ fn Hub mut @route_mark_progress(at int, title str, skipped bool) -> () {
 // ----- the run of the steps -----
 
 // A turn of the agent with a hidden note: the visible line is `label`, the note goes before it in the prompt. "" - sent, else why not.
-fn Hub mut @route_agent_turn(at int, label str, prelude str, source Option[JsonObject] = None) Proc Detach Time -> str {
+fn Hub mut @route_agent_turn(at int, label str, prelude str, source Option[JsonObject] = None, context str = "") Proc Detach Time -> str {
     if @sessions[at].rt.result_repo.byte_len() > 0 {
         match @route_target(@sessions[at].id) {
             Ok(t) => ()
@@ -886,6 +886,7 @@ fn Hub mut @route_agent_turn(at int, label str, prelude str, source Option[JsonO
     }
     s.clients[0].set_prelude(prelude)
     @req_service(at, label, prelude)
+    if context != "" { s.clients[0].set_handoff_context(context) }
     feed_turn(@settings.store == "pg", @settings.data_dir, s, s.clients[0], Incoming.signal("user_message", label))
     s.rt.awaiting = true
     @sessions[at] = s
