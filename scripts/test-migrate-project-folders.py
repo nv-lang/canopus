@@ -130,4 +130,17 @@ class MigrationTests(unittest.TestCase):
         migration.apply(migration.plan(self.projects),self.base/'backup')
         self.assertEqual((self.root/'docs/tasks/AL-042-sample/input/message.md').read_text(),'owner input')
 
+    def test_immutable_approval_and_accepted_events_keep_original_bytes_semantics(self):
+        file=self.task/'state.json'
+        state=json.loads(file.read_text())
+        state['application']={'events':[{'text':json.dumps({'dir':str(self.task/'task')}),'digest':'unchanged'}]}
+        state['history']=[{'directory':str(self.task/'task')}]
+        state['creation_approval']={'digest':'original','directory':str(self.task/'task')}
+        before={k:state[k] for k in ['application','history','creation_approval','hold']}
+        file.write_text(json.dumps(state))
+        migration.apply(migration.plan(self.projects),self.base/'backup')
+        current=json.loads((self.root/'docs/tasks/001-sample/state.json').read_text())
+        for key,value in before.items(): self.assertEqual(current[key],value)
+        self.assertEqual(current['directory'],str(self.root/'docs/tasks/001-sample/input'))
+
 if __name__=='__main__': unittest.main()

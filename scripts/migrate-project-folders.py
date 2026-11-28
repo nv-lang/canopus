@@ -147,7 +147,11 @@ def plan(projects, state_files=()):
                             pass
                     return replace(v, relative) if path_value and not any(c in v for c in ("\n", "\r")) else v
                 if isinstance(v, list): return [walk(x, relative, path_value) for x in v]
-                if isinstance(v, dict): return {replace(k, relative) if "/" in k or "\\" in k else k: walk(x, relative, k in path_fields) for k, x in v.items()}
+                if isinstance(v, dict):
+                    # Approval proofs, accepted events and HOLD are immutable evidence.
+                    if "digest" in v or "signature" in v: return v
+                    immutable = {"history", "application", "creation_approval", "approval", "hold", "fields"}
+                    return {replace(k, relative) if "/" in k or "\\" in k else k: x if k in immutable else walk(x, relative, k in path_fields) for k, x in v.items()}
                 return v
             if value is not None:
                 updated = walk(value)
