@@ -24,7 +24,7 @@ import { t } from './strings.js';
 import { safeError } from './delivery.js';
 
 export const KINDS = Object.freeze([
-  'session_created', 'user_message', 'agent_actual', 'agent_chunk', 'agent_done', 'agent_refused',
+  'session_created', 'user_message', 'agent_actual', 'agent_chunk', 'agent_done', 'agent_refused', 'next_suggestion',
   'permission_request', 'permission_decision', 'cancel', 'error', 'turn_resume', 'turn_interrupt_queued', 'provider_recovery',
   // задача 094: рабочие события хода (соответствуют ACP session/update)
   'usage_update', 'tool_call', 'tool_call_update', 'output_file', 'file_diff',
@@ -230,6 +230,12 @@ function lastTurn(session) {
   return '';
 }
 
+export function nextSuggestionFor(session) {
+  if (!session || session.state !== 'idle' || session.pending || session.pendingQuestion) return null;
+  const latest = session.messages.findLast(message => message.role === 'agent');
+  return latest?.status === 'done' ? latest.nextSuggestion ?? null : null;
+}
+
 function toolCommand(detail) {
   if (!detail.startsWith('{')) return '';
   try { return str(JSON.parse(detail)?.command); }
@@ -385,6 +391,15 @@ function apply(session, event) {
         pendingQuestion: null,
         messages: putMessage(session.messages, index, { ...message, status: 'done', doneAt: event.time }),
       };
+    }
+
+    case 'next_suggestion': {
+      const { prompt } = input;
+      if (input.session !== session.id || !str(input.turn) || !str(prompt).trim()) return session;
+      const { index, message } = agentMessageFor(session.messages, turn);
+      if (index < 0 || event.step < (message.nextSuggestion?.step ?? -1)) return session;
+      const nextSuggestion = { id: event.id, prompt, step: event.step };
+      return { ...session, messages: putMessage(session.messages, index, { ...message, nextSuggestion }) };
     }
 
     case 'agent_refused': {

@@ -40,10 +40,10 @@ fn has_name(names []str, name str) -> bool {
     false
 }
 
-test "canopus_tools: every set but the old one lists the twelve tools of the plugin and canopus_task, canopus_config is not among them" {
+test "canopus_tools: every set but the old one lists the control tools and canopus_task, canopus_config is not among them" {
     for set in ["all", "list", "asklist", "task"] {
         ro names = tnames(mcp_handle_for("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}", set).text)
-        for want in ["canopus_list", "canopus_role", "canopus_send", "canopus_inbox", "canopus_wait", "canopus_spawn", "canopus_timer", "canopus_watch", "canopus_doctor", "canopus_step_note", "canopus_branch_note", "canopus_help", "canopus_task", "canopus_task_list", "canopus_progress_line", "canopus_log_line", "canopus_usage_line"] {
+        for want in ["canopus_list", "canopus_role", "canopus_send", "canopus_next", "canopus_inbox", "canopus_wait", "canopus_spawn", "canopus_timer", "canopus_watch", "canopus_doctor", "canopus_step_note", "canopus_branch_note", "canopus_help", "canopus_task", "canopus_task_list", "canopus_progress_line", "canopus_log_line", "canopus_usage_line"] {
             assert(has_name(names, want))
         }
         assert(!has_name(names, "canopus_config"))
@@ -137,4 +137,20 @@ test "canopus_tools: the help names every tool and says canopus_config is not he
     for name in journal_tool_names() { assert(help.contains(name)) }
     assert(help.contains("canopus_task"))
     assert(!help.contains("canopus_config {"))
+}
+
+test "336 canopus_next requires a prompt string before routing a call to the hub" {
+    ro good = tcall("canopus_next", "{\"prompt\":\"Покажи тесты\"}", "next")
+    assert(good.kind == "ctl")
+    assert(tget(tget(tj(good.questions), "arguments"), "prompt").str() == Some("Покажи тесты"))
+    for args in ["{}", "{\"prompt\":7}", "{\"prompt\":\" \"}"] {
+        ro rejected = tcall("canopus_next", args, "next")
+        assert(rejected.kind == "reply")
+        assert(tget(tget(tj(rejected.text), "result"), "isError").bool() == Some(true))
+        assert(rejected.text.contains("argument"))
+    }
+    ro listed = mcp_handle_for("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}", "next")
+    assert(tnames(listed.text) == ["canopus_next"])
+    assert(tcall("canopus_list", "{}", "next").kind == "reply")
+    assert(tcall("ask_user_question", "{}", "next").kind == "reply")
 }

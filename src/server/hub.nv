@@ -1067,7 +1067,15 @@ fn Hub @open_config(s Dialog) -> Option[AcpConfig] => @open_config_for(s.agent, 
 
 // What the agent of this session is offered for its questions (task 192i): nothing when the setting `ask_form` is off or the agent is `off`; the form
 // (its own tool of questions) when it is `native`; the MCP tool of the hub, and no form, when it is `mcp`.
-fn Hub @ask_for(agent str, id str) -> AskSetup => @ask_with_tasks(@ask_base(agent, id), id)
+fn Hub @ask_for(agent str, id str) -> AskSetup {
+    ro setup = @ask_with_tasks(@ask_base(agent, id), id)
+    if @mcps.len() == 0 { return setup }
+    ro url = if setup.mcp_url == "" { @mcp_url_tools(id, "next") } else { setup.mcp_url }
+    ro hint = if setup.hint == "" { NEXT_HINT } else { "${setup.hint}\n\n${NEXT_HINT}" }
+    AskSetup { form: setup.form, mcp_url: url, mcp_token: @mcp_token_value(), hint }
+}
+
+const NEXT_HINT = "[canopus] Если уместно предложить следующее сообщение, вызови canopus_next(prompt). Напиши prompt от лица пользователя с учётом принятых решений. Пользователь может подставить текст в поле ввода. Для вопросов, подтверждений и разрешений используй штатные формы."
 
 // Task 192.2: the tools of the recognition of the tasks go to every agent that takes an HTTP MCP server: `canopus_task_list` always (the button), `canopus_task` when `route_auto_propose`.
 fn Hub @ask_with_tasks(base AskSetup, id str) -> AskSetup {
@@ -1109,16 +1117,7 @@ fn Hub @mcp_token_value() -> str {
     @mcps[0].token
 }
 
-fn Hub @wants_mcp() -> bool {
-    if @settings.route_tool { return true }
-    if !@settings.ask_form { return false }
-    for a in @settings.agents {
-        if a.ask == "mcp" { return true }
-    }
-    false
-}
-
-/// Start the MCP server of the questions (only when an agent of the settings asks by `mcp`; the tests call it too). The port is the system's choice, the token is random.
+/// Start the MCP server on loopback. The port is the system's choice and the token is random.
 export fn Hub mut @start_mcp() Proc Detach Time Net -> bool {
     if @mcps.len() > 0 { return true }
     // D454: boundary override inside non-test code, see module-conventions
@@ -1501,7 +1500,7 @@ fn start_hub_mode(settings ServerSettings, table_text str, background bool) Proc
         preparation_fixtures: []PreparationFixture.new(),
         handoffs: []ContextHandoff.new(), interrupts: []TurnInterrupt.new(), model_probes: []ModelProbe.new(), probe_results: JsonObject.new(), context_sizes: JsonObject.new(), settings, machine, work_mode, approval_policy, workdir, sessions: []Dialog.new(), restoring: JsonObject.new(), restore_jobs: []str.new(), pump_cursor: 0, restore_commands: []RestoreCommand.new(), legacy_open: []int.new(), restore_tx: restores.tx, restore_rx: restores.rx, orphan_swept_at: 0, orphan_running: false, orphan_tx: orphan_jobs.tx, orphan_rx: orphan_jobs.rx, index_tasks: JsonObject.new(), index_states: JsonObject.new(), index_signature: "", index_next: 0, index_pending: false, index_tx: index_metadata.tx, index_rx: index_metadata.rx, conns: []int.new(), out: []Outgoing.new(), log: []str.new(), serial: 0, mcps: []McpServer.new(), mcp_pending: []McpPending.new(), mcp_serial: 0, ctl_letters: []CtlLetter.new(), ctl_waits: []CtlWait.new(), ctl_serial: 0, catalog: JsonObject.new(), catalog_dirty: false, history_saved: JsonObject.new(), catalog_saved_at: 0, choices: []PendingChoice.new(), reviews: []Review.new(), route_obs: 0, route_git_pending: false, route_git_tx: route_git.tx, route_git_rx: route_git.rx, marks: []MachMark.new(), trees_tx: trees_chan.tx, trees_rx: trees_chan.rx, notes_tx: notes_chan.tx, notes_rx: notes_chan.rx, held: []HeldMsg.new(), reserved: []int.new()
     }
-    if hub.wants_mcp() { ro started = hub.start_mcp() }
+    if settings.agents.len() > 0 { ro started = hub.start_mcp() }
     ro pg = settings.store == "pg"
     // the flat files of the older form (`<id>.inbox` ...) go into the folders of their sessions before the sessions are listed (task 192k)
     ro migration = migrate_flat_sessions(settings.data_dir)

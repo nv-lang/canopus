@@ -12,7 +12,7 @@ import std.concurrency.nvchan.{ChanTx}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 
 /// The names of the tools of this port (without `canopus_task`, which is the old tool of the hub with the actions of the plugin added: `canopus_task_unified_json`).
-export fn ctl_names() -> []str => ["canopus_list", "canopus_role", "canopus_send", "canopus_inbox", "canopus_wait", "canopus_spawn", "canopus_timer", "canopus_watch", "canopus_doctor", "canopus_step_note", "canopus_branch_note", "canopus_help"]
+export fn ctl_names() -> []str => ["canopus_list", "canopus_role", "canopus_send", "canopus_next", "canopus_inbox", "canopus_wait", "canopus_spawn", "canopus_timer", "canopus_watch", "canopus_doctor", "canopus_step_note", "canopus_branch_note", "canopus_help"]
 
 /// Is this a tool of the port (`canopus_task` included)?
 export fn ctl_is_tool(name str) -> bool {
@@ -96,6 +96,9 @@ fn ctl_tool(name str) -> JsonValue {
     if name == "canopus_send" {
         return ctl_def("canopus_send", "Send a service letter to another session of the hub. `to`: a session id, a number of a task (012), `parent` (or `orchestrator`), `children`. wake=true (the default): the letter goes to the recipient as a service turn as soon as its agent is free; wake=false: it waits in the recipient's canopus_inbox. urgent=true with wake=true: interrupt an active turn and deliver the letter as the next prompt, or queue if cancellation is denied. expect_reply=true: a question - the result gives a qid, wait for the answer with canopus_wait {target: qid}. reply_to: the qid you answer (then `to` may be omitted). The owner reads the letters in the feed of the recipient: write them in the language of the owner.", [pr("to", cp("string", "Recipient: session id, task number, parent, orchestrator or children")), pr("text", cp("string", "The text of the letter")), pr("wake", cp("boolean", "Wake the recipient (default true)")), pr("urgent", cp("boolean", "Interrupt an active turn (default false)")), pr("expect_reply", cp("boolean", "This is a question: the result gives a qid")), pr("reply_to", cp("string", "The qid of the question this letter answers"))], ["text"])
     }
+    if name == "canopus_next" {
+        return ctl_def("canopus_next", "Suggest the next message in the current conversation. Write it in the user's voice and take prior decisions into account. The user can insert the suggested text into the message field.", [pr("prompt", cp("string", "Full next message from the user"))], ["prompt"])
+    }
     if name == "canopus_inbox" {
         return ctl_def("canopus_inbox", "The letters of this session: those that wait are handed over right here (and then count as read), then the recent read ones.", [pr("limit", cp("integer", "How many recent letters (default 10)"))], [])
     }
@@ -169,6 +172,9 @@ fn ctl_has_int(arguments JsonValue, key str) -> bool {
 
 /// The reason the arguments of a tool are not good ("" - good). Only what is seen without the hub.
 export fn ctl_validate(name str, arguments JsonValue) -> str {
+    if name == "canopus_next" {
+        if !ctl_has(arguments, "prompt") { return "canopus_next: the argument prompt must be a non-empty string" }
+    }
     if name == "canopus_send" {
         if !ctl_has(arguments, "text") { return "canopus_send: the argument text is missing" }
         if !ctl_has(arguments, "to") && !ctl_has(arguments, "reply_to") { return "canopus_send: give the recipient (to) or the qid you answer (reply_to)" }
@@ -259,6 +265,7 @@ export fn ctl_help_text() -> str {
         "  canopus_inbox {limit?}            — твои письма: ждущие выдаются здесь, затем прочитанные.\n",
         "  canopus_wait {target?, seconds?}  — ждать в этом же ходе (до 300 с): ответ на qid, готовность дочерней (номер, id, название), children, любое письмо.\n",
         "  canopus_spawn {goal, criteria?, title?, touches?, kind?} — предложить работу НОВОМУ исполнителю: карточка владельцу, старт после его «да» и под лимитом route_max_active.\n",
+        "  canopus_next {prompt}            — предложить текст следующего сообщения пользователя в этой сессии.\n",
         "  canopus_task {action, ...}        — list, show, submit, push; без action — предложение задачи (как прежде).\n",
         "  canopus_timer {minutes|seconds, note?} — разбудить письмом через время, не держа ход.\n",
         "  canopus_watch {on, target?, note?, minutes?} — подписка на событие (child, children, reply, idle); без on — список; action=cancel, id — снять.\n",

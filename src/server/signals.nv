@@ -35,6 +35,7 @@ export fn signals_given_by_code() -> []CodeSignal => [
     cs("session_placed", "input", "src/server/hub.nv: Hub.reorder, Hub.move", "rank, and project_id, project when the session goes to another project (JSON text)", false),
     cs("agent_switched", "input", "src/server/hub.nv: Hub.switch_agent", "from, to, shown, total, cut (JSON text)", false),
     cs("message_images", "input", "src/server/hub.nv: Hub.say (the pictures of the message that follows: n, name, mime, bytes)", "images (JSON text)", false),
+    cs("next_suggestion", "input", "src/server/canopus_tools_hub.nv: Hub.ctl_next (336)", "prompt, turn, session (JSON text)", false),
     cs("message_delivery", "input", "src/server/hub.nv: Hub.handle (durable delivery intent and engine acceptance receipt)", "client_id, accepted, turn (JSON text)", false),
     cs("provider_recovery", "input", "src/server/provider_recovery_hub.nv: Hub.provider_record (332)", "action, code, failed_turn, attempt, limit, text (JSON text)", false),
     cs("turn_resume", "input", "src/server/interrupt.nv: Hub.interrupt_pump (324)", "previous_turn (JSON text)", false),

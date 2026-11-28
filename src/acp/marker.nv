@@ -214,5 +214,5 @@ export fn is_canopus_tool_title(title str) -> bool {
     } else if t.starts_with("mcp__canopus__") {
         t["mcp__canopus__".byte_len()..t.byte_len()]
     } else { "" }
-    name == "canopus_task_list" || name == "canopus_task" || name == "ask_user_question"
+    name == "canopus_task_list" || name == "canopus_task" || name == "ask_user_question" || name == "canopus_next"
 }

@@ -45,6 +45,7 @@ test('виды событий ленты и состояния сессии', ()
     'images_skipped',
     'machine_state',
     'message_images',
+    'next_suggestion',
     'output_file',
     'permission_decision',
     'permission_request',

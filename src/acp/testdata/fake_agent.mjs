@@ -327,10 +327,13 @@ async function prompt(id, params) {
         await post({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "fake-agent", version: "0" } } });
         const tools = await post({ jsonrpc: "2.0", id: 2, method: "tools/list" });
         const names = ((tools.body && tools.body.result && tools.body.result.tools) || []).map((t) => t.name).join(",");
-        const called = await post({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: tool, arguments: args } });
-        const content = called.body && called.body.result && called.body.result.content;
-        const err = called.body && called.body.result && called.body.result.isError ? "ERR " : "";
-        chunk("ctl " + tool + ": " + (word === "ctl" && args.__names ? names + " | " : "") + err + (content && content[0] ? content[0].text : JSON.stringify(called.body)));
+        const calls = Array.isArray(args) ? args : [args];
+        for (const [index, arguments_] of calls.entries()) {
+          const called = await post({ jsonrpc: "2.0", id: index + 3, method: "tools/call", params: { name: tool, arguments: arguments_ } });
+          const content = called.body?.result?.content;
+          const err = called.body?.result?.isError ? "ERR " : "";
+          chunk("ctl " + tool + ": " + (arguments_.__names ? names + " | " : "") + err + (content?.[0]?.text ?? JSON.stringify(called.body)));
+        }
       } catch (e) {
         chunk("ctl: error " + (e && e.message));
       }

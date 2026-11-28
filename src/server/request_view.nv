@@ -80,10 +80,7 @@ export fn req_hub_tools(tools str) -> JsonValue {
 /// The tools of the MCP server of the hub by the address that was given to the agent ("" - no server).
 export fn req_tools_of_url(url str) -> str {
     if url.byte_len() == 0 { return "" }
-    if url.ends_with("/task") { return "task" }
-    if url.ends_with("/list") { return "list" }
-    if url.ends_with("/asklist") { return "asklist" }
-    "all"
+    tools_of_session(url)
 }
 
 fn req_first_word(title str) -> str {
@@ -241,7 +238,7 @@ fn Hub mut @req_commit(at int, label str, extra []ReqPart) -> () {
         if @settings.acp_trace { from_line = n + 1 }
         // the note about the questions goes before the FIRST prompt only: it is a part of that request
         ro due = s.clients[0].ask_hint_due()
-        if due.byte_len() > 0 { parts.push(ReqPart { kind: "hub_note", title: "Заметка хаба об инструменте вопросов", text: due }) }
+        if due.byte_len() > 0 { parts.push(ReqPart { kind: "hub_note", title: "Инструкция хаба об инструментах", text: due }) }
     }
     for p in extra { parts.push(p) }
     if model.byte_len() == 0 { model = @req_setting(s, "model") }

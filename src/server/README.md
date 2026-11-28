@@ -194,7 +194,7 @@ The hub did not declare the capability before this task; it does now (`ask_form`
 `initialize` of the four (checked live): `mcpCapabilities.http` is true for all four (`sse` too for Claude Code and Kimi Code; Codex adds `acp:false`); `promptCapabilities`: `image` and `embeddedContext` for all, `audio:false` for Kimi.
 An agent says nothing about elicitation: it is a capability of the client. A request of an agent is withdrawn with `$/cancel_request` (Claude Code does it when the tool use is aborted): the hub answers `cancel` and takes the form away.
 
-So **every one of the four has its own tool of questions, and the native way (this section's table) is the one the hub uses**: `ask: native` is the default of an agent; no MCP server is started for them.
+So **every one of the four has its own tool of questions, and the native way (this section's table) is the one the hub uses**: `ask: native` is the default of an agent.
 For an agent without its own tool the hub has the universal way below (`ask: mcp` in the settings of that agent).
 
 ### What the hub does (native questions)
@@ -244,6 +244,13 @@ Tests: `src/acp/ask_test.nv` (the forms and the answers, pure), `src/acp_live/cl
 Task 263 has a separate executable test entry: `nova test src/server_hidden_wait --jobs 1 --timeout 180 -v`.
 It exercises the live MCP reply, foreign-session isolation, timeout recovery, restart, stale keys and duplicate answers.
 It does not replace the full `nova test src/server_live --jobs 1 --timeout 600` regression run.
+
+### Suggestions for the next message (task 336)
+
+An agent with HTTP MCP support can call `canopus_next(prompt)` during an open turn.
+The hub records each call as `next_suggestion` in the session journal. After the turn ends successfully, the message field previews the last suggestion in gray.
+Tab inserts the prompt into the field. The user can edit the text and send it with Enter.
+The hub introduces the tool before the first prompt. If question and task tools are disabled, the hub offers `canopus_next` at `/mcp/<session>/next`.
 
 ### The tools of the hub in the four families (task 192.9)
 

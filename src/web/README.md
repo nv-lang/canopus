@@ -132,6 +132,7 @@ PNG, JPEG, WebP, GIF, до 10 МБ каждая, до 6 на сообщение 
 | `user_message` | `{ turn, text }` | сообщение владельца; состояние «Отвечает» |
 | `agent_chunk` | `{ turn, text }` | кусок ответа; запоздалый после отмены, отказа или конца игнорируется |
 | `agent_done` | `{ turn }` | ход закончен, «Ожидает» |
+| `next_suggestion` | `{ prompt, turn, session }` | автотекст следующего сообщения. После `agent_done` поле ввода показывает последний `prompt`. Tab подставляет его в черновик |
 | `agent_refused` | `{ turn, reason }` | отказ агента, «Отказ» |
 | `permission_request` | `{ turn, request, action, detail }` | открывает диалог, «Ждёт разрешения» |
 | `permission_decision` | `{ request, decision }` | `decision` — `allow` или `deny`; закрывает диалог |

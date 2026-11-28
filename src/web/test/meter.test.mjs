@@ -89,7 +89,7 @@ const viewSrc = fs.readFileSync(new URL('../view.js', import.meta.url), 'utf8');
 const cssSrc = fs.readFileSync(new URL('../app.css', import.meta.url), 'utf8');
 
 test('карточка: «+», поле, затем панель записи (таймер и дорожка) и строка кнопок (отмена, отправка, микрофон); «↵» в записи нет', () => {
-  const box = viewSrc.match(/const box = h\(doc, 'div', \{ class: 'box' \}, attach\.row, input,\s*([^;]*)\);/);
+  const box = viewSrc.match(/const box = h\(doc, 'div', \{ class: 'box' \}, attach\.row, field,\s*([^;]*)\);/);
   assert.ok(box, 'карточка найдена');
   assert.equal(box[1], 'recPanel');
   assert.match(viewSrc, /class: 'box-row' \}, urgentLabel, micWrap, cancelButton, sendButton\)/);
@@ -164,7 +164,7 @@ test('карточка: радиус 14, отступы 4/8/4/8, объёмна�
   assert.match(cssSrc, /\.box \{ display: flex; align-items: flex-end; gap: 6px; position: relative; padding: 4px 8px 4px 8px; border-radius: 14px; box-shadow: var\(--shadow-card\); \}/);
   assert.match(cssSrc, /\.box textarea \{ min-height: 40px; padding: 9px 12px 9px 0; font-size: 13px; line-height: 1\.45;/);
   assert.match(cssSrc, /\.box textarea::placeholder \{ color: var\(--fg-muted\)/);
-  const focusRules = [...cssSrc.matchAll(/\.box:has\(> textarea:focus\) \{([^}]*)\}/g)].map((m) => m[1]).join(' ');
+  const focusRules = [...cssSrc.matchAll(/\.box:has\(> \.composer-field > textarea:focus\) \{([^}]*)\}/g)].map((m) => m[1]).join(' ');
   assert.ok(focusRules.length > 0 && !/accent/.test(focusRules), 'при фокусе рамка серая, не --accent');
   assert.match(focusRules, /box-shadow: var\(--shadow-card-focus\)/);
   // 40 (строка поля) + 2*4 (отступы) + 2 (рамка) = 50
@@ -223,7 +223,7 @@ test('подсказки кнопок карточки — тёмные (data-ti
 
 test('кнопка «+» слева в карточке открывает выбор изображений: скрытый input type=file accept=image/* multiple', async () => {
   const attachUi = fs.readFileSync(new URL('../attach-ui.js', import.meta.url), 'utf8');
-  assert.match(viewSrc, /const box = h\(doc, 'div', \{ class: 'box' \}, attach\.row, input,/);
+  assert.match(viewSrc, /const box = h\(doc, 'div', \{ class: 'box' \}, attach\.row, field,/);
   assert.match(viewSrc, /attach\.bindPicker\(plusButton\)/);
   assert.match(attachUi, /chooser\.type = 'file';\s*chooser\.accept = pickerAccept\(\);\s*chooser\.multiple = true;/);
   assert.match(attachUi, /button\.addEventListener\('click', \(\) => chooser\.click\(\)\)/);

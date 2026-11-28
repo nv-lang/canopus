@@ -703,10 +703,25 @@ fn ctl_args_brief(a JsonObject) -> str {
     cut_text(text, 140).replace("\n", " ")
 }
 
+fn Hub mut @ctl_next(at int, arguments JsonObject) Proc Detach Time -> CtlRes {
+    mut session = @sessions[at]
+    if session.turn == "" || session.list_status != "running" || session.engine.open_ids().len() == 0 {
+        return ctl_err("canopus_next: предложить сообщение можно во время открытого хода.")
+    }
+    mut input = JsonObject.new()
+    js(input, "prompt", jtext(arguments, "prompt"))
+    js(input, "turn", session.turn)
+    js(input, "session", session.id)
+    accept_in(@settings.store == "pg", @settings.data_dir, session, Incoming.signal("next_suggestion", JsonValue.object(input).to_str()))
+    @drain(at)
+    ctl_ok("Предложение записано.")
+}
+
 fn Hub mut @ctl_run(at int, tool str, a JsonObject, msg McpMsg) Proc Detach Time -> CtlRes {
     if tool == "canopus_list" { return @ctl_list(at, a) }
     if tool == "canopus_role" { return @ctl_role_call(at, a) }
     if tool == "canopus_send" { return @ctl_send(at, a) }
+    if tool == "canopus_next" { return @ctl_next(at, a) }
     if tool == "canopus_inbox" { return @ctl_inbox(at, a) }
     if tool == "canopus_wait" { return @ctl_wait(at, a, msg) }
     if tool == "canopus_spawn" { return @ctl_spawn(at, a) }
@@ -738,7 +753,7 @@ fn Hub mut @ctl_call(msg McpMsg) Proc Detach Time -> () {
     ro a = (mget(v, "arguments") ?? JsonValue.null()).object() ?? JsonObject.new()
     ro res = @ctl_run(at, tool, a, msg)
     // the record of the call: the journal of the session and the panel "Машины"
-    if tool != "canopus_step_note" && tool != "canopus_branch_note" {
+    if tool != "canopus_step_note" && tool != "canopus_branch_note" && tool != "canopus_next" {
         @rt_note(at, "▸ ${tool} ${ctl_args_brief(a)}${if res.kind == "err" { " — отказ" } else { "" }}")
     }
     @hint_add(at, tool, "${ctl_args_brief(a)}\n→ ${cut_text(res.text, 600)}")

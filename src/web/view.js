@@ -38,7 +38,7 @@ import {
   markSent, buildAnswer, buildSkip, digitOption, otherIndex,
 } from './question.js';
 import {
-  STATE_KEYS, sessionList, splitBlocks, filterSessions, groupSessions, descendantsOf, effectivePins, timeline, paragraphs, inlineSpans, codeSpans, normalizeTheme,
+  STATE_KEYS, sessionList, splitBlocks, filterSessions, groupSessions, descendantsOf, effectivePins, timeline, nextSuggestionFor, paragraphs, inlineSpans, codeSpans, normalizeTheme,
   workSummary, messageTime, groupThousands, ruForm, shownOf, familyOf, filterModels, groupModels, usagePercent, usageLevel, tokenParts, durationLabel, agoParts, fileParts, taskSummary,
 } from './state.js';
 import { attention, SILENT_DEFAULT_MIN } from './attention.js';
@@ -780,6 +780,9 @@ export function createView(doc, refs, deps) {
   const input = h(doc, 'textarea', {
     id: 'composer-input', rows: 1, placeholder: t('composer.placeholder'), 'aria-label': t('chat.input_label'),
   });
+  const ghost = h(doc, 'div', { id: 'composer-ghost', class: 'composer-ghost', hidden: true });
+  const field = h(doc, 'div', { class: 'composer-field' }, input, ghost);
+  const dismissedSuggestions = new Map();
   // Кнопки круглые, без видимого текста: имя — для чтения с экрана, подсказка о клавишах — в title (задача 192).
   const micButton = h(doc, 'button', { type: 'button', class: 'mic-btn', 'data-tip': `${t('voice.start')} · ${t('voice.right_click')}`, 'aria-label': `${t('voice.label')}: ${t('voice.start')}`, 'data-state': 'idle' }, icon(doc, 'i-mic'));
   const wave = h(doc, 'div', { class: 'wave', 'aria-hidden': 'true', hidden: true }, ...Array.from({ length: BARS }, () => h(doc, 'i')));
@@ -816,7 +819,7 @@ export function createView(doc, refs, deps) {
   // панель записи (таймер и дорожка) лежит поверх карточки справа от места микрофона: ширина поля не меняется
   const recPanel = h(doc, 'div', { class: 'rec-panel' }, micTimer, wave);
   const plusButton = h(doc, 'button', { type: 'button', class: 'plus-btn', title: t('images.add'), 'aria-label': t('images.add') }, icon(doc, 'i-plus'));
-  const box = h(doc, 'div', { class: 'box' }, attach.row, input, recPanel);
+  const box = h(doc, 'div', { class: 'box' }, attach.row, field, recPanel);
   attach.bindPicker(plusButton);
   attach.bindPaste(input);
   attach.bindDrop(box);
@@ -1768,7 +1771,8 @@ export function createView(doc, refs, deps) {
   let uploading = false; // картинки уходят на сервер: второй отправки пока нет
   function submit() {
     const originalText = input.value;
-    const text = input.value.trim();
+    const suggestion = nextSuggestionFor(current.session);
+    const text = suggestion?.prompt === originalText ? originalText : originalText.trim();
     const images = attach.items();
     if (!currentTrace || uploading || (text.length === 0 && images.length === 0)) return;
     // пока вопрос агента ждёт ответа, обычное сообщение не уходит: форма просит ответить или пропустить
@@ -1820,6 +1824,26 @@ export function createView(doc, refs, deps) {
     };
     result.then(finish, () => finish(false));
   }
+  function composerSuggestion() {
+    if (!currentTrace || current.ui?.historyPending?.has(currentTrace)
+      || current.ui?.interruptPending?.has(currentTrace) || recordingNow) return null;
+    const suggestion = nextSuggestionFor(current.session);
+    return suggestion?.id === dismissedSuggestions.get(currentTrace) ? null : suggestion;
+  }
+  function syncGhost() {
+    const prompt = input.value === '' ? composerSuggestion()?.prompt ?? '' : '';
+    if (ghost.textContent === prompt) return;
+    ghost.textContent = prompt;
+    ghost.hidden = prompt === '';
+    input.style.height = 'auto';
+    if (prompt) {
+      input.setAttribute('aria-describedby', ghost.id);
+      input.setAttribute('aria-keyshortcuts', 'Tab');
+    } else {
+      input.removeAttribute('aria-describedby');
+      input.removeAttribute('aria-keyshortcuts');
+    }
+  }
   function syncSend() {
     const can = canSend(input.value, attach.items(), uploading);
     const restoring = current.ui?.historyPending?.has(currentTrace);
@@ -1827,16 +1851,29 @@ export function createView(doc, refs, deps) {
       && (!current.ui.historyPreview?.has(currentTrace) || attach.items().length > 0));
     sendButton.hidden = current.session && isBusy(current.session.state) && (urgentLabel.hidden || !urgentInput.checked);
     sendButton.disabled = !can || recordingNow || unavailable;
+    syncGhost();
   }
   // Авторазмер: высота по содержимому, не выше 5 строк (дальше — внутренняя прокрутка, см. max-height в app.css).
   function fitInput() {
     syncSend();
     input.style.height = 'auto';
-    if (input.scrollHeight > 0) input.style.height = `${input.scrollHeight}px`; // 0 — чат скрыт: оставить auto
+    if (ghost.hidden && input.scrollHeight > 0) input.style.height = `${input.scrollHeight}px`; // 0 — чат скрыт: оставить auto
   }
   sendButton.addEventListener('click', () => submit());
   urgentInput.addEventListener('change', syncSend);
   input.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab' && !e.isComposing && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && !ghost.hidden) {
+      const suggestion = composerSuggestion();
+      if (suggestion && input.value === '') {
+        e.preventDefault();
+        dismissedSuggestions.set(currentTrace, suggestion.id);
+        input.value = suggestion.prompt;
+        input.setSelectionRange(input.value.length, input.value.length);
+        drafts.set(currentTrace, input.value);
+        fitInput();
+        return;
+      }
+    }
     // в записи Enter останавливает её и вставляет текст, а не отправляет сообщение
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && dictation.active()) { e.preventDefault(); dictation.stop(); return; }
     if (keyAction(e)) { e.preventDefault(); submit(); return; }
@@ -1855,6 +1892,8 @@ export function createView(doc, refs, deps) {
   });
   queueButton.addEventListener('click', () => { if (currentTrace) handlers.onUnqueue(currentTrace); });
   input.addEventListener('input', () => {
+    const suggestion = composerSuggestion();
+    if (suggestion) dismissedSuggestions.set(currentTrace, suggestion.id);
     // правка текста историю не сбрасывает: ↑ и ↓ ходят по ней и с изменённым текстом (history.js)
     fitInput();
     if (currentTrace) drafts.set(currentTrace, input.value);

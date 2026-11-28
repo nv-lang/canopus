@@ -955,7 +955,7 @@ body { font-size: 13px; line-height: 1.55; letter-spacing: .005em; word-spacing:
 .prose { line-height: 1.65; }
 /* Композер задачи 192: карточка в одну строку, круглая кнопка со стрелкой прижата к правому нижнему краю. */
 .box { display: flex; align-items: flex-end; gap: 6px; position: relative; padding: 4px 8px 4px 8px; border-radius: 14px; box-shadow: var(--shadow-card); }
-.box:has(> textarea:focus) { outline: none; border-color: color-mix(in srgb, var(--fg) 30%, var(--border)); box-shadow: var(--shadow-card-focus); }
+.box:has(> .composer-field > textarea:focus) { outline: none; border-color: color-mix(in srgb, var(--fg) 30%, var(--border)); box-shadow: var(--shadow-card-focus); }
 .box textarea { min-height: 40px; padding: 9px 12px 9px 0; font-size: 13px; line-height: 1.45; max-height: calc(1.45em * 5 + 18px); margin-left: -2px; }
 .box textarea::placeholder { color: var(--fg-muted); opacity: 1; }
 /* Подсказка пустого поля — в одну строку: не помещается — обрезается многоточием, высота карточки не растёт; набранный текст переносится как обычно */
@@ -1626,7 +1626,22 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .item-handoff[data-phase="error"] { color: var(--warn); }
 
 .box { margin-inline: calc(0px - var(--composer-text-inset)); padding-inline: calc(var(--composer-text-inset) - 1px); }
-.box > textarea { flex-basis: 100%; margin: 0; padding-inline: 0; }
+.composer-field { position: relative; display: grid; flex: 1 1 100%; min-width: 0; }
+.composer-field > textarea { grid-area: 1 / 1; width: 100%; margin: 0; padding-inline: 0; }
+.composer-field:has(.composer-ghost:not([hidden])) > textarea::placeholder { color: transparent; }
+.composer-ghost {
+  grid-area: 1 / 1;
+  min-width: 0;
+  max-height: calc(1.45em * 5 + 18px);
+  padding-block: 9px;
+  overflow: hidden;
+  color: var(--fg-muted);
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
 .box-bar { flex-wrap: wrap; }
 .box-bar .box-row { margin: 0; }
 .composer-status { flex-wrap: nowrap; }
