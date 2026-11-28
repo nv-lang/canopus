@@ -178,7 +178,7 @@ if (process.argv[2] === 'app-server' && nativeBackend) {
     }
   }
   const prefix = 'builtin:zai-coding-plan\\';
-  const native = new Map([['glm-5.3', prefix + 'GLM-5.3'], ['glm-5.3-flash', prefix + 'GLM-5.3-Flash']]);
+  const native = new Map([['glm-5.4', prefix + 'GLM-5.4'], ['glm-5.3', prefix + 'GLM-5.3'], ['glm-5.3-flash', prefix + 'GLM-5.3-Flash']]);
   const saved = new Map([...native].map(([key, value]) => [value, key]));
   const backend = process.env.ZCODE_BIN || 'D:/Program Files/ZCode/resources/glm/zcode.cjs';
   let preparationEnv = {};
