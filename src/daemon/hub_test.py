@@ -118,8 +118,8 @@ def running_hub(path, config, root):
             lines = Lines(hub.stdout)
             lines.until(lambda line: line == "ready")
 
-            def page(kind, **fields):
-                wire = json.dumps(dict(kind=kind, trace="fixture-session", input=fields))
+            def page(kind, _trace="fixture-session", **fields):
+                wire = json.dumps(dict(kind=kind, trace=_trace, input=fields))
                 hub.stdin.write(f"msg\t1\t{wire}\n".encode())
                 hub.stdin.flush()
 
@@ -444,7 +444,24 @@ def migration(canopus, hub_binary, root):
             dict(id="unreachable", host="127.0.0.1", port=unavailable.getsockname()[1], cwd=str(target_dir)),
         ]
         daemon_config.write_text(json.dumps({"daemons": endpoints}))
+        project_config = local_dir / ".canopus"
+        project_config.mkdir()
+        (project_config / "config.json").write_text(json.dumps({"machine_sources": {"local": str(local_dir)}}))
+        (root / "data").mkdir(exist_ok=True)
+        (root / "data/projects.json").write_text(json.dumps({"version": 1, "projects": [{
+            "id": "localproject", "name": "Local fixture", "folders": [{"path": str(local_dir)}],
+        }]}))
         with running_hub(hub_path, config, root) as (hub, lines, page):
+            project = dict(project_id="localproject", folder=str(local_dir), agent="fixture", worktree=False)
+            page("session_created", _trace="binding-fixture", name="Rejected fixture", daemon_id="selectel", **project)
+            refused = read_event(lines, "error")
+            assert "selectel" in refused["input"]["message"] and "рабочей папки" in refused["input"]["message"], refused
+            page("session_created", _trace="binding-fixture", name="Local fixture", daemon_id="local", **project)
+            assert read_event(lines, "session_created")["input"]["daemon_id"] == "local"
+            page("user_message", _trace="binding-fixture", text="/move selectel")
+            refused = read_event(lines, "error")
+            assert "selectel" in refused["input"]["message"] and "рабочей папки" in refused["input"]["message"], refused
+
             page("session_created", name="Migration fixture", agent="fixture", daemon_id="local")
             assert read_event(lines, "session_created")["input"]["daemon_id"] == "local"
             page("user_message", text="Confirmed result on local")
@@ -526,6 +543,18 @@ def migration(canopus, hub_binary, root):
             assert latest["pid"] != local_handoff["pid"]
             for text in ("Confirmed result on local", "Continue on selectel", "Continue after idle restart"):
                 assert text in latest["prompt"], latest
+
+            bound_dir = root / "bound-source"
+            bound_dir.mkdir()
+            (project_config / "config.json").write_text(json.dumps({
+                "machine_sources": {"local": str(local_dir), "selectel": str(bound_dir)}
+            }))
+            page("session_created", _trace="both-fixture", name="Both fixture", daemon_id="selectel", **project)
+            assert read_event(lines, "session_created")["input"]["daemon_id"] == "selectel"
+            page("user_message", _trace="both-fixture", text="Run in the bound project source")
+            read_event(lines, "agent_done")
+            assert "Run in the bound project source" in prompts(bound_dir)[-1]["prompt"]
+            assert int((bound_dir / "agent-parent").read_text()) == target_pid
 
 
 if __name__ == "__main__":

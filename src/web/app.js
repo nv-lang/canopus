@@ -19,6 +19,7 @@ import { uploadImages, messageInput } from './attachments.js';
 import { chooseMode, createTransport, parseAgentRegistry, loadModelMetadata } from './transport.js';
 import { createDaemonSettings, daemonRequest } from './daemon-settings.js';
 import { createProjectsApi } from './projects-api.js';
+import { hasMachineSource, missingMachineSource } from './projects.js';
 import { routeSignal, normalizeRoute, parseRouteState } from './routes.js';
 import { canopusSignal } from './canopus-task.js';
 import { createLoading } from './loading.js';
@@ -752,6 +753,12 @@ const handlers = {
     }
     let reserved = null;
     if (draft && draft.draft) {
+      const project = ui.projects?.find(item => item.id === draft.projectId);
+      if (project && ui.daemonMachines.length && !ui.daemonMachines.some(machine =>
+        (!draft.daemonId || machine.id === draft.daemonId) && hasMachineSource(project, machine.id))) {
+        flash(missingMachineSource);
+        return false;
+      }
       // Protect the first message before even creating its session (creation may fail too).
       const event = makeEvent('user_message', trace, 0, { text, turn: newId(), images, ...(asText ? { as_text: true } : {}) }, ctx);
       if (!delivery.add(event, savedSession(trace))) { flash(t('delivery.storage')); return false; }

@@ -230,15 +230,41 @@ export fn project_summary_json(p Project) -> JsonValue {
 }
 
 /// The first registered folder locates the project config, regardless of the session's working folder.
-export fn project_default_daemon(p Project, instance str) -> Result[str, str] {
-    if p.folders.len() == 0 { return Ok("") }
+fn project_machine_config(p Project, instance str) -> Result[JsonObject, str] {
+    if p.folders.len() == 0 { return Ok(JsonObject.new()) }
     ro dir = with Fs = real_fs(), Os = real_os() { find_project_dir(p.folders[0].path, instance) }
-    if dir == "" { return Ok("") }
+    if dir == "" { return Ok(JsonObject.new()) }
     ro layer = (with Fs = real_fs() { read_layer("project", "${dir}/config.json") })?
-    match layer {
-        Some(l) => (l.obj.get("default_daemon") ?? JsonValue.str("")).str().ok_or("default_daemon must be a string")
-        None => Ok("")
+    Ok(match layer { Some(l) => l.obj, None => JsonObject.new() })
+}
+
+export fn project_machine_sources(p Project, instance str) -> Result[JsonObject, str] {
+    ro config = project_machine_config(p, instance)?
+    match config.get("machine_sources") {
+        Some(value) => {
+            ro configured = value.object().ok_or("machine_sources must be an object")?
+            mut sources = JsonObject.new()
+            for (daemon, setting) in configured {
+                ro raw = setting.str().ok_or("machine_sources.${daemon} must be an absolute path")?
+                ro path = normalize_folder_path(raw)?
+                if daemon != "local" && !path.starts_with("/") {
+                    return Err("machine_sources.${daemon} must be an absolute Linux path")
+                }
+                jput(sources, daemon, JsonValue.str(path))
+            }
+            Ok(sources)
+        }
+        None => {
+            mut sources = JsonObject.new()
+            if p.folders.len() > 0 { jput(sources, "local", JsonValue.str(p.folders[0].path)) }
+            Ok(sources)
+        }
     }
+}
+
+export fn project_default_daemon(p Project, instance str) -> Result[str, str] {
+    ro config = project_machine_config(p, instance)?
+    (config.get("default_daemon") ?? JsonValue.str("")).str().ok_or("default_daemon must be a string")
 }
 
 /// `{"projects":[...]}` - the answer of the list.
@@ -248,6 +274,7 @@ export fn projects_list_json(list []Project, instance str = "") -> str {
         mut row = project_summary_json(p).object() ?? JsonObject.new()
         ro daemon = project_default_daemon(p, instance) ?? ""
         if daemon != "" { jput(row, "default_daemon", JsonValue.str(daemon)) }
+        jput(row, "machine_sources", JsonValue.object(project_machine_sources(p, instance) ?? JsonObject.new()))
         rows.push(JsonValue.object(row))
     }
     mut o = JsonObject.new()

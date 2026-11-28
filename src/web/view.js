@@ -19,7 +19,7 @@ import { createDictation, speechCtor, createMicPress, micTitleKey, clockText } f
 import { createLocalDictation } from './recorder.js';
 import { createToast } from './toast.js';
 import { h, icon } from './dom.js';
-import { samePath } from './projects.js';
+import { hasMachineSource, missingMachineSource, samePath } from './projects.js';
 import { createProjectsUi } from './projects-ui.js';
 import { isAskTool, displayQuestions, expiredReplyPrefix, moveInOrder, byOrder, branchGlyph } from './lists.js';
 import { createSideKit } from './session-row.js';
@@ -1105,6 +1105,7 @@ export function createView(doc, refs, deps) {
   const MENU_MODELS = 4;
   let menuKind = null;
   let selectedDaemon = '';
+  let daemonProject;
   let options = null;
   let currentAgent = '';
   let currentSession = null;
@@ -1235,7 +1236,7 @@ export function createView(doc, refs, deps) {
     return row;
   }
 
-  const daemonMenuSignature = () => JSON.stringify([selectedDaemon, daemonMachines()]);
+  const daemonMenuSignature = () => JSON.stringify([selectedDaemon, daemonMachines(), daemonProject]);
   function renderMenu() {
     const focusedDaemon = doc.activeElement?.dataset?.daemonId;
     menuList.replaceChildren();
@@ -1244,15 +1245,19 @@ export function createView(doc, refs, deps) {
     if (menuKind === 'daemon') {
       menuSearch.hidden = true;
       menu.dataset.side = 'left';
-      const rows = daemonMachines().map(machine => menuRow({
-        name: machine.id, machine, checked: machine.id === selectedDaemon,
-        description: [daemonAddress(machine), daemonStatus(machine.status), daemonContact(machine.last_contact)].filter(Boolean).join(' · '),
-        onPick: () => {
-          closeMenu();
-          handlers.onDraftDaemon(currentTrace, machine.id);
-          daemonButton.focus();
-        },
-      }));
+      const rows = daemonMachines().map(machine => {
+        const unavailable = !hasMachineSource(daemonProject, machine.id);
+        return menuRow({
+          name: machine.id, machine: unavailable ? { ...machine, status: 'offline' } : machine, checked: machine.id === selectedDaemon,
+          disabled: unavailable,
+          description: [daemonAddress(machine), unavailable ? missingMachineSource : daemonStatus(machine.status), daemonContact(machine.last_contact)].filter(Boolean).join(' · '),
+          onPick: () => {
+            closeMenu();
+            handlers.onDraftDaemon(currentTrace, machine.id);
+            daemonButton.focus();
+          },
+        });
+      });
       menuList.append(...rows);
       menu.hidden = false;
       rows.find(row => row.dataset.daemonId === focusedDaemon)?.focus();
@@ -2784,16 +2789,20 @@ export function createView(doc, refs, deps) {
     }
     const machines = daemonMachines();
     const project = ui.projects?.find((p) => p.id === session.projectId);
-    selectedDaemon = session.daemonId || project?.defaultDaemon || machines[0]?.id || '';
+    daemonProject = project;
+    const eligible = machines.filter(machine => hasMachineSource(project, machine.id));
+    const preferred = eligible.find(machine => machine.id === project?.defaultDaemon);
+    selectedDaemon = session.daemonId || preferred?.id || eligible[0]?.id || machines[0]?.id || '';
     const machine = machines.find((entry) => entry.id === selectedDaemon);
     const missing = selectedDaemon && !machine;
     daemonButton.hidden = !session.draft || !selectedDaemon;
     daemonName.textContent = selectedDaemon;
-    daemonButton.dataset.status = machine?.status || 'offline';
-    daemonButton.title = missing ? t('daemon.unavailable', { id: selectedDaemon }) : daemonStatus(machine?.status);
+    const unbound = selectedDaemon && !hasMachineSource(project, selectedDaemon);
+    daemonButton.dataset.status = unbound ? 'offline' : machine?.status || 'offline';
+    daemonButton.title = unbound ? missingMachineSource : missing ? t('daemon.unavailable', { id: selectedDaemon }) : daemonStatus(machine?.status);
     daemonButton.setAttribute('aria-label', `${t('chat.draft_daemon')} · ${selectedDaemon} · ${daemonButton.title}`);
-    daemonWarning.hidden = daemonButton.hidden || (!missing && machine?.status !== 'offline');
-    daemonWarning.textContent = missing ? daemonButton.title : t('daemon.offline_warning');
+    daemonWarning.hidden = daemonButton.hidden || (!unbound && !missing && machine?.status !== 'offline');
+    daemonWarning.textContent = unbound || missing ? daemonButton.title : t('daemon.offline_warning');
     // Задача 265: текущий агент виден при любом числе доступных. Выбора нет (0/1 агент) — чип приглушён,
     // а подсказка называет фактическую причину, а не прячет чип.
     // session_source confirms the current pin. agent_selected may describe an earlier turn.

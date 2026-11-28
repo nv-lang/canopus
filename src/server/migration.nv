@@ -45,6 +45,10 @@ fn Hub mut @start_migration(at int, target str) Proc Detach Time -> CtlRes {
     }
     ro from = @source_daemon(s)
     if target == from { return ctl_err("Сессия уже на демоне ${target}.") }
+    match @project_machine_cwd(s.project_id, target) {
+        Err(reason) => return ctl_err(reason)
+        Ok(_) => {}
+    }
     // D454: daemon descriptors belong to the real instance, as in open_agent.
     match with Fs = real_fs() { daemon_endpoint(@settings.layout.state, target) } {
         Err(reason) => return ctl_err("Демон ${target} недоступен: ${reason}")
@@ -64,7 +68,7 @@ fn Hub mut @start_migration(at int, target str) Proc Detach Time -> CtlRes {
         None => return ctl_err("Не удалось открыть inbox сессии.")
     }
     ro temporary = acp_config_of(config.program, config.args, config.cwd, "")
-    match @open_agent(temporary, "", 0, @ask_for(s.agent, s.id), @agent_env(s.agent, @env_of(s)), daemon_id: target) {
+    match @open_agent(temporary, "", 0, @ask_for(s.agent, s.id), @agent_env(s.agent, @env_of(s)), daemon_id: target, project_id: s.project_id) {
         Err(reason) => ctl_err("Не удалось запустить агента на демоне ${target}: ${reason}")
         Ok(consume started) => {
             mut client = AcpClient { ...started }

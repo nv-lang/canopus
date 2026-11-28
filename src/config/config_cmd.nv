@@ -55,6 +55,7 @@ fn spec_of(key str) -> Option[KeySpec] {
     for k in known_keys() {
         if k.key == key { return Some(k) }
     }
+    if key == "machine_sources" { return Some(ks(key, "o", "{}")) }
     if key == "default_daemon" { return Some(ks(key, "s", "\"\"")) }
     if key == "voice" { return Some(ks(key, "v", "false")) }
     if key == "database_url" { return Some(ks(key, "s", "\"\"")) }
@@ -97,6 +98,7 @@ fn kind_ok(kind str, v JsonValue) -> bool {
     if kind == "s" { return v.is_str() }
     if kind == "i" { return v.int().is_some() }
     if kind == "b" { return v.bool().is_some() }
+    if kind == "o" { return v.is_object() }
     if kind == "v" { return v.bool() == Some(false) || v.is_object() }
     v.is_array() || v.is_object()
 }
@@ -105,6 +107,7 @@ fn kind_word(kind str) -> str {
     if kind == "s" { return "text" }
     if kind == "i" { return "a whole number" }
     if kind == "b" { return "true or false" }
+    if kind == "o" { return "an object" }
     if kind == "v" { return "false or an object" }
     "a list"
 }
@@ -115,7 +118,7 @@ fn leaves(prefix str, o JsonObject, mut out []Entry, origin str, file str) -> ()
         ro known = spec_of(key)
         // a key with a list kind is a leaf even when the file holds an object (agents are a list)
         ro leaf_kind = match known {
-            Some(s) => s.kind == "a"
+            Some(s) => s.kind == "a" || s.kind == "o"
             None => false
         }
         match v.object() {
@@ -160,8 +163,8 @@ export fn validate_layer(l Layer) -> []str {
     mut here = []Entry.new()
     leaves("", l.obj, here, l.origin, l.file)
     for e in here {
-        if e.key == "default_daemon" && l.origin != "project" {
-            problems.push("${l.file}:${key_line(l.text, e.key)}: default_daemon belongs in the project config")
+        if (e.key == "default_daemon" || e.key == "machine_sources") && l.origin != "project" {
+            problems.push("${l.file}:${key_line(l.text, e.key)}: ${e.key} belongs in the project config")
             continue
         }
         match spec_of(e.key) {
@@ -256,7 +259,7 @@ export fn typed_value(key str, text str) -> Result[JsonValue, str] {
         Some(s) => s
         None => return Err("no such key: ${key}")
     }
-    if spec.kind == "a" { return Err("${key} is a list: edit the file") }
+    if spec.kind == "a" || spec.kind == "o" { return Err("${key} is ${kind_word(spec.kind)}: edit the file") }
     if spec.kind == "s" { return Ok(JsonValue.str(text)) }
     if spec.kind == "v" { return if text == "false" { Ok(JsonValue.bool(false)) } else { Err("voice: use false to disable, or edit language/model in the file") } }
     if spec.kind == "i" {
@@ -273,7 +276,7 @@ export fn typed_value(key str, text str) -> Result[JsonValue, str] {
 /// `config set <key> <value> [--project]`: put the value into the file of the scope (the other keys of the file stay). Returns the line to print.
 export fn config_set(layout ConfigLayout, scope str, work str, key str, text str) Fs -> Result[str, str] {
     if is_secret_key(key) { return Err("${key} is a secret: put it in secrets.json beside the selected config file") }
-    if key == "default_daemon" && scope != "project" { return Err("default_daemon belongs in the project config") }
+    if (key == "default_daemon" || key == "machine_sources") && scope != "project" { return Err("${key} belongs in the project config") }
     ro value = typed_value(key, text)?
     ro file = set_target(layout, scope, work)?
 

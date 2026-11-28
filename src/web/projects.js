@@ -126,6 +126,11 @@ export function makeFolder(raw) {
   return folder;
 }
 
+export const missingMachineSource = 'У проекта нет рабочей папки на этой машине.';
+export function hasMachineSource(project, machineId) {
+  return !project || (project.machineSources ? Object.hasOwn(project.machineSources, machineId) : machineId === 'local');
+}
+
 /** Проект из ответа сервера (список или полный): всё недостающее — пустым. */
 export function makeProject(raw) {
   const r = raw && typeof raw === 'object' ? raw : {};
@@ -136,6 +141,8 @@ export function makeProject(raw) {
     folders: Array.isArray(r.folders) ? r.folders.map(makeFolder).filter((f) => f.path !== '') : [],
     env: typeof r.env === 'string' ? r.env : '',
     ...(typeof r.default_daemon === 'string' && r.default_daemon ? { defaultDaemon: r.default_daemon } : {}),
+    ...(r.machine_sources && typeof r.machine_sources === 'object' && !Array.isArray(r.machine_sources)
+      ? { machineSources: Object.fromEntries(Object.entries(r.machine_sources).filter(([, folder]) => typeof folder === 'string' && folder.trim())) } : {}),
     worktreesDir: typeof r.worktrees_dir === 'string' ? r.worktrees_dir.trim() : '',
     envKeys: keys,
   };

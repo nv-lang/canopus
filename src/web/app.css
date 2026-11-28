@@ -1741,6 +1741,7 @@ input[aria-invalid="true"] { border-color: var(--danger); }
   background: var(--fg-muted);
 }
 [data-status="online"] .daemon-dot { background: var(--daemon-online); }
+[data-kind="daemon"] .menu-item:disabled { opacity: .55; cursor: default; }
 .daemon-picker-warning { display: block; margin: 0 0.75rem 0.5rem; color: var(--warn); }
 .canopus-daemon { max-width: 100%; }
 .daemon-picker-warning[hidden] { display: none; }
