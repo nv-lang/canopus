@@ -16,4 +16,6 @@ python3 src/daemon/hub_test.py <canopus> <canopus-hub>
 python3 src/daemon/hub_test.py <canopus> <canopus-hub> --restart
 python3 src/daemon/hub_test.py <canopus> <canopus-hub> --late-ack
 python3 src/daemon/hub_test.py <canopus> <canopus-hub> --graceful
+python3 src/daemon/hub_test.py <canopus> <canopus-hub> --interrupt accepted
+python3 src/daemon/hub_test.py <canopus> <canopus-hub> --interrupt refused
 ```

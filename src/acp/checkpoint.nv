@@ -89,6 +89,9 @@ fn AcpClient @checkpoint(ticket DaemonTicket) -> JsonValue {
     put(o, "updates", JsonValue.int(@updates))
     put(o, "exit_code", JsonValue.int(@exit_code))
     put(o, "cancelling", JsonValue.bool(@cancelling))
+    mut interrupted = []JsonValue.new()
+    for key in @interrupted_rpcs { interrupted.push(JsonValue.str(key)) }
+    put(o, "interrupted_rpcs", JsonValue.array(interrupted))
     put(o, "mcp_http", JsonValue.bool(@mcp_http))
     put(o, "hint_due", JsonValue.bool(@hint_due))
     put(o, "images_ok", JsonValue.bool(@images_ok))
@@ -175,6 +178,8 @@ fn AcpClient mut @restore_checkpoint(state JsonValue) -> () {
     @updates = field_int(state, "updates") ?? -1
     @exit_code = field_int(state, "exit_code") ?? -1
     @cancelling = checkpoint_flag(state, "cancelling")
+    // The pending correction belongs to the old hub. A saved terminal reply is delivered on replay.
+    for key in checkpoint_array(state, "interrupted_rpcs") { @interrupted_rpcs.push(key.str() ?? "") }
     @mcp_http = checkpoint_flag(state, "mcp_http")
     @hint_due = checkpoint_flag(state, "hint_due")
     @images_ok = checkpoint_flag(state, "images_ok")

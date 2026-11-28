@@ -567,13 +567,14 @@ fn AcpClient mut @on_result(id JsonValue, result JsonValue) -> () {
         if @interrupt_rpc == @prompt_rpc {
             @interrupt_rpc = -1
             if reason == "cancelled" {
-                // Hold the terminal reply until the dialog has journalled its cancellation.
+                // Store the reply with its daemon frame, then hold delivery until the dialog cancels.
                 @interrupted_rpcs.push(key)
                 @interrupt_result = Some("")
                 @cancelling = true
                 @marker = marker_start()
                 @active = ""
                 @prompt_rpc = -1
+                @push(stop_event(request, reason))
                 return
             }
             @interrupt_result = Some("агент завершил ход без подтверждения отмены")
@@ -1195,13 +1196,12 @@ export fn AcpClient mut @try_interrupt(request str) -> bool {
 
 export fn AcpClient @interrupt_result() -> Option[str] => @interrupt_result
 
-export fn AcpClient mut @finish_interrupt(request str) -> () {
+export fn AcpClient mut @finish_interrupt() -> () {
     if @interrupt_result == Some("") {
         ro open = @permissions
         @permissions = []AcpPending.new()
         for p in open { @say(rpc_result_line(p.id, outcome_result("cancelled", ""))) }
         @resolve_asks(true)
-        @push(stop_event(request, "cancelled"))
     }
     @interrupt_result = None
     @interrupt_rpc = -1
@@ -1234,6 +1234,10 @@ fn AcpClient mut @cancel_request(request_id str) -> () {
 fn AcpClient mut @next_event(poll_wire bool) -> Option[Incoming] {
     if poll_wire { @poll() }
     if @ready.len() == 0 { return None }
+    if @interrupt_result == Some("") {
+        ro next = @ready[0].event
+        if next.kind == EventKind.Refused && next.input == FailCode.StoppedByHuman.name() { return None }
+    }
     ro item = @ready.remove(0)
     @taken.push(item)
     Some(item.event)

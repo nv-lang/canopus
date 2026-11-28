@@ -112,7 +112,7 @@ fn Hub mut @interrupt_pump(at int) Proc Detach Time -> () {
         } else if reason == "" {
             reason = "исходный ход уже завершился"
         }
-        if s.clients.len() > 0 { s.clients[0].finish_interrupt(job.request) }
+        if s.clients.len() > 0 { s.clients[0].finish_interrupt() }
         if reason != "" { @interrupt_event(at, "turn_interrupt_queued", reason) }
         job.request = ""
         @interrupts[index] = job

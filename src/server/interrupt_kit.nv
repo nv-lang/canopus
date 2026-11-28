@@ -12,7 +12,9 @@ export fn scenario_interrupt(settings ServerSettings, original str, letter bool)
     rig.page(1, "session_created", trace, "{\"name\":\"Поправка\",\"agent\":\"opencode\"}")
     if letter { rig.page(1, "session_created", "s-sender", "{\"name\":\"Отправитель\",\"agent\":\"opencode\"}") }
     rig.page(1, "user_message", trace, "{\"text\":\"${original}\"}")
-    c.expect(rig.until("original partial", 5000), "the original turn is active")
+    ro opened = rig.until("original partial", 5000)
+    ro opening_error = first_of(rig.lines_for(1), "error", 0)
+    c.expect(opened, "the original turn is active: ${line_input(opening_error, "message")}")
     ro old_turn = rig.hub.sessions[0].turn
     if letter {
         ro sent = ctl_ask(rig, "s-sender", "canopus_send", "{\"to\":\"${trace}\",\"text\":\"urgent correction\",\"urgent\":true}")

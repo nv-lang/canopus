@@ -24,6 +24,7 @@ def fake_agent():
             "update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": text}},
         })
 
+    interrupted = None
     for line in sys.stdin:
         request = json.loads(line)
         method = request["method"]
@@ -34,13 +35,30 @@ def fake_agent():
         elif method == "session/prompt":
             assert request["params"]["sessionId"] == "daemon-test-session"
             Path("agent-parent").write_text(str(os.getppid()))
+            prompt = json.dumps(request["params"]["prompt"], ensure_ascii=False)
             with Path("agent-prompts").open("a") as transcript:
-                transcript.write(json.dumps({"pid": os.getpid(), "rpc": request["id"]}) + "\n")
+                transcript.write(json.dumps({"pid": os.getpid(), "rpc": request["id"], "prompt": prompt}) + "\n")
             chunk("daemon-echo")
-            if "restart-probe" in json.dumps(request["params"]["prompt"]):
+            if "urgent correction" not in prompt and ("interrupt-probe" in prompt or "interrupt-refusal-probe" in prompt):
+                interrupted = request["id"], "interrupt-refusal-probe" in prompt
+                continue
+            if "restart-probe" in prompt:
                 wait_for(lambda: Path("continue-turn").exists())
                 chunk("after-restart")
             result = dict(stopReason="end_turn")
+        elif method == "session/cancel":
+            assert request["params"]["sessionId"] == "daemon-test-session"
+            rpc, refused = interrupted
+            interrupted = None
+            if refused:
+                send(id=None, error={"code": -32600, "message": "refused by fixture"})
+                chunk("original finished")
+                send(id=rpc, result=dict(stopReason="end_turn"))
+            else:
+                send(id=rpc, result=dict(stopReason="cancelled"))
+                chunk("discarded after cancel")
+                send(id=rpc, result=dict(stopReason="end_turn"))
+            continue
         else:
             raise AssertionError(method)
         send(id=request["id"], result=result)
@@ -127,7 +145,40 @@ def lose_ack(session_dir):
     inbox.write_text("".join(json.dumps(row) + "\n" for row in rows) + '{"t":"daemon",')
 
 
-def smoke(canopus, hub_binary, root, restart=False, late_ack=False, graceful=False):
+def interrupt_turn(lines, page, session_dir, original, refused):
+    page("user_message", text="urgent correction", urgent=True)
+    _, frames = lines.until(lambda line: '"kind":"agent_done"' in line)
+    if refused:
+        _, later = lines.until(lambda line: '"kind":"agent_done"' in line)
+        frames.extend(later)
+    events = [page_event(line) for line in frames if "\t" in line]
+    kinds = [event["kind"] for event in events]
+    done = [event["input"]["turn"] for event in events if event["kind"] == "agent_done"]
+    prompts = [json.loads(line) for line in (session_dir / "agent-prompts").read_text().splitlines()]
+    assert len(prompts) == 2 and prompts[0]["pid"] == prompts[1]["pid"], prompts
+    assert prompts[0]["rpc"] < prompts[1]["rpc"] and "urgent correction" in prompts[1]["prompt"], prompts
+    if refused:
+        assert done[0] == original["input"]["turn"] and done[1] != done[0], events
+        assert kinds.count("turn_interrupt_queued") == 1 and "cancel" not in kinds and "turn_resume" not in kinds, events
+        queued = next(event for event in events if event["kind"] == "turn_interrupt_queued")
+        assert "-32600" in queued["input"]["reason"], queued
+    else:
+        assert done[0] != original["input"]["turn"], events
+        assert kinds.index("cancel") < kinds.index("turn_resume"), events
+        resumed = next(event for event in events if event["kind"] == "turn_resume")
+        assert resumed["input"]["previous_turn"] == original["input"]["turn"], resumed
+        assert resumed["input"]["turn"] == done[0], resumed
+        assert "interrupt-probe" in prompts[1]["prompt"] and "daemon-echo" in prompts[1]["prompt"], prompts
+        assert "discarded after cancel" not in "\n".join(frames), frames
+        inbox = [json.loads(line) for line in (session_dir / "inbox").read_text().splitlines()]
+        assert any(
+            event["name"] == "agent_refused" and event["input"] == "StoppedByHuman"
+            and event["wire"] == row["state"]["wire"] and event["wire"] > 0
+            for row in inbox if row["t"] == "daemon" for event in row["events"]
+        ), "the terminal reply must survive a restart at the frame boundary"
+
+
+def smoke(canopus, hub_binary, root, restart=False, late_ack=False, graceful=False, interrupt=None):
     repo = Path(__file__).resolve().parents[2]
     (root / "machines").symlink_to(repo / "machines", target_is_directory=True)
     (root / "target").mkdir()
@@ -157,9 +208,13 @@ def smoke(canopus, hub_binary, root, restart=False, late_ack=False, graceful=Fal
             with running_hub(hub_path, config, root) as (hub, lines, page):
                 page("session_created", name="Daemon fixture", agent="fixture")
                 lines.until(lambda line: '"kind":"session_created"' in line)
-                page("user_message", turn="fixture-turn", text="restart-probe" if restart else "Check the managed transport")
+                text = interrupt or ("restart-probe" if restart else "Check the managed transport")
+                page("user_message", turn="fixture-turn", text=text)
                 _, events = lines.until(lambda line: '"kind":"agent_chunk"' in line and "daemon-echo" in line)
                 assert int((session_dir / "agent-parent").read_text()) == daemon.pid
+                if interrupt:
+                    interrupt_turn(lines, page, session_dir, page_event(events[-1]), interrupt == "interrupt-refusal-probe")
+                    return
                 if not restart:
                     lines.until(lambda line: '"kind":"agent_done"' in line)
                     return
@@ -214,16 +269,18 @@ if __name__ == "__main__":
     parser.add_argument("--restart", action="store_true")
     parser.add_argument("--late-ack", action="store_true")
     parser.add_argument("--graceful", action="store_true")
+    parser.add_argument("--interrupt", choices=["accepted", "refused"])
     options = parser.parse_args()
     if options.agent:
         fake_agent()
     else:
         if options.canopus is None or options.hub is None:
             parser.error("the Canopus and hub binaries are required")
+        interrupt = {"accepted": "interrupt-probe", "refused": "interrupt-refusal-probe"}.get(options.interrupt)
         with tempfile.TemporaryDirectory(prefix="canopus-daemon-hub-") as temporary:
             smoke(
                 options.canopus.resolve(), options.hub.resolve(), Path(temporary),
                 restart=options.restart or options.late_ack or options.graceful,
-                late_ack=options.late_ack, graceful=options.graceful,
+                late_ack=options.late_ack, graceful=options.graceful, interrupt=interrupt,
             )
         print("hub over local daemon: passed")
