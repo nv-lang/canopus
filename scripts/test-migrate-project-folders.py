@@ -55,6 +55,28 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual(again['moves'],[])
         self.assertEqual(again['files'],[])
 
+    def test_gitlink_is_not_a_regular_source_or_a_recursive_root(self):
+        subprocess.run(['git', '-C', str(self.root), 'update-index', '--add',
+                        '--cacheinfo', '160000,' + '1' * 40 + ',native/dependency'], check=True)
+        dependency = self.root / 'native/dependency'
+        dependency.mkdir(parents=True)
+        sentinel = dependency / 'untouched.bin'
+        sentinel.write_bytes(self.image)
+        plan = migration.plan(self.projects)
+        self.assertFalse(any(Path(f['source']) == sentinel for f in plan['files']))
+        migration.apply(plan, self.base / 'backup-gitlink')
+        self.assertEqual(sentinel.read_bytes(), self.image)
+        shutil.rmtree(dependency)
+        self.assertEqual(migration.plan(self.projects)['files'], [])
+
+    def test_unrelated_markdown_directory_links_keep_exact_bytes(self):
+        note = self.root / 'notes.md'
+        original = b'[scripts](scripts/)\r\n[history](elsewhere/../notes/)\r\n'
+        note.write_bytes(original)
+        subprocess.run(['git', '-C', str(self.root), 'add', '--', 'notes.md'], check=True)
+        migration.apply(migration.plan(self.projects), self.base / 'backup-links')
+        self.assertEqual(note.read_bytes(), original)
+
     def test_conflicts_refuse_before_modification(self):
         (self.root/'docs').mkdir()
         with self.assertRaisesRegex(ValueError,'Conflicting'):

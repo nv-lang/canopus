@@ -114,11 +114,15 @@ def plan(projects, state_files=()):
         return value
     files = set(Path(p).absolute() for p in state_files)
     for root in roots:
-        git = subprocess.run(['git', '-C', str(root), 'ls-files', '-z'], capture_output=True, check=False)
+        git = subprocess.run(['git', '-C', str(root), 'ls-files', '--stage', '-z'], capture_output=True, check=False)
         if git.returncode:
             raise ValueError('Project root must be a Git checkout')
-        for p in git.stdout.decode().split('\0'):
-            if p:
+        for entry in git.stdout.decode().split('\0'):
+            if entry:
+                metadata, p = entry.split('\t', 1)
+                # A gitlink belongs to another repository. Never traverse it.
+                if metadata.split()[0] == '160000':
+                    continue
                 source = root / p
                 if not source.exists(): source = Path(replace(str(source)))
                 files.add(source)
@@ -198,6 +202,8 @@ def plan(projects, state_files=()):
                         file, sep, anchor=dest.partition('#')
                         if file:
                             resolved=Path(os.path.normpath(str(source.parent/urllib.parse.unquote(file))))
+                            if target(resolved) == resolved and target(source).parent == source.parent:
+                                return m[0]
                             updated_path=os.path.relpath(target(resolved), target(source).parent).replace('\\','/')
                             file=urllib.parse.quote(updated_path,safe='/@:$,;=-._~') if '%' in file else updated_path
                         return ']('+file+sep+anchor+')'
