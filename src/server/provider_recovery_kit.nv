@@ -10,7 +10,7 @@ export fn scenario_provider_recovery(base ServerSettings, command str) Proc Deta
     ro repeat = command == "provider-repeat"
     ro filtered = command == "provider-filter"
     ro paused = repeat || filtered
-    ro settings = ServerSettings { ...base, routes_dir: "${kit_repo_root().display()}/doc/routes" }
+    ro settings = ServerSettings { ...base, routes_dir: "${kit_repo_root().display()}/docs/routes" }
     mut rig = rig_open(settings)
     ro trace = "s-provider"
     rig.attach(1)
