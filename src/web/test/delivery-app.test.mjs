@@ -142,6 +142,18 @@ test('260: передача первого сообщения сокету не 
   assert.equal(first.handlers.deliveryItems(draft.id)[0].text, 'первое сообщение без эха');
 });
 
+test('329: выбранная машина отправляется при создании сессии и сохраняется при потере связи', async () => {
+  const first = await app(memory(), false);
+  first.handlers.onNewToggle(true);
+  const id = first.getUI().selected;
+  first.handlers.onDraftDaemon(id, 'server-b');
+  assert.equal(first.handlers.onSend(id, 'первое сообщение'), false);
+  assert.equal(first.sent.find(event => event.kind === 'session_created').input.daemon_id, 'server-b');
+
+  const restored = await app(first.storage, true, '');
+  assert.equal(restored.getModel().sessions[id].daemonId, 'server-b');
+});
+
 test('260: связанный отказ сервера остаётся рядом с конкретной локальной копией', async () => {
   const first = await app();
   first.handlers.onSend('s', 'не терять');

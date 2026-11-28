@@ -115,7 +115,7 @@ const AGO_KEY = { now: 'ago.now', min: 'ago.min', hour: 'ago.hour', day: 'ago.da
  */
 export function createView(doc, refs, deps) {
   const {
-    agents, now, handlers, imageSrc = (image) => image.src, projectsApi, presets = () => null, modelMetadata = () => null,
+    agents, now, handlers, imageSrc = (image) => image.src, projectsApi, presets = () => null, daemonIds = () => [], modelMetadata = () => null,
     fetchDiff = (id, path) => doc.defaultView.fetch(`/api/session-diff/${encodeURIComponent(id)}${path ? `?path=${encodeURIComponent(path)}` : ''}`, { cache: 'no-store' }).then((r) => r.json()),
   } = deps;
   let { registryFailed = false, registryPending = false } = deps;
@@ -1063,6 +1063,10 @@ export function createView(doc, refs, deps) {
   }
   resultRepoButton.addEventListener('click', () => toggleMenu('result'));
   const presetSelect = h(doc, 'select', { class: 'status-btn preset-chip', hidden: true, title: t('preset.label'), 'aria-label': t('preset.label') });
+  const daemonSelect = h(doc, 'select', { class: 'status-btn preset-chip', 'aria-label': t('chat.draft_daemon') });
+  const daemonRow = h(doc, 'label', { class: 'env-row', hidden: true }, icon(doc, 'i-monitor'),
+    h(doc, 'span', { class: 'muted', text: t('chat.draft_daemon') }), daemonSelect);
+  daemonSelect.addEventListener('change', () => { if (currentTrace) handlers.onDraftDaemon(currentTrace, daemonSelect.value); });
   presetSelect.addEventListener('change', () => {
     if (!currentTrace) return;
     if (presetSelect.dataset.draft === 'true') handlers.onDraftPreset(currentTrace, presetSelect.value); else handlers.onSessionPreset(currentTrace, presetSelect.value);
@@ -1082,6 +1086,7 @@ export function createView(doc, refs, deps) {
   box.append(boxBar);
   const status = h(doc, 'div', { class: 'composer-status', 'data-empty': 'true' }, h(doc, 'div', { class: 'env-row' }, icon(doc, 'i-folder'), h(doc, 'span', { class: 'muted', text: t('rail.workspace_setup') }), worktreeButton, whereNote),
     h(doc, 'div', { class: 'env-row env-result' }, icon(doc, 'i-branch'), h(doc, 'span', { class: 'muted', text: t('rail.result_repo') }), resultRepoButton), presetSelect);
+  status.append(daemonRow);
 
   // Меню выбора режима, модели и усилия (задача 192): показывает только то, что агент отдал по ACP.
   // Задача 265: сюда же меню репозитория результата ('result').
@@ -2610,6 +2615,16 @@ export function createView(doc, refs, deps) {
       presetSelect.value = chosen;
       presetSelect.dataset.draft = String(Boolean(session.draft));
     }
+    const machines = daemonIds();
+    daemonRow.hidden = !session.draft || machines.length === 0;
+    if (!daemonRow.hidden) {
+      const signature = machines.join('|');
+      if (daemonSelect.dataset.sig !== signature) {
+        daemonSelect.replaceChildren(...machines.map((id) => h(doc, 'option', { value: id, text: id })));
+        daemonSelect.dataset.sig = signature;
+      }
+      daemonSelect.value = session.daemonId || machines[0];
+    }
     // Задача 265: текущий агент виден при любом числе доступных. Выбора нет (0/1 агент) — чип приглушён,
     // а подсказка называет фактическую причину, а не прячет чип.
     // session_source confirms the current pin. agent_selected may describe an earlier turn.
@@ -2675,7 +2690,7 @@ export function createView(doc, refs, deps) {
     whereNote.hidden = !worktreeButton.hidden;
     whereNote.textContent = whereNote.hidden ? '' : whereText(session);
     whereNote.title = whereNote.textContent;
-    status.dataset.empty = String(worktreeButton.hidden && !whereNote.textContent && resultRepoButton.hidden && presetSelect.hidden);
+    status.dataset.empty = String(worktreeButton.hidden && !whereNote.textContent && resultRepoButton.hidden && presetSelect.hidden && daemonRow.hidden);
     boxBar.dataset.empty = 'false';
     if (menuKind === 'agent') renderMenu();
     else if (menuKind === 'effort') {

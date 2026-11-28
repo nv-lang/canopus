@@ -74,6 +74,7 @@ export const S = Object.freeze({
   'chat.rename': 'Переименовать',
   'chat.draft_project': 'Проект новой сессии',
   'chat.draft_folder': 'Папка',
+  'chat.draft_daemon': 'Машина',
   'chat.project_none': 'Без проекта',
   'chat.project_browse': 'Выбрать папку проекта…',
   'chat.project_search': 'Найти проект',

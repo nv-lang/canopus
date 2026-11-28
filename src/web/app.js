@@ -121,7 +121,7 @@ const ui = {
   historyPending: new Set(),
   historyPreview: new Set(),
   restoreQueued: new Map(),
-  selected: null, projects: null, pane: 'list', flash: '', flashTone: 'error', awaiting: linked ? decodeURIComponent(linked[1]) : null, theme: readTheme(), pins: readPins(), unread: readUnread(), unviewedMail: readUnviewedMail(), acked: {}, silentMin: SILENT_DEFAULT_MIN, notify: { bell: notifier.bellOn(), sound: notifier.soundOn(), denied: false },
+  selected: null, projects: null, daemonIds: [], pane: 'list', flash: '', flashTone: 'error', awaiting: linked ? decodeURIComponent(linked[1]) : null, theme: readTheme(), pins: readPins(), unread: readUnread(), unviewedMail: readUnviewedMail(), acked: {}, silentMin: SILENT_DEFAULT_MIN, notify: { bell: notifier.bellOn(), sound: notifier.soundOn(), denied: false },
 };
 // A failed first create has no server row to select. Reopen its saved local copy on reload;
 // an explicit session link always takes precedence. This never resends anything.
@@ -324,6 +324,7 @@ function send(kind, trace, step, input) {
 function savedSession(trace) {
   const s = model.sessions[trace];
   return s ? { id: trace, agent: s.agent, projectId: s.projectId, project: s.project, folder: s.folder, branch: s.branch,
+    daemonId: s.daemonId || (s.draft ? ui.daemonIds[0] : '') || '',
     route: normalizeRoute(s.route), worktree: s.worktree === true, sourceBranch: s.sourceBranch || '', source: s.source || null, preset: s.preset || '', approvals: s.approvals || {}, createdAt: s.createdAt } : null;
 }
 function sendMessage(trace, text, images = [], reserved = null, urgent = false) {
@@ -629,7 +630,7 @@ const handlers = {
     const agent = (agentList.find((a) => !a.disabled) || { id: '' }).id;
     const id = newId();
     model = addDraft(dropDrafts(model), {
-      id, agent, projectId: project ? project.id : '', project: project ? project.name : '', folder: folder ? folder.path : '', branch: folder && folder.branch ? folder.branch : '', worktree: Boolean(project) && readWorktreePref(), now: Date.now(),
+      id, agent, daemonId: ui.daemonIds[0], projectId: project ? project.id : '', project: project ? project.name : '', folder: folder ? folder.path : '', branch: folder && folder.branch ? folder.branch : '', worktree: Boolean(project) && readWorktreePref(), now: Date.now(),
     });
     ui.awaiting = null;
     ui.selected = id;
@@ -642,6 +643,10 @@ const handlers = {
     model = patchDraft(model, trace, {
       projectId: project ? project.id : '', project: project ? project.name : '', folder: folder ? folder.path : '', branch: folder && folder.branch ? folder.branch : '', worktree: Boolean(project) && model.sessions[trace]?.worktree === true,
     });
+    render();
+  },
+  onDraftDaemon(trace, daemonId) {
+    model = patchDraft(model, trace, { daemonId });
     render();
   },
   onDraftFolder(trace, path) {
@@ -731,6 +736,8 @@ const handlers = {
       input.workspace_explicit = true; // new UI always states the chosen place, unlike old journal defaults
       if (draft.projectId && draft.sourceBranch) input.source_branch = draft.sourceBranch;
       if (draft.preset) input.preset = draft.preset;
+      const daemonId = draft.daemonId || ui.daemonIds[0];
+      if (daemonId) input.daemon_id = daemonId;
       if (draft.approvals) input.approvals = draft.approvals;
       if (draft.projectId) {
         input.project = draft.project;
@@ -928,11 +935,17 @@ async function start() {
   fetch('/api/presets', { cache: 'no-store' }).then(async (response) => {
     if (response.ok) { presetInfo = await response.json(); render(); }
   }).catch(() => { /* выбор набора просто не показывается */ });
+  fetch('/api/daemons', { cache: 'no-store' }).then(async (response) => {
+    if (!response.ok) return;
+    const data = await response.json();
+    if (Array.isArray(data?.daemons)) ui.daemonIds = data.daemons.filter((id) => typeof id === 'string');
+    render();
+  }).catch(() => {});
   view = createView(document, {
     app: document.getElementById('app'), side: document.getElementById('side'),
     main: document.getElementById('main'), rail: document.getElementById('rail'),
     status: document.getElementById('status'), overlay: document.getElementById('overlay'),
-  }, { agents, now: ctx.now, handlers, registryFailed, registryPending: picked.mode === 'ws', imageSrc: mock ? mock.mockImageSrc : undefined, projectsApi, presets: () => presetInfo, modelMetadata: () => modelMetadata });
+  }, { agents, now: ctx.now, handlers, registryFailed, registryPending: picked.mode === 'ws', imageSrc: mock ? mock.mockImageSrc : undefined, projectsApi, presets: () => presetInfo, daemonIds: () => ui.daemonIds, modelMetadata: () => modelMetadata });
   let metadataRequest = null;
   function refreshModelMetadata() {
     if (picked.mode !== 'ws' || !agentList.length || metadataRequest) return;

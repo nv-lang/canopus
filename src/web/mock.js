@@ -810,6 +810,7 @@ export function mockFetch(real) {
       return json({ n: numbers[upload[1]], bytes: init.body && init.body.size ? init.body.size : 0 });
     }
     if (path === '/api/presets') return json({ active: 'default', presets: [{ name: 'default', description: '', origin: 'built-in', roles: {} }, { name: 'mix', description: 'пример', origin: 'user', roles: {} }], roles: [] });
+    if (path === '/api/daemons') return json({ daemons: ['local', 'server-a'] });
     if (path === '/api/stt/status') return json({ available: true, provider: 'local', model: 'small' });
     if (path === '/api/stt') return json({ text: MOCK_STT_TEXT });
     if (path === '/api/fs/list') return reply(mockFsList(new URLSearchParams(query).get('path') ?? ''));

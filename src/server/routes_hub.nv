@@ -1117,7 +1117,7 @@ fn Hub mut @route_start_review(at int, index int, step RouteStep) Proc Detach Ti
             return
         }
     }
-    match @open_agent(config, "", 0, no_ask(), []EnvEntry.new()) {
+    match @open_agent(config, "", 0, no_ask(), []EnvEntry.new(), daemon_id: s.daemon_id) {
         Err(reason) => {
             @tell_error(0, s.id, s.engine.step_number(), "", "проверяющий ${family} не запущен: ${reason}")
             @route_stop(at)
@@ -1876,7 +1876,7 @@ fn Hub mut @route_tests_run(trace str) Proc Detach Time -> () {
     match @settings.agent(s.agent) {
         None => @tell_error(0, trace, s.engine.step_number(), "", "агент сессии не найден: ${s.agent}")
         Some(spec) => {
-            match @open_agent(acp_config_of(spec.program, spec.args, s.rt.worktree, ""), "", 0, no_ask(), []EnvEntry.new()) {
+            match @open_agent(acp_config_of(spec.program, spec.args, s.rt.worktree, ""), "", 0, no_ask(), []EnvEntry.new(), daemon_id: s.daemon_id) {
                 Err(reason) => @tell_error(0, trace, s.engine.step_number(), "", "прогон тестов не начат: ${reason}")
                 Ok(client) => {
                     mut clients = []AcpClient.new()

@@ -19,9 +19,10 @@ import std.io.{stderr, stdout, real_io}
 import std.time.{Time}
 import canopus.ask.{AskSink, parse_ask_args, ask_run}
 import canopus.daemon.{run_local_daemon}
+import canopus.acp.{LEGACY_DAEMON_ID}
 import std.fs.{Path, read_text}
 
-const USAGE = "canopus 0.1.0 - usage:\n  canopus [serve] [--config <file>]\n  canopus daemon --port <port> --key-file <file>\n  canopus ask --agent <id> [--model <m>] [--session <id>] \"text\"\n  canopus config list [--show-origin]\n  canopus config get <key> [--show-origin]\n  canopus config set <key> <value> [--project]\n  canopus doctor\n  canopus migrate [--from <data_dir>] [--dry-run]\n(default config: ~/.canopus/config.json; its parent owns secrets.json and instance data)"
+const USAGE = "canopus 0.1.0 - usage:\n  canopus [serve] [--config <file>]\n  canopus daemon [--id <id>] [--bind <IPv4>] --port <port> --key-file <file>\n  canopus ask --agent <id> [--model <m>] [--session <id>] \"text\"\n  canopus config list [--show-origin]\n  canopus config get <key> [--show-origin]\n  canopus config set <key> <value> [--project]\n  canopus doctor\n  canopus migrate [--from <data_dir>] [--dry-run]\n(default config: ~/.canopus/config.json; its parent owns secrets.json and instance data)"
 
 
 fn fail(text str) Os Io -> () {
@@ -247,7 +248,9 @@ fn cmd_migrate(cli CliArgs) Os Fs Time Io -> () {
 fn cmd_daemon(cli CliArgs) Os Fs Proc Net Time Detach Io Random -> () {
     ro port_option = take_option(cli.rest[2..cli.rest.len()], "--port")
     ro key_option = take_option(port_option.rest, "--key-file")
-    if key_option.rest.len() != 0 || cli.config.byte_len() > 0 { return fail("usage: canopus daemon --port <port> --key-file <file>") }
+    ro bind_option = take_option(key_option.rest, "--bind")
+    ro id_option = take_option(bind_option.rest, "--id")
+    if id_option.rest.len() != 0 || cli.config.byte_len() > 0 { return fail("usage: canopus daemon [--id <id>] [--bind <IPv4>] --port <port> --key-file <file>") }
     ro port = port_option.value.to_int() ?? -1
     if port < 0 || port > 65535 { return fail("daemon port must be between 0 and 65535") }
     ro token = match read_text(Path.from_bytes(key_option.value.bytes())) {
@@ -255,7 +258,9 @@ fn cmd_daemon(cli CliArgs) Os Fs Proc Net Time Detach Io Random -> () {
         Err(e) => return fail("cannot read daemon key file")
     }
     if token.byte_len() < 32 || token.byte_len() > 256 { return fail("daemon key must contain 32 to 256 bytes") }
-    match run_local_daemon(port, token) {
+    ro host = if bind_option.value == "" { "127.0.0.1" } else { bind_option.value }
+    ro daemon_id = if id_option.value == "" { LEGACY_DAEMON_ID } else { id_option.value }
+    match run_local_daemon(host, port, token, daemon_id) {
         Ok(done) => ()
         Err(reason) => fail(reason)
     }

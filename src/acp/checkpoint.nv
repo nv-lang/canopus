@@ -31,15 +31,16 @@ export fn daemon_resume(inbox str) Fs -> Result[Option[DaemonResume], str] {
     ro recovered = recover_inbox(inbox)
     ro state = recovered.checkpoint
     if state.object().is_none() { return Ok(None) }
+    ro daemon_id = (field(state, "daemon_id") ?? JsonValue.str(LEGACY_DAEMON_ID)).str() ?? ""
     ro session = field_text(state, "daemon_session") ?? ""
     ro instance = field_text(state, "instance") ?? ""
     ro pid = field_int(state, "pid") ?? -1
     ro processed = field_int(state, "wire") ?? -1
-    if session == "" || instance == "" || pid <= 0 || processed < 0 {
+    if daemon_id == "" || session == "" || instance == "" || pid <= 0 || processed < 0 {
         return Err("invalid ACP daemon checkpoint")
     }
     ro after = cursor_before_pending(processed, recovered.items, []AcpInboxItem.new())
-    Ok(Some(DaemonResume { ticket: DaemonTicket { session, instance, pid }, after }))
+    Ok(Some(DaemonResume { ticket: DaemonTicket { daemon_id, session, instance, pid }, after }))
 }
 
 fn AcpClient mut @save_checkpoint(start int) -> () {
@@ -65,6 +66,7 @@ fn AcpClient mut @save_checkpoint(start int) -> () {
 
 fn AcpClient @checkpoint(ticket DaemonTicket) -> JsonValue {
     mut o = JsonObject.new()
+    put(o, "daemon_id", JsonValue.str(ticket.daemon_id))
     put(o, "daemon_session", JsonValue.str(ticket.session))
     put(o, "instance", JsonValue.str(ticket.instance))
     put(o, "pid", JsonValue.int(ticket.pid))

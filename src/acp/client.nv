@@ -70,6 +70,7 @@ type AcpInboxItem { seq int, wire int, event Incoming }
 /// AcpClient: one agent process, one session. Mutable: `poll`, `decide` and the operations of the handler change it.
 export type AcpClient {
     config AcpConfig,
+    session_cwd str,
     link AgentLink,
     phase str,
     next_rpc int,
@@ -357,7 +358,7 @@ export fn open_client_env(config AcpConfig, trace_path str, trace_limit int, env
     open_client_full(config, trace_path, trace_limit, no_ask(), env)
 
 /// The whole of it: the trace, the means to ask the owner and the environment of the process.
-export fn open_client_full(config AcpConfig, trace_path str, trace_limit int, ask AskSetup, env []EnvEntry, transport Option[AgentLink] = None, resumed bool = false) Proc Detach Time -> Result[AcpClient, str] {
+export fn open_client_full(config AcpConfig, trace_path str, trace_limit int, ask AskSetup, env []EnvEntry, transport Option[AgentLink] = None, resumed bool = false, session_cwd str = "") Proc Detach Time -> Result[AcpClient, str] {
     ro began = Time.now().unix_millis()
     ro connection = match transport {
         Some(link) => Ok(link)
@@ -387,7 +388,8 @@ export fn open_client_full(config AcpConfig, trace_path str, trace_limit int, as
                 trace_warn("ACP startup: connect ${connected - began} ms, inbox ${inbox_ready - connected} ms, trace ${trace_ready - inbox_ready} ms")
             }
             mut client = AcpClient {
-                config, link, phase: "initializing", next_rpc: 0, init_rpc: -1, new_rpc: -1, prompt_rpc: -1,
+                config, session_cwd: if session_cwd == "" { config.cwd } else { session_cwd },
+                link, phase: "initializing", next_rpc: 0, init_rpc: -1, new_rpc: -1, prompt_rpc: -1,
                 session: "", agent: "", model_name: "", modes: JsonValue.null(), models: JsonValue.null(), choices_cfg: JsonValue.null(), mode_now: "", model_now: "", sets: []AcpSet.new(), queue: []AcpQueued.new(), active: "", cancelling: false, interrupt_rpc: -1, interrupted_rpcs: []str.new(), interrupt_result: None, updates: 0, auth_methods: "", permissions: []AcpPending.new(), handoff_only: false, handoff_context: "", hold_prompt: false, ask, asks: []AcpAsk.new(), mcp_http: false, hint_due: false,
                 ready, taken: []AcpInboxItem.new(), next_seq: next, processed_wire: 0, frame_wire: 0, frame_output: []str.new(), checkpoint_writes: 0, stderr: "", exit_code: -2, last_error: "", trace,
                 images_ok: false, attached: []AcpImage.new(), prelude: "", presets: []AcpPreset.new(), strict_source: false, dispatch_role: "dev", dispatch_family: "", required_mode: "", settled: []AcpPreset.new(), dropped: []AcpDrop.new(), marker: marker_start(), commands: []str.new()
@@ -539,7 +541,7 @@ fn AcpClient mut @on_result(id JsonValue, result JsonValue) -> () {
         }
         @phase = "opening"
         @new_rpc = @next_id()
-        @say(rpc_request_line(@new_rpc, "session/new", new_session_params(@config.cwd, servers)))
+        @say(rpc_request_line(@new_rpc, "session/new", new_session_params(@session_cwd, servers)))
         return
     }
     if key == "${@new_rpc}" && @phase == "opening" {

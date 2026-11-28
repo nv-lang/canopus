@@ -37,7 +37,8 @@ export type Inbound { kind str, text str, code int, seq int }
 /// AgentLink: the three channels of a started process. `out` takes the lines to write (without a line break) - the writer adds
 /// it; a closed `out` closes the stdin; `inb` brings what the fibers tell; a number sent to `kill` kills the process tree.
 /// `pid` is the process id of the child (-1 - the keeper did not name it), so that the hub can write down what it started (task 317).
-export type DaemonTicket { session str, instance str, pid int }
+export const LEGACY_DAEMON_ID = "local"
+export type DaemonTicket { daemon_id str, session str, instance str, pid int }
 export type AgentLink { out ChanTx[str], inb ChanRx[Inbound], kill ChanTx[int], pid int, managed bool, ticket Option[DaemonTicket] }
 
 fn inbound_of(kind str, text str, code int) -> Inbound => { kind, text, code, seq: 0 }

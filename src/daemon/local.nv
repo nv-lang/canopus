@@ -2,14 +2,14 @@
 // the daemon drains and numbers agent frames even when there is no socket connected.
 module canopus.daemon
 
-import canopus.acp.{AgentLink, Inbound, connect_env, ACP_WIRE_LINE_LIMIT}
+import canopus.acp.{AgentLink, Inbound, connect_env, ACP_WIRE_LINE_LIMIT, LEGACY_DAEMON_ID}
 import canopus.projects.{EnvEntry}
 import std.concurrency.nvchan.{Chan, ChanRx, ChanTx}
 import std.encoding.base64.{Base64}
 import std.encoding.hex.{Hex}
 import std.encoding.json.{Json, JsonObject, JsonValue}
 import std.io.{stdout, write_all}
-import std.net.{Net, TcpListener, TcpStream}
+import std.net.{Net, SocketAddr, TcpListener, TcpStream, to_socket_addr}
 
 const VERSION = 1
 const WIRE_LIMIT = 12 * 1024 * 1024
@@ -251,28 +251,41 @@ fn read_request(mut conn TcpStream) Net -> Option[JsonObject] {
     None
 }
 
-fn accept_request(mut conn TcpStream, token str, inbox ChanTx[DaemonRequest]) Net Time -> str {
+fn accept_request(mut conn TcpStream, token str, daemon_id str, inbox ChanTx[DaemonRequest]) Net Time -> str {
     ro body = read_request(conn) ?? return error("invalid_request", "expected one JSON object")
     if text(body, "key") != token { return error("unauthorized", "wrong daemon key") }
     if (number(body, "version") ?? -1) != VERSION { return error("wrong_version", "unsupported daemon protocol version") }
+    ro requested = (body.get("daemon_id") ?? JsonValue.str(LEGACY_DAEMON_ID)).str() ?? ""
+    if requested != daemon_id { return error("wrong_daemon", "daemon ID does not match") }
     ro reply = Chan[str].new(1)
     if !inbox.try_send(DaemonRequest { body, reply: reply.tx }) { return error("overloaded", "daemon request queue is full") }
     reply.rx.recv() ?? error("unavailable", "daemon did not answer")
 }
 
-fn serve_connection(consume conn TcpStream, token str, inbox ChanTx[DaemonRequest], slots ChanTx[int]) Net Time -> () {
+fn serve_connection(consume conn TcpStream, token str, daemon_id str, inbox ChanTx[DaemonRequest], slots ChanTx[int]) Net Time -> () {
     supervised(timeout: SOCKET_MS.to_millis()) {
-        ro result = accept_request(conn, token, inbox)
+        ro result = accept_request(conn, token, daemon_id, inbox)
         ro written = conn.write_all("${result}\n".bytes())
     }
     conn.close()
     ro released = slots.try_send(1)
 }
 
-export fn run_local_daemon(port int, token str) Io Net Time Proc Detach Random -> Result[(), str] {
-    consume listener = match TcpListener.bind("127.0.0.1:${port}") {
+fn daemon_address(host str, port int) -> Result[SocketAddr, str] {
+    ro addr = match "${host}:${port}".to_socket_addr() {
+        Ok(parsed) => parsed
+        Err(e) => return Err("daemon host must be a specific IPv4 address")
+    }
+    if !addr.is_v4() || addr.ip() == "0.0.0.0" { return Err("daemon host must be a specific IPv4 address") }
+    Ok(addr)
+}
+
+export fn run_local_daemon(host str, port int, token str, daemon_id str) Io Net Time Proc Detach Random -> Result[(), str] {
+    if !valid_daemon_id(daemon_id) { return Err("invalid daemon ID") }
+    ro addr = daemon_address(host, port)?
+    consume listener = match TcpListener.bind(addr) {
         Ok(consume bound) => bound
-        Err(e) => return Err("cannot bind the loopback daemon: ${e}")
+        Err(e) => return Err("cannot bind the daemon: ${e}")
     }
     ro inbox = Chan[DaemonRequest].new(32)
     ro slots = Chan[int].new(32)
@@ -282,13 +295,13 @@ export fn run_local_daemon(port int, token str) Io Net Time Proc Detach Random -
     for i in 0..32 { ro reserved = slots.tx.try_send(1) }
     detach { drive(inbox_rx) }
     mut output = stdout()
-    ro announced = write_all(output, "canopus daemon listening on 127.0.0.1:${listener.local_port()}\n".bytes())
+    ro announced = write_all(output, "canopus daemon listening on ${addr.ip()}:${listener.local_port()}\n".bytes())
     mut failure = ""
     while failure.byte_len() == 0 {
         match listener.accept() {
             Ok(consume conn) => {
                 match slots.rx.try_recv() {
-                    Some(slot) => { detach consume conn { serve_connection(conn, token, request_tx, slot_tx) } }
+                    Some(slot) => { detach consume conn { serve_connection(conn, token, daemon_id, request_tx, slot_tx) } }
                     None => { conn.close() }
                 }
             }

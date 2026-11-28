@@ -21,7 +21,7 @@ import alula.engine.{Engine, Incoming, EventKind, Journal, Store, Link, PartyReq
 import canopus.product_machines.{find_machines_dir, load_product_machines}
 import alula.machine_run.{AlulaMachine, AlulaState}
 import canopus.acp.{AcpConfig, AcpClient, AcpImage, AcpPreset, AcpQueued, AskSetup, no_ask, open_client_full, daemon_resume, acp_link, page_event, refused_event, acp_context_overflow, TRACE_LIMIT}
-import canopus.daemon.{daemon_endpoint, connect_daemon, resume_daemon}
+import canopus.daemon.{daemon_endpoint, daemon_ids, connect_daemon, resume_daemon}
 import canopus.agent_config.{opencode_env}
 import canopus.process.{ShellRaw}
 import canopus.config.{pick_prompt, ConfigLayout, load_presets, preset_named, preset_family, DEFAULT_PRESET, presets_reply}
@@ -58,6 +58,7 @@ type Dialog {
     id str,
     name str,
     agent str,
+    daemon_id str,
     engine Engine[AlulaMachine, AlulaState],
     world PgWorld,
     clients []AcpClient,
@@ -533,13 +534,12 @@ fn line_of(mut s Dialog, e Incoming) -> Option[str] {
     projected
 }
 
-fn meta_text(name str, agent str, folder str, project str, project_id str) -> str => meta_text_child(name, agent, folder, project, project_id, "", "")
-
 // Task 192.3: the session may be a child of another session (`parent` is the id of the epic, `parent_kind` "epic"; the old journals also hold "subtask"); the page nests it under the parent.
-fn meta_text_child(name str, agent str, folder str, project str, project_id str, parent str, parent_kind str) -> str {
+fn meta_text_child(name str, agent str, folder str, project str, project_id str, parent str, parent_kind str, daemon_id str) -> str {
     mut o = JsonObject.new()
     jput(o, "name", JsonValue.str(name))
     jput(o, "agent", JsonValue.str(agent))
+    if daemon_id != "" { js(o, "daemon_id", daemon_id) }
     jput(o, "folder", JsonValue.str(folder))
     if project.byte_len() > 0 { jput(o, "project", JsonValue.str(project)) }
     // the id of the project of the control panel (task 192m): only the id is kept in the journal, never the variables
@@ -908,6 +908,7 @@ fn session_index_entry(s Dialog, task_indexes JsonObject, task_states JsonObject
     }
     jput(input, "name", JsonValue.str(s.name))
     jput(input, "agent", JsonValue.str(s.agent))
+    if s.daemon_id != "" { js(input, "daemon_id", s.daemon_id) }
     jput(input, "folder", JsonValue.str(s.folder))
     jput(input, "project_id", JsonValue.str(s.project_id))
     if s.has_rank { jput(input, "rank", JsonValue.int(s.rank)) }
@@ -1274,29 +1275,33 @@ fn Hub @has_daemon_checkpoint(id str) -> bool {
     }
 }
 
-fn Hub @open_agent(config AcpConfig, trace str, trace_limit int, ask AskSetup, env []EnvEntry, recovering bool = false) Proc Detach Time -> Result[AcpClient, str] {
+fn Hub @open_agent(config AcpConfig, trace str, trace_limit int, ask AskSetup, env []EnvEntry, recovering bool = false, daemon_id str = "") Proc Detach Time -> Result[AcpClient, str] {
     // D454: the production ACP transport runs outside the simulated hub's filesystem and network handlers.
-    ro local = with Fs = real_fs() { daemon_endpoint(@settings.layout.state) }?
-    if recovering {
-        ro saved = with Fs = real_fs() { daemon_resume(config.inbox_path) }?
-        match saved {
-            Some(resume) => {
-                ro endpoint = local.ok_or("local daemon configuration is missing for the open turn")?
+    ro saved = with Fs = real_fs() { daemon_resume(config.inbox_path) }?
+    ro pinned = match saved { Some(resume) => resume.ticket.daemon_id, None => daemon_id }
+    if daemon_id != "" && daemon_id != pinned { return Err("daemon checkpoint belongs to ${pinned}, session is bound to ${daemon_id}") }
+    ro selected = with Fs = real_fs() { daemon_endpoint(@settings.layout.state, pinned) }?
+    if pinned != "" && selected.is_none() { return Err("daemon ${pinned} is no longer configured") }
+    match saved {
+        Some(resume) => {
+            ro endpoint = selected.ok_or("daemon ${resume.ticket.daemon_id} is no longer configured")?
+            if recovering {
                 ro link = with Net = real_net(), Random = real_random() {
                     resume_daemon(endpoint, resume.ticket, resume.after)
                 }
-                return open_client_full(config, trace, trace_limit, ask, env, transport: Some(link), resumed: true)
+                return open_client_full(config, trace, trace_limit, ask, env, transport: Some(link), resumed: true, session_cwd: endpoint.cwd)
             }
-            None => if local.is_some() { return Err("the open turn has no local daemon checkpoint") }
         }
+        None => if recovering && selected.is_some() { return Err("the open turn has no daemon checkpoint") }
     }
-    match local {
+    match selected {
         None => open_client_full(config, trace, trace_limit, ask, env)
         Some(endpoint) => {
+            ro cwd = if endpoint.cwd == "" { config.cwd } else { endpoint.cwd }
             ro link = with Net = real_net(), Random = real_random() {
-                connect_daemon(endpoint, config.program, config.args, config.cwd, env)
+                connect_daemon(endpoint, config.program, config.args, cwd, env)
             }?
-            open_client_full(config, trace, trace_limit, ask, env, transport: Some(link))
+            open_client_full(config, trace, trace_limit, ask, env, transport: Some(link), session_cwd: cwd)
         }
     }
 }
@@ -1412,7 +1417,7 @@ fn Hub mut @ensure_client(at int, recovering bool = false) Proc Detach Time -> s
         s.clients[0].close()
         s.clients = []AcpClient.new()
     }
-    match @open_agent(config, @trace_path_of(s), TRACE_LIMIT, if preparation { no_ask() } else { @ask_for(s.agent, s.id) }, if preparation { []EnvEntry.new() } else { @agent_env(s.agent, @env_of(s)) }, recovering: recovering) {
+    match @open_agent(config, @trace_path_of(s), TRACE_LIMIT, if preparation { no_ask() } else { @ask_for(s.agent, s.id) }, if preparation { []EnvEntry.new() } else { @agent_env(s.agent, @env_of(s)) }, recovering: recovering, daemon_id: s.daemon_id) {
             Ok(client) => {
                 s.clients.push(client)
                 if !s.clients[0].managed() { @roster_note(s.clients[0].pid(), s.agent) }
@@ -1658,7 +1663,7 @@ fn Hub mut @install_restore(id str, prepared Option[PreparedRestore]) Proc Detac
         None => @say_log("the session ${id} cannot be resumed: no usable snapshot")
         Some(restored) => {
             ro engine = restored.engine
-            mut s = Dialog { id, name: id, agent: "", engine, world, clients: []AcpClient.new(), turn: "", turn_diff: None, lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, agent_event_at: 0, client_updates: 0, auth_told: "", folder: "", project_id: "", has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
+            mut s = Dialog { id, name: id, agent: "", daemon_id: "", engine, world, clients: []AcpClient.new(), turn: "", turn_diff: None, lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, agent_event_at: 0, client_updates: 0, auth_told: "", folder: "", project_id: "", has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
             mut tail_start = restored.events.len()
             mut tail_count = 0
             while tail_start > 0 && tail_count < MACHINE_JOURNAL_LINES {
@@ -1689,6 +1694,7 @@ fn Hub mut @install_restore(id str, prepared Option[PreparedRestore]) Proc Detac
                         Some(meta) => {
                             s.name = if jtext(meta, "name").byte_len() > 0 { jtext(meta, "name") } else { id }
                             s.agent = jtext(meta, "agent")
+                            s.daemon_id = jtext(meta, "daemon_id")
                             // a session of a project goes on in the folder it was made for; one without a project, in the working folder
                             if jtext(meta, "project_id").byte_len() > 0 {
                                 s.project_id = jtext(meta, "project_id")
@@ -1861,10 +1867,12 @@ fn Hub mut @install_restore(id str, prepared Option[PreparedRestore]) Proc Detac
 fn Hub mut @cs_make_session(cid str, name str, agent str, folder str, project_id str, parent str, pkind str, route str) Proc Detach Time -> int {
     ro pg = @settings.store == "pg"
     ro root = @settings.data_dir
+    ro parent_at = @find(parent)
+    ro daemon_id = if parent_at >= 0 { @sessions[parent_at].daemon_id } else { "" }
     mut world = PgWorld.open(@settings.pg, cid)
     ro engine = begin_session_engine(pg, root, world, @machine, cid)
-    mut s = Dialog { id: cid, name, agent, engine, world, clients: []AcpClient.new(), turn: "", turn_diff: None, lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, agent_event_at: 0, client_updates: 0, auth_told: "", folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
-    accept_in(pg, root, s, Incoming.signal("session_created", meta_text_child(name, agent, folder, "", project_id, parent, pkind)))
+    mut s = Dialog { id: cid, name, agent, daemon_id, engine, world, clients: []AcpClient.new(), turn: "", turn_diff: None, lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, agent_event_at: 0, client_updates: 0, auth_told: "", folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
+    accept_in(pg, root, s, Incoming.signal("session_created", meta_text_child(name, agent, folder, "", project_id, parent, pkind, daemon_id)))
     @add_session(s)
     ro at = @sessions.len() - 1
     @drain(at)
@@ -1909,12 +1917,23 @@ fn Hub mut @create(conn int, trace str, input JsonObject) Proc Detach Time -> ()
             ro tree = project_id.byte_len() > 0 && launch.folder.byte_len() > 0 && tk_is_repo(launch.folder) && (match input.get("worktree") { Some(v) => jflag(input, "worktree"), None => true })
             ro workspace_error = workspace_problem(project_id, launch.folder, source, tree)
             if workspace_error.byte_len() > 0 { @tell_error(conn, trace, 1, "", workspace_error); return }
+            // D454: the daemon inventory belongs to the real instance state.
+            ro ids = match with Fs = real_fs() { daemon_ids(@settings.layout.state) } {
+                Ok(choices) => choices
+                Err(reason) => { @tell_error(conn, trace, 1, "", reason); return }
+            }
+            ro wanted = jtext(input, "daemon_id")
+            if wanted != "" && !ids.contains(wanted) {
+                @tell_coded_error(conn, trace, 1, "", "invalid_parameter", "unknown daemon: ${wanted}")
+                return
+            }
+            ro daemon_id = if wanted == "" && ids.len() > 0 { ids[0] } else { wanted }
             ro pg = @settings.store == "pg"
             ro root = @settings.data_dir
             mut world = PgWorld.open(@settings.pg, trace)
             ro engine = begin_session_engine(pg, root, world, @machine, trace)
-            mut s = Dialog { id: trace, name, agent, engine, world, clients: []AcpClient.new(), turn: "", turn_diff: None, lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, agent_event_at: 0, client_updates: 0, auth_told: "", folder: launch.folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
-            accept_in(pg, root, s, Incoming.signal("session_created", meta_text(name, agent, launch.folder, project, project_id)))
+            mut s = Dialog { id: trace, name, agent, daemon_id, engine, world, clients: []AcpClient.new(), turn: "", turn_diff: None, lines: []str.new(), list_status: "idle", list_question: "", list_permission: "", machine_tail: []Incoming.new(), dispatch: dispatch_history_new(), announced: false, approval_pending: "", model_announced: false, started_at: 0, slow_told: false, agent_event_at: 0, client_updates: 0, auth_told: "", folder: launch.folder, project_id, has_rank: false, rank: 0, rt: route_session_new(), chosen: []SavedChoice.new(), preset: "" }
+            accept_in(pg, root, s, Incoming.signal("session_created", meta_text_child(name, agent, launch.folder, project, project_id, "", "", daemon_id)))
             @add_session(s)
             ro at = @sessions.len() - 1
             @drain(at)
@@ -2699,7 +2718,7 @@ fn Hub mut @switch_agent(trace str, agent str) Proc Detach Time -> () {
             return
         }
     }
-    match @open_agent(config, @trace_path_of(s), TRACE_LIMIT, @ask_for(agent, s.id), @agent_env(agent, @env_of(s))) {
+    match @open_agent(config, @trace_path_of(s), TRACE_LIMIT, @ask_for(agent, s.id), @agent_env(agent, @env_of(s)), daemon_id: s.daemon_id) {
         Err(reason) => {
             @say_log("the agent of ${trace} cannot be changed to ${agent}: ${reason}")
             @tell_error(0, trace, s.engine.step_number(), "", "the agent ${agent} cannot be started: ${reason}; the session stays with ${s.agent}")
@@ -2805,7 +2824,7 @@ fn Hub mut @start_context_handoff(trace str, source JsonObject) Proc Detach Time
     }
     ro temporary = acp_config_of(config.program, config.args, config.cwd, "")
     ro ask = @ask_for(target, s.id)
-    match @open_agent(temporary, "", 0, ask, @agent_env(target, @env_of(s))) {
+    match @open_agent(temporary, "", 0, ask, @agent_env(target, @env_of(s)), daemon_id: s.daemon_id) {
         Err(reason) => @tell_error(0, trace, s.engine.step_number(), "", "Не удалось запустить ${target} для переноса")
         Ok(consume started) => {
             mut client = AcpClient { ...started }
@@ -2833,7 +2852,7 @@ fn Hub mut @handoff_client(s Dialog, family str, receiving bool) Proc Detach Tim
     }
     ro temporary = acp_config_of(config.program, config.args, config.cwd, "")
     ro ask = if receiving { @ask_for(family, s.id) } else { no_ask() }
-    match @open_agent(temporary, "", 0, ask, @agent_env(family, @env_of(s))) {
+    match @open_agent(temporary, "", 0, ask, @agent_env(family, @env_of(s)), daemon_id: s.daemon_id) {
         Ok(client) => {
             if !client.managed() { @roster_note(client.pid(), family) }
             Ok(client)
@@ -2879,7 +2898,7 @@ fn Hub mut @start_model_probe(conn int, trace str, input JsonObject) Proc Detach
         None => { @model_probe_result(listener, "unavailable"); return }
     }
     ro temporary = acp_config_of(config.program, config.args, config.cwd, "")
-    match @open_agent(temporary, "", 0, no_ask(), @agent_env(family, @env_of(s))) {
+    match @open_agent(temporary, "", 0, no_ask(), @agent_env(family, @env_of(s)), daemon_id: s.daemon_id) {
         Err(reason) => @model_probe_result(listener, "unavailable")
         Ok(consume started) => {
             mut client = AcpClient { ...started }
