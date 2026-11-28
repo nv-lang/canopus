@@ -378,7 +378,7 @@ export fn Rig @lines_for(conn int) -> []str {
     mut out = []str.new()
     for line in @lines_in_mode(conn, 0) {
         ro kind = line_field(line, "kind")
-        if kind != "route_state" && kind != "machine_state" && kind != "turn_request" && kind != "sessions_ready" && kind != "session_list_status" { out.push(line) }
+        if kind != "route_state" && kind != "machine_state" && kind != "turn_request" && kind != "sessions_ready" && kind != "session_list_status" && kind != "composer_commands" { out.push(line) }
     }
     out
 }
@@ -1612,7 +1612,7 @@ export fn scenario_migrate_flat(settings ServerSettings) Proc Detach Time Net Fs
     c.report()
 }
 
-/// The service restarts while a turn is open: the request ends with Timeout, the session goes on.
+/// Direct ACP without a daemon: after restarting the hub, the open request ends with Timeout.
 export fn scenario_restart_open(settings ServerSettings) Proc Detach Time Net Fs Os -> str {
     mut c = kit_check()
     mut rig = rig_open(settings)

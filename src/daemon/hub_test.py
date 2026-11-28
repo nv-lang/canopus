@@ -358,6 +358,11 @@ def smoke(canopus, hub_binary, root, restart=False, late_ack=False, graceful=Fal
                 return
 
             transcript = (agent_dir / "agent-prompts").read_text()
+            prompt = json.loads(transcript)
+            before = daemon_records(session_dir)[-1]["state"]
+            assert before["active"] and before["prompt_rpc"] == prompt["rpc"], before
+            assert before["pid"] == prompt["pid"], before
+            assert before["daemon_id"] == (endpoint["id"] if remote else "local"), before
             if graceful:
                 hub.communicate(b"quit\n", timeout=10)
                 assert hub.returncode == 0
@@ -379,11 +384,16 @@ def smoke(canopus, hub_binary, root, restart=False, late_ack=False, graceful=Fal
                 if "\t" in line:
                     payload = page_event(line)
                     caught_up.extend(payload if isinstance(payload, list) else [payload])
-            last = caught_up[-1]
-            assert last["input"]["turn"] == original["input"]["turn"], caught_up
-            for chunk in ("daemon-echo", "after-restart"):
-                assert sum(event["kind"] == "agent_chunk" and event["input"]["text"] == chunk for event in caught_up) == 1
-            assert sum(event["kind"] == "agent_done" for event in caught_up) == 1
+            turn = original["input"]["turn"]
+            chunks = [event["input"] for event in caught_up if event["kind"] == "agent_chunk"]
+            assert [(chunk["turn"], chunk["text"]) for chunk in chunks] == [
+                (turn, "daemon-echo"), (turn, "after-restart"),
+            ], caught_up
+            terminal = [event for event in caught_up if event["kind"] in ("agent_done", "agent_refused")]
+            assert [(event["kind"], event["input"]["turn"]) for event in terminal] == [("agent_done", turn)], caught_up
+            after = daemon_records(session_dir)[-1]["state"]
+            assert after["instance"] == before["instance"] and after["pid"] == before["pid"], after
+            assert after["wire"] > before["wire"] and after["prompt_rpc"] == -1, after
             assert (agent_dir / "agent-prompts").read_text() == transcript
             restarted_in = time.monotonic() - restarting_at
             agent_pid = next_turn(lines, page, agent_dir)

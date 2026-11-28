@@ -2,7 +2,7 @@
 // The same scenarios run over PostgreSQL in src/server_pg: the results must be the same.
 module canopus.server_live
 
-import canopus.server.{kit_files, kit_chat_files, kit_files_mcp, scenario_cold_page_index, scenario_question_mcp, scenario_question_mcp_timeout, scenario_question_mcp_restart, scenario_chat, scenario_stream_burst, scenario_permission, scenario_question, scenario_waiting_reason, scenario_question_off, scenario_cancel, scenario_switch_agent, scenario_rename, scenario_preset, scenario_prompt, scenario_order_move_delete, scenario_restart_idle, scenario_restart_open, scenario_crash, scenario_two_pages, scenario_rejects, scenario_many, scenario_broken_agent, scenario_renamed_table, scenario_migrate_flat, scenario_images, scenario_catalog, scenario_choose_cold, scenario_settings_persist, scenario_settings_family}
+import canopus.server.{kit_files, kit_chat_files, kit_files_mcp, scenario_cold_page_index, scenario_question_mcp, scenario_question_mcp_timeout, scenario_question_mcp_restart, scenario_chat, scenario_stream_burst, scenario_permission, scenario_question, scenario_waiting_reason, scenario_question_off, scenario_cancel, scenario_switch_agent, scenario_rename, scenario_preset, scenario_prompt, scenario_order_move_delete, scenario_restart_idle, scenario_crash, scenario_two_pages, scenario_rejects, scenario_many, scenario_broken_agent, scenario_renamed_table, scenario_migrate_flat, scenario_images, scenario_catalog, scenario_choose_cold, scenario_settings_persist, scenario_settings_family}
 
 fn clean(report str) -> () {
     if report.byte_len() > 0 { panic("NOT AS IT MUST BE: ${report}") }
@@ -91,9 +91,8 @@ test "files: an older data folder with flat files is moved into the folders of t
     clean(scenario_migrate_flat(kit_chat_files("flat", 30000)))
 }
 
-test "files: restart in the middle of a turn" {
-    clean(scenario_restart_open(kit_chat_files("open", 2000)))
-}
+// Restart in the middle of a turn is covered by src/daemon/hub_test.py --restart,
+// with the same agent process continuing while the hub is down.
 
 test "files: the agent dies" {
     clean(scenario_crash(kit_chat_files("crash", 30000)))
