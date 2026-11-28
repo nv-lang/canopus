@@ -25,7 +25,7 @@ and can coordinate development projects written in other languages.
 | [`machines/`](machines/README.md) | Product state machines executed by Alula |
 | [`scripts/`](scripts/) | Packaging, setup, Git hooks, guards and their self-tests |
 | [`.github/workflows/`](.github/workflows/) | Repository CI: guards, guard self-tests and browser-interface tests |
-| [`doc/`](doc/README.md) | Documentation, development rules, decisions and task records |
+| [`docs/`](docs/README.md) | Documentation, development rules, decisions and task records |
 
 ## Get the source
 
@@ -88,18 +88,18 @@ Project values override global values; there is no `local.json` layer.
 Secrets are stored separately from ordinary configuration.
 
 The application and plugin share project task storage at `<project>/<tasks_dir>/`
-(default: `doc/tasks/`), or `~/.canopus/tasks/` without a project.
+(default: `docs/tasks/`), or `~/.canopus/tasks/` without a project.
 Private runtime state stays outside the versioned task documents.
 OpenCode's own configuration, data and authentication remain separate.
 
-The [configuration contract](doc/canon/configuration.md) defines the accepted fields,
+The [configuration contract](docs/canon/configuration.md) defines the accepted fields,
 instance layout, project overrides and migration rules.
 
 ## Working with tasks
 
 Create tasks through owner-confirmed proposals. Use pause and resume for temporary stops;
 resume retains the task number and history. Cancellation records its initiator, reason and
-replacement and closes outstanding questions. See the [task lifecycle rules](doc/canon/task-lifecycle.md).
+replacement and closes outstanding questions. See the [task lifecycle rules](docs/canon/task-lifecycle.md).
 
 Delivery uses a checked candidate and a fast-forward merge. Follow the
 [plugin's review and merge instructions](opencode-plugin/README.md#review-and-merge).
@@ -107,7 +107,7 @@ Heavy builds and test runs use the machine queue.
 
 ## Development and checks
 
-Read [AGENTS.md](AGENTS.md) and the [Canon](doc/canon/README.md) before changing this repository.
+Read [AGENTS.md](AGENTS.md) and the [Canon](docs/canon/README.md) before changing this repository.
 The development process follows [unitcraft/ai-dev-methodology](https://github.com/unitcraft/ai-dev-methodology).
 The plugin's test commands are documented in its [README](opencode-plugin/README.md).
 

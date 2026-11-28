@@ -29,7 +29,7 @@ try {
  assert.equal(t.history[0].status,"running");assert.equal(t.title,"Shared task");assert.equal(t.application.events.length,1)
  const replay=run("record-event",{session:"s",evidence,n:r.n});assert.equal(replay.status,0,replay.stderr)
  assert.equal(tasks.loadTask("sample",r.n).application.events.length,1,"Persistence is idempotent and does not replay actions")
- assert.equal(path.basename(r.dir),"task")
+ assert.equal(path.basename(r.dir),"input")
  assert.equal(path.basename(path.dirname(r.file)),r.id)
  const statement=path.join(r.dir,"message.md")
  fs.writeFileSync(statement,"Owner input\n")

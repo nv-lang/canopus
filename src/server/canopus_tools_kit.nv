@@ -238,7 +238,7 @@ export fn scenario_canopus_tools(settings ServerSettings) Proc Detach Time Net F
     c.expect(ctl_line_count(plog) == 4 && plog.contains("С9 0/2 [") && plog.contains("готово — итог"), "the file holds exactly the four lines in the order: ${cut_text(plog, 300)}")
     ro j4 = ctl_ask(rig, p1, "canopus_progress_line", "{\"code\":\"С9\",\"kind\":\"start\",\"n\":1,\"file\":\"../../../outside/progress.log\"}")
     c.expect(j4.contains("Не записано") && j4.contains("вне папки"), "a path that leaves the folder is refused: ${cut_text(j4, 160)}")
-    ro j5 = ctl_ask(rig, p1, "canopus_progress_line", "{\"code\":\"С9\",\"kind\":\"start\",\"n\":1,\"file\":\"doc/tasks/999-чужая/task/progress.log\"}")
+    ro j5 = ctl_ask(rig, p1, "canopus_progress_line", "{\"code\":\"С9\",\"kind\":\"start\",\"n\":1,\"file\":\"docs/tasks/999-чужая/input/progress.log\"}")
     c.expect(j5.contains("Не записано") && j5.contains("вне папки") && j5.contains("чужая"), "the folder of another task is refused: ${cut_text(j5, 160)}")
     c.expect(ctl_ask(rig, p1, "canopus_progress_line", "{\"code\":\"С9\",\"kind\":\"start\",\"n\":1,\"file\":\"notes.md\"}").contains("только в файл"), "the name of the file is fixed")
     ro j6 = ctl_ask(rig, p1, "canopus_log_line", "{\"kind\":\"документ\",\"text\":\"spec.md передан на С2\"}")

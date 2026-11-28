@@ -1,10 +1,10 @@
 // wip_hub.nv - task 192.4 (changed by the owner 2026-10-27, task 192.5): the hub side of the work that is not a task yet (a tree with NO branch).
 //
 // A session with the switch "Worktree" on gets a tree of its own at its FIRST message: `<worktrees>/<repo>-<short code of the session>` on a DETACHED head cut from a fresh origin/main
-// (`git worktree add --detach`), no branch `wip/...`; the agent works in it. There is no number, no folder `doc/tasks` and no `message.md` yet. A session with the switch off works in the folder of
+// (`git worktree add --detach`), no branch `wip/...`; the agent works in it. There is no number, no folder `docs/tasks` and no `message.md` yet. A session with the switch off works in the folder of
 // the project on its branch (the page says which: `route_state.where`).
 // "В работу" of the FIRST work of such a session does not make a new session: the branch `task/NNN-slug` is made in this very tree (`git switch -c` on the current head, so the changes made before and the
-// commits made on the detached head go with it; the tree stays where it is, its path is in the journal), `doc/tasks/NNN-slug/task/message.md` is written in this tree and committed, and the session becomes
+// commits made on the detached head go with it; the tree stays where it is, its path is in the journal), `docs/tasks/NNN-slug/input/message.md` is written in this tree and committed, and the session becomes
 // the session of the task (`wip` of `route_task` is cleared by the `open` of the task). The way "Эпик" does the same and marks the task as an epic.
 // The next separate works of the session are sessions of their own with trees cut from a fresh origin/main (`child_hub.nv`).
 // A deleted session takes its tree with it when there is nothing to lose (no commits that are not in origin/main, no changed files); else the owner is asked (keep the work / delete all).

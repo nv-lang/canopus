@@ -28,7 +28,7 @@ class TasksDirectoryTests(unittest.TestCase):
                     source.close()
                 self.assertIsNotNone(guard.TASK_FILE.match("docs/tasks/001-test/plan.md"))
                 self.assertIsNone(guard.TASK_FILE.match("doc/tasks/001-test/plan.md"))
-                self.assertIsNotNone(guard.MESSAGE_FILE.match("docs/tasks/001-test/task/message.md"))
+                self.assertIsNotNone(guard.MESSAGE_FILE.match("docs/tasks/001-test/input/message.md"))
             config.write_text(json.dumps({"tasks_dir": "../outside"}))
             with self.assertRaises(ValueError):
                 guard.configure_tasks_dir(guard.guardlib.Source(tmp))

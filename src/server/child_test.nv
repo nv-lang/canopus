@@ -46,7 +46,7 @@ test "child: the table is written and read back, a hand-edited table is read too
     ro rows = [cht_row(1, "233", child_state_word("running", 0)), cht_row(2, "234", child_state_word("waits", 233)), cht_row(3, "235", child_state_word("merged", 0))]
     ro text = children_table_text("232", rows)
     assert(text.contains("| Номер | Тип | Название | Папка | Ветка | Сессия | Состояние | Затрагивает |"))
-    assert(text.contains("[doc/tasks/233-panel](../../233-panel)"))
+    assert(text.contains("[docs/tasks/233-panel](../../233-panel)"))
     assert(text.contains("ждёт 233"))
     ro back = children_parse(text)
     assert(back.len() == 3)
@@ -175,11 +175,11 @@ test "child: the proposals name an epic, the old words are read as a child, an u
 }
 
 test "child: the note to the agent tells whose child the task is and where it merges" {
-    ro note = child_note("233", "Панель", "doc/tasks/233-panel/task", "epic", "232", "Твоя ветка вливается в ветку родителя.")
+    ro note = child_note("233", "Панель", "docs/tasks/233-panel/input", "epic", "232", "Твоя ветка вливается в ветку родителя.")
     assert(note.contains("дочерняя задача эпика 232"))
-    assert(note.contains("doc/tasks/233-panel/task/message.md"))
+    assert(note.contains("docs/tasks/233-panel/input/message.md"))
     assert(note.contains("progress.md"))
-    ro own = child_note("234", "Своя", "doc/tasks/234-svoya/task", "", "", "x")
+    ro own = child_note("234", "Своя", "docs/tasks/234-svoya/input", "", "", "x")
     assert(!own.contains("подзадача"))
     assert(!own.contains("эпик"))
     assert(child_note("235", "Э", "d/task", "epic", "100", "x").contains("эпика 100"))

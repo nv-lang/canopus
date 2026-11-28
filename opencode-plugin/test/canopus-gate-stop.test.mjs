@@ -21,9 +21,9 @@ const dbPath = path.join(tmp, "opencode.db")
 ;await (await import("./fixture-settings.mjs")).deleteFixtureRuntime("PRESENCE")
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
-mkdirSync(path.join(proj, "doc", "tasks", "007-x"), { recursive: true })
+mkdirSync(path.join(proj, "docs", "tasks", "007-x"), { recursive: true })
 writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({}))
-const LOG = path.join(proj, "doc", "tasks", "007-x", "log.md")
+const LOG = path.join(proj, "docs", "tasks", "007-x", "log.md")
 
 let fail = 0
 const cell = (name, ok, detail = "") => {
@@ -117,7 +117,7 @@ const heart = setInterval(beat, 300)
 
 const stop = await mod.default.setup(ctx)
 for (const s of SESS) await hooks.context({ sessionID: s, system: [], model: { id: "opus", providerID: "claude-code" } })
-const logLine = (s, text = "остановка на воротах") => tools.log_line.execute({ file: "doc/tasks/007-x/log.md", kind: "ворота", text }, { sessionID: s })
+const logLine = (s, text = "остановка на воротах") => tools.log_line.execute({ file: "docs/tasks/007-x/log.md", kind: "ворота", text }, { sessionID: s })
 const idleTab = (s) => core.saveCard({ ...core.readJson(core.cardFile(s)), busy: false })
 const endTurn = async (s, text, at = Date.now()) => {
   msg(s, "assistant", { content: [{ type: "text", text }] }, at)
@@ -140,12 +140,12 @@ const a1 = await logLine("sesGATE1")
 cell("GS-2a no open question: the entry is written and the answer says no question to the owner, with the tool and the three parts", /Записано в log.md: .* ворота: /.test(a1.content) && /Ворота записаны, но вопроса владельцу нет: задай его сейчас инструментом question — вопрос, рекомендация, довод/.test(a1.content), JSON.stringify(a1))
 cell("GS-2b the entry is in log.md (not refused)", readFileSync(LOG, "utf8").length > before.length && / ворота: остановка на воротах/.test(readFileSync(LOG, "utf8")), "")
 cell("GS-2c the plugin noted the stop of that tab", !!gateOf("sesGATE1"), JSON.stringify(gateOf("sesGATE1")))
-const a1b = await tools.log_line.execute({ file: "doc/tasks/007-x/log.md", kind: "документ", text: "x" }, { sessionID: "sesGATE1" })
+const a1b = await tools.log_line.execute({ file: "docs/tasks/007-x/log.md", kind: "документ", text: "x" }, { sessionID: "sesGATE1" })
 cell("GS-2d other kinds: the plain answer", /^Записано в log.md: /.test(a1b.content) && !/вопроса владельцу нет/.test(a1b.content), JSON.stringify(a1b))
 fw.handleFormEvent({ type: "form.created", data: { form: { id: "frm_g2", sessionID: "sesGATE2", title: "Questions", metadata: { kind: "question" }, fields: [{ key: "q0", description: "Принять серию?", options: [{ label: "Да (Recommended)" }, { label: "Нет" }] }] } } })
 const a2 = await logLine("sesGATE2")
 cell("GS-2e a question to the owner is open (forms/): the plain answer, no stop noted", /^Записано в log.md: /.test(a2.content) && !/вопроса владельцу нет/.test(a2.content) && !gateOf("sesGATE2"), JSON.stringify([a2, gateOf("sesGATE2")]))
-const a0 = await tools.log_line.execute({ file: "doc/tasks/007-x/log.md", kind: "ворота", text: "без сессии" }, {})
+const a0 = await tools.log_line.execute({ file: "docs/tasks/007-x/log.md", kind: "ворота", text: "без сессии" }, {})
 cell("GS-2f no session in the call: written, plain answer", /^Записано в log.md: /.test(a0.content), JSON.stringify(a0))
 
 // ---- GS-4 the plugin: letter, mark, clearing

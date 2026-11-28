@@ -271,7 +271,7 @@ export type CanopusConfig = {
   /** принятая, но не очищенная задача: через столько минут — письма приёмщику и автору (0 — нет) */
   acceptedReminderMin: number
   plansDir: string
-  /** каталог папок задач от корня репозитория (tasks_dir, задача 058; по умолчанию doc/tasks; "" — папок нет): включён, когда он есть в целевой ветке */
+  /** каталог папок задач от корня репозитория (tasks_dir, задача 058; по умолчанию docs/tasks; "" — папок нет): включён, когда он есть в целевой ветке */
   tasksDir: string
   planName: string
   planRoundsMax: number
@@ -463,8 +463,8 @@ export function loadConfig(dir: string): CanopusConfig {
     stepOldMin: num(j.step_old_minutes, 300),
     longTurnMin: num(j.long_turn_minutes, 360),
     acceptedReminderMin: num(j.accepted_reminder_min, 30),
-    plansDir: typeof j.tasks_dir === "string" ? j.tasks_dir.trim() : "doc/tasks",
-    tasksDir: typeof j.tasks_dir === "string" ? j.tasks_dir.trim() : "doc/tasks",
+    plansDir: typeof j.tasks_dir === "string" ? j.tasks_dir.trim() : "docs/tasks",
+    tasksDir: typeof j.tasks_dir === "string" ? j.tasks_dir.trim() : "docs/tasks",
     planName: typeof j.plan_name === "string" && j.plan_name.includes("{n}") ? j.plan_name : "{n}-{slug}.md",
     planRoundsMax: num(j.plan_rounds_max, 4),
     planCleanRounds: Math.max(1, num(j.plan_clean_rounds, 2)),
@@ -1110,7 +1110,7 @@ export function checkedPlace(dir: string, cfg: CanopusConfig, n: number | string
 
 /** Старт процесса сервера (не загрузки плагина: OpenCode грузит его заново в том же процессе на каждую папку). */
 export const PROCESS_START = Number(runtimeValue("PROCESS_START")) || Date.now() - process.uptime() * 1000
-// Замер 2026-10-13 по базе за 7 дней (doc/tasks/036-hung-turn-detection/task/analysis.md): тишина между строками внутри закрытых
+// Замер 2026-10-13 по базе за 7 дней (docs/tasks/036-hung-turn-detection/input/analysis.md): тишина между строками внутри закрытых
 // ходов — медиана 0,05 с, 95-й процентиль 1,8 с, 99-й 62 с, 99,9-й 194 с, максимум 81 мин (один ход с долгим инструментом).
 // Окно открытого хода 45 мин, порог «завис» 15 мин.
 const OPEN_TURN_MAX_MS = runtimeValue("OPEN_TURN_MAX_MS")
@@ -1719,12 +1719,12 @@ acceptor — роль приёмщика (разделяемая) при нас�
 перезапуском OpenCode, плагин подхватывает письмом «продолжай». Служебным письмам плагина не отвечают.
 Спросивший ждёт ответ canopus_wait в том же ходе — ответ приходит туда, без отдельного пробуждения.
 
-ЗАДАЧИ. Одна задача — один номер и общий каталог приложения/плагина: <project>/<tasks_dir>/NNN-slug/, без проекта — ~/.canopus/tasks/NNN-slug/. Состояние — state.json. В проекте с папками задач (настройка tasks_dir, по умолчанию doc/tasks; включена, когда
+ЗАДАЧИ. Одна задача — один номер и общий каталог приложения/плагина: <project>/<tasks_dir>/NNN-slug/, без проекта — ~/.canopus/tasks/NNN-slug/. Состояние — state.json. В проекте с папками задач (настройка tasks_dir, по умолчанию docs/tasks; включена, когда
 каталог есть в целевой ветке) номер задачи — номер её папки NNN-<slug>/, в показе «045»; запись плагина
 носит тот же номер. В проекте без папок у задачи номер N (сквозной в проекте, только растёт; при доработке и передаче не
 меняется), в показе тоже тремя цифрами («094»; больше тысячи — как есть): у всех задач всех проектов одна подпись, без «#» (решётка с числом — ссылка на issue GitHub). По номеру задачу называют владелец, интегратор и canopus_list; заголовок сессии — «045 исп название».
   Новая задача в проекте с папками: номер — 1 + наибольший из записей и папок во всех рабочих деревьях и ветках (локальных и
-    origin); плагин пишет папку на ветку задачи и коммитит её (task/message.md — поле message дословно, без него — шаблон из полей;
+    origin); плагин пишет папку на ветку задачи и коммитит её (input/message.md — поле message дословно, без него — шаблон из полей;
     log.md — первая строка). Живые документы и состояние общие, исходный код основной копии не меняется; документы в ветках — снимки. Папка уже есть — canopus_spawn {task: N, goal} заводит запись с её номером.
   Сессия задачи — один запуск агента внутри задачи (исполнитель «исп», приёмщик «прм», сессии методики С1, С2, С3п, С4…), своего
     номера у неё нет: canopus_spawn {task: N, session: "С4", goal} — сессия «045 С4-3» (код и его порядковый номер в задаче) с номером
@@ -1735,7 +1735,7 @@ acceptor — роль приёмщика (разделяемая) при нас�
     "deliver", n, text}.
   Маршрут задачи (задача 092) — данные записи: route «full» (по умолчанию), «fast» или «small» (задача 191), числа цикла ceiling/clean_runs/probes (не ниже
     минимумов методики: 1 и 3), route_word — слово владельца дословно с датой. canopus_spawn {route: "fast", route_word, ...} ставит быстрый
-    путь, если постановка полна (пункты «Критерии приёмки» и строка с веткой), иначе отказ «быстрый путь требует: …». Правка task/message.md после слова
+    путь, если постановка полна (пункты «Критерии приёмки» и строка с веткой), иначе отказ «быстрый путь требует: …». Правка input/message.md после слова
     помечает запись (route_word_stale): в list, show и каждом шаге canopus_task предупреждение «постановка изменена после слова завода: нужно новое слово
     владельца»; canopus_task {action: "route", n, route: "fast", route_word} обновляет слово, {route: "full", text: "<причина>"} возвращает на полный путь.
     Малый маршрут (задача 191; владелец, 2026-10-25): вход — фразы владельца «сделай X мгновенно» и «сделай X, супер быстро»,
@@ -1745,7 +1745,7 @@ acceptor — роль приёмщика (разделяемая) при нас�
     строка с отношением к норме 10 минут от слова владельца; documentary результат не требует выдумывать URL. Технический просмотр не финальная owner acceptance; принимает интегратор по слову владельца: canopus_task {action: "accept", n, text: "<слово
     владельца с датой>"} — влитие в целевую ветку обязательно, замка и шагов приёмки нет. Время фразы: route_word_at (ISO-дата или
     миллисекунды) — время сообщения владельца; без него отсчёт идёт от записи постановки, и в журнале пометка «время записи, не сообщения».
-  Подзадача — отдельная задача со своим номером и папкой: canopus_spawn {part_of: N, ...}; первая строка её task/message.md —
+  Подзадача — отдельная задача со своим номером и папкой: canopus_spawn {part_of: N, ...}; первая строка её input/message.md —
     «Часть задачи NNN «…».», в log.md родителя — строка о заведении. Правило: своя приёмка или отдельное попадание в main —
     подзадача; следующий шаг той же работы (проверка, правка по находкам, продолжение, передача) — сессия.
   Агент вне OpenCode берёт номер тем же счётом: node scripts/task-number.mjs --dir <дерево> --title "<название>".
@@ -1775,7 +1775,7 @@ acceptor — роль приёмщика (разделяемая) при нас�
 
 ПЛАНИРОВАНИЕ (задача-план). Это задача, в которой исполнитель не пишет код, а составляет файл плана. Устройство по шагам:
   1. Интегратор: canopus_spawn {kind: "plan", goal: <исходная задача, которую план должен решить>, plan_parent?: <номер плана-родителя для подплана>}.
-  2. Плагин даёт исполнителю шаблон плана, следующий свободный номер и файл в tasks_dir (по умолчанию doc/tasks) внутри worktree задачи.
+  2. Плагин даёт исполнителю шаблон плана, следующий свободный номер и файл в tasks_dir (по умолчанию docs/tasks) внутри worktree задачи.
      Исполнитель пишет план (фазы, шаги с «где» и «после», приёмка у каждого шага, открытые вопросы), коммитит и отчитывается; форму плана
      плагин проверяет при сдаче и с ошибкой формы отчёт не принимает.
   3. Перепроверка раундами, каждый раунд — новая сессия приёмщика: canopus_task review, check по каждому шагу (plan_acceptance), затем
@@ -1853,7 +1853,7 @@ force, пароль, токен, деньги, расширение прав, с
 
 РАБОЧИЕ ВОПРОСЫ (ADR-0017). ${QUESTION_ROUTING_HINT}
 canopus_question {action: "ask", text, context} сохраняет исходный qid/task/project/source/context.
-Интегратору: claim подтверждает получение, resolve {id, epoch, text, sources:[{path:"doc/...", sha256, quote}]} возвращает ответ с проверенным артефактом. Это не полномочие владельца.
+Интегратору: claim подтверждает получение, resolve {id, epoch, text, sources:[{path:"docs/...", sha256, quote}]} возвращает ответ с проверенным артефактом. Это не полномочие владельца.
 default {id, epoch, sources, deadline?} — заранее объявить только continue_assigned той же порученной неблокированной работы, не произвольный текст/разрешение. Host сохраняет assignment/scope и проверяет его снова по сроку; предел — исходные 15 минут. Нет безопасного default/продолжения — durable адресный blocker ответственному, не новый owner-вопрос о поиске факта. HOLD, owner gates и границы сроком не снимаются.
 escalate с точным оставшимся решением и источником — только для настоящего owner gate. status показывает исходный вопрос и состояние.
 Исходный адресат после получения текстового/почтового ответа вызывает ack {id}; постановка в ящик и HTTP 200 не означают получения или старта.
@@ -2610,7 +2610,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
 
   const canopusQuestion: CanopusTool = {
     name: "canopus_question",
-    description: "Рабочие вопросы через ответственного автора/актуального интегратора (ADR-0017). ask сохраняет qid/контекст, status читает состояние. claim подтверждает получение. resolve требует doc/ источники (path, sha256, точная quote). default заранее фиксирует только continue_assigned, источник и deadline: host привязывает к той же порученной работе; срок не выдаёт прав, иначе адресный blocker. escalate — только настоящее оставшееся решение владельца. ack исходного адресата подтверждает получение; enqueue не receipt. answer_*, закрытый список и HOLD не меняются.",
+    description: "Рабочие вопросы через ответственного автора/актуального интегратора (ADR-0017). ask сохраняет qid/контекст, status читает состояние. claim подтверждает получение. resolve требует docs/ источники (path, sha256, точная quote). default заранее фиксирует только continue_assigned, источник и deadline: host привязывает к той же порученной работе; срок не выдаёт прав, иначе адресный blocker. escalate — только настоящее оставшееся решение владельца. ack исходного адресата подтверждает получение; enqueue не receipt. answer_*, закрытый список и HOLD не меняются.",
     input: {
       type: "object", properties: {
         action: { type: "string", enum: ["ask", "status", "claim", "resolve", "default", "escalate", "ack"] },
@@ -2619,7 +2619,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
         text: str("Исходный вопрос, ответ с проверенным источником или точное оставшееся решение владельца"),
         context: str("Контекст вопроса, не источник полномочий или разрешения"),
         deadline: { type: "integer", minimum: 0, description: "default: срок в миллисекундах эпохи; по умолчанию исходный deadline. Задать заранее, не продлевая исходный 15-минутный предел" },
-        sources: { type: "array", maxItems: 8, items: { type: "object", properties: { path: str("Публичный doc/ артефакт относительно репозитория исходного адресата"), sha256: str("SHA256 точного артефакта"), quote: str("Точная проверенная выдержка; не выдуманная цитата владельца") }, required: ["path", "sha256", "quote"], additionalProperties: false } },
+        sources: { type: "array", maxItems: 8, items: { type: "object", properties: { path: str("Публичный docs/ артефакт относительно репозитория исходного адресата"), sha256: str("SHA256 точного артефакта"), quote: str("Точная проверенная выдержка; не выдуманная цитата владельца") }, required: ["path", "sha256", "quote"], additionalProperties: false } },
       }, required: ["action"], additionalProperties: false,
     },
     execute: async (input: any, sessionID: string) => {
@@ -2704,15 +2704,15 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
     criteria: str("Acceptance criteria: what is run, what must be green, what proves it (and the 'feed it something wrong' probe)"),
     boundaries: str("Boundaries: what is NOT done in this task"),
     open_questions: str("Open questions: each with an addressee and a default"),
-    owner_words: str("The owner's words word for word with date and source: - «…» (владелец, ГГГГ-ММ-ДД, чат оркестратора). Required for a new task with a folder when message is absent (section «Чего хочет владелец» of task/message.md)"),
-    result: str("Result and where it lands: the place where it acts (e.g. doc/canon/process.md, section «…») or «нет: результат — код: <what is delivered>». Required for a new task with a folder when message is absent"),
+    owner_words: str("The owner's words word for word with date and source: - «…» (владелец, ГГГГ-ММ-ДД, чат оркестратора). Required for a new task with a folder when message is absent (section «Чего хочет владелец» of input/message.md)"),
+    result: str("Result and where it lands: the place where it acts (e.g. docs/canon/process.md, section «…») or «нет: результат — код: <what is delivered>». Required for a new task with a folder when message is absent"),
     links: str("Links to other tasks (task-sessions.md of the methodology): lines «Зависит от», «Блокирует», «Пересекается (файлы)», «Начинается после», tasks by their folder paths; absent - «нет: … не передано»"),
     priority: { type: "string", enum: [...PRIORITIES], description: "P0 emergency, P1 first queue, P2 normal (default from the project), P3 when hands are free" },
     extra: { type: "object", description: "canopus_spawn: values of the project's extra task fields {id: one line up to 300 characters}; the ids are declared by the project (task_extra_fields, see canopus_config show). The legacy assign input accepts the field for compatibility but assignment is refused", additionalProperties: { type: "string" } },
   }
   // МАРШРУТ ЗАДАЧИ (задача 092): поля входа canopus_spawn и canopus_task route; имена зарезервированы в config-schema.ts (RESERVED_FIELD_IDS)
   const routeInput = {
-    route: { type: "string", enum: ["full", "fast", "small"], description: "Маршрут задачи: full (по умолчанию), fast или small. fast требует полного task/message.md с нумерованными критериями, веткой и route_word («заводи» дословно с датой); инварианты не снимаются. small распознаёт оркестратор по фразам владельца «сделай X мгновенно»/«сделай X, супер быстро»: route_word дословно с датой, estimate = T, папка из трёх строк, формального приёмщика нет. По умолчанию приёмка — слово владельца на контуре (canopus_task contour); явный documentary criterion/exact SHA сохраняется, технический просмотр не отменяет финальные owner gates и не требует выдумывать URL." },
+    route: { type: "string", enum: ["full", "fast", "small"], description: "Маршрут задачи: full (по умолчанию), fast или small. fast требует полного input/message.md с нумерованными критериями, веткой и route_word («заводи» дословно с датой); инварианты не снимаются. small распознаёт оркестратор по фразам владельца «сделай X мгновенно»/«сделай X, супер быстро»: route_word дословно с датой, estimate = T, папка из трёх строк, формального приёмщика нет. По умолчанию приёмка — слово владельца на контуре (canopus_task contour); явный documentary criterion/exact SHA сохраняется, технический просмотр не отменяет финальные owner gates и не требует выдумывать URL." },
     route_word: str("fast: the owner's word «заводи <number>» word for word with the date and the source, e.g. «заводи 093» (владелец, 2026-10-18, чат оркестратора); required, must contain «заводи». small: the owner's entry phrase word for word with the date and the source; the plugin does not parse its wording"),
     route_word_date: str("fast/small: the date of the word, ГГГГ-ММ-ДД; absent - taken from route_word"),
     route_word_at: str("small: the time of the owner's message (an ISO date or milliseconds); absent - the time the spawn is recorded, and the task's log carries the honest note «время слова — время записи, не сообщения»"),
@@ -2803,7 +2803,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
     `3) выбрать иное — canopus_config {action: "guide"} (выбор профилей и публичных настроек проекта).`
 
   // ЗАДАЧА С ПАПКОЙ (задача 058). Новая задача — номер 1 + max по записям и папкам во всех деревьях и ветках, папка NNN-<slug>/
-  // (task/message.md и log.md) коммитом плагина на ветке задачи; задача, чья папка уже есть, — запись с её номером без коммита папки;
+  // (input/message.md и log.md) коммитом плагина на ветке задачи; задача, чья папка уже есть, — запись с её номером без коммита папки;
   // сессия задачи — запись в sessions той же задачи; подзадача — новая задача со строкой «Часть задачи NNN «…».».
   const spawnInFolder = async (a: { me: Card; project: string; cfg: CanopusConfig; fm: { top: string; rel: string }; input: any; taskNum?: number; code: string; partOf?: number; role: string; model: string; recTier: Tier; tier: Tier; from?: Tier; chosen: any; title: string; extra?: Record<string, string> }): Promise<{ content: string }> => {
     const { me, project, cfg, fm, input, taskNum, code, partOf, role, model, recTier, chosen, extra } = a
@@ -2835,13 +2835,13 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
         if (!onBranch.length) return { content: `Задача не поставлена: папка ${names[0]} есть только незакоммиченной (${hits.map((h) => h.where).join("; ")}) — закоммить её на ветке и повтори.` }
         const inTarget = onBranch.find((h) => h.ref === cfg.targetBranch || h.ref === `origin/${cfg.targetBranch}`)
         const hit = inTarget ?? onBranch[0]
-        const ftitle = String(input.title ?? "").trim() || titleOfMessage(hit.name, readFolderFile(fm.top, fm.rel, hit, "task/message.md"))
+        const ftitle = String(input.title ?? "").trim() || titleOfMessage(hit.name, readFolderFile(fm.top, fm.rel, hit, "input/message.md"))
         // маршрут задачи (задача 092): постановка быстрого пути проверяется по тексту папки до того, как запись заведена или старая перенесена
-        const rp = planRoute(input, readFolderFile(fm.top, fm.rel, hit, "task/message.md"), cfg.routeDefaults)
+        const rp = planRoute(input, readFolderFile(fm.top, fm.rel, hit, "input/message.md"), cfg.routeDefaults)
         if (!rp.ok) return { content: rp.refusal }
         const moved = old ? moveToLegacy(project, taskNum) : ""
         try {
-          t = createTask({ ...common, ...rp.fields, title: ftitle, slug: hit.name.replace(/^\d+-/, ""), criteria: input.criteria?.trim() || `по заданию ${fm.rel}/${hit.name}/task/message.md` }, placeOf, { n: taskNum, fill: () => ({ folder: `${fm.rel}/${hit.name}`, sessions: [] }) })
+          t = createTask({ ...common, ...rp.fields, title: ftitle, slug: hit.name.replace(/^\d+-/, ""), criteria: input.criteria?.trim() || `по заданию ${fm.rel}/${hit.name}/input/message.md` }, placeOf, { n: taskNum, fill: () => ({ folder: `${fm.rel}/${hit.name}`, sessions: [] }) })
         } catch (e: any) {
           if (e?.placeRefusal) return { content: `Задача не поставлена: ${e.message}` }
           return { content: `Задача не поставлена: запись ${taskNum} в этот миг завёл другой процесс (${e?.code ?? e}). Повтори.` }
@@ -2867,14 +2867,14 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
         } else {
           const ph = findFolder(fm.top, fm.rel, partOf)
           if (!ph.length) return { content: `Подзадача не поставлена: задачи-родителя ${pad3(partOf)} нет (ни записи с папкой, ни папки в деревьях и ветках).` }
-          parentTitle = titleOfMessage(ph[0].name, readFolderFile(fm.top, fm.rel, ph[0], "task/message.md"))
+          parentTitle = titleOfMessage(ph[0].name, readFolderFile(fm.top, fm.rel, ph[0], "input/message.md"))
         }
       }
       // задание по образцу Канона (задача 065): message без разделов образца или нет owner_words и result — отказ до номера и папки;
       // малому маршруту (задача 191) большой образец не нужен: папка — три строки из полей (smallMessage), проверяет их planRoute
       const small = input.route === "small"
       if (small && !String(input.estimate ?? "").trim())
-        return { content: `Задача не поставлена: малый маршрут требует: estimate — оценка времени T одной строкой («5–10 мин»; она станет второй строкой task/message.md). Или поставь задачу без route (полный путь).` }
+        return { content: `Задача не поставлена: малый маршрут требует: estimate — оценка времени T одной строкой («5–10 мин»; она станет второй строкой input/message.md). Или поставь задачу без route (полный путь).` }
       const refusal = small ? undefined : messageRefusal(input)
       if (refusal) return { content: refusal }
       // текст задания собирается до записи задачи: по нему проверяется постановка быстрого пути (задача 092), от него берётся хеш слова завода
@@ -2896,7 +2896,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
       try {
         sha = execFileSync("git", ["-C", fm.top, "rev-parse", "--short", base], { encoding: "utf8", windowsHide: true, stdio: ["ignore", "pipe", "ignore"] }).trim()
       } catch {}
-      const files = { [`${t.folder}/creation.json`]: JSON.stringify({ reason: input.creation_reason, checked_tasks: input.checked_tasks, why_new: input.why_new, approval: input[CREATION_APPROVAL] }, null, 2) + "\n", [`${t.folder}/task/message.md`]: text, [`${t.folder}/log.md`]: firstLogLine(t, own.trim() ? "текст интегратора (поле message)" : small ? "малый маршрут: три строки (что; T; слова владельца)" : "шаблон из полей задачи", `${cfg.targetBranch} ${sha}`.trim()) + (t.route === "fast" || t.route === "small" ? routeLogLine(t) : "") }
+      const files = { [`${t.folder}/creation.json`]: JSON.stringify({ reason: input.creation_reason, checked_tasks: input.checked_tasks, why_new: input.why_new, approval: input[CREATION_APPROVAL] }, null, 2) + "\n", [`${t.folder}/input/message.md`]: text, [`${t.folder}/log.md`]: firstLogLine(t, own.trim() ? "текст интегратора (поле message)" : small ? "малый маршрут: три строки (что; T; слова владельца)" : "шаблон из полей задачи", `${cfg.targetBranch} ${sha}`.trim()) + (t.route === "fast" || t.route === "small" ? routeLogLine(t) : "") }
       const c = t.branch ? commitFiles(fm.top, t.branch, base, files, `Add task ${pad3(t.n)}: ${t.slug}`) : ({ ok: false, error: "у задачи нет ветки" } as const)
       if (!c.ok) {
         t.creation_failure = c.error
@@ -2948,9 +2948,9 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
     description:
       [
         "Integrator only: propose a new task, get native owner confirmation, then start its independent session. No task/number/folder/worktree/executor exists before confirmation. creation_reason, checked_tasks and why_new are mandatory for a new task; the backend also finds possible duplicates. Existing task sessions do not need another creation approval. It runs in the OpenCode server even with no window. The report comes back as an answer to the task's qid: canopus_wait {qid}. Manage tasks with canopus_task. The owner reads title, goal and criteria too: write them in the owner's language named in your system block.",
-        "One task, one number. Application and plugin share <project>/<tasks_dir>/NNN-slug/ (default doc/tasks), or ~/.canopus/tasks/NNN-slug/ without a project; private state is state.json. In a project with task folders (tasks_dir, default doc/tasks, present in the target branch) the task number is the number of its folder NNN-<slug>/, shown as 045; without folders it is the plugin's number, shown the same way, 094 (every task of every project is shown with three digits and no hash, 1000 above 999: a hash with a number is a GitHub issue link). A new task: the plugin takes 1 + the largest number of the records and of the folders in every working tree and branch, writes the folder (task/message.md = message word for word, or a template from the fields when message is absent; log.md with its first line) on the task branch and commits it there. Live task documents and state.json use the canonical shared directory of the primary project; source code stays in the task worktree. task: N - a task whose folder already exists (no folder commit; refused when no folder has that number).",
+        "One task, one number. Application and plugin share <project>/<tasks_dir>/NNN-slug/ (default docs/tasks), or ~/.canopus/tasks/NNN-slug/ without a project; private state is state.json. In a project with task folders (tasks_dir, default docs/tasks, present in the target branch) the task number is the number of its folder NNN-<slug>/, shown as 045; without folders it is the plugin's number, shown the same way, 094 (every task of every project is shown with three digits and no hash, 1000 above 999: a hash with a number is a GitHub issue link). A new task: the plugin takes 1 + the largest number of the records and of the folders in every working tree and branch, writes the folder (input/message.md = message word for word, or a template from the fields when message is absent; log.md with its first line) on the task branch and commits it there. Live task documents and state.json use the canonical shared directory of the primary project; source code stays in the task worktree. task: N - a task whose folder already exists (no folder commit; refused when no folder has that number).",
         "A task session is a part of the task, not a task: session \"<code>\" (С1, С2, С3п, С4…; default исп = the executor) adds a session to task N: ident 045 С4-3 (code and its ordinal in the task) plus the launch number №n; the plugin writes the launch lines into progress.log and log.md of the folder. A method session submits to you (canopus_task submit), with no plugin review; the plugin's review of the task starts once, after canopus_task deliver. place: own (default for С2/С4/С6) - its own worktree and branch task/NNN-<code>-<k> from the task branch; task (default for the others) - the task worktree.",
-        "A sub-task (part_of: N) is a task of its own: own number and folder, the first line of its task/message.md is «Часть задачи NNN «…».», a line in the parent's log.md. The rule: an own acceptance or an own landing in main - a sub-task; the next step of the same work (a check, a fix by findings, a continuation, a handover) - a session.",
+        "A sub-task (part_of: N) is a task of its own: own number and folder, the first line of its input/message.md is «Часть задачи NNN «…».», a line in the parent's log.md. The rule: an own acceptance or an own landing in main - a sub-task; the next step of the same work (a check, a fix by findings, a continuation, a handover) - a session.",
         "goal, criteria - required (named code policy may require more: boundaries, open_questions). title? priority? P0..P3.",
         "route? full (по умолчанию) | fast (092) | small (191) — данные записи: route, route_basis, route_source, route_proposal, route_word, route_word_date, clean_runs, ceiling, probes, delivery_compressed, sources_list. fast требует route_word («заводи <номер>» дословно с датой) и полной постановки с нумерованными критериями/веткой; иначе отказ. Минимумы clean_runs 1/probes 3 не снижаются, числа задаёт именованная политика маршрута в коде; правка постановки помечает route_word_stale, canopus_task route обновляет слово или возвращает full. small распознаёт оркестратор по фразам владельца «сделай X мгновенно»/«сделай X, супер быстро»: route_word дословно с датой, estimate=T, папка из трёх строк. criteria необязателен (по умолчанию слово владельца на контуре); явный documentary criterion/exact SHA сохраняется. Формального приёмщика/цикла нет; технический просмотр не отменяет финальные owner gates и не требует выдумывать URL.",
         "The task text of a new task with a folder (no task:, part_of included) follows one template: «# Задание: <title>», a header, then sections «Чего хочет владелец», «Что нужно», «Критерии приёмки», «Результат и куда он попадает», «Связи», «Границы» in this order; an empty section is «нет: <why>». Without message the plugin builds it from the fields: owner_words (required: the owner's words word for word with date and source, e.g. - «сделай X» (владелец, 2026-10-17, чат оркестратора)), goal (paragraphs and «- » lines become the numbered points of «Что нужно»), criteria, result (required: where the result lands, or «нет: результат — код: <what is delivered>»), links? (Зависит от / Блокирует / Пересекается (файлы) / Начинается после), boundaries?; absent links or boundaries become «нет: … не передано». Without owner_words with a date or without result - a refusal naming what to add; a message without the template's sections is refused too. A project without task folders and a session of a task (task: N) need none of these fields.",
@@ -2959,7 +2959,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
         "Limits: the project caps running tasks per role (spawn_limits) and open tasks (inflight_limit). By default (accepted_slot: free) accepted tasks waiting for cleanup do not take a place in inflight_limit; cleanup_limit bounds them.",
         "kind: plan - a PLAN TASK: the executor writes no code, only a plan file. Steps:",
         "1. goal = the original task the plan must solve (criteria are not needed); plan_parent = number of the parent plan for a sub-plan.",
-        "2. The plugin gives the executor a template, the next free plan number and the file name in tasks_dir (default doc/tasks) inside the task worktree; the executor writes the plan (phases, steps with 'where' and 'after', acceptance per step, open questions), commits it and reports. The plugin refuses a report whose plan form is wrong.",
+        "2. The plugin gives the executor a template, the next free plan number and the file name in tasks_dir (default docs/tasks) inside the task worktree; the executor writes the plan (phases, steps with 'where' and 'after', acceptance per step, open questions), commits it and reports. The plugin refuses a report whose plan form is wrong.",
         "3. The reviewer rechecks the plan in rounds, each round a new session: canopus_task review, check each step, then canopus_task round with the numbers of remarks per grade. Blocking/significant remarks send the plan back; plan_clean_rounds clean rounds in a row (default 2) finish the recheck; plan_rounds_max (default 4) ends it anyway.",
         "4. The task gets status approval (waiting for approval). Who approves is the named internal plan-approval policy: owner (default) - the owner sees a notice and decides in the window with /plans (approve / approve with shortcuts / return with remarks; the status is also in /canopus); integrator - the task author (you) decides with canopus_task plan_decide.",
         "5. After approval a new reviewer writes the decision into the plan, lands it (merge, accept, cleanup). Then, with plan_steps: auto (default), the plugin starts a task for every step by the plan's dependencies, 'where' conflicts and the limits; with manual you get the list of steps and start the tasks yourself. When all steps are closed you get a letter to close the plan.",
@@ -2977,7 +2977,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
         session: str("Code of the task session: С1, С2, С3п, С4…; default исп (the executor)"),
         part_of: str("Number of the parent task: the new task is its sub-task (own number and folder)"),
         place: { type: "string", enum: ["own", "task"], description: "Where the session works: own - its own worktree and branch from the task branch (default for С2, С4, С6), task - the task worktree" },
-        message: str("Full text of task/message.md of a new task folder by the template (title, header, the six sections in order; the owner's words with date); without it the plugin builds the text from the fields"),
+        message: str("Full text of input/message.md of a new task folder by the template (title, header, the six sections in order; the owner's words with date); without it the plugin builds the text from the fields"),
         parent: str("The order of another project this task fulfils: \"project#N\" (from the order letter)"),
         ...routeInput,
       },
@@ -3004,7 +3004,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
       if (!fm && (taskNum !== undefined || sessionCode || partOf !== undefined))
         return { content: `Задача не поставлена: в проекте ${project} нет папок задач (каталога tasks_dir «${cfg.tasksDir}» нет в целевой ветке ${cfg.targetBranch}); task, session и part_of — для проекта с папками задач.` }
       if (taskNum !== undefined && partOf !== undefined) return { content: "Задача не поставлена: task (сессия задачи) и part_of (новая подзадача) вместе не бывают." }
-      // сессия задачи с папкой: обязательна цель сессии; критерии — у задачи (task/message.md)
+      // сессия задачи с папкой: обязательна цель сессии; критерии — у задачи (input/message.md)
       const missing = taskNum !== undefined ? (String(input.goal ?? "").trim() ? [] : ["goal"]) : missingFields(input, cfg).filter((f) => !(input.kind === "plan" && f === "criteria") && !(input.route === "small" && f === "criteria")) // у задачи-плана критерии — приёмки плана; у малой задачи критерий — слово владельца на контуре (задача 191)
       if (missing.length) return { content: `Задача не поставлена: нет полей ${missing.map((f) => FIELD_RU[f] ?? f).join(", ")} (обязательные поля встроенной политики). Работа не начинается без критериев приёмки.` }
       const extra = parseExtra(input.extra, cfg)
@@ -3074,7 +3074,7 @@ export function makeTools(host: CanopusHost): CanopusTool[] {
         const file = path.posix.join(cfg.plansDir.replace(/\\/g, "/"), cfg.planName.replace(/\{n\}/g, n).replace(/\{slug\}/g, slugify(title)))
         plan = { n, file, source: String(input.goal).trim(), ...(parentPlan ? { parent: parentPlan } : {}), rounds: [], clean: 0 }
       }
-      // маршрут задачи (задача 092): у проекта без папок задач постановки task/message.md нет — быстрый путь отказывает, полный записывается явно
+      // маршрут задачи (задача 092): у проекта без папок задач постановки input/message.md нет — быстрый путь отказывает, полный записывается явно
       if (plan && hasRouteInput(input)) return { content: "Задача не поставлена: route и его поля — для задачи с папкой, не для задачи-плана." }
       const rp = plan ? undefined : planRoute(input, undefined, cfg.routeDefaults)
       if (rp && !rp.ok) return { content: rp.refusal }
@@ -4346,7 +4346,7 @@ export function formatTaskLetter(t: Task): string {
   if (t.folder && s && s.code !== EXECUTOR_CODE) return sessionLetter(t, s)
   return [
     `ЗАДАЧА ${taskNo(t)} «${t.title}» от ${t.author_role} (сессия ${t.author}), приоритет ${t.priority}.`,
-    t.folder ? `ПАПКА ЗАДАЧИ: ${path.dirname(taskFile(t.project,t.n))}/ — единые задание task/message.md и журнал log.md; версионный путь в ветке: ${t.folder}/.` : "",
+    t.folder ? `ПАПКА ЗАДАЧИ: ${path.dirname(taskFile(t.project,t.n))}/ — единые задание input/message.md и журнал log.md; версионный путь в ветке: ${t.folder}/.` : "",
     refinementBlock(t),
     t.refinement ? `ЦЕЛЬ (исходная; действует уточнение выше): ${t.goal}` : `ЦЕЛЬ: ${s?.goal && s.goal !== t.goal ? `${s.goal}\nЦЕЛЬ ЗАДАЧИ: ${t.goal}` : t.goal}`,
     t.criteria ? `КРИТЕРИИ ПРИЁМКИ: ${t.criteria}` : "",
@@ -4375,7 +4375,7 @@ export function sessionLetter(t: Task, s: TaskSession): string {
   const tree = s.place === "own" && s.worktree ? `WORKTREE ГОТОВ: эта сессия работает в своём дереве ${s.worktree}, ветка ${s.branch} (создал плагин от ветки задачи ${t.branch}). Правь и коммить здесь.` : t.worktree ? `WORKTREE ГОТОВ: эта сессия работает в дереве задачи ${t.worktree}, ветка ${t.branch}. Правь и коммить здесь; другой worktree не создавай.` : t.branch ? `ВЕТКА: ${t.branch}.` : ""
   return [
     `ЗАДАЧА ${taskNo(t)} «${t.title}», СЕССИЯ ${sesLabel(s)} (запуск №${s.launch}) от ${t.author_role}, приоритет ${t.priority}.`,
-    `ПАПКА ЗАДАЧИ: ${path.dirname(taskFile(t.project,t.n))}/ — единые задание task/message.md и журнал log.md; версионный путь в ветке: ${t.folder}/.`,
+    `ПАПКА ЗАДАЧИ: ${path.dirname(taskFile(t.project,t.n))}/ — единые задание input/message.md и журнал log.md; версионный путь в ветке: ${t.folder}/.`,
     refinementBlock(t),
     `ЦЕЛЬ СЕССИИ: ${s.goal ?? t.goal}`,
     tree,

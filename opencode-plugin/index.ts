@@ -2588,7 +2588,7 @@ export function createCanopusPlugin(native: { get?: NativeGet; spacingMs?: numbe
 
     // СВОДКА ПРИ СЖАТИИ (задача 072). Сжатие — отдельный запрос модели; его системную часть строит хук сессии `compaction` (тот же снимок,
     // что у `context`). Шаблон сводки зашит в OpenCode и идёт последним сообщением, поэтому плагин дополняет только систему: правило из
-    // Канона (doc/canon/process.md, «Сводка при сжатии контекста») — в compaction-summary.ts. Вкладкам claude-code текст не нужен: их сжимает
+    // Канона (docs/canon/process.md, «Сводка при сжатии контекста») — в compaction-summary.ts. Вкладкам claude-code текст не нужен: их сжимает
     // сам Claude Code. Выключается настройкой compaction_summary.
     try {
       await ctx.session.hook("compaction", async (ev: any) => {

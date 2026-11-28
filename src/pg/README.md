@@ -4,7 +4,7 @@ The handlers of the effects `Store` (`save`, `load`) and `Journal` (`write`, `re
 (`alula.engine` of the package `alula`) on PostgreSQL, written straight on the driver
 [nova-postgres](https://github.com/nv-lang/nova-postgres) (a foreign package, read only). There is **no layer over databases**
 here and none is waited for: the SQL is PostgreSQL's, the calls are three functions (`list_sessions` came in task 099). Task 098
-(`doc/tasks/098-pg-storage/`); the session server (`src/server/`, task 099) gives a `PgWorld` to the engine of every session when its `store` is `pg`.
+(`docs/tasks/098-pg-storage/`); the session server (`src/server/`, task 099) gives a `PgWorld` to the engine of every session when its `store` is `pg`.
 
 This directory holds the SQL and the scripts; the Nova code is in three modules beside it (why three: see "Why three
 modules").

@@ -54,7 +54,7 @@ export fn scenario_route_recognize(settings ServerSettings) Proc Detach Time Net
     c.expect(rk_number(st0, "max_active") == 2, "and the limit")
 
     // the list of three works: a card with three rows, still no task
-    c.expect(rig.list_tasks("s-r7", "t1", [rk_item("new", "Работа А", 0, ["src/a.js"]), rk_item("new", "Работа Б", 0, ["src/b.js"]), rk_item("new", "Работа В", 0, ["doc/"])], "Работа А"), "the list of the agent is shown as cards")
+    c.expect(rig.list_tasks("s-r7", "t1", [rk_item("new", "Работа А", 0, ["src/a.js"]), rk_item("new", "Работа Б", 0, ["src/b.js"]), rk_item("new", "Работа В", 0, ["docs/"])], "Работа А"), "the list of the agent is shown as cards")
     ro st1 = rk_state(rig)
     c.expect(rk_cards(st1).len() == 3 && rk_task_is_null(st1), "three rows and no task before the answer")
     // the table of the candidates, the button "Применить": А into work, В to be discussed

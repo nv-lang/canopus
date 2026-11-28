@@ -21,10 +21,21 @@ nova.override.toml
 .canopus/plugin/local.json
 
 # Shared task runtime state is local; documents remain versioned (288).
-**/task/state.json
+**/input/state.json
 **/.task-store.lock/
 **/imported-sources/
 **/.task-store.claim-*
+**/input/watch.json
+**/input/snapshot.json
+**/input/tests-run.json
+
+# Private runtime in either task layout; input documents remain versioned.
+**/[0-9][0-9][0-9]*/state.json
+**/task/state.json
+**/[0-9][0-9][0-9]*/watch.json
 **/task/watch.json
+**/[0-9][0-9][0-9]*/snapshot.json
 **/task/snapshot.json
+**/[0-9][0-9][0-9]*/tests-run.json
 **/task/tests-run.json
+**/*.331.tmp

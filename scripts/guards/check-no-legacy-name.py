@@ -4,7 +4,7 @@
 Зачем: продукт переименован в Canopus одномоментно, без переходного периода (задача 284); старое имя,
     оставшееся в активном коде или документе, — это скрытый переходный период, который видно только
     машинной проверкой, а не вниманием.
-Проверяет: все отслеживаемые текстовые файлы, кроме истории (doc/tasks, doc/archive, doc/research) и
+Проверяет: все отслеживаемые текстовые файлы, кроме истории (docs/tasks, docs/archive, docs/research) и
     исследовательских репродукций (spikes), на образцы прежнего бренда: crew-harness, crew_harness,
     crewharness в любом регистре, CREW_*/OPENCODE_CREW_* переменные, идентификаторы crew_*/Crew*/crewXxx,
     имена файлов и папок с прежним брендом в активных областях. Сам себя и свой самотест не судит
@@ -28,7 +28,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib
 import guardlib  # noqa: E402
 
 # История, исследования и зафиксированные решения: имена там сохраняются заданием, страж их не судит.
-EXEMPT_DIRS = ("doc/tasks/", "doc/archive/", "doc/research/", "spikes/", "doc/canon/decisions/")
+EXEMPT_DIRS = ("docs/tasks/", "docs/archive/", "docs/research/", "spikes/", "docs/canon/decisions/")
 # Сам страж и его самотест держат образцы как предмет проверки.
 EXEMPT_PATHS = ("scripts/guards/check-no-legacy-name.py",
                 "scripts/guards/selftest/test-check-no-legacy-name.py")

@@ -60,7 +60,7 @@ H.settings({})
 cell("CS-4g canopus_config exposes only public settings", !/compaction_summary/.test(H.tools.canopus_config.description), "")
 
 // ---- CS-5 one pattern in the Canon; the code, the README and the Canon agree
-const processMd = read("doc/canon/process.md")
+const processMd = read("docs/canon/process.md")
 const at = processMd.indexOf("## Сводка при сжатии контекста")
 const next = at < 0 ? -1 : processMd.indexOf("\n## ", at + 5)
 const canon = at < 0 ? "" : processMd.slice(at, next < 0 ? undefined : next)
@@ -75,7 +75,7 @@ let head = ""
 try {
   head = readFileSync(path.join(ROOT, "opencode-plugin", "compaction-summary.ts"), "utf8").slice(0, 1500)
 } catch {}
-cell("CS-5f the module refers to the Canon section (the pattern is not repeated as a second source)", /doc\/canon\/process\.md/.test(head), head.slice(0, 80))
+cell("CS-5f the module refers to the Canon section (the pattern is not repeated as a second source)", /docs\/canon\/process\.md/.test(head), head.slice(0, 80))
 const readme = read("opencode-plugin/README.md")
 cell("CS-5g the README of the plugin has a paragraph on the summary at compaction: the hook, the setting, the Canon", /compaction_summary/.test(readme) && /session hook `compaction`/.test(readme) && /process\.md/.test(readme), "")
 

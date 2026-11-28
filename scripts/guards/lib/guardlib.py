@@ -19,6 +19,7 @@
 «судить нечего: <причина>», «пропущено: <причина>» или «FAIL: ...» (код 1).
 """
 import sys
+import difflib
 
 sys.dont_write_bytecode = True
 
@@ -192,14 +193,36 @@ class Source(object):
         Только в режиме индекса и только для файла, который уже есть в HEAD: первая версия файла
         целиком «добавлена» и этим понятием не судится. В режимах дерева и коммита, для файла не из
         HEAD и в репозитории без коммитов — None (не пустой список: «не определено» не то же, что
-        «ничего не добавлено»). Строки берутся из `git diff --cached -U0 --no-renames`, поэтому
+        «ничего не добавлено»). Для переименованного файла сравниваются прежний путь в HEAD и новый путь в индексе. Строки остальных файлов берутся из `git diff --cached -U0 --no-renames`, поэтому
         временный индекс (GIT_INDEX_FILE) соблюдается; возврат каретки в конце строки сохраняется.
         """
         if self.mode != "index":
             return None
         known = git(self.root, "rev-parse", "--verify", "--quiet", "HEAD:" + path, check=False)
         if not known.strip():
-            return None
+            # 331: moving a journal does not make its historical lines new.
+            # Git's rename map is computed from the actual (including temporary) index.
+            if not hasattr(self, "_renamed_from"):
+                self._renamed_from = {}
+                tokens = git(self.root, "diff", "--cached", "--name-status", "-z",
+                             "--find-renames", "--diff-filter=R").split(b"\0")
+                i = 0
+                while i + 2 < len(tokens):
+                    if tokens[i].startswith(b"R"):
+                        self._renamed_from[tokens[i + 2].decode("utf-8", "replace")] = tokens[i + 1].decode("utf-8", "replace")
+                        i += 3
+                    else:
+                        i += 1
+            previous = self._renamed_from.get(path)
+            if previous is None:
+                return None
+            old = git(self.root, "show", "HEAD:" + previous).decode("utf-8", "replace").split("\n")
+            current = git(self.root, "show", ":" + path).decode("utf-8", "replace").split("\n")
+            out = []
+            for kind, a, b, c, d in difflib.SequenceMatcher(None, old, current, autojunk=False).get_opcodes():
+                if kind in ("insert", "replace"):
+                    out.extend((n + 1, current[n]) for n in range(c, d))
+            return out
         raw = git(self.root, "diff", "--cached", "-U0", "--no-renames", "--text", "--no-color",
                   "--", path).decode("utf-8", "replace")
         out = []

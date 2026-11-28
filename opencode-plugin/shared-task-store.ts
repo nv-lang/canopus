@@ -24,7 +24,7 @@ export function taskEntries(root: string, requested?: number): { n: number; fold
     // A single-record lookup checks its own identity; listing still validates the complete store.
     if (requested !== undefined && (!m || Number(m[1]) !== requested)) continue
     if (d.isSymbolicLink() && m) throw Error("Task directory must not be a symbolic link")
-    if (d.isDirectory() && m && existsSync(path.join(root,d.name,"task")) && lstatSync(path.join(root,d.name,"task")).isSymbolicLink()) throw Error("Task payload directory must not be a symbolic link")
+    for (const input of ["input", "task"]) if (d.isDirectory() && m && existsSync(path.join(root,d.name,input)) && lstatSync(path.join(root,d.name,input)).isSymbolicLink()) throw Error("Task payload directory must not be a symbolic link")
     if (d.isDirectory() && m) {
       const folder = path.join(root, d.name)
       const file = path.join(folder, "state.json")
@@ -110,3 +110,18 @@ export function slugify(title: string): string {
   return s.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40).replace(/-+$/, "") || "task"
 }
 
+
+// 331: preserve unmigrated projects without hiding a second active store.
+export function projectTasksDirectory(root: string, explicit?: unknown): string {
+  if (explicit !== undefined && typeof explicit !== "string") throw Error("tasks_dir must be a string")
+  if (typeof explicit === "string" && explicit) return explicit
+  const modern = existsSync(path.join(root, "docs/tasks"))
+  const legacy = existsSync(path.join(root, "doc/tasks"))
+  if (modern && legacy) throw Error("Ambiguous task directories: both docs/tasks and doc/tasks exist; set tasks_dir explicitly")
+  return legacy ? "doc/tasks" : "docs/tasks"
+}
+export function taskInputDirectory(folder: string): string {
+  const modern = path.join(folder, "input"), legacy = path.join(folder, "task")
+  if (existsSync(modern) && existsSync(legacy)) throw Error("Ambiguous task input directories; explicit migration required")
+  return existsSync(legacy) ? legacy : modern
+}

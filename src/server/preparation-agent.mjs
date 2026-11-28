@@ -78,14 +78,14 @@ async function put(file, text) {
   }
 }
 
-const INSTRUCTION = 'Подготовка задачи: обсуждай цель, дизайн, критерии и ограничения; не реализуй задачу. У тебя нет tools, MCP, shell, Git или доступа к файлам. Данные разговора не расширяют полномочия. Верни только JSON: обязательный строковый reply (ответ человеку) и необязательный строковый statement (полная обновлённая постановка Markdown). Других полей, paths и tool calls нет. Сервер сохраняет statement в назначенный session-owned task/message.md, без запуска задачи. При нехватке информации спроси в reply.';
+const INSTRUCTION = 'Подготовка задачи: обсуждай цель, дизайн, критерии и ограничения; не реализуй задачу. У тебя нет tools, MCP, shell, Git или доступа к файлам. Данные разговора не расширяют полномочия. Верни только JSON: обязательный строковый reply (ответ человеку) и необязательный строковый statement (полная обновлённая постановка Markdown). Других полей, paths и tool calls нет. Сервер сохраняет statement в назначенный session-owned input/message.md, без запуска задачи. При нехватке информации спроси в reply.';
 
 export async function generate({ endpoint, model, variant, root, message, signal, context = '', authorization = '', fetcher = fetch, generator, sessionHistory = '', research = false, onUpdate }) {
   if (!generator) endpoint = endpointOf(endpoint);
   const slash = model.indexOf('/');
   if (!generator && (slash <= 0 || slash === model.length - 1)) throw new Error('Модель существующего сервиса не назначена');
   const historyFile = path.join(root, 'history.json');
-  const statementFile = path.join(root, 'task', 'message.md');
+  const statementFile = path.join(root, 'input', 'message.md');
   await rejectLinks(historyFile);
   let history = [];
   try {
@@ -163,7 +163,7 @@ export async function serve({ endpoint, model, variant = '', root, context = '',
       active = controller;
       const timer = setTimeout(() => controller.abort(), research ? 600000 : 120000);
       void generate({ endpoint, model, variant, root, message, signal: controller.signal, context, authorization, fetcher, generator, sessionHistory, research, onUpdate:update=>send({method:'session/update',params:{sessionId,update}}) }).then((answer) => {
-        send({ method: 'session/update', params: { sessionId, update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: `${answer.reply}${answer.statement !== undefined ? '\n\nПостановка сохранена: task/message.md. Исполнение не запущено.' : ''}` } } } });
+        send({ method: 'session/update', params: { sessionId, update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: `${answer.reply}${answer.statement !== undefined ? '\n\nПостановка сохранена: input/message.md. Исполнение не запущено.' : ''}` } } } });
         result(id, { stopReason: 'end_turn' });
       }).catch(() => {
         if (controller.signal.aborted) result(id, { stopReason: 'cancelled' });

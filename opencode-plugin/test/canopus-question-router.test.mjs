@@ -15,7 +15,7 @@ const cell = async (name, fn) => { await fn(); cells++; console.log(`ok ${name}`
 try {
   const { QuestionRouter } = await import('../question-router.ts')
   let target = 'ses_integrator', observed = { state: 'pending' }, sends = [], replies = 0
-  const source = { path: 'doc/source.md', sha256: 'a'.repeat(64), quote: 'проверенная команда' }
+  const source = { path: 'docs/source.md', sha256: 'a'.repeat(64), quote: 'проверенная команда' }
   const deps = {
     target: () => target,
     inspect: async () => observed,
@@ -150,7 +150,7 @@ try {
       await router.resolve(x.id, target, 1, 'проверенная команда', [source], 161)
       await router.tick(162)
       assert.equal(router.get(x.id).status, 'answer_queued')
-      assert.ok(sends.some(s => s.to === 'ses_worker' && s.replyTo === channel && s.text.includes('doc/source.md')))
+      assert.ok(sends.some(s => s.to === 'ses_worker' && s.replyTo === channel && s.text.includes('docs/source.md')))
       assert.throws(() => router.ack(x.id, 'ses_other', 163), /recipient/)
       router.ack(x.id, 'ses_worker', 163)
       assert.equal(router.get(x.id).status, 'answered')

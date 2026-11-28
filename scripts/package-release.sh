@@ -37,9 +37,9 @@ if [ -e "$kit" ] && [ -n "$(ls -A "$kit" 2>/dev/null)" ]; then
 fi
 
 mkdir -p "$kit/machines/product/libs" || { echo "FAIL: папка $kit не создаётся"; exit 1; }
-mkdir -p "$kit/doc/routes" || exit 1
+mkdir -p "$kit/docs/routes" || exit 1
 for route in fast full interactive planning; do
-  cp "$root/doc/routes/$route.md" "$kit/doc/routes/" || exit 1
+  cp "$root/docs/routes/$route.md" "$kit/docs/routes/" || exit 1
 done
 cp "$root/target/canopus.exe" "$kit/" || { echo "FAIL: программа не скопирована"; exit 1; }
 for preparation_asset in kimi-preparation.mjs kimi-preparation.md preparation-research.mjs; do

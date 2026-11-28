@@ -465,7 +465,7 @@ const gitConfig = path.join(tmp, "gitconfig")
 writeFixtureFile(gitConfig, "[user]\n\tname = Test\n\temail = test@example.com\n[commit]\n\tgpgsign = false\n[core]\n\tautocrlf = false\n[init]\n\tdefaultBranch = main\n")
 const genv = { ...process.env, GIT_CONFIG_GLOBAL: gitConfig, GIT_CONFIG_NOSYSTEM: "1", GIT_TERMINAL_PROMPT: "0" }
 const git = (cwd, ...a) => cp.execFileSync("git", a, { cwd, env: genv, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })
-const jfile = (root, folder) => path.join(root, "doc", "tasks", folder, "progress.log")
+const jfile = (root, folder) => path.join(root, "docs", "tasks", folder, "progress.log")
 const jwrite = (root, folder, lines, mtimeMs) => {
   const f = jfile(root, folder)
   mkdirSync(path.dirname(f), { recursive: true })
@@ -474,7 +474,7 @@ const jwrite = (root, folder, lines, mtimeMs) => {
   return f
 }
 const mwrite = (root, folder, title) => {
-  const f = path.join(root, "doc", "tasks", folder, "task", "message.md")
+  const f = path.join(root, "docs", "tasks", folder, "input", "message.md")
   mkdirSync(path.dirname(f), { recursive: true })
   writeFixtureFile(f, `# Задание: ${title}\n\nТекст задания.\n`)
 }
@@ -523,8 +523,8 @@ const sec = (h, m) => at(h, m) // seconds-exact times, so the order of files is 
   cell("AC-06 the journal of the tree is chosen (longer): k = 4 from the tree", sum0?.k === 4 && sum0.source === "tree" && sum0.signature === "г", show(sum0))
   const inTree = S.createScanner().scanAll(tree, NOW)
   cell("AC-06 a tab opened in the tree itself finds the same repository and trees", real(inTree.repo) === real(r.repo) && inTree.trees.length === 2 && inTree.tasks.length === 1 && inTree.tasks[0].copies.length === 2, show({ repo: inTree.repo, t: inTree.trees.length }))
-  const subMain = S.createScanner().scanAll(path.join(repo.main, "doc", "tasks"), NOW)
-  const subTree = S.createScanner().scanAll(path.join(tree, "doc"), NOW)
+  const subMain = S.createScanner().scanAll(path.join(repo.main, "docs", "tasks"), NOW)
+  const subTree = S.createScanner().scanAll(path.join(tree, "docs"), NOW)
   cell("AC-06 a tab in a subfolder of the repository or of a tree finds it too", real(subMain.repo) === real(r.repo) && real(subTree.repo) === real(r.repo) && subTree.trees.length === 2, show({ a: subMain.repo, b: subTree.repo }))
   // relative paths in the .git file of the tree, in `gitdir` of the registry and in `commondir`
   const treeGit = path.join(tree, ".git")
@@ -535,7 +535,7 @@ const sec = (h, m) => at(h, m) // seconds-exact times, so the order of files is 
   const rel = S.createScanner().scanAll(tree, NOW)
   const relMain = S.createScanner().scanAll(repo.main, NOW)
   cell("AC-06 relative gitdir and commondir are resolved from the folder of the file", real(rel.repo) === real(r.repo) && rel.trees.length === 2 && relMain.trees.length === 2 && real(S.findRepoRoot(tree)?.commonGit) === real(S.findRepoRoot(repo.main)?.commonGit), show({ repo: rel.repo, t: rel.trees.length, tm: relMain.trees.length }))
-  cell("AC-15 the title comes from the first line of task/message.md, latin letters stay", r.tasks[0].title === "Guards of the repository tests", show(r.tasks[0].title))
+  cell("AC-15 the title comes from the first line of input/message.md, latin letters stay", r.tasks[0].title === "Guards of the repository tests", show(r.tasks[0].title))
   const noMsg = makeRepo({})
   jwrite(noMsg.main, "003-no-title", ["С1 0/1 старт"], sec(11, 0))
   const rt = S.createScanner().scanAll(noMsg.main, NOW)
@@ -547,7 +547,7 @@ const sec = (h, m) => at(h, m) // seconds-exact times, so the order of files is 
   const tree = addTree(repo, "task-x")
   const longer = ["С5 0/14 старт", "С5 1/14 [10:00] а", "С5 2/14 [10:20] б", "С5 3/14 [10:40] в"]
   jwrite(tree, "002-guards", longer)
-  git(tree, "add", "--", "doc")
+  git(tree, "add", "--", "docs")
   git(tree, "commit", "-q", "-m", "journal")
   jwrite(repo.main, "002-guards", ["С5 0/14 старт", "С5 1/14 [10:00] а"], sec(10, 1))
   utimesSync(jfile(tree, "002-guards"), sec(10, 41) / 1000, sec(10, 41) / 1000)
@@ -594,7 +594,7 @@ const sec = (h, m) => at(h, m) // seconds-exact times, so the order of files is 
 {
   // AC-09 and AC-16: no journal, an empty one, no repository, a removed tree, an unreadable journal
   const repo = makeRepo({ "002-demo": { title: "Demo", lines: ["С1 0/1 старт"] } })
-  mkdirSync(path.join(repo.main, "doc", "tasks", "003-no-log"), { recursive: true })
+  mkdirSync(path.join(repo.main, "docs", "tasks", "003-no-log"), { recursive: true })
   jwrite(repo.main, "004-empty", [])
   const r = S.createScanner().scanAll(repo.main, NOW)
   const sm = P.summarizeTasks(r, NOW)
@@ -605,7 +605,7 @@ const sec = (h, m) => at(h, m) // seconds-exact times, so the order of files is 
   cell("AC-16 a tab outside any repository: no repository, no trees, no tasks", rn.repo === undefined && rn.trees.length === 0 && rn.tasks.length === 0, show(rn))
   const bare = makeRepo({})
   const rb = S.createScanner().scanAll(bare.main, NOW)
-  cell("AC-16 a repository with no doc/tasks: no tasks, the repository and one tree are known", real(rb.repo) === real(S.findRepoRoot(bare.main)?.root) && rb.trees.length === 1 && rb.tasks.length === 0, show(rb))
+  cell("AC-16 a repository with no docs/tasks: no tasks, the repository and one tree are known", real(rb.repo) === real(S.findRepoRoot(bare.main)?.root) && rb.trees.length === 1 && rb.tasks.length === 0, show(rb))
   const rep2 = makeRepo({ "002-demo": { title: "Demo", lines: ["С1 0/2 старт", "С1 1/2 а"] } })
   const tr = addTree(rep2, "task-gone")
   jwrite(tr, "002-demo", ["С1 0/2 старт", "С1 1/2 а", "С1 2/2 готово"])
@@ -1060,7 +1060,7 @@ procs.n = 0 // the fixtures are built, from here every started process is counte
         }
       }
     }
-    walk(path.join(root, "doc"))
+    walk(path.join(root, "docs"))
     try {
       walk(path.join(root, ".git", "worktrees"))
     } catch {}

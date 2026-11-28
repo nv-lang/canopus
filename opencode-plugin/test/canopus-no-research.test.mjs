@@ -1,7 +1,7 @@
 // Self-test of the plugin border with research code (node >= 24):  node test/canopus-no-research.test.mjs
 // Task 046 (owner, 2026-10-15): the unfinished transport of letters between machines (ntfy, GitHub, tailnet, the
-// bridge) lives in doc/research/remote-transport/ and is not part of the plugin. The plugin imports nothing from
-// doc/research, every relative import of its sources stays inside opencode-plugin/, no source creates the bridge or
+// bridge) lives in docs/research/remote-transport/ and is not part of the plugin. The plugin imports nothing from
+// docs/research, every relative import of its sources stays inside opencode-plugin/, no source creates the bridge or
 // routes a letter to another machine, the prototype files are gone from the plugin folder, and every test of the
 // npm test chain exists in test/. Static: the sources are read as text, nothing is imported.
 import { existsSync, readdirSync, readFileSync } from "node:fs"
@@ -25,7 +25,7 @@ for (const f of sources) {
 
 cell("the plugin sources are found and have imports", sources.includes("index.ts") && sources.includes("core.ts") && specs.length > 20, `${sources.length} files, ${specs.length} imports`)
 const research = specs.filter((s) => /doc[\\/]+research|remote-transport/.test(s.spec))
-cell("no source imports from doc/research", research.length === 0, research.map((s) => `${s.file}: ${s.spec}`).join("; "))
+cell("no source imports from docs/research", research.length === 0, research.map((s) => `${s.file}: ${s.spec}`).join("; "))
 const outside = specs.filter((s) => s.spec.startsWith(".")).filter((s) => {
   const target = path.resolve(plugin, s.spec)
   return path.relative(plugin, target).startsWith("..") || !existsSync(target)

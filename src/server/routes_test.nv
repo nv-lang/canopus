@@ -99,7 +99,7 @@ fn rt_independent(steps []RouteStep) -> int {
 }
 
 fn rt_repo_file(name str) -> str {
-    ro p = kit_repo_root().join("doc").join("routes").join(name)
+    ro p = kit_repo_root().join("docs").join("routes").join(name)
     with Fs = real_fs() {
         match read_text(p) {
             Ok(t) => t
@@ -109,7 +109,7 @@ fn rt_repo_file(name str) -> str {
 }
 
 test "routes: the prompt gets the number of the subtask and the folder of the task" {
-    assert(route_fill("файл {task}/message.{N}.md, подзадача {N}", 3, "doc/tasks/007-x/task") == "файл doc/tasks/007-x/task/message.3.md, подзадача 3")
+    assert(route_fill("файл {task}/message.{N}.md, подзадача {N}", 3, "docs/tasks/007-x/input") == "файл docs/tasks/007-x/input/message.3.md, подзадача 3")
 }
 
 test "routes: the number of the next task is the greatest number plus one, three digits" {
@@ -220,7 +220,7 @@ test "routes: the reviewer is the first of the order that is not the family of t
 fn rt_sample() -> RouteSession {
     mut rt = route_session_new()
     rt.apply("route_set", "{\"route\":\"fast\"}")
-    rt.apply("route_task", "{\"op\":\"open\",\"id\":\"007-sdelay\",\"number\":\"007\",\"dir\":\"/t/doc/tasks/007-sdelay/task\",\"shown\":\"doc/tasks/007-sdelay/task\",\"branch\":\"task/007-sdelay\",\"worktree\":\"/w/r-007-sdelay\",\"title\":\"Сделай X\"}")
+    rt.apply("route_task", "{\"op\":\"open\",\"id\":\"007-sdelay\",\"number\":\"007\",\"dir\":\"/t/docs/tasks/007-sdelay/input\",\"shown\":\"docs/tasks/007-sdelay/input\",\"branch\":\"task/007-sdelay\",\"worktree\":\"/w/r-007-sdelay\",\"title\":\"Сделай X\"}")
     rt
 }
 
@@ -375,12 +375,12 @@ test "routes: the journal replays the state: the task, the steps, a new task cle
 test "routes result repository: replay keeps the target and route_set cannot redirect an open task" {
     mut rt = route_session_new()
     rt.apply("route_set", "{\"repo\":\"projectb\",\"repo_label\":\"B\",\"repo_dir\":\"/result\",\"repo_common\":\"/result/.git\"}")
-    rt.apply("route_task", "{\"op\":\"open\",\"id\":\"001-work\",\"number\":\"001\",\"dir\":\"/owner/doc/tasks/001-work/task\",\"worktree\":\"/result-work\",\"repo_dir\":\"/result\"}")
+    rt.apply("route_task", "{\"op\":\"open\",\"id\":\"001-work\",\"number\":\"001\",\"dir\":\"/owner/docs/tasks/001-work/input\",\"worktree\":\"/result-work\",\"repo_dir\":\"/result\"}")
     rt.apply("route_set", "{\"route\":\"full\",\"repo\":\"projectc\",\"repo_dir\":\"/wrong\",\"repo_common\":\"/wrong/.git\"}")
     rt.normalize()
     assert(rt.result_repo == "projectb" && rt.repo_dir == "/result")
     assert(rt.result_common == "/result/.git" && rt.route == "full")
-    assert(rt.task_dir == "/owner/doc/tasks/001-work/task")
+    assert(rt.task_dir == "/owner/docs/tasks/001-work/input")
     ro view = rt_obj(route_view_text(rt, [], [], false, 0, task_extra_none()))
     assert(jtext(view, "result_repo") == "projectb" && jtext(view, "result_label") == "B")
 }
@@ -399,16 +399,16 @@ test "routes: the working folder of the agent is the tree of the subtask, else t
 
 test "routes: the prelude of a message: the instruction once, the files of the subtask each time, the prompt of a step" {
     ro doc = parse_route_doc("fast", rt_doc_text())
-    ro first = route_prelude(doc, true, "doc/tasks/007-x/task", 2, "")
+    ro first = route_prelude(doc, true, "docs/tasks/007-x/input", 2, "")
     assert(first.starts_with("[canopus]"))
     assert(first.contains("Делай быстро."))
-    assert(first.contains("doc/tasks/007-x/task"))
+    assert(first.contains("docs/tasks/007-x/input"))
     assert(first.contains("message.2.md"))
     assert(first.contains("progress.2.md"))
-    ro later = route_prelude(doc, false, "doc/tasks/007-x/task", 3, "")
+    ro later = route_prelude(doc, false, "docs/tasks/007-x/input", 3, "")
     assert(!later.contains("Делай быстро."))
     assert(later.contains("progress.3.md"))
-    ro step = route_prelude(doc, false, "doc/tasks/007-x/task", 3, "Сделай шаг.")
+    ro step = route_prelude(doc, false, "docs/tasks/007-x/input", 3, "Сделай шаг.")
     assert(step.contains("Сделай шаг."))
     assert(route_prelude(doc, false, "", 1, "").byte_len() == 0)
 }
@@ -432,7 +432,7 @@ test "routes: preparation is discussion and a statement, not an execution route"
     ro planning = parse_route_doc("planning", rt_repo_file("planning.md"))
     assert(planning.steps.len() == 0)
     assert(planning.instruction.contains("Подготовка задачи"))
-    assert(planning.instruction.contains("task/message.md"))
+    assert(planning.instruction.contains("input/message.md"))
     assert(planning.instruction.contains("не переключай режим автоматически"))
     for name in ["interactive.md", "fast.md", "full.md"] {
         assert(parse_route_doc("x", rt_repo_file(name)).instruction.contains("раздел «Задание»"))
@@ -460,9 +460,9 @@ test "routes: the place of work: a tree by default, the key of route_set turns i
     rt.apply("route_task", "{\"op\":\"open\",\"id\":\"007-x\",\"number\":\"007\",\"dir\":\"/d/s/tasks/007-x/task\",\"shown\":\"/d/s/tasks/007-x/task\",\"branch\":\"\",\"worktree\":\"\",\"title\":\"X\"}")
     assert(rt.task_open && rt.worktree == "")
     assert(rt.agent_dir("/repo") == "/repo")
-    rt.apply("route_task", "{\"op\":\"attach_tree\",\"branch\":\"task/007-x\",\"worktree\":\"/w/r-007-x\",\"base\":\"origin/main\",\"dir\":\"/w/r-007-x/doc/tasks/007-x/task\",\"shown\":\"doc/tasks/007-x/task\"}")
+    rt.apply("route_task", "{\"op\":\"attach_tree\",\"branch\":\"task/007-x\",\"worktree\":\"/w/r-007-x\",\"base\":\"origin/main\",\"dir\":\"/w/r-007-x/docs/tasks/007-x/input\",\"shown\":\"docs/tasks/007-x/input\"}")
     assert(rt.task_open && rt.worktree == "/w/r-007-x" && rt.branch == "task/007-x")
-    assert(rt.task_dir == "/w/r-007-x/doc/tasks/007-x/task")
+    assert(rt.task_dir == "/w/r-007-x/docs/tasks/007-x/input")
     assert(rt.agent_dir("/repo") == "/w/r-007-x")
     rt.apply("route_task", "{\"op\":\"park\",\"state\":\"kept\",\"unmerged\":1}")
     assert(!rt.task_open)
@@ -520,18 +520,18 @@ test "routes: the card to finish offers three ways: merge into main first, then 
 
 test "routes: the note about a planned task and its pictures is said only when there is something to say" {
     assert(route_files_hint("", 1, true, true) == "")
-    assert(route_files_hint("doc/tasks/007-x/task", 1, false, false) == "")
-    ro a = route_files_hint("doc/tasks/007-x/task", 2, true, false)
+    assert(route_files_hint("docs/tasks/007-x/input", 1, false, false) == "")
+    ro a = route_files_hint("docs/tasks/007-x/input", 2, true, false)
     assert(a.contains("message.2.md") && a.contains("«Задание»") && !a.contains("images/"))
-    ro b = route_files_hint("doc/tasks/007-x/task", 1, false, true)
-    assert(b.contains("doc/tasks/007-x/task/images/") && !b.contains("«Задание»"))
-    ro both = route_files_hint("doc/tasks/007-x/task", 1, true, true)
+    ro b = route_files_hint("docs/tasks/007-x/input", 1, false, true)
+    assert(b.contains("docs/tasks/007-x/input/images/") && !b.contains("«Задание»"))
+    ro both = route_files_hint("docs/tasks/007-x/input", 1, true, true)
     assert(both.contains("«Задание»") && both.contains("images/") && both.starts_with("[canopus]"))
 }
 
 test "routes: the prelude of the planning holds its instruction first" {
     ro doc = parse_route_doc("planning", rt_repo_file("planning.md"))
-    ro text = route_prelude(doc, true, "doc/tasks/007-x/task", 1, "")
+    ro text = route_prelude(doc, true, "docs/tasks/007-x/input", 1, "")
     assert(doc.instruction.byte_len() > 500)
     assert(text.starts_with("[canopus] Режим «Подготовка задачи»"))
     assert(text.contains("Подзадача 1"))
@@ -563,7 +563,7 @@ test "routes: wip - the journal says the tree of a work that is not a task, the 
     assert(jtext(where, "kind") == "wip" && jtext(where, "branch") == "" && jtext(where, "worktree") == "/w/r-ab12")
     assert(((where.get("work") ?? JsonValue.null()).bool() ?? false) && ((where.get("unmerged_commits") ?? JsonValue.null()).int() ?? 0) == 2)
     // the first work of the session is taken: the task opens on the same tree under the new branch, the wip fields are cleared
-    rt.apply("route_task", "{\"op\":\"open\",\"id\":\"001-x\",\"number\":\"001\",\"dir\":\"/w/r-ab12/doc/tasks/001-x/task\",\"shown\":\"doc/tasks/001-x/task\",\"branch\":\"task/001-x\",\"worktree\":\"/w/r-ab12\",\"base\":\"origin/main\",\"title\":\"X\",\"kind\":\"child\"}")
+    rt.apply("route_task", "{\"op\":\"open\",\"id\":\"001-x\",\"number\":\"001\",\"dir\":\"/w/r-ab12/docs/tasks/001-x/input\",\"shown\":\"docs/tasks/001-x/input\",\"branch\":\"task/001-x\",\"worktree\":\"/w/r-ab12\",\"base\":\"origin/main\",\"title\":\"X\",\"kind\":\"child\"}")
     assert(rt.wip_tree == "" && rt.worktree == "/w/r-ab12" && rt.branch == "task/001-x")
     assert(rt.agent_dir("/repo") == "/w/r-ab12")
     ro task = rt_obj(route_view_text(rt, [], [], false, 0, task_extra_none()))

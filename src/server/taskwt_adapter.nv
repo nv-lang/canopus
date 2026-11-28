@@ -46,13 +46,13 @@ export fn tk_branch_names(main_copy str) Proc -> []str {
     out
 }
 
-/// The names the next number of a task must stay above (task 192.13): the folders `doc/tasks` of `origin/main` and of the local `main` (after a fetch; with no network the last known `refs/remotes/origin/main` stays),
+/// The names the next number of a task must stay above (task 192.13): the folders `docs/tasks` of `origin/main` and of the local `main` (after a fetch; with no network the last known `refs/remotes/origin/main` stays),
 /// and the folders and branches of all the trees of the repository (`git worktree list`, the folder of the trees of the project is among them).
 export fn tk_number_names(main_copy str) Proc -> []str {
     mut out = []str.new()
     ro fetched = git_run(main_copy, ["fetch", "--quiet", "origin"])
     for rname in ["origin/main", "main"] {
-        ro r = git_run(main_copy, ["ls-tree", "--name-only", rname, "doc/tasks/"])
+        ro r = git_run(main_copy, ["ls-tree", "--name-only", rname, "docs/tasks/"])
         if r.ok {
             for line in r.text.lines() {
                 ro raw = line.trim_ascii()
@@ -260,7 +260,7 @@ export fn tk_publish(task_tree str, main_copy str, mode str) Proc -> TkPublish {
     tk_published_of(with Os = real_os(), Fs = real_fs() { publish_continue(task_tree, main_copy, tk_tests_green) })
 }
 
-/// The files of the task itself (`doc/tasks/<id>/`) are committed to the branch of the task before it is published (they are a part of the work); `rel` is the folder from the root of the tree.
+/// The files of the task itself (`docs/tasks/<id>/`) are committed to the branch of the task before it is published (they are a part of the work); `rel` is the folder from the root of the tree.
 /// "" - done (or nothing to commit), else why not.
 export fn tk_commit_task_files(tree str, rel str, number str) Proc -> str {
     // the record of the tests of the hub (`tests-run.json`) is not a file of the work: it stays out of the commit

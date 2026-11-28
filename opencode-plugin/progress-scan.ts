@@ -1,6 +1,6 @@
 // ХОД РАБОТ — ОБХОД ДЕРЕВЬЕВ И ЧТЕНИЕ ЖУРНАЛОВ (задача 004). Находит репозиторий вкладки, его рабочие деревья по реестру
 // `.git/worktrees` самого git (без процессов и без настроек плагина), читает `<каталог задач>/*/progress.log` байтами и держит кэш
-// (каталог задач — ключ tasks_dir проекта, задача 058; его передаёт вызывающий, по умолчанию doc/tasks)
+// (каталог задач — ключ tasks_dir проекта, задача 058; его передаёт вызывающий, по умолчанию docs/tasks)
 // разобранного. Только чтение: ничего не пишет туда, где наблюдает (DNC-02). Разбор строк и состояний — `progress.ts`.
 //
 // Нагрузка (REQ-10): обход файловой системы — не чаще WALK_MS на репозиторий; между обходами показ берёт готовый результат без
@@ -127,7 +127,7 @@ export function listTrees(place: RepoPlace): Tree[] {
   return out
 }
 
-/** Название задачи: заголовок `task/message.md` после «# Задание: », иначе имя папки без номера (Д-02). */
+/** Название задачи: заголовок `input/message.md` после «# Задание: », иначе имя папки без номера (Д-02). */
 export function taskTitle(folder: string, message: string | undefined): string {
   const m = message ? /^# Задание:[ \t]*(.+?)[ \t]*$/m.exec(message) : null
   return m?.[1] ?? (folder.replace(/^[0-9]+-/, "") || folder)
@@ -170,7 +170,7 @@ export type Scanner = {
 
 const EMPTY: ScanResult = { trees: [], journals: 0, complete: true, tasks: [] }
 /** Каталог задач по умолчанию (ключ tasks_dir, задача 058). */
-export const DEFAULT_REL = "doc/tasks"
+export const DEFAULT_REL = "docs/tasks"
 
 type Found = { tree: Tree; folder: string; file: string; mtimeMs: number; size: number; headMs?: number; bytes?: Buffer; stable?: boolean }
 
@@ -234,7 +234,7 @@ export function createScanner(opts: { walkMs?: number; parseBudget?: number } = 
       const old = prev?.journals.get(f.file)
       if (old) journals.set(f.file, old) // не дошла очередь разбора (или файл дописывают) — пока старый разбор
     }
-    // названия задач — из `task/message.md`, по паре (время, размер); читаются, когда название понадобилось (ленивое свойство
+    // названия задач — из `input/message.md`, по паре (время, размер); читаются, когда название понадобилось (ленивое свойство
     // `title`): панели нужны названия трёх задач, а не всех
     const prevTitles = prev?.titles
     const titleLoader = (folder: string, copies: Found[]) => {
@@ -244,7 +244,7 @@ export function createScanner(opts: { walkMs?: number; parseBudget?: number } = 
         if (done) return taskTitle(folder, text)
         done = true
         for (const f of copies) {
-          const mp = path.join(path.dirname(f.file), "task", "message.md")
+          const mp = path.join(path.dirname(f.file), "input", "message.md")
           const old = prevTitles?.get(mp)
           let c: TitleCache | undefined
           if (old) {

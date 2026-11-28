@@ -5,7 +5,7 @@ import {createHash} from "node:crypto"
 import path from "node:path"
 import os from "node:os"
 import {sharedTaskContext,bindSharedTaskContext,executionHoldBlocked} from "../opencode-plugin/shared-task-config.ts"
-import {taskEntries,recordFile,readTaskFile,writeTaskFile,withTaskLock,slugify} from "../opencode-plugin/shared-task-store.ts"
+import {taskEntries,recordFile,readTaskFile,writeTaskFile,withTaskLock,slugify,taskInputDirectory} from "../opencode-plugin/shared-task-store.ts"
 const args=process.argv.slice(2),action=args.shift()
 const option=name=>{const i=args.indexOf(name);return i<0?undefined:args[i+1]}
 const config=option("--config")??path.join(os.homedir(),".canopus/plugin/config.json")
@@ -22,7 +22,7 @@ const tasks={
  listTasks:()=>taskEntries(root).flatMap(e=>{const t=readTaskFile(e.file);return t?[t]:[]})
 }
 const pluginRoot=()=>path.dirname(config)
-const statementDir=file=>path.join(path.dirname(file),"task")
+const statementDir=file=>taskInputDirectory(path.dirname(file))
 const taskHold=(_p,n)=>{const state=tasks.loadTask(project,n);const file=path.join(path.dirname(tasks.taskFile(project,n)),"watch.json");if(!fs.existsSync(file))return;const r=JSON.parse(fs.readFileSync(file,"utf8"));if(r.n!==n||r.project!==state.project)throw Error("Shared task guard identity mismatch");return r.hold}
 const pendingEvent=t=>{
  if(!t?.application?.session)return false

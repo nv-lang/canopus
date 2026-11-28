@@ -121,7 +121,7 @@ cell("reset of paths (-- file) is not a change of the history", m("reset", "--",
 // ---- the files a write tool touches
 const wtT = (tool, input) => writeTargets(tool, input)
 cell("write/edit: filePath, path or file_path", J(wtT("write", { filePath: "/x/a.md" })) === J(["/x/a.md"]) && J(wtT("edit", { path: "/x/b.ts" })) === J(["/x/b.ts"]) && J(wtT("multiedit", { file_path: "/x/c" })) === J(["/x/c"]), J([wtT("write", { filePath: "/x/a.md" }), wtT("edit", { path: "/x/b.ts" })]))
-cell("patch: the files of the headers", J(wtT("patch", { patchText: "*** Begin Patch\n*** Update File: src/a.ts\n+x\n*** Add File: doc/b.md\n+y\n*** Delete File: old.txt\n*** End Patch" })) === J(["src/a.ts", "doc/b.md", "old.txt"]), J(wtT("patch", { patchText: "*** Update File: src/a.ts\n*** Add File: doc/b.md" })))
+cell("patch: the files of the headers", J(wtT("patch", { patchText: "*** Begin Patch\n*** Update File: src/a.ts\n+x\n*** Add File: docs/b.md\n+y\n*** Delete File: old.txt\n*** End Patch" })) === J(["src/a.ts", "docs/b.md", "old.txt"]), J(wtT("patch", { patchText: "*** Update File: src/a.ts\n*** Add File: docs/b.md" })))
 cell("other tools and no input: no files", wtT("read", { path: "/x" }).length === 0 && wtT("write", null).length === 0, "")
 
 

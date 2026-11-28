@@ -10,7 +10,7 @@
     папка части, ссылка на задачу в колонке State), таблица без колонки состояния, таблица в блоке
     кода, список задач без таблицы.
 Не проверяет: списки задач (их убирает правка README задач), содержимое ячеек статуса.
-Правило: doc/canon/process.md (список задач — папки, руками не ведётся); AC-15 задачи.
+Правило: docs/canon/process.md (список задач — папки, руками не ведётся); AC-15 задачи.
 
 Фикстура таблицы собирается при прогоне.
 """
@@ -39,9 +39,9 @@ def main():
     def check(repo, *args):
         return stlib.guard("check-no-status-table.py", repo, env, *args)
 
-    folder = {"doc/tasks/001-x/spec.md": "x\n", "doc/tasks/README.md": "x\n"}
+    folder = {"docs/tasks/001-x/spec.md": "x\n", "docs/tasks/README.md": "x\n"}
 
-    def red(readme, where, path="doc/tasks/README.md"):
+    def red(readme, where, path="docs/tasks/README.md"):
         def fn():
             files = dict(folder)
             files[path] = readme
@@ -50,7 +50,7 @@ def main():
             assert stlib.has_line(proc, "FAIL %s:%s: status-table:" % (path, where)), proc.out
         return fn
 
-    def green(readme, files=None, path="doc/tasks/README.md"):
+    def green(readme, files=None, path="docs/tasks/README.md"):
         def fn():
             f = dict(folder)
             f.update(files or {})
@@ -59,16 +59,16 @@ def main():
         return fn
 
     def legit_adr_registry():
-        files = {"doc/canon/decisions/README.md": "| № | Решение | Статус |\n|---|---|---|\n"
+        files = {"docs/canon/decisions/README.md": "| № | Решение | Статус |\n|---|---|---|\n"
                  "| [0001](ADR-0001-x.md) | Работа по методике | принято 2026-10-07 |\n",
-                 "doc/canon/decisions/ADR-0001-x.md": "x\n"}
+                 "docs/canon/decisions/ADR-0001-x.md": "x\n"}
         stlib.expect(check(fresh(files)), 0, "ок: осмотрено")
 
     def legit_parts_table():
         text = ("| Папка | Что | State |\n|---|---|---|\n"
-                "| `service/` | сервис ([задача](doc/tasks/001-x/)) | planned |\n"
+                "| `service/` | сервис ([задача](docs/tasks/001-x/)) | planned |\n"
                 "| [opencode-plugin/](opencode-plugin/) | плагин | in use |\n")
-        stlib.expect(check(fresh({"README.md": text, "doc/tasks/001-x/spec.md": "x\n", "opencode-plugin/a.txt": "x\n"})), 0, "ок: осмотрено")
+        stlib.expect(check(fresh({"README.md": text, "docs/tasks/001-x/spec.md": "x\n", "opencode-plugin/a.txt": "x\n"})), 0, "ок: осмотрено")
 
     pr.probe("законное", "реестр ADR: ссылки на файлы решений", legit_adr_registry)
     pr.probe("законное", "таблица частей корня: задача в колонке State, не в первой ячейке", legit_parts_table)
@@ -86,9 +86,9 @@ def main():
     pr.probe("красная", "одна строка среди нескольких законных",
              red("| Что | Статус |\n" + SEP + "| [ADR](../canon/README.md) | ок |\n| [001](001-x/) | идёт |\n", "4"))
     pr.probe("иной-синтаксис", "ссылка от другого файла: ../tasks/001-x/",
-             red("| Задача | Статус |\n" + SEP + "| [001](../tasks/001-x/) | идёт |\n", "3", path="doc/canon/list.md"))
-    pr.probe("иной-синтаксис", "ссылка на папку от корня: doc/tasks/001-x",
-             red("| Задача | Статус |\n" + SEP + "| [001](doc/tasks/001-x) | идёт |\n", "3", path="README.md"))
+             red("| Задача | Статус |\n" + SEP + "| [001](../tasks/001-x/) | идёт |\n", "3", path="docs/canon/list.md"))
+    pr.probe("иной-синтаксис", "ссылка на папку от корня: docs/tasks/001-x",
+             red("| Задача | Статус |\n" + SEP + "| [001](docs/tasks/001-x) | идёт |\n", "3", path="README.md"))
     pr.probe("мишень", "нет ни одного .md — мишень потеряна",
              lambda: stlib.expect(check(fresh({"a.txt": "x\n"})), 1, "FAIL: мишень потеряна"))
     return pr.done()

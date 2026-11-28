@@ -25,8 +25,8 @@ const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t
 const BASE = { worktrees: "../worktrees", worktree_name: "{repo}-{n}-{slug}", branch_name: "task/{n}-{slug}", cleanup: "local", allow_default_models: true, inflight_limit: 30, spawn_limits: { worker: 20, reviewer: 0 } }
 const proj = path.join(tmp, "proj")
 mkdirSync(path.join(proj, ".opencode"), { recursive: true }); mkdirSync(path.join(proj, ".canopus", "plugin"), { recursive: true })
-mkdirSync(path.join(proj, "doc", "tasks", "045-registry", "task"), { recursive: true })
-writeFixtureFile(path.join(proj, "doc", "tasks", "045-registry", "task", "message.md"), "# Задание: Реестры контрактов\n\nтекст\n")
+mkdirSync(path.join(proj, "docs", "tasks", "045-registry", "input"), { recursive: true })
+writeFixtureFile(path.join(proj, "docs", "tasks", "045-registry", "input", "message.md"), "# Задание: Реестры контрактов\n\nтекст\n")
 writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify(BASE))
 git(proj, "init", "-q", "-b", "main")
 git(proj, "config", "user.name", "Owner Test")
@@ -267,7 +267,7 @@ cell("T92-15 fast with the conditions: the task is made", !!tf?.folder && tf?.ro
 cell("T92-15 the record: route fast, source human, the basis, the word word for word with the date", tf?.route === "fast" && tf?.route_source === "human" && !!tf?.route_basis && tf?.route_word === WORD && tf?.route_word_date === DATE, JSON.stringify(tf && { r: tf.route, s: tf.route_source, b: tf.route_basis, w: tf.route_word, d: tf.route_word_date }))
 cell("T92-15 the record: the numbers of the fast path (ceiling 2, clean runs 1, probes 3), delivery not compressed, series 0", tf?.ceiling === 2 && tf?.clean_runs === 1 && tf?.probes === 3 && tf?.delivery_compressed === false && (tf?.clean_series ?? 0) === 0, JSON.stringify(tf && { c: tf.ceiling, cr: tf.clean_runs, p: tf.probes, d: tf.delivery_compressed, s: tf.clean_series }))
 cell("T92-15 the record: the proposal of the rule (features within the thresholds: fast) and the list of sources", tf?.route_proposal === "fast" && JSON.stringify(tf?.sources_list) === JSON.stringify(["README.md", "core.ts"]), JSON.stringify(tf && { p: tf.route_proposal, s: tf.sources_list }))
-cell("T92-15 the record keeps the hash of the brief as it was committed", typeof tf?.route_message_hash === "string" && tf.route_message_hash === hash(tf ? show(tf)("task/message.md") : ""), JSON.stringify(tf?.route_message_hash))
+cell("T92-15 the record keeps the hash of the brief as it was committed", typeof tf?.route_message_hash === "string" && tf.route_message_hash === hash(tf ? show(tf)("input/message.md") : ""), JSON.stringify(tf?.route_message_hash))
 const logF = tf ? show(tf)("log.md") : ""
 cell("T92-15 (test 15) the journal of the task: a line «маршрут: быстрый» with the basis, the source and the word", /\d{4}-\d\d-\d\d \d\d:\d\d документ: маршрут: быстрый/.test(logF) && /основание: /.test(logF) && /источник: человек/.test(logF) && logF.includes(WORD), logF)
 cell("T92-15 (test 15) the route is not in the envelope: the history of the record has no route field, the note is a line", (tf?.history ?? []).every((h) => !("route" in h)), JSON.stringify(tf?.history))
@@ -382,7 +382,7 @@ cell("T92-18 canopus_task show: no warning while the brief is unchanged", !/по
 
 // ---- decision 51: the brief edited after the word (tests 21, 23) ----
 const editBrief = (t, fn) => {
-  const file=path.join(path.dirname(tasks.taskFile(t.project,t.n)),"message.md")
+  const file=path.join(path.dirname(tasks.taskFile(t.project,t.n)),"input/message.md")
   writeFixtureFile(file,fn(readFileSync(file,"utf8")))
   return "tree"
 
@@ -508,7 +508,7 @@ cell("T191-5 small without the phrase of the owner: «малый маршрут 
 const rSm = await spawn("Малая правка", { route: "small", route_word: SWORD, route_word_date: "2026-10-25", estimate: "5–10 мин", criteria: undefined })
 const tsm = tasks.listTasks("proj").find((t) => t.title === "Малая правка")
 cell("T191-5 the small task is made: route small, the default criteria name the owner's word on the contour, no reviewer", !!tsm && tsm.route === "small" && /слово владельца/.test(tsm.criteria ?? "") && !tsm.reviewer, JSON.stringify(tsm && { r: tsm.route, c: tsm.criteria, a: rSm.slice(0, 150) }))
-const smMsg = tsm ? show(tsm)("task/message.md") : ""
+const smMsg = tsm ? show(tsm)("input/message.md") : ""
 cell("T191-5 the folder is three lines: «# Задание», «T:», the phrase of the owner", smMsg.split("\n").filter((l) => l.trim()).length === 3 && smMsg.startsWith("# Задание: Малая правка") && /\nT: 5–10 мин\n/.test(smMsg) && smMsg.includes("«сделай X мгновенно»"), smMsg)
 cell("T191-5 the journal of the small task has the route line with the word of the owner", /маршрут: малый/.test(logNow(tsm)) && /слово владельца/.test(logNow(tsm)), logNow(tsm))
 const listed2 = await call("canopus_task", "sesINTEG1", { action: "list" })

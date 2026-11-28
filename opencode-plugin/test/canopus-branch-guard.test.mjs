@@ -275,19 +275,19 @@ cell("a repeated note for the same folder renews its term", nC?.ok === true && n
 cell("the state keeps no more than one permission per folder", (readState(base, "ses_int")?.passes ?? []).length === 1, J(readState(base, "ses_int")?.passes))
 
 // ---- (acceptance 5) a reviewer writes the files of its task in the main copy; nothing else
-const folder158 = "doc/tasks/158-review-x"
+const folder158 = "docs/tasks/158-review-x"
 tasks.get("canopus#158").folder = folder158
-cell("reviewer without the lock: a write into doc/tasks/<its task>/ of the main copy passes (the log, the evidence)", w(rev157, MAIN, "write", { filePath: path.join(MAIN, folder158, "log.md") }) === undefined && w(rev157, MAIN, "edit", { filePath: path.join(MAIN, folder158, "task", "evidence.md") }) === undefined, J(w(rev157, MAIN, "write", { filePath: path.join(MAIN, folder158, "log.md") })))
+cell("reviewer without the lock: a write into docs/tasks/<its task>/ of the main copy passes (the log, the evidence)", w(rev157, MAIN, "write", { filePath: path.join(MAIN, folder158, "log.md") }) === undefined && w(rev157, MAIN, "edit", { filePath: path.join(MAIN, folder158, "input", "evidence.md") }) === undefined, J(w(rev157, MAIN, "write", { filePath: path.join(MAIN, folder158, "log.md") })))
 cell("reviewer: a patch that writes only into its folder passes", w(rev157, MAIN, "patch", { patchText: `*** Begin Patch\n*** Update File: ${folder158}/progress.log\n+x\n*** End Patch` }) === undefined, "")
-cell("reviewer: a write outside its task folder in the main copy is still refused (code, another task)", typeof w(rev157, MAIN, "write", { filePath: path.join(MAIN, "src", "a.ts") }) === "string" && typeof w(rev157, MAIN, "write", { filePath: path.join(MAIN, "doc/tasks/999-other/log.md") }) === "string", "")
+cell("reviewer: a write outside its task folder in the main copy is still refused (code, another task)", typeof w(rev157, MAIN, "write", { filePath: path.join(MAIN, "src", "a.ts") }) === "string" && typeof w(rev157, MAIN, "write", { filePath: path.join(MAIN, "docs/tasks/999-other/log.md") }) === "string", "")
 cell("reviewer: a path that climbs out of its folder (..) is not its folder", typeof w(rev157, MAIN, "write", { filePath: path.join(MAIN, folder158, "..", "..", "..", "src", "a.ts") }) === "string", "")
-cell("a task folder named only by the number (no folder in the record) is read from the number", (delete tasks.get("canopus#158").folder, w(rev157, MAIN, "write", { filePath: path.join(MAIN, "doc/tasks/158-anything/log.md") }) === undefined), "")
-cell("an executor still may not write into the main copy, even into doc/tasks", typeof w(exec157, T157, "write", { filePath: path.join(MAIN, "doc/tasks/157-branch-guard/log.md") }) === "string", "")
-deps.taskDocuments = (p,n) => path.join(MAIN, `doc/tasks/${n}-shared`)
-cell("executor writes its canonical shared documents", w(exec157,T157,"write",{filePath:path.join(MAIN,"doc/tasks/157-shared/log.md")}) === undefined, "")
-for(const name of ["state.json","watch.json","snapshot.json"]) cell(`private ${name} cannot be edited as a document`, typeof w(exec157,T157,"write",{filePath:path.join(MAIN,"doc/tasks/157-shared/task",name)}) === "string", "")
-cell("execution plan stays outside task input", typeof w(exec157,T157,"write",{filePath:path.join(MAIN,"doc/tasks/157-shared/task/plan.md")}) === "string" && w(exec157,T157,"write",{filePath:path.join(MAIN,"doc/tasks/157-shared/plan.md")}) === undefined, "")
-cell("new private state cannot be edited as a document", typeof w(exec157,T157,"write",{filePath:path.join(MAIN,"doc/tasks/157-shared/state.json")}) === "string", "")
+cell("a task folder named only by the number (no folder in the record) is read from the number", (delete tasks.get("canopus#158").folder, w(rev157, MAIN, "write", { filePath: path.join(MAIN, "docs/tasks/158-anything/log.md") }) === undefined), "")
+cell("an executor still may not write into the main copy, even into docs/tasks", typeof w(exec157, T157, "write", { filePath: path.join(MAIN, "docs/tasks/157-branch-guard/log.md") }) === "string", "")
+deps.taskDocuments = (p,n) => path.join(MAIN, `docs/tasks/${n}-shared`)
+cell("executor writes its canonical shared documents", w(exec157,T157,"write",{filePath:path.join(MAIN,"docs/tasks/157-shared/log.md")}) === undefined, "")
+for(const name of ["state.json","watch.json","snapshot.json"]) cell(`private ${name} cannot be edited as a document`, typeof w(exec157,T157,"write",{filePath:path.join(MAIN,"docs/tasks/157-shared/input",name)}) === "string", "")
+cell("execution plan stays outside task input", typeof w(exec157,T157,"write",{filePath:path.join(MAIN,"docs/tasks/157-shared/input/plan.md")}) === "string" && w(exec157,T157,"write",{filePath:path.join(MAIN,"docs/tasks/157-shared/plan.md")}) === undefined, "")
+cell("new private state cannot be edited as a document", typeof w(exec157,T157,"write",{filePath:path.join(MAIN,"docs/tasks/157-shared/state.json")}) === "string", "")
 rmSync(tmp, { recursive: true, force: true })
 console.log(fail ? `canopus-branch-guard.test: FAIL ${fail} of ${n}${bg.missing ? " (module: " + bg.missing + ")" : ""}` : `canopus-branch-guard.test ok (${n} checks)`)
 process.exit(fail ? 1 : 0)

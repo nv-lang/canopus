@@ -38,15 +38,15 @@
     запись «запуск №<n> <код>» есть в log.md папки (journal-launch), время — [ГГГГ-ММ-ДД ЧЧ:ММ] (journal-time); журнал, начатый раньше,
     запуск без номера и [ЧЧ:ММ] не судятся (переход); задача 058 — две папки 050-a и 050-b красные (task-number-dup у обеих
     папок), разные номера и папка без номера не красные, повтор номера, которого коммит не касается, в режиме коммита не судится;
-    задача 065 — образец задания task/message.md у задачи, заведённой не раньше 2026-10-17 01:00: красные — нет раздела, разделы не
+    задача 065 — образец задания input/message.md у задачи, заведённой не раньше 2026-10-17 01:00: красные — нет раздела, разделы не
     по порядку, пустой раздел, «нет:» без причины (message-section), нет заголовка «# Задание: …» (message-title), слова владельца
     без даты (message-owner), заголовок в огороженном коде и третьего уровня, режим коммита; не красные — задание по образцу,
     подзадача с первой строкой «Часть задачи …», дата в теле раздела, дополнительный раздел, CRLF и BOM, задача 00:59, папка без
-    log.md, настоящие task/message.md репозитория. Задача 191 — малая форма задания (вторая строка «T: …»): красные — нет заголовка,
+    log.md, настоящие input/message.md репозитория. Задача 191 — малая форма задания (вторая строка «T: …»): красные — нет заголовка,
     пустая «T:», нет строки слов владельца, больше трёх непустых строк (message-small), слова владельца без даты (message-owner);
     не красная — три строки по форме.
 Не проверяет: содержание документов.
-Правило: doc/canon/process.md (цикл сессий методики, «Журнал хода progress.log», «Результат и куда он
+Правило: docs/canon/process.md (цикл сессий методики, «Журнал хода progress.log», «Результат и куда он
     попадает»); AC-14 и AC-18 задач.
 """
 import sys
@@ -77,12 +77,12 @@ def main():
         return stlib.guard("check-task-docs.py", repo, env, *args)
 
     good = {
-        "doc/tasks/001-x/spec.md": "Статус: черновик\n\nREQ-01 a\nREQ-02 b\nAC-01 c\nDNC-01 d\n",
-        "doc/tasks/001-x/plan.md": "Статус: утверждено, 2026-10-08, владелец\nБаза: ревизия abc, дата\n",
-        "doc/tasks/001-x/spec-review-4.md": GOOD_REVIEW % 4,
-        "doc/tasks/001-x/plan-review-2.md": GOOD_REVIEW % 2,
-        "doc/tasks/001-x/review-3.md": GOOD_REVIEW % 3,
-        "doc/tasks/001-x/delivery-review-1.md": GOOD_REVIEW % 1,
+        "docs/tasks/001-x/spec.md": "Статус: черновик\n\nREQ-01 a\nREQ-02 b\nAC-01 c\nDNC-01 d\n",
+        "docs/tasks/001-x/plan.md": "Статус: утверждено, 2026-10-08, владелец\nБаза: ревизия abc, дата\n",
+        "docs/tasks/001-x/spec-review-4.md": GOOD_REVIEW % 4,
+        "docs/tasks/001-x/plan-review-2.md": GOOD_REVIEW % 2,
+        "docs/tasks/001-x/review-3.md": GOOD_REVIEW % 3,
+        "docs/tasks/001-x/delivery-review-1.md": GOOD_REVIEW % 1,
     }
 
     def red(change, rule, where, count=1):
@@ -99,21 +99,21 @@ def main():
 
     def legit_bom_crlf_and_extra():
         files = dict(good)
-        files["doc/tasks/001-x/spec.md"] = b"\xef\xbb\xbf\xd0\xa1\xd1\x82\xd0\xb0\xd1\x82\xd1\x83\xd1\x81: \xd1\x87\xd0\xb5\xd1\x80\xd0\xbd\xd0\xbe\xd0\xb2\xd0\xb8\xd0\xba\r\nREQ-01 a\r\n"
-        files["doc/tasks/001-x/task/spec.md"] = "not judged: nested folder\n"
-        files["doc/tasks/001-x/result.md"] = "Статус: в работе\n"
-        files["doc/tasks/001-x/notes-review-9.md"] = "free text\n"
+        files["docs/tasks/001-x/spec.md"] = b"\xef\xbb\xbf\xd0\xa1\xd1\x82\xd0\xb0\xd1\x82\xd1\x83\xd1\x81: \xd1\x87\xd0\xb5\xd1\x80\xd0\xbd\xd0\xbe\xd0\xb2\xd0\xb8\xd0\xba\r\nREQ-01 a\r\n"
+        files["docs/tasks/001-x/input/spec.md"] = "not judged: nested folder\n"
+        files["docs/tasks/001-x/result.md"] = "Статус: в работе\n"
+        files["docs/tasks/001-x/notes-review-9.md"] = "free text\n"
         proc = check(fresh(files))
         stlib.expect(proc, 0, "ок: осмотрено 6 файлов задач")
 
     def legit_id_mentions_not_at_line_start():
         files = dict(good)
-        files["doc/tasks/001-x/spec.md"] = "Статус: черновик\n\nREQ-01 a\nsee REQ-01 and\n| REQ-01 | table |\n  REQ-01 indented\n"
+        files["docs/tasks/001-x/spec.md"] = "Статус: черновик\n\nREQ-01 a\nsee REQ-01 and\n| REQ-01 | table |\n  REQ-01 indented\n"
         stlib.expect(check(fresh(files)), 0, "ок: осмотрено 6 файлов задач")
 
     def commit_mode_only_changed():
         repo = fresh(good)
-        sha = stlib.commit_file(repo, env, "doc/tasks/001-x/plan-review-3.md", "no numbers here\n", "bad")
+        sha = stlib.commit_file(repo, env, "docs/tasks/001-x/plan-review-3.md", "no numbers here\n", "bad")
         stlib.expect(check(repo, "--commit", sha), 1, "FAIL: check-task-docs: 1 нарушений")
         sha2 = stlib.commit_file(repo, env, "other.txt", "x\n", "other")
         stlib.expect(check(repo, "--commit", sha2), 0, "судить нечего: коммит не меняет файлов этой мишени")
@@ -132,37 +132,37 @@ def main():
     pr.probe("законное", "BOM и CRLF в первой строке, вложенные папки и чужие имена не судятся", legit_bom_crlf_and_extra)
     pr.probe("законное", "номер не в начале строки не считается объявлением", legit_id_mentions_not_at_line_start)
     pr.probe("законное", "режим коммита: только изменённые файлы", commit_mode_only_changed)
-    pr.probe("красная", "первая строка spec.md — чужая", red({"doc/tasks/001-x/spec.md": "Status: draft\n"}, "task-status", "doc/tasks/001-x/spec.md:1"))
-    pr.probe("красная", "статус plan.md «в работе»", red({"doc/tasks/001-x/plan.md": "Статус: в работе\n"}, "task-status", "doc/tasks/001-x/plan.md:1"))
-    pr.probe("красная", "заход без чисел", red({"doc/tasks/001-x/spec-review-4.md": "Заход 4: существенных нет\n"}, "review-line", "doc/tasks/001-x/spec-review-4.md:1"))
-    pr.probe("красная", "номер захода не равен номеру в имени", red({"doc/tasks/001-x/review-3.md": GOOD_REVIEW % 5}, "review-line", "doc/tasks/001-x/review-3.md:1"))
-    pr.probe("красная", "delivery-review без итоговой строки", red({"doc/tasks/001-x/delivery-review-1.md": "\n" + GOOD_REVIEW % 1}, "review-line", "doc/tasks/001-x/delivery-review-1.md:1"))
-    pr.probe("красная", "повторный REQ", red({"doc/tasks/001-x/spec.md": "Статус: черновик\nREQ-05 a\nREQ-05 b\n"}, "dup-id", "doc/tasks/001-x/spec.md:3"))
-    pr.probe("красная", "повторный AC", red({"doc/tasks/001-x/spec.md": "Статус: черновик\nAC-01 a\nAC-01 b\n"}, "dup-id", "doc/tasks/001-x/spec.md:3"))
-    pr.probe("красная", "повторный DNC", red({"doc/tasks/001-x/spec.md": "Статус: черновик\nDNC-02 a\nDNC-02 b\n"}, "dup-id", "doc/tasks/001-x/spec.md:3"))
-    pr.probe("иной-синтаксис", "строка статуса с регистром не в начале", red({"doc/tasks/001-x/plan.md": " Статус: утверждено\n"}, "task-status", "doc/tasks/001-x/plan.md:1"))
-    pr.probe("иной-синтаксис", "пустой файл spec.md", red({"doc/tasks/001-x/spec.md": ""}, "task-status", "doc/tasks/001-x/spec.md:1"))
+    pr.probe("красная", "первая строка spec.md — чужая", red({"docs/tasks/001-x/spec.md": "Status: draft\n"}, "task-status", "docs/tasks/001-x/spec.md:1"))
+    pr.probe("красная", "статус plan.md «в работе»", red({"docs/tasks/001-x/plan.md": "Статус: в работе\n"}, "task-status", "docs/tasks/001-x/plan.md:1"))
+    pr.probe("красная", "заход без чисел", red({"docs/tasks/001-x/spec-review-4.md": "Заход 4: существенных нет\n"}, "review-line", "docs/tasks/001-x/spec-review-4.md:1"))
+    pr.probe("красная", "номер захода не равен номеру в имени", red({"docs/tasks/001-x/review-3.md": GOOD_REVIEW % 5}, "review-line", "docs/tasks/001-x/review-3.md:1"))
+    pr.probe("красная", "delivery-review без итоговой строки", red({"docs/tasks/001-x/delivery-review-1.md": "\n" + GOOD_REVIEW % 1}, "review-line", "docs/tasks/001-x/delivery-review-1.md:1"))
+    pr.probe("красная", "повторный REQ", red({"docs/tasks/001-x/spec.md": "Статус: черновик\nREQ-05 a\nREQ-05 b\n"}, "dup-id", "docs/tasks/001-x/spec.md:3"))
+    pr.probe("красная", "повторный AC", red({"docs/tasks/001-x/spec.md": "Статус: черновик\nAC-01 a\nAC-01 b\n"}, "dup-id", "docs/tasks/001-x/spec.md:3"))
+    pr.probe("красная", "повторный DNC", red({"docs/tasks/001-x/spec.md": "Статус: черновик\nDNC-02 a\nDNC-02 b\n"}, "dup-id", "docs/tasks/001-x/spec.md:3"))
+    pr.probe("иной-синтаксис", "строка статуса с регистром не в начале", red({"docs/tasks/001-x/plan.md": " Статус: утверждено\n"}, "task-status", "docs/tasks/001-x/plan.md:1"))
+    pr.probe("иной-синтаксис", "пустой файл spec.md", red({"docs/tasks/001-x/spec.md": ""}, "task-status", "docs/tasks/001-x/spec.md:1"))
     # задача 058, AC-12: одна задача — один номер; две папки с одним номером NNN — task-number-dup с адресом обеих папок
-    dup = {"doc/tasks/050-a/log.md": "x\n", "doc/tasks/050-b/log.md": "x\n"}
+    dup = {"docs/tasks/050-a/log.md": "x\n", "docs/tasks/050-b/log.md": "x\n"}
 
     def red_dup():
         files = dict(good)
         files.update(dup)
         proc = check(fresh(files))
         stlib.expect(proc, 1, "FAIL: check-task-docs: 2 нарушений")
-        for folder in ("doc/tasks/050-a", "doc/tasks/050-b"):
-            assert stlib.has_line(proc, "FAIL %s: task-number-dup: номер 050 у двух папок задач: doc/tasks/050-a и doc/tasks/050-b" % folder), proc.out
+        for folder in ("docs/tasks/050-a", "docs/tasks/050-b"):
+            assert stlib.has_line(proc, "FAIL %s: task-number-dup: номер 050 у двух папок задач: docs/tasks/050-a и docs/tasks/050-b" % folder), proc.out
 
     def legit_numbers_differ():
         files = dict(good)
-        files.update({"doc/tasks/050-a/log.md": "x\n", "doc/tasks/051-b/log.md": "x\n", "doc/tasks/notes/a.md": "x\n"})
+        files.update({"docs/tasks/050-a/log.md": "x\n", "docs/tasks/051-b/log.md": "x\n", "docs/tasks/notes/a.md": "x\n"})
         stlib.expect(check(fresh(files)), 0, "ок: осмотрено 8 файлов задач")
 
     def commit_dup_untouched():
         files = dict(good)
         files.update(dup)
         repo = fresh(files)
-        sha = stlib.commit_file(repo, env, "doc/tasks/001-x/review-3.md", GOOD_REVIEW % 3 + "ещё\n", "other")
+        sha = stlib.commit_file(repo, env, "docs/tasks/001-x/review-3.md", GOOD_REVIEW % 3 + "ещё\n", "other")
         stlib.expect(check(repo, "--commit", sha), 0, "ок: осмотрено 1 файлов задач")
 
     pr.probe("красная", "две папки 050-a и 050-b — task-number-dup у обеих", red_dup)
@@ -173,7 +173,7 @@ def main():
     # ------------------------------------------------------------------------------------------------
     # журнал хода progress.log (REQ-16, AC-18)
     # ------------------------------------------------------------------------------------------------
-    journal = "doc/tasks/001-x/progress.log"
+    journal = "docs/tasks/001-x/progress.log"
     good_j = dict(good)
     good_j[journal] = "С1 0/2 старт\nС1 1/2 [10:05] шаг\nС1 2/2 [10:30] готово\n"
     disk = "D" + ":" + "/" + "Users/demo/project"  # образец пути машины собирается при прогоне, в файле его нет
@@ -189,7 +189,7 @@ def main():
         return fn
 
     def real_journals():
-        proc = stlib.run(("git", "ls-files", "-z", "--", "doc/tasks/*/progress.log"), cwd=stlib.REPO, env=env)
+        proc = stlib.run(("git", "ls-files", "-z", "--", "docs/tasks/*/progress.log"), cwd=stlib.REPO, env=env)
         names = [p for p in proc.out.split("\0") if p]
         files = {}
         for name in names:
@@ -227,7 +227,7 @@ def main():
         ]) + "\r\n"
         files = dict(good_j)
         files[journal] = content
-        files["doc/tasks/002-y/progress.log"] = ""
+        files["docs/tasks/002-y/progress.log"] = ""
         stlib.expect(check(fresh(files)), 0, "ок: осмотрено 8 файлов задач")
 
     def legit_long_in_tree_and_commit_modes():
@@ -238,8 +238,8 @@ def main():
 
     def legit_first_version_long_in_index():
         repo = fresh(good_j)
-        stlib.write_files(repo, {"doc/tasks/002-y/progress.log": "С2 0/1 старт\nС2 1/1 " + "z" * 200 + "\n"})
-        stlib.git(repo, env, "add", "--", "doc/tasks/002-y/progress.log")
+        stlib.write_files(repo, {"docs/tasks/002-y/progress.log": "С2 0/1 старт\nС2 1/1 " + "z" * 200 + "\n"})
+        stlib.git(repo, env, "add", "--", "docs/tasks/002-y/progress.log")
         stlib.expect(check(repo, "--index"), 0, "ок: осмотрено 8 файлов задач")
 
     def red_long_in_index_only():
@@ -347,7 +347,7 @@ def main():
             assert part in proc.out, (part, proc.out)
 
     # log.md: новый формат записей с 2026-10-10 (по слову владельца, 2026-10-09)
-    log_md ="doc/tasks/001-x/log.md"
+    log_md ="docs/tasks/001-x/log.md"
     old_log = "Методика: x @ abc\n2026-10-08 решение владельца: старая запись в прежнем виде\n2026-10-09 просто так, прежний вид\n"
     new_ok = [
         "2026-10-10 09:30 решение владельца: принято",
@@ -394,7 +394,7 @@ def main():
         return fn
 
     # задача 062 (методика 0b0e6d4, раздел 4): строка log.md вида «ворота» называет канал и время вопроса владельцу — у задач, начатых не раньше 2026-10-16 17:00
-    glog = "doc/tasks/002-g/log.md"
+    glog = "docs/tasks/002-g/log.md"
     def gate_index(start, added, expect_red=None, parts=()):
         def fn():
             repo = fresh(dict(good_j))
@@ -434,7 +434,7 @@ def main():
 
     def real_logs_pass_tree():
         # настоящие log.md репозитория: прежние записи не судятся (в дереве добавленных строк нет)
-        proc = stlib.run(("git", "ls-files", "-z", "--", "doc/tasks/*/log.md"), cwd=stlib.REPO, env=env)
+        proc = stlib.run(("git", "ls-files", "-z", "--", "docs/tasks/*/log.md"), cwd=stlib.REPO, env=env)
         names = [x for x in proc.out.split("\0") if x]
         assert names, "мишень: отслеживаемых log.md нет"
         files = {}
@@ -506,8 +506,8 @@ def main():
         assert len(bad) == 1 and bool(mod.parse_progress_line(bad[0])) == vec["invalidBytes"]["isLine"] and "\ufffd" in bad[0], bad
 
     def run_all_accepts_real_copies():
-        # номер 001 занят папкой каркаса (stlib.SKELETON, doc/tasks/001-x): копия 001-crew-service дала бы повтор номера (task-number-dup)
-        files = dict((k, v) for k, v in real_journals().items() if not k.startswith("doc/tasks/001-"))
+        # номер 001 занят папкой каркаса (stlib.SKELETON, docs/tasks/001-x): копия 001-crew-service дала бы повтор номера (task-number-dup)
+        files = dict((k, v) for k, v in real_journals().items() if not k.startswith("docs/tasks/001-"))
         assert len(files) >= 2, "мишень: отслеживаемых журналов кроме 001 меньше двух: %d" % len(files)
         base2 = pr.mkdtemp()
         env2 = stlib.isolated_env(base2, {"CANOPUS_PRIVATE_NAMES_FILE": stlib.names_file(base2, ["zz-no-such-" + "name-zz"])})
@@ -607,8 +607,8 @@ def main():
              fix_probe(["С2 0/10 [11:00] старт заход 1", "С2 7/7 [11:07] готово — семь", "С2 8/10 [11:08] AC-08 проверен"]))
     pr.probe("законное", "задача 053: «7/10 готово — N завышено: …» сразу — не красное",
              fix_probe(["С2 0/10 [11:00] старт заход 1", "С2 7/10 [11:07] готово — N завышено: AC семь"]))
-    nj = "doc/tasks/053-n/progress.log"
-    nlog = "doc/tasks/053-n/log.md"
+    nj = "docs/tasks/053-n/progress.log"
+    nlog = "docs/tasks/053-n/log.md"
     nhead = "С5 0/0 [2026-10-16 09:00] запуск №1\nС5 0/3 [2026-10-16 09:01] старт\n"
     nlog_text = "2026-10-16 09:00 пуск: запуск №1 С5 [2026-10-16 09:00]\n"
 
@@ -660,10 +660,10 @@ def main():
     # ------------------------------------------------------------------------------------------------
     # «результат и куда он попадает» (задача 047; методика 03d28d0, промпты С1 и С3): задачи с 2026-10-15 14:20
     # ------------------------------------------------------------------------------------------------
-    rh = "doc/tasks/048-n/"
+    rh = "docs/tasks/048-n/"
     rh_line = "Документ задачи: после сдачи история; где действует результат — current.md в этой папке, если он есть"
     rh_spec = ("Статус: черновик\n" + rh_line + "\n\n# 048\n\nREQ-01 a\n\n## Результат и куда он попадает\n\n"
-               "- формат X: действует doc/canon/process.md, раздел «X» (существует); переносится шагом 3 плана.\n\n## Вопросы\n\nнет\n")
+               "- формат X: действует docs/canon/process.md, раздел «X» (существует); переносится шагом 3 плана.\n\n## Вопросы\n\nнет\n")
     rh_plan = "Статус: черновик\nБаза: ревизия abc, 2026-10-16\n" + rh_line + "\n\n1. шаг\n"
     rh_log = "Методика: unitcraft/ai-dev-methodology @ 03d28d0\n2026-10-15 14:20 документ: задание заведено\n"
     rh_good = dict(good)
@@ -688,7 +688,7 @@ def main():
 
     def rh_real_specs_and_plans():
         # настоящие spec.md, plan.md и log.md репозитория: задачи до даты правила новым правилом не судятся
-        proc = stlib.run(("git", "ls-files", "-z", "--", "doc/tasks/*/spec.md", "doc/tasks/*/plan.md", "doc/tasks/*/log.md"),
+        proc = stlib.run(("git", "ls-files", "-z", "--", "docs/tasks/*/spec.md", "docs/tasks/*/plan.md", "docs/tasks/*/log.md"),
                          cwd=stlib.REPO, env=env)
         names = [x for x in proc.out.split("\0") if x]
         assert any(n.endswith("/spec.md") for n in names), "мишень: отслеживаемых spec.md нет"
@@ -710,7 +710,7 @@ def main():
     pr.probe("законное", "результат: строка «нет: результат — код» с фразой, current.md не нужен даже при result.md",
              rh_check({rh + "spec.md": "Статус: черновик\n" + rh_line + "\n\n" + no_code, rh + "result.md": "x\n"}))
     pr.probe("законное", "результат: назван, result.md и current.md есть",
-             rh_check({rh + "result.md": "x\n", rh + "current.md": "формат X: doc/canon/process.md\n"}))
+             rh_check({rh + "result.md": "x\n", rh + "current.md": "формат X: docs/canon/process.md\n"}))
     pr.probe("законное", "результат: задача заведена раньше 2026-10-15 14:20 — не судится",
              rh_check({rh + "log.md": "2026-10-15 14:19 документ: задание\n", rh + "spec.md": "Статус: черновик\n", rh + "plan.md": "Статус: черновик\n"}))
     pr.probe("законное", "результат: папка без log.md — не судится", rh_check({rh + "spec.md": "Статус: черновик\n"}, drop=(rh + "log.md",)))
@@ -735,10 +735,10 @@ def main():
     pr.probe("иной-синтаксис", "результат: current.md в обратных кавычках — не дословная строка промпта",
              rh_check({rh + "spec.md": rh_spec.replace("current.md в этой", "`current.md` в этой")}, [(rh + "spec.md:2", "result-line")]))
     # ------------------------------------------------------------------------------------------------
-    # образец задания task/message.md (задача 065; Канон, process.md, «Задание task/message.md»): задачи с 2026-10-17 01:00
+    # образец задания input/message.md (задача 065; Канон, process.md, «Задание input/message.md»): задачи с 2026-10-17 01:00
     # ------------------------------------------------------------------------------------------------
-    mm = "doc/tasks/066-n/"
-    mm_msg = mm + "task/message.md"
+    mm = "docs/tasks/066-n/"
+    mm_msg = mm + "input/message.md"
     mm_text = ("# Задание: Образец\n\nЗаказчик: владелец.\nРепозиторий: canopus, ветка main. Дата задания: 2026-10-17.\n"
                "Источник: чат оркестратора.\n\n## Чего хочет владелец (его слова, 2026-10-17, чат оркестратора)\n\n- «сделай»\n\n"
                "## Что нужно\n\n1. сделать\n\n## Критерии приёмки\n\n- тест зелёный\n\n## Результат и куда он попадает\n\n"
@@ -763,10 +763,10 @@ def main():
         return fn
 
     def mm_real_messages():
-        # настоящие task/message.md и log.md репозитория: задачи до даты правила не судятся (063, 064, 065 и прежние)
-        proc = stlib.run(("git", "ls-files", "-z", "--", "doc/tasks/*/task/message.md", "doc/tasks/*/log.md"), cwd=stlib.REPO, env=env)
+        # настоящие input/message.md и log.md репозитория: задачи до даты правила не судятся (063, 064, 065 и прежние)
+        proc = stlib.run(("git", "ls-files", "-z", "--", "docs/tasks/*/input/message.md", "docs/tasks/*/log.md"), cwd=stlib.REPO, env=env)
         names = [x for x in proc.out.split("\0") if x]
-        assert any(n.endswith("/task/message.md") for n in names), "мишень: отслеживаемых task/message.md нет"
+        assert any(n.endswith("/input/message.md") for n in names), "мишень: отслеживаемых input/message.md нет"
         files = {}
         for name in names:
             with open(os.path.join(stlib.REPO, *name.split("/")), "rb") as handle:
@@ -800,7 +800,7 @@ def main():
     pr.probe("законное", "задание: задача заведена раньше 2026-10-17 01:00 (00:59) — прежний вид не судится",
              mm_check({mm + "log.md": "2026-10-17 00:59 документ: задание заведено\n", mm_msg: "# Задание: Старое\n\n## Цель\n\nтекст\n"}))
     pr.probe("законное", "задание: папка без log.md — не судится", mm_check({mm_msg: "# Задание: x\n"}, drop=(mm + "log.md",)))
-    pr.probe("законное", "задание: настоящие task/message.md репозитория не судятся новым правилом", mm_real_messages)
+    pr.probe("законное", "задание: настоящие input/message.md репозитория не судятся новым правилом", mm_real_messages)
     pr.probe("красная", "задание: нет раздела «Связи»", mm_check({mm_msg: no_links}, [(mm_msg, "message-section")]))
     pr.probe("красная", "задание: сообщение называет раздел, правило Канона и «нет: <почему>»", mm_message_names_rule)
     pr.probe("красная", "задание: «Границы» раньше «Связи»",
@@ -814,7 +814,7 @@ def main():
     pr.probe("красная", "задание: слова владельца без даты",
              mm_check({mm_msg: mm_text.replace(" (его слова, 2026-10-17, чат оркестратора)", "")}, [(mm_msg + ":7", "message-owner")]))
     pr.probe("красная", "задание: граница — задача заведена ровно 2026-10-17 01:00 судится", mm_check({mm_msg: no_links}, [(mm_msg, "message-section")]))
-    pr.probe("красная", "задание: режим коммита судит изменённый task/message.md", mm_commit_mode)
+    pr.probe("красная", "задание: режим коммита судит изменённый input/message.md", mm_commit_mode)
     pr.probe("иной-синтаксис", "задание: заголовок раздела внутри огороженного кода не считается",
              mm_check({mm_msg: mm_text.replace("## Связи\n\nнет: задача одна\n", "```\n## Связи\n\nнет: задача одна\n```\n")}, [(mm_msg, "message-section")]))
     pr.probe("иной-синтаксис", "задание: раздел третьего уровня «### Связи» — не раздел образца",
@@ -833,18 +833,18 @@ def main():
     pr.probe("красная", "задание: малая форма — четвёртая непустая строка",
              mm_check({mm_msg: small_text + "лишняя строка\n"}, [(mm_msg, "message-small")]))
     # ------------------------------------------------------------------------------------------------
-    # дочерние задачи эпика (ADR-0014; владелец, 2026-10-27): первая строка task/message.md «Эпик: NNN» (старая «Родитель: NNN» читается) и таблица task/children.md
+    # дочерние задачи эпика (ADR-0014; владелец, 2026-10-27): первая строка input/message.md «Эпик: NNN» (старая «Родитель: NNN» читается) и таблица input/children.md
     # ------------------------------------------------------------------------------------------------
-    pk = "doc/tasks/070-parent/"
-    ck = "doc/tasks/071-panel/"
-    ck_msg = ck + "task/message.md"
-    pk_table = pk + "task/children.md"
+    pk = "docs/tasks/070-parent/"
+    ck = "docs/tasks/071-panel/"
+    ck_msg = ck + "input/message.md"
+    pk_table = pk + "input/children.md"
     head = "| Номер | Тип | Название | Папка | Ветка | Сессия | Состояние | Затрагивает |\n|---|---|---|---|---|---|---|---|\n"
-    row = "| 071 | дочерняя | Панель | [doc/tasks/071-panel](../../071-panel) | task/071-panel | s-1 | идёт | a.txt, b.txt |\n"
+    row = "| 071 | дочерняя | Панель | [docs/tasks/071-panel](../../071-panel) | task/071-panel | s-1 | идёт | a.txt, b.txt |\n"
     table = "# Дочерние задачи эпика 070\n\nТаблицу ведёт хаб.\n\n" + head + row
     child_text = "Эпик: 070\n\n# Задание: Панель\n\nсделать\n"
     pc_good = dict(good)
-    pc_good.update({pk + "task/message.md": "# Задание: Родитель\n", pk_table: table, ck_msg: child_text})
+    pc_good.update({pk + "input/message.md": "# Задание: Родитель\n", pk_table: table, ck_msg: child_text})
 
     def pc_check(change, expect_red=None, drop=()):
         def fn():
@@ -862,10 +862,10 @@ def main():
         return fn
 
     def pc_real_messages():
-        # настоящие task/message.md репозитория: дети эпика 001 пишут «Эпик: [001-…](…)» не голым номером и новым правилом не судятся
-        proc = stlib.run(("git", "ls-files", "-z", "--", "doc/tasks/*/task/message.md", "doc/tasks/*/task/children.md"), cwd=stlib.REPO, env=env)
+        # настоящие input/message.md репозитория: дети эпика 001 пишут «Эпик: [001-…](…)» не голым номером и новым правилом не судятся
+        proc = stlib.run(("git", "ls-files", "-z", "--", "docs/tasks/*/input/message.md", "docs/tasks/*/input/children.md"), cwd=stlib.REPO, env=env)
         names = [x for x in proc.out.split("\0") if x]
-        assert any(n.endswith("/task/message.md") for n in names), "мишень: отслеживаемых task/message.md нет"
+        assert any(n.endswith("/input/message.md") for n in names), "мишень: отслеживаемых input/message.md нет"
         files = {}
         for name in names:
             with open(os.path.join(stlib.REPO, *name.split("/")), "rb") as handle:
@@ -882,8 +882,8 @@ def main():
     pr.probe("законное", "дети: самостоятельная задача без строки родителя", pc_check({ck_msg: "# Задание: Сама\n\nсделать\n"}))
     pr.probe("законное", "дети: таблица со статусами «ждёт 071», «ждёт очереди», «готово», «слита» и типом «задача»",
              pc_check({pk_table: table + row.replace("071", "072").replace("идёт", "ждёт 071") + row.replace("071", "073").replace("идёт", "ждёт очереди") + row.replace("071", "074").replace("идёт", "готово").replace("дочерняя", "задача") + row.replace("071", "075").replace("идёт", "слита")}))
-    pr.probe("законное", "дети: настоящие task/message.md репозитория не судятся новым правилом", pc_real_messages)
-    pr.probe("красная", "дети: «Родитель: 999» — в doc/tasks нет такой папки", pc_check({ck_msg: child_text.replace("070", "999")}, [(ck_msg + ":1", "parent-missing")]))
+    pr.probe("законное", "дети: настоящие input/message.md репозитория не судятся новым правилом", pc_real_messages)
+    pr.probe("красная", "дети: «Родитель: 999» — в docs/tasks нет такой папки", pc_check({ck_msg: child_text.replace("070", "999")}, [(ck_msg + ":1", "parent-missing")]))
     pr.probe("красная", "дети: у родителя есть children.md, строки этого ребёнка в нём нет",
              pc_check({pk_table: table.replace(row, row.replace("071", "072"))}, [(ck_msg + ":1", "children-row")]))
     pr.probe("красная", "дети: children.md без шапки таблицы", pc_check({pk_table: table.replace(head, "")}, [(pk_table, "children-table")]))

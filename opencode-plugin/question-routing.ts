@@ -12,12 +12,13 @@ export function verifyQuestionSources(root: string | undefined, sources: Questio
   if (!root || !Array.isArray(sources) || !sources.length || sources.length > 8) return undefined
   try {
     const base = realpathSync(root)
-    const docs = realpathSync(path.join(base, "doc"))
-    if (path.relative(base, docs).replace(/\\/g, "/").toLowerCase() !== "doc") return undefined
     const verified: QuestionEvidence[] = []
     for (const s of sources) {
-      if (!s || !/^doc\/[a-zA-Z0-9_./-]+\.(md|json|txt|alula)$/.test(s.path) || s.path.split("/").includes("..")
+      if (!s || !/^(?:docs|doc)\/[a-zA-Z0-9_./-]+\.(md|json|txt|alula)$/.test(s.path) || s.path.split("/").includes("..")
         || !/^[a-f0-9]{64}$/.test(s.sha256) || typeof s.quote !== "string" || !s.quote.trim() || s.quote.length > 4000) return undefined
+      const folder = s.path.split("/")[0]
+      const docs = realpathSync(path.join(base, folder))
+      if (path.relative(base, docs).replace(/\\/g, "/").toLowerCase() !== folder) return undefined
       const file = realpathSync(path.join(base, s.path))
       const rel = path.relative(docs, file)
       if (rel.startsWith("..") || path.isAbsolute(rel) || !statSync(file).isFile() || statSync(file).size > 1_000_000) return undefined

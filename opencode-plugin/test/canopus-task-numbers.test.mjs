@@ -1,6 +1,6 @@
 import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of one task number (task 058, node >= 24):  node test/canopus-task-numbers.test.mjs
-// In a project with task folders (tasks_dir, default doc/tasks) the number of a new task is 1 + the largest of the task
+// In a project with task folders (tasks_dir, default docs/tasks) the number of a new task is 1 + the largest of the task
 // records of the project and of the folder numbers NNN in every working tree of the repository and in every local and origin
 // branch (AC-01); the number is taken by the atomic creation of the record file, so two processes taking a number at the same
 // time get different numbers and both folders are made (AC-02, the script scripts/task-number.mjs of an agent outside
@@ -37,19 +37,19 @@ mkdirSync(proj, { recursive: true })
 git(proj, "init", "-q", "-b", "main")
 for (let i = 1; i <= 58; i++) {
   if (i === 57) continue
-  const d = path.join(proj, "doc", "tasks", `${String(i).padStart(3, "0")}-t${i}`)
+  const d = path.join(proj, "docs", "tasks", `${String(i).padStart(3, "0")}-t${i}`)
   mkdirSync(d, { recursive: true })
   writeFixtureFile(path.join(d, "log.md"), "x\n")
 }
-mkdirSync(path.join(proj, "doc", "tasks", "notes"), { recursive: true })
-writeFixtureFile(path.join(proj, "doc", "tasks", "notes", "a.md"), "x\n")
+mkdirSync(path.join(proj, "docs", "tasks", "notes"), { recursive: true })
+writeFixtureFile(path.join(proj, "docs", "tasks", "notes", "a.md"), "x\n")
 git(proj, "add", "-A")
 git(proj, "commit", "-q", "-m", "init")
 git(proj, "branch", "other")
 const other = path.join(tmp, "wt-other")
 git(proj, "worktree", "add", "-q", other, "other")
-mkdirSync(path.join(other, "doc", "tasks", "057-elsewhere"), { recursive: true })
-writeFixtureFile(path.join(other, "doc", "tasks", "057-elsewhere", "log.md"), "x\n")
+mkdirSync(path.join(other, "docs", "tasks", "057-elsewhere"), { recursive: true })
+writeFixtureFile(path.join(other, "docs", "tasks", "057-elsewhere", "log.md"), "x\n")
 git(other, "add", "-A")
 git(other, "commit", "-q", "-m", "057")
 git(proj, "worktree", "remove", "--force", other) // 057 now lives only in the branch "other"
@@ -60,13 +60,13 @@ const mk = (project, directory, used) =>
 if (tn) {
   const used = tn.usedNumbers(proj)
   cell("folder numbers come from main and from the other branch (057), names without a number are skipped", used.includes(57) && used.includes(58) && used.includes(1) && used.every((n) => Number.isInteger(n)), JSON.stringify(used.slice(-5)))
-  cell("the tasks folder is on in a repository whose target branch has doc/tasks", tn.tasksDirOn(proj, "doc/tasks", "main") === true, "")
+  cell("the tasks folder is on in a repository whose target branch has docs/tasks", tn.tasksDirOn(proj, "docs/tasks", "main") === true, "")
   const a = mk("withdocs", proj, used)
   cell("AC-01: a new task after folders 001…056, 058 and 057 only in another branch gets 059", a.n === 59, String(a.n))
   // a folder only in a working tree (not committed) counts too
   const wt = path.join(tmp, "wt-60")
   git(proj, "worktree", "add", "-q", "-b", "w60", wt, "main")
-  mkdirSync(path.join(wt, "doc", "tasks", "060-draft"), { recursive: true })
+  mkdirSync(path.join(wt, "docs", "tasks", "060-draft"), { recursive: true })
   cell("a folder written in a working tree and not committed counts (060)", tn.usedNumbers(proj).includes(60), JSON.stringify(tn.usedNumbers(proj).slice(-3)))
   // a folder only in a branch of origin counts too
   const origin = path.join(tmp, "origin.git")
@@ -76,8 +76,8 @@ if (tn) {
   const oc = path.join(tmp, "oc")
   git(tmp, "clone", "-q", origin, oc)
   git(oc, "checkout", "-q", "-b", "far")
-  mkdirSync(path.join(oc, "doc", "tasks", "061-remote"), { recursive: true })
-  writeFixtureFile(path.join(oc, "doc", "tasks", "061-remote", "log.md"), "x\n")
+  mkdirSync(path.join(oc, "docs", "tasks", "061-remote"), { recursive: true })
+  writeFixtureFile(path.join(oc, "docs", "tasks", "061-remote", "log.md"), "x\n")
   git(oc, "add", "-A")
   git(oc, "commit", "-q", "-m", "061")
   git(oc, "push", "-q", "origin", "far")
@@ -128,7 +128,7 @@ const a1 = j(r1)
 const a2 = j(r2)
 cell("AC-02: both processes answer with a number and a folder", !!a1?.n && !!a2?.n && r1.code === 0 && r2.code === 0, JSON.stringify({ r1: r1.out + r1.err, r2: r2.out + r2.err }).slice(0, 400))
 cell("AC-02: the numbers differ", !!a1 && !!a2 && a1.n !== a2.n, JSON.stringify([a1?.n, a2?.n]))
-cell("AC-02: both folders are made in the named tree with task/message.md and log.md", !!a1 && !!a2 && [a1, a2].every((a) => existsSync(path.join(tree2, a.folder, "task", "message.md")) && existsSync(path.join(tree2, a.folder, "log.md"))), JSON.stringify([a1?.folder, a2?.folder]))
+cell("AC-02: both folders are made in the named tree with input/message.md and log.md", !!a1 && !!a2 && [a1, a2].every((a) => existsSync(path.join(tree2, a.folder, "input", "message.md")) && existsSync(path.join(tree2, a.folder, "log.md"))), JSON.stringify([a1?.folder, a2?.folder]))
 cell("AC-02: the numbers are taken by records of the plugin's store", !!a1 && !!a2 && !!tasks.loadTask("race", a1.n) && !!tasks.loadTask("race", a2.n), "")
 cell("AC-02: the number goes after the folders of the repository (062 and up)", !!a1 && !!a2 && Math.min(a1.n, a2.n) >= 62, JSON.stringify([a1?.n, a2?.n]))
 if (a1) {

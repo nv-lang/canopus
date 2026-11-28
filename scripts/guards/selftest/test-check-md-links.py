@@ -60,8 +60,8 @@ def main():
         return fn
 
     docs = {
-        "README.md": "# Title\n\nSee [a](doc/a.md), [dir](doc/), [dir2](doc), [anchor](doc/a.md#second-part).\n",
-        "doc/a.md": "# A\n\n## Second part\n\n## Repeat\n\n## Repeat\n\nback [up](../README.md#title)\n",
+        "README.md": "# Title\n\nSee [a](docs/a.md), [dir](docs/), [dir2](docs), [anchor](docs/a.md#second-part).\n",
+        "docs/a.md": "# A\n\n## Second part\n\n## Repeat\n\n## Repeat\n\nback [up](../README.md#title)\n",
     }
 
     def slug_unit():
@@ -148,11 +148,11 @@ def main():
         stlib.expect(check(repo, "--commit", sha), 1, "FAIL: check-md-links: 1 нарушений")
 
     def cyrillic_names():
-        name = "doc/заметка один.md"
+        name = "docs/заметка один.md"
         files = {"a.md": "[x](<%s>) [y](%s)\n" % (name, name.replace(" ", "%20")), name: "# Тест\n"}
         stlib.expect(check(fresh(files)), 0, "ок: осмотрено 2 ссылок")
 
-    table_broken = "[z](nope.md) [w](../../doc/nope.md#a) [v](../../../out.md)\n"
+    table_broken = "[z](nope.md) [w](../../docs/nope.md#a) [v](../../../out.md)\n"
 
     def table_mask_green():
         files = {"a.md": "[x](b.md)\n", "b.md": "x\n", "machines/x/y.alula.md": table_broken,

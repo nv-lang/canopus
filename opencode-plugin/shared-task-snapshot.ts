@@ -28,13 +28,13 @@ export function snapshotTaskDocuments(file:string,t:SnapshotTask,options:{stage?
  if(git(main,["branch","--show-current"])!==target)throw Error("The primary copy must stay on its accepted branch before preparing task documents")
  const folder=path.dirname(file),prefix=t.folder??path.relative(main,folder).replace(/\\/g,"/")
  if(!prefix||path.isAbsolute(prefix)||prefix.split("/").includes(".."))return {files:0}
- if(options.withdraw&&!maybe(main,["show",t.branch+":"+prefix+"/task/message.md"])?.includes(options.withdraw.trim()))return {files:0}
+ if(options.withdraw&&!(maybe(main,["show",t.branch+":"+prefix+"/input/message.md"])??maybe(main,["show",t.branch+":"+prefix+"/task/message.md"]))?.includes(options.withdraw.trim()))return {files:0}
  const message=options.withdraw?`${String(t.n).padStart(3,"0")} Take back the addition to message.md`:`${String(t.n).padStart(3,"0")} Snapshot shared task documents`
  const bodies:Record<string,Buffer>={}
  const walk=(dir:string)=>{for(const e of fs.readdirSync(dir,{withFileTypes:true})){
   if(e.name.startsWith(".")||e.name==="imported-sources"||e.name==="legacy"||e.name.endsWith(".tmp"))continue
   const full=path.join(dir,e.name),rel=path.relative(folder,full).replace(/\\/g,"/")
-  if(rel.startsWith(".canopus/") || ["state.json", "watch.json", "snapshot.json", "tests-run.json"].includes(rel) || ["task/state.json","task/watch.json","task/snapshot.json","task/tests-run.json"].includes(rel))continue
+  if(rel.startsWith(".canopus/") || ["state.json", "watch.json", "snapshot.json", "tests-run.json"].includes(rel) || ["task/state.json","task/watch.json","task/snapshot.json","task/tests-run.json","input/state.json","input/watch.json","input/snapshot.json","input/tests-run.json"].includes(rel))continue
   if(e.isSymbolicLink())throw Error("Task documents contain a symbolic link")
   if(e.isDirectory())walk(full);else bodies[prefix+"/"+rel]=fs.readFileSync(full)
  }}

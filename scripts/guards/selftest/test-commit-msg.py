@@ -116,16 +116,16 @@ def main():
         attempt(r, ("-s",), e=e, expect="forbidden-name")
 
     def verbose_diff_removed_line_passes():
-        r = repo(extra={"doc/old.md": "old line " + P1 + " here\nkeep\n"})
-        stlib.write_files(r, {"doc/old.md": "keep\n"})
-        stlib.git(r, env, "add", "--", "doc/old.md")
+        r = repo(extra={"docs/old.md": "old line " + P1 + " here\nkeep\n"})
+        stlib.write_files(r, {"docs/old.md": "keep\n"})
+        stlib.git(r, env, "add", "--", "docs/old.md")
         e = dict(env, GIT_EDITOR=editor_cmd, ST_PREPEND="Drop the old line\n")
         attempt(r, ("-s", "-v"), e=e, ok=True)
 
     def verbose_name_in_message_red():
-        r = repo(extra={"doc/old.md": "old line " + P1 + " here\nkeep\n"})
-        stlib.write_files(r, {"doc/old.md": "keep\n"})
-        stlib.git(r, env, "add", "--", "doc/old.md")
+        r = repo(extra={"docs/old.md": "old line " + P1 + " here\nkeep\n"})
+        stlib.write_files(r, {"docs/old.md": "keep\n"})
+        stlib.git(r, env, "add", "--", "docs/old.md")
         e = dict(env, GIT_EDITOR=editor_cmd, ST_PREPEND="Mention %s here\n" % P1)
         attempt(r, ("-s", "-v"), e=e, expect="forbidden-name")
 

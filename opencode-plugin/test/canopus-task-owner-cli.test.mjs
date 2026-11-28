@@ -39,10 +39,10 @@ const preload = path.join(home, "native-fixture-bootstrap.mjs")
 writeFileSync(preload, `import {allowNativeRegistry,allowNativeEndpoint} from ${JSON.stringify(new URL("./native-isolation.mjs", import.meta.url).href)};process.env.XDG_STATE_HOME=${JSON.stringify(process.env.XDG_STATE_HOME)};allowNativeRegistry(${JSON.stringify(registry)});allowNativeEndpoint(${JSON.stringify(reg.url)});`)
 const childEnv = { ...process.env, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ""} --import ${pathToFileURL(preload).href}` }
 
-const repo = path.join(home, "repo"), tree = path.join(home, "tree"); mkdirSync(path.join(repo, ".canopus/plugin"), { recursive: true }); mkdirSync(path.join(repo, "doc/tasks"), { recursive: true })
-writeFileSync(path.join(repo, ".canopus/plugin/config.json"), JSON.stringify({ tasks_dir: "doc/tasks" })); writeFileSync(path.join(repo, "doc/tasks/.gitkeep"), "")
+const repo = path.join(home, "repo"), tree = path.join(home, "tree"); mkdirSync(path.join(repo, ".canopus/plugin"), { recursive: true }); mkdirSync(path.join(repo, "docs/tasks"), { recursive: true })
+writeFileSync(path.join(repo, ".canopus/plugin/config.json"), JSON.stringify({ tasks_dir: "docs/tasks" })); writeFileSync(path.join(repo, "docs/tasks/.gitkeep"), "")
 const git = (...args) => execFileSync("git", ["-C", repo, ...args], { windowsHide: true, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim()
-git("init", "-q", "-b", "main"); git("config", "user.name", "Fixture"); git("config", "user.email", "fixture@example.com"); git("add", "--", ".canopus/plugin/config.json", "doc/tasks/.gitkeep"); git("commit", "-qm", "fixture"); git("worktree", "add", "-qb", "task/fixture", tree)
+git("init", "-q", "-b", "main"); git("config", "user.name", "Fixture"); git("config", "user.email", "fixture@example.com"); git("add", "--", ".canopus/plugin/config.json", "docs/tasks/.gitkeep"); git("commit", "-qm", "fixture"); git("worktree", "add", "-qb", "task/fixture", tree)
 const script = fileURLToPath(new URL("../../scripts/task-number.mjs", import.meta.url))
 const args = [script, "--config", taskTestConfig(home), "--dir", tree, "--project", "sample", "--title", "CLI approved task", "--session", "ses_cli", "--creation-reason", "new independent output", "--checked-tasks", "none", "--why-new", "no matching task exists"]
 const run = (argv, env = childEnv) => new Promise((resolve, reject) => {
@@ -50,7 +50,7 @@ const run = (argv, env = childEnv) => new Promise((resolve, reject) => {
 })
 try {
  let r = await run(args); assert.equal(r.code, 2, r.stderr); const pending = JSON.parse(r.stdout.trim())
- assert.equal(pending.state, "pending"); assert.equal(readdirSync(path.join(tree, "doc/tasks")).filter(x => /^\d/.test(x)).length, 0)
+ assert.equal(pending.state, "pending"); assert.equal(readdirSync(path.join(tree, "docs/tasks")).filter(x => /^\d/.test(x)).length, 0)
  const tasks = await import("../tasks.ts"); assert.equal(tasks.listTasks("sample").length, 0)
  const form = [...forms.values()][0]; form.state = { status: "answered", answer: { decision: "confirm" } }
  r = await run([...args, "--approval", pending.approval]); assert.equal(r.code, 0, r.stderr); const made = JSON.parse(r.stdout.trim())
@@ -69,10 +69,10 @@ try {
  assert.equal(tasks.listTasks("sample").length,2);assert.ok(tasks.loadTask("sample",partial.n).creation_failure)
  const confirmation=await import("../task-confirmation.ts");assert.equal(confirmation.readProposal(cp.approval).state,"blocked")
  const partialFolder=path.join(tree,...partial.folder.split("/"))
- writeFileSync(path.join(partialFolder,"task/creation.json"),JSON.stringify({reason:partial.creation_reason,checked_tasks:partial.checked_tasks,why_new:partial.why_new,approval:partial.creation_approval}))
- writeFileSync(path.join(partialFolder,"task/message.md"),"operator repaired fixture");writeFileSync(path.join(partialFolder,"log.md"),"fixture restoration")
+ writeFileSync(path.join(partialFolder,"input/creation.json"),JSON.stringify({reason:partial.creation_reason,checked_tasks:partial.checked_tasks,why_new:partial.why_new,approval:partial.creation_approval}))
+ writeFileSync(path.join(partialFolder,"input/message.md"),"operator repaired fixture");writeFileSync(path.join(partialFolder,"log.md"),"fixture restoration")
  cr=await run([...crashArgs,"--approval",cp.approval]);assert.equal(cr.code,0,cr.stderr);assert.equal(JSON.parse(cr.stdout).n,partial.n)
- assert.equal(confirmation.readProposal(cp.approval).state,"applied");assert.equal(readFileSync(path.join(partialFolder,"task/message.md"),"utf8"),"operator repaired fixture")
+ assert.equal(confirmation.readProposal(cp.approval).state,"applied");assert.equal(readFileSync(path.join(partialFolder,"input/message.md"),"utf8"),"operator repaired fixture")
  const native = await import("../task-confirmation-native.ts")
  let tick = 0; const io = native.taskConfirmationIO(reg, fetch, () => tick, async ms => { tick += ms })
  assert.equal(await io.idle("ses_cli"), true, "MCP/CLI PID differs from native service PID and still proves idle")

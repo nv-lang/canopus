@@ -12,7 +12,7 @@ try {
   const { QuestionRouter, QUESTION_ROUTE_TERM_MS } = await import('../question-router.ts')
   let target = 'ses_fixture_integrator', observation = { state: 'pending' }, held, posts = 0, scopeDigest = 'a'.repeat(64)
   const outbox = []
-  const sources = [{ path: 'doc/assignment.md', sha256: 'b'.repeat(64), quote: 'Продолжить неблокированную часть того же задания.' }]
+  const sources = [{ path: 'docs/assignment.md', sha256: 'b'.repeat(64), quote: 'Продолжить неблокированную часть того же задания.' }]
   const deps = {
     target: () => target,
     inspect: async () => observation,

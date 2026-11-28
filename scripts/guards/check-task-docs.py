@@ -5,9 +5,9 @@
     захода, номера требований, строки хода); молчаливо испорченная первая строка запускает проверку
     заново поверх утверждённого документа или теряет заход, а строка журнала не по форме пропадает
     из панели хода без шума.
-Проверяет: номер папки задачи doc/tasks/NNN-<slug>/ не повторяется — две папки с одним номером NNN красные (task-number-dup,
+Проверяет: номер папки задачи docs/tasks/NNN-<slug>/ не повторяется — две папки с одним номером NNN красные (task-number-dup,
     адрес — обе папки; задача 058: одна задача — один номер; в режиме коммита — только если коммит меняет одну из них);
-    в doc/tasks/*/ — первая строка spec.md и plan.md начинается с «Статус: черновик» или
+    в docs/tasks/*/ — первая строка spec.md и plan.md начинается с «Статус: черновик» или
     «Статус: утверждено»; первая строка spec-review-N.md, plan-review-N.md, review-N.md и
     delivery-review-N.md — «Заход N: существенных K, поверхностных M, проб P» с числами и N как в
     имени файла; номера REQ-NN, AC-NN, DNC-NN в начале строки spec.md не повторяются; progress.log —
@@ -41,15 +41,15 @@
     его разделе — непустое содержание, а строка «нет: результат — код» (если есть) несёт фразу о том,
     что сдаётся (result-section); результат назван (строки «нет: результат — код» в разделе нет), а в
     папке уже есть result.md — в папке есть current.md (result-current); образец задания (задача 065) — только у задач, заведённых
-    не раньше 2026-10-17 01:00 (первая запись log.md с датой и временем): в task/message.md до первого раздела есть заголовок
+    не раньше 2026-10-17 01:00 (первая запись log.md с датой и временем): в input/message.md до первого раздела есть заголовок
     «# Задание: <название>» (message-title), разделы второго уровня «Чего хочет владелец», «Что нужно», «Критерии приёмки»,
     «Результат и куда он попадает», «Связи», «Границы» есть все и в этом порядке (пояснение в скобках после названия допустимо),
     ни один не пуст и «нет:» в них — с причиной (message-section), в разделе слов владельца есть дата ГГГГ-ММ-ДД в заголовке или
     теле, если раздел не «нет: …» (message-owner). Малая форма (малый маршрут, задача 191; признак — вторая строка «T: …»):
     три непустые строки — заголовок, «T: <оценка>» непустая, слова владельца с датой ГГГГ-ММ-ДД (message-small, message-owner).
-    дочерние задачи эпика (ADR-0014; владелец, 2026-10-27): если первая непустая строка task/message.md — «Эпик: NNN» (по методике; старая
-    «Родитель: NNN» читается; номер голый, без ссылки и пояснений), в doc/tasks есть папка этого номера (parent-missing), а если у неё есть task/children.md — в таблице есть
-    строка этого ребёнка (children-row); сам task/children.md — таблица по форме хаба: шапка «Номер, Тип, Название, Папка, Ветка,
+    дочерние задачи эпика (ADR-0014; владелец, 2026-10-27): если первая непустая строка input/message.md — «Эпик: NNN» (по методике; старая
+    «Родитель: NNN» читается; номер голый, без ссылки и пояснений), в docs/tasks есть папка этого номера (parent-missing), а если у неё есть input/children.md — в таблице есть
+    строка этого ребёнка (children-row); сам input/children.md — таблица по форме хаба: шапка «Номер, Тип, Название, Папка, Ветка,
     Сессия, Состояние, Затрагивает», строки из восьми ячеек, номер — три цифры и больше, тип — «дочерняя» (старые таблицы: «подзадача», «задача эпика», «задача»),
     состояние — «идёт», «ждёт K», «ждёт очереди», «готово» или «слита» (children-table). Старые задачи без таких строк (в том числе дети
     эпика 001 со ссылкой в строке «Эпик: …» не первой строкой) не судятся; родитель без children.md (прежний эпик с журналом) —
@@ -73,9 +73,9 @@
     метки копий, единственность действующего текста и честность строки «нет: результат — код» (это
     проверка С6, п. 5 методики); в режиме коммита — папки, где коммит не меняет spec.md или plan.md; по образцу задания — задачи,
     заведённые раньше 2026-10-17 01:00, папки без log.md с датой, шапку задания, дополнительные разделы, дословность слов владельца
-    и честность «нет: <почему>» (судит приёмка), задание в режиме коммита, если коммит не меняет task/message.md.
-Правило: doc/canon/process.md (цикл сессий методики, «Журнал хода progress.log», «Задача, сессия, подзадача», «Результат и
-    куда он попадает», «Задание task/message.md») и формат машинных мест методики.
+    и честность «нет: <почему>» (судит приёмка), задание в режиме коммита, если коммит не меняет input/message.md.
+Правило: docs/canon/process.md (цикл сессий методики, «Журнал хода progress.log», «Задача, сессия, подзадача», «Результат и
+    куда он попадает», «Задание input/message.md») и формат машинных мест методики.
 
 Пометок-исключений у этого стража нет.
 """
@@ -92,18 +92,18 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib
 import guardlib  # noqa: E402
 import machine_paths  # noqa: E402
 
-TASK_FILE = re.compile(r"^doc/tasks/[^/]+/(spec\.md|plan\.md|(?:spec-review|plan-review|review|delivery-review)-(\d+)\.md)$")
+TASK_FILE = re.compile(r"^docs/tasks/[^/]+/(spec\.md|plan\.md|(?:spec-review|plan-review|review|delivery-review)-(\d+)\.md)$")
 STATUS = re.compile(r"^Статус: (черновик|утверждено)")
 REVIEW = re.compile(r"^Заход (\d+): существенных (\d+), поверхностных (\d+), проб (\d+)")
 IDENT = re.compile(r"^(REQ|AC|DNC)-(\d+)\b")
-JOURNAL_FILE = re.compile(r"^doc/tasks/[^/]+/progress\.log$")
+JOURNAL_FILE = re.compile(r"^docs/tasks/[^/]+/progress\.log$")
 # строка журнала (Д-11): только ASCII-цифры, остаток — любые знаки кроме LF; в JavaScript тот же язык (progress.ts, LINE_RE)
 JOURNAL_LINE = re.compile(r"^([^ \t]+) ([0-9]+)/([0-9]+) ([^\n]+)$")
 # необязательное поле времени в начале подписи (REQ-04): `[ЧЧ:ММ]` или `[ГГГГ-ММ-ДД ЧЧ:ММ]` (по слову владельца, 2026-10-09);
 # общий набор строк test/progress-vectors.json
 JOURNAL_TIME = re.compile(r"^\[(?:[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01]) )?(?:[01][0-9]|2[0-3]):[0-5][0-9]\] ")
 # log.md задачи: новые записи — «ГГГГ-ММ-ДД ЧЧ:ММ <вид>: <текст>»; судятся добавленные строки с датой не раньше LOG_FROM
-LOG_FILE = re.compile(r"^doc/tasks/[^/]+/log\.md$")
+LOG_FILE = re.compile(r"^docs/tasks/[^/]+/log\.md$")
 LOG_DATED = re.compile(r"^([0-9]{4}-[0-9]{2}-[0-9]{2})(?![0-9])")
 LOG_ENTRY = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2} (решение владельца|заседание|ворота|документ|пуск|слияние|находка): ")
 LOG_FROM = "2026-10-10"
@@ -152,17 +152,17 @@ ANY_HEAD = re.compile(r"^#{1,6}[ \t]")
 NO_RESULT_LINE = re.compile(r"^[ \t]*(?:[-*][ \t]+)?«?нет: результат — код»?(.*)$")
 LOG_STARTED = re.compile(r"^([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}) ")
 # папка задачи с номером (задача 058): номер — цифры до первого дефиса
-TASK_FOLDER = re.compile(r"^(doc/tasks/([0-9]{3,})-[^/]+)/")
-# дочерние задачи эпика (ADR-0014, владелец 2026-10-27): первая строка task/message.md — «Эпик: NNN» (старая «Родитель: NNN» читается), таблица дочерних задач эпика — task/children.md
+TASK_FOLDER = re.compile(r"^(docs/tasks/([0-9]{3,})-[^/]+)/")
+# дочерние задачи эпика (ADR-0014, владелец 2026-10-27): первая строка input/message.md — «Эпик: NNN» (старая «Родитель: NNN» читается), таблица дочерних задач эпика — input/children.md
 PARENT_LINE = re.compile(r"^(Эпик|Родитель):[ \t]*([0-9]{3,})[ \t]*$")
-CHILDREN_FILE = re.compile(r"^(doc/tasks/[^/]+)/(?:task/)?children\.md$")
+CHILDREN_FILE = re.compile(r"^(docs/tasks/[^/]+)/(?:(?:input|task)/)?children\.md$")
 CHILDREN_HEAD = ("Номер", "Тип", "Название", "Папка", "Ветка", "Сессия", "Состояние", "Затрагивает")
 CHILDREN_KINDS = ("дочерняя", "подзадача", "задача эпика", "задача")
 CHILDREN_STATE = re.compile(r"^(идёт|готово|слита|ждёт очереди|ждёт [0-9]+)$")
-CHILDREN_RULE = "ADR-0014, doc/canon/process.md, «Дети задачи»"
-# образец задания task/message.md (слово владельца, 2026-10-17, чат оркестратора; задача 065): заголовок «# Задание: …», разделы второго
+CHILDREN_RULE = "ADR-0014, docs/canon/process.md, «Дети задачи»"
+# образец задания input/message.md (слово владельца, 2026-10-17, чат оркестратора; задача 065): заголовок «# Задание: …», разделы второго
 # уровня по порядку, не пустые, «нет:» с причиной, дата в разделе слов владельца; судятся задачи, заведённые не раньше MESSAGE_FROM
-MESSAGE_FILE = re.compile(r"^(doc/tasks/[^/]+)/task/message\.md$")
+MESSAGE_FILE = re.compile(r"^(docs/tasks/[^/]+)/input/message\.md$")
 MESSAGE_FROM = "2026-10-17 01:00"
 MESSAGE_SECTIONS = ("Чего хочет владелец", "Что нужно", "Критерии приёмки", "Результат и куда он попадает", "Связи", "Границы")
 MESSAGE_TITLE = re.compile(r"^#[ \t]+Задание:[ \t]*\S")
@@ -172,7 +172,7 @@ MESSAGE_PAREN = re.compile(r"[ \t]*\(.*\)$")
 MESSAGE_NONE = re.compile(r"^[ \t]*(?:[-*][ \t]+)?нет:")
 MESSAGE_BARE_NONE = re.compile(r"^[ \t]*(?:[-*][ \t]+)?нет:[ \t.,;:—–-]*$")
 MESSAGE_DATE = re.compile(r"(?<![0-9])[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])(?![0-9])")
-MESSAGE_RULE = "Канон, process.md, «Задание task/message.md»"
+MESSAGE_RULE = "Канон, process.md, «Задание input/message.md»"
 
 
 def first_line(text):
@@ -562,7 +562,7 @@ def check_message_small(path, lines, rep):
 
 
 def check_message(path, text, rep):
-    """task/message.md задачи, заведённой не раньше MESSAGE_FROM: заголовок, разделы образца по порядку, не пустые, дата у слов владельца.
+    """input/message.md задачи, заведённой не раньше MESSAGE_FROM: заголовок, разделы образца по порядку, не пустые, дата у слов владельца.
     Малая форма (задача 191, вторая строка «T: …») судится check_message_small."""
     lines = text_lines(guardlib.strip_fenced(text.lstrip("﻿")))
     if check_message_small(path, lines, rep):
@@ -648,7 +648,7 @@ def children_rows(text):
 
 
 def check_children_table(path, text, rep):
-    """task/children.md: шапка, строки из восьми ячеек, номер, тип и состояние по списку (children-table)."""
+    """input/children.md: шапка, строки из восьми ячеек, номер, тип и состояние по списку (children-table)."""
     lines = text_lines(text)
     if not any(tuple(children_cells(line)) == CHILDREN_HEAD for line in lines if line.strip().startswith("|")):
         rep.add(path, None, "children-table", "нет шапки таблицы «| %s |» (%s)" % (" | ".join(CHILDREN_HEAD), CHILDREN_RULE))
@@ -665,35 +665,36 @@ def check_children_table(path, text, rep):
 
 
 def check_parent_line(path, text, source, by_path, rep):
-    """Первая строка task/message.md «Эпик: NNN» (или старая «Родитель: NNN»): папка эпика есть, а если у неё есть task/children.md — в таблице есть этот ребёнок."""
+    """Первая строка input/message.md «Эпик: NNN» (или старая «Родитель: NNN»): папка эпика есть, а если у неё есть input/children.md — в таблице есть этот ребёнок."""
     first = next((line.strip() for line in text_lines(text) if line.strip()), "")
     m = PARENT_LINE.match(first)
     if not m:
         return
     parent_no = int(m.group(2))
-    own = TASK_FOLDER.match(path.rsplit("/task/message.md", 1)[0] + "/")
+    own = TASK_FOLDER.match(re.sub(r"/(?:input|task)/message\.md$", "", path) + "/")
     folders = set()
     for e in source.entries():
         f = TASK_FOLDER.match(e.path)
         if f and int(f.group(2)) == parent_no:
             folders.add(f.group(1))
     if not folders:
-        rep.add(path, 1, "parent-missing", "строка «%s: %s»: в doc/tasks нет папки задачи %s (%s)" % (m.group(1), m.group(2), m.group(2), CHILDREN_RULE))
+        rep.add(path, 1, "parent-missing", "строка «%s: %s»: в docs/tasks нет папки задачи %s (%s)" % (m.group(1), m.group(2), m.group(2), CHILDREN_RULE))
         return
     for folder in sorted(folders):
-        table = by_path.get(folder + "/children.md") or by_path.get(folder + "/task/children.md")
+        table = by_path.get(folder + "/children.md") or by_path.get(folder + "/input/children.md")
         data = source.read(table) if table is not None and table.mode != "160000" else None
         if data is None:
             continue
         numbers = [cells[0] for _, cells in children_rows(data.decode("utf-8", "replace")) if cells]
         if own and not any(n.isdigit() and int(n) == int(own.group(2)) for n in numbers):
-            rep.add(path, 1, "children-row", "в %s/task/children.md нет строки ребёнка %s: хаб пишет её при создании, руками — «| %s | дочерняя | … |» (%s)" % (folder, own.group(2), own.group(2), CHILDREN_RULE))
+            rep.add(path, 1, "children-row", "в %s/input/children.md нет строки ребёнка %s: хаб пишет её при создании, руками — «| %s | дочерняя | … |» (%s)" % (folder, own.group(2), own.group(2), CHILDREN_RULE))
 
 
 def configure_tasks_dir(source):
     global TASK_FILE, JOURNAL_FILE, LOG_FILE, TASK_FOLDER, CHILDREN_FILE, MESSAGE_FILE
     entries = {entry.path: entry for entry in source.entries()}
-    rel = "doc/tasks"
+    rel = "docs/tasks"
+    config = {}
     entry = entries.get(".canopus/plugin/config.json")
     if entry is not None:
         raw = source.read(entry)
@@ -705,13 +706,20 @@ def configure_tasks_dir(source):
     rel = rel.replace("\\", "/").removesuffix("/")
     if rel and (rel.startswith("/") or ":" in rel or any(p in ("", ".", "..") for p in rel.split("/"))):
         raise ValueError("tasks_dir must stay inside the repository")
+    if rel == "docs/tasks" and (entry is None or not config.get("tasks_dir")):
+        modern = any(p.startswith("docs/tasks/") for p in entries)
+        legacy = any(p.startswith("doc/tasks/") for p in entries)
+        if modern and legacy:
+            raise ValueError("Ambiguous task directories; set tasks_dir explicitly")
+        if legacy:
+            rel = "doc/tasks"
     prefix = re.escape(rel) if rel else r"(?!)"
     TASK_FILE = re.compile(r"^" + prefix + r"/[^/]+/(spec\.md|plan\.md|(?:spec-review|plan-review|review|delivery-review)-(\d+)\.md)$")
     JOURNAL_FILE = re.compile(r"^" + prefix + r"/[^/]+/progress\.log$")
     LOG_FILE = re.compile(r"^" + prefix + r"/[^/]+/log\.md$")
     TASK_FOLDER = re.compile(r"^(" + prefix + r"/([0-9]{3,})-[^/]+)/")
-    CHILDREN_FILE = re.compile(r"^(" + prefix + r"/[^/]+)/(?:task/)?children\.md$")
-    MESSAGE_FILE = re.compile(r"^(" + prefix + r"/[^/]+)/task/message\.md$")
+    CHILDREN_FILE = re.compile(r"^(" + prefix + r"/[^/]+)/(?:(?:input|task)/)?children\.md$")
+    MESSAGE_FILE = re.compile(r"^(" + prefix + r"/[^/]+)/(?:input|task)/message\.md$")
 
 
 def judge(source, args, rep):
@@ -787,4 +795,4 @@ def judge(source, args, rep):
 
 if __name__ == "__main__":
     sys.exit(guardlib.run("check-task-docs", "файлов задач", judge,
-                          lost="нет ни одного spec.md, plan.md, progress.log, log.md, task/message.md новой задачи или файла проверки в doc/tasks/*/"))
+                          lost="нет ни одного spec.md, plan.md, progress.log, log.md, input/message.md новой задачи или файла проверки в docs/tasks/*/"))

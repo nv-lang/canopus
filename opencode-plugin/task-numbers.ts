@@ -1,4 +1,4 @@
-// ОДНА ЗАДАЧА — ОДИН НОМЕР (задача 058). В проекте с папками задач (ключ tasks_dir, по умолчанию doc/tasks) номер задачи — номер её
+// ОДНА ЗАДАЧА — ОДИН НОМЕР (задача 058). В проекте с папками задач (ключ tasks_dir, по умолчанию docs/tasks) номер задачи — номер её
 // папки NNN-<slug>; запись плагина получает тот же номер. Здесь — всё, что про папки в git: включены ли они, какие номера уже заняты
 // (папки во всех рабочих деревьях репозитория, во всех локальных ветках и ветках origin), где лежит папка с номером, и запись новой
 // папки на ветку задачи без рабочей копии (основную копию целевой ветки плагин не меняет: она живая, AGENTS.md, пп. 3 и 11).
@@ -11,7 +11,7 @@ import { mkdtempSync, readdirSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
-export const DEFAULT_TASKS_DIR = "doc/tasks"
+export const DEFAULT_TASKS_DIR = "docs/tasks"
 export const pad3 = (n: number | string) => String(n).padStart(3, "0")
 const FOLDER_RE = /^(\d{3,})-(.+)$/
 
@@ -74,8 +74,13 @@ function treeNames(buf: Buffer, start: number, end: number): string[] {
   return names
 }
 
-/** Папки задач во всех рабочих деревьях (на диске, включая не закоммиченное) и во всех локальных ветках и ветках origin. */
+/** Scan both historical layouts during a staggered migration; numbers stay global. */
 export function scanFolders(dir: string, rel: string = DEFAULT_TASKS_DIR): FolderHit[] {
+  return scanFoldersAt(dir, rel)
+}
+
+/** Папки задач во всех рабочих деревьях (на диске, включая не закоммиченное) и во всех локальных ветках и ветках origin. */
+function scanFoldersAt(dir: string, rel: string = DEFAULT_TASKS_DIR): FolderHit[] {
   const r = relOf(rel ?? "")
   if (!r) return []
   const hits: FolderHit[] = []
@@ -134,7 +139,8 @@ export function scanFolders(dir: string, rel: string = DEFAULT_TASKS_DIR): Folde
 
 /** Номера папок задач, занятые где-либо в репозитории. */
 export function usedNumbers(dir: string, rel: string = DEFAULT_TASKS_DIR): number[] {
-  return [...new Set(scanFolders(dir, rel).map((h) => h.n))].sort((a, b) => a - b)
+  const aliases = ["docs/tasks", "doc/tasks"].includes(rel) ? ["docs/tasks", "doc/tasks"] : [rel]
+  return [...new Set(aliases.flatMap(r => scanFoldersAt(dir, r)).map(h => h.n))].sort((a, b) => a - b)
 }
 
 /** Где лежит папка задачи с номером n (несколько мест — одна папка в разных копиях; разные имена — повтор номера). */

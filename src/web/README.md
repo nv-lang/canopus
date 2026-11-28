@@ -5,8 +5,8 @@
 фоновые задачи). Светлая и тёмная темы. Обычный HTML, CSS и JavaScript-модули, **без фреймворка, без npm, без сборки**.
 Страница живёт либо на потоке событий-заглушке (`?mock=1`), либо на настоящем сервере по сокету `/ws`
 ([`src/server/`](../server/README.md), задание 099): список сессий, создание, разговор, запросы разрешения и отмена хода идут через него.
-Задания: [093](../../doc/tasks/093-console-skeleton/task/message.md) (скелет),
-[094](../../doc/tasks/094-console-claude-layout/task/message.md) (раскладка и стиль).
+Задания: [093](../../docs/tasks/093-console-skeleton/input/message.md) (скелет),
+[094](../../docs/tasks/094-console-claude-layout/input/message.md) (раскладка и стиль).
 
 ## Раскладка
 

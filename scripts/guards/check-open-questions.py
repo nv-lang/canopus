@@ -4,7 +4,7 @@
 Зачем: неблокирующие вопросы оседали в разделах «Не сделано» разборов задач и терялись (унификация
     номеров отложена в разборе 044 и всплыла, только когда владелец спросил сам); вопрос без срока и
     умолчания висит вечно, а просрочку без счёта никто не замечает.
-Проверяет: doc/open-questions.md — пункты с заголовка «## #N <название>», N не повторяется
+Проверяет: docs/open-questions.md — пункты с заголовка «## #N <название>», N не повторяется
     (oq-number); у пункта строки «- Вопрос:», «- Адресат:», «- Решение по умолчанию:», «- Срок:
     ГГГГ-ММ-ДД», «- Источник: … ГГГГ-ММ-ДД» (oq-field); закрытие — «- закрыто: <ссылка на норму или
     слово владельца>, ГГГГ-ММ-ДД» (oq-close); продление — «- продлено: до ГГГГ-ММ-ДД», не больше двух,
@@ -19,8 +19,8 @@
 Не проверяет: разборы, начатые до OQ_SINCE (их хвосты перенесены задачей 060 руками), правдивость
     закрытий и разумность умолчаний (приёмка и владелец), просрочку как нарушение (просрочка — повод
     спросить владельца, а не красный коммит).
-Правило: doc/canon/process.md, «Открытые вопросы»; методика unitcraft/ai-dev-methodology,
-    doc/open-questions.md и разделы 8 и 10 methodology.md; задача 060.
+Правило: docs/canon/process.md, «Открытые вопросы»; методика unitcraft/ai-dev-methodology,
+    docs/open-questions.md и разделы 8 и 10 methodology.md; задача 060.
 
 Пометок-исключений у этого стража нет.
 """
@@ -38,14 +38,14 @@ import guardlib  # noqa: E402
 
 # Дата введения: разборы задач, начатых с этого дня, обязаны ставить пометки.
 OQ_SINCE = "2026-10-16"
-OQ_FILE = "doc/open-questions.md"
+OQ_FILE = "docs/open-questions.md"
 MAX_EXTEND = 2
 
 DATE = r"\d{4}-\d{2}-\d{2}"
 ITEM_HEAD = re.compile(r"^##\s+#(\d+)\s+(.*\S)\s*$")
 FIELD = re.compile(r"^-\s+([^:]+?):\s*(.*)$")
 FIELDS = ("Вопрос", "Адресат", "Решение по умолчанию", "Срок", "Источник")
-ANALYSIS = re.compile(r"^(doc/tasks/[^/]+)/analysis\.md$")
+ANALYSIS = re.compile(r"^(docs/tasks/[^/]+)/analysis\.md$")
 LOG_DATE = re.compile(r"(" + DATE + r")")
 HEADING = re.compile(r"^#{1,6}\s+(.*)$")
 UNDONE = re.compile(r"не сделано|не проверено|осталось", re.I)
@@ -208,7 +208,9 @@ def overdue_list(items, today):
 
 
 def judge(source, args, rep):
+    global OQ_FILE
     by_path = dict((e.path, e) for e in source.entries())
+    OQ_FILE = "docs/open-questions.md" if "docs/open-questions.md" in by_path or "doc/open-questions.md" not in by_path else "doc/open-questions.md"
     count = 0
     items = []
     have_file = OQ_FILE in by_path
@@ -235,7 +237,7 @@ def judge(source, args, rep):
         count += 1
         check_analysis(entry.path, data.decode("utf-8", "replace"), numbers, have_file, rep)
     if count == 0:
-        if not have_file and not any(p.startswith("doc/tasks/") for p in by_path):
+        if not have_file and not any(p.startswith("docs/tasks/") for p in by_path):
             return guardlib.Outcome(count=0)
         return guardlib.Outcome(nothing="нет файла открытых вопросов и разборов задач с %s" % OQ_SINCE)
     return guardlib.Outcome(count=count)
@@ -247,6 +249,7 @@ def extra(parser):
 
 
 def overdue_main(argv):
+    global OQ_FILE
     """Счёт просроченных: «просрочено: N» первой строкой, затем список; код 0, ошибка — код 1."""
     guardlib.setup_io()
     args = guardlib.build_parser(extra, "check-open-questions").parse_args(argv)
@@ -256,6 +259,7 @@ def overdue_main(argv):
     except guardlib.Unavailable as exc:
         print("FAIL: предпосылка: %s" % exc)
         return 1
+    OQ_FILE = "docs/open-questions.md" if os.path.exists(os.path.join(root,"docs/open-questions.md")) or not os.path.exists(os.path.join(root,"doc/open-questions.md")) else "doc/open-questions.md"
     try:
         with open(os.path.join(root, *OQ_FILE.split("/")), "rb") as handle:
             text = handle.read().decode("utf-8", "replace").lstrip("﻿")

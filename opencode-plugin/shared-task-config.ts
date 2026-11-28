@@ -2,7 +2,7 @@
 import fs from "node:fs"
 import path from "node:path"
 import {execFileSync} from "node:child_process"
-import {taskRoot,withTaskLock,slugify} from "./shared-task-store.ts"
+import {taskRoot,withTaskLock,slugify,projectTasksDirectory} from "./shared-task-store.ts"
 function json(file:string):any {return fs.existsSync(file)?JSON.parse(fs.readFileSync(file,"utf8").replace(/^\uFEFF/,"")): {}}
 function git(root:string,args:string[]):string|undefined {try{return execFileSync("git",["-C",root,...args],{encoding:"utf8",windowsHide:true,stdio:["ignore","pipe","ignore"]}).trim()}catch{return undefined}}
 function mainOf(dir:string):string {
@@ -22,9 +22,9 @@ export function sharedTaskContext(config:string,directory="",givenProject?:strin
  const personal=main?path.join(main,".canopus/plugin/local.json"):undefined
  if(personal&&fs.existsSync(personal))throw Error("Canopus local.json was removed; run the explicit two-level configuration transition")
  const projectConfig=main?json(path.join(main,".canopus/plugin/config.json")):{}
- const tasksDir=projectConfig.tasks_dir??global.defaults?.tasks_dir??"doc/tasks"
+ const tasksDir=main?projectTasksDirectory(main,projectConfig.tasks_dir??global.defaults?.tasks_dir):"docs/tasks"
  if(typeof tasksDir!=="string")throw Error("tasks_dir must be a string")
- const root=taskRoot(home,project,main?{root:main,tasksDir:tasksDir||"doc/tasks"}:undefined)
+ const root=taskRoot(home,project,main?{root:main,tasksDir}:undefined)
  return {home,project,main,root,catalogFile,catalog}
 }
 export function taskGitExclude(root:string):string|undefined {
@@ -40,7 +40,7 @@ export function bindSharedTaskContext(c:ReturnType<typeof sharedTaskContext>) {
  if(fs.existsSync(path.join(c.main,".git"))){
   const file=taskGitExclude(c.main)! ,before=fs.existsSync(file)?fs.readFileSync(file,"utf8"):""
   const rel=path.relative(c.main,c.root).replace(/\\/g,"/")
-  const patterns=["**/[0-9][0-9][0-9]*/state.json", "**/[0-9][0-9][0-9]*/watch.json", "**/[0-9][0-9][0-9]*/snapshot.json", "**/[0-9][0-9][0-9]*/tests-run.json", "**/task/state.json", "**/task/watch.json", "**/task/snapshot.json", "**/task/tests-run.json","**/.task-store.lock/", "**/.task-store.claim-*","**/imported-sources/",`/${rel}/legacy/`]
+  const patterns=["**/[0-9][0-9][0-9]*/state.json", "**/[0-9][0-9][0-9]*/watch.json", "**/[0-9][0-9][0-9]*/snapshot.json", "**/[0-9][0-9][0-9]*/tests-run.json", "**/input/state.json", "**/input/watch.json", "**/input/snapshot.json", "**/input/tests-run.json","**/.task-store.lock/", "**/.task-store.claim-*","**/imported-sources/",`/${rel}/legacy/`]
   const missing=patterns.filter(p=>!before.split(/\r?\n/).includes(p))
   if(missing.length){fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,before+(before.endsWith("\n")?"":"\n")+missing.join("\n")+"\n")}
  }

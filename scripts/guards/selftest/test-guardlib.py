@@ -28,7 +28,7 @@ def main():
     pr = stlib.Probes("guardlib")
     base = pr.mkdtemp()
     env = stlib.isolated_env(base)
-    cyr = "doc/файл один.md"
+    cyr = "docs/файл один.md"
     files = {
         "a.txt": "line one\n",
         cyr: "text\n",
@@ -219,7 +219,7 @@ def main():
             assert code == 1 and out.startswith("FAIL: предпосылка"), (code, out)
 
     def subfolder_is_not_root():
-        sub = os.path.join(repo, "doc")
+        sub = os.path.join(repo, "docs")
         with stlib.patched_environ(env):
             code, out = stlib.captured(guardlib.run, "g", "x", lambda s, a, r: 1, ["--root", sub])
             assert code == 1 and "не корень репозитория" in out, (code, out)
@@ -252,6 +252,26 @@ def main():
             got = src.added_lines("j.log")
             src.close()
         assert got == [], got
+
+    def added_lines_rename_preserves_history():
+        r = added_repo("rename-history", ["old history", "keep exact bytes"])
+        stlib.git(r, env, "mv", "j.log", "moved.log")
+        with stlib.patched_environ(env):
+            src = guardlib.Source(r, "index")
+            got = src.added_lines("moved.log")
+            src.close()
+        assert got == [], got
+
+    def added_lines_rename_checks_new_lines():
+        r = added_repo("rename-changed", ["old history", "keep exact bytes", "third historic line"])
+        stlib.git(r, env, "mv", "j.log", "moved.log")
+        stlib.write_files(r, {"moved.log": "old history\nkeep exact bytes\nthird historic line\nnew invalid line\n"})
+        stlib.git(r, env, "add", "--", "moved.log")
+        with stlib.patched_environ(env):
+            src = guardlib.Source(r, "index")
+            got = src.added_lines("moved.log")
+            src.close()
+        assert got == [(4, "new invalid line")], got
 
     def added_lines_new_file_is_none():
         r = added_repo("added3", ["one"])
@@ -327,6 +347,8 @@ def main():
 
     pr.probe("законное", "добавленные строки индекса: номера в индексе", added_lines_numbers)
     pr.probe("законное", "добавленные строки: файл без изменений — пустой список", added_lines_unchanged_is_empty_list)
+    pr.probe("законное", "переименование сохраняет прежние строки", added_lines_rename_preserves_history)
+    pr.probe("красная", "переименование не скрывает новые строки", added_lines_rename_checks_new_lines)
     pr.probe("законное", "добавленные строки: файл не из HEAD — None", added_lines_new_file_is_none)
     pr.probe("законное", "добавленные строки: режимы дерева и коммита — None", added_lines_tree_and_commit_modes_are_none)
     pr.probe("законное", "добавленные строки: временный индекс соблюдается", added_lines_temp_index)

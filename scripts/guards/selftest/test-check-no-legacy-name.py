@@ -5,7 +5,7 @@
     проверку, либо бесполезен, либо заставляет переписывать историю; обе дыры видны только пробами.
 Проверяет: красные — бренд (crew-harness/crew_harness/CrewHarness в любом регистре), env CREW_* и
     OPENCODE_CREW_*, идентификаторы crew_*/crew-*/crewXxx/CrewXxx, титул Crew, имя файла с брендом,
-    пометка без причины; зелёные — новые имена canopus, история doc/tasks, пометка
+    пометка без причины; зелёные — новые имена canopus, история docs/tasks, пометка
     guard-allow(legacy-name) с причиной, сам страж и этот самотест (образцы — предмет проверки).
 Не проверяет: работу других стражей и содержимое бинарных файлов.
 Правило: задача 284; исключения — только история, карта переименования и отрицательные проверки.
@@ -53,8 +53,8 @@ def main():
     clean = {"src/main.nv": "module canopus.main\n", "opencode-plugin/core.ts": "const x = 1\n"}
 
     pr.probe("законное", "новые имена canopus в активном коде", green(clean))
-    pr.probe("законное", "история doc/tasks со старым именем не судится",
-             green(dict(clean, **{"doc/tasks/099-x/log.md": "было %s\n" % OLD_KEBAB})))
+    pr.probe("законное", "история docs/tasks со старым именем не судится",
+             green(dict(clean, **{"docs/tasks/099-x/log.md": "было %s\n" % OLD_KEBAB})))
     pr.probe("законное", "исследование spikes со старым именем не судится",
              green(dict(clean, **{"spikes/env/x.nv": "// %s\n" % OLD_SNAKE})))
     pr.probe("законное", "отрицательная проверка с пометкой и причиной",

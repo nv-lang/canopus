@@ -4,16 +4,16 @@
 // Зачем: быстрые задачи заводит и агент вне OpenCode (оркестратор), а canopus_spawn плагина — окна OpenCode; без общего счёта оба
 // берут один номер наперегонки. Скрипт берёт номер тем же кодом плагина (opencode-plugin/task-numbers.ts: 1 + наибольший номер
 // записей проекта и папок задач во всех рабочих деревьях, локальных ветках и ветках origin), занимает его записью в хранилище
-// плагина (атомарное создание файла, как canopus_spawn) и заводит папку NNN-<slug>/ (task/message.md и log.md с первой строкой) в
+// плагина (атомарное создание файла, как canopus_spawn) и заводит папку NNN-<slug>/ (input/message.md и log.md с первой строкой) в
 // указанном дереве. Коммитит агент сам, на своей ветке; основную копию целевой ветки скрипт не трогает (откажет, если дерево — она).
 //
 // Запуск (node >= 24, из любого каталога):
 //   node scripts/task-number.mjs --dir <дерево задачи> --title "<название>" [--slug <латиница>] [--message-file <файл>]
-//        [--project <имя проекта плагина>] [--tasks-dir doc/tasks] [--allow-main]
+//        [--project <имя проекта плагина>] [--tasks-dir docs/tasks] [--allow-main]
 //        --session <native session> --creation-reason <why> --checked-tasks <1,2 or none> --why-new <why existing tasks do not cover it>
 //        [--approval <proposal id>] [--resubmit <declined proposal id>]
 // Первый вызов создаёт только native owner-вопрос; запись/папка — после ответа и повторного вызова с approval.
-// Ответ — одна строка JSON: {"n": 59, "number": "059", "folder": "doc/tasks/059-<slug>", "path": "<папка на диске>"}.
+// Ответ — одна строка JSON: {"n": 59, "number": "059", "folder": "docs/tasks/059-<slug>", "path": "<папка на диске>"}.
 // Ошибка — текст в stderr и код выхода 1.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import path from "node:path"
@@ -81,8 +81,8 @@ function placementError(t, proposal) {
   const folder = path.resolve(top, ...String(t.folder).split("/"))
   const relative = path.relative(top, folder)
   if (!relative || relative === ".." || relative.startsWith(".." + path.sep) || path.isAbsolute(relative)) return "папка за пределами дерева"
-  const proofFile = existsSync(path.join(folder, "creation.json")) ? "creation.json" : "task/creation.json"
-  for (const f of ["task/message.md", proofFile, "log.md"]) if (!existsSync(path.join(folder, f))) return `отсутствует ${f}`
+  const proofFile = existsSync(path.join(folder, "creation.json")) ? "creation.json" : existsSync(path.join(folder, "input/creation.json")) ? "input/creation.json" : "task/creation.json"
+  for (const f of ["input/message.md", proofFile, "log.md"]) if (!existsSync(path.join(folder, f))) return `отсутствует ${f}`
   const proof = JSON.parse(readFileSync(path.join(folder, proofFile), "utf8"))
   if (proof.approval?.id !== proposal.id || proof.reason !== input.creation_reason || canonical(proof.checked_tasks) !== canonical(input.checked_tasks) || proof.why_new !== input.why_new) return "creation.json не соответствует подтверждению"
  } catch { return "состав папки не удалось проверить" }
@@ -115,13 +115,13 @@ const t = tasks.createTask(
 )
 
 const folder = path.join(top, ...t.folder.split("/"))
-if (existsSync(path.join(folder, "task", "message.md"))) throw Error(`папка ${t.folder} уже есть (номер ${tn.pad3(t.n)} занят записью, папку не перезаписываю)`)
-mkdirSync(path.join(folder, "task"), { recursive: true })
+if (existsSync(path.join(folder, "input", "message.md"))) throw Error(`папка ${t.folder} уже есть (номер ${tn.pad3(t.n)} занят записью, папку не перезаписываю)`)
+mkdirSync(path.join(folder, "input"), { recursive: true })
 writeFileSync(path.join(folder, "creation.json"), JSON.stringify({ reason: input.creation_reason, checked_tasks: input.checked_tasks, why_new: input.why_new, approval: source }, null, 2) + "\n")
-writeFileSync(path.join(folder, "task", "message.md"), message.trim() ? message : folders.templateMessage({ title, goal: title, author_role: `${project}.external` }))
+writeFileSync(path.join(folder, "input", "message.md"), message.trim() ? message : folders.templateMessage({ title, goal: title, author_role: `${project}.external` }))
 // Canonical documents share the record directory; the worktree copy is a versioned snapshot.
 const canonicalFolder = path.dirname(tasks.taskFile(t.project, t.n))
-for (const file of ["creation.json", "task/message.md"]) {
+for (const file of ["creation.json", "input/message.md"]) {
   const target = path.join(canonicalFolder,file)
   const body = readFileSync(path.join(folder,file))
   mkdirSync(path.dirname(target),{recursive:true})

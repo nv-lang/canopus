@@ -1,6 +1,6 @@
 // routes.nv - task 192q: the modes of work by the methodology in the control panel ("Interactive", "Fast task", "Full path").
 //
-// The pure part: the files of the modes (`doc/routes/*.md`, parsed by a short parser), the numbers and names of the tasks, the files of the
+// The pure part: the files of the modes (`docs/routes/*.md`, parsed by a short parser), the numbers and names of the tasks, the files of the
 // subtasks (`message.N.md`, `progress.N.md`), the rule "extend the subtask or open a new one", the state `route_state` for the page and the choice
 // of the independent reviewer. The state of a session (`RouteSession`) is rebuilt from the journal: every change is a signal of the journal
 // (`route_set`, `route_task`, `route_step`, `route_review`) and `RouteSession.apply` is the one place that reads it, live and on resume.
@@ -558,6 +558,7 @@ export fn RouteSession @msg_file(n int) -> str => if @kind == "child" { "message
 // Persisted task_dir identifies the owner's input folder.
 fn task_artifact_dir(input_dir str) -> str {
     ro dir = input_dir.replace("\\", "/")
+    if dir.ends_with("/input") { return dir[..dir.byte_len() - 6] }
     if dir.ends_with("/task") { return dir[..dir.byte_len() - 5] }
     dir
 }
@@ -1065,12 +1066,12 @@ export fn route_view_text(rt RouteSession, titles []str, progress []Progress, su
     JsonValue.object(o).to_str()
 }
 
-// Is there work in the tree of the task: commits not merged, or a changed file other than the files of the task itself (`doc/tasks/<task>/`, the hub writes them)?
+// Is there work in the tree of the task: commits not merged, or a changed file other than the files of the task itself (`docs/tasks/<task>/`, the hub writes them)?
 // A tree with none is not worth the card "finish the task" (task 192): a greeting makes a task and a tree, and the owner is not asked about them.
 fn tree_has_work(rt RouteSession) -> bool {
     if rt.unmerged > 0 || rt.dirty { return true }
     for d in rt.diff {
-        if !d.path.contains("doc/tasks/${rt.task_id}/") { return true }
+        if !d.path.contains("docs/tasks/${rt.task_id}/") { return true }
     }
     false
 }

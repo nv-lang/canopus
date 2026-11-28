@@ -1,3 +1,4 @@
+import { projectTasksDirectory } from "./shared-task-store.ts"
 import { runtimeValue } from "./runtime-policy.ts"
 // Project settings are read from the canonical primary Git working copy.
 // Global project_settings accepts repository folders or explicit virtual {project, root} definitions.
@@ -305,6 +306,7 @@ export function settingsForWithOrigins(dir: string, projects: Projects, local: R
   const raw = root ? readSettingsFolder(root).raw : {}
   const result = settingsWithOrigins(raw, p?.dir ?? p?.rootPath ?? main ?? dir, p ? local[p.name] : {}, p?.name)
   if (typeof result.values.tasks_dir === "string") result.values.tasks_dir = validateTasksDir(result.values.tasks_dir)
+  result.values.tasks_dir = projectTasksDirectory(root ?? dir, result.values.tasks_dir)
   return result
 }
 export function rawSettingsFor(dir: string, projects: Projects, local: Record<string, any> = {}, name?: string): any {

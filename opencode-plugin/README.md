@@ -40,7 +40,7 @@ background); a task session may run with no window at all. Formerly `opencode-pe
 - Global keys: `project_settings`, `defaults`, `retention_days`. `project_settings` is an array of repository folders or global virtual `{project,root}` definitions. Ordinary repository identity is derived from its primary Git worktree, independent of the remote name. The old `projects` alias, map, and shared `project/root/branch` fields are refused.
 - The **eleven public project keys** are `tasks_dir`, `worktrees`, `model_profiles`, `profile_sets`, `profile_set`, `spawn_limits`, `inflight_limit`, `machine_slots`, `owner_language`, `answer_mode`, `acceptance_file`. Priority: built-in defaults < selected global defaults < primary project working config. Objects merge; arrays replace; false/0 are retained. No user environment or registration override layer.
 - `canopus_config guide|show|set` exposes these eleven fields. Model catalog/set edits are shared; the selected `profile_set` is stored in the project config (`false` explicitly disables it). `apply_template` adds the public model catalog and sets without overwriting existing choices. Fixed internal bounds preserve the default template's light stage choices.
-- `INTERNAL_POLICY` and `RUNTIME_POLICY` preserve removed controls and their consumers as named built-in constants, not hidden advanced settings. The implementation notes below describe these fixed policies where applicable. Changing them through JSON, `CANOPUS_*` timer variables, or native registration options is refused. OS/provider authentication and native agent/session/task/watch context remain intact. Detailed contract: [configuration Canon](../doc/canon/configuration.md).
+- `INTERNAL_POLICY` and `RUNTIME_POLICY` preserve removed controls and their consumers as named built-in constants, not hidden advanced settings. The implementation notes below describe these fixed policies where applicable. Changing them through JSON, `CANOPUS_*` timer variables, or native registration options is refused. OS/provider authentication and native agent/session/task/watch context remain intact. Detailed contract: [configuration Canon](../docs/canon/configuration.md).
 - **roles**: a new tab is `worker` (shared: tabs within it differ by session id; `assistant` is an
   alias). `integrator` is exclusive, one holder per project, by the built-in exclusive-role policy. The
   `owner_language` setting (an English language name, default `Russian`) is the language of everything the owner
@@ -74,7 +74,7 @@ time-outs: no window plugin, no wake.
 
 A service letter of the plugin starts with `⚙ 01:17 · canopus → … (служебное, не отвечай)`. Window notices are short (the gist in the
 title, one line of text) and stay longer when they matter: "waiting for you" 30 s, "stuck" 15 s, others 8–10 s
-([plan 003.1](../doc/archive/plans/003.1-clear-letters.md)).
+([plan 003.1](../docs/archive/plans/003.1-clear-letters.md)).
 
 ## Glued words
 
@@ -145,7 +145,7 @@ owner's windows are not watched, nor is a window whose place is not known for ce
 - **Limits (honest boundaries).** An arbitrary shell (variables, substitutions, `eval` of built strings) is not parsed, a terminal outside OpenCode is not seen, and the checks
   before and after a command do not prevent a race with it. Not controlled: `git branch -f/-D`, `update-ref`, `worktree`, `stash`, `tag` and `push`. The `who` of a reason is not
   verified (it is a record, not an authorization). Writes of files (`edit`, `write`, `patch`) are refused in the main copy and in another task's tree beyond what the task
-  statement asked for; a reviewer may write into `doc/tasks/<its task>/` of the main copy (its log and evidence) without the merge lock. A permission from a reason is kept
+  statement asked for; a reviewer may write into `docs/tasks/<its task>/` of the main copy (its log and evidence) without the merge lock. A permission from a reason is kept
   per folder (30 minutes each; a second note for the same folder renews it, a note for another folder does not wipe the first). The hooks are the same as those of the glued-words guard (`tool.execute.before`,
   `permission.evaluate`, `tool.execute.after`); with an OpenCode that has no such hook the plugin writes one line to its journal, and only the turn line,
   the panel and `canopus_doctor` work.
@@ -173,7 +173,7 @@ adds one rule to the system part of that request (`compaction-summary.ts`): the 
 (verbatim, with date and source), open questions to the owner, what runs and what waits, where the documents are (paths), what must not be done — go
 under the headings of the template (the build accepts a summary only with one of them), 1–1.5 thousand characters a section, up to 6 thousand
 in all, hashes and numbers only when the work cannot go on without them. The pattern itself lives in one place, the Canon: [Сводка при
-сжатии контекста](../doc/canon/process.md#сводка-при-сжатии-контекста). The setting **`compaction_summary`** (default `true`) turns the rule off
+сжатии контекста](../docs/canon/process.md#сводка-при-сжатии-контекста). The setting **`compaction_summary`** (default `true`) turns the rule off
 (`false` leaves the summary to OpenCode). Not for tabs of the `claude-code` provider (Claude Code compacts those itself) and not for
 provider-native compaction. The rule is a request, not a barrier: the plugin cannot see the summary text.
 
@@ -184,12 +184,12 @@ OpenCode server, detached, and when it exits wakes the tab with a letter: exit c
 ends its turn meanwhile. It survives the end of the turn and a service restart; a command gone without an exit code
 is reported as cut off; the time limit (default 120 min, up to 720) stops it with code 124. In a claude-code tab this
 is the only way: Claude Code's own background tasks (`run_in_background`, Monitor) die with the turn
-([plan 002.1](../doc/archive/plans/002.1-watch.md)).
+([plan 002.1](../docs/archive/plans/002.1-watch.md)).
 
 **The console of a watch (Windows, task 100).** The OpenCode service has no console, and a process started `detached`
 has none either: every console program of its chain (`cmd`, `python`, `vcvars64.bat`, `cl`) then makes a console of its
 own. Builds run from a watch were reported dying with `0xC0000142` (3221225794) before their first command; the cause
-was not reproduced on the development machine (task 100, `doc/tasks/100-watch-console/analysis.md`), the console-less
+was not reproduced on the development machine (task 100, `docs/tasks/100-watch-console/analysis.md`), the console-less
 start is the one verified difference. A watch now starts in one hidden console that its whole chain shares: an outer
 Git Bash is started not detached and hidden (Windows gives it a hidden console), launches the inner Git Bash that runs
 the command and exits at once; the inner one is outside the service's job object, so it still outlives the turn and a
@@ -219,7 +219,7 @@ it waits for a slot in the project's machine queue — `machine_slots` at a time
 were set; the time limit counts from the start. `canopus_watch` says how many are ahead, `/canopus` shows it as `queued`, the
 letter says how long it waited. Use it only for heavy commands: waiting for a remote CI (a `gh` or `check-push-proven-by-ci` polling loop with a pause)
 and anything else that does not load the machine goes with `machine: false`, or it holds the slot while other windows'
-heavy runs stand idle. Ordinary watches and other projects do not wait ([plan 002.2](../doc/archive/plans/002.2-machine-queue.md)).
+heavy runs stand idle. Ordinary watches and other projects do not wait ([plan 002.2](../docs/archive/plans/002.2-machine-queue.md)).
 
 **The project's deny rules.** The command runs outside the window's permissions, so `canopus_watch` checks it against
 `permissions.deny` of the project's `.claude/settings.json` (from the tab's directory up to the git root; no file — no
@@ -228,13 +228,13 @@ whole or in any subcommand (`&&`, `||`, `;`, `|`, a newline, the body of `bash -
 `VAR=1 timeout N` prefixes do not hide it), or naming a file under a `Read(…)` glob is refused, naming the rule.
 **Who started it:** the command's environment carries `CANOPUS_SESSION_ID`, `CANOPUS_ROLE`, `CANOPUS_PROJECT`, and
 `CANOPUS_REVIEW_N` for the reviewer of an open task, `CANOPUS_TASK_N` for its executor — fixed when the watch is put and
-kept in its record, so a restart or a later role change does not alter them ([plan 002.7](../doc/archive/plans/002.7-acceptor-role.md)).
+kept in its record, so a restart or a later role change does not alter them ([plan 002.7](../docs/archive/plans/002.7-acceptor-role.md)).
 
 ## Who waits for what: `/canopus` and "waiting for you"
 
 The window's right panel shows a "Canopus" block under "Context": the sessions of the project of the tab on screen —
 the ones waiting for you first, who is working and how long, who waits for what — refreshed every 2 s
-([plan 003.2](../doc/archive/plans/003.2-sidebar.md)). A task is shown once (task 064): its number and title lead, as a heading
+([plan 003.2](../docs/archive/plans/003.2-sidebar.md)). A task is shown once (task 064): its number and title lead, as a heading
 wrapped by words onto two rows at most and cut with `…` (`‖ 085 Accept Oracle evaluation`), the mark on the left being its most
 important tab's; under it a row per tab with the role and the state (`↳ исп  вопрос — ждёт ответа`, `↳ прм  ↻ ждёт доработки`), and under
 that, as before, the question or the waiting phrase and the steps. A reviewer's step in progress names its id and a short name taken
@@ -288,7 +288,7 @@ minimal form of «The `/canopus` screen» below: working, **waiting for you** (i
 written since), waiting for a watch, for an answer to its question, for its task's review or rework, for its own tasks, or
 idle — your project first, the ones waiting for you on top. A session that starts waiting for you puts a notice into every live window
 (with Open; a system notification when the window is not focused, if OpenCode's `attention.notifications` is on)
-and repeats it every `owner_reminder_min` minutes (15; 0 — once) until you answer ([plan 003](../doc/archive/plans/003-status.md)).
+and repeats it every `owner_reminder_min` minutes (15; 0 — once) until you answer ([plan 003](../docs/archive/plans/003-status.md)).
 
 ### The `/canopus` screen (task 077)
 
@@ -690,8 +690,8 @@ explicit migration of task 284 moves it to the new name; no aliases, no links):
 ## Progress of background sessions (progress.log)
 
 The sessions of the development method (analysis, plan, implementation, review — see
-[`doc/canon/process.md`](../doc/canon/process.md)) work in the background, not in tabs. Each of them writes its progress
-into `doc/tasks/<NNN-name>/progress.log`, one line per finished unit: `<code> <k>/<N> [HH:MM] <what was done>` (the format
+[`docs/canon/process.md`](../docs/canon/process.md)) work in the background, not in tabs. Each of them writes its progress
+into `docs/tasks/<NNN-name>/progress.log`, one line per finished unit: `<code> <k>/<N> [HH:MM] <what was done>` (the format
 and the guard that checks it are in the Canon item "Журнал хода `progress.log`"). The window reads these journals itself —
 no service, no setting, no process — and shows them. The texts of the window are Russian, like the rest of the window.
 
@@ -844,7 +844,7 @@ be created only when a `progress.log` lies in the same folder. The agent passes 
 lines, since the session was created or the plugin started, whichever is later), `commit` (`git rev-parse HEAD` of the file
 folder, empty outside a repository). A value the plugin cannot read is `null`, never guessed; `limits`, `tool_calls` and
 `test_runs` are `null` for now. Call it once, when the session is finished:
-`usage_line {file: "doc/tasks/007-x/usage.log", code: "С5д", result: "готово: 13 из 13"}`.
+`usage_line {file: "docs/tasks/007-x/usage.log", code: "С5д", result: "готово: 13 из 13"}`.
 
 ## Answering session questions (`answer_mode`)
 
@@ -858,7 +858,7 @@ folder, empty outside a repository). A value the plugin cannot read is `null`, n
 
 - `status {id}` — исходный вопрос и устойчивое состояние;
 - `claim {id, epoch}` — подтверждение получения, не ответ;
-- `resolve {id, epoch, text, sources:[{path:"doc/...", sha256, quote}]}` — ответ с проверяемым артефактом: относительный публичный `doc/` путь в репозитории исходного адресата, SHA256 всего текста и точная выдержка. Проверяются границы пути, размер, hash и quote. Это подтверждение личности артефакта, не доказательство истинности произвольной фразы и **не** разрешение владельца. Интегратор отвечает за содержательную сверку происхождения;
+- `resolve {id, epoch, text, sources:[{path:"docs/...", sha256, quote}]}` — ответ с проверяемым артефактом: относительный публичный `docs/` путь в репозитории исходного адресата, SHA256 всего текста и точная выдержка. Проверяются границы пути, размер, hash и quote. Это подтверждение личности артефакта, не доказательство истинности произвольной фразы и **не** разрешение владельца. Интегратор отвечает за содержательную сверку происхождения;
 - `escalate {id, epoch, text, sources}` — только точное оставшееся решение владельца с источниками. Настоящий closed-list action нельзя разрешить нейтральным «да» через integrator reply;
 - `ack {id}` — исходный адресат подтверждает получение текстового/почтового ответа. Постановка в ящик/HTTP 200 не означает receipt или started.
 
@@ -868,7 +868,7 @@ folder, empty outside a repository). A value the plugin cannot read is `null`, n
 
 Предел командного маршрута — 15 минут от durable intake публикации (для давно открытой формы не от её старого timestamp). Нет безопасного продолжения/источника/receipt — устойчивый **адресный blocker** ответственному, не бесконечный внешний чат и не автоматический новый owner-вопрос. По unknown форме сначала диагностика команды; владельцу лишь настоящее оставшееся решение, не поиск пути. До источника ничего не угадывается.
 
-Локальное дополнение 2026-11-01 ([ADR-0017, датированное уточнение](../doc/canon/decisions/ADR-0017-working-questions-through-integrator.md)): `canopus_question {action:"default", id, epoch, sources, deadline?}` заранее объявляет только фиксированное `continue_assigned`. Host берёт assignment qid и digest текущих goal/boundaries/criteria/phase/executor/reviewer из реальной записи задачи; модель не может передать scope/owner-approved флаг или произвольный default текст. Источник — проверяемый doc/ hash+quote; deadline можно сократить, но не продлить за исходные 15 минут. Это не перенос общего механизма вопросов/находок в Canopus и не смена pin.
+Локальное дополнение 2026-11-01 ([ADR-0017, датированное уточнение](../docs/canon/decisions/ADR-0017-working-questions-through-integrator.md)): `canopus_question {action:"default", id, epoch, sources, deadline?}` заранее объявляет только фиксированное `continue_assigned`. Host берёт assignment qid и digest текущих goal/boundaries/criteria/phase/executor/reviewer из реальной записи задачи; модель не может передать scope/owner-approved флаг или произвольный default текст. Источник — проверяемый docs/ hash+quote; deadline можно сократить, но не продлить за исходные 15 минут. Это не перенос общего механизма вопросов/находок в Canopus и не смена pin.
 
 По сроку повторно проверяются источник, тот же scope/ответственный, native актуальность и HOLD. Допустимо лишь продолжить неблокированную часть уже порученной работы; неизвестный факт не объявляется найденным, на порученной границе — сохранить состояние и остановиться. Иначе `blocked` с `blocker {to, at, deadline, why}`; исходные qid/вопрос/контекст и происхождение default остаются. Сам срок/Recommended/текст «владелец разрешил» не разрешают owner gate, новые действия/live/деньги/публикацию и не снимают HOLD. Native attempt остаётся однократным. Источники/default и факт доставки различаются; выбранное default (`defaulted`) ещё не подтверждает native 204/receipt.
 
@@ -892,7 +892,7 @@ Recovery остаётся `answer_queued` до точного per-letter receipt
 
 Вне рабочего question router прежний путь сохраняется: by default every question of a session waits for the owner. A project can hand some of them to the session's own
 recommendation with `answer_mode` in `.canopus/plugin/config.json`, which only a person sets (edit the file and commit; `canopus_config set`
-refuses them) — [ADR-0010](../doc/canon/decisions/ADR-0010-question-answering-modes.md):
+refuses them) — [ADR-0010](../docs/canon/decisions/ADR-0010-question-answering-modes.md):
 
 - `answer_mode` — a map "type of the question → mode". Types: `requirements`, `plan`, `implementation` and `default` (for a type
   without its own entry); modes: `owner` (the owner answers, the default) and `recommendations` (the recommendation of the
@@ -995,7 +995,7 @@ one, a turn without one is empty.
   task (a letter that wakes it), who answers or asks the owner; a merge lock held longer than `stall_minutes` (30)
   and a submitted task waiting for a reviewer that long are raised to the task's author (with a notice to the live windows
   when the author's tab is closed), and so are the leftovers of a
-  closed task (branches here and on origin, worktrees by the project's name templates) ([plan 002.4](../doc/archive/plans/002.4-flow-watch.md));
+  closed task (branches here and on origin, worktrees by the project's name templates) ([plan 002.4](../docs/archive/plans/002.4-flow-watch.md));
 - service letters of the plugin say "do not answer"; a letter to `canopus` itself is refused.
 
 ## Tasks
@@ -1006,7 +1006,7 @@ between two sessions: the last one submitted to the integrator, no review yet). 
 `cleaned` instead of `done`: it is read as `done` (no migration of the files). The action that finishes a task is `canopus_task cleanup`
 (`cleaned` still works as its old name). `canopus_task show` and `canopus_config show` are the only names for «show»: the old word `view` is refused with the hint «Команды view больше нет, используй show».
 
-**One task, one number (task 058).** In a project with task folders (the key `tasks_dir`, default `doc/tasks`; on when that
+**One task, one number (task 058).** In a project with task folders (the key `tasks_dir`, default `docs/tasks`; on when that
 folder is in the target branch, `""` turns it off) the task number is the number of its folder `NNN-<slug>/`, shown as `045`
 (three digits, no `#`); the plugin's record has the same number. All projects now keep a canonical task directory; existing task numbers remain unchanged and keep the same display, `094`. Every task of every project is shown
 with its number with zeros on the left up to three digits and no `#` (`022`, `061`, `094`; above 999 as it is, `1000`), with a folder or
@@ -1016,12 +1016,12 @@ to an issue or a pull request of the repository and notifies its people, so the 
 pull requests, and the commit message guard (`scripts/guards/guard-commit-message.py`, rule R8) refuses it for anything else. A tab still
 titled `#33 исп …` or `61 …` is read as `033 исп` / `061` and renamed by the title pass. The owner, the integrator and `canopus_list` call a
 task by its number; a session's title is `045 исп title`. The journal is
-`<project>/<tasks_dir>/NNN-slug/state.json`, shared with the Canopus application (288). Without a project the root is `~/.canopus/tasks/`. The default project `tasks_dir` is `doc/tasks`; an empty legacy value uses that default. `watch.json` keeps the task guard and HOLD. These private records are excluded from Git. Documents in worktrees are versioned snapshots of the canonical task directory.
+`<project>/<tasks_dir>/NNN-slug/state.json`, shared with the Canopus application (288). Without a project the root is `~/.canopus/tasks/`. The default project `tasks_dir` is `docs/tasks`; an empty legacy value uses that default. `watch.json` keeps the task guard and HOLD. These private records are excluded from Git. Documents in worktrees are versioned snapshots of the canonical task directory.
 
 - **A new task with a folder.** The number is 1 + the largest of the project's records and of the folder numbers in every
   working tree of the repository (`git worktree list`, uncommitted folders too) and in every local and `origin` branch
   (`git ls-tree`); the record file is created atomically (flag `wx`), so two windows never get one number. The plugin writes
-  the folder on the task branch (`task/message.md` = the field `message` word for word, without it the text built from the
+  the folder on the task branch (`input/message.md` = the field `message` word for word, without it the text built from the
   fields by the template below; `log.md` with its first line `ГГГГ-ММ-ДД ЧЧ:ММ документ: задание заведено …`) and commits it there (signed off,
   `Add task NNN: <slug>`) without a working copy; the main copy of the target branch is never written. `{n}` of
   `branch_name` and `worktree_name` is three digits (`task/045-…`). A folder made outside the plugin: `canopus_spawn {task: N,
@@ -1049,11 +1049,11 @@ task by its number; a session's title is `045 исп title`. The journal is
   remembers the registration) is made again at the same path from the branch, with the commits intact. A tree the plugin makes
   itself, from the settings, is made as before.
 - **A sub-task** is a task of its own: `canopus_spawn {part_of: N, …}` — own number and folder, the first line of its
-  `task/message.md` is `Часть задачи NNN «…».`, the parent's `log.md` gets `документ: заведена подзадача MMM «…»` (no tree of
+  `input/message.md` is `Часть задачи NNN «…».`, the parent's `log.md` gets `документ: заведена подзадача MMM «…»` (no tree of
   the parent — a letter to the integrator with that line); the records link `part_of` / `parts`. The rule: an own acceptance
   or an own landing in `main` — a sub-task; the next step of the same work — a session.
-- **One template of the task text (task 065).** `task/message.md` of every new task follows the template of the Canon
-  (`doc/canon/process.md`, «Задание task/message.md»): `# Задание: <title>`, a header (customer, repository and branch,
+- **One template of the task text (task 065).** `input/message.md` of every new task follows the template of the Canon
+  (`docs/canon/process.md`, «Задание input/message.md»): `# Задание: <title>`, a header (customer, repository and branch,
   date, source), then the second-level sections «Чего хочет владелец», «Что нужно», «Критерии приёмки», «Результат и куда
   он попадает», «Связи», «Границы» in this order; an empty section is written `нет: <why>`, not dropped. Without `message`,
   `canopus_spawn` (a new task or a sub-task) in a project with folders builds the text from the fields:
@@ -1083,7 +1083,7 @@ task by its number; a session's title is `045 исп title`. The journal is
   (the built-in model policy retains `claude-code/opus` / `sonnet` / `haiku`; an enabled set of model profiles chooses models for the stages it describes — see [Model profiles](#model-profiles-sets-of-models-and-windows-by-stage)); a limit of running tasks per
   role (`spawn_limits`, 3); priority `P0` (emergency) … `P3`, default `P2`. With the built-in `worktrees` policy the
   plugin creates the task's worktree and branch (from the target branch) and starts the session in it, so the
-  project's hooks see the task's branch, not the main copy ([plan 002.3](../doc/archive/plans/002.3-task-worktree.md)).
+  project's hooks see the task's branch, not the main copy ([plan 002.3](../docs/archive/plans/002.3-task-worktree.md)).
   The place has to lie inside the `worktrees` folder (the rule of the trees folder): a place that escapes it through
   the `worktree_name` template is refused before the task record is made (`canopus_spawn`),
   and a tree made by hand outside the folder on the task's branch is not adopted — the start is refused with how to
@@ -1171,7 +1171,7 @@ This updates the existing folderless task record at the same number; it does not
 «Задача не поставлена: быстрый путь требует: …» — the route stays full, a task is never made without an explicit decision:
 
 - `route_word` is not empty and contains «заводи» (any case); the date is `ГГГГ-ММ-ДД`, given or found in the word; the choice is made by a human (`route_source: human`, the default for fast);
-- the brief (`task/message.md`, the text the plugin commits) has at least one point in «Критерии приёмки» and a line with the branch. *Divergences from the methodology:*
+- the brief (`input/message.md`, the text the plugin commits) has at least one point in «Критерии приёмки» and a line with the branch. *Divergences from the methodology:*
   the methodology asks for criteria `AC-N` and a line `Ветка: <имя>`; the plugin accepts a numbered point, a `-` point or `AC-N` as a point, and the project's own form
   «Репозиторий: …, ветка …» as the branch line (the template writes it), besides `Ветка: <имя>`. With a brief built from the fields the criteria are numbered by the plugin;
 - the numbers (`clean_runs`, `ceiling`, `probes`, `delivery_compressed` in the input, or the built-in `route_defaults` policy) are not under the minimum of the methodology
@@ -1179,12 +1179,12 @@ This updates the existing folderless task record at the same number; it does not
   of the fast route under the minimum refuse the fast path (the task can still go the full route); the settings of the **full** route under the minimum stop every task
   until fixed (there is no safer route than the full one).
 
-In a project without task folders there is no brief: the fast path is refused («постановки task/message.md нет»). A session of an open task (`task: N`) takes no `route`: the route of
+In a project without task folders there is no brief: the fast path is refused («постановки input/message.md нет»). A session of an open task (`task: N`) takes no `route`: the route of
 an open task is changed by `canopus_task route`. A fast task with a folder gets in its `log.md`, in the first commit, the line `документ: маршрут: быстрый, основание: …, источник: человек, слово завода: «…» (ГГГГ-ММ-ДД)`,
 and the same line goes to the history of the record. The route is not a field of the journal's envelope: the history events carry it only as text.
 
 **Decision 51 as data** (task-runner-states.md, «Решения при переводе» 48, 51; tests 21 and 23). The record of the fast route keeps the hash of the brief as it was at the
-word (`route_message_hash`; the line ends of Windows and trailing blanks are not an edit). When `task/message.md` of the task (the task's worktree, else its branch) differs
+word (`route_message_hash`; the line ends of Windows and trailing blanks are not an edit). When `input/message.md` of the task (the task's worktree, else its branch) differs
 after the word, the record is marked `route_word_stale: true`, `clean_series` is zeroed, the history and `log.md` get a line; the numbers, the word and the trace stay.
 The warning «⚠ постановка изменена после слова завода: нужно новое слово владельца» is printed by `canopus_task list`, `canopus_task show` and every next step of `canopus_task` with that task, and shown
 in `/canopus` and in the panel, until the word is renewed. The check runs when the task is shown and at a step of `canopus_task` (idempotent: the event is written once). It covers the data only:
@@ -1199,7 +1199,7 @@ the brief is read again, the new hash is kept, the mark is removed, the series s
 **The small route («малый», task 191; the owner, 2026-10-25, the chat of the methodology).** The owner's entry phrases «сделай X мгновенно» and «сделай X, супер быстро» choose the
 route and name the owner the checker, with no questions; recognizing them is the orchestrator's logic — **the plugin does not parse the phrase** (a field of the record and the folder
 template only): `canopus_spawn {route: "small", route_word: "<the phrase word for word with the date and the source>", estimate: "<T in one line>"}`.
-The folder is three lines — `task/message.md` is `# Задание: <title>`, `T: <estimate>`, the phrase of the owner; criteria are not required (the default criterion is «приёмка — слово
+The folder is three lines — `input/message.md` is `# Задание: <title>`, `T: <estimate>`, the phrase of the owner; criteria are not required (the default criterion is «приёмка — слово
 владельца на тестовом контуре»). The record gets `route_word_ts` — the mark «слово владельца»: with `route_word_at` (an ISO date or milliseconds) it is the time of the owner's
 message, without it the time the spawn is recorded, and the task's log carries the honest note «время слова — время записи, не сообщения» (`route_word_ts_kind`). There is **no reviewer, no review cycle and no merge
 lock**: the executor submits (`canopus_task submit`), raises the test contour (`scripts/test-contour` of the task's tree), gives the owner the link and records the mark
@@ -1260,7 +1260,7 @@ The integrator stays free for the owner and does not re-check accepted work:
   accepted;
 - a task on rework does not hold a review session's place (`spawn_limits.reviewer`): the next submitted task gets
   it; the resubmission goes back to the same reviewer at once;
-- Internal reviewer alternative `reviewer: "acceptor"` — a separate acceptor role with its own rights ([plan 002.7](../doc/archive/plans/002.7-acceptor-role.md)):
+- Internal reviewer alternative `reviewer: "acceptor"` — a separate acceptor role with its own rights ([plan 002.7](../docs/archive/plans/002.7-acceptor-role.md)):
   only a free open tab of role `acceptor` becomes a reviewer (never a `worker` tab), a new review session is born
   with role `acceptor`, review sessions are bounded by `spawn_limits.acceptor` (without it `spawn_limits.reviewer`,
   then 2) and take no `worker` place; `merge`, `accept` and `cleanup` need the task's reviewer AND the `acceptor`
@@ -1441,13 +1441,13 @@ Marks: plan `🔴 ОТКРЫТ / 🟡 В РАБОТЕ / ✅ ЗАКРЫТ / ❌ �
 
 **Heavy runs.** The internal `heavy_commands` policy lists substrings of commands that load the machine (full gate,
 full build, full test run, benchmarks). `canopus_watch` with such a command goes to the machine queue
-by itself. Full design: [plan 004](../doc/archive/plans/004-plans.md).
+by itself. Full design: [plan 004](../docs/archive/plans/004-plans.md).
 
 ## Model profiles: sets of models and windows by stage
 
 Which model runs a stage of work and how big its context window is are two settings of the project, kept as plain
 JSON in `.canopus/plugin/config.json` (any reader sees them without this plugin; the decision is
-[ADR-0008](../doc/canon/decisions/ADR-0008-model-profiles-layer-and-window-files.md)). Without these keys nothing changes:
+[ADR-0008](../docs/canon/decisions/ADR-0008-model-profiles-layer-and-window-files.md)). Without these keys nothing changes:
 the named built-in model policy applies. `spawn_models`, `tiers` and `reviewer` remain internal constants, not public configuration keys.
 
 - **The table of profiles** — `model_profiles`: a family (`claude`, `kimi`, `codex` — any short name from lowercase Latin
@@ -1456,7 +1456,7 @@ the named built-in model policy applies. `spawn_models`, `tiers` and `reviewer` 
   `output` together with the provider record) and, for models whose compaction is driven by `input`, `input`. An empty
   record `{"model": ""}` means «fill in»; a set that refers to it is not enabled.
 - **Sets** — `profile_sets`: a named layout «stage → family and tier». A phase of the cycle includes stages (the table
-  «Этапы и модели» of the Canon, [process.md](../doc/canon/process.md)). The four you set yourself are `develop` (the
+  «Этапы и модели» of the Canon, [process.md](../docs/canon/process.md)). The four you set yourself are `develop` (the
   executor of a task), `develop_accept` (the reviewer; the old name `accept` is read as an alias and replaced when you
   set the stage), `plan` (a plan task) and `plan_accept` (the rounds of a plan review and the
   merge of an approved plan). Four more stages inherit when you do not set them: `spec` as `plan`, `spec_accept` as
@@ -1608,7 +1608,7 @@ The plugin carries letters between tabs of one machine only. A prototype of lett
 machines (a bridge over Tailscale, ntfy or GitHub issues, configured by `remote.json`) was tried on 2026-10-06
 and left unfinished; it is not part of the plugin and the plugin does not read `remote.json`. Its code, tests,
 measurements and open questions are in
-[doc/research/remote-transport/](../doc/research/remote-transport/README.md) (task 046).
+[docs/research/remote-transport/](../docs/research/remote-transport/README.md) (task 046).
 
 ## Self-check
 
@@ -1676,14 +1676,14 @@ the first question, in `/canopus`, the sidebar and the notice. `form.replied` an
 the status returns by itself. No model is involved, and the same applies to task sessions (the questionnaire is always
 addressed to a human). Events arrive in copies (several windows), so records are idempotent by form id; a form older
 than 12 hours does not count. The wait phrases stay as a safety net for plain prose.
-Details: [doc/tasks/026-crew-question/analysis.md](../doc/tasks/026-crew-question/analysis.md).
+Details: [docs/tasks/026-crew-question/analysis.md](../docs/tasks/026-crew-question/analysis.md).
 
 ## Event probe
 
 A diagnostic, off by default (task 026): `CANOPUS_EVENT_PROBE=1` in the service environment, then restart.
 It subscribes to OpenCode bus events and logs `form.*`, `permission.*`, `question.*`, `session.idle|status`, `tool.*`
 lines to `%TEMP%/opencode-plugins.log` (lines start with `event probe:`). It changes no plugin behaviour.
-Details: [doc/tasks/026-crew-question/probe.md](../doc/tasks/026-crew-question/probe.md).
+Details: [docs/tasks/026-crew-question/probe.md](../docs/tasks/026-crew-question/probe.md).
 
 ## Test
 

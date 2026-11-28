@@ -183,7 +183,7 @@ const mkTask = (project, n, author, st, extra = {}) => ({
 
 // ---- IT-4 the letter
 {
-  const items = [{ kind: "between", task: mkTask("p", 61, "me", "idle", { folder: "doc/tasks/061-x", title: "Спека" }) }, { kind: "waits", task: mkTask("p", 22, "me", "submitted", { title: "Приёмка" }), who: "прм" }]
+  const items = [{ kind: "between", task: mkTask("p", 61, "me", "idle", { folder: "docs/tasks/061-x", title: "Спека" }) }, { kind: "waits", task: mkTask("p", 22, "me", "submitted", { title: "Приёмка" }), who: "прм" }]
   const l = it?.idleLetter?.(25, items) ?? ""
   cell("IT-4a already-authorized next step; working facts via integrator, genuine decisions via question", /^Ты простаиваешь 25 мин: /.test(l) && /061 «Спека» нет идущей сессии/.test(l) && /022 прм.*ждёт твоих указаний/.test(l) && /нет вопроса владельцу/.test(l) && /Сделай следующий уже разрешённый шаг цикла/.test(l) && /canopus_question/.test(l) && /только настоящее неразрешённое решение/.test(l) && /инструментом question/.test(l), l)
   const what = it?.idleWhat?.(items) ?? []

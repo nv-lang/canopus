@@ -12,7 +12,7 @@
     список, ноль, продлённый, закрытый и с применённым умолчанием не просрочены; мишень — пустой
     репозиторий.
 Не проверяет: честность умолчаний и правдивость закрытий (приёмка и владелец).
-Правило: doc/canon/process.md, «Открытые вопросы»; задача 060.
+Правило: docs/canon/process.md, «Открытые вопросы»; задача 060.
 """
 import sys
 
@@ -20,9 +20,9 @@ sys.dont_write_bytecode = True
 
 import stlib
 
-OQ = "doc/open-questions.md"
-NEW = "doc/tasks/070-x/"
-OLD = "doc/tasks/050-y/"
+OQ = "docs/open-questions.md"
+NEW = "docs/tasks/070-x/"
+OLD = "docs/tasks/050-y/"
 NEW_LOG = "2026-10-20 10:00 документ: задание\n"
 OLD_LOG = "2026-10-01 10:00 документ: задание\n"
 
@@ -65,7 +65,7 @@ def main():
         return stlib.guard("check-open-questions.py", repo, env, *args)
 
     def files(oq_text=None, new=None, old=None):
-        f = {"doc/tasks/README.md": "x\n"}
+        f = {"docs/tasks/README.md": "x\n"}
         if oq_text is not None:
             f[OQ] = oq_text
         if new is not None:

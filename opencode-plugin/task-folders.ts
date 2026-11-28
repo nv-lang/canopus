@@ -1,4 +1,5 @@
-// ПАПКА ЗАДАЧИ И ЖУРНАЛЫ СЕССИЙ (задача 058): текст задания task/message.md и первая строка log.md новой задачи, название задачи по
+import { taskInputDirectory } from "./shared-task-store.ts"
+// ПАПКА ЗАДАЧИ И ЖУРНАЛЫ СЕССИЙ (задача 058): текст задания input/message.md и первая строка log.md новой задачи, название задачи по
 // её папке, номер запуска сессии и строки запуска (progress.log копии, где работает сессия, и log.md задачи), записи log.md о сдаче
 // сессии и заведении подзадачи. Формы строк — общими функциями журнала (journal.ts, задача 053). Основную копию целевой ветки модуль
 // исходного кода не пишет: runtime-журналы — в едином каталоге задачи (288, configuration.md).
@@ -26,31 +27,26 @@ export function titleOfMessage(folder: string, message: string | undefined): str
   return m?.[1] ?? (folder.replace(/^[0-9]+-/, "") || folder)
 }
 
-/** Текст task/message.md найденной папки: из дерева (на диске) или из ветки (git show). */
+/** Текст input/message.md найденной папки: из дерева (на диске) или из ветки (git show). */
 export function readFolderFile(top: string, rel: string, hit: FolderHit, file: string): string | undefined {
-  if (hit.tree) {
+  const candidates = file.startsWith("input/") ? [file, file.replace(/^input\//, "task/")] : [file]
+  for (const name of candidates) {
     try {
-      return readFileSync(path.join(hit.tree, ...rel.split("/"), hit.name, ...file.split("/")), "utf8")
-    } catch {
-      return undefined
-    }
+      if (hit.tree) return readFileSync(path.join(hit.tree, ...rel.split("/"), hit.name, ...name.split("/")), "utf8")
+      if (hit.ref) return execFileSync("git", ["-C", top, "show", `${hit.ref}:${rel}/${hit.name}/${name}`], { encoding: "utf8", windowsHide: true, stdio: ["ignore", "pipe", "ignore"] })
+    } catch {}
   }
-  if (!hit.ref) return undefined
-  try {
-    return execFileSync("git", ["-C", top, "show", `${hit.ref}:${rel}/${hit.name}/${file}`], { encoding: "utf8", windowsHide: true, stdio: ["ignore", "pipe", "ignore"] })
-  } catch {
-    return undefined
-  }
+  return undefined
 }
 
-// ОБРАЗЕЦ ЗАДАНИЯ (задача 065; Канон, process.md, «Задание task/message.md»): заголовок «# Задание: …», шапка, разделы по порядку;
+// ОБРАЗЕЦ ЗАДАНИЯ (задача 065; Канон, process.md, «Задание input/message.md»): заголовок «# Задание: …», шапка, разделы по порядку;
 // пустой раздел — «нет: <почему>». Те же правила судит страж check-task-docs.py (message-title, message-section, message-owner).
 export const MESSAGE_SECTIONS = ["Чего хочет владелец", "Что нужно", "Критерии приёмки", "Результат и куда он попадает", "Связи", "Границы"] as const
 const OWNER_SECTION = MESSAGE_SECTIONS[0]
 const DATE_RE = /(?<![0-9])[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])(?![0-9])/
 const BARE_NONE_RE = /^[ \t]*(?:[-*][ \t]+)?нет:[ \t.,;:—–-]*$/
 export const OWNER_EXAMPLE = "- «сделай X» (владелец, 2026-10-17, чат оркестратора)"
-const TEMPLATE_REF = "образец задания — Канон canopus, doc/canon/process.md, «Задание task/message.md»"
+const TEMPLATE_REF = "образец задания — Канон canopus, docs/canon/process.md, «Задание input/message.md»"
 
 /** Цель — пунктами «Что нужно»: уже нумерованная остаётся как есть; иначе пункт — абзац или строка «- …» (строка перед списком — тоже пункт). */
 export function numberedPoints(goal: string): string {
@@ -157,8 +153,8 @@ export function messageRefusal(input: { message?: unknown; owner_words?: unknown
   const lack: string[] = []
   if (!words) lack.push(`нет поля owner_words — слова владельца дословно с датой и источником, например owner_words: "${OWNER_EXAMPLE}"`)
   else if (!DATE_RE.test(words)) lack.push(`в owner_words нет даты ГГГГ-ММ-ДД — допиши дату и источник, например "${OWNER_EXAMPLE}"`)
-  if (!String(input.result ?? "").trim()) lack.push("нет поля result — результат и куда он попадает: действующее место (например doc/canon/process.md, раздел «…») или «нет: результат — код: <что сдаётся>»")
-  return lack.length ? `Задача не поставлена: задание task/message.md пишется по образцу (${TEMPLATE_REF}); ${lack.join("; ")}. Повтори вызов с этими полями (links и boundaries — по желанию) или передай message по образцу.` : undefined
+  if (!String(input.result ?? "").trim()) lack.push("нет поля result — результат и куда он попадает: действующее место (например docs/canon/process.md, раздел «…») или «нет: результат — код: <что сдаётся>»")
+  return lack.length ? `Задача не поставлена: задание input/message.md пишется по образцу (${TEMPLATE_REF}); ${lack.join("; ")}. Повтори вызов с этими полями (links и boundaries — по желанию) или передай message по образцу.` : undefined
 }
 
 /** Строка журнала задачи о маршруте: «ГГГГ-ММ-ДД ЧЧ:ММ документ: маршрут: быстрый, основание: …, источник: человек, слово завода: «…» (дата)» (задача 092). */
@@ -167,23 +163,19 @@ export function routeLogLine(t: Parameters<typeof routeLogText>[0], now: Date = 
 `
 }
 
-/** Текст task/message.md задачи с папкой: из дерева задачи (на диске), а когда дерева нет — из её ветки. Прочесть нельзя — undefined (о правке ничего не известно). */
+/** Текст input/message.md задачи с папкой: из дерева задачи (на диске), а когда дерева нет — из её ветки. Прочесть нельзя — undefined (о правке ничего не известно). */
 export function readTaskMessage(t: Pick<Task, "folder" | "worktree" | "branch" | "directory" | "project" | "n">): string | undefined {
   if (!t.folder) return undefined
-  const canonical = path.join(path.dirname(taskFile(t.project, t.n)), "task", "message.md")
+  const canonical = path.join(taskInputDirectory(path.dirname(taskFile(t.project, t.n))), "message.md")
   if (existsSync(canonical)) return readFileSync(canonical, "utf8")
-  const rel = path.join(...String(t.folder).split("/"), "task", "message.md")
-  if (t.worktree) {
-    try {
-      return readFileSync(path.join(t.worktree, rel), "utf8")
-    } catch {}
+  for (const input of ["input", "task"]) {
+    const rel = path.join(...String(t.folder).split("/"), input, "message.md")
+    if (t.worktree) { try { return readFileSync(path.join(t.worktree, rel), "utf8") } catch {} }
+    if (t.branch && t.directory) { try {
+      return execFileSync("git", ["-C", t.directory, "show", `${t.branch}:${String(t.folder)}/${input}/message.md`], { encoding: "utf8", windowsHide: true, stdio: ["ignore", "pipe", "ignore"] })
+    } catch {} }
   }
-  if (!t.branch || !t.directory) return undefined
-  try {
-    return execFileSync("git", ["-C", t.directory, "show", `${t.branch}:${String(t.folder)}/task/message.md`], { encoding: "utf8", windowsHide: true, stdio: ["ignore", "pipe", "ignore"] })
-  } catch {
-    return undefined
-  }
+  return undefined
 }
 
 /** Решение 51 как данные: постановка быстрого пути изменена после слова завода — запись помечается route_word_stale, серия чистых заходов обнуляется, в
@@ -198,7 +190,7 @@ export function refreshRouteStale(t: Task): boolean {
 
 /** Первая строка log.md новой задачи. */
 export function firstLogLine(t: Pick<Task, "title">, how: string, base: string, now: Date = new Date()): string {
-  return `${ymdhm(now)} документ: задание заведено плагином: «${t.title.replace(/[«»\r\n]/g, "")}»; task/message.md — ${how}; основа — ${base}\n`
+  return `${ymdhm(now)} документ: задание заведено плагином: «${t.title.replace(/[«»\r\n]/g, "")}»; input/message.md — ${how}; основа — ${base}\n`
 }
 
 /** Номера запусков, уже записанные в журналах папки: строки «запуск №n» progress.log и log.md. */

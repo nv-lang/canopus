@@ -52,18 +52,18 @@ def main():
     def index_red(sample, rule, name=None):
         def fn():
             repo = fresh()
-            stage(repo, "doc/note.md", "line one\n" + sample + "\nline three\n")
+            stage(repo, "docs/note.md", "line one\n" + sample + "\nline three\n")
             proc = stlib.guard("guard-secrets.py", repo, env, "--index")
             got = stlib.expect(proc, 1, "FAIL: guard-secrets: 1 нарушений")
-            assert stlib.has_line(proc, "FAIL doc/note.md:2: %s:" % rule), proc.out
+            assert stlib.has_line(proc, "FAIL docs/note.md:2: %s:" % rule), proc.out
             assert sample not in proc.out, "значение напечатано"
-            assert "doc/note.md:2" in proc.out, "положительный контроль: адрес должен быть в выводе"
+            assert "docs/note.md:2" in proc.out, "положительный контроль: адрес должен быть в выводе"
         return fn
 
     def index_green(sample):
         def fn():
             repo = fresh()
-            stage(repo, "doc/note.md", "x\n" + sample + "\n")
+            stage(repo, "docs/note.md", "x\n" + sample + "\n")
             proc = stlib.guard("guard-secrets.py", repo, env, "--index")
             stlib.expect(proc, 0, "ок: осмотрено 1 файлов")
         return fn
@@ -136,10 +136,10 @@ def main():
 
     def cyrillic_path_and_crlf():
         repo = fresh()
-        stage(repo, "doc/\u0437\u0430\u043c\u0435\u0442\u043a\u0430.md", "a\r\n" + GH_PAT + "\r\nb\r\n")
+        stage(repo, "docs/\u0437\u0430\u043c\u0435\u0442\u043a\u0430.md", "a\r\n" + GH_PAT + "\r\nb\r\n")
         proc = stlib.guard("guard-secrets.py", repo, env, "--index")
         stlib.expect(proc, 1, "FAIL: guard-secrets: 1 нарушений")
-        assert "doc/\u0437\u0430\u043c\u0435\u0442\u043a\u0430.md:2" in proc.out, proc.out
+        assert "docs/\u0437\u0430\u043c\u0435\u0442\u043a\u0430.md:2" in proc.out, proc.out
 
     def no_target():
         base2 = pr.mkdtemp()

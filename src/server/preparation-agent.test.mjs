@@ -37,7 +37,7 @@ test('host arguments cannot be reinterpreted as target or endpoint overrides', (
   assert.throws(() => optionsOf(['--tools', 'bash']));
 });
 
-test('GREEN: text generation writes only assigned task/message.md, keeps session history and sends no tools', async (t) => {
+test('GREEN: text generation writes only assigned input/message.md, keeps session history and sends no tools', async (t) => {
   const root = await rootOf(t);
   const calls = [];
   const fetcher = async (url, options) => {
@@ -52,9 +52,9 @@ test('GREEN: text generation writes only assigned task/message.md, keeps session
   await generate({ ...config, message: 'Добавь ограничение' });
   assert.match(calls[1].prompt, /Обсудим задачу/);
   assert.match(calls[1].prompt, /Критерий: тест зелёный/);
-  assert.match(await readFile(path.join(root, 'task/message.md'), 'utf8'), /Критерий/);
+  assert.match(await readFile(path.join(root, 'input/message.md'), 'utf8'), /Критерий/);
   assert.deepEqual((await readdir(root)).sort(), ['history.json', 'task']);
-  assert.deepEqual(await readdir(path.join(root, 'task')), ['message.md']);
+  assert.deepEqual(await readdir(path.join(root, 'input')), ['message.md']);
 });
 
 test('real local fake HTTP: 2.2.5 registration supplies auth only to the verified stateless endpoint', async (t) => {
@@ -81,7 +81,7 @@ test('real local fake HTTP: 2.2.5 registration supplies auth only to the verifie
   assert.deepEqual(Object.keys(requests[0].body).sort(), ['model', 'prompt']);
   assert.ok(!requests[0].body.prompt.includes(password));
   assert.ok(!requests[0].body.prompt.includes(registration));
-  assert.match(await readFile(path.join(root, 'task/message.md'), 'utf8'), /Без реализации/);
+  assert.match(await readFile(path.join(root, 'input/message.md'), 'utf8'), /Без реализации/);
   await writeFile(registration, JSON.stringify({ version: '2.2.5', url: 'http://example.com', password }));
   await assert.rejects(serviceTransport(registration));
   assert.equal(requests.length, 1, 'untrusted registration never receives auth');
@@ -99,7 +99,7 @@ test('cancelled generation writes no document; a later turn and a restored adapt
   await generate({ ...config, message: 'уточни', fetcher: async (_url, options) => { restoredPrompt = JSON.parse(options.body).prompt; return response({ reply: 'уточняем' }); } });
   assert.match(restoredPrompt, /Сохранённая задача/);
   assert.match(restoredPrompt, /сохранить/);
-  assert.equal(await readFile(path.join(root, 'task/message.md'), 'utf8'), '# Сохранённая задача');
+  assert.equal(await readFile(path.join(root, 'input/message.md'), 'utf8'), '# Сохранённая задача');
 });
 
 test('malicious model output and unsupported transport do not create a document', async (t) => {
@@ -124,9 +124,9 @@ test('a hard-linked statement cannot expose or overwrite an implementation file'
   const temporary = await rootOf(t);
   const root = path.join(temporary, 'session');
   const source = path.join(temporary, 'source.nv');
-  await mkdir(path.join(root, 'task'), { recursive: true });
+  await mkdir(path.join(root, 'input'), { recursive: true });
   await writeFile(source, 'original implementation');
-  await link(source, path.join(root, 'task/message.md'));
+  await link(source, path.join(root, 'input/message.md'));
   let called = false;
   await assert.rejects(generate({ endpoint: 'http://localhost/api/experimental/generate/text', model: 'existing/selected', root, message: 'изменить', fetcher: async () => { called = true; return response({ reply: 'нет', statement: 'bad' }); } }), /Ссылка/);
   assert.equal(called, false);
@@ -158,7 +158,7 @@ test('ACP accepts a conversation but refuses filesystem, shell, tools and broade
   for (const id of [3, 4, 5]) assert.ok(messages.find((item) => item.id === id)?.error);
   assert.equal(messages.find((item) => item.id === 6)?.result.stopReason, 'end_turn');
   assert.ok(messages.some((item) => item.method === 'session/update' && item.params.update.content.text.includes('Обсуждаем')));
-  assert.deepEqual(await readdir(path.join(root, 'task')), ['message.md']);
+  assert.deepEqual(await readdir(path.join(root, 'input')), ['message.md']);
 });
 
 test('standalone adapter: fixture HTTP, actual ACP process, restart and a Git ancestor do not expand the write target', async (t) => {
@@ -213,7 +213,7 @@ test('standalone adapter: fixture HTTP, actual ACP process, restart and a Git an
   assert.match(lastPrompt, /Сохрани критерий/);
   assert.match(lastPrompt, /Критерий: проверяемый результат/);
   assert.equal(await readFile(path.join(temporary, '.git'), 'utf8'), 'fixture Git ancestor marker');
-  assert.deepEqual(await readdir(path.join(root, 'task')), ['message.md']);
+  assert.deepEqual(await readdir(path.join(root, 'input')), ['message.md']);
   restored.child.stdin.end();
   await new Promise((resolve) => restored.child.once('exit', resolve));
 });
@@ -225,9 +225,9 @@ test('restricted native generator is independent of OpenCode and keeps statement
   await generate({model:'kimi/native',root,message:'Первая цель',generator,fetcher:()=>assert.fail('OpenCode must not be called')});
   await generate({model:'kimi/native',root,message:'Добавь проверку',generator});
   assert.match(prompts[1],/Первая цель/);assert.match(prompts[1],/Только постановка/);
-  assert.equal(await readFile(path.join(root,'task/message.md'),'utf8'),'# Только постановка');
+  assert.equal(await readFile(path.join(root,'input/message.md'),'utf8'),'# Только постановка');
   await assert.rejects(generate({model:'kimi/native',root,message:'выйди из ограничений',generator:async()=>JSON.stringify({reply:'нет',tools:['Bash']})}),/не разрешено/);
-  assert.equal(await readFile(path.join(root,'task/message.md'),'utf8'),'# Только постановка');
+  assert.equal(await readFile(path.join(root,'input/message.md'),'utf8'),'# Только постановка');
 });
 
 test('Kimi restricted launch pins a tool-free profile and refuses broader launch flags', async () => {
@@ -245,9 +245,9 @@ test('real restricted ACP pipe confirms the model and carries long text without 
   const fixture=fileURLToPath(new URL('./test/kimi-preparation-fixture.mjs',import.meta.url));
   const invoke=input=>kimiGenerate({...input,program:process.execPath,args:[fixture,'acp']});
   const result=await generate({model:'kimi/native',variant:'low',root,message:'Long text '.repeat(5000),signal:AbortSignal.timeout(10000),generator:invoke});
-  assert.equal(result.reply,'restricted');assert.equal(await readFile(path.join(root,'task/message.md'),'utf8'),'# Restricted draft');
+  assert.equal(result.reply,'restricted');assert.equal(await readFile(path.join(root,'input/message.md'),'utf8'),'# Restricted draft');
   await assert.rejects(generate({model:'kimi/native',root,message:'ASK_FOR_TOOL',signal:AbortSignal.timeout(10000),generator:invoke}),/forbidden/);
-  assert.equal(await readFile(path.join(root,'task/message.md'),'utf8'),'# Restricted draft');
+  assert.equal(await readFile(path.join(root,'input/message.md'),'utf8'),'# Restricted draft');
 });
 
 test('valid JSON fences are accepted while unexpected operations remain rejected',()=>{
@@ -261,5 +261,5 @@ test('research context includes previous chat even with an empty statement',asyn
 test('native answer format is repaired once without replaying research; tools during repair fail closed',async t=>{
  const {kimiGenerate}=await import('./kimi-preparation.mjs'),root=await rootOf(t);const fixture=fileURLToPath(new URL('./test/kimi-preparation-fixture.mjs',import.meta.url));const generator=input=>kimiGenerate({...input,program:process.execPath,args:[fixture,'acp']});
  assert.equal((await generate({model:'kimi/native',root,message:'BAD_FORMAT',generator,signal:AbortSignal.timeout(10000)})).reply,'restricted');
- await assert.rejects(generate({model:'kimi/native',root,message:'BAD_FORMAT_TOOL',generator,signal:AbortSignal.timeout(10000)}),/forbidden/);assert.equal(await readFile(path.join(root,'task/message.md'),'utf8'),'# Restricted draft');
+ await assert.rejects(generate({model:'kimi/native',root,message:'BAD_FORMAT_TOOL',generator,signal:AbortSignal.timeout(10000)}),/forbidden/);assert.equal(await readFile(path.join(root,'input/message.md'),'utf8'),'# Restricted draft');
 });

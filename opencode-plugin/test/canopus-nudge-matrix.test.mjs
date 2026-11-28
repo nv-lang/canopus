@@ -1,6 +1,6 @@
 import { writeFixtureFile } from "./fixture-settings.mjs"
 // Matrix test "task status x conditions -> whom and how the plugin wakes" (task 042; node >= 24):  node test/canopus-nudge-matrix.test.mjs
-// The rows follow doc/tasks/042-nudge-matrix/analysis.md (row ids M01...). Every row runs on the real plugin: tasks are written to the
+// The rows follow docs/tasks/042-nudge-matrix/analysis.md (row ids M01...). Every row runs on the real plugin: tasks are written to the
 // journal, the loop passes (reconcile, resumeTasks, assignReviewers, flow watchdog, reminders) and the turn ends of the sessions
 // (the end-of-turn nudge) are simulated through OpenCode's database exactly as canopus-push does. Times are shortened by the settings
 // of the test projects and the CANOPUS_* variables.

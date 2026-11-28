@@ -27,14 +27,14 @@ const read = (f) => readFileSync(f, "utf8")
 const exists = (f) => existsSync(f)
 
 const base = path.join(tmp, "proj")
-const dir = path.join(base, "doc", "tasks", "007-x")
+const dir = path.join(base, "docs", "tasks", "007-x")
 mkdirSync(dir, { recursive: true })
 const log = path.join(dir, "progress.log")
 const ulog = path.join(dir, "usage.log")
 const HISTORY = "С5д 0/13 [02:00] старт\nС5д 3/13 [02:04] историческая строка\n"
 writeFixtureFile(log, HISTORY)
-const rel = "doc/tasks/007-x/progress.log"
-const urel = "doc/tasks/007-x/usage.log"
+const rel = "docs/tasks/007-x/progress.log"
+const urel = "docs/tasks/007-x/usage.log"
 const at = (h, m) => new Date(2026, 9, 9, h, m, 0)
 // independent expectation of the local ISO form: fields from the Date, offset from the minutes difference to UTC
 const p2 = (n) => String(n).padStart(2, "0")
@@ -63,7 +63,7 @@ const isoLocalOf = (d) => {
     const x = progressLine(input, base, at(3, 8))
     cell(`progress refused: ${name}`, x.ok === false && read(log) === snapshot && (!why || why.test(x.reason)), JSON.stringify(x))
   }
-  bad("other file name", { file: "doc/tasks/007-x/result.md", code: "С5д", unit: "6/13", text: "x" })
+  bad("other file name", { file: "docs/tasks/007-x/result.md", code: "С5д", unit: "6/13", text: "x" })
   bad("file outside the project folder", { file: "../outside/progress.log", code: "С5д", unit: "6/13", text: "x" })
   bad("absolute path outside", { file: path.join(tmp, "other", "progress.log"), code: "С5д", unit: "6/13", text: "x" })
   bad("multi-line text", { file: rel, code: "С5д", unit: "6/13", text: "раз\nдва" })
@@ -74,8 +74,8 @@ const isoLocalOf = (d) => {
   bad("unit not k/N", { file: rel, code: "С5д", unit: "пять", text: "x" })
   bad("unit ?/? is no longer written (the guard and the panel do not read it)", { file: rel, code: "С5д", unit: "?/?", text: "x" })
   bad("unknown kind", { file: rel, code: "С5д", kind: "итог", text: "x" }, /start.*step.*done.*stop.*correction/)
-  bad("a step of a missing file is not written and the file is not created", { file: "doc/tasks/008-y/progress.log", code: "С5д", unit: "1/2", text: "x" }, /старт/)
-  cell("progress: missing file not created on disk", !exists(path.join(base, "doc/tasks/008-y/progress.log")), "created")
+  bad("a step of a missing file is not written and the file is not created", { file: "docs/tasks/008-y/progress.log", code: "С5д", unit: "1/2", text: "x" }, /старт/)
+  cell("progress: missing file not created on disk", !exists(path.join(base, "docs/tasks/008-y/progress.log")), "created")
 
   const ro = path.join(dir, "ro", "progress.log")
   mkdirSync(path.dirname(ro), { recursive: true })
@@ -89,9 +89,9 @@ const isoLocalOf = (d) => {
 
 // ---- progress_line by kind: the tool builds the line and checks it against the session (task 049) ----
 {
-  const tdir = path.join(base, "doc", "tasks", "045-k")
+  const tdir = path.join(base, "docs", "tasks", "045-k")
   mkdirSync(tdir, { recursive: true })
-  const f = "doc/tasks/045-k/progress.log"
+  const f = "docs/tasks/045-k/progress.log"
   const abs = path.join(tdir, "progress.log")
   const put = (input, h = 15, m = 2) => progressLine({ file: f, ...input }, base, at(h, m))
   const no = (name, input, why) => {
@@ -161,9 +161,9 @@ const isoLocalOf = (d) => {
 // not after the final line (the final line is fixed by its repeat with the same k and keyword); a skipped unit and a start that is not
 // the first line cannot be corrected: the answer says to go on with the work and not to begin a new attempt ----
 {
-  const tdir = path.join(base, "doc", "tasks", "050-c")
+  const tdir = path.join(base, "docs", "tasks", "050-c")
   mkdirSync(tdir, { recursive: true })
-  const f = "doc/tasks/050-c/progress.log"
+  const f = "docs/tasks/050-c/progress.log"
   const abs = path.join(tdir, "progress.log")
   const put = (input, h = 9, m = 0) => progressLine({ file: f, ...input }, base, at(h, m))
   const hand = (line) => writeFixtureFile(abs, (exists(abs) ? read(abs) : "") + line + "\n")
@@ -264,9 +264,9 @@ const isoLocalOf = (d) => {
 // line, one start per session, nothing after the final line but its repeat and «стоп:» after «готово» with k below N, no launch from the
 // agent, the quote of a correction is the start of the signature after the time (10 to 30 characters or the whole short signature) ----
 {
-  const tdir = path.join(base, "doc", "tasks", "053-m")
+  const tdir = path.join(base, "docs", "tasks", "053-m")
   mkdirSync(tdir, { recursive: true })
-  const f = "doc/tasks/053-m/progress.log"
+  const f = "docs/tasks/053-m/progress.log"
   const abs = path.join(tdir, "progress.log")
   const put = (input, h = 14, m = 0) => progressLine({ file: f, ...input }, base, at(h, m))
   const hand = (line) => writeFixtureFile(abs, (exists(abs) ? read(abs) : "") + line + "\n")
@@ -351,14 +351,14 @@ const isoLocalOf = (d) => {
 
   // ab2a4ef: the agent does not write the launch record into log.md either
   {
-    const ldir = path.join(base, "doc", "tasks", "053-l")
+    const ldir = path.join(base, "docs", "tasks", "053-l")
     mkdirSync(ldir, { recursive: true })
     const lf = path.join(ldir, "log.md")
     writeFixtureFile(lf, "2026-10-09 10:00 документ: задание\n")
     const snap = read(lf)
-    const x = logLine({ file: "doc/tasks/053-l/log.md", kind: "пуск", text: "запуск №3 С5 [2026-10-09 10:01]" }, base, at(10, 1))
+    const x = logLine({ file: "docs/tasks/053-l/log.md", kind: "пуск", text: "запуск №3 С5 [2026-10-09 10:01]" }, base, at(10, 1))
     cell("053 refused: a launch record in log.md from the agent", x.ok === false && read(lf) === snap && /запуск.*не пишет/.test(x.reason), JSON.stringify(x))
-    const y = logLine({ file: "doc/tasks/053-l/log.md", kind: "пуск", text: "С5 запущен оркестратором, запуск №3" }, base, at(10, 2))
+    const y = logLine({ file: "docs/tasks/053-l/log.md", kind: "пуск", text: "С5 запущен оркестратором, запуск №3" }, base, at(10, 2))
     cell("053: an entry that only mentions a launch is written", y.ok, JSON.stringify(y))
   }
 
@@ -402,9 +402,9 @@ const isoLocalOf = (d) => {
 // number in progress.log and log.md) and the record «<time> пуск: запуск №<n> <code> [time]» into log.md of the same folder; the agent of a
 // session is refused; log_line takes the launch record from the launcher only ----
 {
-  const tdir = path.join(base, "doc", "tasks", "053-r")
+  const tdir = path.join(base, "docs", "tasks", "053-r")
   mkdirSync(tdir, { recursive: true })
-  const f = "doc/tasks/053-r/progress.log"
+  const f = "docs/tasks/053-r/progress.log"
   const abs = path.join(tdir, "progress.log")
   const lmd = path.join(tdir, "log.md")
   const L = { launcher: true }
@@ -425,7 +425,7 @@ const isoLocalOf = (d) => {
   cell("launcher: a free number given by the launcher is taken", l7.ok && l7.line === "С6 0/0 [2026-10-09 18:05] запуск №7", JSON.stringify(l7))
   const ag = progressLine({ file: f, code: "С6", kind: "launch" }, base, at(18, 6))
   cell("launcher refused: the agent of a session gets no launch line and no record", ag.ok === false && /запуск.*не пишет/.test(ag.reason) && rd(lmd).split("\n").filter(Boolean).length === 4, JSON.stringify(ag))
-  const rec = logLine({ file: "doc/tasks/053-r/log.md", kind: "пуск", text: "запуск №8 С7 [2026-10-09 18:07]" }, base, at(18, 7), L)
+  const rec = logLine({ file: "docs/tasks/053-r/log.md", kind: "пуск", text: "запуск №8 С7 [2026-10-09 18:07]" }, base, at(18, 7), L)
   cell("launcher: log_line takes the launch record from the launcher", rec.ok && rec.line === "2026-10-09 18:07 пуск: запуск №8 С7 [2026-10-09 18:07]", JSON.stringify(rec))
   // the rule the machine checks: the calling tab holds the integrator role of its project and has no task or review of its own
   cell("launcher: an integrator tab holding the role, without a task, is the launcher", isLauncherCard({ role: "integrator", session: "s" }, true) === true, "")
@@ -437,17 +437,17 @@ const isoLocalOf = (d) => {
 
 // ---- log_line ----
 {
-  const ldir = path.join(base, "doc", "tasks", "049-l")
+  const ldir = path.join(base, "docs", "tasks", "049-l")
   mkdirSync(ldir, { recursive: true })
   const lf = path.join(ldir, "log.md")
   writeFixtureFile(lf, "Методика: x @ abc") // no newline at the end
-  const r = logLine({ file: "doc/tasks/049-l/log.md", kind: "решение владельца", text: "владелец, 2026-10-15, чат: «по рекомендации»" }, base, at(16, 1))
+  const r = logLine({ file: "docs/tasks/049-l/log.md", kind: "решение владельца", text: "владелец, 2026-10-15, чат: «по рекомендации»" }, base, at(16, 1))
   cell("log: one entry with the machine date and time, the missing newline of the file is added first", r.ok && read(lf) === "Методика: x @ abc\n2026-10-09 16:01 решение владельца: владелец, 2026-10-15, чат: «по рекомендации»\n", JSON.stringify([r, read(lf)]))
   const LOG_ENTRY = /^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2} (решение владельца|заседание|ворота|документ|пуск|слияние|находка): /
   cell("log: the entry has the form of the guard rule log-line", LOG_ENTRY.test(r.line), r.line)
   const snap = read(lf)
   const lno = (name, input, why) => {
-    const x = logLine({ file: "doc/tasks/049-l/log.md", ...input }, base, at(16, 2))
+    const x = logLine({ file: "docs/tasks/049-l/log.md", ...input }, base, at(16, 2))
     cell(`log refused: ${name}`, x.ok === false && read(lf) === snap && (!why || why.test(x.reason)), JSON.stringify(x))
   }
   // case 031 review 7: the kind of an entry was the session code instead of a kind of the list, two entries glued
@@ -455,9 +455,9 @@ const isoLocalOf = (d) => {
   lno("no kind", { text: "x" }, /не назван/)
   lno("two entries in one call", { kind: "документ", text: "раз\n2026-10-09 16:02 документ: два" }, /одна запись — одна строка/)
   lno("empty text", { kind: "документ", text: " " })
-  lno("other file name", { file: "doc/tasks/049-l/progress.log", kind: "документ", text: "x" })
+  lno("other file name", { file: "docs/tasks/049-l/progress.log", kind: "документ", text: "x" })
   lno("outside the project", { file: "../x/log.md", kind: "документ", text: "x" })
-  const fresh = logLine({ file: "doc/tasks/049-l/sub/log.md", kind: "документ", text: "x" }, base, at(16, 3))
+  const fresh = logLine({ file: "docs/tasks/049-l/sub/log.md", kind: "документ", text: "x" }, base, at(16, 3))
   cell("log: no folder - not created", fresh.ok === false && !exists(path.join(ldir, "sub")), JSON.stringify(fresh))
 }
 
@@ -516,7 +516,7 @@ const now = new Date(Date.UTC(2026, 9, 9, 10, 30, 0))
     const x = usageLine(input, base, { session: "s", card, now, commit: () => "", ...env })
     cell(`usage refused: ${name}`, x.ok === false && read(ulog) === snapshot, JSON.stringify(x))
   }
-  bad("other file name", { file: "doc/tasks/007-x/result.log", code: "С5д", result: "x" })
+  bad("other file name", { file: "docs/tasks/007-x/result.log", code: "С5д", result: "x" })
   bad("progress.log is not writable by usage_line", { file: rel, code: "С5д", result: "x" })
   bad("file outside the project folder", { file: "../outside/usage.log", code: "С5д", result: "x" })
   bad("absolute path outside", { file: path.join(tmp, "other", "usage.log"), code: "С5д", result: "x" })
@@ -527,9 +527,9 @@ const now = new Date(Date.UTC(2026, 9, 9, 10, 30, 0))
   bad("code with spaces", { file: urel, code: "С5 д", result: "x" })
 
   // creation only next to progress.log
-  const lone = path.join(base, "doc", "tasks", "009-z")
+  const lone = path.join(base, "docs", "tasks", "009-z")
   mkdirSync(lone, { recursive: true })
-  const x = usageLine({ file: "doc/tasks/009-z/usage.log", code: "С5д", result: "x" }, base, { session: "s", card, now, commit: () => "" })
+  const x = usageLine({ file: "docs/tasks/009-z/usage.log", code: "С5д", result: "x" }, base, { session: "s", card, now, commit: () => "" })
   cell("usage: no creation without progress.log next to it", x.ok === false && !exists(path.join(lone, "usage.log")), JSON.stringify(x))
 
   // read-only file: the OS refuses
@@ -586,16 +586,16 @@ const now = new Date(Date.UTC(2026, 9, 9, 10, 30, 0))
   cell("setup registers progress_line, log_line and usage_line", !!tools.progress_line && !!tools.log_line && !!tools.usage_line, JSON.stringify(names))
   const out = await tools.progress_line.execute({ file: rel, code: "С5д", kind: "step", k: 6, n: 13, text: "через инструмент" }, { sessionID: "ses_t" })
   cell("progress tool writes and answers with the next step", /Записано: С5д 6\/13 \[\d{4}-\d\d-\d\d \d\d:\d\d\] через инструмент\nследующая — k: 7/.test(out.content) && read(log).includes("] через инструмент"), JSON.stringify(out))
-  const lo = await tools.log_line.execute({ file: "doc/tasks/007-x/log.md", kind: "находка", text: "через инструмент" }, {})
+  const lo = await tools.log_line.execute({ file: "docs/tasks/007-x/log.md", kind: "находка", text: "через инструмент" }, {})
   cell("log tool writes and answers", /^Записано в log.md: \d{4}-\d\d-\d\d \d\d:\d\d находка: через инструмент$/.test(lo.content), JSON.stringify(lo))
-  const lno = await tools.log_line.execute({ file: "doc/tasks/007-x/log.md", kind: "отчёт", text: "x" }, {})
+  const lno = await tools.log_line.execute({ file: "docs/tasks/007-x/log.md", kind: "отчёт", text: "x" }, {})
   cell("log tool refuses a kind outside the list", /^Не записано: вид записи «отчёт» не из списка/.test(lno.content), JSON.stringify(lno))
-  const no = await tools.progress_line.execute({ file: "doc/tasks/007-x/result.md", code: "С5д", unit: "6/13", text: "x" }, {})
+  const no = await tools.progress_line.execute({ file: "docs/tasks/007-x/result.md", code: "С5д", unit: "6/13", text: "x" }, {})
   cell("progress tool refuses a wrong file", /^Не записано/.test(no.content), JSON.stringify(no))
   const u = await tools.usage_line.execute({ file: urel, code: "С5д", result: "через инструмент" }, { sessionID: "ses_t" })
   const last = JSON.parse(read(ulog).trim().split("\n").pop())
   cell("usage tool reads the session card of the calling session", /^Записано/.test(u.content) && calls.get.includes("ses_t") && last.session === "ses_t" && last.model === "anthropic/claude-sonnet-5-5" && last.tokens.cache_write === 400, JSON.stringify([u, last]))
-  const un = await tools.usage_line.execute({ file: "doc/tasks/007-x/progress.log", code: "С5д", result: "x" }, { sessionID: "ses_t" })
+  const un = await tools.usage_line.execute({ file: "docs/tasks/007-x/progress.log", code: "С5д", result: "x" }, { sessionID: "ses_t" })
   cell("usage tool refuses a wrong file", /^Не записано/.test(un.content), JSON.stringify(un))
   // task 053: the plugin asks who calls - a tab that is not the integrator gets no launch line
   const la = await tools.progress_line.execute({ file: rel, code: "С9", kind: "launch" }, { sessionID: "ses_t" })

@@ -114,7 +114,7 @@ def main():
 
     def from_subdir():
         r = clone()
-        sub = os.path.join(r, "doc")
+        sub = os.path.join(r, "docs")
         os.makedirs(sub, exist_ok=True)
         proc = stlib.run(("sh", "../scripts/install-hooks.sh"), cwd=sub, env=env)
         assert proc.returncode == 0 and cfg(r, "core.hooksPath") == "scripts/githooks", proc.out + proc.err

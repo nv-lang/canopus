@@ -37,7 +37,7 @@ check("TH-1 taskNo: 22, 61, 81, 94, 1000 for every project, with a folder and wi
   for (const [n, label] of want) {
     for (const project of [OWN, "nova", "claude-limits", undefined]) {
       assert.equal(T.taskNo({ project, n }), label, `${project} ${n}`)
-      assert.equal(T.taskNo({ project, n, folder: `doc/tasks/${label}-x` }), label, `${project} ${n} with a folder`)
+      assert.equal(T.taskNo({ project, n, folder: `docs/tasks/${label}-x` }), label, `${project} ${n} with a folder`)
     }
   }
 })
@@ -51,8 +51,8 @@ check("TH-1 taskRef and sessionRef follow taskNo", () => {
   assert.equal(T.taskRef({ project: OWN, n: 22, title: "Реестры контрактов" }), "022 «Реестры контрактов»")
   assert.equal(T.taskRef({ project: "nova", n: 94, title: "Разбор" }), "094 «Разбор»")
   assert.equal(T.taskRef({ project: OWN, n: 61 }), "061")
-  assert.equal(T.sessionRef({ project: OWN, n: 61, folder: "doc/tasks/061-x" }, { code: "С4", k: 3 }), "061 С4-3")
-  assert.equal(T.sessionRef({ project: OWN, n: 61, folder: "doc/tasks/061-x" }, { code: "исп", k: 1 }), "061 исп")
+  assert.equal(T.sessionRef({ project: OWN, n: 61, folder: "docs/tasks/061-x" }, { code: "С4", k: 3 }), "061 С4-3")
+  assert.equal(T.sessionRef({ project: OWN, n: 61, folder: "docs/tasks/061-x" }, { code: "исп", k: 1 }), "061 исп")
   assert.equal(T.sessionRef({ project: "nova", n: 94 }, { code: "прм", k: 1 }), "094 прм-1")
 })
 
@@ -76,7 +76,7 @@ check("TH-2 TAB_RE is exported and takes both forms", () => {
 
 // TH-3
 check("TH-3 the title syncTitles builds is '061 исп ...' and differs from a first-edition '#61 исп ...'", () => {
-  const t = { project: OWN, n: 61, folder: "doc/tasks/061-x", title: "Канон" }
+  const t = { project: OWN, n: 61, folder: "docs/tasks/061-x", title: "Канон" }
   const title = `${T.taskNo(t)} исп ${t.title}`
   assert.equal(title, "061 исп Канон")
   assert.notEqual(title, "#61 исп Канон")

@@ -208,7 +208,7 @@ const range = (a: number, b: number) => (b > a ? `${a}–${b}` : `${a}`)
  * `prior` — разобранные строки файла (пусто, если файла нет).
  */
 export function buildProgress(input: ProgressInput, prior: Line[], now: Date = new Date(), env: JournalEnv = {}): { ok: true; line: string; kind: ProgressKind; hint: string; launch?: number } | Refused {
-  const file = String(input?.file ?? "").trim() || "doc/tasks/NNN-x/progress.log"
+  const file = String(input?.file ?? "").trim() || "docs/tasks/NNN-x/progress.log"
   const code = String(input?.code ?? "").trim()
   if (!CODE_RE.test(code)) return { ok: false, reason: "код сессии: 1–8 букв или цифр без пробелов, дословно из строки «Сессия:» (например С2 или С5д)" }
   const rawKind = String(input?.kind ?? "").trim().toLowerCase()
@@ -409,7 +409,7 @@ export function progressLine(input: ProgressInput, base: string, now: Date = new
 
 // ---- log_line ----
 // Задача 049: запись log.md задачи «ГГГГ-ММ-ДД ЧЧ:ММ <вид>: <текст>» с датой и временем машины и видом из закрытого списка Канона
-// (doc/canon/process.md, «Дата в каждой записи журналов»; страж check-task-docs.py, правило log-line). Одна строка, только дозапись.
+// (docs/canon/process.md, «Дата в каждой записи журналов»; страж check-task-docs.py, правило log-line). Одна строка, только дозапись.
 export const LOG_KINDS = ["решение владельца", "заседание", "ворота", "документ", "пуск", "слияние", "находка"]
 export type LogInput = { file: string; kind: string; text: string }
 
@@ -417,7 +417,7 @@ export function logLine(input: LogInput, base: string, now: Date = new Date(), e
   const kind = String(input?.kind ?? "").trim().toLowerCase()
   const text = String(input?.text ?? "").trim()
   if (!LOG_KINDS.includes(kind))
-    return { ok: false, reason: `вид записи ${kind ? `«${kind}» не из списка` : "не назван"}: kind — одно из: ${LOG_KINDS.join(", ")} (Канон, process.md); пример: log_line {file: "doc/tasks/007-x/log.md", kind: "документ", text: "spec.md передан на С2"}` }
+    return { ok: false, reason: `вид записи ${kind ? `«${kind}» не из списка` : "не назван"}: kind — одно из: ${LOG_KINDS.join(", ")} (Канон, process.md); пример: log_line {file: "docs/tasks/007-x/log.md", kind: "документ", text: "spec.md передан на С2"}` }
   if (!text) return { ok: false, reason: "текст пустой" }
   if (CONTROL_RE.test(text)) return { ok: false, reason: "одна запись — одна строка: без переводов строки и управляющих символов (две записи — два вызова)" }
   if (/^запуск\s*№/.test(text) && !env.launcher)
@@ -576,7 +576,7 @@ export async function registerJournalTools(ctx: any, log: (s: string) => void, o
           "launch {launch optional} -> '<code> 0/0 [time] запуск №n' plus the record '<time> пуск: запуск №n <code> [time]' in log.md of the folder: only for the launcher - the tab holding the integrator role of the project without a task or review of its own; the agent of a session never writes a launch, neither in progress.log nor in log.md; " +
           "correction {to = the start of the signature (after the time) of the wrong line of the same session, text = what is wrong} -> '<code> k/N [time] поправка: к строке «10 to 30 chars of it, or the whole shorter signature» — text', keeps the current k, is not a unit; never rewrite a line, correct it. Not after the final line: a wrong 'готово'/'стоп:' line is fixed by repeating done/stop with the same k (a stop kind of the list is kept). The journal is a signal, not a proof: the finish is judged by the artifact. A skipped unit or a missing start cannot be corrected: go on with the work, do not begin a new attempt. A form mistake of the journal is a finding (находка in log.md), not a reason to redo the session. " +
           "The whole signature (all but the time) is at most 80 characters. A refusal names the rule, the expected form and an example call; nothing is written. " +
-          "Example: {file: 'doc/tasks/007-x/progress.log', code: 'С2', kind: 'start', n: 34, pass: 1, text: 'опись 34 источника'}, then {file: same, code: 'С2', kind: 'step', k: 1, n: 34, text: 'spec.md прочитан целиком'}.",
+          "Example: {file: 'docs/tasks/007-x/progress.log', code: 'С2', kind: 'start', n: 34, pass: 1, text: 'опись 34 источника'}, then {file: same, code: 'С2', kind: 'step', k: 1, n: 34, text: 'spec.md прочитан целиком'}.",
         input: {
           type: "object",
           properties: {
@@ -609,7 +609,7 @@ export async function registerJournalTools(ctx: any, log: (s: string) => void, o
         description:
           "The way to write an entry of the task log (log.md): appends ONE line 'YYYY-MM-DD HH:MM <kind>: <text>' with the machine date and time (never type the time by hand or ask the clock). " +
           "kind is one of: решение владельца, заседание, ворота, документ, пуск, слияние, находка. One entry - one call, one line (no line breaks), up to 2000 characters. A gate entry (kind ворота) is an owner stop: the owner is asked with the question tool, and when no question is open the answer says so. The launch record 'запуск №<n> <code> [time]' is written by the launcher (the integrator tab, better via progress_line kind launch), never by the agent of a session. " +
-          "File named log.md inside the project folder; created only in an existing folder. Example: {file: 'doc/tasks/007-x/log.md', kind: 'решение владельца', text: 'владелец, 2026-10-15, чат: «по рекомендации»'}.",
+          "File named log.md inside the project folder; created only in an existing folder. Example: {file: 'docs/tasks/007-x/log.md', kind: 'решение владельца', text: 'владелец, 2026-10-15, чат: «по рекомендации»'}.",
         input: {
           type: "object",
           properties: {
@@ -645,7 +645,7 @@ export async function registerJournalTools(ctx: any, log: (s: string) => void, o
       editor.add({
         name: "usage_line",
         description:
-          "Append ONE JSON line with the accounting of this session to a usage.log of the current project (format version v:1). Call it once, when the session is finished. The tool fills everything itself (time, session, model, variant, tokens, cost, duration, longest service loop lag, last commit of the folder); you pass only the session code and the result. File named usage.log inside the project folder, only appending; it may be created only next to an existing progress.log of the same task folder. Example: file 'doc/tasks/007-x/usage.log', code 'С5д', result 'готово: 13 из 13 шагов, тесты зелёные'.",
+          "Append ONE JSON line with the accounting of this session to a usage.log of the current project (format version v:1). Call it once, when the session is finished. The tool fills everything itself (time, session, model, variant, tokens, cost, duration, longest service loop lag, last commit of the folder); you pass only the session code and the result. File named usage.log inside the project folder, only appending; it may be created only next to an existing progress.log of the same task folder. Example: file 'docs/tasks/007-x/usage.log', code 'С5д', result 'готово: 13 из 13 шагов, тесты зелёные'.",
         input: {
           type: "object",
           properties: {

@@ -1,7 +1,7 @@
 import { writeFixtureFile } from "./fixture-settings.mjs"
 // Self-test of task folders, task sessions and sub-tasks (task 058, node >= 24):  node test/canopus-task-folders.test.mjs
-// A project with task folders (tasks_dir, doc/tasks in the target branch): canopus_spawn makes the folder NNN-<slug>/ on the task
-// branch (task/message.md word for word, log.md with one dated line), committed by the plugin with a sign-off, the main copy
+// A project with task folders (tasks_dir, docs/tasks in the target branch): canopus_spawn makes the folder NNN-<slug>/ on the task
+// branch (input/message.md word for word, log.md with one dated line), committed by the plugin with a sign-off, the main copy
 // untouched (AC-03); a task whose folder exists gets a record with its number and no folder commit, a number without a folder
 // is refused (AC-04); sessions of a task are entries of its record: code, ordinal of the code, launch number, the launch lines
 // in progress.log and log.md (AC-05); a session submits to the integrator, the plugin's review starts only after deliver
@@ -25,15 +25,15 @@ const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t
 writeFixtureFile(path.join(proj, ".canopus", "plugin", "config.json"), JSON.stringify({ worktrees: "../worktrees", worktree_name: "{repo}-{n}-{slug}", branch_name: "task/{n}-{slug}", cleanup: "local", allow_default_models: true, inflight_limit: 20, spawn_limits: { worker: 9, reviewer: 0 } }))
 const folder = (name, files) => {
   for (const [f, text] of Object.entries(files)) {
-    const p = path.join(proj, "doc", "tasks", name, f)
+    const p = path.join(proj, "docs", "tasks", name, f)
     mkdirSync(path.dirname(p), { recursive: true })
     writeFixtureFile(p, text)
   }
 }
 folder("013-old-runner", { "log.md": "2026-10-01 10:00 документ: задание заведено\n" })
 folder("014-live-old", { "log.md": "2026-10-01 10:00 документ: задание заведено\n" })
-folder("045-registry", { "task/message.md": "# Задание: Реестры контрактов\n\nтекст\n", "log.md": "2026-10-15 10:00 документ: задание заведено\n" })
-folder("058-existing", { "task/message.md": "# Задание: Уже заведённая\n", "log.md": "2026-10-15 10:00 документ: задание заведено\n" })
+folder("045-registry", { "input/message.md": "# Задание: Реестры контрактов\n\nтекст\n", "log.md": "2026-10-15 10:00 документ: задание заведено\n" })
+folder("058-existing", { "input/message.md": "# Задание: Уже заведённая\n", "log.md": "2026-10-15 10:00 документ: задание заведено\n" })
 git(proj, "init", "-q", "-b", "main")
 git(proj, "config", "user.name", "Owner Test")
 git(proj, "config", "user.email", "owner@test")
@@ -44,9 +44,9 @@ const mainTip = git(proj, "rev-parse", "main")
 const wtRoot = path.join(tmp, "worktrees")
 
 // old records (before task 058): 013 closed, 014 open — numbers that now belong to folders 013 and 014
-const store = path.join(proj, "doc", "tasks")
+const store = path.join(proj, "docs", "tasks")
 const oldFile = n => path.join(store, n === 13 ? "013-old-runner" : "014-live-old", "state.json")
-const sourceClean = () => git(proj, "status", "--porcelain").split("\n").filter(Boolean).every(line => line.trim().replace(/^[?A-Z!]{1,2} /, "").replaceAll('"','').startsWith("doc/tasks/"))
+const sourceClean = () => git(proj, "status", "--porcelain").split("\n").filter(Boolean).every(line => line.trim().replace(/^[?A-Z!]{1,2} /, "").replaceAll('"','').startsWith("docs/tasks/"))
 mkdirSync(store, { recursive: true })
 for (const n of [13,14]) mkdirSync(path.dirname(oldFile(n)), {recursive:true})
 const oldRec = (n, status, title) => JSON.stringify({ project: "proj", n, title, slug: "old", goal: "g", priority: "P2", tier: "light", role: "worker", author: "sesOLD", author_role: "proj.integrator", qid: "qOld", status, kind: "spawn", executors: [], attempt: 1, directory: proj, history: [], created: 1, updated: 1 }, null, 1)
@@ -117,7 +117,7 @@ const message = "# Задание: Страж повтора номера\n\nЗ�
 const a3 = await call("canopus_spawn", "sesINTEG1", { title: "Страж повтора номера", goal: "страж ловит повтор номера папки", criteria: "красное правило", message })
 await wait()
 const t59 = task(59)
-cell("AC-03: the new task takes 059 — after the largest folder (058)", !!t59 && /^doc\/tasks\/059-/.test(t59.folder ?? ""), JSON.stringify({ a3: a3.slice(0, 300), folder: t59?.folder }))
+cell("AC-03: the new task takes 059 — after the largest folder (058)", !!t59 && /^docs\/tasks\/059-/.test(t59.folder ?? ""), JSON.stringify({ a3: a3.slice(0, 300), folder: t59?.folder }))
 const br = t59?.branch ?? ""
 cell("AC-03: the task branch is named with three digits (task/059-…)", /^task\/059-/.test(br), br)
 const show = (p) => {
@@ -127,7 +127,7 @@ const show = (p) => {
     return undefined
   }
 }
-cell("AC-03: task/message.md on the task branch is the message word for word", !!t59 && show(`${t59.folder}/task/message.md`) === message, JSON.stringify(t59 && show(`${t59.folder}/task/message.md`)))
+cell("AC-03: input/message.md on the task branch is the message word for word", !!t59 && show(`${t59.folder}/input/message.md`) === message, JSON.stringify(t59 && show(`${t59.folder}/input/message.md`)))
 const log59 = (t59 && show(`${t59.folder}/log.md`)) ?? ""
 cell("AC-03: log.md on the task branch has one dated document line", /^\d{4}-\d\d-\d\d \d\d:\d\d документ: задание заведено/.test(log59) && log59.trim().split("\n").length === 1, log59)
 let msg59 = ""
@@ -136,13 +136,13 @@ try {
 } catch {}
 cell("AC-03: the plugin committed the folder with a sign-off and the message «Add task 059: <slug>»", /^Add task 059: \S+/.test(msg59) && /Signed-off-by: Owner Test <owner@test>/.test(msg59), msg59)
 cell("AC-03: the main copy is not changed (status clean, main where it was)", sourceClean() && git(proj, "rev-parse", "main") === mainTip, git(proj, "status", "--porcelain"))
-cell("AC-03: the answer names the task 059, its folder and its branch", /Задача 059 «Страж повтора номера» заведена: папка doc\/tasks\/059-/.test(a3) && a3.includes(br), a3)
+cell("AC-03: the answer names the task 059, its folder and its branch", /Задача 059 «Страж повтора номера» заведена: папка docs\/tasks\/059-/.test(a3) && a3.includes(br), a3)
 
 // ---- AC-04: a folder that exists — a record with its number, no folder commit; a number without a folder — refused ----
-const a4 = await call("canopus_spawn", "sesINTEG1", { task: 58, goal: "сделать по task/message.md", criteria: "по заданию" })
+const a4 = await call("canopus_spawn", "sesINTEG1", { task: 58, goal: "сделать по input/message.md", criteria: "по заданию" })
 await wait()
 const t58 = task(58)
-cell("AC-04: canopus_spawn {task: 58} makes the record 58 of the folder 058-existing", !!t58 && t58.folder === "doc/tasks/058-existing", JSON.stringify({ a4: a4.slice(0, 300), folder: t58?.folder }))
+cell("AC-04: canopus_spawn {task: 58} makes the record 58 of the folder 058-existing", !!t58 && t58.folder === "docs/tasks/058-existing", JSON.stringify({ a4: a4.slice(0, 300), folder: t58?.folder }))
 let log58 = ""
 try {
   log58 = git(proj, "log", "--all", "--format=%s")
@@ -166,11 +166,11 @@ cell("AC-05: the sessions are С4-1 №1, С3п-1 №2, С4-2 №3 in the record
 cell("AC-05: the answers name the sessions 045 С4-1, 045 С3п-1, 045 С4-2 with the launch number", s1.includes("045 С4-1") && s1.includes("запуск №1") && s2.includes("045 С3п-1") && s2.includes("запуск №2") && s3.includes("045 С4-2") && s3.includes("запуск №3"), JSON.stringify([s1, s2, s3].map((x) => x.slice(0, 160))))
 cell("AC-05: one record for the task — no new records for the sessions", records() === recs0 + 1, `${records()} vs ${recs0 + 1}`)
 // the launch lines: progress.log of the copies where the sessions work, log.md of the task
-const copies = [path.join(proj, "doc", "tasks", "045-registry")]
+const copies = [path.join(proj, "docs", "tasks", "045-registry")]
 const launches = copies.flatMap((d) => read(path.join(d, "progress.log")).split("\n").filter((l) => / 0\/0 \[\d{4}-\d\d-\d\d \d\d:\d\d\] запуск №\d+$/.test(l)))
 cell("AC-05: three lines «<код> 0/0 [время] запуск №1…№3» in progress.log of the copies", JSON.stringify(launches.map((l) => l.replace(/ \[.*\] /, " ")).sort()) === JSON.stringify(["С3п 0/0 запуск №2", "С4 0/0 запуск №1", "С4 0/0 запуск №3"]), JSON.stringify(launches))
 const taskTree = t45?.worktree ?? ""
-const log45 = read(path.join(proj, "doc", "tasks", "045-registry", "log.md"))
+const log45 = read(path.join(proj, "docs", "tasks", "045-registry", "log.md"))
 const pusk = log45.split("\n").filter((l) => /^\d{4}-\d\d-\d\d \d\d:\d\d пуск: запуск №\d+ /.test(l))
 cell("AC-05: three «пуск» lines in log.md of the task, each with the session ident", pusk.length === 3 && pusk[2].includes("045 С4-2"), log45)
 cell("AC-05: the main copy is still clean", sourceClean(), git(proj, "status", "--porcelain"))
@@ -179,7 +179,7 @@ const sesC4 = t45?.sessions?.[2]
 cell("AC-08: the session title is «045 С4-2 исп <task title>»", sessions.get(sesC4?.session)?.title === "045 С4-2 исп Реестры контрактов", sessions.get(sesC4?.session)?.title)
 cell("AC-08: the executor session of a new task is titled «059 исп <title>»", sessions.get(task(59)?.sessions?.[0]?.session)?.title === "059 исп Страж повтора номера", sessions.get(task(59)?.sessions?.[0]?.session)?.title)
 const letter = lettersTo(sesC4?.session ?? "-").find((l) => l.text.startsWith("ЗАДАЧА"))?.text ?? ""
-cell("AC-08: the session letter: «ЗАДАЧА 045 «…», СЕССИЯ С4-2 (запуск №3)», the folder, the session goal, submit to the integrator", letter.startsWith("ЗАДАЧА 045 «Реестры контрактов», СЕССИЯ С4-2 (запуск №3) от proj.integrator, приоритет P2.") && letter.includes(`ПАПКА ЗАДАЧИ: ${path.dirname(tasks.taskFile("proj",45))}/`) && letter.includes("версионный путь в ветке: doc/tasks/045-registry/.") && letter.includes("ЦЕЛЬ СЕССИИ: проверка исправленного плана") && letter.includes('canopus_task {action: "submit", n: 45'), letter)
+cell("AC-08: the session letter: «ЗАДАЧА 045 «…», СЕССИЯ С4-2 (запуск №3)», the folder, the session goal, submit to the integrator", letter.startsWith("ЗАДАЧА 045 «Реестры контрактов», СЕССИЯ С4-2 (запуск №3) от proj.integrator, приоритет P2.") && letter.includes(`ПАПКА ЗАДАЧИ: ${path.dirname(tasks.taskFile("proj",45))}/`) && letter.includes("версионный путь в ветке: docs/tasks/045-registry/.") && letter.includes("ЦЕЛЬ СЕССИИ: проверка исправленного плана") && letter.includes('canopus_task {action: "submit", n: 45'), letter)
 cell("AC-05: a review session (С4) works in its own tree task/045-s4-2 from the task branch, an author session (С3п) in the task tree", sesC4?.place === "own" && sesC4?.branch === "task/045-s4-2" && t45?.sessions?.[1]?.place === "task" && sessions.get(sesC4?.session)?.location?.directory === sesC4?.worktree && sessions.get(t45?.sessions?.[1]?.session)?.location?.directory === t45?.worktree, JSON.stringify(t45?.sessions?.map((s) => [s.place, s.branch])))
 
 // ---- AC-06: the session С4-2 submits to the integrator, deliver starts the review of the task ----
@@ -190,7 +190,7 @@ await wait()
 const u45 = task(45)
 cell("AC-06: the session is submitted, the task stays open and waits for the next session", u45?.sessions?.[2]?.status === "submitted" && u45?.status === "idle", JSON.stringify({ sub, s: u45?.sessions?.[2]?.status, st: u45?.status }))
 cell("AC-06: no reviewer is appointed", !u45?.reviewer, String(u45?.reviewer))
-cell("AC-06: log.md has «документ: С4-2 сдала: …»", /^\d{4}-\d\d-\d\d \d\d:\d\d документ: С4-2 сдала: отчёт С4-2/m.test(read(path.join(proj, "doc", "tasks", "045-registry", "log.md"))), read(path.join(proj, "doc", "tasks", "045-registry", "log.md")))
+cell("AC-06: log.md has «документ: С4-2 сдала: …»", /^\d{4}-\d\d-\d\d \d\d:\d\d документ: С4-2 сдала: отчёт С4-2/m.test(read(path.join(proj, "docs", "tasks", "045-registry", "log.md"))), read(path.join(proj, "docs", "tasks", "045-registry", "log.md")))
 cell("AC-06: the integrator gets a letter with the report", lettersTo("sesINTEG1").length > before && lettersTo("sesINTEG1").some((l) => l.text.includes("отчёт С4-2")), JSON.stringify(lettersTo("sesINTEG1").map((l) => l.text.slice(0, 80))))
 const dl = await call("canopus_task", "sesINTEG1", { action: "deliver", n: 45, text: "задача готова к вливанию" })
 await wait()
@@ -203,18 +203,18 @@ await wait()
 const t60 = task(60)
 let msg60 = ""
 try {
-  msg60 = t60?.folder ? execFileSync("git", ["-C", proj, "show", `${t60.branch}:${t60.folder}/task/message.md`], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }) : ""
+  msg60 = t60?.folder ? execFileSync("git", ["-C", proj, "show", `${t60.branch}:${t60.folder}/input/message.md`], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }) : ""
 } catch {}
-cell("AC-07: the sub-task is a task of its own: 060 with its folder", !!t60?.folder && /^doc\/tasks\/060-/.test(t60.folder) && t60.part_of === 45, JSON.stringify({ sp: sp.slice(0, 200), f: t60?.folder, p: t60?.part_of }))
-cell("AC-07: the first line of its task/message.md is «Часть задачи 045 «…».»", msg60.split("\n")[0] === "Часть задачи 045 «Реестры контрактов».", msg60.split("\n")[0])
-cell("AC-07: the parent lists it in parts and its log.md has a line about it", (task(45)?.parts ?? []).includes(60) && /документ: заведена подзадача 060 «Срочный страж»/.test(read(path.join(proj, "doc", "tasks", "045-registry", "log.md"))), JSON.stringify(task(45)?.parts))
+cell("AC-07: the sub-task is a task of its own: 060 with its folder", !!t60?.folder && /^docs\/tasks\/060-/.test(t60.folder) && t60.part_of === 45, JSON.stringify({ sp: sp.slice(0, 200), f: t60?.folder, p: t60?.part_of }))
+cell("AC-07: the first line of its input/message.md is «Часть задачи 045 «…».»", msg60.split("\n")[0] === "Часть задачи 045 «Реестры контрактов».", msg60.split("\n")[0])
+cell("AC-07: the parent lists it in parts and its log.md has a line about it", (task(45)?.parts ?? []).includes(60) && /документ: заведена подзадача 060 «Срочный страж»/.test(read(path.join(proj, "docs", "tasks", "045-registry", "log.md"))), JSON.stringify(task(45)?.parts))
 
 // ---- AC-10: an old closed record 013 moves to legacy/ unchanged; an open one refuses ----
 const a10 = await call("canopus_spawn", "sesINTEG1", { task: 13, session: "С1", goal: "продолжение разбора" })
 await wait()
 const legacy = path.join(store, "legacy", "13.json")
 cell("AC-10: the closed old record lies in legacy/13.json unchanged (hash)", existsSync(legacy) && hash(legacy) === hash13, JSON.stringify({ a10: a10.slice(0, 200), ex: existsSync(legacy) }))
-cell("AC-10: the new record 13 has the folder and the session С1", task(13)?.folder === "doc/tasks/013-old-runner" && task(13)?.sessions?.[0]?.code === "С1", JSON.stringify(task(13)?.sessions))
+cell("AC-10: the new record 13 has the folder and the session С1", task(13)?.folder === "docs/tasks/013-old-runner" && task(13)?.sessions?.[0]?.code === "С1", JSON.stringify(task(13)?.sessions))
 const all = await call("canopus_task", "sesINTEG1", { action: "list", all: true })
 cell("AC-10: canopus_task list all shows the old record", all.includes("старая закрытая"), all)
 const a14 = await call("canopus_spawn", "sesINTEG1", { task: 14, session: "С1", goal: "g" })

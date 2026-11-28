@@ -41,10 +41,10 @@ const ok = (cond, name) => {
 }
 
 const root = path.join(tmp, "repo")
-mkdirSync(path.join(root, "doc"), { recursive: true })
+mkdirSync(path.join(root, "docs"), { recursive: true })
 const sourceText = "Фикстура: проверенный артефакт жизненного цикла вопроса; разрешений владельца не выдаёт."
-writeFixtureFile(path.join(root, "doc", "source.md"), sourceText)
-const source = { path: "doc/source.md", sha256: digest(sourceText), quote: sourceText }
+writeFixtureFile(path.join(root, "docs", "source.md"), sourceText)
+const source = { path: "docs/source.md", sha256: digest(sourceText), quote: sourceText }
 
 const WORKER = "ses_life_worker"
 const INTEG = "ses_life_integrator"

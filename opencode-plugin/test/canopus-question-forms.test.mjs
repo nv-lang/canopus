@@ -19,10 +19,10 @@ try {
   const { createTask, loadTask, saveTask } = await import('../tasks.ts')
   const { digest, formRequest } = await import('../question-routing.ts')
   const { getQuestionForm, replyQuestionForm } = await import('../question-native.ts')
-  const root = path.join(tmp, 'repo'); mkdirSync(path.join(root, '.opencode'), { recursive: true }); mkdirSync(path.join(root, '.canopus', 'plugin'), { recursive: true }); mkdirSync(path.join(root, 'doc'))
+  const root = path.join(tmp, 'repo'); mkdirSync(path.join(root, '.opencode'), { recursive: true }); mkdirSync(path.join(root, '.canopus', 'plugin'), { recursive: true }); mkdirSync(path.join(root, 'docs'))
   writeFixtureFile(path.join(root, '.canopus', 'plugin', 'config.json'), JSON.stringify({ answer_mode: { default: 'recommendations' }, answer_delay_sec: 0 }))
   const sourceText = 'Проверенная команда Alula: alula check fixture. Источник — изолированный тест, не живая команда.'
-  writeFixtureFile(path.join(root, 'doc', 'source.md'), sourceText)
+  writeFixtureFile(path.join(root, 'docs', 'source.md'), sourceText)
   const worker = 'ses_fixture_question_worker', integrator = 'ses_fixture_question_integrator'
   const t = createTask({ project: 'sample', title: 'fixture', goal: 'g', criteria: 'c', priority: 'P2', tier: 'light', role: 'worker', author: integrator, author_role: 'sample.integrator', qid: 'q_fixture_task', status: 'running', kind: 'assign', directory: root, executor: worker })
   for (const [session, role] of [[worker, 'worker'], [integrator, 'integrator']]) core.saveCard({ session, role, project: 'sample', auto: false, title: 'fixture', repo: 'fixture', directory: root, pid: process.pid, updated: Date.now(), ...(session === worker ? { task: { project: 'sample', n: t.n } } : {}) })
@@ -48,7 +48,7 @@ try {
       posts++
       const body = JSON.parse(init.body)
       assert.deepEqual(Object.keys(body.answer), ['q_native'])
-      assert.match(body.answer.q_native, /doc\/(?:source|chain)\.md sha256:/)
+      assert.match(body.answer.q_native, /docs\/(?:source|chain)\.md sha256:/)
       assert.equal(form.state.status, 'pending', 'fixture forbids double answer just like native settlement')
       form.state = { status: 'answered', answer: body.answer }
       call.resume(body.answer.q_native) // Native reply settles the actual fixture's waiting question call.
@@ -83,7 +83,7 @@ try {
   assert.equal(record.status, 'routing')
   assert.equal(posts, 0, 'Recommended must not guess a missing fact')
   assert.equal(continued.length, 0, 'a routing/outbox enqueue is not continuation of the waiting call')
-  const result = await tools.find(t => t.name === 'canopus_question').execute({ action: 'resolve', id: record.id, epoch: record.epoch, text: 'Проверенная команда Alula: alula check fixture.', sources: [{ path: 'doc/source.md', sha256: digest(sourceText), quote: sourceText }] }, { sessionID: integrator })
+  const result = await tools.find(t => t.name === 'canopus_question').execute({ action: 'resolve', id: record.id, epoch: record.epoch, text: 'Проверенная команда Alula: alula check fixture.', sources: [{ path: 'docs/source.md', sha256: digest(sourceText), quote: sourceText }] }, { sessionID: integrator })
   assert.match(result.content, /answered/)
   assert.equal(posts, 1)
   await awaitingCall('frm_fixture').done
@@ -103,7 +103,7 @@ try {
     const r = router.list().find(r => r.form?.id === id)
     assert.equal(r.status, 'routing')
     assert.equal(posts, before, 'neither recommendation nor reviewer role may invent the missing fact')
-    const answer = await tools.find(t => t.name === 'canopus_question').execute({ action: 'resolve', id: r.id, epoch: r.epoch, text: 'Проверенная команда Alula: alula check fixture.', sources: [{ path: 'doc/source.md', sha256: digest(sourceText), quote: sourceText }] }, { sessionID: integrator })
+    const answer = await tools.find(t => t.name === 'canopus_question').execute({ action: 'resolve', id: r.id, epoch: r.epoch, text: 'Проверенная команда Alula: alula check fixture.', sources: [{ path: 'docs/source.md', sha256: digest(sourceText), quote: sourceText }] }, { sessionID: integrator })
     assert.match(answer.content, /answered/)
     assert.equal(posts, before + 1)
     assert.equal(forms.get(id).state.status, 'answered')
@@ -118,7 +118,7 @@ try {
   assignment.boundaries = 'Не менять SHA/объём; финальные owner gates и HOLD сохраняются.'
   saveTask(assignment)
   const chainSource = `Решение текущего ответственного: exact SHA ${sha}, та же цепочка и объём. Независимый просмотр перед отдельной финальной owner acceptance; нового разрешения на публикацию нет.`
-  writeFixtureFile(path.join(root, 'doc', 'chain.md'), chainSource)
+  writeFixtureFile(path.join(root, 'docs', 'chain.md'), chainSource)
   const id = 'frm_chain'
   const question = `Публикация упомянута как контекст той же ранее порученной цепочки. Какой exact SHA ${sha} передать автору на независимый просмотр?`
   forms.set(id, { id, sessionID: worker, title: 'Та же цепочка', metadata: { kind: 'question' }, fields: [{ ...fields[0], description: question, options: [{ value: 'same', label: 'Тот же маршрут (Recommended)' }] }], state: { status: 'pending' } })
@@ -132,7 +132,7 @@ try {
   await until(() => router.list().some(r => r.form?.id === id && r.target === integrator))
   const chain = router.list().find(r => r.form?.id === id)
   assert.equal(chain.status, 'blocked', 'a late current decision resolves the original addressed blocker, not a repeated owner form')
-  const chainProof = [{ path: 'doc/chain.md', sha256: digest(chainSource), quote: chainSource }]
+  const chainProof = [{ path: 'docs/chain.md', sha256: digest(chainSource), quote: chainSource }]
   const qtool = tools.find(t => t.name === 'canopus_question')
   const wrong = await qtool.execute({ action: 'resolve', id: chain.id, epoch: chain.epoch, text: `Передай SHA ${'f'.repeat(40)} на просмотр.`, sources: chainProof }, { sessionID: integrator })
   assert.match(wrong.content, /иной SHA/)
@@ -161,7 +161,7 @@ try {
   const entered = new Promise(r => { enter = r }), blocked = new Promise(r => { release = r })
   const get = questionIO.get
   questionIO.get = async (s, f) => { if (f === closing) { enter(); await blocked }; return get(s, f) }
-  const pending = qtool.execute({ action: 'resolve', id: closingRecord.id, epoch: closingRecord.epoch, text: 'Команда проверена, без новых разрешений.', sources: [{ path: 'doc/source.md', sha256: digest(sourceText), quote: sourceText }] }, { sessionID: integrator })
+  const pending = qtool.execute({ action: 'resolve', id: closingRecord.id, epoch: closingRecord.epoch, text: 'Команда проверена, без новых разрешений.', sources: [{ path: 'docs/source.md', sha256: digest(sourceText), quote: sourceText }] }, { sessionID: integrator })
   await entered
   const draining = stop()
   await Promise.all([draining, pending])

@@ -236,11 +236,11 @@ cell("backlog: show remains available", (await call("canopus_task", "sesOWNER1",
 cell("backlog: non-integrator refused", /только интегратор/.test(await call("canopus_task", "sesWORKR2", { action: "backlog", n: bn, text: "не моя задача" })), "not refused")
 cell("backlog: repeated entry refused without duplicate history", /уже в бэклоге/.test(await call("canopus_task", "sesINTEG1", { action: "backlog", n: bn, text: "повтор" })) && tasks.loadTask("proj", bn).history.length === historyBefore + 1, "mutated or accepted")
 cell("backlog: late executor submit does not revive", /в бэклоге/.test(await call("canopus_task", bt.executor, { action: "submit", n: bn, text: "поздний отчёт" })) && tasks.loadTask("proj", bn).status === "backlog", tasks.loadTask("proj", bn).status)
-const folder = path.join(proj, "doc", "tasks", `${String(bn).padStart(3, "0")}-same-number`)
-mkdirSync(path.join(folder, "task"), { recursive: true })
-writeFixtureFile(path.join(folder, "task", "message.md"), "# Задача\n")
+const folder = path.join(proj, "docs", "tasks", `${String(bn).padStart(3, "0")}-same-number`)
+mkdirSync(path.join(folder, "input"), { recursive: true })
+writeFixtureFile(path.join(folder, "input", "message.md"), "# Задача\n")
 writeFixtureFile(path.join(folder, "log.md"), "старт\n")
-g("add", "doc/tasks")
+g("add", "docs/tasks")
 g("commit", "-q", "-m", "Add same-number task folder")
 const beforeSpawn = JSON.stringify(tasks.loadTask("proj", bn))
 const sameNumberSpawn = await call("canopus_spawn", "sesINTEG1", { task: bn, goal: "другая работа" })
@@ -277,7 +277,7 @@ cell("resume: unknown merge lock blocks resume without state mutation", /зам�
 rmSync(mergeLock, { force: true })
 
 // 10. accepted -> backlog -> resume preserves cleanup state and evidence, without replay.
-const acceptedFolder = `doc/tasks/accepted-resume-${Date.now()}`
+const acceptedFolder = `docs/tasks/accepted-resume-${Date.now()}`
 const acceptedTask = tasks.createTask({
   project: "proj", title: "принятая на уборке", goal: "сохранить принятое", priority: "P2", tier: "light", role: "worker",
   author: "sesINTEG1", author_role: "proj.integrator", qid: "qaccepted", status: "accepted", kind: "spawn", directory: proj,
@@ -299,11 +299,11 @@ cell("accepted resume: cleanup queue and accepted time restored", tasks.waitingC
 cell("accepted resume: history is append-only without resetting accepted-at", resumedAccepted.history.length === acceptedHistoryBefore + 2 && resumedAccepted.history.at(-2)?.status === "backlog" && !resumedAccepted.history.at(-1)?.status && /восстановлен статус: принята/.test(resumedAccepted.history.at(-1)?.note ?? ""), JSON.stringify(resumedAccepted.history))
 cell("accepted resume: evidence and resources survive unchanged", resumedAccepted.checks.required === "verified" && resumedAccepted.precheck.stale.reason === "prior evidence" && resumedAccepted.commit === acceptedTask.commit && resumedAccepted.branch === acceptedTask.branch && resumedAccepted.worktree === acceptedTask.worktree && JSON.stringify(resumedAccepted.steps) === JSON.stringify(acceptedTask.steps) && JSON.stringify(resumedAccepted.side) === JSON.stringify(acceptedTask.side), JSON.stringify(resumedAccepted))
 cell("accepted resume: no new executor, reviewer or wakeup", sessions.size === acceptedSessionsBefore && delivered.length === acceptedLettersBefore && resumedAccepted.executor === acceptedTask.executor && resumedAccepted.reviewer === acceptedTask.reviewer, `${sessions.size}/${acceptedSessionsBefore}, ${delivered.length}/${acceptedLettersBefore}`)
-const acceptedPath = path.join(proj, "doc", "tasks", `${String(acceptedTask.n).padStart(3, "0")}-accepted-resume`)
-mkdirSync(path.join(acceptedPath, "task"), { recursive: true })
-writeFixtureFile(path.join(acceptedPath, "task", "message.md"), "# Принятая задача\n")
+const acceptedPath = path.join(proj, "docs", "tasks", `${String(acceptedTask.n).padStart(3, "0")}-accepted-resume`)
+mkdirSync(path.join(acceptedPath, "input"), { recursive: true })
+writeFixtureFile(path.join(acceptedPath, "input", "message.md"), "# Принятая задача\n")
 writeFixtureFile(path.join(acceptedPath, "log.md"), "старт\n")
-g("add", "doc/tasks")
+g("add", "docs/tasks")
 g("commit", "-q", "-m", "Add accepted same-number folder")
 const acceptedBeforeSpawn = JSON.stringify(tasks.loadTask("proj", acceptedTask.n))
 const acceptedSpawn = await call("canopus_spawn", "sesINTEG1", { task: acceptedTask.n, goal: "новая сессия не должна подменить задачу" })

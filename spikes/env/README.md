@@ -3,7 +3,7 @@
 A survey, not product code. It answers one question: what of the stack the CrewHarness product needs
 (a Nova program, a child process over pipes, an HTTP + WebSocket server, an ACP agent over stdio) works
 on **Nova Oracle 0.1.0 on Windows x86_64**, and with which exact commands. Results of the survey: the report of
-task 090 (`doc/tasks/090-product-env-spike/`).
+task 090 (`docs/tasks/090-product-env-spike/`).
 
 | Directory | What it is | Check |
 |---|---|---|

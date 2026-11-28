@@ -38,7 +38,7 @@ export function taskStorageRoot(project: string): string {
   const catalog = taskCatalog()
   const found = p?.rootPath ?? p?.root ?? catalog[project]
   const root = found && existsSync(found) ? realpathSync.native(found) : found
-  return taskRoot(path.dirname(TASKS), project, root ? { root, tasksDir: rawSettingsFor(root, ps, {}, project).tasks_dir || "doc/tasks" } : undefined)
+  return taskRoot(path.dirname(TASKS), project, root ? { root, tasksDir: rawSettingsFor(root, ps, {}, project).tasks_dir || "docs/tasks" } : undefined)
 }
 export function registerTaskProject(project: string, directory: string) {
   if (!project || !directory || !path.isAbsolute(directory) || !existsSync(directory)) return
@@ -47,7 +47,7 @@ export function registerTaskProject(project: string, directory: string) {
   if (existsSync(path.join(root, ".git"))) {
     const exclude = taskGitExclude(root)!
     const previous = existsSync(exclude) ? readFileSync(exclude,"utf8") : ""
-    const patterns = ["**/[0-9][0-9][0-9]*/state.json", "**/[0-9][0-9][0-9]*/watch.json", "**/[0-9][0-9][0-9]*/snapshot.json", "**/[0-9][0-9][0-9]*/tests-run.json", "**/task/state.json", "**/task/watch.json", "**/task/snapshot.json", "**/task/tests-run.json", "**/.task-store.lock/", "**/.task-store.claim-*", "**/imported-sources/"]
+    const patterns = ["**/[0-9][0-9][0-9]*/state.json", "**/[0-9][0-9][0-9]*/watch.json", "**/[0-9][0-9][0-9]*/snapshot.json", "**/[0-9][0-9][0-9]*/tests-run.json", "**/input/state.json", "**/input/watch.json", "**/input/snapshot.json", "**/input/tests-run.json", "**/.task-store.lock/", "**/.task-store.claim-*", "**/imported-sources/"]
     const missing = patterns.filter(p => !previous.split(/\r?\n/).includes(p))
     if (missing.length) { mkdirSync(path.dirname(exclude),{recursive:true}); writeFileSync(exclude,previous + (previous.endsWith("\n")?"":"\n") + missing.join("\n") + "\n") }
   }
@@ -264,7 +264,7 @@ export type Task = RouteFields & {
   kept?: { path: string; at: number; by: string }[]
   /** побочные ветки и деревья задачи (задача 023; поле `extra` занято дополнительными полями проекта): track и автозапись; cleanup убирает всё, кроме деревьев kept */
   side?: SideItem[]
-  /** папка задачи от корня репозитория («doc/tasks/045-runner-registry», задача 058): номер задачи — номер папки; без папки — «#N» */
+  /** папка задачи от корня репозитория («docs/tasks/045-runner-registry», задача 058): номер задачи — номер папки; без папки — «#N» */
   folder?: string
   /** сессии задачи (задача 058): по записи на запуск, в порядке запуска */
   sessions?: TaskSession[]

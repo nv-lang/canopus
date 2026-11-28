@@ -11,7 +11,7 @@ The relative links inside a table (`*.alula.md`) are the links of the table of a
 | `product/` | the product | `chat`, `dialog`, `work-mode` (tables and trees), their 82 scenarios, `journal.md` (10 journal codes of the product), `libs/call_cancel.alula.md` (the library «Отмена запроса», see below). `work-mode` decides lifecycle capabilities, not native agent isolation. The product calls no tool of its own: no `registry.md`, the registry is the language (`new_id`; the time is the stamp of the event, `event.at`) |
 
 The machines of the methodology (`agent_step`, `cycle_check`, `session_start`, `task_runner`, the pair `dialog_steps`, the called `meeting`, their registry, journal and libraries) lay in `methodology/` until task 249: they live in the set of the methodology,
-[`alula-machines/`](https://github.com/unitcraft/ai-dev-methodology/tree/main/alula-machines) of its repository. What the product kept and the set of the methodology does not hold is listed in the log of [task 249](../doc/tasks/249-alula-0-27-gruppa-metodiki-uhodit-iz-pro/log.md).
+[`alula-machines/`](https://github.com/unitcraft/ai-dev-methodology/tree/main/alula-machines) of its repository. What the product kept and the set of the methodology does not hold is listed in the log of [task 249](../docs/tasks/249-alula-0-27-gruppa-metodiki-uhodit-iz-pro/log.md).
 
 The table of the journal codes of an owner is data beside its machines (`journal.md`; the form is in `src/machine/README.md` of the package, spec 7a, AL-113). The language owns 35 codes
 (the format, the library "Pause", the engine, the executor); the file here holds the codes of the product only.

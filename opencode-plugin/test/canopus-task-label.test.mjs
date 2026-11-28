@@ -45,11 +45,11 @@ check("TL-1 taskNo: canopus without a folder - three digits", () => {
   assert.equal(T.taskNo({ project: OWN, n: 1000 }), "1000", "above 999 as it is")
 })
 check("TL-1 taskNo: with a folder, another project, no project - three digits", () => {
-  assert.equal(T.taskNo({ project: OWN, n: 81, folder: "doc/tasks/081-x" }), "081")
-  assert.equal(T.taskNo({ project: "nova", n: 45, folder: "doc/tasks/045-x" }), "045")
+  assert.equal(T.taskNo({ project: OWN, n: 81, folder: "docs/tasks/081-x" }), "081")
+  assert.equal(T.taskNo({ project: "nova", n: 45, folder: "docs/tasks/045-x" }), "045")
   assert.equal(T.taskNo({ project: "nova", n: 94 }), "094")
   assert.equal(T.taskNo({ n: 31 }), "031")
-  assert.equal(T.taskNo({ n: 45, folder: "doc/tasks/045-x" }), "045")
+  assert.equal(T.taskNo({ n: 45, folder: "docs/tasks/045-x" }), "045")
 })
 check("TL-1 taskRef and sessionRef follow taskNo", () => {
   assert.equal(T.taskRef({ project: OWN, n: 22, title: "Реестры контрактов" }), "022 «Реестры контрактов»")
@@ -68,7 +68,7 @@ const mk = (project, n, fields = {}) =>
     { n },
   )
 const t22 = mk(OWN, 22)
-const t81 = mk(OWN, 81, { folder: "doc/tasks/081-x", sessions: [] })
+const t81 = mk(OWN, 81, { folder: "docs/tasks/081-x", sessions: [] })
 const t94 = mk("nova", 94)
 const now = Date.now()
 const stat = (t, as = "executor") =>

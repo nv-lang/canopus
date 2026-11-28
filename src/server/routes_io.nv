@@ -4,6 +4,7 @@ module canopus.server
 
 import std.fs.{Fs, real_fs, Path, read_text, write_text, create_dir_all, try_exists, read_dir, metadata, copy_file, remove_file}
 import std.os.{Command}
+import std.encoding.json.{JsonObject}
 import canopus.process.{command_run_timed}
 
 fn rio_path(p str) -> Path => Path.from_bytes(p.bytes())
@@ -161,4 +162,16 @@ export fn git_run(dir str, args []str) Proc Time -> ShellOut {
     ro run = command_output_timed(command, SHELL_RUN_MS)
     // finished=false means the child was ended by the timeout: run.out already says so.
     run.out
+}
+
+// 331: legacy projects keep their task store until the explicit folder migration.
+fn project_task_directory(root str) -> str {
+    ro cfg = jobject(read_file("${root}/.canopus/plugin/config.json") ?? "") ?? JsonObject.new()
+    ro explicit = jtext(cfg, "tasks_dir").replace("\\", "/")
+    if explicit.starts_with("/") || explicit.contains(":") { return "" }
+    for segment in explicit.split("/") { if segment == ".." || segment == "." { return "" } }
+    if explicit != "" { return "${root}/${explicit}" }
+    if path_there("${root}/docs/tasks") && path_there("${root}/doc/tasks") { return "" }
+    if path_there("${root}/doc/tasks") { return "${root}/doc/tasks" }
+    "${root}/docs/tasks"
 }

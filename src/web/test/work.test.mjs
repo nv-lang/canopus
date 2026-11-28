@@ -108,12 +108,12 @@ test('command survives output updates and duration uses the first running and te
   const m = run([
     ...base(),
     ev('tool_call', { id: 'cmd', title: 'Bash', kind: 'execute', status: 'pending' }, { step: 2 }),
-    ev('tool_call_update', { id: 'cmd', status: 'in_progress', detail: '{"command":"ls doc/tasks"}' }, { step: 3, time: 2000 }),
+    ev('tool_call_update', { id: 'cmd', status: 'in_progress', detail: '{"command":"ls docs/tasks"}' }, { step: 3, time: 2000 }),
     ev('tool_call_update', { id: 'cmd', status: 'completed', detail: 'result' }, { step: 4, time: 4500 }),
     ev('tool_call_update', { id: 'cmd', detail: 'final output' }, { step: 5, time: 5000 }),
   ]);
   const [tool] = m.sessions.s1.tools;
-  assert.equal(tool.command, 'ls doc/tasks');
+  assert.equal(tool.command, 'ls docs/tasks');
   assert.equal(tool.detail, 'final output');
   assert.equal(tool.finishedAt - tool.startedAt, 2500);
 });
@@ -359,13 +359,13 @@ test('лента показывает Markdown и команду с термин
     handlers: { queued: () => 0, queuedItems: () => [] },
   });
   const model = run([...base(),
-    ev('agent_chunk', { turn: 't1', text: '▸ canopus_list {}\n\n- **138** — [задача](https://example.org/138)\n- **`doc/tasks/NNN-название/`**\n\n## Пример\n\n```js\nconst value = "hello"; // заметка\n```\n\n| Что | Где |\n| --- | ---: |\n| Файл | `config.json` |' }, { step: 2 }),
+    ev('agent_chunk', { turn: 't1', text: '▸ canopus_list {}\n\n- **138** — [задача](https://example.org/138)\n- **`docs/tasks/NNN-название/`**\n\n## Пример\n\n```js\nconst value = "hello"; // заметка\n```\n\n| Что | Где |\n| --- | ---: |\n| Файл | `config.json` |' }, { step: 2 }),
     ev('tool_call', { id: 'exec1', kind: 'execute', title: 'Get-Content nova.toml', status: 'in_progress', detail: 'terminal: exec-d4060c62-0fc8-4cc5-a8fc-b4901b90ac4b' }, { step: 3 }),
   ]);
   view.render(model, { selected: 's1', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
   assert.equal(refs.main.querySelector('.canopus-list-note').textContent, 'Список задач');
   assert.equal(refs.main.querySelector('.prose li strong').textContent, '138');
-  assert.equal(refs.main.querySelector('.prose li strong code').textContent, 'doc/tasks/NNN-название/');
+  assert.equal(refs.main.querySelector('.prose li strong code').textContent, 'docs/tasks/NNN-название/');
   assert.equal(refs.main.querySelector('.prose li a').getAttribute('href'), 'https://example.org/138');
   assert.equal(refs.main.querySelector('h2.md-heading').textContent, 'Пример');
   assert.equal(refs.main.querySelector('.code-keyword').textContent, 'const');

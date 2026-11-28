@@ -161,14 +161,14 @@ test "taskwt: the folder of the trees is refused inside the main copy, with .. o
 }
 
 test "taskwt overlap: the same file, a folder and a file inside it, the slashes and the case" {
-    assert(overlap(["src/a.nv", "src/b.nv"], ["src/b.nv", "doc/x.md"]) == ["src/b.nv"])
+    assert(overlap(["src/a.nv", "src/b.nv"], ["src/b.nv", "docs/x.md"]) == ["src/b.nv"])
     assert(overlap(["src/server/"], ["src/server/hub.nv", "src/acp/link.nv"]) == ["src/server/hub.nv"])
     assert(overlap(["src/server/hub.nv"], ["src/server/"]) == ["src/server/hub.nv"])
     assert(overlap(["src\\Server\\Hub.nv"], ["SRC/server/hub.nv"]).len() == 1)
     assert(overlap(["src/server"], ["src/server/hub.nv"]) == ["src/server/hub.nv"])
     // a name that only begins like the folder is not inside it
     assert(overlap(["src/server/"], ["src/server2/x.nv"]).len() == 0)
-    assert(overlap(["src/a.nv"], ["doc/a.nv"]).len() == 0)
+    assert(overlap(["src/a.nv"], ["docs/a.nv"]).len() == 0)
     assert(overlap([], ["a"]).len() == 0)
     // two folders: the deeper one
     assert(overlap(["src/"], ["src/server/"]) == ["src/server/"])
@@ -177,8 +177,8 @@ test "taskwt overlap: the same file, a folder and a file inside it, the slashes 
 }
 
 test "taskwt parse_touches: the list under the header, the end of the section" {
-    ro md = "# Progress\n\nDone: 1\n\n**Затрагивает:**\n\n- src/server/taskwt.nv\n- `src/server/taskwt_test.nv` — the tests\n- doc/canon/\n\n## Next\n- not/this.nv\n"
-    assert(parse_touches(md) == ["src/server/taskwt.nv", "src/server/taskwt_test.nv", "doc/canon/"])
+    ro md = "# Progress\n\nDone: 1\n\n**Затрагивает:**\n\n- src/server/taskwt.nv\n- `src/server/taskwt_test.nv` — the tests\n- docs/canon/\n\n## Next\n- not/this.nv\n"
+    assert(parse_touches(md) == ["src/server/taskwt.nv", "src/server/taskwt_test.nv", "docs/canon/"])
     assert(parse_touches("nothing here\n- a.nv\n").len() == 0)
     assert(parse_touches("Затрагивает: a.nv, dir/b.nv\nnext line\n- c.nv\n") == ["a.nv", "dir/b.nv"])
     assert(parse_touches("Затрагивает:\n- a.nv\n  \n- b.nv\n").len() == 1)
@@ -770,8 +770,8 @@ test "taskwt source: the word push stands in one function, which only the end of
 }
 
 test "taskwt: a temporary file is not work, the subject of a commit is English words of the slug with the number, the list is literal paths" {
-    assert(is_temp_file("a/b/notes.tmp") && is_temp_file("run.log") && is_temp_file("x/Thumbs.db") && is_temp_file("doc/tasks/007-x/task/tests-run.json") && is_temp_file("file.txt~") && is_temp_file(".#lock"))
-    assert(!is_temp_file("src/main.nv") && !is_temp_file("doc/tasks/007-x/task/message.1.md") && !is_temp_file("images/image-1.png"))
+    assert(is_temp_file("a/b/notes.tmp") && is_temp_file("run.log") && is_temp_file("x/Thumbs.db") && is_temp_file("docs/tasks/007-x/input/tests-run.json") && is_temp_file("file.txt~") && is_temp_file(".#lock"))
+    assert(!is_temp_file("src/main.nv") && !is_temp_file("docs/tasks/007-x/input/message.1.md") && !is_temp_file("images/image-1.png"))
     assert(commit_subject("232", "fix-the-list") == "232 Fix the list")
     assert(commit_subject("232", "privet") == "232 Privet")
     assert(commit_subject("232", "") == "232 Work of the task")
@@ -962,20 +962,20 @@ test "taskwt wip: the branch task/NNN-slug is made in the tree on its current he
 test "288 publish: verified shared documents permit ff-only without publishing private task state" {
     ro w = tt_world("shared-publish")
     ro tree = tt_task(w, "288", "shared")
-    ro file = "doc/tasks/288-shared/log.md"
+    ro file = "docs/tasks/288-shared/log.md"
     tt_commit(tree.path, file, "shared journal\n", "288 shared snapshot")
     tt_write("${w.main}/.git/info/exclude", "**/[0-9][0-9][0-9]*/state.json\n**/[0-9][0-9][0-9]*/watch.json\n**/[0-9][0-9][0-9]*/snapshot.json\n**/[0-9][0-9][0-9]*/tests-run.json\n")
     tt_write("${w.main}/${file}", "shared journal\n")
-    tt_write("${w.main}/doc/tasks/288-shared/state.json", "private unchanged")
+    tt_write("${w.main}/docs/tasks/288-shared/state.json", "private unchanged")
     tg(w.main, ["add", "--", file])
     ro hash = tg(w.main, ["rev-parse", ":${file}"])
-    tt_write("${w.main}/doc/tasks/288-shared/snapshot.json", "{\"staged\":{\"${file}\":\"${hash}\"}}")
+    tt_write("${w.main}/docs/tasks/288-shared/snapshot.json", "{\"staged\":{\"${file}\":\"${hash}\"}}")
     match publish(tree.path, w.main, tt_green) {
         Published { sha, main_copy, cleanup } => { assert(main_copy == "updated"); assert(cleanup == "") }
         Blocked { reason, step, conflict_files } => panic("shared publish blocked: ${reason}")
     }
-    assert(tt_read("${w.main}/doc/tasks/288-shared/state.json") == "private unchanged")
-    assert(tw_git(w.main, ["show", "HEAD:doc/tasks/288-shared/state.json"]).code != 0)
+    assert(tt_read("${w.main}/docs/tasks/288-shared/state.json") == "private unchanged")
+    assert(tw_git(w.main, ["show", "HEAD:docs/tasks/288-shared/state.json"]).code != 0)
     tt_write("${w.main}/owner.txt", "owner change")
     tg(w.main, ["add", "--", "owner.txt"])
     assert(!tw_shared_main_ready(w.main))

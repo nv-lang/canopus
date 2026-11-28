@@ -11,14 +11,14 @@ for (const k of ['XDG_DATA_HOME', 'XDG_STATE_HOME', 'XDG_CONFIG_HOME', 'XDG_CACH
 globalThis.fetch = async () => { throw new Error('unexpected real transport') }
 try {
   const { createQuestionRouting, formRequest, formObservation, verifyQuestionSources, digest } = await import('../question-routing.ts')
-  const root = path.join(tmp, 'repo'); mkdirSync(path.join(root, 'doc'), { recursive: true })
+  const root = path.join(tmp, 'repo'); mkdirSync(path.join(root, 'docs'), { recursive: true })
   const sourceText = 'Источник: задание интегратора.\nКороткая независимая приёмка точного коммита через интегратора.\nПотом отдельная финальная приёмка владельцем. URL не выдавался.\n'
-  writeFixtureFile(path.join(root, 'doc', 'wc-1.md'), sourceText)
-  const sources = [{ path: 'doc/wc-1.md', sha256: digest(sourceText), quote: 'Потом отдельная финальная приёмка владельцем. URL не выдавался.' }]
+  writeFixtureFile(path.join(root, 'docs', 'wc-1.md'), sourceText)
+  const sources = [{ path: 'docs/wc-1.md', sha256: digest(sourceText), quote: 'Потом отдельная финальная приёмка владельцем. URL не выдавался.' }]
   assert.deepEqual(verifyQuestionSources(root, sources), sources)
   assert.equal(verifyQuestionSources(root, [{ ...sources[0], quote: 'владелец отменил финальные ворота' }]), undefined)
   assert.equal(verifyQuestionSources(root, [{ ...sources[0], sha256: '0'.repeat(64) }]), undefined)
-  assert.equal(verifyQuestionSources(root, [{ ...sources[0], path: 'doc/../credentials.json' }]), undefined)
+  assert.equal(verifyQuestionSources(root, [{ ...sources[0], path: 'docs/../credentials.json' }]), undefined)
   assert.equal(verifyQuestionSources(root, [{ ...sources[0], path: 'C:/work/private.txt' }]), undefined)
   const card = { session: 'ses_fixture_worker', project: 'sample', directory: root, review: { project: 'sample', n: 87 } }
   const pending = { data: { id: 'frm_fixture', sessionID: card.session, title: 'WC-1', metadata: { kind: 'question' }, fields: [{ key: 'question_actual_key', type: 'string', description: 'Где проверенная команда Alula?', custom: true, options: [{ value: 'a', label: 'А (Recommended)' }] }], state: { status: 'pending' } } }
@@ -42,7 +42,7 @@ try {
   await router.tick(1003)
   assert.equal(replies.length, 1)
   assert.equal(replies[0][2], 'question_actual_key')
-  assert.match(replies[0][3], /doc\/wc-1.md sha256:/)
+  assert.match(replies[0][3], /docs\/wc-1.md sha256:/)
   assert.match(replies[0][3], /Не слово владельца/)
   await router.tick(1004)
   assert.equal(replies.length, 1)

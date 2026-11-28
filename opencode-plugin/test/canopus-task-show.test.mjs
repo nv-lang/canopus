@@ -56,7 +56,7 @@ cell("/canopus: a project without folders - «088 план» with its tab on the
 cell("/canopus lines fit the dialog (the question line aside)", lines.filter((l) => !l.includes("? прм")).every((l) => l.length <= 72), text)
 
 // the number in the texts
-cell("taskRef: «045 «…»» with a folder, «088 «…»» without", taskRef({ n: 45, title, folder: "doc/tasks/045-x" }).startsWith("045 «Реестры") && taskRef({ n: 88, title: "план" }) === "088 «план»", taskRef({ n: 45, title, folder: "doc/tasks/045-x" }))
+cell("taskRef: «045 «…»» with a folder, «088 «…»» without", taskRef({ n: 45, title, folder: "docs/tasks/045-x" }).startsWith("045 «Реестры") && taskRef({ n: 88, title: "план" }) === "088 «план»", taskRef({ n: 45, title, folder: "docs/tasks/045-x" }))
 cell("taskNo and sessionRef: 045, 045 С4-3, 060 исп", taskNo({ n: 45, folder: "x" }) === "045" && sessionRef({ n: 45, folder: "x" }, { code: "С4", k: 3 }) === "045 С4-3" && sessionRef({ n: 60, folder: "x" }, { code: "исп", k: 1 }) === "060 исп" && taskNo({ n: 88 }) === "088", "")
 
 // REQ-01: the journals of the "Ход работ" block are read from the project's tasks_dir
@@ -70,7 +70,7 @@ cell("taskNo and sessionRef: 045, 045 С4-3, 060 исп", taskNo({ n: 45, folder
   execFileSync("git", ["init", "-q", repo])
   const sc = createScanner()
   cell("REQ-01: the scanner reads the folders of tasks_dir (work/tasks)", sc.scanAll(repo, now, "work/tasks").tasks.length === 1, JSON.stringify(sc.scanAll(repo, now, "work/tasks").tasks.map((x) => x.folder)))
-  cell("REQ-01: the default doc/tasks finds nothing there, tasks_dir \"\" turns the block off", sc.scanAll(repo, now).tasks.length === 0 && sc.scanAll(repo, now, "").tasks.length === 0, "")
+  cell("REQ-01: the default docs/tasks finds nothing there, tasks_dir \"\" turns the block off", sc.scanAll(repo, now).tasks.length === 0 && sc.scanAll(repo, now, "").tasks.length === 0, "")
 }
 
 rmSync(tmp, { recursive: true, force: true })

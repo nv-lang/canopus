@@ -6,7 +6,7 @@ import path from "node:path"
 import { execQueued } from "./async-git.ts"
 
 export const OQ_SCRIPT = ["scripts", "guards", "check-open-questions.py"]
-export const OQ_FILE = ["doc", "open-questions.md"]
+export const OQ_FILE = ["docs", "open-questions.md"]
 
 type Run = (file: string, args: string[]) => Promise<string>
 
@@ -16,7 +16,8 @@ export async function overdueProblems(projects: { name: string; rootPath?: strin
   for (const p of projects) {
     const root = p.rootPath ?? p.root
     const script = path.join(root, ...OQ_SCRIPT)
-    if (!existsSync(script) || !existsSync(path.join(root, ...OQ_FILE))) continue
+    const oq = ["docs/open-questions.md", "doc/open-questions.md"].find(f => existsSync(path.join(root, f)))
+    if (!existsSync(script) || !oq) continue
     let text: string
     try {
       text = await run("python", [script, "--root", root, "--overdue"])
@@ -30,7 +31,7 @@ export async function overdueProblems(projects: { name: string; rootPath?: strin
       out.push(`${p.name}: счёт открытых вопросов ответил не по форме: «${(lines[0] ?? "").slice(0, 60)}»`)
       continue
     }
-    if (Number(m[1]) > 0) out.push(`${p.name}: просрочено открытых вопросов: ${m[1]} (doc/open-questions.md) — ${lines.slice(1).join("; ")}`)
+    if (Number(m[1]) > 0) out.push(`${p.name}: просрочено открытых вопросов: ${m[1]} (${oq}) — ${lines.slice(1).join("; ")}`)
   }
   return out
 }

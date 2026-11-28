@@ -151,7 +151,7 @@ def main():
     pr.probe("красная", "пометка другого правила не помогает", allow_other_rule)
     pr.probe("красная", "фикстура другого правила не помогает", fixture_other_rule_does_not_help)
     pr.probe("иной-синтаксис", "порча в файле без расширения", red({"hooks/pre": "x" + CTRL + "\n"}, "control-char", "hooks/pre:1"))
-    pr.probe("иной-синтаксис", "порча в .log", red({"doc/tasks/1/run.log": "x " + FFFD + "\n"}, "fffd", "doc/tasks/1/run.log:1"))
+    pr.probe("иной-синтаксис", "порча в .log", red({"docs/tasks/1/run.log": "x " + FFFD + "\n"}, "fffd", "docs/tasks/1/run.log:1"))
     pr.probe("иной-синтаксис", "порча в .gitignore", red({".gitignore": "x" + CTRL + "\n"}, "control-char", ".gitignore:1"))
     pr.probe("иной-синтаксис", "UTF-16 без расширения и с неизвестным расширением", utf16_variants)
     pr.probe("иной-синтаксис", "NUL в файле хука, .txt и неизвестном расширении", nul_variants)

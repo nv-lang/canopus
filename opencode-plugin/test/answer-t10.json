@@ -10,7 +10,7 @@
   {
    "source": "spec-001",
    "rev": "d31e22a",
-   "path": "doc/tasks/001-crew-service/spec.md",
+   "path": "docs/tasks/001-crew-service/spec.md",
    "id": "01",
    "label": "suitable",
    "expectPass": false,
@@ -19,7 +19,7 @@
   {
    "source": "spec-001",
    "rev": "d31e22a",
-   "path": "doc/tasks/001-crew-service/spec.md",
+   "path": "docs/tasks/001-crew-service/spec.md",
    "id": "04",
    "label": "suitable",
    "expectPass": false,
@@ -28,7 +28,7 @@
   {
    "source": "spec-001",
    "rev": "d31e22a",
-   "path": "doc/tasks/001-crew-service/spec.md",
+   "path": "docs/tasks/001-crew-service/spec.md",
    "id": "05",
    "label": "gate",
    "expectPass": false,
@@ -37,7 +37,7 @@
   {
    "source": "spec-001",
    "rev": "d31e22a",
-   "path": "doc/tasks/001-crew-service/spec.md",
+   "path": "docs/tasks/001-crew-service/spec.md",
    "id": "06",
    "label": "gate",
    "expectPass": false,
@@ -46,7 +46,7 @@
   {
    "source": "spec-001",
    "rev": "d31e22a",
-   "path": "doc/tasks/001-crew-service/spec.md",
+   "path": "docs/tasks/001-crew-service/spec.md",
    "id": "07",
    "label": "gate",
    "expectPass": false,
@@ -55,7 +55,7 @@
   {
    "source": "spec-001",
    "rev": "d31e22a",
-   "path": "doc/tasks/001-crew-service/spec.md",
+   "path": "docs/tasks/001-crew-service/spec.md",
    "id": "08",
    "label": "suitable",
    "expectPass": false,
@@ -64,7 +64,7 @@
   {
    "source": "spec-001",
    "rev": "d31e22a",
-   "path": "doc/tasks/001-crew-service/spec.md",
+   "path": "docs/tasks/001-crew-service/spec.md",
    "id": "09",
    "label": "suitable",
    "expectPass": false,
@@ -73,7 +73,7 @@
   {
    "source": "spec-001",
    "rev": "d31e22a",
-   "path": "doc/tasks/001-crew-service/spec.md",
+   "path": "docs/tasks/001-crew-service/spec.md",
    "id": "12",
    "label": "suitable",
    "expectPass": false,
@@ -82,25 +82,25 @@
   {
    "source": "spec-001",
    "rev": "d31e22a",
-   "path": "doc/tasks/001-crew-service/spec.md",
+   "path": "docs/tasks/001-crew-service/spec.md",
    "id": "13",
    "label": "gate",
    "expectPass": false,
-   "text": "В-13 Где и когда владелец может объявить правку «по моему решению» со сдвигом потолка заходов (REQ-55)?\n- Почему влияет: в этой задаче владелец уже так решил вне ворот (F-41), а в псевдокоде task-runner сдвиг потолка\n  идёт только вслед за его действием у ворот — ответы у В4, решения у В6, пометки у В8, выбор у В9, обратная связь\n  (REQ-17); решения «правки вызваны изменением Канона» там нет, а В3, где владелец читает находки, в этом проекте\n  не останавливает (S42). От ответа зависят REQ-55, AC-40, REQ-34 и решение в `doc/canon/decisions/`.\n- Варианты: (а) из пульта в любой момент этапа, действует со следующей правки, с обязательной причиной и строкой в\n  log.md; (б) только у ворот В3 (тогда В3 для этого действия должен останавливать); (в) не делать — сдвиг только у ворот\n  В4, В6, В8, В9 и при обратной связи, как в методике.\n- Умолчание: (а).\n- Рекомендация: (а) — потому что именно так владелец поступил в этой задаче (F-41), В3 здесь не останавливает, а\n  обязательная причина и строка в log.md сохраняют проверяемость; (в) оставит продукт без действия, которое владелец\n  уже применяет.\n- Без ответа: REQ-55 по (а), с решением-ADR в плане."
+   "text": "В-13 Где и когда владелец может объявить правку «по моему решению» со сдвигом потолка заходов (REQ-55)?\n- Почему влияет: в этой задаче владелец уже так решил вне ворот (F-41), а в псевдокоде task-runner сдвиг потолка\n  идёт только вслед за его действием у ворот — ответы у В4, решения у В6, пометки у В8, выбор у В9, обратная связь\n  (REQ-17); решения «правки вызваны изменением Канона» там нет, а В3, где владелец читает находки, в этом проекте\n  не останавливает (S42). От ответа зависят REQ-55, AC-40, REQ-34 и решение в `docs/canon/decisions/`.\n- Варианты: (а) из пульта в любой момент этапа, действует со следующей правки, с обязательной причиной и строкой в\n  log.md; (б) только у ворот В3 (тогда В3 для этого действия должен останавливать); (в) не делать — сдвиг только у ворот\n  В4, В6, В8, В9 и при обратной связи, как в методике.\n- Умолчание: (а).\n- Рекомендация: (а) — потому что именно так владелец поступил в этой задаче (F-41), В3 здесь не останавливает, а\n  обязательная причина и строка в log.md сохраняют проверяемость; (в) оставит продукт без действия, которое владелец\n  уже применяет.\n- Без ответа: REQ-55 по (а), с решением-ADR в плане."
   },
   {
    "source": "spec-001",
    "rev": "d31e22a",
-   "path": "doc/tasks/001-crew-service/spec.md",
+   "path": "docs/tasks/001-crew-service/spec.md",
    "id": "14",
    "label": "suitable",
    "expectPass": false,
-   "text": "В-14 Действие «взять правку в работу» при уже идущей правке плана и источник утверждённой версии для восстановления\n(REQ-53, AC-42, О-02)?\n- Почему влияет: О-02 и Канон (S42 «Правка утверждённого плана»; S41 п.1 «Два места для одного плана — две\n  правды») требуют: текст плана — только в `plan/` папки задачи, файл Канона при «взять правку в работу» всегда\n  восстанавливается, дальше С4; в Каноне не бывает черновика. Не заданы: (1) случай Е3 во время Е1/Е2 — в `plan/`\n  уже лежит черновик С3п, а правка владельца тоже должна лечь в `plan/`; (2) откуда брать утверждённую версию —\n  утверждение методики хранит только {дата, кто, hash} (run стр. 483), утверждение плана-папки — один hash по всем\n  её файлам (рекомендация В-12 (а)(5)), история проекта уже переписывалась (ADR-0006); если восстанавливать не из\n  чего, `reconcile_approvals` перед каждым run снова видит Е3 — цикл на В13; (3) коммитится ли восстановление\n  Канона в `main`; (4) выход из ветки «утверждённой версии нет ни в одном источнике» внутри программы: по О-09\n  третьего действия нет, по REQ-47 владелец не делает ручных шагов за программу, а «вернуть утверждённую версию»\n  невозможно — любой выход отступает от Канона (process.md «Правка утверждённого плана»: «Канон восстановлен»,\n  «в Каноне не бывает черновика»; О-02), и выбрать должен владелец.\n- Варианты: (а) (1) у В13 при Е3 во время Е1/Е2 действие «взять правку в работу» спрашивает, какой текст остаётся\n  черновиком в `plan/`: «правка из Канона» (по О-02; черновик С3п заменяется, его текст сохраняется в log.md\n  ссылкой на diff, не планом) или «черновик С3п» (правка владельца отбрасывается, Канон восстанавливается); в обоих\n  случаях один текст в `plan/`, Канон восстановлен, дальше С4; (2) раннер при В5 записывает в утверждение id коммита\n  ворот и хранит копию утверждённых файлов в своей служебной папке задачи вне Канона (state, не в репозитории);\n  восстановление: по id коммита, иначе по hash папки в истории, иначе из копии; у В13 по Е3 ровно два действия\n  О-02 («вернуть утверждённую версию», «взять правку в работу») и выход «остановить» (О-09); (3) восстановление коммитится в `main` отдельным\n  коммитом по правилам проекта (`-s`, файлы по имени) и строкой в log.md; (4) — (4а); (б) (1) правка владельца\n  всегда заменяет\n  черновик С3п без вопроса (буква О-02); (2), (3) — как (а); (4) — (4а); (в) (1) пока в `plan/` есть черновик,\n  действие «взять правку в работу» недоступно; (2), (3) — как (а); (4) — (4а).\n- Пункт (4), «утверждённой версии нет ни в одном источнике» — два варианта, у обоих «вернуть утверждённую\n  версию» недоступно с объяснением «утверждённая версия не найдена»:\n  (4а) «на переутверждении»: действие «взять правку в работу» снимает утверждение плана (запись в state.json\n  удаляется, в log.md — строка с причиной); файлы плана в Каноне не удаляются и не переименовываются — номера\n  остаются сплошными; в каждом файле плана строка статуса после заголовка получает «Статус: не утверждён, на\n  переутверждении (задача NNN)»; изменённый текст — черновиком в `plan/`; дальше С4, затем В5 переносит `plan/` на\n  те же номера с новым утверждением. Следующий запуск не возвращается к В13: Е3 — это «статус «утверждено», а hash\n  ≠ утверждению», а здесь утверждения нет и статус иной, так что `reconcile_approvals` сверять нечего. Цена:\n  до нового В5 в Каноне лежит неутверждённый текст (под явной пометкой) и его копия-черновик в `plan/` —\n  отступление от process.md «Правка утверждённого плана» («Канон восстановлен», «в Каноне не бывает черновика»)\n  и от О-02; нужно решение в `doc/canon/decisions/`.\n  (4б) «задача снята»: действие «остановить» снимает задачу окончательно — статус задачи «остановлена: нет\n  утверждённой версии плана» с объяснением; утверждение плана снимается, файлы плана в Каноне не удаляются (номера\n  сплошные) и получают «Статус: не утверждён, правка мимо цикла (задача NNN снята)»; следующий запуск снятую задачу\n  не ведёт, а по плану без утверждения Е3 не возникает. Цена: работа по задаче прекращена, неутверждённый текст\n  остаётся в Каноне без срока — до новой задачи, которая возьмёт план на правку; отступление от того же правила\n  process.md и от О-02 (второе действие не выполняется); нужно решение в `doc/canon/decisions/`.\n  Прежний вариант «исключение из REQ-47: владелец правит файл вне программы» снят: он требует ручного шага, которого\n  REQ-47 не допускает.\n- Умолчание: (а).\n- Рекомендация: (а) с (4а) — потому что в пунктах (1)–(3) (а) держится Канона и О-02: два действия, текст плана один\n  — в `plan/`, Канон восстанавливается, дальше С4; при идущей правке ничего не теряется молча — какой текст\n  продолжает работу, выбирает владелец; три источника утверждённой версии делают ветку (4) почти невозможной. В\n  ветке (4) отступают от Канона оба варианта, и ADR нужен в обоих случаях; (4а) отступает меньше: неутверждённый\n  текст в Каноне помечен и живёт только до нового В5, работа продолжается без ручных шагов (REQ-47), номера\n  сплошные, а следующий запуск не возвращается к В13; (4б) оставляет такой же текст в Каноне без срока и\n  прекращает задачу.\n- Без ответа: REQ-53 и AC-42 — по (а)."
+   "text": "В-14 Действие «взять правку в работу» при уже идущей правке плана и источник утверждённой версии для восстановления\n(REQ-53, AC-42, О-02)?\n- Почему влияет: О-02 и Канон (S42 «Правка утверждённого плана»; S41 п.1 «Два места для одного плана — две\n  правды») требуют: текст плана — только в `plan/` папки задачи, файл Канона при «взять правку в работу» всегда\n  восстанавливается, дальше С4; в Каноне не бывает черновика. Не заданы: (1) случай Е3 во время Е1/Е2 — в `plan/`\n  уже лежит черновик С3п, а правка владельца тоже должна лечь в `plan/`; (2) откуда брать утверждённую версию —\n  утверждение методики хранит только {дата, кто, hash} (run стр. 483), утверждение плана-папки — один hash по всем\n  её файлам (рекомендация В-12 (а)(5)), история проекта уже переписывалась (ADR-0006); если восстанавливать не из\n  чего, `reconcile_approvals` перед каждым run снова видит Е3 — цикл на В13; (3) коммитится ли восстановление\n  Канона в `main`; (4) выход из ветки «утверждённой версии нет ни в одном источнике» внутри программы: по О-09\n  третьего действия нет, по REQ-47 владелец не делает ручных шагов за программу, а «вернуть утверждённую версию»\n  невозможно — любой выход отступает от Канона (process.md «Правка утверждённого плана»: «Канон восстановлен»,\n  «в Каноне не бывает черновика»; О-02), и выбрать должен владелец.\n- Варианты: (а) (1) у В13 при Е3 во время Е1/Е2 действие «взять правку в работу» спрашивает, какой текст остаётся\n  черновиком в `plan/`: «правка из Канона» (по О-02; черновик С3п заменяется, его текст сохраняется в log.md\n  ссылкой на diff, не планом) или «черновик С3п» (правка владельца отбрасывается, Канон восстанавливается); в обоих\n  случаях один текст в `plan/`, Канон восстановлен, дальше С4; (2) раннер при В5 записывает в утверждение id коммита\n  ворот и хранит копию утверждённых файлов в своей служебной папке задачи вне Канона (state, не в репозитории);\n  восстановление: по id коммита, иначе по hash папки в истории, иначе из копии; у В13 по Е3 ровно два действия\n  О-02 («вернуть утверждённую версию», «взять правку в работу») и выход «остановить» (О-09); (3) восстановление коммитится в `main` отдельным\n  коммитом по правилам проекта (`-s`, файлы по имени) и строкой в log.md; (4) — (4а); (б) (1) правка владельца\n  всегда заменяет\n  черновик С3п без вопроса (буква О-02); (2), (3) — как (а); (4) — (4а); (в) (1) пока в `plan/` есть черновик,\n  действие «взять правку в работу» недоступно; (2), (3) — как (а); (4) — (4а).\n- Пункт (4), «утверждённой версии нет ни в одном источнике» — два варианта, у обоих «вернуть утверждённую\n  версию» недоступно с объяснением «утверждённая версия не найдена»:\n  (4а) «на переутверждении»: действие «взять правку в работу» снимает утверждение плана (запись в state.json\n  удаляется, в log.md — строка с причиной); файлы плана в Каноне не удаляются и не переименовываются — номера\n  остаются сплошными; в каждом файле плана строка статуса после заголовка получает «Статус: не утверждён, на\n  переутверждении (задача NNN)»; изменённый текст — черновиком в `plan/`; дальше С4, затем В5 переносит `plan/` на\n  те же номера с новым утверждением. Следующий запуск не возвращается к В13: Е3 — это «статус «утверждено», а hash\n  ≠ утверждению», а здесь утверждения нет и статус иной, так что `reconcile_approvals` сверять нечего. Цена:\n  до нового В5 в Каноне лежит неутверждённый текст (под явной пометкой) и его копия-черновик в `plan/` —\n  отступление от process.md «Правка утверждённого плана» («Канон восстановлен», «в Каноне не бывает черновика»)\n  и от О-02; нужно решение в `docs/canon/decisions/`.\n  (4б) «задача снята»: действие «остановить» снимает задачу окончательно — статус задачи «остановлена: нет\n  утверждённой версии плана» с объяснением; утверждение плана снимается, файлы плана в Каноне не удаляются (номера\n  сплошные) и получают «Статус: не утверждён, правка мимо цикла (задача NNN снята)»; следующий запуск снятую задачу\n  не ведёт, а по плану без утверждения Е3 не возникает. Цена: работа по задаче прекращена, неутверждённый текст\n  остаётся в Каноне без срока — до новой задачи, которая возьмёт план на правку; отступление от того же правила\n  process.md и от О-02 (второе действие не выполняется); нужно решение в `docs/canon/decisions/`.\n  Прежний вариант «исключение из REQ-47: владелец правит файл вне программы» снят: он требует ручного шага, которого\n  REQ-47 не допускает.\n- Умолчание: (а).\n- Рекомендация: (а) с (4а) — потому что в пунктах (1)–(3) (а) держится Канона и О-02: два действия, текст плана один\n  — в `plan/`, Канон восстанавливается, дальше С4; при идущей правке ничего не теряется молча — какой текст\n  продолжает работу, выбирает владелец; три источника утверждённой версии делают ветку (4) почти невозможной. В\n  ветке (4) отступают от Канона оба варианта, и ADR нужен в обоих случаях; (4а) отступает меньше: неутверждённый\n  текст в Каноне помечен и живёт только до нового В5, работа продолжается без ручных шагов (REQ-47), номера\n  сплошные, а следующий запуск не возвращается к В13; (4б) оставляет такой же текст в Каноне без срока и\n  прекращает задачу.\n- Без ответа: REQ-53 и AC-42 — по (а)."
   },
   {
    "source": "spec-002",
    "rev": "d31e22a",
-   "path": "doc/tasks/002-guards/spec.md",
+   "path": "docs/tasks/002-guards/spec.md",
    "id": "01",
    "label": "suitable",
    "expectPass": false,
@@ -109,7 +109,7 @@
   {
    "source": "spec-002",
    "rev": "d31e22a",
-   "path": "doc/tasks/002-guards/spec.md",
+   "path": "docs/tasks/002-guards/spec.md",
    "id": "02",
    "label": "suitable",
    "expectPass": true,
@@ -118,16 +118,16 @@
   {
    "source": "spec-002",
    "rev": "d31e22a",
-   "path": "doc/tasks/002-guards/spec.md",
+   "path": "docs/tasks/002-guards/spec.md",
    "id": "03",
    "label": "suitable",
    "expectPass": false,
-   "text": "В-03 Что делать с таблицей статусов `doc/tasks/README.md`: (а) убрать колонку «Статус»; (б) исключить файл из\nстража; (в) генерировать таблицу. Рекомендация (Сессия С1): (а). Заменён решением владельца (2026-10-08): убрать и\nтаблицу, и список задач — см. О-03."
+   "text": "В-03 Что делать с таблицей статусов `docs/tasks/README.md`: (а) убрать колонку «Статус»; (б) исключить файл из\nстража; (в) генерировать таблицу. Рекомендация (Сессия С1): (а). Заменён решением владельца (2026-10-08): убрать и\nтаблицу, и список задач — см. О-03."
   },
   {
    "source": "spec-002",
    "rev": "d31e22a",
-   "path": "doc/tasks/002-guards/spec.md",
+   "path": "docs/tasks/002-guards/spec.md",
    "id": "04",
    "label": "gate",
    "expectPass": false,
@@ -136,7 +136,7 @@
   {
    "source": "spec-002",
    "rev": "d31e22a",
-   "path": "doc/tasks/002-guards/spec.md",
+   "path": "docs/tasks/002-guards/spec.md",
    "id": "05",
    "label": "suitable",
    "expectPass": true,
@@ -145,7 +145,7 @@
   {
    "source": "spec-002",
    "rev": "d31e22a",
-   "path": "doc/tasks/002-guards/spec.md",
+   "path": "docs/tasks/002-guards/spec.md",
    "id": "06",
    "label": "suitable",
    "expectPass": true,
@@ -154,7 +154,7 @@
   {
    "source": "spec-002",
    "rev": "d31e22a",
-   "path": "doc/tasks/002-guards/spec.md",
+   "path": "docs/tasks/002-guards/spec.md",
    "id": "07",
    "label": "suitable",
    "expectPass": true,
@@ -163,7 +163,7 @@
   {
    "source": "spec-005",
    "rev": "d31e22a",
-   "path": "doc/tasks/005-faster-landing/spec.md",
+   "path": "docs/tasks/005-faster-landing/spec.md",
    "id": "01",
    "label": "suitable",
    "expectPass": false,
@@ -172,7 +172,7 @@
   {
    "source": "spec-005",
    "rev": "d31e22a",
-   "path": "doc/tasks/005-faster-landing/spec.md",
+   "path": "docs/tasks/005-faster-landing/spec.md",
    "id": "02",
    "label": "suitable",
    "expectPass": false,
@@ -181,7 +181,7 @@
   {
    "source": "spec-005",
    "rev": "d31e22a",
-   "path": "doc/tasks/005-faster-landing/spec.md",
+   "path": "docs/tasks/005-faster-landing/spec.md",
    "id": "03",
    "label": "suitable",
    "expectPass": false,
@@ -190,7 +190,7 @@
   {
    "source": "spec-005",
    "rev": "d31e22a",
-   "path": "doc/tasks/005-faster-landing/spec.md",
+   "path": "docs/tasks/005-faster-landing/spec.md",
    "id": "04",
    "label": "suitable",
    "expectPass": false,
@@ -199,7 +199,7 @@
   {
    "source": "spec-005",
    "rev": "d31e22a",
-   "path": "doc/tasks/005-faster-landing/spec.md",
+   "path": "docs/tasks/005-faster-landing/spec.md",
    "id": "05",
    "label": "suitable",
    "expectPass": false,
@@ -208,7 +208,7 @@
   {
    "source": "spec-005",
    "rev": "d31e22a",
-   "path": "doc/tasks/005-faster-landing/spec.md",
+   "path": "docs/tasks/005-faster-landing/spec.md",
    "id": "06",
    "label": "suitable",
    "expectPass": true,
@@ -217,7 +217,7 @@
   {
    "source": "spec-005",
    "rev": "d31e22a",
-   "path": "doc/tasks/005-faster-landing/spec.md",
+   "path": "docs/tasks/005-faster-landing/spec.md",
    "id": "07",
    "label": "suitable",
    "expectPass": false,
@@ -226,7 +226,7 @@
   {
    "source": "spec-007",
    "rev": "e606a43",
-   "path": "doc/tasks/007-question-answering/spec.md",
+   "path": "docs/tasks/007-question-answering/spec.md",
    "id": "01",
    "label": "suitable",
    "expectPass": false,
@@ -235,7 +235,7 @@
   {
    "source": "spec-007",
    "rev": "e606a43",
-   "path": "doc/tasks/007-question-answering/spec.md",
+   "path": "docs/tasks/007-question-answering/spec.md",
    "id": "02",
    "label": "suitable",
    "expectPass": false,
@@ -244,7 +244,7 @@
   {
    "source": "spec-007",
    "rev": "e606a43",
-   "path": "doc/tasks/007-question-answering/spec.md",
+   "path": "docs/tasks/007-question-answering/spec.md",
    "id": "03",
    "label": "suitable",
    "expectPass": false,
@@ -253,7 +253,7 @@
   {
    "source": "spec-007",
    "rev": "e606a43",
-   "path": "doc/tasks/007-question-answering/spec.md",
+   "path": "docs/tasks/007-question-answering/spec.md",
    "id": "04",
    "label": "suitable",
    "expectPass": false,
@@ -262,7 +262,7 @@
   {
    "source": "spec-007",
    "rev": "e606a43",
-   "path": "doc/tasks/007-question-answering/spec.md",
+   "path": "docs/tasks/007-question-answering/spec.md",
    "id": "05",
    "label": "suitable",
    "expectPass": false,
@@ -271,7 +271,7 @@
   {
    "source": "spec-007",
    "rev": "e606a43",
-   "path": "doc/tasks/007-question-answering/spec.md",
+   "path": "docs/tasks/007-question-answering/spec.md",
    "id": "06",
    "label": "gate",
    "expectPass": false,
@@ -280,7 +280,7 @@
   {
    "source": "spec-007",
    "rev": "e606a43",
-   "path": "doc/tasks/007-question-answering/spec.md",
+   "path": "docs/tasks/007-question-answering/spec.md",
    "id": "07",
    "label": "suitable",
    "expectPass": true,
@@ -289,7 +289,7 @@
   {
    "source": "spec-007",
    "rev": "e606a43",
-   "path": "doc/tasks/007-question-answering/spec.md",
+   "path": "docs/tasks/007-question-answering/spec.md",
    "id": "08",
    "label": "suitable",
    "expectPass": false,
@@ -298,7 +298,7 @@
   {
    "source": "spec-007",
    "rev": "e606a43",
-   "path": "doc/tasks/007-question-answering/spec.md",
+   "path": "docs/tasks/007-question-answering/spec.md",
    "id": "09",
    "label": "suitable",
    "expectPass": true,
@@ -307,7 +307,7 @@
   {
    "source": "spec-007",
    "rev": "e606a43",
-   "path": "doc/tasks/007-question-answering/spec.md",
+   "path": "docs/tasks/007-question-answering/spec.md",
    "id": "10",
    "label": "suitable",
    "expectPass": false,
@@ -316,7 +316,7 @@
   {
    "source": "spec-007",
    "rev": "e606a43",
-   "path": "doc/tasks/007-question-answering/spec.md",
+   "path": "docs/tasks/007-question-answering/spec.md",
    "id": "11",
    "label": "suitable",
    "expectPass": false,
@@ -325,7 +325,7 @@
   {
    "source": "plan-002",
    "rev": "d31e22a",
-   "path": "doc/tasks/002-guards/plan.md",
+   "path": "docs/tasks/002-guards/plan.md",
    "id": "01",
    "label": "gate",
    "expectPass": false,
@@ -334,7 +334,7 @@
   {
    "source": "plan-002",
    "rev": "d31e22a",
-   "path": "doc/tasks/002-guards/plan.md",
+   "path": "docs/tasks/002-guards/plan.md",
    "id": "02",
    "label": "gate",
    "expectPass": false,
@@ -343,7 +343,7 @@
   {
    "source": "plan-002",
    "rev": "d31e22a",
-   "path": "doc/tasks/002-guards/plan.md",
+   "path": "docs/tasks/002-guards/plan.md",
    "id": "03",
    "label": "suitable",
    "expectPass": true,
@@ -352,7 +352,7 @@
   {
    "source": "plan-002",
    "rev": "d31e22a",
-   "path": "doc/tasks/002-guards/plan.md",
+   "path": "docs/tasks/002-guards/plan.md",
    "id": "04",
    "label": "gate",
    "expectPass": false,
@@ -361,7 +361,7 @@
   {
    "source": "plan-002",
    "rev": "d31e22a",
-   "path": "doc/tasks/002-guards/plan.md",
+   "path": "docs/tasks/002-guards/plan.md",
    "id": "05",
    "label": "gate",
    "expectPass": false,
@@ -370,16 +370,16 @@
   {
    "source": "plan-002",
    "rev": "d31e22a",
-   "path": "doc/tasks/002-guards/plan.md",
+   "path": "docs/tasks/002-guards/plan.md",
    "id": "06",
    "label": "gate",
    "expectPass": false,
-   "text": "Р-06 Дерево задачи 001 красное для стражей (Н-11): 2 битые ссылки и 3 строки U+FFFD в её записях. Варианты: (а) задача 001 закрывает класс к своему коммиту ворот,\n002 ждёт; (б) по слову владельца 002 отдельным коммитом ставит пометки с причиной на этих строках 001, не меняя их текста. Рекомендация (Сессия С3): (б), иначе зелёные\nпрогоны и CI задачи 002 зависят от чужого графика; пометки безвредны для 001. При (б) слово владельца расширяет закрытый перечень правок AC-05 (из материалов задач — строка 8; записи 001 — только добавленные пометки) и сужает Н-11; это записывается в result.md, а строка DoD AC-05 включает `doc/tasks/001-crew-service` в диапазон diff. Без решения страж не смягчается (К-11), прогоны «на дереве» остаются красными по названным адресам."
+   "text": "Р-06 Дерево задачи 001 красное для стражей (Н-11): 2 битые ссылки и 3 строки U+FFFD в её записях. Варианты: (а) задача 001 закрывает класс к своему коммиту ворот,\n002 ждёт; (б) по слову владельца 002 отдельным коммитом ставит пометки с причиной на этих строках 001, не меняя их текста. Рекомендация (Сессия С3): (б), иначе зелёные\nпрогоны и CI задачи 002 зависят от чужого графика; пометки безвредны для 001. При (б) слово владельца расширяет закрытый перечень правок AC-05 (из материалов задач — строка 8; записи 001 — только добавленные пометки) и сужает Н-11; это записывается в result.md, а строка DoD AC-05 включает `docs/tasks/001-crew-service` в диапазон diff. Без решения страж не смягчается (К-11), прогоны «на дереве» остаются красными по названным адресам."
   },
   {
    "source": "plan-002",
    "rev": "d31e22a",
-   "path": "doc/tasks/002-guards/plan.md",
+   "path": "docs/tasks/002-guards/plan.md",
    "id": "07",
    "label": "gate",
    "expectPass": false,
@@ -388,7 +388,7 @@
   {
    "source": "plan-003",
    "rev": "d31e22a",
-   "path": "doc/tasks/003-model-profiles/plan.md",
+   "path": "docs/tasks/003-model-profiles/plan.md",
    "id": "01",
    "label": "suitable",
    "expectPass": false,
@@ -397,7 +397,7 @@
   {
    "source": "plan-003",
    "rev": "d31e22a",
-   "path": "doc/tasks/003-model-profiles/plan.md",
+   "path": "docs/tasks/003-model-profiles/plan.md",
    "id": "02",
    "label": "gate",
    "expectPass": false,
@@ -406,7 +406,7 @@
   {
    "source": "plan-003",
    "rev": "d31e22a",
-   "path": "doc/tasks/003-model-profiles/plan.md",
+   "path": "docs/tasks/003-model-profiles/plan.md",
    "id": "03",
    "label": "suitable",
    "expectPass": false,
@@ -415,7 +415,7 @@
   {
    "source": "plan-003",
    "rev": "d31e22a",
-   "path": "doc/tasks/003-model-profiles/plan.md",
+   "path": "docs/tasks/003-model-profiles/plan.md",
    "id": "04",
    "label": "suitable",
    "expectPass": false,
@@ -424,7 +424,7 @@
   {
    "source": "plan-003",
    "rev": "d31e22a",
-   "path": "doc/tasks/003-model-profiles/plan.md",
+   "path": "docs/tasks/003-model-profiles/plan.md",
    "id": "05",
    "label": "gate",
    "expectPass": false,
@@ -433,7 +433,7 @@
   {
    "source": "plan-004",
    "rev": "d31e22a",
-   "path": "doc/tasks/004-progress-panel/plan.md",
+   "path": "docs/tasks/004-progress-panel/plan.md",
    "id": "01",
    "label": "gate",
    "expectPass": false,
@@ -442,7 +442,7 @@
   {
    "source": "plan-004",
    "rev": "d31e22a",
-   "path": "doc/tasks/004-progress-panel/plan.md",
+   "path": "docs/tasks/004-progress-panel/plan.md",
    "id": "02",
    "label": "gate",
    "expectPass": false,
@@ -451,7 +451,7 @@
   {
    "source": "plan-004",
    "rev": "d31e22a",
-   "path": "doc/tasks/004-progress-panel/plan.md",
+   "path": "docs/tasks/004-progress-panel/plan.md",
    "id": "03",
    "label": "suitable",
    "expectPass": false,
@@ -460,7 +460,7 @@
   {
    "source": "plan-004",
    "rev": "d31e22a",
-   "path": "doc/tasks/004-progress-panel/plan.md",
+   "path": "docs/tasks/004-progress-panel/plan.md",
    "id": "04",
    "label": "suitable",
    "expectPass": false,
@@ -469,7 +469,7 @@
   {
    "source": "plan-004",
    "rev": "d31e22a",
-   "path": "doc/tasks/004-progress-panel/plan.md",
+   "path": "docs/tasks/004-progress-panel/plan.md",
    "id": "05",
    "label": "gate",
    "expectPass": false,
@@ -478,7 +478,7 @@
   {
    "source": "plan-004",
    "rev": "d31e22a",
-   "path": "doc/tasks/004-progress-panel/plan.md",
+   "path": "docs/tasks/004-progress-panel/plan.md",
    "id": "06",
    "label": "gate",
    "expectPass": false,
@@ -487,7 +487,7 @@
   {
    "source": "plan-004",
    "rev": "d31e22a",
-   "path": "doc/tasks/004-progress-panel/plan.md",
+   "path": "docs/tasks/004-progress-panel/plan.md",
    "id": "08",
    "label": "suitable",
    "expectPass": false,
@@ -496,7 +496,7 @@
   {
    "source": "plan-004",
    "rev": "d31e22a",
-   "path": "doc/tasks/004-progress-panel/plan.md",
+   "path": "docs/tasks/004-progress-panel/plan.md",
    "id": "07",
    "label": "gate",
    "expectPass": false,
@@ -505,7 +505,7 @@
   {
    "source": "plan-005",
    "rev": "d31e22a",
-   "path": "doc/tasks/005-faster-landing/plan.md",
+   "path": "docs/tasks/005-faster-landing/plan.md",
    "id": "01",
    "label": "suitable",
    "expectPass": false,
@@ -514,7 +514,7 @@
   {
    "source": "plan-005",
    "rev": "d31e22a",
-   "path": "doc/tasks/005-faster-landing/plan.md",
+   "path": "docs/tasks/005-faster-landing/plan.md",
    "id": "02",
    "label": "suitable",
    "expectPass": false,
@@ -523,7 +523,7 @@
   {
    "source": "plan-005",
    "rev": "d31e22a",
-   "path": "doc/tasks/005-faster-landing/plan.md",
+   "path": "docs/tasks/005-faster-landing/plan.md",
    "id": "03",
    "label": "suitable",
    "expectPass": true,
@@ -532,7 +532,7 @@
   {
    "source": "plan-005",
    "rev": "d31e22a",
-   "path": "doc/tasks/005-faster-landing/plan.md",
+   "path": "docs/tasks/005-faster-landing/plan.md",
    "id": "11",
    "label": "suitable",
    "expectPass": false,
@@ -541,7 +541,7 @@
   {
    "source": "plan-005",
    "rev": "d31e22a",
-   "path": "doc/tasks/005-faster-landing/plan.md",
+   "path": "docs/tasks/005-faster-landing/plan.md",
    "id": "04",
    "label": "suitable",
    "expectPass": false,
@@ -550,7 +550,7 @@
   {
    "source": "plan-005",
    "rev": "d31e22a",
-   "path": "doc/tasks/005-faster-landing/plan.md",
+   "path": "docs/tasks/005-faster-landing/plan.md",
    "id": "05",
    "label": "suitable",
    "expectPass": false,
@@ -559,7 +559,7 @@
   {
    "source": "plan-005",
    "rev": "d31e22a",
-   "path": "doc/tasks/005-faster-landing/plan.md",
+   "path": "docs/tasks/005-faster-landing/plan.md",
    "id": "06",
    "label": "suitable",
    "expectPass": false,
@@ -568,7 +568,7 @@
   {
    "source": "plan-005",
    "rev": "d31e22a",
-   "path": "doc/tasks/005-faster-landing/plan.md",
+   "path": "docs/tasks/005-faster-landing/plan.md",
    "id": "07",
    "label": "suitable",
    "expectPass": false,
@@ -577,7 +577,7 @@
   {
    "source": "plan-005",
    "rev": "d31e22a",
-   "path": "doc/tasks/005-faster-landing/plan.md",
+   "path": "docs/tasks/005-faster-landing/plan.md",
    "id": "08",
    "label": "gate",
    "expectPass": false,
@@ -586,7 +586,7 @@
   {
    "source": "plan-005",
    "rev": "d31e22a",
-   "path": "doc/tasks/005-faster-landing/plan.md",
+   "path": "docs/tasks/005-faster-landing/plan.md",
    "id": "09",
    "label": "gate",
    "expectPass": false,
@@ -595,7 +595,7 @@
   {
    "source": "plan-005",
    "rev": "d31e22a",
-   "path": "doc/tasks/005-faster-landing/plan.md",
+   "path": "docs/tasks/005-faster-landing/plan.md",
    "id": "10",
    "label": "gate",
    "expectPass": false,
@@ -604,7 +604,7 @@
   {
    "source": "spec-007",
    "rev": "e606a43",
-   "path": "doc/tasks/007-question-answering/spec.md",
+   "path": "docs/tasks/007-question-answering/spec.md",
    "id": "12",
    "label": "gate",
    "fresh": true,
@@ -613,7 +613,7 @@
   {
    "source": "plan-007",
    "rev": "22d8856",
-   "path": "doc/tasks/007-question-answering/plan.md",
+   "path": "docs/tasks/007-question-answering/plan.md",
    "id": "01",
    "label": "suitable",
    "fresh": true,
@@ -622,7 +622,7 @@
   {
    "source": "plan-007",
    "rev": "22d8856",
-   "path": "doc/tasks/007-question-answering/plan.md",
+   "path": "docs/tasks/007-question-answering/plan.md",
    "id": "02",
    "label": "gate",
    "fresh": true,
@@ -631,7 +631,7 @@
   {
    "source": "plan-007",
    "rev": "22d8856",
-   "path": "doc/tasks/007-question-answering/plan.md",
+   "path": "docs/tasks/007-question-answering/plan.md",
    "id": "03",
    "label": "suitable",
    "fresh": true,
@@ -640,7 +640,7 @@
   {
    "source": "plan-007",
    "rev": "22d8856",
-   "path": "doc/tasks/007-question-answering/plan.md",
+   "path": "docs/tasks/007-question-answering/plan.md",
    "id": "04",
    "label": "suitable",
    "fresh": true,
@@ -649,7 +649,7 @@
   {
    "source": "plan-007",
    "rev": "22d8856",
-   "path": "doc/tasks/007-question-answering/plan.md",
+   "path": "docs/tasks/007-question-answering/plan.md",
    "id": "05",
    "label": "suitable",
    "fresh": true,
@@ -658,7 +658,7 @@
   {
    "source": "plan-007",
    "rev": "22d8856",
-   "path": "doc/tasks/007-question-answering/plan.md",
+   "path": "docs/tasks/007-question-answering/plan.md",
    "id": "06",
    "label": "suitable",
    "fresh": true,
@@ -667,7 +667,7 @@
   {
    "source": "plan-007",
    "rev": "22d8856",
-   "path": "doc/tasks/007-question-answering/plan.md",
+   "path": "docs/tasks/007-question-answering/plan.md",
    "id": "07",
    "label": "suitable",
    "fresh": true,
@@ -676,7 +676,7 @@
   {
    "source": "plan-007",
    "rev": "22d8856",
-   "path": "doc/tasks/007-question-answering/plan.md",
+   "path": "docs/tasks/007-question-answering/plan.md",
    "id": "09",
    "label": "gate",
    "fresh": true,
@@ -685,7 +685,7 @@
   {
    "source": "plan-007",
    "rev": "22d8856",
-   "path": "doc/tasks/007-question-answering/plan.md",
+   "path": "docs/tasks/007-question-answering/plan.md",
    "id": "10",
    "label": "gate",
    "fresh": true,

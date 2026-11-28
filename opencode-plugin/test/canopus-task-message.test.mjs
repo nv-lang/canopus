@@ -1,6 +1,6 @@
 import { writeFixtureFile } from "./fixture-settings.mjs"
-// Self-test of the one template of task/message.md (task 065, node >= 24):  node test/canopus-task-message.test.mjs
-// The Canon gives one template of the task text (doc/canon/process.md, «Задание task/message.md»): a title «# Задание: …», a
+// Self-test of the one template of input/message.md (task 065, node >= 24):  node test/canopus-task-message.test.mjs
+// The Canon gives one template of the task text (docs/canon/process.md, «Задание input/message.md»): a title «# Задание: …», a
 // header, then the sections «Чего хочет владелец», «Что нужно», «Критерии приёмки», «Результат и куда он попадает», «Связи»,
 // «Границы» in this order; an empty section is written «нет: <почему>». The plugin builds a new task's text from the canopus_spawn
 // fields by that template: the goal as numbered points, not one paragraph; owner_words (with a date) and result are required —
@@ -21,16 +21,16 @@ process.env.XDG_DATA_HOME = tmp
 ;await (await import("./fixture-settings.mjs")).setFixtureRuntime("PRESENCE", "all")
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
 const settings = { root: "..", worktrees: "worktrees", worktree_name: "{repo}-{n}-{slug}", branch_name: "task/{n}-{slug}", cleanup: "local", allow_default_models: true, inflight_limit: 20, spawn_limits: { worker: 9, reviewer: 0 } }
-// proj — a project with task folders (doc/tasks in main); flat — a project without them (the old way, #N)
+// proj — a project with task folders (docs/tasks in main); flat — a project without them (the old way, #N)
 const proj = path.join(tmp, "proj")
 const flat = path.join(tmp, "flat")
 for (const [dir, folders] of [[proj, true], [flat, false]]) {
   mkdirSync(path.join(dir, ".opencode"), { recursive: true }); mkdirSync(path.join(dir, ".canopus", "plugin"), { recursive: true })
   writeFixtureFile(path.join(dir, ".canopus", "plugin", "config.json"), JSON.stringify(settings))
   if (folders) {
-    mkdirSync(path.join(dir, "doc", "tasks", "045-registry", "task"), { recursive: true })
-    writeFixtureFile(path.join(dir, "doc", "tasks", "045-registry", "task", "message.md"), "# Задание: Реестры контрактов\n\nтекст\n")
-    writeFixtureFile(path.join(dir, "doc", "tasks", "045-registry", "log.md"), "2026-10-15 10:00 документ: задание заведено\n")
+    mkdirSync(path.join(dir, "docs", "tasks", "045-registry", "input"), { recursive: true })
+    writeFixtureFile(path.join(dir, "docs", "tasks", "045-registry", "input", "message.md"), "# Задание: Реестры контрактов\n\nтекст\n")
+    writeFixtureFile(path.join(dir, "docs", "tasks", "045-registry", "log.md"), "2026-10-15 10:00 документ: задание заведено\n")
   }
   git(dir, "init", "-q", "-b", "main")
   git(dir, "config", "user.name", "Owner Test")
@@ -97,7 +97,7 @@ await wait()
 const t1 = tasks.listTasks("proj").find((t) => t.title === "Единый образец")
 let msg1 = ""
 try {
-  msg1 = t1?.folder ? git(proj, "show", `${t1.branch}:${t1.folder}/task/message.md`) : ""
+  msg1 = t1?.folder ? git(proj, "show", `${t1.branch}:${t1.folder}/input/message.md`) : ""
 } catch {}
 cell("T65-1: canopus_spawn with the fields makes the task with its folder", !!t1?.folder, a1)
 cell("T65-1: the text starts with «# Задание: <title>» and a header (Заказчик, Репозиторий, Дата задания, Источник)", msg1.startsWith("# Задание: Единый образец\n") && /^Заказчик: /m.test(msg1) && /^Репозиторий: /m.test(msg1) && /Дата задания: \d{4}-\d\d-\d\d/.test(msg1) && /^Источник: /m.test(msg1), msg1)
@@ -137,7 +137,7 @@ await wait()
 const t5 = tasks.listTasks("proj").find((t) => t.title === "Свой текст")
 let msg5 = ""
 try {
-  msg5 = t5?.folder ? git(proj, "show", `${t5.branch}:${t5.folder}/task/message.md`) : ""
+  msg5 = t5?.folder ? git(proj, "show", `${t5.branch}:${t5.folder}/input/message.md`) : ""
 } catch {}
 cell("T65-4: a message by the template (date in the heading of the owner's section) is taken word for word, no new fields needed", msg5 === good.trimEnd(), JSON.stringify({ r5: r5.slice(0, 300), msg5 }))
 

@@ -44,7 +44,7 @@ def main():
         return stlib.guard("check-private-names.py", repo, env, *args)
 
     def legit_clean():
-        repo = fresh({"a.md": "clean text\n", "doc/b.txt": "also clean\n"})
+        repo = fresh({"a.md": "clean text\n", "docs/b.txt": "also clean\n"})
         proc = check(repo, with_list([P1, P2]))
         stlib.expect(proc, 0, "ок: осмотрено 2 файлов")
 
@@ -83,7 +83,7 @@ def main():
         stlib.expect(proc, 1, "FAIL: check-private-names: 1 нарушений")
 
     def red_file_without_extension_and_task_folder():
-        repo = fresh({"hooks/pre": "echo " + P1 + "\n", "doc/tasks/009-x/task/m.txt": P1 + "\n"})
+        repo = fresh({"hooks/pre": "echo " + P1 + "\n", "docs/tasks/009-x/input/m.txt": P1 + "\n"})
         proc = check(repo, with_list([P1]))
         stlib.expect(proc, 1, "FAIL: check-private-names: 2 нарушений")
 

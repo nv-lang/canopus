@@ -1,5 +1,5 @@
 // Measurement of the glued-words sign on a corpus (task 127), not a test:  node test/glued-corpus.mjs [repo-root] [--list]
-// Walks every *.md (incl. *.portolan.md) and *.tsv in doc/, src/ and scripts/ of the repository, runs the sign of glued.ts and prints
+// Walks every *.md (incl. *.portolan.md) and *.tsv in docs/, src/ and scripts/ of the repository, runs the sign of glued.ts and prints
 // the files with a hit grouped by their top folders; with --list it prints every hit with its context.
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import path from "node:path"
@@ -19,7 +19,7 @@ const walk = (d) => {
     else if (/\.(md|tsv)$/.test(name)) files.push(p)
   }
 }
-for (const d of ["doc", "src", "scripts"]) {
+for (const d of ["docs", "src", "scripts"]) {
   try {
     walk(path.join(root, d))
   } catch {}
@@ -35,7 +35,7 @@ for (const f of files) {
   total += marks.length
   const rel = path.relative(root, f).split(path.sep).join("/")
   const parts = rel.split("/")
-  const key = parts[0] === "doc" && parts[1] === "tasks" ? parts.slice(0, 3).join("/") : parts.slice(0, 2).join("/")
+  const key = parts[0] === "docs" && parts[1] === "tasks" ? parts.slice(0, 3).join("/") : parts.slice(0, 2).join("/")
   const g = groups.get(key) ?? { files: 0, marks: 0 }
   g.files++
   g.marks += marks.length

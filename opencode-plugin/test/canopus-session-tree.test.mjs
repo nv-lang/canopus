@@ -43,8 +43,8 @@ const settingsTrees = async () => {
   await settled(true)
 }
 putSettings(base)
-mkdirSync(path.join(proj, "doc", "tasks", "000-seed"), { recursive: true })
-writeFixtureFile(path.join(proj, "doc", "tasks", "000-seed", "log.md"), "2026-10-01 10:00 документ: задание заведено\n")
+mkdirSync(path.join(proj, "docs", "tasks", "000-seed"), { recursive: true })
+writeFixtureFile(path.join(proj, "docs", "tasks", "000-seed", "log.md"), "2026-10-01 10:00 документ: задание заведено\n")
 git(proj, "init", "-q", "-b", "main")
 git(proj, "config", "user.name", "Owner Test")
 git(proj, "config", "user.email", "owner@test")

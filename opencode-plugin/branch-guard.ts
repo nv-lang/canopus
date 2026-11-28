@@ -28,7 +28,7 @@ export type TaskLike = {
   executor?: string
   reviewer?: string
   directory: string
-  /** папка задачи от корня репозитория (doc/tasks/NNN-…): приёмщик пишет в неё журнал и доказательства */
+  /** папка задачи от корня репозитория (docs/tasks/NNN-…): приёмщик пишет в неё журнал и доказательства */
   folder?: string
   worktree?: string
   branch?: string
@@ -64,7 +64,7 @@ export type Expect = {
   common?: string
   /** основная копия репозитория */
   main?: string
-  /** папка задачи (doc/tasks/NNN-…) */
+  /** папка задачи (docs/tasks/NNN-…) */
   folder?: string
   /** допустимые корни окна (у приёмщика пусто: любое дерево репозитория) */
   dirs: string[]
@@ -334,7 +334,7 @@ function refusal(what: string, why: string, dir: string, extra = ""): string {
 /** Есть ли у окна действующее разрешение (запись причины) на каталог top. */
 const passed = (st: State | undefined, top: string, now: number): boolean => !!st?.passes?.some((x) => x.until > now && sameTree(x.dir, top))
 
-/** Файл abs лежит в папке задачи приёмщика (doc/tasks/NNN-…) основной копии top: журнал и доказательства, которые он обязан писать. */
+/** Файл abs лежит в папке задачи приёмщика (docs/tasks/NNN-…) основной копии top: журнал и доказательства, которые он обязан писать. */
 function inTaskFolder(exp: Expect, top: string, abs: string): boolean {
   if (exp.role !== "reviewer" || !exp.task) return false
   const rel = path.relative(top, abs).replace(/\\/g, "/")
@@ -342,7 +342,7 @@ function inTaskFolder(exp: Expect, top: string, abs: string): boolean {
   const folder = exp.folder?.replace(/\\/g, "/").replace(/\/+$/, "")
   const low = process.platform === "win32" ? (x: string) => x.toLowerCase() : (x: string) => x
   if (folder) return low(rel).startsWith(`${low(folder)}/`)
-  return low(rel).startsWith(`doc/tasks/${String(exp.task.n).padStart(3, "0")}-`)
+  return low(rel).startsWith(`docs/tasks/${String(exp.task.n).padStart(3, "0")}-`)
 }
 
 /** Причина отказа для вызова git в каталоге dir или undefined. */
@@ -418,8 +418,8 @@ export function judgeWrite(card: CardLike, windowDir: string | undefined, tool: 
         const root=deps.taskDocuments(exp.task.project,exp.task.n)
         const relative=path.relative(path.resolve(root),abs).replace(/\\/g,"/")
         if(relative&&!relative.startsWith("..")&&!path.isAbsolute(relative)){
-          if(relative.toLowerCase().startsWith(".canopus/") || ["state.json", "watch.json", "snapshot.json", "tests-run.json"].includes(relative.toLowerCase()) || ["task/state.json","task/watch.json","task/snapshot.json"].includes(relative.toLowerCase()))return "Служебное состояние задачи изменяется только штатными API; прямое редактирование запрещено"
-          if(/^task\/(?:plan\.md|progress(?:\.\d+)?\.md|log\.md|progress\.log|usage\.log|children\.md|spec\.md|acceptance-review\.md|research\.md|creation\.json|tests-run\.json)$/i.test(relative))return "Артефакты исполнения пишутся в корень задачи; task/ хранит материалы владельца"
+          if(relative.toLowerCase().startsWith(".canopus/") || ["state.json", "watch.json", "snapshot.json", "tests-run.json"].includes(relative.toLowerCase()) || ["task/state.json","task/watch.json","task/snapshot.json","input/state.json","input/watch.json","input/snapshot.json"].includes(relative.toLowerCase()))return "Служебное состояние задачи изменяется только штатными API; прямое редактирование запрещено"
+          if(/^(?:input|task)\/(?:plan\.md|progress(?:\.\d+)?\.md|log\.md|progress\.log|usage\.log|children\.md|spec\.md|acceptance-review\.md|research\.md|creation\.json|tests-run\.json)$/i.test(relative))return "Артефакты исполнения пишутся в корень задачи; input/ хранит материалы владельца"
           if(exp.role==="executor"||exp.role==="reviewer")continue
         }
       }

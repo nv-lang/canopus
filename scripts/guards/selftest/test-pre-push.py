@@ -70,14 +70,14 @@ def main():
     def legit_new_and_existing():
         name = next_name("ok")
         branch(repo, name)
-        stlib.write_files(repo, {"doc/ok%s.md" % name: "# ok\n"})
-        stlib.git(repo, env, "add", "--", "doc/ok%s.md" % name)
+        stlib.write_files(repo, {"docs/ok%s.md" % name: "# ok\n"})
+        stlib.git(repo, env, "add", "--", "docs/ok%s.md" % name)
         proc = stlib.commit(repo, env, "Add ok file")
         assert proc.returncode == 0, proc.out + proc.err
         proc = push(repo, name)
         assert proc.returncode == 0, proc.out + proc.err
-        stlib.write_files(repo, {"doc/ok2%s.md" % name: "# ok2\n"})
-        stlib.git(repo, env, "add", "--", "doc/ok2%s.md" % name)
+        stlib.write_files(repo, {"docs/ok2%s.md" % name: "# ok2\n"})
+        stlib.git(repo, env, "add", "--", "docs/ok2%s.md" % name)
         stlib.commit(repo, env, "Add second ok file")
         proc = push(repo, name)
         assert proc.returncode == 0, proc.out + proc.err

@@ -5,7 +5,7 @@ fn Hub mut @ct_prepare(at int, p Proposal) Proc Detach Time -> () {
     if !@sessions[at].rt.task_open { ro note = @route_on_message(at, p.title) }
     ro s = @sessions[at]
     if !s.rt.task_open || s.rt.task_dir.byte_len() == 0 { return }
-    ro path = "${s.rt.task_dir}/drafts/${task_slug(p.title)}/task/message.md"
+    ro path = "${s.rt.task_dir}/drafts/${task_slug(p.title)}/input/message.md"
     mut text = "# Задание: ${p.title}\n\n${p.summary}\n"
     if p.touches.len() > 0 { text = "${text}\n## Затрагивает\n\n${joined(p.touches, "\n")}\n" }
     if p.kids.byte_len() > 0 { text = "${text}\n## Постановки дочерних задач\n\n```json\n${p.kids}\n```\n" }

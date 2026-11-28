@@ -36,7 +36,7 @@ const mh2 = missing(help, ["answer_delay_sec", "(Recommended)", "формы вс
 cell("096 справка: формы вопросника, задержка, закрытый список", mh2.length === 0, JSON.stringify(mh2))
 const mr2 = missing(readme, ["answer_delay_sec", "(Recommended)", "closed list", "form-auto.ts", "forms/auto"])
 cell("096 README: the forms, the delay, the closed list", mr2.length === 0, JSON.stringify(mr2))
-const adr = readFileSync(path.join(PLUGIN, "..", "doc", "canon", "decisions", "ADR-0010-question-answering-modes.md"), "utf8")
+const adr = readFileSync(path.join(PLUGIN, "..", "docs", "canon", "decisions", "ADR-0010-question-answering-modes.md"), "utf8")
 cell("096 ADR-0010: the supplement of 2026-10-19 (forms, closed list, delay, the exception for acceptance lifted)", /Дополнение 2026-10-19/.test(adr) && /формы/.test(adr) && /закрытый список/i.test(adr) && /answer_delay_sec/.test(adr) && /приёмк/.test(adr), "")
 // task 097: the closed list looks at the proposed action, the review sessions are no exception in the text path either
 cell("097 README: the closed list by the action, no review-session exception", /proposes an action/.test(readme) && /description of the situation/.test(readme) && !/the session is not a review session/.test(readme) && /yes/.test(readme), "")

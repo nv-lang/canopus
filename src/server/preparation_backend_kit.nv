@@ -39,7 +39,7 @@ export fn scenario_preparation_backend(settings ServerSettings) Proc Detach Time
     c.expect(rig.until(KIT_DONE, 20000), "the restricted backend answers a real ACP turn")
     c.expect(!dir_there(config_copy), "restricted preparation never invokes ordinary OpenCode config-copy helper")
     rig.run(200)
-    c.expect(rk_text("${dir}/message.md").contains("Подготовленная задача"), "the backend saves the assigned task/message.md")
+    c.expect(rk_text("${dir}/message.md").contains("Подготовленная задача"), "the backend saves the assigned input/message.md")
     c.expect(rk_text(source) == "original source", "implementation source is not changed")
     ro before = rk_text("${dir}/message.md")
     rig.page(1, "session_setting", "s-safe", "{\"setting\":\"mode\",\"value\":\"yolo\"}")

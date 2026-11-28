@@ -76,7 +76,7 @@ const TASK_007 = Object.freeze({
   unmerged_commits: 2,
   diff: Object.freeze({
     files: Object.freeze([
-      { path: 'scripts/clean.js', added: 18, removed: 2 }, { path: 'tmp/README.md', added: 4, removed: 0 }, { path: 'doc/tasks/007-cleanup/report.md', added: 31, removed: 0 },
+      { path: 'scripts/clean.js', added: 18, removed: 2 }, { path: 'tmp/README.md', added: 4, removed: 0 }, { path: 'docs/tasks/007-cleanup/report.md', added: 31, removed: 0 },
     ]),
   }),
   subtasks: Object.freeze([
@@ -215,7 +215,7 @@ function mockQuestions() {
         { label: 'Тесты страницы', description: 'node --test для src/web.' },
         { label: 'Стражи', description: 'sh scripts/guards/run-all.sh по индексу.' },
         { label: 'Вид в браузере', description: 'Светлая и тёмная темы, узкий экран.' },
-        { label: 'Журнал задачи', description: 'Запись в doc/tasks.' },
+        { label: 'Журнал задачи', description: 'Запись в docs/tasks.' },
       ],
     },
   ];
@@ -253,10 +253,10 @@ function buildJournal() {
   add(s1, 'file_diff', { path: 'src/web/state.js', added: 12, removed: 3 }, BASE + MIN + 4300);
   add(s1, 'file_diff', { path: 'src/web/test/state.test.mjs', added: 24, removed: 0 }, BASE + MIN + 4300);
   add(s1, 'file_diff', { path: 'src/web/mock.js', added: 4, removed: 1 }, BASE + MIN + 4300);
-  add(s1, 'file_diff', { path: 'doc/tasks/095-flaky/log.md', added: 3, removed: 0 }, BASE + MIN + 4300);
+  add(s1, 'file_diff', { path: 'docs/tasks/095-flaky/log.md', added: 3, removed: 0 }, BASE + MIN + 4300);
   const outputs = [
     ['src/web/state.js', 'edit'], ['src/web/test/state.test.mjs', 'edit'], ['src/web/mock.js', 'edit'],
-    ['doc/tasks/095-flaky/log.md', 'create'], ['doc/tasks/095-flaky/analysis.md', 'create'], ['report/summary.md', 'create'],
+    ['docs/tasks/095-flaky/log.md', 'create'], ['docs/tasks/095-flaky/analysis.md', 'create'], ['report/summary.md', 'create'],
   ];
   for (const [path, kind] of outputs) add(s1, 'output_file', { path, kind }, BASE + MIN + 4400);
   add(s1, 'background_task', { id: 'bg0', title: 'сторож файлов (watch)', status: 'running', started: BASE - (3 * 24 + 7) * HOUR }, BASE + MIN + 4500);

@@ -218,7 +218,7 @@ export const INTERNAL_POLICY = freeze({
   "branch_name": "task/{n}-{slug}",
   "worktree_name": "{repo}-{n}-{slug}",
   "target_branch": "",
-  "plans_dir": "doc/tasks",
+  "plans_dir": "docs/tasks",
   "plan_name": "{n}-{slug}.md",
   "worktrees": "../worktrees"
 })

@@ -760,6 +760,7 @@ type SessionIndexMetadata { tasks JsonObject, states JsonObject }
 
 fn indexed_task_records(root str, sessions []str) -> JsonObject {
     mut records = JsonObject.new()
+    if root == "" { return records }
     for name in dir_names(root) {
         ro record = jobject(read_file("${root}/${name}/state.json") ?? "") ?? JsonObject.new()
         ro application = jchild(record, "application") ?? JsonObject.new()
@@ -785,7 +786,7 @@ fn indexed_task_records(root str, sessions []str) -> JsonObject {
 fn read_session_index_metadata(tx ChanTx[SessionIndexMetadata], folders []str, paths []str, ids []str) -> () {
     mut tasks = JsonObject.new()
     for folder in folders {
-        jput(tasks, folder, JsonValue.object(indexed_task_records("${folder}/doc/tasks", ids)))
+        jput(tasks, folder, JsonValue.object(indexed_task_records("${folder}/docs/tasks", ids)))
     }
     mut states = JsonObject.new()
     for path in paths {

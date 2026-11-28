@@ -190,7 +190,7 @@ export function parseContext(src) {
 const KID_STATES = ['running', 'waits', 'ready', 'merged'];
 
 /**
- * Задачи 192.3 и 192.5: дочерние задачи эпика (дочерние сессии) и сведения о себе, если сессия — дочерняя. Хаб шлёт children (строки таблицы task/children.md),
+ * Задачи 192.3 и 192.5: дочерние задачи эпика (дочерние сессии) и сведения о себе, если сессия — дочерняя. Хаб шлёт children (строки таблицы input/children.md),
  * children_unmerged (номера не слитых дочерних: справка «останутся отдельно», слияние эпика они не держат), child { parent, parent_name, kind, parent_no, k, target }, epic.
  */
 export function parseKids(src) {

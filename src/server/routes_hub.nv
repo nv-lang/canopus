@@ -69,12 +69,12 @@ fn note_text(text str) -> str {
 // ----- the files of the modes, the page -----
 
 fn Hub @routes_path() -> str {
-    ro d = if @settings.routes_dir.byte_len() > 0 { @settings.routes_dir } else { "doc/routes" }
+    ro d = if @settings.routes_dir.byte_len() > 0 { @settings.routes_dir } else { "docs/routes" }
     if d.starts_with("/") || d.starts_with("\\") || d.contains(":") { d } else { "${@workdir}/${d}" }
 }
 
 // The folders of the files of the modes, the strongest first (task 192.12): `routes_dir` of the settings alone when it is set; else `.canopus/modes` of the project, `<home>/modes`,
-// and last `doc/routes` of the working folder (the texts of the product).
+// and last `docs/routes` of the working folder (the texts of the product).
 fn Hub @mode_dirs() -> []str {
     if @settings.routes_dir.byte_len() > 0 { return [@routes_path()] }
     mut out = modes_dirs(@settings.layout)
@@ -125,13 +125,13 @@ fn Hub mut @task_details_get(conn int, trace str) Time -> () {
     if dir == "" && project != "" && folder != "" {
         mut sessions = []str.new()
         sessions.push(trace)
-        ro indexed = jchild(indexed_task_records("${folder}/doc/tasks", sessions), trace) ?? JsonObject.new()
+        ro indexed = jchild(indexed_task_records(project_task_directory(folder), sessions), trace) ?? JsonObject.new()
         dir = jtext(indexed, "directory")
         number = task_number_text(jnumber(indexed, "n"))
     }
     if dir != "" && number != "" {
         ro state = jobject(read_file("${task_artifact_dir(dir)}/state.json") ?? "") ?? JsonObject.new()
-        ro message = read_file("${dir}/task/message.md") ?? (read_file("${dir}/message.md") ?? (read_file("${dir}/${message_name}") ?? ""))
+        ro message = read_file("${dir}/input/message.md") ?? (read_file("${dir}/task/message.md") ?? (read_file("${dir}/message.md") ?? (read_file("${dir}/${message_name}") ?? "")))
         ro progress = read_file("${task_artifact_dir(dir)}/progress.md") ?? (read_file("${task_artifact_dir(dir)}/${progress_name}") ?? "")
         jput(input, "number", JsonValue.str(number))
         jput(input, "status", JsonValue.str(jtext(state, "status")))
@@ -266,7 +266,7 @@ type TaskMade { ok bool, id str, number str, dir str, shown str, branch str, wor
 
 fn no_task() -> TaskMade => { ok: false, id: "", number: "", dir: "", shown: "", branch: "", worktree: "", base: "", repo_dir: "" }
 
-// The numbers taken: the folders of `doc/tasks` of the repository and the task branches; outside a repository - the folders of the session in the data folder.
+// The numbers taken: the folders of `docs/tasks` of the repository and the task branches; outside a repository - the folders of the session in the data folder.
 // The repository the tasks of a session live in: the folder of its project (the working folder of the agent without a task), else the working folder of the hub.
 fn Hub @route_repo_dir(session str) -> str {
     ro at = @find(session)
@@ -1595,12 +1595,12 @@ fn Hub mut @route_resolve_again(at int, n int, files []str) Proc Detach Time -> 
 
 // ----- finishing and publishing -----
 
-// Are there changes in the tree of the task that are not committed? The files of the task itself (`doc/tasks/<task>/`) do not count: the hub writes them.
+// Are there changes in the tree of the task that are not committed? The files of the task itself (`docs/tasks/<task>/`) do not count: the hub writes them.
 fn Hub @route_dirty(s Dialog) Proc -> bool => route_has_changes(tk_tree_changes(s.rt.worktree), s.rt.task_id)
 
 fn route_has_changes(lines []str, task_id str) -> bool {
     for line in lines {
-        if line.trim_ascii().byte_len() > 0 && !line.contains("doc/tasks/${task_id}/") { return true }
+        if line.trim_ascii().byte_len() > 0 && !line.contains("docs/tasks/${task_id}/") { return true }
     }
     false
 }
@@ -1753,7 +1753,7 @@ fn Hub mut @route_merge(trace str) Proc Detach Time -> () {
     }
     if auto.status == "done" { @rt_note(at, "▸ закоммичено одним коммитом: ${auto.files} файлов, перед слиянием") }
     // the files of the task are committed with the work
-    ro rel = "doc/tasks/${s.rt.task_id}"
+    ro rel = "docs/tasks/${s.rt.task_id}"
     if path_there("${s.rt.worktree}/${rel}") {
         ro why = tk_commit_task_files(s.rt.worktree, rel, s.rt.number)
         if why.byte_len() > 0 {

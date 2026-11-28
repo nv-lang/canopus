@@ -65,13 +65,13 @@ const good = [
   "Ветка task-005-review2-fixes и ISO 8601.",
   "Вызови `потолок092` как есть, это код, и `передано16:27` тоже.",
   "Блок кода:\n```\nпотолок092 решён15:21\nHOLD110\n```\nи дальше обычный текст.",
-  "Ссылка https://example.com/потолок092 и путь doc/задачи/потолок092.md в тексте.",
+  "Ссылка https://example.com/потолок092 и путь docs/задачи/потолок092.md в тексте.",
   "Хеш 5cdd2bc9a1f0e3 и коммит abcdef1234567 без слов.",
   "Метка определена: `дер002` — дерево задачи. Дальше: дер002 и список.",
   "Q5 принят, S21 прочитан, M1550 включён, T5 пройден.",
   "Обычное русское предложение без цифр, все слова разделены пробелами.",
   "Plain English: the gate is green, round 5 is open, HOLD 110 stays, task 081 done at 16:27.",
-  "[ссылка на файл](doc/tasks/потолок092/plan.md) в тексте",
+  "[ссылка на файл](docs/tasks/потолок092/plan.md) в тексте",
 ]
 for (const [i, t] of good.entries()) cell(`allowed form ${i + 1} passes: ${t.slice(0, 28).replace(/\n/g, " ")}`, !rej(t), detail(t))
 
@@ -97,8 +97,8 @@ cell("refusal says how many more", r.includes("и ещё 1"), r)
 cell("refusal of a letter asks to rewrite the letter", /Не отправлено/.test(r) && /Перепиши письмо/.test(r), r)
 const rq = gluedRefusal(g, "question")
 cell("refusal of a question says the question is not shown", /Вопрос не показан/.test(rq) && /Перепиши вопрос/.test(rq), rq)
-const rf = gluedRefusal(g, "file", "doc/x.md")
-cell("refusal of a file names the file and the code exception", /Файл doc\/x\.md не записан/.test(rf) && /в коде/.test(rf), rf)
+const rf = gluedRefusal(g, "file", "docs/x.md")
+cell("refusal of a file names the file and the code exception", /Файл docs\/x\.md не записан/.test(rf) && /в коде/.test(rf), rf)
 cell("the old refusal of a mixed run is unchanged", gluedRefusal(gluedText("reviewУЖЕвходитвcountedOpen/inflight,поэтому beforemerge=3/5, готовоkeyfeatureзавершена")).includes("«reviewУЖЕвходитвcountedOpen…»"), gluedRefusal(gluedText("reviewУЖЕвходитвcountedOpen/inflight,поэтому beforemerge=3/5, готовоkeyfeatureзавершена")))
 
 console.log(fail ? `canopus-glued-words.test: FAIL ${fail} of ${n}` : `canopus-glued-words.test ok (${n} checks)`)

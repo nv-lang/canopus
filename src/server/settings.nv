@@ -247,7 +247,7 @@ export fn parse_server_settings(text str) -> Result[ServerSettings, str] {
         None => ()
     }
     st_stt_check(stt_url, stt_language)?
-    ro routes_dir = st_text(o, "routes_dir", "doc/routes")?
+    ro routes_dir = st_text(o, "routes_dir", "docs/routes")?
     ro route_reviewer_order = match o.get("route_reviewer_order") {
         Some(a) => st_words(a, "route_reviewer_order")?
         None => ["codex", "claude", "kimi", "opencode"]

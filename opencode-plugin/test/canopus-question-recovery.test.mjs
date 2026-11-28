@@ -21,10 +21,10 @@ try {
   const { formRequest, digest } = await import('../question-routing.ts')
   const { readWakeForLetter } = await import('../wake-delivery.ts')
   const { createCanopusPlugin } = await import('../index.ts')
-  const root = path.join(tmp, 'repo'); mkdirSync(path.join(root, 'doc'), { recursive: true })
+  const root = path.join(tmp, 'repo'); mkdirSync(path.join(root, 'docs'), { recursive: true })
   const sha = 'd'.repeat(40), worker = 'ses_recovery_worker', author = 'ses_recovery_integrator', denied = 'ses_recovery_no_permission'
   const text = `Текущий ответственный подтвердил: exact SHA ${sha} передать на независимый просмотр в той же порученной цепочке. Это не новое разрешение на публикацию.`
-  writeFixtureFile(path.join(root, 'doc', 'source.md'), text)
+  writeFixtureFile(path.join(root, 'docs', 'source.md'), text)
   const task = tasks.createTask({ project: 'sample', title: 'recovery fixture', goal: `Передать exact SHA ${sha} на просмотр`, boundaries: 'Тот же SHA/scope; без публикации', criteria: 'c', priority: 'P2', tier: 'light', role: 'worker', author, author_role: 'sample.integrator', qid: 'q_original_assignment', status: 'running', kind: 'assign', directory: root, executor: worker })
   for (const [session, role] of [[worker, 'worker'], [denied, 'worker'], [author, 'integrator']]) core.saveCard({ session, role, project: 'sample', auto: false, title: 'fixture', repo: 'fixture', directory: root, pid: process.pid, updated: Date.now(), ...(session === worker ? { task: { project: 'sample', n: task.n } } : {}) })
   core.takeExclusive('sample.integrator', 'integrator', author, false)
@@ -66,7 +66,7 @@ try {
   stop = await createCanopusPlugin({ get, spacingMs: 0, questionIO: io }).setup(ctx)
   const until = async fn => { for (let i = 0; i < 160; i++) { if (fn()) return; await new Promise(r => setTimeout(r, 25)) }; throw new Error('expected correlated current-input recovery') }
   const tool = tools.find(t => t.name === 'canopus_question')
-  const proof = [{ path: 'doc/source.md', sha256: digest(text), quote: text }]
+  const proof = [{ path: 'docs/source.md', sha256: digest(text), quote: text }]
   const wrong = await tool.execute({ action: 'resolve', id: original.id, epoch: router.get(original.id).epoch, text: `Передай SHA ${'f'.repeat(40)}.`, sources: proof }, { sessionID: author })
   assert.match(wrong.content, /иной SHA/)
   assert.equal(router.get(original.id).answer, undefined)

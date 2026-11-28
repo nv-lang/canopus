@@ -305,7 +305,7 @@ const POINT_RE = /^[ \t]*(?:[0-9]+[.)]|[-*•])[ \t]+\S|\bAC-[0-9]+/
 /** Постановка быстрого пути полна: файл есть, в разделе «Критерии приёмки» хотя бы один пункт (нумерованный, маркированный или AC-N), есть строка с веткой.
  *  Формат постановки проекта — «Репозиторий: …, ветка …» — принимается так же, как строка «Ветка: <имя>» методики. */
 export function briefFaults(message: string | undefined): string[] {
-  if (!message || !message.trim()) return ["постановки task/message.md нет"]
+  if (!message || !message.trim()) return ["постановки input/message.md нет"]
   const out: string[] = []
   const crit = sectionBody(message, "Критерии приёмки")
   if (!crit) out.push("в постановке нет раздела «Критерии приёмки» (критериев приёмки нет)")
@@ -396,7 +396,7 @@ export type RouteInput = {
 export const ROUTE_INPUT_KEYS = ["route", "route_basis", "route_source", "route_proposal", "route_word", "route_word_date", "route_word_at", "clean_runs", "ceiling", "probes", "delivery_compressed", "sources_list", "estimate"] as const
 export const hasRouteInput = (input: RouteInput): boolean => ROUTE_INPUT_KEYS.some((k) => (input as any)?.[k] !== undefined && (input as any)?.[k] !== null && (input as any)?.[k] !== "")
 
-/** Выбрать маршрут новой задачи и собрать поля записи. `brief` — текст постановки (task/message.md), как будет записан; undefined — постановки нет.
+/** Выбрать маршрут новой задачи и собрать поля записи. `brief` — текст постановки (input/message.md), как будет записан; undefined — постановки нет.
  *  Быстрый путь без условий — отказ «быстрый путь требует: …» (маршрут остаётся полным, задача без явного решения не создаётся). Числа ниже минимума
  *  методики отвергаются на любом маршруте; настройки проекта route_defaults — так же (быстрого — отказ быстрого пути, полного — отказ задачи:
  *  запасного маршрута безопаснее полного нет). */

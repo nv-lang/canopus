@@ -179,7 +179,7 @@ test "settings: an agent asks the owner by its own tool (native) unless the file
 
 test "settings: the modes of work have defaults and can be set" {
     ro plain = must_settings("{}")
-    assert(plain.routes_dir == "doc/routes")
+    assert(plain.routes_dir == "docs/routes")
     assert(plain.route_reviewer_order == ["codex", "claude", "kimi", "opencode"])
     assert(plain.route_task_limit == 12)
     assert(plain.route_task_messages == 40)

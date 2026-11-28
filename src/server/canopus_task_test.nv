@@ -153,13 +153,13 @@ test "canopus_task_list: the call gives the items, an empty list is allowed, a w
 }
 
 test "canopus_task: files of two works overlap by file and by folder; no files while something runs is unknown; no clash with nothing running" {
-    ro running = [RunSub { n: 1, touches: ["src/web/view.js"] }, RunSub { n: 2, touches: ["doc/"] }]
+    ro running = [RunSub { n: 1, touches: ["src/web/view.js"] }, RunSub { n: 2, touches: ["docs/"] }]
     ro none = clash_of(["src/server/hub.nv"], running)
     assert(none.with_n == 0)
     ro same = clash_of(["src/web/view.js"], running)
     assert(same.with_n == 1)
     assert(same.files.len() == 1)
-    ro folder = clash_of(["doc/routes/fast.md"], running)
+    ro folder = clash_of(["docs/routes/fast.md"], running)
     assert(folder.with_n == 2)
     ro unknown = clash_of([]str.new(), running)
     assert(unknown.with_n == 1)
@@ -203,10 +203,10 @@ test "canopus_task: the file of a subtask holds the summary and the message of t
 }
 
 test "canopus_task: the hint lists the tasks, the request names the candidates" {
-    ro hint = tasks_hint("doc/tasks/001-x", [SubLine { n: 1, title: "Кнопка", state: "идёт", waits: 0, file: "" }, SubLine { n: 2, title: "Тест", state: "ждёт", waits: 1, file: "" }])
+    ro hint = tasks_hint("docs/tasks/001-x", [SubLine { n: 1, title: "Кнопка", state: "идёт", waits: 0, file: "" }, SubLine { n: 2, title: "Тест", state: "ждёт", waits: 1, file: "" }])
     assert(hint.contains("1. «Кнопка» (идёт)"))
     assert(hint.contains("ждёт подзадачу 1"))
-    assert(hint.contains("doc/tasks/001-x/message.2.md"))
+    assert(hint.contains("docs/tasks/001-x/message.2.md"))
     assert(tasks_hint("x", []SubLine.new()) == "")
     ro req = recognize_request(hint, ["- «Кандидат»"])
     assert(req.contains("canopus_task_list"))
@@ -331,7 +331,7 @@ test "context: the view holds the used / size and the history of the compactions
     ro cx = (o.get("context") ?? JsonValue.null()).object() ?? JsonObject.new()
     assert(((cx.get("used") ?? JsonValue.null()).int() ?? 0) == 30000 && ((cx.get("size") ?? JsonValue.null()).int() ?? 0) == 200000)
     assert((((cx.get("compactions") ?? JsonValue.null()).array() ?? []JsonValue.new()).len()) == 1)
-    ro r = route_reminder("fast", "Тесты", "doc/tasks/007-x/task", "task/007-x")
+    ro r = route_reminder("fast", "Тесты", "docs/tasks/007-x/input", "task/007-x")
     assert(r.contains("«Быстрый путь»") && r.contains("шаг: Тесты") && r.contains("task/007-x") && r.contains("canopus_task_list"))
     assert(route_reminder("interactive", "", "", "").contains("задачи ещё нет"))
     assert(canopus_task_tool_json().to_str().contains("RULES"))
@@ -393,8 +393,8 @@ test "auto extend: every extension requires owner confirmation; the section is t
     assert(((first.get("task") ?? JsonValue.null()).int() ?? 0) == 3 && ((first.get("undone") ?? JsonValue.null()).bool() ?? false))
     // task 313: no auto-apply any more — the phrases of at-once application are gone from the tool descriptions
     assert(!canopus_task_tool_json().to_str().contains("AT ONCE") && !canopus_task_list_tool_json().to_str().contains("applied by the hub at once"))
-    assert(ext_applied_note("003", "кратко", "doc/tasks/003-x/task").contains("Новое требование владельца"))
-    assert(ext_withdrawn_note("003", "кратко", "doc/tasks/003-x/task").contains("Требование отозвано"))
+    assert(ext_applied_note("003", "кратко", "docs/tasks/003-x/input").contains("Новое требование владельца"))
+    assert(ext_withdrawn_note("003", "кратко", "docs/tasks/003-x/input").contains("Требование отозвано"))
 }
 
 test "canopus_task: the mode, the reason and the children of an epic are read, checked, travel through the text and go to the page (task 192.13)" {
@@ -438,18 +438,18 @@ test "canopus_task: the mode, the reason and the children of an epic are read, c
 // ----- the texts by layers and the threshold of the addition at once (task 192.12) -----
 
 test "prompts: a text of a layer replaces the built-in one, the values are put in by name" {
-    assert(ext_applied_note("7", "кратко", "doc/t") == "[canopus] Новое требование владельца к твоей задаче 7: кратко; см. doc/t/message.md, раздел «Дополнение». Учти его и продолжай в рабочем каталоге.")
+    assert(ext_applied_note("7", "кратко", "docs/t") == "[canopus] Новое требование владельца к твоей задаче 7: кратко; см. docs/t/message.md, раздел «Дополнение». Учти его и продолжай в рабочем каталоге.")
     assert(ext_applied_note_t("Новое {brief} в {shown} ({number})", "7", "x", "d") == "Новое x в d (7)")
     assert(ext_withdrawn_note_t("снято {brief}", "x", "d") == "снято x")
     assert(decision_note_t("n={n} t={title} d={shown}", 3, "T", "dir") == "n=3 t=T d=dir")
     assert(decision_note("queued", 2, "T", "d") == "[canopus] Подзадача 2 «T» ждёт очереди и стартует сама; пока ничего по ней не делай.")
     assert(decision_name_of("new") == "decision_new" && decision_name_of("no") == "decision_no" && decision_name_of("other") == "decision_no")
-    assert(route_reminder_t("{route}|{step}|{place}", "fast", "", "doc/t", "task/1-x") == "fast|нет|задача в doc/t, ветка task/1-x")
+    assert(route_reminder_t("{route}|{step}|{place}", "fast", "", "docs/t", "task/1-x") == "fast|нет|задача в docs/t, ветка task/1-x")
     assert(route_reminder("fast", "", "", "").contains("задачи ещё нет"))
     ro lines = [SubLine { n: 1, title: "A", state: "в работе", waits: 0, file: "" }]
-    assert(tasks_hint_t("список:\n{rows}", "doc/t", lines) == "список:\n1. «A» (в работе) — doc/t/message.1.md")
-    assert(tasks_hint("doc/t", lines).contains("Задачи в работе"))
-    assert(tasks_hint("doc/t", []SubLine.new()) == "")
+    assert(tasks_hint_t("список:\n{rows}", "docs/t", lines) == "список:\n1. «A» (в работе) — docs/t/message.1.md")
+    assert(tasks_hint("docs/t", lines).contains("Задачи в работе"))
+    assert(tasks_hint("docs/t", []SubLine.new()) == "")
     assert(recognize_request_t("ТЕКСТ", "известные", ["c1"]) == "ТЕКСТ\n\nизвестные\n\n[canopus] Эти работы уже в списке кандидатов (не повторяй их):\nc1")
     assert(recognize_request("", []str.new()).starts_with("[canopus] Распознай задачи."))
 }

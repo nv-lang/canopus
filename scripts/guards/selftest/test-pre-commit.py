@@ -44,7 +44,7 @@ def main():
 
     def legit_clean_commit():
         r = repo()
-        stage(r, "doc/note.md", "# Note\n\nclean text with [link](../README.md)\n")
+        stage(r, "docs/note.md", "# Note\n\nclean text with [link](../README.md)\n")
         before = stlib.head(r, env)
         proc = stlib.commit(r, env, "Add a note")
         assert proc.returncode == 0, proc.out + proc.err
@@ -62,15 +62,15 @@ def main():
 
     def red_broken_link_via_index():
         r = repo()
-        stage(r, "doc/bad.md", "see [x](gone.md)\n")
+        stage(r, "docs/bad.md", "see [x](gone.md)\n")
         before = stlib.head(r, env)
         proc = stlib.commit(r, env, "Add bad")
         assert proc.returncode != 0 and stlib.head(r, env) == before
-        assert "doc/bad.md:1" in proc.out + proc.err, proc.out + proc.err
+        assert "docs/bad.md:1" in proc.out + proc.err, proc.out + proc.err
 
     def red_forbidden_name():
         r = repo()
-        stage(r, "doc/n.md", "mention " + P1 + "\n")
+        stage(r, "docs/n.md", "mention " + P1 + "\n")
         before = stlib.head(r, env)
         proc = stlib.commit(r, env, "Add n")
         assert proc.returncode != 0 and stlib.head(r, env) == before
@@ -85,10 +85,10 @@ def main():
         assert proc.returncode == 0  # код конвейера — код head; отказ виден по отсутствию коммита
 
     def only_with_dirty_worktree():
-        r = repo(extra={"doc/tasks/002-y/spec.md": "Статус: черновик\n"})
+        r = repo(extra={"docs/tasks/002-y/spec.md": "Статус: черновик\n"})
         # чужая работа в той же копии: правки отслеживаемых файлов и неотслеживаемый файл с нарушениями
         stlib.write_files(r, {
-            "doc/tasks/002-y/spec.md": "not a status line\n",
+            "docs/tasks/002-y/spec.md": "not a status line\n",
             "other/untracked.md": "broken [x](nowhere.md) and " + CTRL + "\n",
         })
         stage(r, "mine.md", "mine, clean\n")
@@ -102,16 +102,16 @@ def main():
 
     def staged_bad_worktree_fixed():
         r = repo()
-        stage(r, "doc/x.md", "see [x](gone.md)\n")
-        stlib.write_files(r, {"doc/x.md": "no link now\n"})  # исправлено в рабочей копии, не в индексе
+        stage(r, "docs/x.md", "see [x](gone.md)\n")
+        stlib.write_files(r, {"docs/x.md": "no link now\n"})  # исправлено в рабочей копии, не в индексе
         before = stlib.head(r, env)
         proc = stlib.commit(r, env, "Add x")
         assert proc.returncode != 0 and stlib.head(r, env) == before, proc.out + proc.err
 
     def link_to_untracked_is_red():
         r = repo()
-        stlib.write_files(r, {"doc/exists-on-disk.md": "x\n"})
-        stage(r, "doc/y.md", "see [x](exists-on-disk.md)\n")
+        stlib.write_files(r, {"docs/exists-on-disk.md": "x\n"})
+        stage(r, "docs/y.md", "see [x](exists-on-disk.md)\n")
         before = stlib.head(r, env)
         proc = stlib.commit(r, env, "Add y")
         assert proc.returncode != 0 and stlib.head(r, env) == before, proc.out + proc.err
@@ -135,7 +135,7 @@ def main():
 
     def no_names_list_refuses():
         r = repo()
-        stage(r, "doc/ok.md", "# ok\n")
+        stage(r, "docs/ok.md", "# ok\n")
         e = dict(env0, CANOPUS_PRIVATE_NAMES_FILE=os.path.join(base, "absent.txt"))
         before = stlib.head(r, env)
         proc = stlib.commit(r, e, "Add ok")
@@ -144,7 +144,7 @@ def main():
 
     def no_interpreter_refuses():
         r = repo()
-        stage(r, "doc/ok.md", "# ok\n")
+        stage(r, "docs/ok.md", "# ok\n")
         e = dict(env, GUARDS_PYTHON_CANDIDATES="no-such-python")
         before = stlib.head(r, env)
         proc = stlib.commit(r, e, "Add ok")
