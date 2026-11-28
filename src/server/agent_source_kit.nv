@@ -197,8 +197,8 @@ export fn scenario_context_handoff(settings ServerSettings, previous str, target
     ro lines = rig.lines_for(1)
     ro turn = line_input(kit_last_of(lines, "user_message"), "turn")
     ro tools = answer_of(lines, turn)
-    c.expect(tools.contains("canopus_task_list") && tools.contains("Новых задач нет"), "the promoted client can call Canopus tools")
-    ro budget_prompt = AcpQueued { request: "estimate", text: "new", images: []AcpImage.new(), pre: "instruction" }
+    c.expect(tools.contains("task_list") && tools.contains("Новых задач нет"), "the promoted client can call Canopus tools")
+    ro budget_prompt = AcpQueued { request: "estimate", text: "new", images: []AcpImage.new(), pre: "instruction", native_command: false }
     c.expect(handoff_over_budget("history", budget_prompt, 5) && !handoff_over_budget("history", budget_prompt, 0),
         "preflight reserves space and leaves an unreported capacity unknown")
     rig.shut()

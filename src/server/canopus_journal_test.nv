@@ -136,9 +136,9 @@ test "journal: the entries of log.md and the line of usage.log" {
     assert(journal_build_usage("плохой код!", "x", "s", "a", 0, 0, "t", "").reason.contains("код сессии"))
 }
 
-test "journal: the three tools are listed under the new names and the old names are not tools" {
+test "journal: only canonical names identify journal tools after normalization" {
     assert(journal_tools_json().len() == 3)
-    assert(journal_is_tool("canopus_progress_line") && journal_is_tool("canopus_log_line") && journal_is_tool("canopus_usage_line"))
-    assert(!journal_is_tool("progress_line") && !journal_is_tool("log_line") && !journal_is_tool("usage_line"))
-    assert(ctl_is_tool("canopus_log_line") && !ctl_is_tool("log_line"))
+    assert(journal_is_tool("progress_line") && journal_is_tool("log_line") && journal_is_tool("usage_line"))
+    assert(!journal_is_tool("canopus_progress_line") && !journal_is_tool("canopus_log_line") && !journal_is_tool("canopus_usage_line"))
+    assert(ctl_is_tool("log_line") && !ctl_is_tool("canopus_log_line"))
 }

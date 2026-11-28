@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { execFileSync } from 'node:child_process';
+import { isHubCommand } from '../commands.js';
 import * as state from '../state.js';
 import * as attention from '../attention.js';
 import * as strings from '../strings.js';
@@ -31,7 +32,7 @@ async function app(storage = memory(), sendResult = true, hash = '#s=s', session
   const renderedDelivery = [];
   const context = {
     ...state, ...attention, ...strings, ...queue, ...attachments, ...routes, ...crew, ...delivery, ...loading,
-    chooseMode, parseAgentRegistry, daemonRequest,
+    chooseMode, parseAgentRegistry, daemonRequest, isHubCommand,
     console, URL, URLSearchParams, AbortSignal, Date, Math, Promise,
     crypto: { randomUUID: () => `client-${sent.length}-${Math.random()}` },
     localStorage: storage, sessionStorage: memory(),

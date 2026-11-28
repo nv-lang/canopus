@@ -95,7 +95,7 @@ test "canopus_task: the tools are listed by the path of the session" {
     ro names_list = ct_items(ct_get(ct_get(ctj(only.text), "result"), "tools"))
     // The control tools and canopus_task with its actions are included in the list set.
     assert(names_list.len() == 18)
-    assert(ct_get(names_list[names_list.len() - 1], "name").str() == Some("canopus_task_list"))
+    assert(ct_get(names_list[names_list.len() - 1], "name").str() == Some("task_list"))
     ro asked = mcp_handle_for("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}", "asklist")
     assert(ct_items(ct_get(ct_get(ctj(asked.text), "result"), "tools")).len() == 19)
     ro auto = mcp_handle_for("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}", "task")
@@ -209,14 +209,14 @@ test "canopus_task: the hint lists the tasks, the request names the candidates" 
     assert(hint.contains("docs/tasks/001-x/message.2.md"))
     assert(tasks_hint("x", []SubLine.new()) == "")
     ro req = recognize_request(hint, ["- «Кандидат»"])
-    assert(req.contains("canopus_task_list"))
+    assert(req.contains("task_list"))
     assert(req.contains("Кандидат"))
     // task 192.9: the request forbids the work and the talk, names the call for each family and keeps the marker only as the last way
     assert(req.contains("НИЧЕГО не делай с файлами"))
     assert(req.contains("Не рассуждай вслух"))
-    assert(req.contains("tools.canopus.canopus_task_list"))
-    assert(req.contains("mcp__canopus__canopus_task_list"))
-    assert(req.contains("[[canopus_task_list]]"))
+    assert(req.contains("tools.canopus.task_list"))
+    assert(req.contains("mcp__canopus__task_list"))
+    assert(req.contains("[[task_list]]"))
     assert(req.contains("одной короткой фразой"))
 }
 
@@ -332,7 +332,7 @@ test "context: the view holds the used / size and the history of the compactions
     assert(((cx.get("used") ?? JsonValue.null()).int() ?? 0) == 30000 && ((cx.get("size") ?? JsonValue.null()).int() ?? 0) == 200000)
     assert((((cx.get("compactions") ?? JsonValue.null()).array() ?? []JsonValue.new()).len()) == 1)
     ro r = route_reminder("fast", "Тесты", "docs/tasks/007-x/input", "task/007-x")
-    assert(r.contains("«Быстрый путь»") && r.contains("шаг: Тесты") && r.contains("task/007-x") && r.contains("canopus_task_list"))
+    assert(r.contains("«Быстрый путь»") && r.contains("шаг: Тесты") && r.contains("task/007-x") && r.contains("task_list"))
     assert(route_reminder("interactive", "", "", "").contains("задачи ещё нет"))
     assert(canopus_task_tool_json().to_str().contains("RULES"))
     assert(canopus_task_list_tool_json().to_str().contains("RULES"))
@@ -459,7 +459,7 @@ test "prompts: the description of a tool is replaced, the rest of the tool stays
     assert(tool_description(tool).starts_with("Call it when"))
     ro changed = tool_with_description(tool, "Новое описание")
     assert(tool_description(changed) == "Новое описание")
-    assert(changed.object().unwrap().get("name").unwrap().str() == Some("canopus_task"))
+    assert(changed.object().unwrap().get("name").unwrap().str() == Some("task"))
     assert(changed.object().unwrap().contains("inputSchema"))
 }
 

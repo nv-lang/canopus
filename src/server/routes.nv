@@ -370,11 +370,11 @@ export type CtxRec { ms int, before int, after int, source str }
 /// `added` the exact text that was appended to it (the undo takes it out), `undone` - the owner pressed "Отменить".
 export type ExtRec { id int, task int, title str, brief str, ms int, file str, added str, undone bool }
 
-/// The short reminder before every message of the owner (2-3 lines of the main): the mode, the step now, where the task and the branch are, and when to call `canopus_task` / `canopus_task_list`.
+/// The short reminder before every message of the owner (2-3 lines of the main): the mode, the step now, where the task and the branch are, and when to call `task` / `task_list`.
 export fn route_reminder(route str, step_title str, task_shown str, branch str) -> str => route_reminder_t(REMINDER_TEXT, route, step_title, task_shown, branch)
 
 /// The text of the reminder (`route_reminder`: route, step, place).
-export const REMINDER_TEXT = "[canopus] Напоминание: режим «{route_label}», шаг: {step}; {place}.\n[canopus] canopus_task — раз в начале реальной работы над файлами, до первой правки; canopus_task_list — только по просьбе хаба; вопрос или беседа — не работа; файлы задачи сам не заводи."
+export const REMINDER_TEXT = "[canopus] Напоминание: режим «{route_label}», шаг: {step}; {place}.\n[canopus] task — раз в начале реальной работы над файлами, до первой правки; task_list — только по просьбе хаба; вопрос или беседа — не работа; файлы задачи сам не заводи."
 
 /// The same over a text of a layer.
 export fn route_reminder_t(template str, route str, step_title str, task_shown str, branch str) -> str {

@@ -1,0 +1,79 @@
+// Slash commands in the owner's composer. The same registry serves dispatch and completion.
+module canopus.server
+
+import canopus.config.{ConfigLayout}
+import std.encoding.json.{Json, JsonValue, JsonObject}
+import std.fs.{Fs, Path, read_text, real_fs}
+
+type PageCommand { name str, description str, arguments str, source str }
+
+fn page_command_name(name str) -> bool {
+    if name.byte_len() == 0 || name.byte_len() > 48 { return false }
+    for byte in name.bytes() {
+        ro n = byte as int
+        if !(n >= 97 && n <= 122 || n >= 48 && n <= 57 || n == 45 || n == 95) { return false }
+    }
+    true
+}
+
+fn page_commands(layout ConfigLayout) Fs -> []PageCommand {
+    ro task = PageCommand { name: "task", description: "Задачи проекта", arguments: "[номер]", source: "canopus" }
+    mut commands = [task]
+    if layout.config == "" { return commands }
+    ro text = match read_text(Path.from_bytes("${layout.config}/commands.json".bytes())) {
+        Ok(s) => s
+        Err(e) => return commands
+    }
+    ro data = match Json.parse(text) {
+        Ok(v) => v.array() ?? []JsonValue.new()
+        Err(e) => return commands
+    }
+    mut used = ["task"]
+    for item in data {
+        ro name = mtext_of(item, "name")
+        if !page_command_name(name) || used.contains(name) || mtext_of(item, "target") != task.name { continue }
+        ro description = mtext_of(item, "description").trim_ascii()
+        commands.push(PageCommand { ...task, name, description: if description == "" { task.description } else { description }, source: "user" })
+        used.push(name)
+    }
+    commands
+}
+
+fn Hub mut @send_page_commands(conn int) -> () {
+    ro commands = with Fs = real_fs() { page_commands(@settings.layout) }
+    mut rows = []JsonValue.new()
+    for command in commands {
+        mut row = JsonObject.new()
+        js(row, "name", command.name)
+        js(row, "description", command.description)
+        js(row, "arguments", command.arguments)
+        js(row, "source", command.source)
+        rows.push(JsonValue.object(row))
+    }
+    mut event = JsonObject.new()
+    js(event, "kind", "composer_commands")
+    jput(event, "commands", JsonValue.array(rows))
+    @send(conn, JsonValue.object(event).to_str())
+}
+
+fn Hub @run_page_command(at int, text str) -> CtlRes {
+    ro body = text[1..]
+    mut end = 0
+    for byte in body.bytes() {
+        if byte == (32 as u8) || byte == (9 as u8) || byte == (10 as u8) || byte == (13 as u8) { break }
+        end += 1
+    }
+    ro name = body[..end]
+    ro args = body[end..].trim_ascii()
+    ro commands = with Fs = real_fs() { page_commands(@settings.layout) }
+    for command in commands {
+        if command.name != name { continue }
+        mut input = JsonObject.new()
+        if args == "" { return @ctl_task_list(at, input) }
+        ro number = match args.to_int() { Ok(n) => n, Err(e) => 0 }
+        if number <= 0 { return ctl_err("Укажите номер задачи: /${name} [номер].") }
+        ji(input, "n", number)
+        return @ctl_task_show(at, input, project_only: true)
+    }
+    ctl_err("Неизвестная команда /${name}. Исправьте команду или отправьте её как текст.")
+}

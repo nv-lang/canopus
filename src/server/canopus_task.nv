@@ -1,4 +1,4 @@
-// canopus_task.nv - task 192.2: the agent recognises the real work (the tool `canopus_task`), the owner confirms it; the pure part.
+// canopus_task.nv - task 192.2: the agent recognises the real work (the tool `task`), the owner confirms it; the pure part.
 //
 // The owner's rule (2026-10-27): the messages of the owner are NOT a journal. A `message.N.md` is written when the agent recognises a real piece of work on the files of the project and the owner
 // confirms it (a card in the feed with the buttons, or the code word). The agent may also say that the work belongs to a task that is already there (`extend`). Nothing is created by the hub on its own.
@@ -13,7 +13,7 @@ import std.unicode.{fold_case}
 import canopus.config.{render_prompt}
 
 /// The name of the tool.
-export const CANOPUS_TASK_TOOL = "canopus_task"
+export const CANOPUS_TASK_TOOL = "task"
 
 /// A child task proposed together with an epic (task 192.13): the title, the summary, the files and the mode of execution of its own ("" - the one of the epic).
 export type KidSpec { title str, summary str, touches []str, mode str }
@@ -129,7 +129,7 @@ export fn tool_with_description(tool JsonValue, description str) -> JsonValue {
 
 /// The description of the tool for `tools/list`.
 export fn canopus_task_tool_json() -> JsonValue {
-    ro text = "{\"name\":\"canopus_task\",\"description\":\"Call it when the message of the user is REAL WORK on the files of the project (code, documents, tests, settings): something is to be changed, written or built. Do NOT call it for a question, a talk, an explanation, a look at the code or a one-word answer. The hub then shows the user a card and the user confirms (new task) or refuses; do not touch the files until the hub tells the decision. If the work belongs to a task that is already in the list of the tasks of the session, say kind=extend and its number in extends: every addition requires explicit owner confirmation on its card before message.md is changed or the worker is notified, regardless of confidence; give confidence honestly and never use kind=extend for a question or a talk. Call it once per piece of work, at the very beginning, before the first change of a file. RULES: never call it for a question or a talk; if the work consists of several independent parts (front and back, different modules, more than about 30 minutes) propose ONE epic: kind=epic and children=[...], not one big task; propose the mode by the estimate (up to 30 minutes and reversible - interactive, up to a couple of hours - fast, big or risky - full) and always say why in reason; never call canopus_task_list on your own; never create docs/tasks folders or message.md yourself - the hub does it after the owner answers the card.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"kind\":{\"type\":\"string\",\"enum\":[\"new\",\"child\",\"epic\",\"extend\"],\"description\":\"new - a new task of its own (the default); child - the work is explicitly a child task of the epic in epic; epic - the work is a big one, an epic with child tasks; extend - the work belongs to an existing task of the list.\"},\"epic\":{\"type\":\"integer\",\"description\":\"For kind=child: the number of the epic (any open task of the list may be one).\"},\"title\":{\"type\":\"string\",\"description\":\"A short title of the work (up to 60 characters).\"},\"summary\":{\"type\":\"string\",\"description\":\"What is to be done, in a few lines: it becomes the text of message.md.\"},\"extends\":{\"type\":\"integer\",\"description\":\"For kind=extend: the number of the task of the list.\"},\"touches\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"The files and folders the work will change (paths in the project).\"},\"confidence\":{\"type\":\"string\",\"enum\":[\"high\",\"medium\",\"low\"],\"description\":\"How sure you are that it is real work and not a talk.\"},\"mode\":{\"type\":\"string\",\"enum\":[\"interactive\",\"fast\",\"full\"],\"description\":\"The mode of execution you propose: interactive (very fast, up to 30 minutes, reversible), fast (6 steps, up to a couple of hours), full (8 steps, big or risky work).\"},\"reason\":{\"type\":\"string\",\"description\":\"One sentence: why this mode and this way (shown to the owner on the card).\"},\"children\":{\"type\":\"array\",\"description\":\"For kind=epic: the child tasks (the independent parts: front and back, other modules).\",\"items\":{\"type\":\"object\",\"properties\":{\"title\":{\"type\":\"string\"},\"summary\":{\"type\":\"string\"},\"touches\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"mode\":{\"type\":\"string\",\"enum\":[\"interactive\",\"fast\",\"full\"],\"description\":\"The mode of this child task.\"}},\"required\":[\"title\"]}}},\"required\":[\"kind\",\"title\",\"summary\"]}}"
+    ro text = "{\"name\":\"task\",\"description\":\"Call it when the message of the user is REAL WORK on the files of the project (code, documents, tests, settings): something is to be changed, written or built. Do NOT call it for a question, a talk, an explanation, a look at the code or a one-word answer. The hub then shows the user a card and the user confirms (new task) or refuses; do not touch the files until the hub tells the decision. If the work belongs to a task that is already in the list of the tasks of the session, say kind=extend and its number in extends: every addition requires explicit owner confirmation on its card before message.md is changed or the worker is notified, regardless of confidence; give confidence honestly and never use kind=extend for a question or a talk. Call it once per piece of work, at the very beginning, before the first change of a file. RULES: never call it for a question or a talk; if the work consists of several independent parts (front and back, different modules, more than about 30 minutes) propose ONE epic: kind=epic and children=[...], not one big task; propose the mode by the estimate (up to 30 minutes and reversible - interactive, up to a couple of hours - fast, big or risky - full) and always say why in reason; never call task_list on your own; never create docs/tasks folders or message.md yourself - the hub does it after the owner answers the card.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"kind\":{\"type\":\"string\",\"enum\":[\"new\",\"child\",\"epic\",\"extend\"],\"description\":\"new - a new task of its own (the default); child - the work is explicitly a child task of the epic in epic; epic - the work is a big one, an epic with child tasks; extend - the work belongs to an existing task of the list.\"},\"epic\":{\"type\":\"integer\",\"description\":\"For kind=child: the number of the epic (any open task of the list may be one).\"},\"title\":{\"type\":\"string\",\"description\":\"A short title of the work (up to 60 characters).\"},\"summary\":{\"type\":\"string\",\"description\":\"What is to be done, in a few lines: it becomes the text of message.md.\"},\"extends\":{\"type\":\"integer\",\"description\":\"For kind=extend: the number of the task of the list.\"},\"touches\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"The files and folders the work will change (paths in the project).\"},\"confidence\":{\"type\":\"string\",\"enum\":[\"high\",\"medium\",\"low\"],\"description\":\"How sure you are that it is real work and not a talk.\"},\"mode\":{\"type\":\"string\",\"enum\":[\"interactive\",\"fast\",\"full\"],\"description\":\"The mode of execution you propose: interactive (very fast, up to 30 minutes, reversible), fast (6 steps, up to a couple of hours), full (8 steps, big or risky work).\"},\"reason\":{\"type\":\"string\",\"description\":\"One sentence: why this mode and this way (shown to the owner on the card).\"},\"children\":{\"type\":\"array\",\"description\":\"For kind=epic: the child tasks (the independent parts: front and back, other modules).\",\"items\":{\"type\":\"object\",\"properties\":{\"title\":{\"type\":\"string\"},\"summary\":{\"type\":\"string\"},\"touches\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"mode\":{\"type\":\"string\",\"enum\":[\"interactive\",\"fast\",\"full\"],\"description\":\"The mode of this child task.\"}},\"required\":[\"title\"]}}},\"required\":[\"kind\",\"title\",\"summary\"]}}"
     mparse(text)
 }
 
@@ -152,7 +152,7 @@ export fn proposal_of_arguments(arguments JsonValue) -> Result[Proposal, str] {
     // task 192.5: the kinds are "new", "extend", "child" (a child task of the epic `epic`) and "epic"; the old words "subtask" and "epic_task" are read as "child"
     ro kind = if kind_raw == "extend" || kind_raw == "epic" { kind_raw } else if kind_raw == "child" || kind_raw == "subtask" || kind_raw == "epic_task" { "child" } else { "new" }
     ro title = mtext_of(arguments, "title").trim_ascii()
-    if title.byte_len() == 0 { return Err("canopus_task: the argument title is missing") }
+    if title.byte_len() == 0 { return Err("task: the argument title is missing") }
     ro summary_raw = mtext_of(arguments, "summary").trim_ascii()
     ro summary = if summary_raw.byte_len() == 0 { title } else { summary_raw }
     mut extends = 0
@@ -286,16 +286,17 @@ export fn proposal_children(p Proposal) -> []KidSpec {
 export fn proposal_of_text(text str) -> Result[Proposal, str] {
     match Json.parse(text) {
         Ok(v) => proposal_of_arguments(v)
-        Err(e) => Err("canopus_task: the arguments are not JSON")
+        Err(e) => Err("task: the arguments are not JSON")
     }
 }
 
-/// The tool the agent is told about in a prompt, for an agent that has no tools: the marker line `[[canopus_task]] {json}` in its answer is the same call.
+/// The tool the agent is told about in a prompt, for an agent that has no tools: the marker line `[[task]] {json}` in its answer is the same call.
 export fn proposal_of_marker(answer str) -> Option[Proposal] {
     for line in answer.lines() {
         ro t = line.trim_ascii()
-        if t.starts_with("[[canopus_task]]") {
-            match proposal_of_text(t["[[canopus_task]]".byte_len()..].trim_ascii()) {
+        ro marker = if t.starts_with("[[task]]") { "[[task]]" } else { "[[canopus_task]]" }
+        if t.starts_with(marker) {
+            match proposal_of_text(t[marker.byte_len()..].trim_ascii()) {
                 Ok(p) => return Some(p)
                 Err(e) => ()
             }
@@ -380,7 +381,7 @@ export const SHOWN_TEXT = "Предложение задачи показано 
 export const REFUSED_TEXT = "Владелец уже ответил, что это не задача: не предлагай её снова, отвечай как обычно."
 
 /// The answer of the tool when the mode takes no proposals.
-export const NOT_NEEDED_TEXT = "В этом режиме задача ведётся без предложений: canopus_task не нужен, продолжай."
+export const NOT_NEEDED_TEXT = "В этом режиме задача ведётся без предложений: task не нужен, продолжай."
 
 fn ct_same_title(a str, b str) -> bool => word_key(a) == word_key(b)
 
@@ -460,7 +461,7 @@ export fn canopus_addition_text(summary str, source str, ms int) -> str {
 export type SubLine { n int, title str, state str, waits int, file str }
 
 /// The text of the note `tasks_hint` (`{rows}` is the list of the tasks).
-export const TASKS_HINT_TEXT = "[canopus] Задачи в работе (в canopus_task / canopus_task_list: kind=extend, extends=<номер> и честный confidence, если работа дополняет одну из них — любое дополнение, включая high, ждёт явного подтверждения владельца до записи в задание и передачи исполнителю, не используй его для вопроса или обсуждения; kind=child и epic=<номер>, если она явно дочерняя задача такой задачи (любая открытая задача может быть эпиком); иначе kind=new — самостоятельная задача):\n{rows}"
+export const TASKS_HINT_TEXT = "[canopus] Задачи в работе (в task / task_list: kind=extend, extends=<номер> и честный confidence, если работа дополняет одну из них — любое дополнение, включая high, ждёт явного подтверждения владельца до записи в задание и передачи исполнителю, не используй его для вопроса или обсуждения; kind=child и epic=<номер>, если она явно дочерняя задача такой задачи (любая открытая задача может быть эпиком); иначе kind=new — самостоятельная задача):\n{rows}"
 
 /// The short list of the tasks of the session for the hidden note before the message of the owner ("" - there are none). The agent uses it to say that a work belongs to a task that is there.
 export fn tasks_hint(task_shown str, lines []SubLine) -> str => tasks_hint_t(TASKS_HINT_TEXT, task_shown, lines)

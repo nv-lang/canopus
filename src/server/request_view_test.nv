@@ -41,7 +41,7 @@ test "request view: a turn with the instruction of the mode, the message and a p
     ro tools = (input.get("tools") ?? JsonValue.null()).object() ?? JsonObject.new()
     ro hub = jlist(tools, "hub")
     assert(hub.len() >= 2)
-    assert(line.contains("ask_user_question") && line.contains("canopus_task_list"))
+    assert(line.contains("ask_user_question") && line.contains("task_list"))
     assert(jlist(tools, "commands").len() == 1)
 }
 

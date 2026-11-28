@@ -9,6 +9,7 @@
 //   * значки — один спрайт, встроенный в index.html (<use href="#i-имя">), цвет берут из темы; ширина полоски и кольца контекста
 //     ставится свойством --fill / --ring через CSSOM, а не атрибутом style (его запрещает CSP).
 
+import { commandName, isHubCommand } from './commands.js';
 import { t } from './strings.js';
 import { approvalView } from './family-approvals.js';
 import { BARS, barHeights, createMeter, recordingView } from './meter.js';
@@ -781,7 +782,8 @@ export function createView(doc, refs, deps) {
     id: 'composer-input', rows: 1, placeholder: t('composer.placeholder'), 'aria-label': t('chat.input_label'),
   });
   const ghost = h(doc, 'div', { id: 'composer-ghost', class: 'composer-ghost', hidden: true });
-  const field = h(doc, 'div', { class: 'composer-field' }, input, ghost);
+  const commandMenu = h(doc, 'div', { class: 'composer-commands', hidden: true, 'aria-label': t('command.menu') });
+  const field = h(doc, 'div', { class: 'composer-field' }, input, ghost, commandMenu);
   const dismissedSuggestions = new Map();
   // Кнопки круглые, без видимого текста: имя — для чтения с экрана, подсказка о клавишах — в title (задача 192).
   const micButton = h(doc, 'button', { type: 'button', class: 'mic-btn', 'data-tip': `${t('voice.start')} · ${t('voice.right_click')}`, 'aria-label': `${t('voice.label')}: ${t('voice.start')}`, 'data-state': 'idle' }, icon(doc, 'i-mic'));
@@ -1779,12 +1781,72 @@ export function createView(doc, refs, deps) {
 
   let historyState = NO_HISTORY; // где мы в истории отправленных сообщений (↑ и ↓ в поле)
   let uploading = false; // картинки уходят на сервер: второй отправки пока нет
-  function submit() {
+  let commandDismissed = '';
+  let unknownCommand = '';
+  let commandMenuKey = '';
+  function fillCommand(name) {
+    input.value = `/${name}`;
+    commandDismissed = input.value;
+    unknownCommand = '';
+    drafts.set(currentTrace, input.value);
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+    fitInput();
+  }
+  function commandButton(className, action, ...children) {
+    const button = h(doc, 'button', { type: 'button', class: className }, ...children);
+    button.addEventListener('click', action);
+    return button;
+  }
+  function syncCommands() {
+    const text = input.value;
+    const name = commandName(text);
+    const active = currentTrace && !recordingNow && isHubCommand(text) && commandDismissed !== text;
+    const unknown = active && unknownCommand === text;
+    const matches = active && !unknown && text === `/${name}`
+      ? (current.ui?.commands || []).filter(command => command.name.startsWith(name)) : [];
+    const signature = JSON.stringify([currentTrace, unknown ? name : '', matches]);
+    if (signature === commandMenuKey) return;
+    commandMenuKey = signature;
+    const choices = matches.map(command => commandButton('command-choice', () => fillCommand(command.name),
+      h(doc, 'span', { class: 'command-name', text: `/${command.name}` }),
+      h(doc, 'span', { class: 'muted', text: command.description }),
+      h(doc, 'span', { class: 'muted', text: command.arguments }),
+      command.source === 'user' && h(doc, 'span', { class: 'command-source', text: t('command.user') })));
+    if (unknown) choices.push(
+      h(doc, 'div', { role: 'status', text: t('command.unknown', { name: `/${name}` }) }),
+      h(doc, 'div', { class: 'command-actions' },
+        commandButton('', () => {
+          unknownCommand = '';
+          commandDismissed = text;
+          input.focus();
+          input.setSelectionRange(1, name.length + 1);
+          syncCommands();
+        }, t('command.fix')),
+        commandButton('command-send-text', () => { input.focus(); submit(true); }, t('command.send_text'))));
+    commandMenu.replaceChildren(...choices);
+    commandMenu.hidden = choices.length === 0;
+  }
+  function submit(asText = false) {
     const originalText = input.value;
     const suggestion = nextSuggestionFor(current.session);
-    const text = suggestion?.prompt === originalText ? originalText : originalText.trim();
+    const text = suggestion?.prompt === originalText || originalText.trim().startsWith('/') ? originalText : originalText.trim();
     const images = attach.items();
     if (!currentTrace || uploading || (text.length === 0 && images.length === 0)) return;
+    if (!asText && isHubCommand(text)) {
+      if (!(current.ui?.commands || []).some(command => command.name === commandName(text))) {
+        commandDismissed = '';
+        unknownCommand = text;
+        syncCommands();
+        return;
+      }
+      if (handlers.onSend(currentTrace, text)) {
+        input.value = '';
+        drafts.delete(currentTrace);
+        fitInput();
+      }
+      return;
+    }
     // пока вопрос агента ждёт ответа, обычное сообщение не уходит: форма просит ответить или пропустить
     const urgent = !urgentLabel.hidden && urgentInput.checked;
     if (current.session?.pendingQuestion && !urgent) { nudgeAsk(); return; }
@@ -1792,7 +1854,7 @@ export function createView(doc, refs, deps) {
     historyState = NO_HISTORY; // после отправки история с пустого поля: новое сообщение в её конце, ↑ показывает его первым
     // агент занят ходом: сообщение (и его картинки) встаёт в очередь страницы и уходит, когда ход закончится
     if (!urgent && current.session && !current.ui?.historyPending?.has(trace) && (isBusy(current.session.state) || current.ui?.interruptPending?.has(trace))) {
-      if (handlers.onQueue(trace, text, images)) {
+      if (asText ? handlers.onQueue(trace, text, images, true) : handlers.onQueue(trace, text, images)) {
         input.value = '';
         attach.clear();
         drafts.delete(trace);
@@ -1801,7 +1863,8 @@ export function createView(doc, refs, deps) {
       }
       return;
     }
-    const result = urgent ? handlers.onSend(trace, text, images, true)
+    const result = asText ? handlers.onSend(trace, text, images, urgent, true)
+      : urgent ? handlers.onSend(trace, text, images, true)
       : images.length ? handlers.onSend(trace, text, images) : handlers.onSend(trace, text);
     if (typeof result?.then !== 'function') {
       if (result) {
@@ -1859,9 +1922,10 @@ export function createView(doc, refs, deps) {
     const restoring = current.ui?.historyPending?.has(currentTrace);
     const unavailable = current.ui?.restoreQueued?.has(currentTrace) || (restoring
       && (!current.ui.historyPreview?.has(currentTrace) || attach.items().length > 0));
-    sendButton.hidden = current.session && isBusy(current.session.state) && (urgentLabel.hidden || !urgentInput.checked);
+    sendButton.hidden = !isHubCommand(input.value) && current.session && isBusy(current.session.state) && (urgentLabel.hidden || !urgentInput.checked);
     sendButton.disabled = !can || recordingNow || unavailable;
     syncGhost();
+    syncCommands();
   }
   // Авторазмер: высота по содержимому, не выше 5 строк (дальше — внутренняя прокрутка, см. max-height в app.css).
   function fitInput() {
@@ -1872,6 +1936,16 @@ export function createView(doc, refs, deps) {
   sendButton.addEventListener('click', () => submit());
   urgentInput.addEventListener('change', syncSend);
   input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !e.isComposing && !commandMenu.hidden) {
+      e.preventDefault();
+      commandDismissed = input.value;
+      syncCommands();
+      return;
+    }
+    if (e.key === 'Tab' && !e.isComposing && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && !commandMenu.hidden) {
+      const first = commandMenu.querySelector('button');
+      if (first) { e.preventDefault(); first.focus(); return; }
+    }
     if (e.key === 'Tab' && !e.isComposing && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && !ghost.hidden) {
       const suggestion = composerSuggestion();
       if (suggestion && input.value === '') {
@@ -1902,6 +1976,8 @@ export function createView(doc, refs, deps) {
   });
   queueButton.addEventListener('click', () => { if (currentTrace) handlers.onUnqueue(currentTrace); });
   input.addEventListener('input', () => {
+    commandDismissed = '';
+    unknownCommand = '';
     const suggestion = composerSuggestion();
     if (suggestion) dismissedSuggestions.set(currentTrace, suggestion.id);
     // правка текста историю не сбрасывает: ↑ и ↓ ходят по ней и с изменённым текстом (history.js)
@@ -1999,7 +2075,7 @@ export function createView(doc, refs, deps) {
     const command = isCommand ? (r.command || (r.title !== r.id && !/^(?:bash|shell|terminal|command|execute|powershell|pwsh|cmd)$/iu.test(r.title.trim()) ? r.title : '')) : '';
     const rawResult = r.response || (output && (!r.command || output !== JSON.stringify({ command: r.command })) ? output : '');
     const result = rawResult.replace(/^\s*\x60{3}(?:[\w+-]+)?[ \t]*\r?\n([\s\S]*?)\r?\n\x60{3}[ \t]*\s*$/iu, '$1');
-    const readableResult = /^unknown tool: canopus_task$/iu.test(result.trim()) ? t('work.canopus_task_unavailable') : result;
+    const readableResult = /^unknown tool: (?:canopus_)?task$/iu.test(result.trim()) ? t('work.canopus_task_unavailable') : result;
     const distinctResult = command && readableResult.trim() === command.trim() ? '' : readableResult;
     const [label, secondary] = rowLabel(r);
     const webSearch = r.kind === 'search' && /^web search(?::|$)/iu.test(r.title);
@@ -2574,6 +2650,8 @@ export function createView(doc, refs, deps) {
       historyState = NO_HISTORY;
       nodes.clear();
       thread.replaceChildren();
+      commandDismissed = '';
+      unknownCommand = '';
       input.value = drafts.get(session.id) ?? '';
       attach.restore(attachDrafts.get(session.id));
       fitInput();

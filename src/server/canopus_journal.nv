@@ -1,6 +1,6 @@
-// canopus_journal.nv - task 250: the journals of a task as tools of the agent (the pure part): `canopus_progress_line`, `canopus_log_line`, `canopus_usage_line`.
+// canopus_journal.nv - task 250: the journals of a task as tools of the agent (the pure part): `progress_line`, `log_line`, `usage_line`.
 //
-// They are the tools `progress_line`, `log_line` and `usage_line` of the plugin of OpenCode (`opencode-plugin/journal.ts`, `progress.ts`) under NEW names (the owner, 2026-10-29: no aliases of the old names).
+// They are the tools `progress_line`, `log_line` and `usage_line` of the plugin of OpenCode (`opencode-plugin/journal.ts`, `progress.ts`). The MCP adapter accepts the former prefixed names as aliases.
 // The journals of a task are the territory of the product (the Canon, «Три журнала сессии»): the agent names the KIND of a line and the numbers, the hub builds the line itself (the keyword, the date and the
 // time of the machine) and checks it against the earlier lines of the same session in the file. The file names are fixed, only appending. The files lie in the folder of the task of the session; the hub side
 // is `canopus_journal_hub.nv`.
@@ -12,7 +12,7 @@ module canopus.server
 import std.encoding.json.{Json, JsonValue, JsonObject}
 
 /// The names of the tools of the journals.
-export fn journal_tool_names() -> []str => ["canopus_progress_line", "canopus_log_line", "canopus_usage_line"]
+export fn journal_tool_names() -> []str => ["progress_line", "log_line", "usage_line"]
 
 export fn journal_is_tool(name str) -> bool {
     for n in journal_tool_names() {
@@ -300,7 +300,7 @@ fn j_defect(st SState) -> str {
     ""
 }
 
-fn j_ex(code str, rest str) -> str => "canopus_progress_line {code: \"${code}\", ${rest}}"
+fn j_ex(code str, rest str) -> str => "progress_line {code: \"${code}\", ${rest}}"
 
 fn j_range(a int, b int) -> str => if b > a { "${a}–${b}" } else { "${a}" }
 
@@ -328,7 +328,7 @@ export fn journal_kind_of(word str) -> str {
     ""
 }
 
-/// The arguments of `canopus_progress_line` after the hub has read them: -1 means "not given" for the numbers.
+/// The arguments of `progress_line` after the hub has read them: -1 means "not given" for the numbers.
 export type ProgressArgs { code str, kind str, k int, n int, pass int, stop str, text str, to str }
 
 /// A line built, or the reason it is refused (the rule, the expected form, an example).
@@ -467,7 +467,7 @@ export fn journal_build_log(kind_raw str, text_raw str, stamp str) -> LogOut {
     for k in log_kinds() {
         if k == kind { known = true }
     }
-    if !known { return LogOut { line: "", reason: "вид записи ${if kind.byte_len() > 0 { "«${kind}» не из списка" } else { "не назван" }}: kind — одно из: ${joined(log_kinds(), ", ")} (Канон, process.md); пример: canopus_log_line {kind: \"документ\", text: \"spec.md передан на С2\"}" } }
+    if !known { return LogOut { line: "", reason: "вид записи ${if kind.byte_len() > 0 { "«${kind}» не из списка" } else { "не назван" }}: kind — одно из: ${joined(log_kinds(), ", ")} (Канон, process.md); пример: log_line {kind: \"документ\", text: \"spec.md передан на С2\"}" } }
     if text.byte_len() == 0 { return LogOut { line: "", reason: "текст пустой" } }
     if j_has_control(text) { return LogOut { line: "", reason: "одна запись — одна строка: без переводов строки и управляющих символов (две записи — два вызова)" } }
     if text.starts_with("запуск №") || text.starts_with("запуск №") { return LogOut { line: "", reason: "запись о запуске («запуск №<n> <код> [время]») агент сессии не пишет: её пишет запускающий — интегратор проекта или раннер" } }
@@ -504,7 +504,7 @@ fn jp(name str, value JsonValue) -> CtlProp => { name, value }
 /// The definitions of the three tools for `tools/list`.
 export fn journal_tools_json() -> []JsonValue {
     mut out = []JsonValue.new()
-    out.push(ctl_def("canopus_progress_line", "The way to write the progress journal of the task (progress.log in the folder of the task of THIS session): name the KIND of the line and the numbers, the hub builds the line itself - keyword, pass number, stop kind, date and time of the machine - and checks it against the earlier lines of the same session in the file (never write these lines by hand). Kinds: start {n, pass for a review session С2/С4/С6, text optional} -> '<code> 0/N [time] старт заход P — text', written BEFORE reading or work, creates the file if missing; one start per session; step {k, n, text} -> '<code> k/N [time] text', one line right after EACH finished unit, k = previous + 1 (when n is the number of the boxes of progress.md, the k-th box of the checklist of the mode is marked too); done {text optional} -> '<code> N/N [time] готово — text', the last line of a finished session (k at least N of the start line; with k below it: next units, stop, or done {text: 'N завышено: <reason>'}); stop {stop: вопрос|план|ревизия|требования|ворота, text = reason}; correction {to = the start of the signature of the wrong line of the same session, text = what is wrong} keeps k and is not a unit. The launch line is not written by the agent. The whole signature (all but the time) is at most 80 characters. A refusal names the rule, the expected form and an example; nothing is written. The session has to have a task (the folder of the task); only the journals of its own task can be written. Example: {code: 'С2', kind: 'start', n: 34, pass: 1, text: 'опись 34 источника'}, then {code: 'С2', kind: 'step', k: 1, n: 34, text: 'spec.md прочитан целиком'}.", [
+    out.push(ctl_def("progress_line", "The way to write the progress journal of the task (progress.log in the folder of the task of THIS session): name the KIND of the line and the numbers, the hub builds the line itself - keyword, pass number, stop kind, date and time of the machine - and checks it against the earlier lines of the same session in the file (never write these lines by hand). Kinds: start {n, pass for a review session С2/С4/С6, text optional} -> '<code> 0/N [time] старт заход P — text', written BEFORE reading or work, creates the file if missing; one start per session; step {k, n, text} -> '<code> k/N [time] text', one line right after EACH finished unit, k = previous + 1 (when n is the number of the boxes of progress.md, the k-th box of the checklist of the mode is marked too); done {text optional} -> '<code> N/N [time] готово — text', the last line of a finished session (k at least N of the start line; with k below it: next units, stop, or done {text: 'N завышено: <reason>'}); stop {stop: вопрос|план|ревизия|требования|ворота, text = reason}; correction {to = the start of the signature of the wrong line of the same session, text = what is wrong} keeps k and is not a unit. The launch line is not written by the agent. The whole signature (all but the time) is at most 80 characters. A refusal names the rule, the expected form and an example; nothing is written. The session has to have a task (the folder of the task); only the journals of its own task can be written. Example: {code: 'С2', kind: 'start', n: 34, pass: 1, text: 'опись 34 источника'}, then {code: 'С2', kind: 'step', k: 1, n: 34, text: 'spec.md прочитан целиком'}.", [
         jp("code", cp("string", "session code exactly from the 'Сессия:' line, e.g. С2 or С5д")),
         jp("kind", cp_enum("kind of the line; step when omitted", ["start", "step", "done", "stop", "correction"])),
         jp("k", cp("integer", "step: number of the finished unit, previous + 1")),
@@ -516,12 +516,12 @@ export fn journal_tools_json() -> []JsonValue {
         jp("unit", cp("string", "old form of k and n for a step: 'k/N', e.g. 4/13")),
         jp("file", cp("string", "optional: progress.log of the task folder of THIS session; any other path is refused"))
     ], ["code"]))
-    out.push(ctl_def("canopus_log_line", "The way to write an entry of the task log (log.md in the folder of the task of THIS session): appends ONE line 'YYYY-MM-DD HH:MM <kind>: <text>' with the date and time of the machine (never type the time by hand). kind is one of: решение владельца, заседание, ворота, документ, пуск, слияние, находка. One entry - one call, one line, up to 2000 characters. The launch record is not written by the agent. Example: {kind: 'решение владельца', text: 'владелец, 2026-10-15, чат: «по рекомендации»'}.", [
+    out.push(ctl_def("log_line", "The way to write an entry of the task log (log.md in the folder of the task of THIS session): appends ONE line 'YYYY-MM-DD HH:MM <kind>: <text>' with the date and time of the machine (never type the time by hand). kind is one of: решение владельца, заседание, ворота, документ, пуск, слияние, находка. One entry - one call, one line, up to 2000 characters. The launch record is not written by the agent. Example: {kind: 'решение владельца', text: 'владелец, 2026-10-15, чат: «по рекомендации»'}.", [
         jp("kind", cp_enum("kind of the entry", log_kinds())),
         jp("text", cp("string", "the entry, one line")),
         jp("file", cp("string", "optional: log.md of the task folder of THIS session; any other path is refused"))
     ], ["kind", "text"]))
-    out.push(ctl_def("canopus_usage_line", "Append ONE JSON line with the accounting of this session to usage.log of the folder of the task (format version v:1). Call it once, when the session is finished. The hub fills everything itself (time, session, agent, duration, last commit of the folder); you pass the session code and the result. Only next to an existing progress.log of the same task. Example: {code: 'С5д', result: 'готово: 13 из 13 шагов, тесты зелёные'}.", [
+    out.push(ctl_def("usage_line", "Append ONE JSON line with the accounting of this session to usage.log of the folder of the task (format version v:1). Call it once, when the session is finished. The hub fills everything itself (time, session, agent, duration, last commit of the folder); you pass the session code and the result. Only next to an existing progress.log of the same task. Example: {code: 'С5д', result: 'готово: 13 из 13 шагов, тесты зелёные'}.", [
         jp("code", cp("string", "session code, e.g. С5д")),
         jp("result", cp("string", "outcome of the session, one line, up to 200 characters")),
         jp("file", cp("string", "optional: usage.log of the task folder of THIS session; any other path is refused"))

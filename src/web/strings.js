@@ -10,6 +10,11 @@
 
 export const S = Object.freeze({
   'app.title': 'Пульт Canopus',
+  'command.menu': 'Команды Канопуса',
+  'command.user': 'Пользовательская',
+  'command.unknown': 'Неизвестная команда {name}',
+  'command.fix': 'Исправить',
+  'command.send_text': 'Отправить как текст',
 
   // ---- левая колонка
   'sessions.title': 'Сессии',
@@ -380,7 +385,7 @@ export const S = Object.freeze({
   'route.criterion_resume': 'Проверить снова',
   'route.skip_named': 'Пропустить «{title}»',
   'route.skipped_total': 'Пропущено {n}',
-  'work.canopus_task_unavailable': 'Агент вызвал canopus_task, который недоступен в этой сессии.',
+  'work.canopus_task_unavailable': 'Агент вызвал task, который недоступен в этой сессии.',
   'ask.reply_question_link': 'Вопрос и варианты',
   'ask.reply_in_feed': 'Вы ответили: {answer}',
   'layout.resize_left': 'Ширина списка сессий',

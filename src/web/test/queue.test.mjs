@@ -100,11 +100,11 @@ test('подсказка в поле ввода: «Enter — отправить,
 test('Enter при занятом агенте ставит сообщение в очередь страницы вместе с картинками; кнопка «↵» при занятом агенте включена; ошибки «нельзя в очередь» нет', () => {
   const view = fs.readFileSync(path.join(web, 'view.js'), 'utf8');
   const app = fs.readFileSync(path.join(web, 'app.js'), 'utf8');
-  assert.match(view, /if \(!urgent && current\.session[^\n]+\{\s*if \(handlers\.onQueue\(trace, text, images\)\)/);
+  assert.match(view, /if \(!urgent && current\.session[^\n]+\{[^}]*handlers\.onQueue\(trace, text, images\)/);
   assert.match(view, /sendButton\.disabled = !can \|\| recordingNow \|\| unavailable;/);
   assert.ok(!/err_queue/.test(view + S['composer.hint'] + JSON.stringify(Object.keys(S))));
-  assert.match(app, /queue\.push\(trace, \{ text, images \}\);/);
-  assert.match(app, /const delivered = handlers\.onSend\(trace, item\.text, images\);/);
+  assert.match(app, /queue\.push\(trace, \{ text, images, asText \}\);/);
+  assert.match(app, /const delivered = handlers\.onSend\(trace, item\.text, images, false, item\.asText\);/);
   assert.ok(!/keyAction\(e, /.test(view));
 });
 

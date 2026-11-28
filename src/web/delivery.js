@@ -63,7 +63,7 @@ export function createDelivery(storage) {
     sessions() { return records.filter(r => r.session).map(r => r.session); },
     add(event, session = null, state = 'sending') {
       if (records.some(r => r.id === event.id)) return false;
-      return save([...records, { id: event.id, trace: event.trace, text: event.input.text || '', images: event.input.images || [], at: event.time, state, clientTurn: event.input.turn, turn: '', reason: '', session, handoff: Boolean(event.input.handoff), ...(event.input.urgent ? { urgent: true } : {}) }]);
+      return save([...records, { id: event.id, trace: event.trace, text: event.input.text || '', images: event.input.images || [], at: event.time, state, clientTurn: event.input.turn, turn: '', reason: '', session, handoff: Boolean(event.input.handoff), ...(event.input.urgent ? { urgent: true } : {}), ...(event.input.as_text ? { asText: true } : {}) }]);
     },
     uploading(id) { update(id, { state: 'uploading' }); },
     uploadComplete(id) {
@@ -102,6 +102,7 @@ export function createDelivery(storage) {
       if (!input || typeof input.client_id !== 'string') return;
       const record = records.find(r => r.id === input.client_id);
       if (!record || record.state === 'accepted') return;
+      if (input.command && input.accepted === true) { this.forget(input.client_id); return; }
       update(input.client_id, { state: input.accepted === true ? 'accepted' : 'received', attempt: 0, turn: typeof input.turn === 'string' ? input.turn : '' });
     },
     reconcile(model) {

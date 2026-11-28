@@ -1,8 +1,8 @@
-// 336. Run against a freshly built canopus with a temporary store and the fake ACP agent.
+// 336, 337. Run against a freshly built canopus with a temporary store and the fake ACP agent.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdir, mkdtemp, cp, symlink, writeFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, cp, symlink, writeFile, readFile, rm } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
@@ -67,6 +67,10 @@ try {
     port, store: 'files', voice: false,
     agents: [{ id: 'opencode', label: 'Fixture', program: process.execPath, args: [fixture, '--live', '--ask'] }],
   }));
+  await writeFile(join(temp, 'commands.json'), JSON.stringify([
+    { name: 'work', target: 'task', description: 'Мои задачи' },
+    { name: 'task', target: 'task', description: 'Перезапись встроенной команды' },
+  ]));
   await start();
   send('session_created', { name: 'Подсказки', agent: 'opencode' });
   await wait('session', () => pick('session_created')[0]);
@@ -81,8 +85,8 @@ try {
     { prompt, turn, session: trace },
   ]);
   const answer = pick('agent_chunk').map(e => e.input.text).join('');
-  assert.match(answer, /ctl canopus_next: .*canopus_next.* \| Предложение записано\./);
-  assert.match(answer, /ERR canopus_next: the argument prompt/);
+  assert.match(answer, /ctl canopus_next: .*next_message.* \| Предложение записано\./);
+  assert.match(answer, /ERR next_message: the argument prompt/);
   assert.equal(pick('user_message').length, 1);
   await stop();
   await start();
@@ -118,6 +122,45 @@ try {
   assert.equal(ghost.hidden, true);
   assert.equal(field.value, '');
   console.log('PASS MCP → journal → composer preview → Tab → Enter');
+
+  const commands = await wait('command catalog', () => events.find(e => e.kind === 'composer_commands')?.commands);
+  assert.deepEqual(commands.map(({ name, source }) => [name, source]), [['task', 'canopus'], ['work', 'user']]);
+  const commandOffset = events.length;
+  const localReceipt = id => pick('message_delivery', commandOffset).find(e => e.input.client_id === id && e.input.command && e.input.accepted);
+  send('user_message', { text: '/task' }, 'task-command');
+  await wait('local task result', () => pick('agent_chunk', commandOffset).find(e => e.input.turn === '' && e.input.text.includes('Открытых задач нет.')));
+  await wait('local receipt', () => localReceipt('task-command'));
+  send('user_message', { text: '/task' }, 'task-command'); // retry must replay the receipt only
+  send('user_message', { text: '/work' }, 'user-command');
+  await wait('alias receipt', () => localReceipt('user-command'));
+  assert.equal(pick('agent_chunk', commandOffset).filter(e => e.input.text.includes('Открытых задач нет.')).length, 2);
+  send('user_message', { text: '/xyz' }, 'unknown-command');
+  await wait('unknown command', () => pick('error', commandOffset).find(e => e.input.client_id === 'unknown-command' && e.input.message.includes('Исправьте')));
+  assert.equal(pick('user_message', commandOffset).length, 0);
+
+  send('user_message', { text: '//artifact пример' }, 'agent-command');
+  await wait('agent tunnel', () => pick('agent_done', commandOffset)[0]);
+  const traceText = await readFile(join(temp, 'data', 'sessions', trace, 'acp.jsonl'), 'utf8');
+  const requests = traceText.trim().split('\n').map(line => JSON.parse(line))
+    .filter(record => record.dir === 'out').map(record => JSON.parse(record.line));
+  assert.deepEqual(requests.filter(req => req.method === 'session/prompt').at(-1).params.prompt,
+    [{ type: 'text', text: '/artifact пример' }]);
+
+  const literalOffset = events.length;
+  send('user_message', { text: '/xyz', as_text: true }, 'literal-message');
+  await wait('literal text', () => pick('agent_done', literalOffset)[0]);
+  assert.equal(pick('user_message', literalOffset)[0].input.text, '/xyz');
+
+  const toolOffset = events.length;
+  send('user_message', { text: 'ctl canopus_doctor {"__names":true}' }, 'legacy-tool');
+  await wait('legacy tool completed', () => pick('agent_done', toolOffset)[0]);
+  const chunks = pick('agent_chunk', toolOffset).map(e => e.input.text);
+  const names = /ctl canopus_doctor: ([^|]+) \|/u.exec(chunks.join(''))?.[1].trim().split(',');
+  assert.ok(names?.includes('doctor') && names.includes('send_message'));
+  assert.ok(names.every(name => !name.startsWith('canopus_')));
+  assert.ok(chunks.some(text => text.startsWith('▸ doctor')));
+  assert.ok(chunks.every(text => !text.startsWith('▸ canopus_doctor')));
+  console.log('PASS slash routing, completion catalog, literal fallback and canonical tool journal');
 } finally {
   await stop();
   await rm(temp, { recursive: true, force: true });

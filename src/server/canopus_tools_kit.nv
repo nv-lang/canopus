@@ -104,7 +104,7 @@ export fn scenario_canopus_tools(settings ServerSettings) Proc Detach Time Net F
 
     // 1. help, the role of a task session, the list
     ro r_help = ctl_ask(rig, p1, "canopus_help", "{}")
-    c.expect(r_help.contains("canopus_wait") && r_help.contains("canopus_spawn") && !r_help.contains("canopus_config {"), "canopus_help lists the tools and not canopus_config: ${cut_text(r_help, 200)}")
+    c.expect(r_help.contains("wait_event") && r_help.contains("spawn") && !r_help.contains("canopus_config {"), "canopus_help lists the tools and not canopus_config: ${cut_text(r_help, 200)}")
     ro role1 = ctl_ask(rig, p1, "canopus_role", "{}")
     c.expect(role1.contains("executor"), "a session with a task and no children is an executor: ${role1}")
     ro bad_role = ctl_ask(rig, p1, "canopus_role", "{\"role\":\"integrator\"}")
@@ -114,7 +114,7 @@ export fn scenario_canopus_tools(settings ServerSettings) Proc Detach Time Net F
 
     // 2. canopus_spawn: a card for the owner, a child only after his yes
     ro r_spawn = ctl_ask(rig, p1, "canopus_spawn", "{\"goal\":\"Сделать часть работы\",\"criteria\":[\"тест зелёный\"],\"title\":\"Часть главной\",\"touches\":[\"c.txt\"]}")
-    c.expect(r_spawn.contains("карточкой") && r_spawn.contains("canopus_wait"), "canopus_spawn shows the owner a card and says how to wait: ${cut_text(r_spawn, 200)}")
+    c.expect(r_spawn.contains("карточкой") && r_spawn.contains("wait_event"), "canopus_spawn shows the owner a card and says how to wait: ${cut_text(r_spawn, 200)}")
     c.expect(ck_find(rig, 1, "Часть главной") == "", "no child before the owner says yes")
     c.expect(rk_card_id(ck_state(rig, 1, p1), "Часть главной") > 0, "the card is in the state of the session")
     ro r_early = ctl_ask(rig, p1, "canopus_wait", "{\"target\":\"Часть главной\",\"seconds\":1}")
@@ -212,14 +212,14 @@ export fn scenario_canopus_tools(settings ServerSettings) Proc Detach Time Net F
 
     // 8. the doctor and the notes
     ro r_doc = ctl_ask(rig, p1, "canopus_doctor", "{}")
-    c.expect(r_doc.contains("canopus_doctor") && r_doc.contains("ветка"), "canopus_doctor: ${cut_text(r_doc, 240)}")
+    c.expect(r_doc.contains("doctor") && r_doc.contains("ветка"), "canopus_doctor: ${cut_text(r_doc, 240)}")
     ro r_step = ctl_ask(rig, p1, "canopus_step_note", "{\"reason\":\"пишу тест\",\"minutes\":10}")
     c.expect(r_step.contains("Записано") && ctl_notes_with(rig, p1, "пишу тест"), "canopus_step_note is in the journal of the session")
     ro r_bn = ctl_ask(rig, p1, "canopus_branch_note", "{\"what\":\"git switch main\",\"why\":\"проверка\",\"who\":\"владелец, 2026-10-28\"}")
     c.expect(r_bn.contains("записана") && ctl_notes_with(rig, p1, "смена каталога/ветки"), "canopus_branch_note is in the journal of the session")
     ro r_bn_bad = ctl_ask(rig, p1, "canopus_branch_note", "{\"what\":\"git switch main\"}")
     c.expect(r_bn_bad.contains("ERR"), "canopus_branch_note without the reason and the one who allowed is refused")
-    c.expect(ctl_notes_with(rig, p1, "▸ canopus_list") && ctl_notes_with(rig, p1, "▸ canopus_send"), "every call is written to the journal of the session")
+    c.expect(ctl_notes_with(rig, p1, "▸ list_sessions") && ctl_notes_with(rig, p1, "▸ send_message") && !ctl_notes_with(rig, p1, "▸ canopus_send"), "legacy aliases are recorded with the canonical name")
 
     // 10. the journals of the task: the lines are built by the hub, checked against the earlier ones, written only in the folder of the task of the session
     ro tdir = task_artifact_dir(ck_dir(rig, p1))
@@ -250,12 +250,12 @@ export fn scenario_canopus_tools(settings ServerSettings) Proc Detach Time Net F
     c.expect(j8.contains("задачи нет"), "a session with no task has no journals: ${cut_text(j8, 160)}")
     c.expect(ctl_ask(rig, "s-t1", "canopus_log_line", "{\"kind\":\"документ\",\"text\":\"x\"}").contains("задачи нет"), "and no log")
     c.expect(ctl_ask(rig, p1, "progress_line", "{\"code\":\"С9\",\"kind\":\"start\",\"n\":1}").contains("unknown tool"), "the old name progress_line is not a tool: no alias")
-    c.expect(ctl_notes_with(rig, p1, "▸ canopus_progress_line"), "the calls are in the journal of the session")
+    c.expect(ctl_notes_with(rig, p1, "▸ progress_line"), "the calls are in the journal of the session")
 
-    // 9. canopus_config is not there; the old canopus_task_list still works by its name
+    // 9. canopus_config is not there; the old canopus_task_list still works as an alias
     ro r_cfg = ctl_ask(rig, p1, "canopus_config", "{\"action\":\"show\"}")
     c.expect(r_cfg.contains("ERR") && r_cfg.contains("not available"), "canopus_config is refused: ${cut_text(r_cfg, 120)}")
-    c.expect(ck_list(rig, "s-t1", "t9", [ck_item("new", "Старый путь", 0, 0, ["z.txt"])], "Старый путь"), "canopus_task_list keeps its name and shows the card")
+    c.expect(ck_list(rig, "s-t1", "t9", [ck_item("new", "Старый путь", 0, 0, ["z.txt"])], "Старый путь"), "the canopus_task_list alias shows the card")
     rig.shut()
     c.report()
 }

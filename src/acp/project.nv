@@ -743,8 +743,10 @@ fn page_input_of(e Incoming, turn str) -> Option[PageInput] {
             // a line of the hub about the mode of work (task 192q: "subtask 2: new", the block of the independent review) is shown as a piece of text of the turn
             if e.name == "route_note" || e.name == "route_review" {
                 ro value = object_input(e)?
-                mut o = turn_object(turn)
-                put(o, "text", JsonValue.str(text_field(value, "text") ?? ""))
+                ro command = text_field(value, "command") ?? ""
+                ro text = text_field(value, "text") ?? ""
+                mut o = turn_object(if command == "" { turn } else { "" })
+                put(o, "text", JsonValue.str(if command == "" { text } else { "Канопус · ${command}\n\n${text}" }))
                 return page_input("agent_chunk", JsonValue.object(o))
             }
             if e.name == "turn_resume" || e.name == "turn_interrupt_queued" || e.name == "provider_recovery" {

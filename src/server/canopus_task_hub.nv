@@ -1,4 +1,4 @@
-// canopus_task_hub.nv - task 192.2: the hub side of `canopus_task` (the pure part is `canopus_task.nv`).
+// canopus_task_hub.nv - task 192.2: the hub side of `task` (the pure part is `canopus_task.nv`).
 //
 // The agent calls the tool (or writes the marker line); the hub shows a card (`route_state.proposals`) and creates NOTHING by itself. The owner answers with a button (`route_prop {id, action}`) or with the
 // code word in an ordinary message (the word is not sent to the agent). "new" makes the task (the first work of a session) or a subtask (`message.N.md` with the summary of the agent and the
@@ -210,12 +210,12 @@ fn Hub mut @ct_offer(at int, p0 Proposal) Proc Detach Time -> str {
     p.image_names = me.rt.last_names
     me.rt.props.push(p)
     @sessions[at] = me
-    @say_log("canopus_task of ${s.id}: ${p.kind} «${p.title}»")
+    @say_log("task of ${s.id}: ${p.kind} «${p.title}»")
     @route_broadcast(at, true)
     SHOWN_TEXT
 }
 
-/// A call of the tool `canopus_task` (a message of the MCP server of kind `task`): the card is shown, the agent gets the answer at once.
+/// A call of the tool `task` (a message of the MCP server of kind `task`): the card is shown, the agent gets the answer at once.
 fn Hub mut @ct_tool_call(msg McpMsg) Proc Detach Time -> () {
     ro at = @find(msg.session)
     if at < 0 {
@@ -511,7 +511,7 @@ fn Hub mut @task_continue(at int) Proc Detach Time -> () {
     // Persist before enqueue: replay must not duplicate a reminder after restart.
     @task_continue_record(at, s.turn, s.rt.continue_count + 1, "")
     @rt_note(at, "▸ Задача ${s.rt.number} не завершена: агенту отправлено напоминание продолжить.")
-    @ct_kick(at, s.rt.focus, "Задача ${s.rt.number} ещё активна. Продолжи порученную работу до проверенного результата: объяснение не завершает задачу (случай 311). Коммит, пуш, слияние и живая система требуют решения владельца. Если необходимо решение или есть внешняя блокировка, запиши canopus_step_note {stop: \"decision\" | \"external\", reason: \"точная причина и необходимый следующий шаг\"}; для готового результата укажи требуемое решение о приёмке. Явную паузу владельца соблюдай.")
+    @ct_kick(at, s.rt.focus, "Задача ${s.rt.number} ещё активна. Продолжи порученную работу до проверенного результата: объяснение не завершает задачу (случай 311). Коммит, пуш, слияние и живая система требуют решения владельца. Если необходимо решение или есть внешняя блокировка, запиши step_note {stop: \"decision\" | \"external\", reason: \"точная причина и необходимый следующий шаг\"}; для готового результата укажи требуемое решение о приёмке. Явную паузу владельца соблюдай.")
 }
 
 fn Hub @task_continue_wake(session str) -> bool {
@@ -690,7 +690,7 @@ fn Hub mut @ct_list_offer(at int, items []Proposal) Proc Detach Time -> int {
     added
 }
 
-/// A call of `canopus_task_list`: the card with the list is shown, the agent gets the answer at once.
+/// A call of `task_list`: the card with the list is shown, the agent gets the answer at once.
 fn Hub mut @ct_list_call(msg McpMsg) Proc Detach Time -> () {
     ro at = @find(msg.session)
     if at < 0 {
@@ -702,6 +702,7 @@ fn Hub mut @ct_list_call(msg McpMsg) Proc Detach Time -> () {
             ro told = msg.reply.send("err:${reason}")
         }
         Ok(items) => {
+            @say_log("task_list of ${msg.session}: ${items.len()} items")
             ro added = @ct_list_offer(at, items)
             if added == 0 { @ct_note(at, "▸ агент не нашёл новых задач") }
             @route_broadcast(at, true)

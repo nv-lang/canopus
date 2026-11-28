@@ -1,6 +1,6 @@
 // marker.nv - task 192.9: the fallback marker of the tools of the hub in the text of an answer of an agent.
 //
-// An agent that cannot call the MCP tools `canopus_task_list` / `canopus_task` writes one line at the end of its answer: `[[canopus_task_list]] {json}` (or `[[canopus_task]] {json}`).
+// An agent without MCP writes `[[task_list]] {json}` or `[[task]] {json}` at the end of its answer. The former prefixed markers remain readable.
 // The owner must never see it in the feed and the journal must not keep it as text of the answer: the client of ACP cuts it out of the chunks of the answer while they
 // travel (the marker may come in parts), and gives the cut marker as an event of its own (`canopus_marker`), that the hub reads when the turn is over.
 //
@@ -19,8 +19,7 @@ export type MarkerStep { out str, state MarkerState, found []str }
 /// The state before the first part of an answer.
 export fn marker_start() -> MarkerState => { tail: "", fence: false }
 
-const MARKER_LIST = "[[canopus_task_list]]"
-const MARKER_ONE = "[[canopus_task]]"
+fn marker_names() -> []str => ["[[task_list]]", "[[task]]", "[[canopus_task_list]]", "[[canopus_task]]"]
 
 fn is_blank_byte(b u8) -> bool => b == (32 as u8) || b == (9 as u8) || b == (10 as u8) || b == (13 as u8)
 
@@ -83,31 +82,31 @@ fn object_end(s str, from int) -> int {
 // The earliest marker name in `s` from `from`: its index and the name, -1 and "" when there is none.
 fn next_marker(s str, from int) -> MarkerAt {
     ro rest = s[from..]
-    ro a = rest.find(MARKER_LIST)
-    ro b = rest.find(MARKER_ONE)
-    match a {
-        Some(x) => match b {
-            Some(y) => if y < x { MarkerAt { at: from + y, name: MARKER_ONE } } else { MarkerAt { at: from + x, name: MARKER_LIST } }
-            None => MarkerAt { at: from + x, name: MARKER_LIST }
-        }
-        None => match b {
-            Some(y) => MarkerAt { at: from + y, name: MARKER_ONE }
-            None => MarkerAt { at: -1, name: "" }
+    mut first = MarkerAt { at: -1, name: "" }
+    for name in marker_names() {
+        match rest.find(name) {
+            Some(at) => {
+                if first.at < 0 || from + at < first.at { first = MarkerAt { at: from + at, name } }
+            }
+            None => ()
         }
     }
+    first
 }
 
 type MarkerAt { at int, name str }
 
 // How many bytes at the end of `s` (from `from`) may be the beginning of a marker name; 0 when none.
 fn name_prefix_len(s str, from int) -> int {
+    ro longest = "[[canopus_task_list]]".byte_len()
+    ro names = marker_names()
     ro n = s.byte_len() - from
-    mut k = if n < MARKER_LIST.byte_len() { n } else { MARKER_LIST.byte_len() }
+    mut k = if n < longest { n } else { longest }
     while k > 0 {
         ro at = s.byte_len() - k
         if s.is_char_boundary(at) {
             ro suffix = s[at..]
-            if MARKER_LIST.starts_with(suffix) || MARKER_ONE.starts_with(suffix) { return k }
+            for name in names { if name.starts_with(suffix) { return k } }
         }
         k -= 1
     }
@@ -214,5 +213,5 @@ export fn is_canopus_tool_title(title str) -> bool {
     } else if t.starts_with("mcp__canopus__") {
         t["mcp__canopus__".byte_len()..t.byte_len()]
     } else { "" }
-    name == "canopus_task_list" || name == "canopus_task" || name == "ask_user_question" || name == "canopus_next"
+    ["task_list", "task", "ask_user_question", "next_message", "canopus_task_list", "canopus_task", "canopus_next"].contains(name)
 }

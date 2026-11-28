@@ -404,7 +404,7 @@ fn Hub mut @route_make_task(session str, route str, text str, use_tree bool) Pro
     if explicit && !use_tree && route != "planning" { return no_task() }
     // a tree is made when the session wants one (the switch "Worktree") and the mode is not the planning (it writes the task and touches no code: the tree comes later)
     ro want_tree = repo && use_tree && route != "planning"
-    // task 192.2: the mode "interactive" makes a task only for a confirmed proposal (`canopus_task`, `canopus_task_list`), see canopus_task_hub.nv
+    // task 192.2: the mode "interactive" makes a task only for a confirmed proposal (`task`, `task_list`), see canopus_task_hub.nv
     // Reserve a directory only. Existing owner-message/card guards still decide whether a task opens.
     ro reserved = @shared_task_reserve(own, subtask_title(text))
     if !reserved.ok { @say_log(reserved.text); return no_task() }

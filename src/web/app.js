@@ -5,6 +5,7 @@
 // транспорт; сервер остаётся источником истории. Локальная копия delivery.js хранит текст до
 // подтверждения, а не выдаёт запись в сокет за принятие сервером.
 
+import { isHubCommand } from './commands.js';
 import {
   initialModel, reduce, makeEvent, nextStep, normalizeTheme, nextTheme, THEME_KEY, beginSwitch, undoSwitch,
   addDraft, dropDrafts, patchDraft, nameFromText, agentMail,
@@ -345,16 +346,17 @@ function savedSession(trace) {
     daemonId: s.daemonId || (s.draft ? ui.daemonIds[0] : '') || '',
     route: normalizeRoute(s.route), worktree: s.worktree === true, sourceBranch: s.sourceBranch || '', source: s.source || null, preset: s.preset || '', approvals: s.approvals || {}, createdAt: s.createdAt } : null;
 }
-function sendMessage(trace, text, images = [], reserved = null, urgent = false) {
-  if (reserved) return attemptMessage({ ...reserved, trace, text, images });
+function sendMessage(trace, text, images = [], reserved = null, urgent = false, asText = false) {
+  if (reserved) return attemptMessage({ ...reserved, trace, text, images, asText });
   const input = messageInput(newId(), text, images);
   if (urgent) input.urgent = true;
+  if (asText) input.as_text = true;
   const event = makeEvent('user_message', trace, nextStep(model, trace), input, ctx);
   if (!delivery.add(event, savedSession(trace))) {
     flash(t('delivery.storage'));
     return false;
   }
-  return attemptMessage({ id: event.id, trace, text, images, clientTurn: event.input.turn, urgent });
+  return attemptMessage({ id: event.id, trace, text, images, clientTurn: event.input.turn, urgent, asText });
 }
 
 function attemptMessage(item, attempt = 0) {
@@ -368,6 +370,7 @@ function attemptMessage(item, attempt = 0) {
     if (!delivery.items(trace).some(r => r.id === id && r.state === 'sending')) return true;
     const input = messageInput(item.clientTurn || newId(), item.text, uploaded);
     if (item.urgent) input.urgent = true;
+    if (item.asText) input.as_text = true;
     const event = makeEvent('user_message', trace, nextStep(model, trace), input, ctx);
     event.id = id;
     try {
@@ -408,14 +411,14 @@ function retryMessage(item, attempt = 0) {
 }
 
 // The confirmed selection stays local until the owner sends a message.
-async function prepareHandoff(trace, choice, text, images) {
+async function prepareHandoff(trace, choice, text, images, asText = false) {
   const up = images.length ? await uploadImages(trace, images, postImage) : { ok: true, images: [] };
   if (!up.ok) {
     flash(t('images.upload_failed', { name: up.name, reason: safeError(up.error) }));
     return false;
   }
   const event = makeEvent('user_message', trace, nextStep(model, trace), {
-    ...messageInput(newId(), text, up.images), handoff: choice.source,
+    ...messageInput(newId(), text, up.images), handoff: choice.source, ...(asText ? { as_text: true } : {}),
   }, ctx);
   if (!delivery.add(event, savedSession(trace))) {
     flash(t('delivery.storage'));
@@ -458,11 +461,13 @@ function restoreTarget(session) {
 }
 
 const waitingRoute = new Set();
-function sendAfterRestore(trace, text, images) {
+function sendAfterRestore(trace, text, images, asText) {
   const session = model.sessions[trace];
   if (!ui.historyPreview.has(trace) || !session || !text || images.length || ui.restoreQueued.has(trace)) return false;
   if (session.source?.family && session.source.family !== session.agent) return false;
-  const event = makeEvent('user_message', trace, 0, messageInput(newId(), text, []), ctx);
+  const input = messageInput(newId(), text, []);
+  if (asText) input.as_text = true;
+  const event = makeEvent('user_message', trace, 0, input, ctx);
   if (!delivery.add(event, savedSession(trace), 'waiting_restore')) {
     flash(t('delivery.storage'));
     return false;
@@ -485,7 +490,7 @@ function drainRestoreQueue() {
       continue;
     }
     const item = delivery.beginRetry(queued.id, 'waiting_restore');
-    if (item) { sendMessage(trace, item.text, [], item); sent.add(trace); }
+    if (item) { sendMessage(trace, item.text, [], item, false, item.asText); sent.add(trace); }
     else delivery.failed(queued.id, t('delivery.storage'));
   }
   return sent;
@@ -532,7 +537,7 @@ function drain() {
     if (item === undefined) continue;
     // в очереди лежит { text, images }: картинки уходят на сервер при выдаче, а не при постановке
     const images = item.images ?? [];
-    const delivered = handlers.onSend(trace, item.text, images);
+    const delivered = handlers.onSend(trace, item.text, images, false, item.asText);
     if (typeof delivered?.then !== 'function') {
       if (!delivered) queue.restore(trace, item);
     } else {
@@ -584,8 +589,8 @@ const handlers = {
     render();
   },
   queued(trace) { return queue.count(trace); },
-  onQueue(trace, text, images = []) {
-    queue.push(trace, { text, images });
+  onQueue(trace, text, images = [], asText = false) {
+    queue.push(trace, { text, images, asText });
     render();
     drain();
     return true;
@@ -721,29 +726,30 @@ const handlers = {
     clip.writeText(text).then(() => flash(t('chat.copied'), 'info'), () => flash(t('chat.copy_failed')));
   },
   // Без картинок — как раньше, сразу. С картинками — сначала они на сервер по очереди, потом сообщение с их номерами.
-  onSend(trace, text, images = [], urgent = false) {
+  onSend(trace, text, images = [], urgent = false, asText = false) {
     const draft = model.sessions[trace];
-    if (ui.historyPending.has(trace)) return sendAfterRestore(trace, text, images);
+    if (!asText && isHubCommand(text) && draft && !draft.draft) return sendMessage(trace, text);
+    if (ui.historyPending.has(trace)) return sendAfterRestore(trace, text, images, asText);
     if (ui.restoreQueued.has(trace) || !applyDeferredSource(trace)) return false;
     const choice = ui.handoffStatus.get(trace);
     if (choice?.phase === 'preparing') return false;
     if (choice?.phase === 'selected') {
       if (!draft || draft.agent !== choice.previous || isBusy(draft.state) || draft.pendingQuestion) return false;
-      return prepareHandoff(trace, choice, text, images);
+      return prepareHandoff(trace, choice, text, images, asText);
     }
     if (choice?.phase === 'error') {
       if (!choice.retryable) return false;
-      if (needsContextHandoff(draft, choice.source)) return prepareHandoff(trace, choice, text, images);
+      if (needsContextHandoff(draft, choice.source)) return prepareHandoff(trace, choice, text, images, asText);
       ui.handoffStatus.delete(trace);
     }
     if (needsContextHandoff(draft, draft?.source)) {
       if (draft.pendingQuestion || isBusy(draft.state)) return false;
-      return prepareHandoff(trace, { previous: draft.agent, source: draft.source }, text, images);
+      return prepareHandoff(trace, { previous: draft.agent, source: draft.source }, text, images, asText);
     }
     let reserved = null;
     if (draft && draft.draft) {
       // Protect the first message before even creating its session (creation may fail too).
-      const event = makeEvent('user_message', trace, 0, { text, turn: newId(), images }, ctx);
+      const event = makeEvent('user_message', trace, 0, { text, turn: newId(), images, ...(asText ? { as_text: true } : {}) }, ctx);
       if (!delivery.add(event, savedSession(trace))) { flash(t('delivery.storage')); return false; }
       reserved = { id: event.id, clientTurn: event.input.turn };
       // первое сообщение черновика: сначала создаётся сессия (проект, папка, агент), потом уходит сообщение
@@ -776,7 +782,7 @@ const handlers = {
       ui.awaiting = trace;
       watchCreated(trace);
     }
-    return sendMessage(trace, text, images, reserved, urgent);
+    return sendMessage(trace, text, images, reserved, urgent, asText);
   },
   onCancel(trace) {
     const session = model.sessions[trace];
@@ -1027,6 +1033,11 @@ async function start() {
     WebSocketImpl: globalThis.WebSocket, timers,
     onEvent(event) {
       try {
+        if (event.kind === 'composer_commands') {
+          ui.commands = Array.isArray(event.commands) ? event.commands : [];
+          render();
+          return;
+        }
         const handoff = ui.handoffStatus.get(event.trace);
         if (event.kind === 'handoff_progress') {
           if (handoff?.phase === 'preparing' && event.input?.phase === 'compacting') {

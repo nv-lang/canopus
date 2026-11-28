@@ -974,6 +974,7 @@ export fn Hub mut @attach_lazy(conn int) -> () {
     @send(conn, "{\"kind\":\"sessions_index\",\"entries\":${@session_index()}}")
     @interrupt_attach(conn)
     @send_sessions_ready(conn)
+    @send_page_commands(conn)
     ro known = @catalog_lines()
     if known.len() > 0 { @send(conn, array_text(known)) }
 }
@@ -1041,6 +1042,7 @@ export fn Hub mut @attach(conn int) -> () {
     @req_attach(conn)
     @interrupt_attach(conn)
     @send_sessions_ready(conn)
+    @send_page_commands(conn)
 }
 
 /// A page is gone (it is not told anything more).
@@ -1079,9 +1081,9 @@ fn Hub @ask_for(agent str, id str) -> AskSetup {
     AskSetup { form: setup.form, mcp_url: url, mcp_token: @mcp_token_value(), hint }
 }
 
-const NEXT_HINT = "[canopus] Если уместно предложить следующее сообщение, вызови canopus_next(prompt). Напиши prompt от лица пользователя с учётом принятых решений. Пользователь может подставить текст в поле ввода. Для вопросов, подтверждений и разрешений используй штатные формы."
+const NEXT_HINT = "[canopus] Если уместно предложить следующее сообщение, вызови next_message(prompt). Напиши prompt от лица пользователя с учётом принятых решений. Пользователь может подставить текст в поле ввода. Для вопросов, подтверждений и разрешений используй штатные формы."
 
-// Task 192.2: the tools of the recognition of the tasks go to every agent that takes an HTTP MCP server: `canopus_task_list` always (the button), `canopus_task` when `route_auto_propose`.
+// Task 192.2: the tools of the recognition of the tasks go to every agent that takes an HTTP MCP server: `task_list` always (the button), `task` when `route_auto_propose`.
 fn Hub @ask_with_tasks(base AskSetup, id str) -> AskSetup {
     if !@settings.route_tool || @mcps.len() == 0 { return AskSetup { form: base.form, mcp_url: base.mcp_url, mcp_token: base.mcp_token, hint: base.hint } }
     ro auto = @settings.route_auto_propose
@@ -1093,7 +1095,7 @@ fn Hub @ask_with_tasks(base AskSetup, id str) -> AskSetup {
 
 fn Hub @mcp_url_tools(id str, tools str) -> str => if tools == "all" { @mcp_url_for(id) } else { "${@mcp_url_for(id)}/${tools}" }
 
-const TASK_HINT = "[canopus] Когда замечаешь реальную работу над файлами проекта (не вопрос и не беседу), вызови инструмент canopus_task (сервер crew) до первой правки файла."
+const TASK_HINT = "[canopus] Когда замечаешь реальную работу над файлами проекта (не вопрос и не беседу), вызови инструмент task (сервер canopus) до первой правки файла."
 
 fn Hub @ask_base(agent str, id str) -> AskSetup {
     if !@settings.ask_form { return no_ask() }
@@ -2083,7 +2085,8 @@ fn Hub mut @say_with_source(trace str, text str, items []JsonValue, source Optio
         }
     }
     // task 192.2: the code word answers the last card of a proposal of a task and is not sent to the agent
-    if items.len() == 0 && @ct_word(at, text) { return }
+    ro native_command = text.starts_with("//")
+    if !text.starts_with("/") && items.len() == 0 && @ct_word(at, text) { return }
     if !@takes_message_at(at) {
         @say_log("a message to ${trace} while a turn is open: ignored")
         return
@@ -2147,16 +2150,16 @@ fn Hub mut @say_with_source(trace str, text str, items []JsonValue, source Optio
         @provider_record(at, "reset", "", "", 0, "")
     }
     @ct_remember(at, text, prepared.files)
-    ro reminder = @route_reminder_of(at)
+    ro reminder = if native_command { "" } else { @route_reminder_of(at) }
     @req_part(at, "reminder", "Напоминание режима", reminder)
-    ro prelude0 = @route_message_prelude(at)
+    ro prelude0 = if native_command { "" } else { @route_message_prelude(at) }
     ro prelude = if prelude0.byte_len() > 0 { "${reminder}\n\n${prelude0}" } else { reminder }
     // task 192.11: the request of this turn for the page "Запрос"
-    @req_commit(at, "", req_owner_parts(text, prepared.files))
+    @req_commit(at, "", req_owner_parts(if native_command { text[1..] } else { text }, prepared.files), native_command: native_command)
     ro message = Incoming.signal("user_message", text)
     match staged {
         Some(mut job) => {
-            job.client.set_prelude(prelude)
+            job.client.set_prelude(prelude, native_command: native_command)
             job.client.attach_images(prepared.files)
             feed_turn(@settings.store == "pg", @settings.data_dir, s, job.client, message)
             job.prompt = job.client.held_handoff_prompt()
@@ -2164,7 +2167,7 @@ fn Hub mut @say_with_source(trace str, text str, items []JsonValue, source Optio
             else { job.client.close() }
         }
         None => {
-            if prelude.byte_len() > 0 { s.clients[0].set_prelude(prelude) }
+            if native_command || prelude.byte_len() > 0 { s.clients[0].set_prelude(prelude, native_command: native_command) }
             s.clients[0].attach_images(prepared.files)
             if context != "" { s.clients[0].set_handoff_context(context) }
             feed_turn(@settings.store == "pg", @settings.data_dir, s, s.clients[0], message)
@@ -3402,13 +3405,31 @@ fn Hub mut @page_message(conn int, trace str, client_id str, input JsonObject, q
     }
     ro text = jtext(input, "text")
     ro images = jlist(input, "images")
-    if !queued && before_at >= 0 && jflag(input, "urgent") && !@takes_message_at(before_at)
+    ro command = !jflag(input, "as_text") && text.starts_with("/") && !text.starts_with("//")
+    if !command && !queued && before_at >= 0 && jflag(input, "urgent") && !@takes_message_at(before_at)
         && (text.byte_len() > 0 || images.len() > 0) {
         @start_interrupt(before_at, Some(input), client_id, 0)
         return
     }
     ro error_start = @out.len()
-    @say_with_source(trace, text, images, jchild(input, "handoff"), context: context)
+    mut command_accepted = false
+    if command {
+        if before_at >= 0 {
+            ro result = if images.len() == 0 { @run_page_command(before_at, text) } else { ctl_err("Команды Канопуса принимают только текстовые аргументы.") }
+            if result.kind == "ok" {
+                mut note = JsonObject.new()
+                js(note, "command", text.trim_ascii())
+                js(note, "text", result.text)
+                @rt_journal(before_at, "route_note", JsonValue.object(note).to_str())
+                command_accepted = true
+            } else {
+                @tell_error(conn, trace, @sessions[before_at].engine.step_number(), "", result.text)
+                @send_page_commands(conn)
+            }
+        }
+    } else {
+        @say_with_source(trace, text, images, jchild(input, "handoff"), context: context)
+    }
     // Synchronous pre-turn refusals belong to this send, not to the previous engine turn.
     mut error_at = error_start
     while error_at < @out.len() {
@@ -3430,6 +3451,7 @@ fn Hub mut @page_message(conn int, trace str, client_id str, input JsonObject, q
             }
             None => ()
         }
+        @out[error_at] = outgoing
         error_at += 1
     }
     ro after_at = @find(trace)
@@ -3437,9 +3459,10 @@ fn Hub mut @page_message(conn int, trace str, client_id str, input JsonObject, q
         mut s = @sessions[after_at]
         mut receipt = JsonObject.new()
         jput(receipt, "client_id", JsonValue.str(client_id))
-        ro accepted = s.turn.byte_len() > 0 && s.turn != previous_turn
-        jput(receipt, "accepted", JsonValue.bool(accepted))
-        jput(receipt, "turn", JsonValue.str(if accepted { s.turn } else { "" }))
+        ro opened = !command && s.turn.byte_len() > 0 && s.turn != previous_turn
+        jput(receipt, "accepted", JsonValue.bool(opened || command_accepted))
+        if command { jput(receipt, "command", JsonValue.bool(true)) }
+        jput(receipt, "turn", JsonValue.str(if opened { s.turn } else { "" }))
         // A host metadata event: no scenario transition, no provider payload or secret is journalled.
         accept_in(@settings.store == "pg", @settings.data_dir, s, Incoming.signal("message_delivery", JsonValue.object(receipt).to_str()))
         @drain(after_at)

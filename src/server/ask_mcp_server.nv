@@ -271,7 +271,11 @@ fn tool_descriptions(layout ConfigLayout) -> []str {
     for name in tool_names() {
         // D454: boundary override inside non-test code, see module-conventions (Fs would leak through serve_connection -> start_mcp_server_in to hub.nv)
         ro p = with Fs = real_fs() { pick_prompt(layout, "tool_${name}", "") }
-        if p.text.byte_len() > 0 { out.push(name); out.push(p.text) }
+        ro legacy = legacy_tool_name(name)
+        ro desc = if p.text == "" && legacy != name {
+            with Fs = real_fs() { pick_prompt(layout, "tool_${legacy}", "") }.text
+        } else { p.text }
+        if desc.byte_len() > 0 { out.push(name); out.push(desc) }
     }
     out
 }

@@ -277,35 +277,38 @@ the text is cut, not parsed, so the comments stay. The agent is started with `XD
 The named `OPENCODE_KEEP_PLUGIN` code constant is `false`; this policy is not selected through the environment. The internal explicit-policy function retains the alternate behaviour for tests and future schema changes. The names of the tools of the hub do not clash with the plugin's ones in the agent any more (the plugin has its own `canopus_task`, the tool of
 the integrator for the tasks of a project: `show`, `assign`, `submit`...; the `canopus_task` of the hub proposes one task to the owner).
 
-### The tools `canopus_*` of the plugin in the product (task 250, ADR-0015)
+### The hub tools (task 250, ADR-0015)
 
-The tools that the plugin of OpenCode gives its agents (`opencode-plugin/core.ts` and the three journals of `journal.ts`) work in the product itself, over the same MCP server (`canopus`), by the same names (the owner, 2026-10-28: «инструменты crew_* должны работать
+The tools that the plugin of OpenCode gives its agents (`opencode-plugin/core.ts` and the three journals of `journal.ts`) work in the product itself, over the MCP server `canopus` (the owner, 2026-10-28: «инструменты crew_* должны работать
 в самом продукте Крю; плагин OpenCode в этом никак не участвует»). The plugin is read only for the ideas; the hub does not call it. The inventory with the decision for every tool is
 `docs/tasks/250-crew-tools-port/input/inventory.md`. A call is a message of the MCP server of kind `ctl` (`ask_mcp.nv` checks the arguments that need no hub, `canopus_tools_hub.nv` does the work); the result is a text for the agent.
-Every call is written to the journal of the session (a line `▸ canopus_…` in the feed) and to the panel «Машины» («Служебные подсказки»: the arguments and the result).
+Tool call records use the canonical name in the feed and in the «Машины» panel. A feed entry begins with the tool name, for example `▸ send_message`.
 
 | Tool | What it does in the hub | Differs from the plugin |
 |---|---|---|
-| `canopus_list {all?}` | the sessions of the project (role, busy or free, task, epic, parent), the open tasks, «в работе N из route_max_active» | sessions, not tabs |
-| `canopus_role {role?}` | the role by the mode and the tree: orchestrator (children or an epic), executor (a task or a child), acceptor, worker | not assigned by a call; a different `role` is refused |
-| `canopus_send {to, text, wake?, urgent?, expect_reply?, reply_to?}` | a service letter; `to`: session id, number of a task, `parent`, `children`; wake=true is a service turn of the recipient when its agent is free (the feed shows «[canopus] Письмо от …»), wake=false waits in `canopus_inbox`; urgent=true with wake=true requests cancellation of an open dialog turn | no `tier`, no `project.role`, no `all` |
-| `canopus_inbox {limit?}` | the letters of the session: new ones are handed over (and read), then the read ones | the same |
-| `canopus_wait {target?, seconds?}` | up to 300 s in the same turn: the answer to a qid; a child by number, id or title until it is «готово» or «слита» (a child that waits for the owner's yes is waited for too); `children`; any letter | the same, wider targets |
-| `canopus_spawn {goal, criteria?, title?, touches?, kind?, agent?}` | a work for a NEW worker: a card for the owner; the child (or a task of its own) is made only after his «да», under `route_max_active` | a proposal, not an order of the integrator |
-| `canopus_task {action?, …}` | without `action` the old proposal of a task (as before); `list`, `show {n}`, `submit {text}` (a child reports to its orchestrator), `push {n, text}`; the other actions of the plugin are buttons of the owner and are refused with the reason | one tool for both meanings |
-| `canopus_timer {minutes\|seconds, note?}` | a letter wakes the session later; up to 719 min, 20 per session | lives while the hub runs |
-| `canopus_watch {on, target?, note?, minutes?}` | a subscription: `child`, `children`, `reply`, `idle`; without `on` the list; `action: cancel` | the hub does not run a `command` (refused with the reason) |
-| `canopus_doctor` | the hub and the session: folder, tree, branch, limit, children that wait, unread letters | no settings |
-| `canopus_step_note {reason, minutes?, done?}` | a note of the step in the journal of the session | no terms and no owner's decisions of the plugin |
-| `canopus_branch_note {what, why, who, directory?, branch?}` | the reason of a change of the folder or the branch (AGENTS.md, 6a) in the journal, with the folder and the branch the hub knows | the hub does not block commands |
-| `canopus_progress_line {code, kind, k?, n?, pass?, stop?, text?, to?}` | the line of `progress.log` of the task of THIS session, built by the hub (the keyword, the local time) and checked against the earlier lines of the session: start, then steps with no gap, then done or stop; a correction; a step also marks the k-th box of `progress.md` when N is the number of the boxes. A session with no task: «задачи нет»; a path out of the folder of the task, the folder of another task and another file name are refused | `progress_line` of the plugin under a new name; no launch line |
-| `canopus_log_line {kind, text}` | an entry `YYYY-MM-DD HH:MM <kind>: <text>` of `log.md` of the task, the kind from the closed list of the Canon | `log_line` under a new name |
-| `canopus_usage_line {code, result}` | one JSON line (`v: 1`) of `usage.log` next to the `progress.log` of the task | `usage_line` under a new name; no tokens or cost (the hub does not measure them) |
-| `canopus_help` | this table, shortened | |
-| `canopus_config` | **not here**: the structure of the configs is being discussed with the owner; the call answers «not available yet», no settings file is read or written | postponed |
+| `list_sessions {all?}` | the sessions of the project (role, busy or free, task, epic, parent), the open tasks, «в работе N из route_max_active» | sessions, not tabs |
+| `role {role?}` | the role by the mode and the tree: orchestrator (children or an epic), executor (a task or a child), acceptor, worker | not assigned by a call; a different `role` is refused |
+| `send_message {to, text, wake?, urgent?, expect_reply?, reply_to?}` | a service letter; `to`: session id, number of a task, `parent`, `children`; wake=true is a service turn of the recipient when its agent is free (the feed shows «[canopus] Письмо от …»), wake=false waits in `inbox`; urgent=true with wake=true requests cancellation of an open dialog turn | no `tier`, no `project.role`, no `all` |
+| `inbox {limit?}` | the letters of the session: new ones are handed over (and read), then the read ones | the same |
+| `wait_event {target?, seconds?}` | up to 300 s in the same turn: the answer to a qid; a child by number, id or title until it is «готово» or «слита» (a child that waits for the owner's yes is waited for too); `children`; any letter | the same, wider targets |
+| `spawn {goal, criteria?, title?, touches?, kind?, agent?}` | a work for a NEW worker: a card for the owner; the child (or a task of its own) is made only after his «да», under `route_max_active` | a proposal, not an order of the integrator |
+| `task {action?, …}` | without `action` the old proposal of a task (as before); `list`, `show {n}`, `submit {text}` (a child reports to its orchestrator), `push {n, text}`; the other actions of the plugin are buttons of the owner and are refused with the reason | one tool for both meanings |
+| `timer {minutes\|seconds, note?}` | a letter wakes the session later; up to 719 min, 20 per session | lives while the hub runs |
+| `watch {on, target?, note?, minutes?}` | a subscription: `child`, `children`, `reply`, `idle`; without `on` the list; `action: cancel` | the hub does not run a `command` (refused with the reason) |
+| `doctor` | the hub and the session: folder, tree, branch, limit, children that wait, unread letters | no settings |
+| `step_note {reason, minutes?, done?}` | a note of the step in the journal of the session | no terms and no owner's decisions of the plugin |
+| `branch_note {what, why, who, directory?, branch?}` | the reason of a change of the folder or the branch (AGENTS.md, 6a) in the journal, with the folder and the branch the hub knows | the hub does not block commands |
+| `progress_line {code, kind, k?, n?, pass?, stop?, text?, to?}` | the line of `progress.log` of the task of THIS session, built by the hub (the keyword, the local time) and checked against the earlier lines of the session: start, then steps with no gap, then done or stop; a correction; a step also marks the k-th box of `progress.md` when N is the number of the boxes. A session with no task: «задачи нет»; a path out of the folder of the task, the folder of another task and another file name are refused | `progress_line` of the plugin; no launch line |
+| `log_line {kind, text}` | an entry `YYYY-MM-DD HH:MM <kind>: <text>` of `log.md` of the task, the kind from the closed list of the Canon | `log_line` of the plugin |
+| `usage_line {code, result}` | one JSON line (`v: 1`) of `usage.log` next to the `progress.log` of the task | `usage_line` of the plugin; no tokens or cost (the hub does not measure them) |
+| `help` | this table, shortened | |
+| `task_list {tasks}` | recognition of the discussed work on the hub’s request | |
+| `next_message {prompt}` | suggestion for the owner’s next message | |
 
 The ordinary letters, waits, timers and watches live in the memory of the hub (a restart forgets them); the records of the calls stay in the journal. The exception is stale MCP recovery (task 263): the late answer and its recovery marker are one journal input, unread recovery is materialized once by stable session/question identity after restart, and a journaled read marker prevents redelivery after reading. This never wakes the agent or restores the expired HTTP call. Dangerous things go the existing way: a new worker only
 by the card of the owner and under the limit; nothing changes the settings. The tools come with every set of the MCP tools but the old «question only» one (`ask_user_question`); which agent family sees them is task 192.9.
+MCP advertises canonical names only. Calls and description files using the former `canopus_` names remain supported.
+
 Tests: `src/server/canopus_tools_test.nv` (the definitions, the checks, the roles, the letters), `src/server/canopus_task_test.nv` (the sets), the scenario `scenario_canopus_tools` (`canopus_tools_kit.nv`, run by `src/server_canopus_live/canopus_tools_live_test.nv`;
 the fake agent calls any tool with the word `ctl <tool> <json>`).
 

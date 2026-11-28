@@ -43,7 +43,7 @@ fn has_name(names []str, name str) -> bool {
 test "canopus_tools: every set but the old one lists the control tools and canopus_task, canopus_config is not among them" {
     for set in ["all", "list", "asklist", "task"] {
         ro names = tnames(mcp_handle_for("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}", set).text)
-        for want in ["canopus_list", "canopus_role", "canopus_send", "canopus_next", "canopus_inbox", "canopus_wait", "canopus_spawn", "canopus_timer", "canopus_watch", "canopus_doctor", "canopus_step_note", "canopus_branch_note", "canopus_help", "canopus_task", "canopus_task_list", "canopus_progress_line", "canopus_log_line", "canopus_usage_line"] {
+        for want in ["list_sessions", "role", "send_message", "next_message", "inbox", "wait_event", "spawn", "timer", "watch", "doctor", "step_note", "branch_note", "help", "task", "task_list", "progress_line", "log_line", "usage_line"] {
             assert(has_name(names, want))
         }
         assert(!has_name(names, "canopus_config"))
@@ -56,7 +56,7 @@ test "canopus_tools: a call goes to the hub as a message of kind ctl with the to
     ro out = tcall("canopus_send", "{\"to\":\"parent\",\"text\":\"готово\",\"expect_reply\":true}", "all")
     assert(out.kind == "ctl")
     ro body = tj(out.questions)
-    assert(tget(body, "tool").str() == Some("canopus_send"))
+    assert(tget(body, "tool").str() == Some("send_message"))
     assert(tget(tget(body, "arguments"), "to").str() == Some("parent"))
     ro none = tcall("canopus_list", "{}", "list")
     assert(none.kind == "ctl")
@@ -96,7 +96,7 @@ test "canopus_tools: canopus_task with an action is the work with the tasks, wit
     // the old call is still refused where it was refused (a session with no proposals)
     ro refused = tcall("canopus_task", "{\"kind\":\"new\",\"title\":\"Кнопка\",\"summary\":\"сделать\"}", "list")
     assert(refused.kind == "reply")
-    // the old tool canopus_task_list keeps its name
+    // the legacy alias still works for the separate task_list tool
     ro tl = tcall("canopus_task_list", "{\"tasks\":[]}", "list")
     assert(tl.kind == "tasklist")
 }
@@ -135,7 +135,7 @@ test "canopus_tools: the help names every tool and says canopus_config is not he
     ro help = ctl_help_text()
     for name in ctl_names() { assert(help.contains(name)) }
     for name in journal_tool_names() { assert(help.contains(name)) }
-    assert(help.contains("canopus_task"))
+    assert(help.contains("task"))
     assert(!help.contains("canopus_config {"))
 }
 
@@ -150,7 +150,42 @@ test "336 canopus_next requires a prompt string before routing a call to the hub
         assert(rejected.text.contains("argument"))
     }
     ro listed = mcp_handle_for("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}", "next")
-    assert(tnames(listed.text) == ["canopus_next"])
+    assert(tnames(listed.text) == ["next_message"])
     assert(tcall("canopus_list", "{}", "next").kind == "reply")
     assert(tcall("ask_user_question", "{}", "next").kind == "reply")
+}
+
+test "337: MCP advertises canonical names and normalizes aliases before dispatch" {
+    ro listed = mcp_handle_for("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}", "all")
+    ro names = tnames(listed.text)
+    for name in ["send_message", "task", "wait_event", "watch", "next_message", "doctor"] {
+        assert(has_name(names, name))
+    }
+    for name in names { assert(!name.starts_with("canopus_")) }
+    for pair in [["canopus_send", "send_message"], ["canopus_task", "task"], ["canopus_wait", "wait_event"], ["canopus_watch", "watch"], ["canopus_next", "next_message"], ["canopus_doctor", "doctor"]] {
+        ro args = "{\"to\":\"parent\",\"text\":\"test\",\"action\":\"list\",\"prompt\":\"test\"}"
+        ro aliased = tcall(pair[0], args, "all")
+        ro canonical = tcall(pair[1], args, "all")
+        assert(aliased.kind == "ctl" && canonical.kind == "ctl")
+        assert(aliased.questions == canonical.questions)
+        assert(tget(tj(aliased.questions), "tool").str() == Some(pair[1]))
+    }
+}
+
+test "337: local commands stay in the hub and a tunnel reaches the ACP agent verbatim" {
+    ro settings = ServerSettings { ...kit_files("slash-337", 60000), acp_trace: true }
+    mut rig = rig_open(settings)
+    rig.attach(1)
+    rig.page(1, "session_created", "slash", "{\"name\":\"Команды\",\"agent\":\"opencode\"}")
+    rig.page(1, "user_message", "slash", "{\"text\":\"/task\"}")
+    assert(rig.until("Открытых задач нет.", 3000))
+    assert(ctl_turns_with(rig, "slash", "/task") == 0)
+    rig.page(1, "user_message", "slash", "{\"text\":\"/xyz\"}")
+    assert(rig.until("Исправьте команду", 3000))
+    assert(ctl_turns_with(rig, "slash", "/xyz") == 0)
+    rig.page(1, "user_message", "slash", "{\"text\":\"//artifact пример\"}")
+    assert(rig.until(KIT_DONE, 6000))
+    ro wire = kit_file_text(kit_session_file(settings, "slash", "acp.jsonl"))
+    assert(wire.contains("session/prompt") && wire.contains("\\\"text\\\":\\\"/artifact пример\\\""))
+    rig.shut()
 }

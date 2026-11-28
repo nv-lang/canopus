@@ -1,4 +1,4 @@
-// canopus_journal_hub.nv - task 250: the hub side of the tools of the journals of a task: `canopus_progress_line`, `canopus_log_line`, `canopus_usage_line` (the pure part is `canopus_journal.nv`).
+// canopus_journal_hub.nv - task 250: the hub side of the tools of the journals of a task: `progress_line`, `log_line`, `usage_line` (the pure part is `canopus_journal.nv`).
 //
 // The files lie in the folder of the task of the SESSION that calls (`rt.task_dir`: `docs/tasks/NNN-slug/input/` in the tree of the task, or a folder in the data folder, as for message.md); the names are fixed
 // (progress.log, log.md, usage.log), only appending, the path cannot leave the folder: the optional argument `file` is checked against the folder of the task of the caller, so a session can write the
@@ -98,7 +98,7 @@ fn Hub mut @jr_mark_box(at int, k int, n int) -> str {
 
 fn Hub mut @jr_progress(at int, a JsonObject) Proc Detach Time -> CtlRes {
     ro dir = @jr_dir(at)
-    if dir.byte_len() == 0 { return ctl_err("Не записано: задачи нет — у этой сессии нет папки задачи, журналу некуда писать. Задача появляется после «да» владельца на карточке (canopus_task, canopus_spawn).") }
+    if dir.byte_len() == 0 { return ctl_err("Не записано: задачи нет — у этой сессии нет папки задачи, журналу некуда писать. Задача появляется после «да» владельца на карточке (task, spawn).") }
     ro bad_file = @jr_file_reason(at, jtext(a, "file"), "progress.log")
     if bad_file.byte_len() > 0 { return ctl_err("Не записано: ${bad_file}") }
     ro kind_word = jtext(a, "kind").trim_ascii().to_ascii_lower()
@@ -128,7 +128,7 @@ fn Hub mut @jr_progress(at int, a JsonObject) Proc Detach Time -> CtlRes {
                 Err(e) => ()
             }
         }
-        if !parsed { return ctl_err("Не записано: счёт «${unit}» не k/N числами; лучше k и n отдельно: canopus_progress_line {code: \"С2\", kind: \"step\", k: 4, n: 13, text: \"что сделано\"}") }
+        if !parsed { return ctl_err("Не записано: счёт «${unit}» не k/N числами; лучше k и n отдельно: progress_line {code: \"С2\", kind: \"step\", k: 4, n: 13, text: \"что сделано\"}") }
     }
     ro path = "${dir}/progress.log"
     ro was_there = path_there(path)
@@ -144,7 +144,7 @@ fn Hub mut @jr_progress(at int, a JsonObject) Proc Detach Time -> CtlRes {
 
 fn Hub mut @jr_log(at int, a JsonObject) Proc Detach Time -> CtlRes {
     ro dir = @jr_dir(at)
-    if dir.byte_len() == 0 { return ctl_err("Не записано: задачи нет — у этой сессии нет папки задачи, журналу некуда писать. Задача появляется после «да» владельца на карточке (canopus_task, canopus_spawn).") }
+    if dir.byte_len() == 0 { return ctl_err("Не записано: задачи нет — у этой сессии нет папки задачи, журналу некуда писать. Задача появляется после «да» владельца на карточке (task, spawn).") }
     ro bad_file = @jr_file_reason(at, jtext(a, "file"), "log.md")
     if bad_file.byte_len() > 0 { return ctl_err("Не записано: ${bad_file}") }
     ro built = journal_build_log(jtext(a, "kind"), jtext(a, "text"), @jr_stamp())
@@ -157,7 +157,7 @@ fn Hub mut @jr_log(at int, a JsonObject) Proc Detach Time -> CtlRes {
 
 fn Hub mut @jr_usage(at int, a JsonObject) Proc Detach Time -> CtlRes {
     ro dir = @jr_dir(at)
-    if dir.byte_len() == 0 { return ctl_err("Не записано: задачи нет — у этой сессии нет папки задачи, журналу некуда писать. Задача появляется после «да» владельца на карточке (canopus_task, canopus_spawn).") }
+    if dir.byte_len() == 0 { return ctl_err("Не записано: задачи нет — у этой сессии нет папки задачи, журналу некуда писать. Задача появляется после «да» владельца на карточке (task, spawn).") }
     ro bad_file = @jr_file_reason(at, jtext(a, "file"), "usage.log")
     if bad_file.byte_len() > 0 { return ctl_err("Не записано: ${bad_file}") }
     if !path_there("${dir}/progress.log") { return ctl_err("Не записано: рядом нет progress.log: usage.log заводится только в папке задачи с журналом хода") }

@@ -3,7 +3,7 @@
 // A call of a tool is a message of the MCP server of kind `ctl` (`{"tool":..,"arguments":..}`). The hub answers at once ("ok:" / "err:" for the agent), or, for a wait, later from the pump. What the tools stand on: the
 // sessions of the hub (`Dialog`), their journal (`route_note` is the record of a call), the children (`child_hub.nv`), the proposals of tasks (`canopus_task_hub.nv`: a new worker is shown to the owner as a card
 // and starts only after his answer; the limit `route_max_active` counts it), the letters and the waits that the hub keeps in memory (they live while the hub runs). `canopus_config` is not here (the owner, 2026-10-28:
-// the structure of the configs is being discussed). A call is recorded in the journal of the session (a line `▸ canopus_...` in the feed) and in the panel "Машины" (the service hints).
+// the structure of the configs is being discussed). A call is recorded under its canonical name in the session feed and in the panel "Машины" (the service hints).
 module canopus.server
 
 import std.concurrency.nvchan.{Chan, ChanTx}
@@ -167,7 +167,7 @@ fn Hub mut @ctl_deliver(at int, selected int = 0, context str = "") Proc Detach 
     ro text = joined(texts, "\n\n")
     ro prelude = @route_message_prelude(at)
     ro full = if prelude.byte_len() > 0 { "${prelude}\n\n${text}" } else { text }
-    @hint_add(at, "письмо canopus_send", text)
+    @hint_add(at, "письмо send_message", text)
     ro who = if lead.from.byte_len() == 0 { "хаб" } else { lead.from_name }
     ro asked = if lead.qid.byte_len() > 0 { " [вопрос ${lead.qid}]" } else { "" }
     if selected == 0 {
@@ -178,7 +178,7 @@ fn Hub mut @ctl_deliver(at int, selected int = 0, context str = "") Proc Detach 
         for index in take { @ctl_take(index) }
     }
     if reason.byte_len() > 0 {
-        @tell_error(0, s.id, s.engine.step_number(), "", "письмо canopus_send не передано агенту: ${reason}")
+        @tell_error(0, s.id, s.engine.step_number(), "", "письмо send_message не передано агенту: ${reason}")
     }
 }
 
@@ -252,11 +252,11 @@ fn Hub @ctl_wait_timeout_text(at int, w CtlWait) -> str {
         ro i = @ctl_find(at, w.tgt)
         if i < 0 {
             if @ctl_has_proposal(at, w.tgt) { return "За ${secs} с дочерняя «${w.tgt}» не появилась: владелец ещё не ответил на карточку предложения." }
-            return "За ${secs} с дочерней «${w.tgt}» нет: такой дочерней сессии не найдено (карточка отклонена или название другое; canopus_list покажет сессии)."
+            return "За ${secs} с дочерней «${w.tgt}» нет: такой дочерней сессии не найдено (карточка отклонена или название другое; list_sessions покажет сессии)."
         }
         return "За ${secs} с дочерняя не стала готовой. ${@ctl_session_text(i)}"
     }
-    if w.kind == "children" { return "За ${secs} с готовы не все дочерние сессии (canopus_list покажет состояние)." }
+    if w.kind == "children" { return "За ${secs} с готовы не все дочерние сессии (list_sessions покажет состояние)." }
     if w.kind == "reply" { return "Ответа на ${w.tgt} за ${secs} с нет. Когда придёт — придёт обычным письмом, оно разбудит эту сессию." }
     if w.kind == "idle" { return "За ${secs} с сессия ${w.tgt} не стала свободной." }
     "За ${secs} с писем нет."
@@ -269,7 +269,7 @@ fn Hub mut @ctl_finish(w CtlWait, text str) Proc Detach Time -> () {
         return
     }
     ro at = @find(w.session)
-    if at >= 0 { @hint_add(at, "canopus_wait", cut_text(text, 600)) }
+    if at >= 0 { @hint_add(at, "wait_event", cut_text(text, 600)) }
     ro told = w.reply.send("ok:${text}")
 }
 
@@ -309,7 +309,7 @@ fn Hub mut @ctl_pump() Proc Detach Time -> () {
     }
 }
 
-/// The turn of a session is cancelled: its calls of `canopus_wait` end (the agent is told).
+/// The turn of a session is cancelled: its calls of `wait_event` end (the agent is told).
 fn Hub mut @ctl_withdraw(trace str) Proc Detach Time -> () {
     mut keep = []CtlWait.new()
     for w in @ctl_waits {
@@ -369,9 +369,9 @@ fn Hub @ctl_role_call(at int, a JsonObject) -> CtlRes {
     mut lines = []str.new()
     lines.push("Техническая роль Canopus: ${role} (сессия ${s.id}). Она определяется состоянием задачи и связями сессии. Поручение владельца в чате задаёт, чем заниматься.")
     if role == "worker" { lines.push("Эта сессия не выполняет роль исполнителя задачи, оркестратора или приёмщика.") }
-    if s.rt.parent.byte_len() > 0 { lines.push("Оркестратор — сессия ${s.rt.parent}: ему сдают отчёт (canopus_task submit) и пишут canopus_send {to: \"parent\"}.") }
+    if s.rt.parent.byte_len() > 0 { lines.push("Оркестратор — сессия ${s.rt.parent}: ему сдают отчёт (task submit) и пишут send_message {to: \"parent\"}.") }
     ro kids = @cs_kids(s.id).len()
-    if kids > 0 { lines.push("Дочерних сессий: ${kids} (canopus_list, canopus_wait {target: \"children\"}).") }
+    if kids > 0 { lines.push("Дочерних сессий: ${kids} (list_sessions, wait_event {target: \"children\"}).") }
     if want.byte_len() > 0 && want != role && want != "assistant" {
         return ctl_err("Роль «${want}» вызовом не назначается: в продукте она выводится из режима и дерева сессий (сейчас ${role}). ${joined(lines, " ")}")
     }
@@ -390,7 +390,7 @@ fn Hub mut @ctl_send(at int, a JsonObject) Proc Detach Time -> CtlRes {
     }
     if to.byte_len() == 0 { return ctl_err("Не отправлено: адресат не назван и вопрос ${reply_to} не найден среди твоих писем.") }
     ro targets = @ctl_addr(at, to)
-    if targets.len() == 0 { return ctl_err("Не отправлено: адресат «${to}» не найден (или это сама эта сессия). Адреса: id сессии, номер задачи, parent, children; canopus_list покажет сессии.") }
+    if targets.len() == 0 { return ctl_err("Не отправлено: адресат «${to}» не найден (или это сама эта сессия). Адреса: id сессии, номер задачи, parent, children; list_sessions покажет сессии.") }
     ro wake = match a.get("wake") {
         Some(v) => v.bool() ?? true
         None => true
@@ -409,8 +409,8 @@ fn Hub mut @ctl_send(at int, a JsonObject) Proc Detach Time -> CtlRes {
         }
         named.push(@ctl_label(i))
     }
-    ro qid_tail = if qid.byte_len() > 0 { " Вопрос ${qid}: ответ жди canopus_wait {target: \"${qid}\"} в этом же ходе." } else { "" }
-    ctl_ok("Отправлено: ${joined(named, "; ")}${if wake { "" } else { " (без пробуждения: письмо ждёт в canopus_inbox получателя)" }}.${qid_tail}")
+    ro qid_tail = if qid.byte_len() > 0 { " Вопрос ${qid}: ответ жди wait_event {target: \"${qid}\"} в этом же ходе." } else { "" }
+    ctl_ok("Отправлено: ${joined(named, "; ")}${if wake { "" } else { " (без пробуждения: письмо ждёт в inbox получателя)" }}.${qid_tail}")
 }
 
 fn Hub mut @ctl_inbox(at int, a JsonObject) Proc Detach Time -> CtlRes {
@@ -518,10 +518,10 @@ fn Hub mut @ctl_spawn(at int, a JsonObject) Proc Detach Time -> CtlRes {
             ro shown = @ct_offer(at, p)
             ro limit = if limit_reached(@cs_active_all(), @settings.route_max_active) { " Сейчас в работе ${@cs_active_all()} из ${@settings.route_max_active}: после «да» работа встанет в очередь или владелец скажет «сверх»." } else { "" }
             ro own = if has_task { "" } else { "\nУ этой сессии ещё нет задачи: принятая работа станет задачей ЭТОЙ ЖЕ сессии (в её дереве), а новый исполнитель появляется, когда у сессии уже есть задача." }
-            return ctl_ok("${shown}${limit}\nПредложен ${if kind == "child" { "дочерний" } else { "самостоятельный" }} исполнитель «${title}». Когда владелец ответит «да», ждать его: canopus_wait {target: \"${title}\"}; писать ему: canopus_send.${own}")
+            return ctl_ok("${shown}${limit}\nПредложен ${if kind == "child" { "дочерний" } else { "самостоятельный" }} исполнитель «${title}». Когда владелец ответит «да», ждать его: wait_event {target: \"${title}\"}; писать ему: send_message.${own}")
         }
     }
-    ctl_err("canopus_spawn: not reached")
+    ctl_err("spawn: not reached")
 }
 
 fn Hub @ctl_task_list(at int, a JsonObject) -> CtlRes {
@@ -537,14 +537,14 @@ fn Hub @ctl_task_list(at int, a JsonObject) -> CtlRes {
     ctl_ok(joined(rows, "\n"))
 }
 
-fn Hub @ctl_task_show(at int, a JsonObject) -> CtlRes {
+fn Hub @ctl_task_show(at int, a JsonObject, project_only bool = false) -> CtlRes {
     ro n = jint(a, "n")
-    if n <= 0 { return ctl_err("canopus_task show: нужен n — номер задачи (canopus_task {action: \"list\"})") }
-    mut found = @cs_find_number(n)
+    if n <= 0 { return ctl_err("task show: нужен n — номер задачи (task {action: \"list\"})") }
+    mut found = if project_only { -1 } else { @cs_find_number(n) }
     if found < 0 {
         mut i = 0
         while i < @sessions.len() {
-            if ctl_same_number(@sessions[i].rt.number, "${n}") { found = i }
+            if (!project_only || @sessions[i].project_id == @sessions[at].project_id) && ctl_same_number(@sessions[i].rt.number, "${n}") { found = i }
             i += 1
         }
     }
@@ -569,29 +569,29 @@ fn Hub mut @ctl_task(at int, a JsonObject) Proc Detach Time -> CtlRes {
             return ctl_err("Некому сдавать: у этой сессии нет оркестратора. Готовность задачи отмечает владелец кнопками сессии.")
         }
         ro text = jtext(a, "text").trim_ascii()
-        if text.byte_len() == 0 { return ctl_err("canopus_task submit: нужен text — отчёт (что сделано, как проверено, что осталось)") }
+        if text.byte_len() == 0 { return ctl_err("task submit: нужен text — отчёт (что сделано, как проверено, что осталось)") }
         @ctl_letter(me.id, me.name, me.rt.parent, "Отчёт по задаче ${me.rt.number} «${me.rt.title}»: ${text}", true, "", "")
         return ctl_ok("Отчёт отправлен оркестратору (сессия ${me.rt.parent}). Остановись: дальше решает он и владелец.")
     }
     if action == "push" {
         ro n = jint(a, "n")
         ro i = if n > 0 { @cs_find_number(n) } else { -1 }
-        if i < 0 || i == at { return ctl_err("canopus_task push: задача ${n} не найдена среди открытых (canopus_task list)") }
+        if i < 0 || i == at { return ctl_err("task push: задача ${n} не найдена среди открытых (task list)") }
         @ctl_letter(me.id, me.name, @sessions[i].id, "Подтолкни: ${if jtext(a, "text").byte_len() > 0 { jtext(a, "text") } else { "проверь, не стоит ли работа" }}", true, "", "")
         return ctl_ok("Сессия ${@ctl_label(i)} разбудит письмом, когда её агент свободен.")
     }
-    ctl_err("canopus_task ${action}: в продукте этого действия нет — assign, order, reassign, cancel, backlog, resume, priority, route, deliver, review, check, round, precheck, merge, unlock, rework, accept, cleanup, track, contour, migrate, plan_decide делает владелец кнопками (карточка «Агент распознал задачи», шаги режима, «Слить»/«Влить», закрытие сессии). Тебе доступны: list, show, submit, push и предложение задачи без action.")
+    ctl_err("task ${action}: в продукте этого действия нет — assign, order, reassign, cancel, backlog, resume, priority, route, deliver, review, check, round, precheck, merge, unlock, rework, accept, cleanup, track, contour, migrate, plan_decide делает владелец кнопками (карточка «Агент распознал задачи», шаги режима, «Слить»/«Влить», закрытие сессии). Тебе доступны: list, show, submit, push и предложение задачи без action.")
 }
 
 // A timer or a watch of the session.
 fn Hub mut @ctl_timer(at int, a JsonObject) Proc Detach Time -> CtlRes {
     ro secs = ctl_timer_seconds(jint(a, "minutes"), jint(a, "seconds"))
-    if secs == 0 { return ctl_err("canopus_timer: нужны minutes или seconds больше нуля; не больше 719 минут") }
-    if @ctl_watches_of(@sessions[at].id) >= CTL_WATCH_MAX { return ctl_err("У сессии уже ${CTL_WATCH_MAX} таймеров и наблюдений: сними лишние (canopus_watch {action: \"cancel\", id})") }
+    if secs == 0 { return ctl_err("timer: нужны minutes или seconds больше нуля; не больше 719 минут") }
+    if @ctl_watches_of(@sessions[at].id) >= CTL_WATCH_MAX { return ctl_err("У сессии уже ${CTL_WATCH_MAX} таймеров и наблюдений: сними лишние (watch {action: \"cancel\", id})") }
     ro note = if jtext(a, "note").trim_ascii().byte_len() > 0 { jtext(a, "note").trim_ascii() } else { "таймер ${secs} с" }
     ro w = @ctl_add_wait(at, "timer", "", note, now_millis() + secs * 1000, true, 0, Chan[str].new(1).tx)
     @ctl_waits.push(w)
-    ctl_ok("Таймер «${note}» ${w.id} поставлен: письмо придёт через ${secs} с. Отмена — canopus_watch {action: \"cancel\", id: \"${w.id}\"}. Заканчивай ход: письмо разбудит эту сессию. Таймер живёт, пока работает хаб.")
+    ctl_ok("Таймер «${note}» ${w.id} поставлен: письмо придёт через ${secs} с. Отмена — watch {action: \"cancel\", id: \"${w.id}\"}. Заканчивай ход: письмо разбудит эту сессию. Таймер живёт, пока работает хаб.")
 }
 
 fn Hub @ctl_watches_of(id str) -> int {
@@ -605,7 +605,7 @@ fn Hub @ctl_watches_of(id str) -> int {
 fn Hub mut @ctl_watch(at int, a JsonObject) Proc Detach Time -> CtlRes {
     ro me = @sessions[at]
     if jtext(a, "command").trim_ascii().byte_len() > 0 {
-        return ctl_err("canopus_watch: хаб команды не запускает (они шли бы мимо прав агента). Для долгого ожидания используй фон своего агента или подпишись на событие: on=child, children, reply, idle; для времени — canopus_timer.")
+        return ctl_err("watch: хаб команды не запускает (они шли бы мимо прав агента). Для долгого ожидания используй фон своего агента или подпишись на событие: on=child, children, reply, idle; для времени — timer.")
     }
     if jtext(a, "action") == "cancel" {
         ro id = jtext(a, "id").trim_ascii()
@@ -615,7 +615,7 @@ fn Hub mut @ctl_watch(at int, a JsonObject) Proc Detach Time -> CtlRes {
             if w.id == id && w.session == me.id && w.wake { removed = true } else { keep.push(w) }
         }
         @ctl_waits = keep
-        return if removed { ctl_ok("Наблюдение ${id} снято.") } else { ctl_err("Наблюдения ${id} у этой сессии нет (canopus_watch без аргументов покажет список).") }
+        return if removed { ctl_ok("Наблюдение ${id} снято.") } else { ctl_err("Наблюдения ${id} у этой сессии нет (watch без аргументов покажет список).") }
     }
     ro on = jtext(a, "on").trim_ascii()
     if on.byte_len() == 0 {
@@ -625,13 +625,13 @@ fn Hub mut @ctl_watch(at int, a JsonObject) Proc Detach Time -> CtlRes {
                 rows.push("— ${w.id} ${w.kind}${if w.tgt.byte_len() > 0 { " ${w.tgt}" } else { "" }}${if w.note.byte_len() > 0 { " «${w.note}»" } else { "" }}, осталось ${(w.until - now_millis()) / 1000} с")
             }
         }
-        return ctl_ok(if rows.len() > 0 { "Наблюдения сессии (отмена — canopus_watch {action: \"cancel\", id}):\n${joined(rows, "\n")}" } else { "Наблюдений нет." })
+        return ctl_ok(if rows.len() > 0 { "Наблюдения сессии (отмена — watch {action: \"cancel\", id}):\n${joined(rows, "\n")}" } else { "Наблюдений нет." })
     }
-    if on != "child" && on != "children" && on != "reply" && on != "idle" { return ctl_err("canopus_watch: on — одно из child, children, reply, idle") }
+    if on != "child" && on != "children" && on != "reply" && on != "idle" { return ctl_err("watch: on — одно из child, children, reply, idle") }
     ro target = jtext(a, "target").trim_ascii()
-    if on != "children" && target.byte_len() == 0 { return ctl_err("canopus_watch on=${on}: нужен target") }
-    if on == "idle" && (@ctl_find(at, target) < 0 || @ctl_find(at, target) == at) { return ctl_err("canopus_watch on=idle: сессия «${target}» не найдена или это эта же сессия (canopus_list)") }
-    if @ctl_watches_of(me.id) >= CTL_WATCH_MAX { return ctl_err("У сессии уже ${CTL_WATCH_MAX} таймеров и наблюдений: сними лишние (canopus_watch {action: \"cancel\", id})") }
+    if on != "children" && target.byte_len() == 0 { return ctl_err("watch on=${on}: нужен target") }
+    if on == "idle" && (@ctl_find(at, target) < 0 || @ctl_find(at, target) == at) { return ctl_err("watch on=idle: сессия «${target}» не найдена или это эта же сессия (list_sessions)") }
+    if @ctl_watches_of(me.id) >= CTL_WATCH_MAX { return ctl_err("У сессии уже ${CTL_WATCH_MAX} таймеров и наблюдений: сними лишние (watch {action: \"cancel\", id})") }
     mut minutes = jint(a, "minutes")
     if minutes <= 0 { minutes = 120 }
     if minutes > 719 { minutes = 719 }
@@ -654,7 +654,7 @@ fn Hub mut @ctl_doctor(at int) Proc -> CtlRes {
         if br.ok {
             ro now_branch = br.text.trim_ascii()
             notes.push("каталог ${dir}, ветка ${if now_branch.byte_len() > 0 { now_branch } else { "(отсоединённый коммит)" }}")
-            if s.rt.branch.byte_len() > 0 && now_branch != s.rt.branch && now_branch.byte_len() > 0 { problems.push("в каталоге ветка ${now_branch}, а у задачи записана ${s.rt.branch}: объясни смену canopus_branch_note") }
+            if s.rt.branch.byte_len() > 0 && now_branch != s.rt.branch && now_branch.byte_len() > 0 { problems.push("в каталоге ветка ${now_branch}, а у задачи записана ${s.rt.branch}: объясни смену branch_note") }
         }
     }
     if limit_reached(@cs_active_all(), @settings.route_max_active) { notes.push("лимит задач в работе достигнут: ${@cs_active_all()} из ${@settings.route_max_active}; новые работы встанут в очередь") }
@@ -663,9 +663,9 @@ fn Hub mut @ctl_doctor(at int) Proc -> CtlRes {
     if waiting > 0 { notes.push("дочерних сессий в очереди: ${waiting}") }
     mut unread = 0
     for l in @ctl_letters { if l.to == s.id && !l.taken { unread += 1 } }
-    if unread > 0 { notes.push("непрочитанных писем: ${unread} (canopus_inbox)") }
+    if unread > 0 { notes.push("непрочитанных писем: ${unread} (inbox)") }
     notes.push("ожиданий хаба: ${@ctl_waits.len()}, сессий: ${@sessions.len()}, роль ${@ctl_role(at)}")
-    ro head = if problems.len() > 0 { "canopus_doctor — есть проблемы:\n- ${joined(problems, "\n- ")}" } else { "canopus_doctor: всё в порядке (хаб отвечает, сессия известна, каталоги на месте)." }
+    ro head = if problems.len() > 0 { "doctor — есть проблемы:\n- ${joined(problems, "\n- ")}" } else { "doctor: всё в порядке (хаб отвечает, сессия известна, каталоги на месте)." }
     ctl_ok("${head}\nК сведению:\n- ${joined(notes, "\n- ")}")
 }
 
@@ -706,7 +706,7 @@ fn ctl_args_brief(a JsonObject) -> str {
 fn Hub mut @ctl_next(at int, arguments JsonObject) Proc Detach Time -> CtlRes {
     mut session = @sessions[at]
     if session.turn == "" || session.list_status != "running" || session.engine.open_ids().len() == 0 {
-        return ctl_err("canopus_next: предложить сообщение можно во время открытого хода.")
+        return ctl_err("next_message: предложить сообщение можно во время открытого хода.")
     }
     mut input = JsonObject.new()
     js(input, "prompt", jtext(arguments, "prompt"))
@@ -718,23 +718,23 @@ fn Hub mut @ctl_next(at int, arguments JsonObject) Proc Detach Time -> CtlRes {
 }
 
 fn Hub mut @ctl_run(at int, tool str, a JsonObject, msg McpMsg) Proc Detach Time -> CtlRes {
-    if tool == "canopus_list" { return @ctl_list(at, a) }
-    if tool == "canopus_role" { return @ctl_role_call(at, a) }
-    if tool == "canopus_send" { return @ctl_send(at, a) }
-    if tool == "canopus_next" { return @ctl_next(at, a) }
-    if tool == "canopus_inbox" { return @ctl_inbox(at, a) }
-    if tool == "canopus_wait" { return @ctl_wait(at, a, msg) }
-    if tool == "canopus_spawn" { return @ctl_spawn(at, a) }
-    if tool == "canopus_task" { return @ctl_task(at, a) }
-    if tool == "canopus_timer" { return @ctl_timer(at, a) }
-    if tool == "canopus_watch" { return @ctl_watch(at, a) }
-    if tool == "canopus_doctor" { return @ctl_doctor(at) }
-    if tool == "canopus_step_note" { return @ctl_step_note(at, a) }
-    if tool == "canopus_branch_note" { return @ctl_branch_note(at, a) }
-    if tool == "canopus_progress_line" { return @jr_progress(at, a) }
-    if tool == "canopus_log_line" { return @jr_log(at, a) }
-    if tool == "canopus_usage_line" { return @jr_usage(at, a) }
-    if tool == "canopus_help" { return ctl_ok(ctl_help_text()) }
+    if tool == "list_sessions" { return @ctl_list(at, a) }
+    if tool == "role" { return @ctl_role_call(at, a) }
+    if tool == "send_message" { return @ctl_send(at, a) }
+    if tool == "next_message" { return @ctl_next(at, a) }
+    if tool == "inbox" { return @ctl_inbox(at, a) }
+    if tool == "wait_event" { return @ctl_wait(at, a, msg) }
+    if tool == "spawn" { return @ctl_spawn(at, a) }
+    if tool == "task" { return @ctl_task(at, a) }
+    if tool == "timer" { return @ctl_timer(at, a) }
+    if tool == "watch" { return @ctl_watch(at, a) }
+    if tool == "doctor" { return @ctl_doctor(at) }
+    if tool == "step_note" { return @ctl_step_note(at, a) }
+    if tool == "branch_note" { return @ctl_branch_note(at, a) }
+    if tool == "progress_line" { return @jr_progress(at, a) }
+    if tool == "log_line" { return @jr_log(at, a) }
+    if tool == "usage_line" { return @jr_usage(at, a) }
+    if tool == "help" { return ctl_ok(ctl_help_text()) }
     ctl_err("unknown tool: ${tool}")
 }
 
@@ -753,7 +753,7 @@ fn Hub mut @ctl_call(msg McpMsg) Proc Detach Time -> () {
     ro a = (mget(v, "arguments") ?? JsonValue.null()).object() ?? JsonObject.new()
     ro res = @ctl_run(at, tool, a, msg)
     // the record of the call: the journal of the session and the panel "Машины"
-    if tool != "canopus_step_note" && tool != "canopus_branch_note" && tool != "canopus_next" {
+    if tool != "step_note" && tool != "branch_note" && tool != "next_message" {
         @rt_note(at, "▸ ${tool} ${ctl_args_brief(a)}${if res.kind == "err" { " — отказ" } else { "" }}")
     }
     @hint_add(at, tool, "${ctl_args_brief(a)}\n→ ${cut_text(res.text, 600)}")

@@ -260,14 +260,20 @@ function workRows(session) {
   return rows;
 }
 
-/**
- * Лента разговора в порядке шагов: сообщения владельца, куски текста агента, рабочие строки (инструменты,
- * фоновые задачи) сгруппированы подряд, карточка правок хода, заметки об исходе,
- * действия под ответом и строка идущей работы. Ничего не знает о DOM; ключи устойчивы для повторного рисования.
- */
+const HUB_TOOLS = new Set([
+  'list_sessions', 'role', 'send_message', 'next_message', 'inbox', 'wait_event', 'spawn',
+  'task', 'task_list', 'timer', 'watch', 'doctor', 'step_note', 'branch_note', 'help',
+  'progress_line', 'log_line', 'usage_line',
+]);
+const HUB_LEGACY_NAMES = new Map([
+  ['list_sessions', 'canopus_list'], ['send_message', 'canopus_send'],
+  ['next_message', 'canopus_next'], ['wait_event', 'canopus_wait'],
+]);
+
 function canopusCallNote(chunk) {
-  const match = /^▸ (canopus_\w+) (\{[^\n]*)(?:\s+— отказ)?$/u.exec(chunk.text);
-  if (!match || !/(?:\}|\(обрезано, всего \d+ байт\))(?:\s+— отказ)?$/u.test(chunk.text)) return null;
+  const match = /^▸ (\w+) (\{[^\n]*)(?:\s+— отказ)?$/u.exec(chunk.text);
+  if (!match || !(HUB_TOOLS.has(match[1]) || match[1].startsWith('canopus_'))) return null;
+  if (!/(?:\}|\(обрезано, всего \d+ байт\))(?:\s+— отказ)?$/u.test(chunk.text)) return null;
   const failed = chunk.text.endsWith(' — отказ');
   return { name: match[1], args: failed ? match[2].slice(0, -8).trimEnd() : match[2], failed };
 }
@@ -285,6 +291,11 @@ export function agentMail(text) {
     text: mail[2].replace(truncated, '').trimEnd(), fullBytes: Number(truncated.exec(mail[2])?.[1]) || 0 };
 }
 
+/**
+ * Лента разговора в порядке шагов: сообщения владельца, куски текста агента, рабочие строки (инструменты,
+ * фоновые задачи) сгруппированы подряд, карточка правок хода, заметки об исходе,
+ * действия под ответом и строка идущей работы. Ничего не знает о DOM; ключи устойчивы для повторного рисования.
+ */
 export function timeline(session) {
   const items = [];
   const rows = workRows(session);
@@ -354,9 +365,12 @@ export function timeline(session) {
         const note = canopusCallNote(chunk);
         if (!note) continue;
         notes.add(chunk.step);
-        const existing = own.find(r => r.type === 'tool' && !r.toolInput
-          && (r.title === note.name || r.title === 'mcp.canopus.' + note.name
-            || r.title === 'mcp__canopus__' + note.name));
+        const legacyName = HUB_LEGACY_NAMES.get(note.name) ?? `canopus_${note.name}`;
+        const existing = own.find(r => {
+          if (r.type !== 'tool' || r.toolInput) return false;
+          const called = r.title.replace(/^mcp(?:\.canopus\.|__canopus__)/u, '');
+          return called === note.name || called === legacyName;
+        });
         if (existing) {
           existing.title = note.name;
           existing.toolInput = note.args;
@@ -518,7 +532,7 @@ export function paragraphs(text) {
       blocks.push({ type: 'table', headers, align, rows });
       continue;
     }
-    if (/^▸ canopus_list\s+\{\s*\}\s*$/u.test(line)) {
+    if (/^▸ (?:list_sessions|canopus_list)\s+\{\s*\}\s*$/u.test(line)) {
       flush();
       blocks.push({ type: 'canopus-list' });
       continue;

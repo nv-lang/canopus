@@ -5,25 +5,47 @@
 // how - `docs/tasks/250-crew-tools-port/input/inventory.md`. `canopus_config` is NOT here: the structure of the configs is being discussed with the owner (2026-10-28).
 //
 // What this file holds: the definitions of the tools for `tools/list` (built by small functions, not by long strings), the check of the arguments that needs no hub, the words of the roles, the text of
-// `canopus_help`, and the types of the letters and of the waits that the hub keeps.
+// `help`, and the types of the letters and of the waits that the hub keeps.
 module canopus.server
 
 import std.concurrency.nvchan.{ChanTx}
 import std.encoding.json.{Json, JsonValue, JsonObject}
 
-/// The names of the tools of this port (without `canopus_task`, which is the old tool of the hub with the actions of the plugin added: `canopus_task_unified_json`).
-export fn ctl_names() -> []str => ["canopus_list", "canopus_role", "canopus_send", "canopus_next", "canopus_inbox", "canopus_wait", "canopus_spawn", "canopus_timer", "canopus_watch", "canopus_doctor", "canopus_step_note", "canopus_branch_note", "canopus_help"]
+/// Legacy MCP names are accepted at the call boundary and never advertised.
+fn canonical_tool_name(name str) -> str {
+    if !name.starts_with("canopus_") { return name }
+    if name == "canopus_list" { return "list_sessions" }
+    if name == "canopus_send" { return "send_message" }
+    if name == "canopus_next" { return "next_message" }
+    if name == "canopus_wait" { return "wait_event" }
+    ro unprefixed = name["canopus_".byte_len()..]
+    if (ctl_is_tool(unprefixed) || unprefixed == CANOPUS_TASK_LIST_TOOL) && legacy_tool_name(unprefixed) == name { return unprefixed }
+    name
+}
 
-/// Is this a tool of the port (`canopus_task` included)?
+// The previous name also identifies existing custom tool description files.
+fn legacy_tool_name(name str) -> str {
+    if name == "ask_user_question" { return name }
+    if name == "list_sessions" { return "canopus_list" }
+    if name == "send_message" { return "canopus_send" }
+    if name == "next_message" { return "canopus_next" }
+    if name == "wait_event" { return "canopus_wait" }
+    "canopus_${name}"
+}
+
+/// The names of the tools of this port (without `task`, which is the old tool of the hub with the actions of the plugin added: `canopus_task_unified_json`).
+export fn ctl_names() -> []str => ["list_sessions", "role", "send_message", "next_message", "inbox", "wait_event", "spawn", "timer", "watch", "doctor", "step_note", "branch_note", "help"]
+
+/// Is this a tool of the port (`task` included)?
 export fn ctl_is_tool(name str) -> bool {
-    if name == "canopus_task" || journal_is_tool(name) { return true }
+    if name == "task" || journal_is_tool(name) { return true }
     for n in ctl_names() {
         if n == name { return true }
     }
     false
 }
 
-/// A letter between the sessions of the hub (`canopus_send`). `from` is "" for the hub itself (a timer, a watch). `taken`: the recipient has read it (in `canopus_inbox`, `canopus_wait` or a service turn).
+/// A letter between the sessions of the hub (`send_message`). `from` is "" for the hub itself (a timer, a watch). `taken`: the recipient has read it (in `inbox`, `wait_event` or a service turn).
 export type CtlLetter { id int, qid str, reply_to str, from str, from_name str, to str, text str, wake bool, at int, taken bool }
 
 /// A wait of a session: `kind` `letter` (any letter), `reply` (the answer to the question `tgt`), `child` (the child `tgt` is ready or merged), `children` (all of them), `idle` (the session `tgt` is free), `timer`.
@@ -87,53 +109,53 @@ fn ctl_def(name str, description str, props []CtlProp, required []str) -> JsonVa
 fn pr(name str, value JsonValue) -> CtlProp => { name, value }
 
 fn ctl_tool(name str) -> JsonValue {
-    if name == "canopus_list" {
-        return ctl_def("canopus_list", "List the sessions of the hub in the project of the caller: id, name, role (by the mode and the tree, see canopus_role), busy or free, the task and its epic or parent. all=true lists the sessions of every project. Then the open tasks.", [pr("all", cp("boolean", "List the sessions of every project, not only of the caller's"))], [])
+    if name == "list_sessions" {
+        return ctl_def("list_sessions", "List the sessions of the hub in the project of the caller: id, name, role (by the mode and the tree, see role), busy or free, the task and its epic or parent. all=true lists the sessions of every project. Then the open tasks.", [pr("all", cp("boolean", "List the sessions of every project, not only of the caller's"))], [])
     }
-    if name == "canopus_role" {
-        return ctl_def("canopus_role", "The role of THIS session in the hub: orchestrator (it has child sessions or is an epic), executor (it works on a task, or is a child session), acceptor (it reviews), worker (no task). The role is derived from the mode and the tree, it is not assigned by a call; a different role in `role` is refused with the reason.", [pr("role", cp("string", "The role you expect (optional): the call only checks it")), pr("force", cp("boolean", "Not used: a role cannot be taken in the product"))], [])
+    if name == "role" {
+        return ctl_def("role", "The role of THIS session in the hub: orchestrator (it has child sessions or is an epic), executor (it works on a task, or is a child session), acceptor (it reviews), worker (no task). The role is derived from the mode and the tree, it is not assigned by a call; a different role in `role` is refused with the reason.", [pr("role", cp("string", "The role you expect (optional): the call only checks it")), pr("force", cp("boolean", "Not used: a role cannot be taken in the product"))], [])
     }
-    if name == "canopus_send" {
-        return ctl_def("canopus_send", "Send a service letter to another session of the hub. `to`: a session id, a number of a task (012), `parent` (or `orchestrator`), `children`. wake=true (the default): the letter goes to the recipient as a service turn as soon as its agent is free; wake=false: it waits in the recipient's canopus_inbox. urgent=true with wake=true: interrupt an active turn and deliver the letter as the next prompt, or queue if cancellation is denied. expect_reply=true: a question - the result gives a qid, wait for the answer with canopus_wait {target: qid}. reply_to: the qid you answer (then `to` may be omitted). The owner reads the letters in the feed of the recipient: write them in the language of the owner.", [pr("to", cp("string", "Recipient: session id, task number, parent, orchestrator or children")), pr("text", cp("string", "The text of the letter")), pr("wake", cp("boolean", "Wake the recipient (default true)")), pr("urgent", cp("boolean", "Interrupt an active turn (default false)")), pr("expect_reply", cp("boolean", "This is a question: the result gives a qid")), pr("reply_to", cp("string", "The qid of the question this letter answers"))], ["text"])
+    if name == "send_message" {
+        return ctl_def("send_message", "Send a service letter to another session of the hub. `to`: a session id, a number of a task (012), `parent` (or `orchestrator`), `children`. wake=true (the default): the letter goes to the recipient as a service turn as soon as its agent is free; wake=false: it waits in the recipient's inbox. urgent=true with wake=true: interrupt an active turn and deliver the letter as the next prompt, or queue if cancellation is denied. expect_reply=true: a question - the result gives a qid, wait for the answer with wait_event {target: qid}. reply_to: the qid you answer (then `to` may be omitted). The owner reads the letters in the feed of the recipient: write them in the language of the owner.", [pr("to", cp("string", "Recipient: session id, task number, parent, orchestrator or children")), pr("text", cp("string", "The text of the letter")), pr("wake", cp("boolean", "Wake the recipient (default true)")), pr("urgent", cp("boolean", "Interrupt an active turn (default false)")), pr("expect_reply", cp("boolean", "This is a question: the result gives a qid")), pr("reply_to", cp("string", "The qid of the question this letter answers"))], ["text"])
     }
-    if name == "canopus_next" {
-        return ctl_def("canopus_next", "Suggest the next message in the current conversation. Write it in the user's voice and take prior decisions into account. The user can insert the suggested text into the message field.", [pr("prompt", cp("string", "Full next message from the user"))], ["prompt"])
+    if name == "next_message" {
+        return ctl_def("next_message", "Suggest the next message in the current conversation. Write it in the user's voice and take prior decisions into account. The user can insert the suggested text into the message field.", [pr("prompt", cp("string", "Full next message from the user"))], ["prompt"])
     }
-    if name == "canopus_inbox" {
-        return ctl_def("canopus_inbox", "The letters of this session: those that wait are handed over right here (and then count as read), then the recent read ones.", [pr("limit", cp("integer", "How many recent letters (default 10)"))], [])
+    if name == "inbox" {
+        return ctl_def("inbox", "The letters of this session: those that wait are handed over right here (and then count as read), then the recent read ones.", [pr("limit", cp("integer", "How many recent letters (default 10)"))], [])
     }
-    if name == "canopus_wait" {
-        return ctl_def("canopus_wait", "Wait in this same turn (up to 300 seconds, default 120). target: a qid of your question (canopus_send expect_reply) - waits for the answer; a number of a task, a session id or a title of a child session - waits until that child is ready or merged (a child that is only proposed to the owner is waited for too: it appears after the owner says yes); `children` - until all your children are ready or merged; empty - until any letter comes. The result is the answer, the state and the last words of the child, or the note that the time is out.", [pr("target", cp("string", "A qid, a child (number, session id or title), `children`, or empty for any letter")), pr("qid", cp("string", "The same as target (the name in the plugin)")), pr("seconds", cp("integer", "How long to wait, 1..300, default 120"))], [])
+    if name == "wait_event" {
+        return ctl_def("wait_event", "Wait in this same turn (up to 300 seconds, default 120). target: a qid of your question (send_message expect_reply) - waits for the answer; a number of a task, a session id or a title of a child session - waits until that child is ready or merged (a child that is only proposed to the owner is waited for too: it appears after the owner says yes); `children` - until all your children are ready or merged; empty - until any letter comes. The result is the answer, the state and the last words of the child, or the note that the time is out.", [pr("target", cp("string", "A qid, a child (number, session id or title), `children`, or empty for any letter")), pr("qid", cp("string", "The same as target (the name in the plugin)")), pr("seconds", cp("integer", "How long to wait, 1..300, default 120"))], [])
     }
-    if name == "canopus_spawn" {
-        return ctl_def("canopus_spawn", "Propose a work for a NEW worker: a child task of your task (when you have an open task, you become its epic) or a task of its own. Like every new task it is shown to the owner as a card and starts only after the owner says yes (and under the limit route_max_active of tasks in work); the answer says so. goal and criteria become the text of message.md of the new task. After the owner's yes wait for the child with canopus_wait {target: title}, talk to it with canopus_send.", [pr("goal", cp("string", "What is to be done (required)")), pr("criteria", cp("string", "How the owner will accept it: the points of the acceptance")), pr("title", cp("string", "A short title (up to 60 characters); the first line of the goal by default")), pr("touches", cp_strings("The files and folders the work will change")), pr("kind", cp_enum("child (the default when you have a task) or new", ["child", "new"])), pr("agent", cp("string", "The family of the agent of the new session (optional)"))], ["goal"])
+    if name == "spawn" {
+        return ctl_def("spawn", "Propose a work for a NEW worker: a child task of your task (when you have an open task, you become its epic) or a task of its own. Like every new task it is shown to the owner as a card and starts only after the owner says yes (and under the limit route_max_active of tasks in work); the answer says so. goal and criteria become the text of message.md of the new task. After the owner's yes wait for the child with wait_event {target: title}, talk to it with send_message.", [pr("goal", cp("string", "What is to be done (required)")), pr("criteria", cp("string", "How the owner will accept it: the points of the acceptance")), pr("title", cp("string", "A short title (up to 60 characters); the first line of the goal by default")), pr("touches", cp_strings("The files and folders the work will change")), pr("kind", cp_enum("child (the default when you have a task) or new", ["child", "new"])), pr("agent", cp("string", "The family of the agent of the new session (optional)"))], ["goal"])
     }
-    if name == "canopus_timer" {
-        return ctl_def("canopus_timer", "Wake THIS session with a letter after N minutes (or seconds) without holding the turn. Lives while the hub runs (a restart of the hub forgets timers). At most 20 timers and watches per session; up to 719 minutes. After calling it, end your turn.", [pr("minutes", cp("integer", "In how many minutes")), pr("seconds", cp("integer", "In how many seconds (for less than a minute)")), pr("note", cp("string", "A short label for the letter"))], [])
+    if name == "timer" {
+        return ctl_def("timer", "Wake THIS session with a letter after N minutes (or seconds) without holding the turn. Lives while the hub runs (a restart of the hub forgets timers). At most 20 timers and watches per session; up to 719 minutes. After calling it, end your turn.", [pr("minutes", cp("integer", "In how many minutes")), pr("seconds", cp("integer", "In how many seconds (for less than a minute)")), pr("note", cp("string", "A short label for the letter"))], [])
     }
-    if name == "canopus_watch" {
-        return ctl_def("canopus_watch", "Subscribe to an event of the hub and be woken by a letter when it happens, without holding the turn: on=child (target: a child), on=children (all children are ready or merged), on=reply (target: your qid), on=idle (target: another session becomes free). Without `on`: the list of your watches; action=cancel with id removes one. A command is NOT run by the hub (agents have their own background tools): `command` is refused. Lives while the hub runs.", [pr("on", cp_enum("What to watch", ["child", "children", "reply", "idle"])), pr("target", cp("string", "A child, a qid or a session")), pr("note", cp("string", "A short label for the letter")), pr("minutes", cp("integer", "The limit, default 120, at most 719")), pr("action", cp_enum("cancel: remove the watch id", ["cancel"])), pr("id", cp("string", "cancel: the id of the watch")), pr("command", cp("string", "Not supported in the product"))], [])
+    if name == "watch" {
+        return ctl_def("watch", "Subscribe to an event of the hub and be woken by a letter when it happens, without holding the turn: on=child (target: a child), on=children (all children are ready or merged), on=reply (target: your qid), on=idle (target: another session becomes free). Without `on`: the list of your watches; action=cancel with id removes one. A command is NOT run by the hub (agents have their own background tools): `command` is refused. Lives while the hub runs.", [pr("on", cp_enum("What to watch", ["child", "children", "reply", "idle"])), pr("target", cp("string", "A child, a qid or a session")), pr("note", cp("string", "A short label for the letter")), pr("minutes", cp("integer", "The limit, default 120, at most 719")), pr("action", cp_enum("cancel: remove the watch id", ["cancel"])), pr("id", cp("string", "cancel: the id of the watch")), pr("command", cp("string", "Not supported in the product"))], [])
     }
-    if name == "canopus_doctor" {
-        return ctl_def("canopus_doctor", "Self-check of the hub and of THIS session: the agent, the folder, the tree and the branch, the limit of the tasks in work, the children that wait, the waits and the letters. Lists what is wrong and what to do.", [], [])
+    if name == "doctor" {
+        return ctl_def("doctor", "Self-check of the hub and of THIS session: the agent, the folder, the tree and the branch, the limit of the tasks in work, the children that wait, the waits and the letters. Lists what is wrong and what to do.", [], [])
     }
-    if name == "canopus_step_note" {
-        return ctl_def("canopus_step_note", "Write a note of the step of the mode in the journal of the session (the owner sees it in the feed and in the panel): what is done and what you wait for (reason), how long it will take (minutes), or that the step is done (done=true). To stop an unfinished task, set stop=decision (a necessary owner decision) or stop=external (an external obstruction) and a precise reason. The reason is shown to the owner; unchanged stops do not trigger repeated reminders.", [pr("stop", cp("string", "decision or external: necessary reason to stop an unfinished task")), pr("reason", cp("string", "What is done, what you wait for")), pr("minutes", cp("integer", "How long it will take, minutes")), pr("done", cp("boolean", "The step is done")), pr("n", cp("integer", "The number of the task (the task of the session by default)"))], [])
+    if name == "step_note" {
+        return ctl_def("step_note", "Write a note of the step of the mode in the journal of the session (the owner sees it in the feed and in the panel): what is done and what you wait for (reason), how long it will take (minutes), or that the step is done (done=true). To stop an unfinished task, set stop=decision (a necessary owner decision) or stop=external (an external obstruction) and a precise reason. The reason is shown to the owner; unchanged stops do not trigger repeated reminders.", [pr("stop", cp("string", "decision or external: necessary reason to stop an unfinished task")), pr("reason", cp("string", "What is done, what you wait for")), pr("minutes", cp("integer", "How long it will take, minutes")), pr("done", cp("boolean", "The step is done")), pr("n", cp("integer", "The number of the task (the task of the session by default)"))], [])
     }
-    if name == "canopus_branch_note" {
-        return ctl_def("canopus_branch_note", "Record WHY the folder or the branch of this session changes (the rule 6a of AGENTS.md): what changes, why, who allowed it (the owner's word with the date, or the decision of the orchestrator). The record goes to the journal of the session with the folder and the branch the hub knows now. The hub does not block commands: it keeps the record for the acceptance.", [pr("what", cp("string", "What changes: the command or the move")), pr("why", cp("string", "Why: one sentence")), pr("who", cp("string", "Who allowed it: the owner's word with the date and the source")), pr("directory", cp("string", "The folder the reason is for")), pr("branch", cp("string", "The branch the session is to stand on after this"))], ["what", "why", "who"])
+    if name == "branch_note" {
+        return ctl_def("branch_note", "Record WHY the folder or the branch of this session changes (the rule 6a of AGENTS.md): what changes, why, who allowed it (the owner's word with the date, or the decision of the orchestrator). The record goes to the journal of the session with the folder and the branch the hub knows now. The hub does not block commands: it keeps the record for the acceptance.", [pr("what", cp("string", "What changes: the command or the move")), pr("why", cp("string", "Why: one sentence")), pr("who", cp("string", "Who allowed it: the owner's word with the date and the source")), pr("directory", cp("string", "The folder the reason is for")), pr("branch", cp("string", "The branch the session is to stand on after this"))], ["what", "why", "who"])
     }
-    ctl_def("canopus_help", "Help for the tools canopus_*: what each does in the hub and when to call it.", [], [])
+    ctl_def("help", "Help for the tools of the hub: what each does in the hub and when to call it.", [], [])
 }
 
-/// The tools of the port for `tools/list` (`canopus_task` is added by the caller).
+/// The tools of the port for `tools/list` (`task` is added by the caller).
 export fn ctl_tools_json() -> []JsonValue {
     mut out = []JsonValue.new()
     for name in ctl_names() { out.push(ctl_tool(name)) }
     out
 }
 
-/// `canopus_task` of the hub with the actions of the plugin: without `action` it is the old proposal of a task (as before), with an `action` it is the work with the tasks of the hub.
+/// `task` of the hub with the actions of the plugin: without `action` it is the old proposal of a task (as before), with an `action` it is the work with the tasks of the hub.
 export fn canopus_task_unified_json() -> JsonValue {
     ro text = "Tasks of the hub. WITHOUT `action`: call it when the message of the user is REAL WORK on the files of the project (the old call): the hub shows the user a card and the user confirms or refuses; do not touch the files until the hub tells the decision; kind=extend always waits for explicit owner confirmation before writing the assignment or notifying its worker, including confidence=high. Do NOT call it for a question or a talk. WITH `action`: list (the open tasks of the hub; all=true adds the closed), show (n: the task, its children, its folder and branch), submit (a child reports to its orchestrator: text), push (n, text: nudge the session of the task with a letter), propose (the same as without action). The other actions of the plugin (assign, order, reassign, cancel, backlog, resume, priority, route, deliver, review, check, round, precheck, merge, unlock, rework, accept, cleanup, track, contour, migrate, plan_decide) are buttons of the owner in the product and are refused with the reason. RULES: never create docs/tasks folders or message.md yourself - the hub does it after the owner answers the card."
     ro base = canopus_task_tool_json()
@@ -152,7 +174,7 @@ export fn canopus_task_unified_json() -> JsonValue {
     JsonValue.object(tool)
 }
 
-/// The action of a call of `canopus_task`: "" for the old call without one (a proposal).
+/// The action of a call of `task`: "" for the old call without one (a proposal).
 export fn ctl_task_action(arguments JsonValue) -> str {
     ro a = mtext_of(arguments, "action").trim_ascii()
     if a == "propose" { return "" }
@@ -172,26 +194,26 @@ fn ctl_has_int(arguments JsonValue, key str) -> bool {
 
 /// The reason the arguments of a tool are not good ("" - good). Only what is seen without the hub.
 export fn ctl_validate(name str, arguments JsonValue) -> str {
-    if name == "canopus_next" {
-        if !ctl_has(arguments, "prompt") { return "canopus_next: the argument prompt must be a non-empty string" }
+    if name == "next_message" {
+        if !ctl_has(arguments, "prompt") { return "next_message: the argument prompt must be a non-empty string" }
     }
-    if name == "canopus_send" {
-        if !ctl_has(arguments, "text") { return "canopus_send: the argument text is missing" }
-        if !ctl_has(arguments, "to") && !ctl_has(arguments, "reply_to") { return "canopus_send: give the recipient (to) or the qid you answer (reply_to)" }
-        if mtext_of(arguments, "text").byte_len() > 8000 { return "canopus_send: the letter is longer than 8000 bytes; write it shorter and put the details in a file" }
+    if name == "send_message" {
+        if !ctl_has(arguments, "text") { return "send_message: the argument text is missing" }
+        if !ctl_has(arguments, "to") && !ctl_has(arguments, "reply_to") { return "send_message: give the recipient (to) or the qid you answer (reply_to)" }
+        if mtext_of(arguments, "text").byte_len() > 8000 { return "send_message: the letter is longer than 8000 bytes; write it shorter and put the details in a file" }
     }
-    if name == "canopus_spawn" && !ctl_has(arguments, "goal") { return "canopus_spawn: the argument goal is missing" }
-    if name == "canopus_branch_note" {
-        if !ctl_has(arguments, "what") || !ctl_has(arguments, "why") || !ctl_has(arguments, "who") { return "canopus_branch_note: what, why and who are all required (who: the owner's word with the date and the source, or the decision of the orchestrator)" }
+    if name == "spawn" && !ctl_has(arguments, "goal") { return "spawn: the argument goal is missing" }
+    if name == "branch_note" {
+        if !ctl_has(arguments, "what") || !ctl_has(arguments, "why") || !ctl_has(arguments, "who") { return "branch_note: what, why and who are all required (who: the owner's word with the date and the source, or the decision of the orchestrator)" }
     }
-    if name == "canopus_step_note" {
+    if name == "step_note" {
         ro done = match mget(arguments, "done") {
             Some(v) => v.bool() ?? false
             None => false
         }
-        if !ctl_has(arguments, "reason") && !done { return "canopus_step_note: give reason (what is done, what you wait for) or done=true" }
+        if !ctl_has(arguments, "reason") && !done { return "step_note: give reason (what is done, what you wait for) or done=true" }
     }
-    if name == "canopus_timer" && !ctl_has_int(arguments, "minutes") && !ctl_has_int(arguments, "seconds") { return "canopus_timer: give minutes (or seconds): a whole number more than 0" }
+    if name == "timer" && !ctl_has_int(arguments, "minutes") && !ctl_has_int(arguments, "seconds") { return "timer: give minutes (or seconds): a whole number more than 0" }
     ""
 }
 
@@ -239,7 +261,7 @@ export fn ctl_timer_seconds(minutes int, seconds int) -> int {
     total
 }
 
-/// The line of a letter for `canopus_inbox` and the service turn.
+/// The line of a letter for `inbox` and the service turn.
 export fn ctl_letter_line(l CtlLetter) -> str {
     mut tags = ""
     if l.qid.byte_len() > 0 { tags = "${tags} [вопрос ${l.qid}]" }
@@ -251,31 +273,31 @@ export fn ctl_letter_line(l CtlLetter) -> str {
 /// The words of a service turn for a letter that wakes the agent.
 export fn ctl_turn_text(l CtlLetter) -> str {
     mut tail = ""
-    if l.qid.byte_len() > 0 && l.from.byte_len() > 0 { tail = "\n(Это вопрос: ответь инструментом canopus_send {to: \"${l.from}\", reply_to: \"${l.qid}\", text: ...}.)" }
+    if l.qid.byte_len() > 0 && l.from.byte_len() > 0 { tail = "\n(Это вопрос: ответь инструментом send_message {to: \"${l.from}\", reply_to: \"${l.qid}\", text: ...}.)" }
     "[canopus] Письмо ${ctl_letter_line(l)}${tail}"
 }
 
-/// The text of `canopus_help`.
+/// The text of `help`.
 export fn ctl_help_text() -> str {
     joined([
         "Инструменты canopus_* хаба (сервер canopus). Имена и смысл — как в плагине OpenCode, но всё идёт через хаб: сессии, дочерние сессии, эпики, папки задач.\n",
-        "  canopus_list {all?}               — сессии проекта: роль, занята/свободна, задача; затем открытые задачи.\n",
-        "  canopus_role {role?}              — твоя роль (оркестратор/исполнитель/приёмщик/работник) по режиму и дереву; не назначается вызовом.\n",
-        "  canopus_send {to, text, wake?, urgent?, expect_reply?, reply_to?} — служебное письмо сессии (id, номер задачи, parent, children). wake=false — ждёт в canopus_inbox.\n",
-        "  canopus_inbox {limit?}            — твои письма: ждущие выдаются здесь, затем прочитанные.\n",
-        "  canopus_wait {target?, seconds?}  — ждать в этом же ходе (до 300 с): ответ на qid, готовность дочерней (номер, id, название), children, любое письмо.\n",
-        "  canopus_spawn {goal, criteria?, title?, touches?, kind?} — предложить работу НОВОМУ исполнителю: карточка владельцу, старт после его «да» и под лимитом route_max_active.\n",
-        "  canopus_next {prompt}            — предложить текст следующего сообщения пользователя в этой сессии.\n",
-        "  canopus_task {action, ...}        — list, show, submit, push; без action — предложение задачи (как прежде).\n",
-        "  canopus_timer {minutes|seconds, note?} — разбудить письмом через время, не держа ход.\n",
-        "  canopus_watch {on, target?, note?, minutes?} — подписка на событие (child, children, reply, idle); без on — список; action=cancel, id — снять.\n",
-        "  canopus_doctor                    — самопроверка хаба и твоей сессии.\n",
-        "  canopus_step_note {reason, minutes?, done?} — заметка шага режима в журнал.\n",
-        "  canopus_branch_note {what, why, who, directory?, branch?} — причина смены каталога или ветки (AGENTS.md, п. 6а) в журнал.\n",
-        "  canopus_progress_line {code, kind, k?, n?, text?, ...} — строка журнала хода progress.log твоей задачи: хаб сам ставит слово и время и сверяет с прежними строками сессии (start → step… → done / stop).\n",
-        "  canopus_log_line {kind, text}     — запись log.md твоей задачи с датой и временем хаба (вид из списка Канона).\n",
-        "  canopus_usage_line {code, result} — одна строка JSON учёта сессии в usage.log (когда сессия закончена).\n",
-        "  canopus_help                      — эта справка.\n",
+        "  list_sessions {all?}               — сессии проекта: роль, занята/свободна, задача; затем открытые задачи.\n",
+        "  role {role?}              — твоя роль (оркестратор/исполнитель/приёмщик/работник) по режиму и дереву; не назначается вызовом.\n",
+        "  send_message {to, text, wake?, urgent?, expect_reply?, reply_to?} — служебное письмо сессии (id, номер задачи, parent, children). wake=false — ждёт в inbox.\n",
+        "  inbox {limit?}            — твои письма: ждущие выдаются здесь, затем прочитанные.\n",
+        "  wait_event {target?, seconds?}  — ждать в этом же ходе (до 300 с): ответ на qid, готовность дочерней (номер, id, название), children, любое письмо.\n",
+        "  spawn {goal, criteria?, title?, touches?, kind?} — предложить работу НОВОМУ исполнителю: карточка владельцу, старт после его «да» и под лимитом route_max_active.\n",
+        "  next_message {prompt}            — предложить текст следующего сообщения пользователя в этой сессии.\n",
+        "  task {action, ...}        — list, show, submit, push; без action — предложение задачи (как прежде).\n",
+        "  timer {minutes|seconds, note?} — разбудить письмом через время, не держа ход.\n",
+        "  watch {on, target?, note?, minutes?} — подписка на событие (child, children, reply, idle); без on — список; action=cancel, id — снять.\n",
+        "  doctor                    — самопроверка хаба и твоей сессии.\n",
+        "  step_note {reason, minutes?, done?} — заметка шага режима в журнал.\n",
+        "  branch_note {what, why, who, directory?, branch?} — причина смены каталога или ветки (AGENTS.md, п. 6а) в журнал.\n",
+        "  progress_line {code, kind, k?, n?, text?, ...} — строка журнала хода progress.log твоей задачи: хаб сам ставит слово и время и сверяет с прежними строками сессии (start → step… → done / stop).\n",
+        "  log_line {kind, text}     — запись log.md твоей задачи с датой и временем хаба (вид из списка Канона).\n",
+        "  usage_line {code, result} — одна строка JSON учёта сессии в usage.log (когда сессия закончена).\n",
+        "  help                      — эта справка.\n",
         "Новые задачи, дети и эпики появляются только после «да» владельца на карточке; изменяющих настройки инструментов здесь нет (структура конфигов обсуждается с владельцем)."
     ], "")
 }

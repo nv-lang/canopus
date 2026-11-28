@@ -1710,3 +1710,19 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .daemon-machine { display: flex; align-items: start; flex-wrap: wrap; gap: 8px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius); }
 .daemon-machine > div { flex: 1; overflow-wrap: anywhere; }
 .daemon-credential { margin: 12px 0; }
+
+.composer-commands {
+  position: absolute; z-index: 4; inset-inline: 0; bottom: calc(100% + 8px);
+  max-height: min(16rem, 40vh); overflow-y: auto; padding: 6px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: var(--shadow-card-focus);
+}
+.composer-commands > [role="status"] { padding: 6px 8px; }
+.command-choice, .command-actions > button {
+  border: 0; background: transparent; color: inherit; font: inherit; border-radius: 6px; padding: 6px 8px;
+}
+.command-choice { display: flex; width: 100%; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; text-align: left; }
+.command-choice:hover, .command-actions > button:hover { background: var(--hover); }
+.command-name { font-family: var(--font-mono); font-weight: 600; }
+.command-source { color: var(--fg-muted); font-size: .8em; margin-inline-start: auto; }
+.command-actions { display: flex; flex-wrap: wrap; gap: 4px; }

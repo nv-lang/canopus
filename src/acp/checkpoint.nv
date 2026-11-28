@@ -142,7 +142,7 @@ fn AcpClient @checkpoint(ticket DaemonTicket) -> JsonValue {
             ro value IndexMap[str, JsonValue] = { path: JsonValue.str(image.path), mime: JsonValue.str(image.mime), name: JsonValue.str(image.name) }
             images.push(JsonValue.object(value))
         }
-        ro value IndexMap[str, JsonValue] = { request: JsonValue.str(pending.request), text: JsonValue.str(pending.text), pre: JsonValue.str(pending.pre), images: JsonValue.array(images) }
+        ro value IndexMap[str, JsonValue] = { request: JsonValue.str(pending.request), text: JsonValue.str(pending.text), pre: JsonValue.str(pending.pre), native_command: JsonValue.bool(pending.native_command), images: JsonValue.array(images) }
         queue.push(JsonValue.object(value))
     }
     put(o, "queue", JsonValue.array(queue))
@@ -214,7 +214,7 @@ fn AcpClient mut @restore_checkpoint(state JsonValue) -> () {
         for image in checkpoint_array(item, "images") {
             images.push(AcpImage { path: field_text(image, "path") ?? "", mime: field_text(image, "mime") ?? "", name: field_text(image, "name") ?? "" })
         }
-        @queue.push(AcpQueued { request: field_text(item, "request") ?? "", text: field_text(item, "text") ?? "", pre: field_text(item, "pre") ?? "", images })
+        @queue.push(AcpQueued { request: field_text(item, "request") ?? "", text: field_text(item, "text") ?? "", pre: field_text(item, "pre") ?? "", images, native_command: checkpoint_flag(item, "native_command") })
     }
     for item in checkpoint_array(state, "commands") { @commands.push(item.str() ?? "") }
 }
