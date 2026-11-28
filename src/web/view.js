@@ -1126,7 +1126,12 @@ export function createView(doc, refs, deps) {
     const catalogModels = metadata?.status === 'ready' && metadata.expiresAt > now() ? metadata.families?.[family] : undefined;
     if (family === 'codex' && catalogModels?.length) return catalogModels;
     if (!session?.draft && session?.agent === family && session.optionsAgent === family && session.options.models.length > 0) {
-      return session.options.models.map((model) => ({ ...model, efforts: session.options.efforts }));
+      const sessionModels = session.options.models.map((model) => ({ ...model, efforts: session.options.efforts }));
+      if (family !== 'zai' || !catalogModels?.length) return sessionModels;
+      // ZCode 0.97 advertises Coding Plan models under the account namespace.
+      const modelKey = (id) => id.replace(/^account:zai-individual-coding-plan\\/i, '').toLowerCase();
+      const knownModels = new Set(sessionModels.map((model) => modelKey(model.id)));
+      return [...sessionModels, ...catalogModels.filter((model) => !knownModels.has(modelKey(model.id)))];
     }
     if (catalogModels) return catalogModels;
     if (metadata && metadata.status === 'ready' && metadata.family === family && Number.isFinite(metadata.expiresAt) && metadata.expiresAt > now()) return metadata.models;

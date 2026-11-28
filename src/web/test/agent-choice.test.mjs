@@ -471,3 +471,37 @@ test('model picker uses the last ACP catalog from another session', () => {
   assert.ok(refs.main.querySelectorAll('.agent-picker-anchor .menu-item')
     .some(row => row.textContent.includes('Sonus') && !row.disabled));
 });
+
+test('a running ZCode session can see newly advertised models without duplicate legacy choices', () => {
+  const doc = createFakeDocument();
+  const refs = {};
+  for (const key of ['app', 'side', 'main', 'rail', 'status', 'overlay']) {
+    refs[key] = doc.createElement('div');
+    doc.body.append(refs[key]);
+  }
+  const family = 'zai';
+  const view = createView(doc, refs, {
+    agents: [{ id: family, label: 'Z.ai' }],
+    now: () => 3,
+    modelMetadata: () => ({
+      status: 'ready', expiresAt: 1000,
+      families: { zai: [
+        { id: 'account:zai-individual-coding-plan\\GLM-5.4', name: 'GLM-5.4' },
+        { id: 'account:zai-individual-coding-plan\\GLM-5.3', name: 'GLM-5.3' },
+      ] },
+    }),
+    handlers: { queued: () => 0, queuedItems: () => [] },
+  });
+  const model = reduce(initialModel(), { id: 'create', trace: 's', step: 0, time: 1,
+    kind: 'session_created', input: { agent: family, source: { family, model: 'glm-5.3' } } });
+  const session = model.sessions.s;
+  model.sessions.s = { ...session, optionsAgent: family, options: {
+    ...session.options, models: [{ id: 'glm-5.3', name: 'GLM-5.3' }],
+  } };
+  view.render(model, { selected: 's', projects: [], pins: {}, theme: 'system' }, { state: 'connected' });
+  refs.main.querySelector('.agent-picker-button').click();
+  const rows = refs.main.querySelectorAll('.agent-picker-anchor .menu-item');
+  assert.equal(rows.filter(row => row.textContent.includes('GLM-5.3')).length, 1);
+  assert.equal(rows.find(row => row.textContent.includes('GLM-5.3')).getAttribute('aria-checked'), 'true');
+  assert.ok(rows.some(row => row.textContent.includes('GLM-5.4') && !row.disabled));
+});
